@@ -1,0 +1,4353 @@
+WEBVTT
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/14-0
+00:00:04.684 --> 00:00:11.004
+<v Samuel Pereira>Would be great to start from MOVE-X,
+then look at the XML and on the other</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/14-1
+00:00:11.004 --> 00:00:13.364
+<v Samuel Pereira>side look at the PAS-X side.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/12-0
+00:00:12.524 --> 00:00:12.644
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/13-0
+00:00:12.684 --> 00:00:12.764
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/15-0
+00:00:13.964 --> 00:00:14.044
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/16-0
+00:00:15.124 --> 00:00:22.444
+<v Max Skarpe>So I'll start up MOVE-X here. I'll,
+need some help from Anu and Jorgen.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/18-0
+00:00:26.644 --> 00:00:30.505
+<v Max Skarpe>See,
+because when we when we did the mapping</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/18-1
+00:00:30.505 --> 00:00:31.364
+<v Max Skarpe>it was we.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/19-0
+00:00:38.324 --> 00:00:44.019
+<v Max Skarpe>We were unsure about a few rows of what
+exactly they meant or where they</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/19-1
+00:00:44.019 --> 00:00:49.324
+<v Max Skarpe>originated or things like this,
+so it's not a perfect document yet.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/20-0
+00:00:49.884 --> 00:00:52.884
+<v Samuel Pereira>OK, no problem, we can shape it up. It's.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/21-0
+00:00:54.444 --> 00:00:54.964
+<v Max Skarpe>Think.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/22-0
+00:00:56.604 --> 00:00:56.724
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/23-0
+00:00:58.444 --> 00:01:05.244
+<v Max Skarpe>So we used the article 230119.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/24-0
+00:01:08.124 --> 00:01:12.684
+<v Max Skarpe>And this is a bulk,
+so it's not a finished product used,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/24-1
+00:01:12.684 --> 00:01:16.924
+<v Max Skarpe>but maybe we'll we'll have to do that in
+the future.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/24-2
+00:01:16.924 --> 00:01:23.324
+<v Max Skarpe>Maybe we'll start with a non finished
+product and then go for a packaging order</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/24-3
+00:01:23.324 --> 00:01:25.164
+<v Max Skarpe>or something like that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/25-0
+00:01:25.844 --> 00:01:26.764
+<v Max Skarpe>See the difference?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/26-0
+00:01:27.724 --> 00:01:30.541
+<v Samuel Pereira>OK, Max,
+where can I see the article number here</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/26-1
+00:01:30.541 --> 00:01:31.404
+<v Samuel Pereira>on this screen?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/28-0
+00:01:32.084 --> 00:01:35.124
+<v Max Skarpe>Uh, no way. Yet,
+this is just a starting uh menu. So.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/27-0
+00:01:35.604 --> 00:01:35.844
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/29-0
+00:01:39.164 --> 00:01:40.044
+<v Max Skarpe>Let's see.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/30-0
+00:01:41.564 --> 00:01:43.244
+<v Max Skarpe>We can find a.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/31-0
+00:01:46.924 --> 00:01:51.857
+<v Max Skarpe>Maybe I should look in PAS-X first to
+just see if we can find an order to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/31-1
+00:01:51.857 --> 00:01:53.324
+<v Max Skarpe>follow it all the way.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/32-0
+00:01:59.364 --> 00:02:00.604
+<v Max Skarpe>So give me a second.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/33-0
+00:01:59.804 --> 00:02:03.244
+<v Anu Wingren>Can't you use the one we had on the XML?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/34-0
+00:02:04.244 --> 00:02:06.244
+<v Max Skarpe>But wasn't that aborted? I've.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/35-0
+00:02:07.084 --> 00:02:08.964
+<v Anu Wingren>Ohh, it may be worse. Ah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/37-0
+00:02:10.684 --> 00:02:12.204
+<v Anu Wingren>Yeah, it was. You're right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/39-0
+00:02:12.684 --> 00:02:18.074
+<v Max Skarpe>Yeah, but, but, but for our task,
+I think it it didn't mean it didn't</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/38-0
+00:02:17.044 --> 00:02:18.964
+<v Anu Wingren>No, no. Yeah, correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/39-1
+00:02:18.074 --> 00:02:18.844
+<v Max Skarpe>matter so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/40-0
+00:02:23.364 --> 00:02:26.564
+<v Max Skarpe>It's gonna take something that is
+finished.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/42-0
+00:02:43.044 --> 00:02:43.164
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/43-0
+00:02:46.124 --> 00:02:51.742
+<v Max Skarpe>OK, so let's see,
+we want to check the batch itself.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/43-1
+00:02:51.742 --> 00:02:58.844
+<v Max Skarpe>We want to check the article specific
+data, the article type data.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/44-0
+00:03:00.844 --> 00:03:07.884
+<v Max Skarpe>And the production line data and then the,
+uh, BOM itself.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/45-0
+00:03:09.324 --> 00:03:09.404
+<v Max Skarpe>Umm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/46-0
+00:03:18.204 --> 00:03:18.644
+<v Kim Skarpe>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/48-0
+00:03:22.844 --> 00:03:28.953
+<v Max Skarpe>So Jorgen,
+you said when it pulls data from the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/48-1
+00:03:28.953 --> 00:03:35.444
+<v Max Skarpe>batch it pulls it from PMS 001.
+I think last time.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/50-0
+00:03:37.004 --> 00:03:39.244
+<v Max Skarpe>But that's that's when the when it's
+created, right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/49-0
+00:03:37.964 --> 00:03:38.404
+<v Jorgen Andersson>I think we.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/52-0
+00:03:40.404 --> 00:03:43.404
+<v Jorgen Andersson>Yeah, that means PMS100.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/53-0
+00:03:44.724 --> 00:03:47.764
+<v Jorgen Andersson>Basically, yeah. Yeah, exactly. Yeah.
+Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/54-0
+00:03:46.044 --> 00:03:48.919
+<v Max Skarpe>Yeah. Yeah, yeah, yeah, yeah, yeah.
+This is the overview,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/54-1
+00:03:48.919 --> 00:03:51.844
+<v Max Skarpe>which you can go in afterwards and then
+check. Yeah. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/55-0
+00:03:49.564 --> 00:03:52.444
+<v Jorgen Andersson>Yeah, yes, yes, exactly.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/56-0
+00:03:55.164 --> 00:04:00.284
+<v Max Skarpe>And So what we bring from here should be.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/57-0
+00:04:01.924 --> 00:04:03.564
+<v Max Skarpe>The manufacturing order number.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/58-0
+00:04:05.364 --> 00:04:05.924
+<v Max Skarpe>Up here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/59-0
+00:04:09.204 --> 00:04:09.964
+<v Max Skarpe>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/60-0
+00:04:12.404 --> 00:04:14.684
+<v Kim Skarpe>The product number, right,
+it's coming from here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/61-0
+00:04:13.724 --> 00:04:17.764
+<v Max Skarpe>The material. Yeah. Yeah.
+The material number products number, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/63-0
+00:04:19.924 --> 00:04:22.684
+<v Kim Skarpe>And there a reference order number I
+think, correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/62-0
+00:04:20.364 --> 00:04:20.604
+<v Max Skarpe>At.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/64-0
+00:04:26.244 --> 00:04:27.404
+<v Kim Skarpe>Get the batch number right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/67-0
+00:04:28.004 --> 00:04:32.572
+<v Max Skarpe>Yeah. Yeah, yeah, yeah. What?
+What do you see it? Ohh there. There.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/67-1
+00:04:32.572 --> 00:04:34.924
+<v Max Skarpe>Yeah. The batch number. Yeah. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/65-0
+00:04:33.244 --> 00:04:34.564
+<v Kim Skarpe>Uh to the right. Yeah, right. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/68-0
+00:04:41.484 --> 00:04:45.764
+<v Max Skarpe>Batch, batch, batch.
+We also have the timestamp.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/69-0
+00:04:49.724 --> 00:04:50.284
+<v Max Skarpe>See.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/70-0
+00:04:50.764 --> 00:04:52.204
+<v Kim Skarpe>Yeah, the created date right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/71-0
+00:04:59.324 --> 00:05:03.344
+<v Max Skarpe>Because you have a planned date and a
+planned time as well,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/71-1
+00:05:03.344 --> 00:05:07.364
+<v Max Skarpe>but I don't really see it in here.
+We got the actual dates.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/72-0
+00:05:06.044 --> 00:05:11.324
+<v Jorgen Andersson>This planned planned is start date and
+finish date.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/74-0
+00:05:12.644 --> 00:05:23.084
+<v Jorgen Andersson>And the actual values and this is real</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/73-0
+00:05:14.444 --> 00:05:15.524
+<v Max Skarpe>Ohh ohh here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/76-0
+00:05:21.164 --> 00:05:27.839
+<v Max Skarpe>Ohh. OK OK. Yeah. Yeah.
+So this is the planned one. Yeah. OK. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/75-0
+00:05:25.364 --> 00:05:25.844
+<v Jorgen Andersson>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/76-1
+00:05:27.839 --> 00:05:28.244
+<v Max Skarpe>But.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/77-0
+00:05:30.164 --> 00:05:30.444
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/78-0
+00:05:33.364 --> 00:05:39.244
+<v Max Skarpe>Just gonna scroll through and see if we
+pick up any and other data from the batch.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/79-0
+00:05:40.484 --> 00:05:44.084
+<v Max Skarpe>Don't think we do in in this right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/80-0
+00:05:45.164 --> 00:05:46.804
+<v Anu Wingren>We don't have the order quantity.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/81-0
+00:05:47.844 --> 00:05:50.964
+<v Max Skarpe>Ohh, right, right, right target material.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/82-0
+00:05:53.804 --> 00:05:58.980
+<v Max Skarpe>And It's basically this,
+so I'm not entirely sure where it picks</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/82-1
+00:05:58.980 --> 00:06:02.644
+<v Max Skarpe>it up. If it's from the BOM,
+or if it's from.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/83-0
+00:06:04.804 --> 00:06:10.444
+<v Jorgen Andersson>I think that's coming from this the order,
+the product number</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/84-0
+00:06:11.124 --> 00:06:11.324
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/85-0
+00:06:11.924 --> 00:06:13.204
+<v Jorgen Andersson>The product number, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/86-0
+00:06:13.204 --> 00:06:18.164
+<v Max Skarpe>So target material and target quantity,
+how much we've ordered is.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/87-0
+00:06:18.244 --> 00:06:22.484
+<v Jorgen Andersson>Yeah, on the order. </v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/88-0
+00:06:25.924 --> 00:06:26.844
+<v Jorgen Andersson>They even want to you.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/89-0
+00:06:27.484 --> 00:06:28.284
+<v Max Skarpe>Yeah, yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/90-0
+00:06:28.724 --> 00:06:32.964
+<v Jorgen Andersson>In the middle of the screen. Yeah. Yeah,
+yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/91-0
+00:06:29.564 --> 00:06:33.067
+<v Max Skarpe>Yeah,
+I was looking for without apostrophe.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/91-1
+00:06:33.067 --> 00:06:37.606
+<v Max Skarpe>Yeah, yeah, yeah.
+And you get the unit of measurement as</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/91-2
+00:06:37.606 --> 00:06:38.004
+<v Max Skarpe>well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/92-0
+00:06:38.804 --> 00:06:39.004
+<v Jorgen Andersson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/94-0
+00:06:42.084 --> 00:06:45.876
+<v Max Skarpe>And and also yeah,
+if you change this it changes in here so</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/94-1
+00:06:45.876 --> 00:06:49.479
+<v Max Skarpe>it can always pull this latest data from
+PMS 100, right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/94-2
+00:06:49.479 --> 00:06:54.030
+<v Max Skarpe>So if you were to do any changes,
+you can just go back because it would</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/93-0
+00:06:50.284 --> 00:06:50.484
+<v Jorgen Andersson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/94-3
+00:06:54.030 --> 00:06:55.484
+<v Max Skarpe>update in here as well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/95-0
+00:06:56.524 --> 00:06:56.964
+<v Jorgen Andersson>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/96-0
+00:06:57.484 --> 00:06:57.724
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/97-0
+00:06:58.804 --> 00:07:02.080
+<v Max Skarpe>OK.
+I I think that's it from from batch data</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/97-1
+00:07:02.080 --> 00:07:02.444
+<v Max Skarpe>then.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/99-0
+00:07:06.284 --> 00:07:08.964
+<v Kim Skarpe>Yep, it looks like it and that's.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/98-0
+00:07:08.044 --> 00:07:08.724
+<v Max Skarpe>Yeah. Should we?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/100-0
+00:07:10.044 --> 00:07:11.324
+<v Max Skarpe>Move on to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/101-0
+00:07:11.484 --> 00:07:14.564
+<v Kim Skarpe>This is when the batch is created right
+at the first.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/103-0
+00:07:15.524 --> 00:07:22.794
+<v Max Skarpe>Yeah. Yeah, yeah, yeah, yeah.
+So we created them PMS 001 and then PMS</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/102-0
+00:07:18.004 --> 00:07:18.204
+<v Kim Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/103-1
+00:07:22.794 --> 00:07:27.364
+<v Max Skarpe>100 is where you can view it in
+afterwards.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/107-0
+00:07:42.404 --> 00:07:46.164
+<v Max Skarpe>And this is the article specific data.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/108-0
+00:07:47.324 --> 00:07:51.364
+<v Max Skarpe>So you have all the these parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/109-0
+00:07:52.844 --> 00:07:57.374
+<v Max Skarpe>And this were were the one.
+It's this one is a little bit special</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/109-1
+00:07:57.374 --> 00:08:00.601
+<v Max Skarpe>because depending on what type of batch
+it is,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/109-2
+00:08:00.601 --> 00:08:04.445
+<v Max Skarpe>if it's like an experimental it should
+send this value.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/109-3
+00:08:04.445 --> 00:08:08.564
+<v Max Skarpe>If it's a validation it's this value or
+if it's production.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/110-0
+00:08:08.884 --> 00:08:10.004
+<v Max Skarpe>It's this value.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/111-0
+00:08:15.684 --> 00:08:15.764
+<v Max Skarpe>Umm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/112-0
+00:08:17.684 --> 00:08:19.084
+<v Max Skarpe>And then basically.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/113-0
+00:08:20.884 --> 00:08:22.124
+<v Max Skarpe>The rest here is.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/114-0
+00:08:23.644 --> 00:08:31.124
+<v Max Skarpe>Parameters uh number parameter string
+parameter boolean.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/115-0
+00:08:32.884 --> 00:08:38.164
+<v Max Skarpe>Which are used within the order to set up
+different things.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/116-0
+00:08:47.084 --> 00:08:48.044
+<v Max Skarpe>Yeah, so these are.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/117-0
+00:08:49.684 --> 00:08:50.684
+<v Max Skarpe>boolean so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/118-0
+00:08:52.084 --> 00:08:59.352
+<v Max Skarpe>They they probably have an the activate
+or deactivate certain function in the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/118-1
+00:08:59.352 --> 00:09:00.564
+<v Max Skarpe>finished MBR.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/119-0
+00:09:03.684 --> 00:09:09.510
+<v Max Skarpe>And all the others are just giving values
+in 2 different positions in activities or</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/119-1
+00:09:09.510 --> 00:09:10.204
+<v Max Skarpe>functions.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/120-0
+00:09:15.684 --> 00:09:15.764
+<v Max Skarpe>Umm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/121-0
+00:09:19.324 --> 00:09:21.444
+<v Max Skarpe>Should we take some screenshots there
+maybe.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/124-0
+00:09:23.204 --> 00:09:27.150
+<v Samuel Pereira>We Max,
+we are recording the session so it's no</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/122-0
+00:09:23.244 --> 00:09:23.484
+<v Kim Skarpe>It would.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/123-0
+00:09:26.444 --> 00:09:29.044
+<v Max Skarpe>Ohh, right, right, right. Yeah. Yeah.
+OK OK, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/124-1
+00:09:27.150 --> 00:09:33.235
+<v Samuel Pereira>problem. Yeah. So we can take from there.
+I have one small question here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/124-2
+00:09:33.235 --> 00:09:39.484
+<v Samuel Pereira>When you look at these parameters that
+activate you know certain things in.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/126-0
+00:09:41.244 --> 00:09:45.669
+<v Samuel Pereira>PAS-X system,
+is there any documentation at all of how</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/126-1
+00:09:45.669 --> 00:09:52.348
+<v Samuel Pereira>the MBR is set up for a particular code?
+Like in this case for this article number</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/126-2
+00:09:52.348 --> 00:09:55.084
+<v Samuel Pereira>and then what is the corresponding</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/127-0
+00:09:56.164 --> 00:09:59.366
+<v Samuel Pereira>Attributes or parameters that actually
+influence them?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/127-1
+00:09:59.366 --> 00:10:01.404
+<v Samuel Pereira>Is there any documentation as such?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/128-0
+00:10:05.444 --> 00:10:06.004
+<v Kim Skarpe>I'm at the list.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/129-0
+00:10:06.564 --> 00:10:07.924
+<v Max Skarpe>It's. Yeah, it's not a.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/131-0
+00:10:09.164 --> 00:10:12.044
+<v Max Skarpe>An official document in and that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/130-0
+00:10:11.764 --> 00:10:11.884
+<v Kim Skarpe>And.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/132-0
+00:10:13.764 --> 00:10:15.244
+<v Kim Skarpe>It's the PVL list.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/134-0
+00:10:17.764 --> 00:10:21.364
+<v Kim Skarpe>That corresponds to this right for a
+specific GMBR.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/136-0
+00:10:18.564 --> 00:10:23.093
+<v Max Skarpe>Yeah, I. Yeah. Yeah, sure. Yeah. Yeah,
+I I guess you can call that uh</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/135-0
+00:10:22.764 --> 00:10:22.844
+<v Kim Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/136-1
+00:10:23.093 --> 00:10:25.164
+<v Max Skarpe>documentation as well, but yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/137-0
+00:10:26.124 --> 00:10:29.541
+<v Samuel Pereira>Yeah.
+So I think we'll need that as well to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/137-1
+00:10:29.541 --> 00:10:33.268
+<v Samuel Pereira>look at that.
+So what we are showing right now,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/137-2
+00:10:33.268 --> 00:10:38.083
+<v Samuel Pereira>we are clear that, OK,
+this is material and you're showing me</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/137-3
+00:10:38.083 --> 00:10:40.724
+<v Samuel Pereira>some material specific parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/139-0
+00:10:41.284 --> 00:10:43.484
+<v Samuel Pereira>That influence PAS-X, so this is clear.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/138-0
+00:10:41.644 --> 00:10:41.804
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/140-0
+00:10:45.764 --> 00:10:49.644
+<v Max Skarpe>Yeah, uh. Oop then we have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/141-0
+00:10:54.164 --> 00:10:55.804
+<v Max Skarpe>You know, we actually need to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/143-0
+00:10:58.164 --> 00:10:59.364
+<v Max Skarpe>It's up, I guess.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/144-0
+00:11:06.484 --> 00:11:08.884
+<v Max Skarpe>Uh, this was for like 2.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/145-0
+00:11:15.324 --> 00:11:17.324
+<v Max Skarpe>So in the BOM,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/146-0
+00:11:18.564 --> 00:11:20.844
+<v Max Skarpe>There are references to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/147-0
+00:11:22.204 --> 00:11:31.019
+<v Max Skarpe>The different planning groups,
+so this is the production type planning</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/147-1
+00:11:31.019 --> 00:11:31.764
+<v Max Skarpe>group.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/148-0
+00:11:34.044 --> 00:11:37.084
+<v Max Skarpe>And these 2 are line specific.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/149-0
+00:11:38.564 --> 00:11:44.524
+<v Max Skarpe>So both of them are in the BOM,
+but when we plan to one of the lines only</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/149-1
+00:11:44.524 --> 00:11:48.551
+<v Max Skarpe>one. Yeah.
+You send those parameters that are for</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/149-2
+00:11:48.551 --> 00:11:50.484
+<v Max Skarpe>line this specific line.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/150-0
+00:11:51.764 --> 00:11:54.897
+<v Samuel Pereira>OK.
+And and this planning groups are nothing</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/150-1
+00:11:54.897 --> 00:11:57.404
+<v Samuel Pereira>but your resources or your machines?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/151-0
+00:11:59.644 --> 00:11:59.764
+<v Max Skarpe>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/152-0
+00:12:02.884 --> 00:12:11.225
+<v Max Skarpe>I mean, if you plan it to to line 2,
+you get specific additional parameters or</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/152-1
+00:12:11.225 --> 00:12:14.604
+<v Max Skarpe>they are set up just for line 2.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/154-0
+00:12:15.604 --> 00:12:15.964
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/153-0
+00:12:15.724 --> 00:12:16.204
+<v Kim Skarpe>So they are.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/155-0
+00:12:17.204 --> 00:12:19.884
+<v Max Skarpe>Yeah, and the same for the product type.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/157-0
+00:12:18.124 --> 00:12:22.004
+<v Samuel Pereira>And and these parameters are also. Sorry.
+Yeah, go ahead.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/158-0
+00:12:22.324 --> 00:12:26.579
+<v Max Skarpe>Yeah, no, no.
+And the same goes for the article type</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/158-1
+00:12:26.579 --> 00:12:30.112
+<v Max Skarpe>there.
+So the that sets up or send specific</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/158-2
+00:12:30.112 --> 00:12:33.324
+<v Max Skarpe>parameters for the the the product type.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/159-0
+00:12:34.284 --> 00:12:38.484
+<v Samuel Pereira>OK, so in this case,
+if we have the planning group here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/160-0
+00:12:39.924 --> 00:12:43.515
+<v Samuel Pereira>And let's say there are specific
+parameters for line 2.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/160-1
+00:12:43.515 --> 00:12:47.364
+<v Samuel Pereira>Are they also maintained in MOVE-X and
+managed from MOVE-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/161-0
+00:12:50.564 --> 00:12:51.004
+<v Kim Skarpe>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/162-0
+00:12:51.204 --> 00:12:52.284
+<v Max Skarpe>Yeah, yeah, yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/163-0
+00:12:53.484 --> 00:12:58.564
+<v Max Skarpe>So MOVE-X is the master and PAS-X follows.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/164-0
+00:12:57.684 --> 00:13:00.820
+<v Samuel Pereira>OK. Can can we go to that one?
+So this is OK,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/164-1
+00:13:00.820 --> 00:13:03.684
+<v Samuel Pereira>you're already showing the planning group.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/165-0
+00:13:02.364 --> 00:13:05.339
+<v Max Skarpe>Yeah. Yeah.
+So there's a planning group and this is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/165-1
+00:13:05.339 --> 00:13:06.484
+<v Max Skarpe>for line 2 specific.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/166-0
+00:13:07.284 --> 00:13:07.484
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/167-0
+00:13:08.364 --> 00:13:09.804
+<v Kim Skarpe>All the manufacturing land area.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/168-0
+00:13:09.484 --> 00:13:10.124
+<v Max Skarpe>Oops.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/169-0
+00:13:11.604 --> 00:13:12.724
+<v Max Skarpe>It is, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/170-0
+00:13:14.444 --> 00:13:19.103
+<v Max Skarpe>And these ones I'm gonna try to explain
+it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/170-1
+00:13:19.103 --> 00:13:25.244
+<v Max Skarpe>I'm not entirely sure we've discussed
+this over and over.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/171-0
+00:13:28.364 --> 00:13:35.330
+<v Max Skarpe>Why these are needed but they are
+referenced to how many basic operations</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/171-1
+00:13:35.330 --> 00:13:39.284
+<v Max Skarpe>are linked or have a ERP position to them?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/172-0
+00:13:40.644 --> 00:13:48.244
+<v Max Skarpe>So for line 2 we have 7 basic operations
+connected to with an ERP position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/173-0
+00:13:49.524 --> 00:13:58.524
+<v Max Skarpe>And for line one, we only have 6,
+so and I am a bit unsure why it's needed.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/174-0
+00:14:00.764 --> 00:14:03.484
+<v Max Skarpe>But we have it and it doesn't really work
+without it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/175-0
+00:14:04.684 --> 00:14:04.924
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/176-0
+00:14:06.404 --> 00:14:09.759
+<v Samuel Pereira>So.
+So these are number of operations on that</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/176-1
+00:14:09.759 --> 00:14:10.124
+<v Samuel Pereira>line.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/177-0
+00:14:11.084 --> 00:14:14.862
+<v Max Skarpe>Yeah,
+that are linked with ERP position in that</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/177-1
+00:14:14.862 --> 00:14:20.371
+<v Max Skarpe>are given unique ERP positions.
+We can check look at those in the XML</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/177-2
+00:14:20.371 --> 00:14:20.844
+<v Max Skarpe>later.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/179-0
+00:14:21.644 --> 00:14:25.259
+<v Samuel Pereira>OK. Just just one question.
+So if something is going on,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/178-0
+00:14:23.804 --> 00:14:24.284
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/179-1
+00:14:25.259 --> 00:14:28.875
+<v Samuel Pereira>let's say there is,
+I'm assuming that there are multiple</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/179-2
+00:14:28.875 --> 00:14:32.364
+<v Samuel Pereira>products on the same line too or its
+product specific.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/180-0
+00:14:35.324 --> 00:14:35.444
+<v Max Skarpe>I.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/181-0
+00:14:35.364 --> 00:14:37.524
+<v Kim Skarpe>There are different products in there,
+yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/183-0
+00:14:37.164 --> 00:14:41.004
+<v Max Skarpe>Yeah, yeah, yeah.
+We have around 800 SKU 's.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/182-0
+00:14:39.164 --> 00:14:39.724
+<v Samuel Pereira>In the same.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/184-0
+00:14:42.004 --> 00:14:42.964
+<v Samuel Pereira>On line 2?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/185-0
+00:14:43.404 --> 00:14:44.044
+<v Max Skarpe>Ohh no no.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/186-0
+00:14:43.884 --> 00:14:45.964
+<v Anu Wingren>No, no, no, not on line 2</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/187-0
+00:14:47.164 --> 00:14:49.004
+<v Samuel Pereira>So there could be multiple on line 2.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/188-0
+00:14:49.844 --> 00:14:50.084
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/190-0
+00:14:50.844 --> 00:14:54.771
+<v Samuel Pereira>So,
+so out of this 7 are all 7 operations</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/190-1
+00:14:54.771 --> 00:15:01.224
+<v Samuel Pereira>always executed for each of the material
+that goes on the on line 2?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/189-0
+00:15:00.244 --> 00:15:02.684
+<v Max Skarpe>Yeah, yeah, yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/190-2
+00:15:01.224 --> 00:15:04.404
+<v Samuel Pereira>Or this can be less, more or less?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/191-0
+00:15:04.564 --> 00:15:07.924
+<v Max Skarpe>No,
+they are always always active for for</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/191-1
+00:15:07.924 --> 00:15:08.324
+<v Max Skarpe>this.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/192-0
+00:15:08.964 --> 00:15:09.764
+<v Samuel Pereira>OK, clear.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/193-0
+00:15:12.204 --> 00:15:16.564
+<v Max Skarpe>And we used the same GMBR for line 1.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/196-0
+00:15:17.644 --> 00:15:28.477
+<v Max Skarpe>But we turn off one of the work rooms,
+which has the number 7. So,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/194-0
+00:15:20.844 --> 00:15:22.324
+<v Kim Skarpe>One of the rooms, right? Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/195-0
+00:15:27.084 --> 00:15:27.284
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/196-1
+00:15:28.477 --> 00:15:33.004
+<v Max Skarpe>for line one we only have 6.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/197-0
+00:15:33.404 --> 00:15:33.644
+<v Max Skarpe>Here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/198-0
+00:15:35.924 --> 00:15:37.364
+<v Samuel Pereira>OK, understand.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/199-0
+00:15:38.524 --> 00:15:44.324
+<v Samuel Pereira>And below are the parameters for this
+line in the BOM</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/200-0
+00:15:42.084 --> 00:15:47.288
+<v Max Skarpe>Yes,
+and it's a lot of containers specific for</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/200-1
+00:15:47.288 --> 00:15:55.259
+<v Max Skarpe>that line. The room parameters,
+which rooms that differs from line one,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/200-2
+00:15:55.259 --> 00:15:55.924
+<v Max Skarpe>right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/201-0
+00:15:58.084 --> 00:16:02.552
+<v Max Skarpe>So and then you have the Boolean is
+active line one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/201-1
+00:16:02.552 --> 00:16:05.924
+<v Max Skarpe>It's not true and then line one is true.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/202-0
+00:16:07.644 --> 00:16:07.884
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/205-0
+00:16:10.724 --> 00:16:17.186
+<v Kim Skarpe>To activate and deactivate uh functions
+in the in the process system to get</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/203-0
+00:16:15.444 --> 00:16:15.724
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/205-1
+00:16:17.186 --> 00:16:22.204
+<v Kim Skarpe>specific instructions for uh, line 2,
+for instance, so on.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/204-0
+00:16:21.964 --> 00:16:22.164
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/206-0
+00:16:25.564 --> 00:16:30.897
+<v Samuel Pereira>OK, fine.
+And I have one very technical question,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/206-1
+00:16:30.897 --> 00:16:37.830
+<v Samuel Pereira>but not sure who can help.
+So every parameter what we saw was in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/206-2
+00:16:37.830 --> 00:16:40.284
+<v Samuel Pereira>that table PXOPAR what?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/207-0
+00:16:41.284 --> 00:16:48.508
+<v Samuel Pereira>I think Jorgen shared with us last week.
+So are these parameters also in that same</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/207-1
+00:16:48.508 --> 00:16:53.644
+<v Samuel Pereira>exactly same table or there are multiple
+tables like this?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/208-0
+00:16:55.284 --> 00:16:56.884
+<v Samuel Pereira>Do we have any information on that?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/209-0
+00:16:59.884 --> 00:17:05.764
+<v Max Skarpe>I'm not sure exactly what table or Jorgen
+if you have more information there.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/211-0
+00:17:10.244 --> 00:17:15.904
+<v Jorgen Andersson>I think we had.
+I sent an extractor one table PX</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/211-1
+00:17:15.904 --> 00:17:21.564
+<v Jorgen Andersson>something. Can't remember the name,
+but I don't.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/212-0
+00:17:21.004 --> 00:17:23.284
+<v Samuel Pereira>PXOPAR something?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/213-0
+00:17:23.324 --> 00:17:24.644
+<v Jorgen Andersson>Yeah. Yeah, exactly.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/215-0
+00:17:26.244 --> 00:17:30.284
+<v Jorgen Andersson>And and when I checked the PX files we
+have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/216-0
+00:17:32.564 --> 00:17:32.884
+<v Jorgen Andersson>And.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/217-0
+00:17:44.524 --> 00:17:49.924
+<v Jorgen Andersson>Well done.
+Lots of PX files and we need to check the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/218-0
+00:17:53.884 --> 00:17:53.924
+<v Jorgen Andersson>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/220-0
+00:17:57.204 --> 00:18:03.117
+<v Jorgen Andersson>You need to check the program to see
+which ones it will use this because there</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/219-0
+00:18:01.044 --> 00:18:01.284
+<v Samuel Pereira>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/220-1
+00:18:03.117 --> 00:18:07.908
+<v Jorgen Andersson>are lots of other PX files also related
+to the PAS-X interface,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/220-2
+00:18:07.908 --> 00:18:10.004
+<v Jorgen Andersson>but not necessarily used by.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/221-0
+00:18:11.884 --> 00:18:20.724
+<v Jorgen Andersson>As as parameters because basically we
+only have one table with with parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/222-0
+00:18:24.204 --> 00:18:24.444
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/223-0
+00:18:25.444 --> 00:18:25.844
+<v Jorgen Andersson>So.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/224-0
+00:18:27.244 --> 00:18:30.785
+<v Samuel Pereira>OK, no problem, Jorgen.
+I don't want to divert.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/224-1
+00:18:30.785 --> 00:18:35.434
+<v Samuel Pereira>Let's go with our flow.
+Maybe I will connect to you after this</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/224-2
+00:18:35.434 --> 00:18:40.673
+<v Samuel Pereira>call and we can check if there are any
+more tables that will have this</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/224-3
+00:18:40.673 --> 00:18:42.444
+<v Samuel Pereira>information. So I would.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/225-0
+00:18:43.364 --> 00:18:48.474
+<v Samuel Pereira>Look at this specific material and see if
+it whatever we are seeing for from the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/225-1
+00:18:48.474 --> 00:18:52.828
+<v Samuel Pereira>line perspective etcetera are also
+maintained in that table for this</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/225-2
+00:18:52.828 --> 00:18:55.604
+<v Samuel Pereira>particular planning group and the
+material.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/226-0
+00:18:59.724 --> 00:19:01.244
+<v Max Skarpe>Yeah. Should we continue?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/228-0
+00:19:01.764 --> 00:19:04.044
+<v Samuel Pereira>Yeah. Yes, Max. Sorry. Yep.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/227-0
+00:19:02.804 --> 00:19:03.124
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/229-0
+00:19:04.844 --> 00:19:14.564
+<v Max Skarpe>Whereas this is the product type specific.
+So this is the soft and sweet products.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/230-0
+00:19:16.484 --> 00:19:17.084
+<v Max Skarpe>Um.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/231-0
+00:19:18.324 --> 00:19:21.844
+<v Kim Skarpe>And this is still still the same,
+uh article number.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/232-0
+00:19:22.164 --> 00:19:23.244
+<v Max Skarpe>Yeah. Yeah, yeah, yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/233-0
+00:19:23.164 --> 00:19:26.244
+<v Kim Skarpe>But it's also connected to this uh
+permetalist so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/234-0
+00:19:25.604 --> 00:19:32.417
+<v Max Skarpe>There are multiple soft and sweet
+products and these all share the these</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/234-1
+00:19:32.417 --> 00:19:36.897
+<v Max Skarpe>settings,
+so that's why they are gathered in in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/234-2
+00:19:36.897 --> 00:19:38.764
+<v Max Skarpe>this parameter list.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/235-0
+00:19:41.244 --> 00:19:46.507
+<v Kim Skarpe>There's all of those articles that is put
+down as soft and sweet. They will,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/235-1
+00:19:46.507 --> 00:19:50.404
+<v Kim Skarpe>they will get information from this,
+this group as well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/236-0
+00:19:57.524 --> 00:20:01.684
+<v Max Skarpe>Yes. And then we have the BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/239-0
+00:20:15.284 --> 00:20:21.717
+<v Max Skarpe>And we were a bit unsure of some data
+where it's picked up and everything,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/239-1
+00:20:21.717 --> 00:20:23.004
+<v Max Skarpe>but we we have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/240-0
+00:20:24.764 --> 00:20:25.604
+<v Max Skarpe>Let's see.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/242-0
+00:20:27.084 --> 00:20:30.644
+<v Max Skarpe>No,
+we don't have the ERP position in here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/243-0
+00:20:33.804 --> 00:20:34.404
+<v Max Skarpe>PDF.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/244-0
+00:20:36.204 --> 00:20:41.124
+<v Anu Wingren>No, you don't see it here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/245-0
+00:20:42.804 --> 00:20:46.244
+<v Max Skarpe>OK,
+maybe it's better to look in and do it on.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/246-0
+00:20:54.604 --> 00:20:55.044
+<v Kim Skarpe>There we go.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/247-0
+00:20:54.644 --> 00:20:57.684
+<v Max Skarpe>It ohh it's OK. Yeah,
+it just went right and.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/248-0
+00:20:58.204 --> 00:20:58.684
+<v Anu Wingren>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/249-0
+00:21:00.244 --> 00:21:01.364
+<v Max Skarpe>OK. Yeah, so here it is.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/250-0
+00:21:03.724 --> 00:21:12.404
+<v Max Skarpe>And and this is the BOM used by MOVE-X.
+So the BOM position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/252-0
+00:21:13.924 --> 00:21:17.404
+<v Max Skarpe>Uh, you just move, move X and then.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/251-0
+00:21:14.364 --> 00:21:14.644
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/253-0
+00:21:19.084 --> 00:21:21.124
+<v Max Skarpe>PAS-X uses this.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/254-0
+00:21:23.244 --> 00:21:28.983
+<v Max Skarpe>So so this gets created, uh.
+We have several rows of of the bill of</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/254-1
+00:21:28.983 --> 00:21:30.924
+<v Max Skarpe>material in in the XML.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/255-0
+00:21:33.404 --> 00:21:41.147
+<v Max Skarpe>And these help to populate several of
+those with the quantity or the material</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/255-1
+00:21:41.147 --> 00:21:44.324
+<v Max Skarpe>number and everything like that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/256-0
+00:21:44.804 --> 00:21:51.081
+<v Samuel Pereira>How? How is this so? For example,
+when you look at the BOM component</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/256-1
+00:21:51.081 --> 00:21:56.267
+<v Samuel Pereira>position versus the PAS-X position,
+how are they mapped?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/256-2
+00:21:56.267 --> 00:21:59.724
+<v Samuel Pereira>Like for example this 5 mapped to 009.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/258-0
+00:22:00.724 --> 00:22:03.484
+<v Samuel Pereira>Yeah.
+Is this mapping maintained somewhere in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/258-1
+00:22:03.484 --> 00:22:04.564
+<v Samuel Pereira>the MOVE-X system?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/260-0
+00:22:06.524 --> 00:22:10.004
+<v Anu Wingren>Yes, we we maintain it right here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/259-0
+00:22:07.804 --> 00:22:08.604
+<v Daniel Ekstrand></v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/262-0
+00:22:11.204 --> 00:22:15.564
+<v Anu Wingren>In this page and it needs to be connected
+with the GMBR.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/263-0
+00:22:17.444 --> 00:22:20.526
+<v Samuel Pereira>OK,
+so somebody has to manually enter 005 and</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/263-1
+00:22:20.526 --> 00:22:22.804
+<v Samuel Pereira>009 while the creation of the BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/265-0
+00:22:22.924 --> 00:22:28.964
+<v Anu Wingren>No, it no, not really. But yeah, well,
+Daniel, you go.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/264-0
+00:22:23.484 --> 00:22:25.684
+<v Daniel Ekstrand>No. Go on on. Sorry.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/267-0
+00:22:30.084 --> 00:22:34.884
+<v Daniel Ekstrand>No, no, it's it's, yeah,
+so so this this column that Max is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/267-1
+00:22:34.884 --> 00:22:41.044
+<v Daniel Ekstrand>showing now this is this come these are
+the positions from these are the BOM</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/267-2
+00:22:41.044 --> 00:22:47.204
+<v Daniel Ekstrand>positions from the from the MOVE-X bill
+of material and so the value that is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/267-3
+00:22:47.204 --> 00:22:49.364
+<v Daniel Ekstrand>maintained here is the one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/268-0
+00:22:49.444 --> 00:22:53.186
+<v Daniel Ekstrand>In the next column where we have 009,
+001 and so on.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/268-1
+00:22:53.186 --> 00:22:56.928
+<v Daniel Ekstrand>So this is what Anu and I maintain for
+each article.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/268-2
+00:22:56.928 --> 00:23:02.718
+<v Daniel Ekstrand>So and this is what I what I mentioned.
+I think in the last meeting that since we</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/268-3
+00:23:02.718 --> 00:23:07.731
+<v Daniel Ekstrand>were not consistent with the BOM
+positions in the in the in the MOVE-X</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/268-4
+00:23:07.731 --> 00:23:08.084
+<v Daniel Ekstrand>BOMs.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/269-0
+00:23:09.044 --> 00:23:15.406
+<v Daniel Ekstrand>We had to have this extra table here to
+to be able to map with the with the ERP</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/269-1
+00:23:15.406 --> 00:23:21.928
+<v Daniel Ekstrand>positions in in PAS-X because they need
+to match and since we were not consistent</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/269-2
+00:23:21.928 --> 00:23:22.724
+<v Daniel Ekstrand>it MOVE-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/270-0
+00:23:23.324 --> 00:23:26.889
+<v Daniel Ekstrand>Here we for example,
+we always have the gum base,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/270-1
+00:23:26.889 --> 00:23:31.524
+<v Daniel Ekstrand>for example on the first row is always
+position 009 for example.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/271-0
+00:23:33.684 --> 00:23:38.804
+<v Daniel Ekstrand>It was not consistent in the in the
+finished goods articles.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/272-0
+00:23:40.924 --> 00:23:41.044
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/273-0
+00:23:41.324 --> 00:23:50.165
+<v Samuel Pereira>OK, so if I have to see this BOM in PAS-X,
+I would see based on the position which</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/273-1
+00:23:50.165 --> 00:23:51.444
+<v Samuel Pereira>is this one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/275-0
+00:23:52.564 --> 00:23:54.204
+<v Max Skarpe>Yeah, on the right here, PVL.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/277-0
+00:23:53.484 --> 00:23:59.504
+<v Daniel Ekstrand>Yeah. Yeah. On the right. Yeah. Yeah.
+So the rest of the information here is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/274-0
+00:23:53.524 --> 00:23:53.844
+<v Anu Wingren>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/276-0
+00:23:54.324 --> 00:23:56.124
+<v Samuel Pereira>OK, so so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/277-1
+00:23:59.504 --> 00:24:05.525
+<v Daniel Ekstrand>just picked up in this in this PXS 130.
+This is picked up from from PDS 001,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/277-2
+00:24:05.525 --> 00:24:07.324
+<v Daniel Ekstrand>from the BOM in MOVE-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/279-0
+00:24:07.604 --> 00:24:10.044
+<v Samuel Pereira>OK, so so in PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/278-0
+00:24:08.764 --> 00:24:09.044
+<v Max Skarpe>At.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/280-0
+00:24:09.484 --> 00:24:13.644
+<v Daniel Ekstrand>And a sub program probably or a sub page
+probably for for that, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/281-0
+00:24:15.084 --> 00:24:19.296
+<v Samuel Pereira>OK,
+so my question would be that when I look</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/281-1
+00:24:19.296 --> 00:24:26.316
+<v Samuel Pereira>at this PVL and the PAS-X positions,
+do they get sorted out later on where</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/281-2
+00:24:26.316 --> 00:24:33.804
+<v Samuel Pereira>which for example 001 will be first, 002,
+003 and so on, will it automatically?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/282-0
+00:24:35.044 --> 00:24:40.284
+<v Samuel Pereira>Get the reshuffle as an ascending number
+in PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/283-0
+00:24:42.644 --> 00:24:43.124
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/285-0
+00:24:45.964 --> 00:24:50.982
+<v Max Skarpe>Not sure what you mean.
+I mean they they will just go into</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/285-1
+00:24:50.982 --> 00:24:54.895
+<v Max Skarpe>wherever we have said that they should be
+so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/285-2
+00:24:54.895 --> 00:25:00.764
+<v Max Skarpe>So we use these BOM ERP positions and and
+use the material where we.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/284-0
+00:24:56.004 --> 00:24:56.064
+<v Samuel Pereira>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/286-0
+00:25:00.324 --> 00:25:02.044
+<v Samuel Pereira>Is it? Is it possible?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/288-0
+00:25:01.164 --> 00:25:05.398
+<v Daniel Ekstrand>So so it so in the GMBR, you know,
+wherever you go.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/288-1
+00:25:05.398 --> 00:25:11.912
+<v Daniel Ekstrand>This I mean when you you will reference
+this material with BOM position 009 for</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/288-2
+00:25:11.912 --> 00:25:12.564
+<v Daniel Ekstrand>example.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/287-0
+00:25:13.244 --> 00:25:13.604
+<v Samuel Pereira>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/289-0
+00:25:15.484 --> 00:25:20.936
+<v Daniel Ekstrand>So I don't know if it's if you know,
+talking about sorting is is actually</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/289-1
+00:25:20.936 --> 00:25:24.621
+<v Daniel Ekstrand>relevant.
+I mean in the in the PVL for the PAS-X,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/289-2
+00:25:24.621 --> 00:25:30.589
+<v Daniel Ekstrand>they are of course sorted because they
+are just, you know listed alphabetically,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/289-3
+00:25:30.589 --> 00:25:30.884
+<v Daniel Ekstrand>but.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/290-0
+00:25:32.524 --> 00:25:32.564
+<v Daniel Ekstrand>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/291-0
+00:25:34.004 --> 00:25:35.524
+<v Daniel Ekstrand>Is that what is that your question?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/292-0
+00:25:35.804 --> 00:25:39.612
+<v Samuel Pereira>Yeah.
+I I I just wanted to know what happens to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/292-1
+00:25:39.612 --> 00:25:45.088
+<v Samuel Pereira>this sequence if we see is it.
+Is it possible to see the same BOM in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/292-2
+00:25:45.088 --> 00:25:45.564
+<v Samuel Pereira>PAS-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/293-0
+00:25:47.724 --> 00:25:48.004
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/294-0
+00:25:48.924 --> 00:25:51.324
+<v Samuel Pereira>Maybe we can take a look at it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/295-0
+00:25:50.084 --> 00:25:55.684
+<v Max Skarpe>Yeah. Yeah. I think one of the pictures.
+So I sent was the BOM</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/296-0
+00:25:57.564 --> 00:26:00.364
+<v Max Skarpe>On that specific line, but but,
+but we can check,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/296-1
+00:26:00.364 --> 00:26:04.284
+<v Max Skarpe>I mean we can go through the XML and then
+we can check PAS-X as well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/298-0
+00:26:03.804 --> 00:26:09.897
+<v Samuel Pereira>Yeah, OK. OK. So let's park this.
+We can keep continue and then we see the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/297-0
+00:26:08.204 --> 00:26:09.524
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/298-1
+00:26:09.897 --> 00:26:11.604
+<v Samuel Pereira>same BOM there. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/299-0
+00:26:11.884 --> 00:26:16.739
+<v Max Skarpe>Yeah. And we also have here,
+we have multiple of the same positions</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/299-1
+00:26:16.739 --> 00:26:21.880
+<v Max Skarpe>and these are line specific as well.
+So depending on what line you have</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/299-2
+00:26:21.880 --> 00:26:26.164
+<v Max Skarpe>registered the order for,
+they will get sent down for line.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/300-0
+00:26:26.404 --> 00:26:27.324
+<v Max Skarpe>One or two</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/301-0
+00:26:28.404 --> 00:26:28.604
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/302-0
+00:26:33.244 --> 00:26:36.484
+<v Max Skarpe>And I think those are all the views.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/303-0
+00:26:38.524 --> 00:26:38.844
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/305-0
+00:26:40.884 --> 00:26:44.332
+<v Samuel Pereira>So we saw the material,
+we saw material specific,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/304-0
+00:26:41.004 --> 00:26:41.444
+<v Max Skarpe>Should we should.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/305-1
+00:26:44.332 --> 00:26:48.884
+<v Samuel Pereira>then we saw line specific and then now we
+are looking at the BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/306-0
+00:26:49.484 --> 00:26:51.404
+<v Max Skarpe>Yeah. And we we started with the batch.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/307-0
+00:26:53.244 --> 00:26:53.564
+<v Samuel Pereira>Right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/308-0
+00:26:53.844 --> 00:26:55.044
+<v Max Skarpe>The rush data itself.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/310-0
+00:26:56.284 --> 00:26:56.724
+<v Samuel Pereira>Right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/309-0
+00:26:57.644 --> 00:26:57.844
+<v Ishwar Ashok Jamgaonkar>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/311-0
+00:26:58.844 --> 00:27:05.750
+<v Samuel Pereira>I see that there are no recipes that are
+shared between MOVE-X and PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/311-1
+00:27:05.750 --> 00:27:13.124
+<v Samuel Pereira>Maybe it's because of how the MBR is
+managed there. So all the operation data.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/311-2
+00:27:13.124 --> 00:27:17.604
+<v Samuel Pereira>So if there are phase in phases and
+operations.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/312-0
+00:27:18.084 --> 00:27:23.564
+<v Samuel Pereira>Are they available in MOVE-X or directly
+only available in PAS-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/313-0
+00:27:28.804 --> 00:27:29.044
+<v Max Skarpe>So.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/314-0
+00:27:31.124 --> 00:27:33.004
+<v Max Skarpe>Uh, what do you mean free system?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/315-0
+00:27:34.364 --> 00:27:40.533
+<v Samuel Pereira>So. So let's take an example I have.
+When I'm just giving a very random</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/315-1
+00:27:40.533 --> 00:27:47.130
+<v Samuel Pereira>example. Now I have a production order,
+it's going on some line and it has a</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/315-2
+00:27:47.130 --> 00:27:49.444
+<v Samuel Pereira>recipe around it will have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/316-0
+00:27:49.724 --> 00:27:56.533
+<v Samuel Pereira>Operations. Let's take an example.
+Operation 10 will be like mixing right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/316-1
+00:27:56.533 --> 00:28:01.800
+<v Samuel Pereira>Operation 2 will be mixing plus grinding.
+Whatever. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/316-2
+00:28:01.800 --> 00:28:04.524
+<v Samuel Pereira>And then operation 10 will be.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/317-0
+00:28:05.564 --> 00:28:09.408
+<v Samuel Pereira>Coating. Sorry.
+Operation 30 will be coating.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/317-1
+00:28:09.408 --> 00:28:16.176
+<v Samuel Pereira>So in this case are these operations and
+it's information kept in MOVE-X or it's</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/317-2
+00:28:16.176 --> 00:28:17.764
+<v Samuel Pereira>only part of PAS-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/318-0
+00:28:19.084 --> 00:28:24.150
+<v Max Skarpe>I think it's only part of PAS-X, right?
+When you did report time for the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/318-1
+00:28:24.150 --> 00:28:24.844
+<v Max Skarpe>different.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/319-0
+00:28:28.004 --> 00:28:28.084
+<v Max Skarpe>Um.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/320-0
+00:28:30.484 --> 00:28:34.164
+<v Max Skarpe>For different stages before in MOVE-X,
+but you don't really do that anymore.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/322-0
+00:28:35.444 --> 00:28:40.536
+<v Max Skarpe>I don't think maybe the assets are still
+existing in MOVE-X,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/321-0
+00:28:35.764 --> 00:28:36.004
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/322-1
+00:28:40.536 --> 00:28:43.124
+<v Max Skarpe>but not really used in any way.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/325-0
+00:28:44.964 --> 00:28:49.019
+<v Samuel Pereira>OK, no problem. Thank you. Yeah. Thanks.
+So we will,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/323-0
+00:28:45.964 --> 00:28:46.764
+<v Max Skarpe>I I think.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/325-1
+00:28:49.019 --> 00:28:55.141
+<v Samuel Pereira>we will take a look at this BOM and also
+there you know the operations in PAS-X</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/325-2
+00:28:55.141 --> 00:28:57.284
+<v Samuel Pereira>later on once we move ahead.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/324-0
+00:28:57.924 --> 00:28:58.284
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/326-0
+00:29:00.244 --> 00:29:04.972
+<v Max Skarpe>OK,
+so we took the XML here in the a column</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/326-1
+00:29:04.972 --> 00:29:10.238
+<v Max Skarpe>and then we wrote down the different
+categories.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/326-2
+00:29:10.238 --> 00:29:14.644
+<v Max Skarpe>The batch specific article specific type.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/327-0
+00:29:15.804 --> 00:29:17.204
+<v Max Skarpe>Uh line and BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/328-0
+00:29:19.244 --> 00:29:27.424
+<v Max Skarpe>And then we try to match the the rows
+like manufacturing order number,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/328-1
+00:29:27.424 --> 00:29:29.844
+<v Max Skarpe>the ordered quantity.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/329-0
+00:29:32.884 --> 00:29:39.953
+<v Max Skarpe>The dates and time and Stefan,
+I don't know. And or Jorgen.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/329-1
+00:29:39.953 --> 00:29:45.844
+<v Max Skarpe>This is the exact time with the planning
+so 1359.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/330-0
+00:29:46.604 --> 00:29:49.684
+<v Max Skarpe>This is the date when it's sent down.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/331-0
+00:29:50.844 --> 00:29:55.204
+<v Max Skarpe>To to because it it it probably changes
+when you when you send it right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/332-0
+00:29:56.924 --> 00:30:03.404
+<v Max Skarpe>So this is not planned time.
+This is the sent date.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/333-0
+00:30:07.404 --> 00:30:12.765
+<v Stefan Nilsson>Yeah, it should be,
+since since the one below is have the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/333-1
+00:30:12.765 --> 00:30:14.244
+<v Stefan Nilsson>exact same data.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/334-0
+00:30:15.364 --> 00:30:20.907
+<v Max Skarpe>Yeah, these are continuing with, yeah,
+all the time.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/334-1
+00:30:20.907 --> 00:30:28.124
+<v Max Skarpe>But but this time is the this order was
+originally planned 20250902.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/335-0
+00:30:29.604 --> 00:30:32.324
+<v Max Skarpe>And not 4 but it was sent down the 4th.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/337-0
+00:30:35.244 --> 00:30:39.139
+<v Max Skarpe>And this is the exact time that was,
+it was planned.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/337-1
+00:30:39.139 --> 00:30:41.564
+<v Max Skarpe>So it kept the time for planning.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/339-0
+00:30:42.884 --> 00:30:47.443
+<v Max Skarpe>But it it's changed this to when it's
+actually sent down,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/338-0
+00:30:47.204 --> 00:30:47.324
+<v Stefan Nilsson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/339-1
+00:30:47.443 --> 00:30:52.631
+<v Max Skarpe>so I'm and it was sent down like 11:00 AM
+or something like that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/339-2
+00:30:52.631 --> 00:30:58.684
+<v Max Skarpe>So I I don't know why it why it's built
+like that, but that's what we found.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/340-0
+00:31:00.164 --> 00:31:05.284
+<v Stefan Nilsson>But shouldn't it be sent down at the same
+time that it was planned?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/342-0
+00:31:07.644 --> 00:31:08.924
+<v Stefan Nilsson>I mean, we have a 2 dice.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/341-0
+00:31:08.164 --> 00:31:08.724
+<v Anu Wingren>No.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/343-0
+00:31:09.164 --> 00:31:12.610
+<v Max Skarpe>No. You have a plan. No,
+you have a you have a.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/343-1
+00:31:12.610 --> 00:31:18.283
+<v Max Skarpe>You have a planned start that you just
+fill out out to get them into the right</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/343-2
+00:31:18.283 --> 00:31:21.084
+<v Max Skarpe>order in in the like the planning view.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/344-0
+00:31:22.404 --> 00:31:26.524
+<v Ishwar Ashok Jamgaonkar>Why this information is coming from where
+batch the start date or the planned date?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/345-0
+00:31:30.844 --> 00:31:35.207
+<v Max Skarpe>Yeah, that's the. Yeah, yeah, yeah. Well,
+but. But this. Yeah,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/345-1
+00:31:35.207 --> 00:31:38.254
+<v Max Skarpe>I'm not entirely sure if it's it's
+changed.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/345-2
+00:31:38.254 --> 00:31:42.202
+<v Max Skarpe>Like in in the MOVE-X when you send it
+down, it updates.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/345-3
+00:31:42.202 --> 00:31:45.804
+<v Max Skarpe>And this is like the latest update that
+is done in.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/346-0
+00:31:46.684 --> 00:31:49.871
+<v Max Skarpe>In MOVE-X,
+or if it's just the time it or date it's</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/346-1
+00:31:49.871 --> 00:31:50.484
+<v Max Skarpe>sent down.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/348-0
+00:31:50.164 --> 00:31:54.429
+<v Ishwar Ashok Jamgaonkar>I think I think we already have a date
+time in the order, right?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/348-1
+00:31:54.429 --> 00:31:59.678
+<v Ishwar Ashok Jamgaonkar>When we were looking at the date or the
+order, there was a start date and time.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/348-2
+00:31:59.678 --> 00:32:03.680
+<v Ishwar Ashok Jamgaonkar>So I think this information is coming
+from the order itself,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/347-0
+00:32:00.244 --> 00:32:00.884
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/348-3
+00:32:03.680 --> 00:32:05.124
+<v Ishwar Ashok Jamgaonkar>not not via the batch.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/350-0
+00:32:08.484 --> 00:32:13.292
+<v Ishwar Ashok Jamgaonkar>Batch is more about uh, you know,
+the expiry date or the manufacturing date</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/350-1
+00:32:13.292 --> 00:32:17.404
+<v Ishwar Ashok Jamgaonkar>when we have the you know the goods are
+created or manufactured.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/352-0
+00:32:22.164 --> 00:32:26.328
+<v Ishwar Ashok Jamgaonkar>This is a system time,
+probably when the order has been created</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/351-0
+00:32:24.644 --> 00:32:25.004
+<v Anu Wingren>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/353-0
+00:32:25.724 --> 00:32:31.902
+<v Max Skarpe>Yeah. Yeah, yeah, yeah, yeah, that's.
+That's when it's sent down that date.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/352-1
+00:32:26.328 --> 00:32:26.524
+<v Ishwar Ashok Jamgaonkar>or.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/353-1
+00:32:31.902 --> 00:32:35.804
+<v Max Skarpe>And this time is when it's generated,
+but yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/356-0
+00:32:36.964 --> 00:32:44.096
+<v Samuel Pereira>There could be also a possibility that
+first it was a planned order and then it</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/354-0
+00:32:37.284 --> 00:32:37.364
+<v Max Skarpe>So.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/356-1
+00:32:44.096 --> 00:32:48.376
+<v Samuel Pereira>was formed after the PPDS process has
+happened.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/356-2
+00:32:48.376 --> 00:32:51.764
+<v Samuel Pereira>So it could be those 2 dates possibly.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/355-0
+00:32:50.204 --> 00:32:51.484
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/358-0
+00:32:52.724 --> 00:32:55.924
+<v Max Skarpe>But this remained the same,
+but this changed.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/359-0
+00:32:54.804 --> 00:32:59.644
+<v Anu Wingren>This kind of data isn't that standard in
+SAP or OneS4.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/357-0
+00:32:55.164 --> 00:32:55.364
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/363-0
+00:32:59.804 --> 00:33:04.560
+<v Samuel Pereira>Yeah, it is standard. It's standard it.
+It will come from the. It will come.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/364-0
+00:33:00.924 --> 00:33:05.212
+<v Max Skarpe>Yeah. OK.
+So we don't need to waste time on this.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/361-0
+00:33:01.084 --> 00:33:03.244
+<v Anu Wingren>Yeah. So yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/363-1
+00:33:04.560 --> 00:33:08.204
+<v Samuel Pereira>We don't. Yeah, we don't.
+We don't worry so much, correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/362-0
+00:33:05.084 --> 00:33:07.764
+<v Anu Wingren>Yeah, I feel like we maybe don't need to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/364-1
+00:33:05.212 --> 00:33:10.102
+<v Max Skarpe>Maybe. Yeah. Yeah, yeah, yeah. Yeah.
+Let's see this one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/364-2
+00:33:10.102 --> 00:33:16.964
+<v Max Skarpe>I'm a bit unsure about. Stefan works.
+It's that workstation. Is that the plant?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/365-0
+00:33:15.404 --> 00:33:17.604
+<v Samuel Pereira>I can. No I can.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/366-0
+00:33:16.564 --> 00:33:17.524
+<v Ishwar Ashok Jamgaonkar>I think it's it's.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/369-0
+00:33:17.644 --> 00:33:22.944
+<v Stefan Nilsson>Yeah, that, this,
+that is only one we have a bit one big</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/367-0
+00:33:18.964 --> 00:33:19.924
+<v Samuel Pereira>I can explain.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/368-0
+00:33:21.164 --> 00:33:21.204
+<v Max Skarpe>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/369-1
+00:33:22.944 --> 00:33:24.804
+<v Stefan Nilsson>area for everything.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/371-0
+00:33:26.324 --> 00:33:27.724
+<v Ishwar Ashok Jamgaonkar>This is a fixed value.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/370-0
+00:33:27.044 --> 00:33:27.204
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/372-0
+00:33:28.444 --> 00:33:29.964
+<v Max Skarpe>Yeah. OK, so standard value.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/373-0
+00:33:30.324 --> 00:33:30.644
+<v Stefan Nilsson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/375-0
+00:33:30.524 --> 00:33:35.547
+<v Samuel Pereira>So it's a standard value.
+Currently I see that you your MOVE-X is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/375-1
+00:33:35.547 --> 00:33:39.581
+<v Samuel Pereira>calling it 001.
+That's your company code or a plant.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/375-2
+00:33:39.581 --> 00:33:43.082
+<v Samuel Pereira>But within SAP from the logistic
+perspective,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/374-0
+00:33:40.604 --> 00:33:41.564
+<v Max Skarpe>Hmm hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/375-3
+00:33:43.082 --> 00:33:48.866
+<v Samuel Pereira>we have something called as a company
+code and a company could have company</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/375-4
+00:33:48.866 --> 00:33:50.084
+<v Samuel Pereira>code could have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/378-0
+00:33:50.364 --> 00:33:54.649
+<v Samuel Pereira>Multiple plants associated with it and
+this is that code.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/376-0
+00:33:52.844 --> 00:33:53.324
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/378-1
+00:33:54.649 --> 00:34:00.782
+<v Samuel Pereira>So for let's say for example Helsingborg
+will be something SE01 as you will see it</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/378-2
+00:34:00.782 --> 00:34:05.364
+<v Samuel Pereira>in another STF systems and so on.
+So that will come from SAP.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/377-0
+00:34:03.124 --> 00:34:03.884
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/380-0
+00:34:05.844 --> 00:34:08.804
+<v Max Skarpe>Yeah. And I think it's plant 01 in PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/379-0
+00:34:06.004 --> 00:34:07.244
+<v Samuel Pereira>But yes, this was.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/381-0
+00:34:09.684 --> 00:34:16.847
+<v Samuel Pereira>This was also a related question I had
+last week when we're discussing that you</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/381-1
+00:34:16.847 --> 00:34:23.831
+<v Samuel Pereira>know now that you are receiving the plant
+as 001 in future. Once OneS4 comes,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/381-2
+00:34:23.831 --> 00:34:29.204
+<v Samuel Pereira>it will become a 4 digit code which will
+be let's say SE01,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/383-0
+00:34:29.244 --> 00:34:36.844
+<v Samuel Pereira>HSB or HBG1 , something of that sort.
+Will that impact PAS-X? Is there any?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/383-1
+00:34:36.844 --> 00:34:40.444
+<v Samuel Pereira>Are there changes that are required?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/382-0
+00:34:37.244 --> 00:34:38.844
+<v Stefan Nilsson>Yes it will.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/385-0
+00:34:41.324 --> 00:34:47.586
+<v Stefan Nilsson>Yes.
+So it would be good if you could send 001</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/385-1
+00:34:47.586 --> 00:34:58.244
+<v Stefan Nilsson>as it's or zero one as it's received in
+PAS-X because this area is also used in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/385-2
+00:34:58.244 --> 00:34:59.044
+<v Stefan Nilsson>PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/386-0
+00:35:00.244 --> 00:35:05.534
+<v Stefan Nilsson>for the whole plant.
+So I mean that is possibility to have 02</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/386-1
+00:35:05.534 --> 00:35:12.190
+<v Stefan Nilsson>for example we don't use that we don't
+have 01. So that is kind of a default.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/386-2
+00:35:12.190 --> 00:35:15.604
+<v Stefan Nilsson>So if we send down something else on 01,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/388-0
+00:35:16.124 --> 00:35:21.024
+<v Stefan Nilsson>Then PAS-X don't know what to do with it,
+and we need to reconfigure.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/388-1
+00:35:21.024 --> 00:35:25.084
+<v Stefan Nilsson>It's possible of course,
+but it would be good to have it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/387-0
+00:35:23.764 --> 00:35:23.964
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/389-0
+00:35:26.804 --> 00:35:32.690
+<v Samuel Pereira>And and there is and the effort to change
+all of this is very high in PAS-X,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/389-1
+00:35:32.690 --> 00:35:37.124
+<v Samuel Pereira>let's say just asking hypothetically.
+The reason is that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/390-0
+00:35:38.684 --> 00:35:44.038
+<v Samuel Pereira>We need to know the effort,
+so based on that we'll give a solution.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/390-1
+00:35:44.038 --> 00:35:48.998
+<v Samuel Pereira>So for example, if it is,
+let's say everything that is 001 now</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/390-2
+00:35:48.998 --> 00:35:55.533
+<v Samuel Pereira>needs to change to let's say HBG1 or SE01,
+will it have a very high impact on your</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/390-3
+00:35:55.533 --> 00:35:56.084
+<v Samuel Pereira>system?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/392-0
+00:35:59.684 --> 00:36:07.147
+<v Stefan Nilsson>Possible we need to look into it.
+It could be that we only need need to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/391-0
+00:36:05.164 --> 00:36:05.324
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/392-1
+00:36:07.147 --> 00:36:13.678
+<v Stefan Nilsson>change in some places,
+but also that there might be older data</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/392-2
+00:36:13.678 --> 00:36:16.684
+<v Stefan Nilsson>that is using it and then we.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/395-0
+00:36:17.884 --> 00:36:23.358
+<v Stefan Nilsson>Should not change it so but but.
+But we need to look into it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/393-0
+00:36:20.844 --> 00:36:21.164
+<v Samuel Pereira>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/394-0
+00:36:22.244 --> 00:36:25.124
+<v Samuel Pereira>No, no problem, no problem.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/395-1
+00:36:23.358 --> 00:36:25.124
+<v Stefan Nilsson>I know we we have a.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/396-0
+00:36:27.004 --> 00:36:33.129
+<v Stefan Nilsson>Meeting in an hour, an hour for something,
+and hopefully,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/396-1
+00:36:33.129 --> 00:36:40.733
+<v Stefan Nilsson>of course we have above is there,
+maybe he can answer straight ahead on</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/396-2
+00:36:40.733 --> 00:36:41.684
+<v Stefan Nilsson>that one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/397-0
+00:36:42.804 --> 00:36:47.234
+<v Samuel Pereira>OK, perfect.
+So so Stefan only asking so that if the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/397-1
+00:36:47.234 --> 00:36:51.832
+<v Samuel Pereira>effort is high,
+we could recommend to keep it the same</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/397-2
+00:36:51.832 --> 00:36:57.684
+<v Samuel Pereira>and you know keep moving keep like a
+cross mapping between 2 systems.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/399-0
+00:36:58.004 --> 00:37:02.131
+<v Samuel Pereira>But let's also discuss you.
+I would expect that you, you know,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/399-1
+00:37:02.131 --> 00:37:07.307
+<v Samuel Pereira>if your team can also take a little bit
+of a look at it and see the impact and</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/399-2
+00:37:07.307 --> 00:37:11.435
+<v Samuel Pereira>also the testing effort right,
+because it's not only changing,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/398-0
+00:37:07.364 --> 00:37:07.844
+<v Stefan Nilsson>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/399-3
+00:37:11.435 --> 00:37:13.204
+<v Samuel Pereira>it also may require a very.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/400-0
+00:37:14.604 --> 00:37:20.977
+<v Samuel Pereira>Uh, some kind of a testing effort on that.
+So just kind of look at it in the high</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/400-1
+00:37:20.977 --> 00:37:21.444
+<v Samuel Pereira>level.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/401-0
+00:37:22.404 --> 00:37:22.804
+<v Stefan Nilsson>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/402-0
+00:37:23.524 --> 00:37:27.044
+<v Samuel Pereira>OK. Thank you. Yeah, Max,
+we can move ahead.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/404-0
+00:37:27.524 --> 00:37:33.585
+<v Max Skarpe>Yes,
+this line is the status update as far as</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/404-1
+00:37:33.585 --> 00:37:38.724
+<v Max Skarpe>like we could find. Yeah, batch number.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/403-0
+00:37:34.404 --> 00:37:36.044
+<v Samuel Pereira>Yeah, that's pretty standard.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/405-0
+00:37:40.484 --> 00:37:45.804
+<v Max Skarpe>Can. Ohh that's? Yeah.
+OK batch number and then we have these.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/406-0
+00:37:48.644 --> 00:37:50.284
+<v Max Skarpe>OK, we only have one of these.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/407-0
+00:37:52.084 --> 00:37:53.604
+<v Max Skarpe>OK. And we were a bit unsure but.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/410-0
+00:37:52.644 --> 00:37:59.082
+<v Samuel Pereira>These are. Yeah, these are operations.
+Yeah. This is what I was talking about.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/408-0
+00:37:57.004 --> 00:37:57.484
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/410-1
+00:37:59.082 --> 00:38:04.135
+<v Samuel Pereira>The operations, right,
+how the operations and phases correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/409-0
+00:38:00.044 --> 00:38:01.644
+<v Max Skarpe>The ERP positions.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/410-2
+00:38:04.135 --> 00:38:07.884
+<v Samuel Pereira>Correct. So, within SAP,
+you have like a BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/411-0
+00:38:07.964 --> 00:38:12.914
+<v Samuel Pereira>And then the BOM basically is attached to
+something called as a recipe.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/411-1
+00:38:12.914 --> 00:38:16.145
+<v Samuel Pereira>So BOM is what shows,
+what are the components.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/411-2
+00:38:16.145 --> 00:38:19.926
+<v Samuel Pereira>The recipe shows what are the components,
+what is the,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/411-3
+00:38:19.926 --> 00:38:23.364
+<v Samuel Pereira>let's say the production line associated
+with it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/413-0
+00:38:23.884 --> 00:38:27.701
+<v Samuel Pereira>And what are the operations that are
+going to happen on that?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/412-0
+00:38:26.644 --> 00:38:27.124
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/413-1
+00:38:27.701 --> 00:38:30.594
+<v Samuel Pereira>So that's something called as a recipe,
+right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/413-2
+00:38:30.594 --> 00:38:35.027
+<v Samuel Pereira>And the recipe manages a lot of that,
+those parameters that you we were</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/413-3
+00:38:35.027 --> 00:38:38.413
+<v Samuel Pereira>discussing about.
+But now since we are not sending the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/413-4
+00:38:38.413 --> 00:38:38.844
+<v Samuel Pereira>recipe.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/414-0
+00:38:39.204 --> 00:38:43.954
+<v Samuel Pereira>Or the BOM. We need to understand. OK,
+how is the current system sending those</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/414-1
+00:38:43.954 --> 00:38:46.781
+<v Samuel Pereira>operations?
+And that's what we are looking at,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/414-2
+00:38:46.781 --> 00:38:48.044
+<v Samuel Pereira>but we still need to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/415-0
+00:38:50.924 --> 00:38:56.122
+<v Samuel Pereira>I would say architect that or solution
+that within SAP so that the right data is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/415-1
+00:38:56.122 --> 00:38:56.764
+<v Samuel Pereira>picked up.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/417-0
+00:38:58.044 --> 00:39:03.692
+<v Max Skarpe>Because we were a bit unsure about this
+line because we we have these numbers</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/417-1
+00:39:03.692 --> 00:39:09.485
+<v Max Skarpe>coming up later and those are linked to
+the different basic operations with the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/417-2
+00:39:09.485 --> 00:39:14.120
+<v Max Skarpe>ERP position linked to them.
+And this looks like an overview or</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/416-0
+00:39:11.524 --> 00:39:11.764
+<v Samuel Pereira>Yep.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/417-3
+00:39:14.120 --> 00:39:14.844
+<v Max Skarpe>something.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/418-0
+00:39:16.164 --> 00:39:19.995
+<v Max Skarpe>Uh, I'm not entirely sure,
+so it's not filled in with any colour or</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/418-1
+00:39:19.995 --> 00:39:20.164
+<v Max Skarpe>so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/419-0
+00:39:21.324 --> 00:39:22.164
+<v Samuel Pereira>OK, no problem.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/420-0
+00:39:22.564 --> 00:39:29.599
+<v Max Skarpe>So I will just mark it yellow here.
+Not entirely sure about that one again</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/420-1
+00:39:29.599 --> 00:39:30.444
+<v Max Skarpe>the time.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/421-0
+00:39:32.404 --> 00:39:36.764
+<v Max Skarpe>And date and then we come coming down to
+the BOM.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/422-0
+00:39:38.444 --> 00:39:42.187
+<v Max Skarpe>And never we have the quantity,
+the material number,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/422-1
+00:39:42.187 --> 00:39:46.072
+<v Max Skarpe>the unit of measurement.
+And we have the BOM position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/422-2
+00:39:46.072 --> 00:39:49.745
+<v Max Skarpe>So we're actually sending the BOM
+position as well,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/422-3
+00:39:49.745 --> 00:39:52.924
+<v Max Skarpe>which as far as I know is not used in
+PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/423-0
+00:39:55.084 --> 00:39:55.364
+<v Max Skarpe>Uh.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/424-0
+00:39:57.404 --> 00:39:58.044
+<v Max Skarpe>And these code.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/425-0
+00:39:57.604 --> 00:40:03.581
+<v Ishwar Ashok Jamgaonkar>All all these are components right of the
+of the semi finish or finished product.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/425-1
+00:40:03.581 --> 00:40:05.404
+<v Ishwar Ashok Jamgaonkar>Yeah, based on the order.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/426-0
+00:40:06.084 --> 00:40:08.204
+<v Max Skarpe>Yeah, the input.
+These are the input materials, yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/427-0
+00:40:08.924 --> 00:40:09.164
+<v Ishwar Ashok Jamgaonkar>Yeah. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/428-0
+00:40:10.204 --> 00:40:16.853
+<v Max Skarpe>So it just goes on for all the different
+materials in the same way. Let's just see.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/428-1
+00:40:16.853 --> 00:40:17.724
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/430-0
+00:40:18.124 --> 00:40:24.256
+<v Samuel Pereira>You are not using the the position of the
+BOM component, but what? Yeah,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/429-0
+00:40:23.044 --> 00:40:24.844
+<v Max Skarpe>The ERP.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/430-1
+00:40:24.256 --> 00:40:29.296
+<v Samuel Pereira>but what is the component here?
+It's from the ERP position?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/430-2
+00:40:29.296 --> 00:40:31.564
+<v Samuel Pereira>Or is it sending the PAS-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/434-0
+00:40:32.564 --> 00:40:36.630
+<v Max Skarpe>So this on these lines,
+it's the BOM position,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/434-1
+00:40:36.630 --> 00:40:43.552
+<v Max Skarpe>the MOVE-X one and as far as I know we
+don't really use it to any anything like</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/431-0
+00:40:37.764 --> 00:40:37.924
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/433-0
+00:40:40.684 --> 00:40:40.964
+<v Samuel Pereira>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/432-0
+00:40:40.844 --> 00:40:40.924
+<v Stefan Nilsson>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/434-2
+00:40:43.552 --> 00:40:44.764
+<v Max Skarpe>this row here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/435-0
+00:40:44.404 --> 00:40:54.124
+<v Samuel Pereira>OK 51,50,66. These are all PAS-X position,
+No Sorry, MOVE-X position. OK, clear.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/437-0
+00:40:52.084 --> 00:40:56.484
+<v Max Skarpe>Yes, yes,
+and all this data comes not that one,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/436-0
+00:40:52.884 --> 00:40:53.164
+<v Stefan Nilsson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/437-1
+00:40:56.484 --> 00:41:03.084
+<v Max Skarpe>but all this data comes in a another row
+which are more detailed later.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/438-0
+00:41:04.164 --> 00:41:04.644
+<v Samuel Pereira>OK. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/441-0
+00:41:05.124 --> 00:41:11.025
+<v Stefan Nilsson>So PAS-X doesn't care about the MOVE-X
+position at all.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/439-0
+00:41:10.324 --> 00:41:10.804
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/441-1
+00:41:11.025 --> 00:41:18.191
+<v Stefan Nilsson>It does care about the article number.
+That is what it cares about.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/440-0
+00:41:18.044 --> 00:41:18.324
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/441-2
+00:41:18.191 --> 00:41:20.404
+<v Stefan Nilsson>To find the material.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/442-0
+00:41:21.164 --> 00:41:21.724
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/443-0
+00:41:21.764 --> 00:41:21.964
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/444-0
+00:41:23.124 --> 00:41:23.444
+<v Max Skarpe>Yep.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/445-0
+00:41:23.284 --> 00:41:29.631
+<v Anu Wingren>We have a other another meeting in one
+minute, so we really need to drop out.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/445-1
+00:41:29.631 --> 00:41:34.187
+<v Anu Wingren>I don't need.
+I don't know if you want to continue with</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/445-2
+00:41:34.187 --> 00:41:35.164
+<v Anu Wingren>some of the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/447-0
+00:41:36.564 --> 00:41:38.084
+<v Kim Skarpe>Yeah, me and underneath to drop.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/446-0
+00:41:36.684 --> 00:41:37.924
+<v Anu Wingren>Meeting members.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/449-0
+00:41:36.804 --> 00:41:42.185
+<v Samuel Pereira>If Max is there, if Max is available,
+probably I we can spend it 5-10 minutes</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/448-0
+00:41:38.964 --> 00:41:39.364
+<v Max Skarpe>I mean.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/449-1
+00:41:42.185 --> 00:41:44.324
+<v Samuel Pereira>extra only if Max is available.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/451-0
+00:41:44.604 --> 00:41:46.164
+<v Max Skarpe>Yeah, yeah, I can. I can go on a bit.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/450-0
+00:41:44.884 --> 00:41:45.324
+<v Anu Wingren>I will.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/452-0
+00:41:46.684 --> 00:41:47.484
+<v Samuel Pereira>Yeah. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/454-0
+00:41:48.244 --> 00:41:52.804
+<v Anu Wingren>OK. So it's Kim doing this. OK. Yeah,
+yeah, yeah, sure. Yeah. Right.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/453-0
+00:41:51.364 --> 00:41:51.604
+<v Kim Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/455-0
+00:41:54.244 --> 00:41:54.644
+<v Anu Wingren>Sorry.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/457-0
+00:41:54.724 --> 00:41:58.524
+<v Samuel Pereira>OK. Thank you. Thank you so much.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/460-0
+00:41:56.324 --> 00:42:00.604
+<v Anu Wingren>Thank you.
+I don't know if you're gonna book a new</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/460-1
+00:42:00.604 --> 00:42:05.724
+<v Anu Wingren>meeting, maybe in a few days. Yeah. Yeah.
+OK. OK. Thank you.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/458-0
+00:42:01.084 --> 00:42:04.604
+<v Samuel Pereira>Yeah, maybe a follow up. Yeah,
+follow up surely. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/463-0
+00:42:06.764 --> 00:42:12.385
+<v Samuel Pereira>Thank you. OK, Max,
+if we go little bit below now these are</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/463-1
+00:42:12.385 --> 00:42:17.164
+<v Samuel Pereira>of course the operations which you
+mentioned that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/462-0
+00:42:15.244 --> 00:42:15.844
+<v Max Skarpe>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/464-0
+00:42:19.364 --> 00:42:23.084
+<v Samuel Pereira>This doesn't matter in MOVE-X, right?
+Sorry.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/466-0
+00:42:21.564 --> 00:42:26.421
+<v Max Skarpe>Ohh ohh these.
+I mean it it does because because when</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/466-1
+00:42:26.421 --> 00:42:33.706
+<v Max Skarpe>it's not set up properly it doesn't work
+so they they the I don't see the sum of</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/465-0
+00:42:30.604 --> 00:42:30.844
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/466-2
+00:42:33.706 --> 00:42:37.844
+<v Max Skarpe>the VOR numbers that we had in in the
+MOVE-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/467-0
+00:42:38.164 --> 00:42:44.484
+<v Max Skarpe>We had 7 but I don't see the number here.
+I only see that when you look at the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/467-1
+00:42:44.484 --> 00:42:49.604
+<v Max Skarpe>final position of the ERP related basic
+operations, you have 7.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/468-0
+00:42:50.764 --> 00:42:51.124
+<v Samuel Pereira>Correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/469-0
+00:42:53.444 --> 00:42:54.004
+<v Max Skarpe>So.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/470-0
+00:42:55.404 --> 00:43:01.244
+<v Max Skarpe>I I guess that needs to match for it to
+be able to to send the data.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/472-0
+00:43:03.764 --> 00:43:05.404
+<v Max Skarpe>But I'm not entirely sure why.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/471-0
+00:43:04.004 --> 00:43:04.244
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/474-0
+00:43:06.964 --> 00:43:13.781
+<v Samuel Pereira>It is basically the operation data and
+I'm assuming let's go below little bit</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/474-1
+00:43:13.781 --> 00:43:17.889
+<v Samuel Pereira>below because until here it's pretty
+standard.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/474-2
+00:43:17.889 --> 00:43:22.084
+<v Samuel Pereira>What is different is this one below right
+that?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/473-0
+00:43:21.284 --> 00:43:22.004
+<v Max Skarpe>This one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/476-0
+00:43:23.004 --> 00:43:26.884
+<v Samuel Pereira>No, line 277. This is where.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/477-0
+00:43:28.044 --> 00:43:28.404
+<v Max Skarpe>Ohh yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/478-0
+00:43:29.324 --> 00:43:35.117
+<v Samuel Pereira>Right.
+This is where we are sending all the GMBR</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/478-1
+00:43:35.117 --> 00:43:37.364
+<v Samuel Pereira>related parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/479-0
+00:43:38.444 --> 00:43:41.724
+<v Max Skarpe>Yeah, yeah, we started article specific.
+Yeah, once. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/480-0
+00:43:42.164 --> 00:43:47.044
+<v Samuel Pereira>Correct.
+Now are you sending each and every</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/481-0
+00:43:48.884 --> 00:43:53.124
+<v Samuel Pereira>Operation one more time here.
+Can you confirm that so?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/482-0
+00:43:53.764 --> 00:43:55.244
+<v Max Skarpe>Operation you mean this one?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/483-0
+00:43:57.484 --> 00:44:01.224
+<v Samuel Pereira>No. If you go down now, you had,
+let's say 7 operations,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/483-1
+00:44:01.224 --> 00:44:06.210
+<v Samuel Pereira>correct and what you're trying to do is
+you're trying basically not to you,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/483-2
+00:44:06.210 --> 00:44:11.656
+<v Samuel Pereira>but at least the system what it is trying
+to do is now it's trying to send all the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/483-3
+00:44:11.656 --> 00:44:12.444
+<v Samuel Pereira>information.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/485-0
+00:44:13.444 --> 00:44:21.432
+<v Samuel Pereira>That is collected at the parameter level.
+So here we saw these one right, the Max,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/484-0
+00:44:20.244 --> 00:44:20.724
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/485-1
+00:44:21.432 --> 00:44:26.244
+<v Samuel Pereira>and these were your material specific
+parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/486-0
+00:44:27.164 --> 00:44:27.804
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/487-0
+00:44:28.524 --> 00:44:32.152
+<v Samuel Pereira>Correct.
+So we know that some of these are article</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/487-1
+00:44:32.152 --> 00:44:38.057
+<v Samuel Pereira>and I think you have rightly mapped them.
+Let's go a little bit below what are the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/487-2
+00:44:38.057 --> 00:44:38.484
+<v Samuel Pereira>other.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/488-0
+00:44:45.644 --> 00:44:49.464
+<v Max Skarpe>Yeah.
+And this one just jumped in in the middle</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/488-1
+00:44:49.464 --> 00:44:53.524
+<v Max Skarpe>here with the target material and target
+quantity.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/489-0
+00:44:52.004 --> 00:44:55.844
+<v Samuel Pereira>This is very order specific, right?
+This is very order order.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/490-0
+00:44:55.124 --> 00:44:56.204
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/491-0
+00:44:57.364 --> 00:44:57.644
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/493-0
+00:45:00.084 --> 00:45:04.409
+<v Max Skarpe>And then it continued a bit with the
+article specific.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/492-0
+00:45:00.204 --> 00:45:01.124
+<v Samuel Pereira>OK, let's go.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/493-1
+00:45:04.409 --> 00:45:07.004
+<v Max Skarpe>And then we had the article type.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/494-0
+00:45:15.324 --> 00:45:18.284
+<v Max Skarpe>But then we get the line specific.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/497-0
+00:45:22.564 --> 00:45:30.593
+<v Samuel Pereira>Can we look at the line specific ones,
+line specific ones, so you're,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/495-0
+00:45:22.924 --> 00:45:23.364
+<v Max Skarpe>That all the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/496-0
+00:45:25.204 --> 00:45:27.684
+<v Max Skarpe>Yeah, sure. Just a second.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/497-1
+00:45:30.593 --> 00:45:36.444
+<v Samuel Pereira>am I going to see B0067 until 7 or there
+are more?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/499-0
+00:45:38.684 --> 00:45:44.545
+<v Max Skarpe>There are probably more 8 or 9,
+let's say 10. 09,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/499-1
+00:45:44.545 --> 00:45:53.924
+<v Max Skarpe>so there are there are basic operations
+that are not linked to an ERP position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/500-0
+00:45:54.204 --> 00:45:58.884
+<v Max Skarpe>So that's why they're not named in this
+101,102.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/501-0
+00:45:59.844 --> 00:46:00.044
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/503-0
+00:46:04.484 --> 00:46:08.564
+<v Max Skarpe>I think we have a a couple name,
+a couple of rooms that are not linked.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/502-0
+00:46:04.884 --> 00:46:05.164
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/504-0
+00:46:13.084 --> 00:46:18.604
+<v Samuel Pereira>OK, let's let's scroll a little bit down.
+So BOM is, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/505-0
+00:46:16.844 --> 00:46:21.445
+<v Max Skarpe>Yeah, yeah, yeah.
+And and just this is 009.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/505-1
+00:46:21.445 --> 00:46:29.288
+<v Max Skarpe>So just having the connection to the 009
+gives you this parameter. It's a,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/505-2
+00:46:29.288 --> 00:46:31.484
+<v Max Skarpe>it's a yeah, Boolean.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/506-0
+00:46:31.844 --> 00:46:39.576
+<v Max Skarpe>It's true if it's an active product and
+and you get the material number,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/506-1
+00:46:39.576 --> 00:46:45.084
+<v Max Skarpe>you get the position and you get the
+quantity. But.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/508-0
+00:46:47.604 --> 00:46:52.801
+<v Max Skarpe>The the number here.
+You don't get it translated to just 9.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/508-1
+00:46:52.801 --> 00:46:57.392
+<v Max Skarpe>It still says 5.
+It still says the the BOM position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/508-2
+00:46:57.392 --> 00:47:00.164
+<v Max Skarpe>So this is what is used for the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/507-0
+00:46:58.684 --> 00:46:58.924
+<v Samuel Pereira>And.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/509-0
+00:47:03.244 --> 00:47:07.564
+<v Max Skarpe>The ERP position like these,
+these are parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/510-0
+00:47:05.684 --> 00:47:11.358
+<v Samuel Pereira>OK. And and the BOM.
+So let's look at this one. Yeah,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/510-1
+00:47:11.358 --> 00:47:12.724
+<v Samuel Pereira>the line 605.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/511-0
+00:47:13.964 --> 00:47:15.484
+<v Samuel Pereira>Line 605.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/512-0
+00:47:15.964 --> 00:47:16.884
+<v Max Skarpe>Uh, yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/514-0
+00:47:16.884 --> 00:47:22.246
+<v Samuel Pereira>Yeah.
+So this is a BOM position and this is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/513-0
+00:47:19.564 --> 00:47:19.764
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/514-1
+00:47:22.246 --> 00:47:29.559
+<v Samuel Pereira>basically BOM 009.
+POS is the ERP position and which is the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/514-2
+00:47:29.559 --> 00:47:32.484
+<v Samuel Pereira>5 which is 5 this PAS-X?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/515-0
+00:47:33.764 --> 00:47:35.404
+<v Max Skarpe>No 9 is PAS-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/517-0
+00:47:35.804 --> 00:47:41.550
+<v Samuel Pereira>9 is PAS-X, 5 is MOVE-X. OK, OK clear now.
+Now it's kind of clear.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/516-0
+00:47:37.164 --> 00:47:39.884
+<v Max Skarpe>Yes, yeah, 5 is MOVE-X, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/517-1
+00:47:41.550 --> 00:47:45.324
+<v Samuel Pereira>I understand that it's basically trying
+to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/518-0
+00:47:43.004 --> 00:47:49.115
+<v Max Skarpe>Yeah. So yeah.
+So from that 9 that is set up in PXS 130,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/518-1
+00:47:49.115 --> 00:47:56.728
+<v Max Skarpe>it generates that this boolean parameter
+is true when it's in the BOM,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/518-2
+00:47:56.728 --> 00:47:58.444
+<v Max Skarpe>it generates the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/520-0
+00:48:00.804 --> 00:48:06.570
+<v Max Skarpe>The material number in that specific row
+and it has the number and the yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/520-1
+00:48:06.570 --> 00:48:10.764
+<v Max Skarpe>And also the BOM and and then the
+quantity or quantity.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/519-0
+00:48:11.364 --> 00:48:11.604
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/521-0
+00:48:12.804 --> 00:48:17.044
+<v Max Skarpe>So it doesn't say we don't really find
+these in in MOVE-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/522-0
+00:48:18.964 --> 00:48:22.004
+<v Max Skarpe>And not anywhere where we usually work
+anyway so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/524-0
+00:48:22.004 --> 00:48:30.610
+<v Samuel Pereira>This is this is what I could find in that
+table what was shared with me. I will.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/524-1
+00:48:30.610 --> 00:48:39.004
+<v Samuel Pereira>I will share that screen as well but
+these are coming from those PXOPAR table.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/523-0
+00:48:31.924 --> 00:48:32.244
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/525-0
+00:48:39.644 --> 00:48:40.684
+<v Max Skarpe>Yeah. Yeah. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/526-0
+00:48:40.404 --> 00:48:45.770
+<v Samuel Pereira>So what I see in PXOPAR table is
+basically the entire structure and that's</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/526-1
+00:48:45.770 --> 00:48:51.064
+<v Samuel Pereira>why you must have seen my messages.
+Please share me the screenshots and I</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/526-2
+00:48:51.064 --> 00:48:55.213
+<v Samuel Pereira>will let you know.
+Maybe we can just Scroll down a little</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/526-3
+00:48:55.213 --> 00:48:58.004
+<v Samuel Pereira>bit, look at other parameters that are.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/527-0
+00:48:57.764 --> 00:48:58.324
+<v Max Skarpe>Yep.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/529-0
+00:49:07.084 --> 00:49:11.724
+<v Max Skarpe>I think it's basically the BOM,
+then rest of the message, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/528-0
+00:49:09.884 --> 00:49:10.084
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/530-0
+00:49:11.924 --> 00:49:17.607
+<v Samuel Pereira>OK, yeah, this is fine.
+What I did not understand properly or was</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/530-1
+00:49:17.607 --> 00:49:23.204
+<v Samuel Pereira>the was the line specific.
+Can you go to the line specific once?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/531-0
+00:49:25.524 --> 00:49:27.284
+<v Max Skarpe>Yeah. Then take the up here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/532-0
+00:49:26.044 --> 00:49:28.444
+<v Samuel Pereira>Yeah. Stop. Stop. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/533-0
+00:49:35.044 --> 00:49:38.844
+<v Samuel Pereira>So what does this indicate?
+Can you explain me one example?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/534-0
+00:49:38.364 --> 00:49:44.171
+<v Max Skarpe>Yeah. Yeah, so,
+so this this is a container type and it's</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/534-1
+00:49:44.171 --> 00:49:50.979
+<v Max Skarpe>it's a parameterized to decide which
+equipment or container to use.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/534-2
+00:49:50.979 --> 00:49:54.484
+<v Max Skarpe>So on line one they will use these.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/535-0
+00:49:55.524 --> 00:50:01.409
+<v Max Skarpe>For some reason,
+there's a line one as well that is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/535-1
+00:50:01.409 --> 00:50:10.125
+<v Max Skarpe>dedicated, but it is line 2, line 2,
+line 2 and then you have the production</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/535-2
+00:50:10.125 --> 00:50:10.804
+<v Max Skarpe>units.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/536-0
+00:50:11.484 --> 00:50:13.084
+<v Max Skarpe>Uh,
+and with the code to those specific</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/536-1
+00:50:13.084 --> 00:50:15.644
+<v Max Skarpe>computers or yeah. So,
+we use the same GMBR for line 1 and line</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/536-2
+00:50:15.644 --> 00:50:17.444
+<v Max Skarpe>2 and send this line specific data like
+this</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/537-0
+00:50:23.644 --> 00:50:24.124
+<v Samuel Pereira>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/538-0
+00:50:24.364 --> 00:50:26.004
+<v Max Skarpe></v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/539-0
+00:50:27.324 --> 00:50:37.141
+<v Samuel Pereira>So So what I'm seeing is mostly your
+entire PAS-X structure is getting created</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/539-1
+00:50:37.141 --> 00:50:40.124
+<v Samuel Pereira>through this parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/540-0
+00:50:40.764 --> 00:50:41.604
+<v Max Skarpe>Yes. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/541-0
+00:50:41.924 --> 00:50:44.756
+<v Samuel Pereira>Right.
+And that is like the main driver for the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/541-1
+00:50:44.756 --> 00:50:45.524
+<v Samuel Pereira>PAS-X system.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/545-0
+00:50:46.324 --> 00:50:52.628
+<v Max Skarpe>Yeah. So in PAS-X, we have the GMBR,
+the generic master batch record,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/545-1
+00:50:52.628 --> 00:50:59.292
+<v Max Skarpe>and then we combine it with our PVL
+parameter value list and then the PVL</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/544-0
+00:50:57.764 --> 00:50:57.924
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/545-2
+00:50:59.292 --> 00:51:01.724
+<v Max Skarpe>gets populated with all of.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/546-0
+00:51:02.124 --> 00:51:06.284
+<v Max Skarpe>These values and that creates the unique
+master batch record.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/548-0
+00:51:07.324 --> 00:51:12.311
+<v Samuel Pereira>OK, yeah,
+this this now as a as a technique,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/548-1
+00:51:12.311 --> 00:51:19.404
+<v Samuel Pereira>it's understood we still need to probably
+work a little bit on.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/547-0
+00:51:15.044 --> 00:51:15.164
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/549-0
+00:51:21.084 --> 00:51:23.884
+<v Samuel Pereira>What are the exact values you know for?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/551-0
+00:51:25.164 --> 00:51:31.173
+<v Samuel Pereira>A GMBR. How do they influence?
+Because that's something I'm trying to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/550-0
+00:51:27.644 --> 00:51:28.124
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/551-1
+00:51:31.173 --> 00:51:36.325
+<v Samuel Pereira>find out. OK, Max,
+can we do you have anything else on this</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/551-2
+00:51:36.325 --> 00:51:42.764
+<v Samuel Pereira>front or we go now to the interface or we
+go to the PAS-X to see the same?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/552-0
+00:51:43.804 --> 00:51:48.444
+<v Max Skarpe>Yeah,
+we can go to PAS-X kind of say can login.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/553-0
+00:51:54.884 --> 00:51:55.244
+<v Max Skarpe>I.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/554-0
+00:51:59.484 --> 00:52:00.484
+<v Max Skarpe>In production.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/555-0
+00:52:02.004 --> 00:52:03.124
+<v Max Skarpe>It's gonna log in here as well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/559-0
+00:52:26.084 --> 00:52:29.484
+<v Max Skarpe>So let's see what's the order.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/560-0
+00:52:33.204 --> 00:52:33.724
+<v Max Skarpe>So I'm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/561-0
+00:52:36.204 --> 00:52:37.964
+<v Max Skarpe>I mean, I guess I can show.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/562-0
+00:52:40.324 --> 00:52:41.724
+<v Max Skarpe>Because this this is the order.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/565-0
+00:52:43.284 --> 00:52:50.273
+<v Max Skarpe>But it's in the in this room,
+so maybe I should show the GMBR because</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/563-0
+00:52:44.164 --> 00:52:44.324
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/565-1
+00:52:50.273 --> 00:52:56.564
+<v Max Skarpe>you need to see the like the structure.
+We have several rooms.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/564-0
+00:52:55.564 --> 00:52:55.884
+<v Samuel Pereira>Correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/578-0
+00:53:51.084 --> 00:53:55.114
+<v Max Skarpe>Yeah, so,
+so this is the structure and everyone of</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/578-1
+00:53:55.114 --> 00:53:57.564
+<v Max Skarpe>these are the basic operations.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/579-0
+00:53:59.444 --> 00:53:59.524
+<v Max Skarpe>Umm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/580-0
+00:54:02.004 --> 00:54:06.364
+<v Max Skarpe>And you can see the ERP position here.
+So it has the 101.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/581-0
+00:54:07.684 --> 00:54:14.691
+<v Max Skarpe>Next, room 102 etcetera.
+And we set up all the input materials</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/581-1
+00:54:14.691 --> 00:54:15.804
+<v Max Skarpe>like this.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/582-0
+00:54:22.284 --> 00:54:27.287
+<v Max Skarpe>So you see the ERP position here,
+it's BOM 005 plus.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/582-1
+00:54:27.287 --> 00:54:34.084
+<v Max Skarpe>Then you have the active parameter,
+the material number and the target.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/583-0
+00:54:43.044 --> 00:54:43.284
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/584-0
+00:54:45.964 --> 00:54:52.270
+<v Max Skarpe>And then each one of these have their own
+workstations or computers,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/584-1
+00:54:52.270 --> 00:54:59.673
+<v Max Skarpe>so it's hard to get like an overview of
+the of the whole order in the production</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/584-2
+00:54:59.673 --> 00:55:02.324
+<v Max Skarpe>environment because I cannot.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/585-0
+00:55:02.724 --> 00:55:05.324
+<v Max Skarpe>You know, bring every everyone of those.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/586-0
+00:55:05.364 --> 00:55:10.986
+<v Samuel Pereira>OK, I I I was expecting that OK,
+if I open an order I would see what are</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/586-1
+00:55:10.986 --> 00:55:14.684
+<v Samuel Pereira>the operations associated with it.
+So that was.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/587-0
+00:55:12.364 --> 00:55:18.143
+<v Max Skarpe>Yeah, I mean we could, yeah,
+we could like see an overview,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/587-1
+00:55:18.143 --> 00:55:19.684
+<v Max Skarpe>I guess in here.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/588-0
+00:55:23.164 --> 00:55:24.324
+<v Max Skarpe>See the batch number again.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/589-0
+00:55:31.244 --> 00:55:32.604
+<v Max Skarpe>So this is the order in.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/590-0
+00:55:35.404 --> 00:55:42.243
+<v Max Skarpe>Let's see if I right click it,
+it will get all the like the operations</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/590-1
+00:55:42.243 --> 00:55:49.564
+<v Max Skarpe>all the rooms in in one list and when I
+click them you can see all the the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/591-0
+00:55:50.564 --> 00:55:54.124
+<v Max Skarpe>Input materials and and the target
+materials etcetera.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/592-0
+00:55:57.204 --> 00:55:58.924
+<v Max Skarpe>So here, here you see the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/594-0
+00:56:00.124 --> 00:56:02.964
+<v Max Skarpe>The positions of the materials.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/595-0
+00:56:04.964 --> 00:56:08.004
+<v Max Skarpe>The names and the in the targets,
+etcetera.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/596-0
+00:56:10.884 --> 00:56:12.564
+<v Samuel Pereira>But this is the BOM, correct?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/597-0
+00:56:13.084 --> 00:56:18.164
+<v Max Skarpe>Yes. Yeah, yeah, yeah, yeah.
+The actual parameters is.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/599-0
+00:56:15.764 --> 00:56:19.987
+<v Samuel Pereira>Where can I? Where can I see it?
+Like a recipe? For example,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/599-1
+00:56:19.987 --> 00:56:21.164
+<v Samuel Pereira>if I want to see.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/598-0
+00:56:20.244 --> 00:56:20.604
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/600-0
+00:56:24.204 --> 00:56:24.724
+<v Max Skarpe>Let's see.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/601-0
+00:56:30.044 --> 00:56:37.004
+<v Max Skarpe>And we combine our GMBR with PVL and it
+creates a PMBR.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/602-0
+00:56:39.724 --> 00:56:45.484
+<v Max Skarpe>And that is the template that is used.
+So this one.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/603-0
+00:56:44.044 --> 00:56:49.204
+<v Samuel Pereira>Is that PMBR like you have like a visual
+representation of that one?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/604-0
+00:56:52.284 --> 00:56:52.364
+<v Max Skarpe>Umm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/607-0
+00:56:54.404 --> 00:56:59.862
+<v Max Skarpe>I guess that it's the most official is
+like the the GMBR,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/607-1
+00:56:59.862 --> 00:57:07.108
+<v Max Skarpe>which we were in like to see all the yeah.
+And these are the parameter list.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/605-0
+00:57:01.564 --> 00:57:01.764
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/607-2
+00:57:07.108 --> 00:57:09.084
+<v Max Skarpe>So here you have the.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/606-0
+00:57:09.004 --> 00:57:09.084
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/608-0
+00:57:09.684 --> 00:57:11.004
+<v Max Skarpe>All the parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/609-0
+00:57:14.404 --> 00:57:16.004
+<v Max Skarpe>Undecided. Then you have the value.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/610-0
+00:57:17.884 --> 00:57:26.052
+<v Max Skarpe>And and and the value here is just it's
+standard values in in PAS-X which will be</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/610-1
+00:57:26.052 --> 00:57:28.044
+<v Max Skarpe>overrided by MOVE-X.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/611-0
+00:57:28.644 --> 00:57:29.244
+<v Samuel Pereira>MOVE-X</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/612-0
+00:57:29.284 --> 00:57:37.561
+<v Max Skarpe>So. So these will all be override.
+This is just standard values that are put</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/612-1
+00:57:37.561 --> 00:57:37.884
+<v Max Skarpe>in.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/613-0
+00:57:39.084 --> 00:57:43.164
+<v Samuel Pereira>In in this example,
+how many operations are there?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/614-0
+00:57:47.244 --> 00:57:51.044
+<v Max Skarpe>What do you mean exactly by operations
+like like steps in the production?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/615-0
+00:57:49.684 --> 00:57:56.524
+<v Samuel Pereira>So so for example, yeah correct.
+So for example when I.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/617-0
+00:57:59.084 --> 00:58:05.111
+<v Samuel Pereira>When I looked at some of your data,
+that's the production order I had pasted</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/617-1
+00:58:05.111 --> 00:58:11.295
+<v Samuel Pereira>when I looked at it, it showed me OK,
+there are there is operation 20 which is</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/616-0
+00:58:05.724 --> 00:58:06.204
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/617-2
+00:58:11.295 --> 00:58:13.644
+<v Samuel Pereira>your main manufacturing phase.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/618-0
+00:58:14.084 --> 00:58:14.884
+<v Max Skarpe>Mm-hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/619-0
+00:58:15.124 --> 00:58:23.383
+<v Samuel Pereira>And so let me share my screen. Yeah,
+I'll just give an example of what was the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/619-1
+00:58:23.383 --> 00:58:30.284
+<v Samuel Pereira>information I was looking for to
+basically looked at your PXOPAR.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/620-0
+00:58:30.524 --> 00:58:36.310
+<v Samuel Pereira>This is how the list was getting
+extracted from the PVL and I tried to</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/620-1
+00:58:36.310 --> 00:58:42.422
+<v Samuel Pereira>build it so I could build it and I could
+see something like this like face</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/620-2
+00:58:42.422 --> 00:58:45.764
+<v Samuel Pereira>sequence material when I put it together.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/622-0
+00:58:50.724 --> 00:58:58.369
+<v Samuel Pereira>And this was for that particular material
+231251 and I was trying to understand, OK,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/621-0
+00:58:58.244 --> 00:58:58.724
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/622-1
+00:58:58.369 --> 00:59:04.395
+<v Samuel Pereira>how is this getting built,
+it's more or less how you're telling me</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/622-2
+00:59:04.395 --> 00:59:07.364
+<v Samuel Pereira>it's getting built like this but?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/623-0
+00:59:07.724 --> 00:59:11.613
+<v Samuel Pereira>Once it is built,
+I wanted to show I wanted to check if</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/623-1
+00:59:11.613 --> 00:59:16.684
+<v Samuel Pereira>what I was building and what displayed in
+the in your PAS-X is matching.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/624-0
+00:59:18.124 --> 00:59:18.324
+<v Max Skarpe>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/625-0
+00:59:19.444 --> 00:59:24.888
+<v Samuel Pereira>So and that was my idea that, you know,
+if I get a screenshot because within SAP</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/625-1
+00:59:24.888 --> 00:59:29.593
+<v Samuel Pereira>for example there is something called as
+a recipe, I could, you know,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/625-2
+00:59:29.593 --> 00:59:33.626
+<v Samuel Pereira>go to the recipe,
+open that recipe and the planning version</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/625-3
+00:59:33.626 --> 00:59:34.164
+<v Samuel Pereira>of that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/626-0
+00:59:35.244 --> 00:59:38.448
+<v Samuel Pereira>And I could see,
+OK what are the operations that really</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/626-1
+00:59:38.448 --> 00:59:39.764
+<v Samuel Pereira>are affecting this one?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/628-0
+00:59:40.884 --> 00:59:46.246
+<v Max Skarpe>OK. OK. Yeah.
+Because so for for these manufacturing</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/628-1
+00:59:46.246 --> 00:59:51.305
+<v Max Skarpe>orders,
+we have different preparation steps where</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/628-2
+00:59:51.305 --> 00:59:56.364
+<v Max Skarpe>we weigh and measure the input materials,
+so for.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/627-0
+00:59:53.764 --> 00:59:53.964
+<v Samuel Pereira>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/629-0
+00:59:56.844 --> 01:00:04.964
+<v Max Skarpe>Parallel steps where we use multiple
+input materials in the same step.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/631-0
+01:00:06.484 --> 01:00:12.197
+<v Max Skarpe>But these are all in in different rooms
+and and are prepared basically</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/630-0
+01:00:06.564 --> 01:00:06.924
+<v Samuel Pereira>Got it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/631-1
+01:00:12.197 --> 01:00:13.404
+<v Max Skarpe>simultaneously.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/632-0
+01:00:13.764 --> 01:00:16.044
+<v Samuel Pereira>Simultaneously clear, clear.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/633-0
+01:00:27.564 --> 01:00:27.684
+<v Stefan Nilsson>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/635-0
+01:00:27.724 --> 01:00:29.264
+<v Max Skarpe>All these 4 need - this is the unique
+room for line 2 as well so this is not</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/635-1
+01:00:29.264 --> 01:00:30.404
+<v Max Skarpe>active on line 1,
+2 parameter here and the ERP position.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/634-0
+01:00:29.884 --> 01:00:30.164
+<v Samuel Pereira>Good.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/637-0
+01:00:30.764 --> 01:00:37.251
+<v Stefan Nilsson>Yes, it's still one worked order,
+but then it's broken down into shop floor</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/637-1
+01:00:37.251 --> 01:00:39.044
+<v Stefan Nilsson>orders for each room.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/636-0
+01:00:38.324 --> 01:00:40.524
+<v Max Skarpe>Yeah. Yeah, exactly.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/638-0
+01:00:40.084 --> 01:00:45.164
+<v Samuel Pereira>Correct, right, right it.
+It is even more detailed than what you</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/638-1
+01:00:45.164 --> 01:00:48.604
+<v Samuel Pereira>would receive from SAP.
+It's splitted more.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/639-0
+01:00:48.924 --> 01:00:50.644
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/642-0
+01:00:49.964 --> 01:00:55.385
+<v Samuel Pereira>You know more operational execution way.
+Yeah. No, it makes sense.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/641-0
+01:00:53.284 --> 01:00:54.004
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/642-1
+01:00:55.385 --> 01:00:57.004
+<v Samuel Pereira>I have one question.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/643-0
+01:00:58.724 --> 01:01:02.121
+<v Samuel Pereira>Ohh, while we're talking,
+Jorgen is not there,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/643-1
+01:01:02.121 --> 01:01:06.892
+<v Samuel Pereira>but are the other sides using similar
+technique like for example?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/643-2
+01:01:06.892 --> 01:01:12.892
+<v Samuel Pereira>Are you aware if Pomezia is using GMBR&gt;
+I know they are using GMBR but are they</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/643-3
+01:01:12.892 --> 01:01:14.844
+<v Samuel Pereira>using GMBR with parameters?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/645-0
+01:01:14.924 --> 01:01:21.403
+<v Samuel Pereira>Like this, like how you guys are and are.
+Do you have any idea about other sites?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/645-1
+01:01:21.403 --> 01:01:25.907
+<v Samuel Pereira>If there are,
+they are also using the planning variable,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/645-2
+01:01:25.907 --> 01:01:27.804
+<v Samuel Pereira>the planning parameters.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/644-0
+01:01:26.884 --> 01:01:27.204
+<v Max Skarpe>Hmm.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/648-0
+01:01:29.444 --> 01:01:33.878
+<v Max Skarpe>As far as I know,
+we're pretty far ahead when it when it</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/648-1
+01:01:33.878 --> 01:01:39.869
+<v Max Skarpe>comes to these things. Most companies.
+What I've heard is that they only use</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/648-2
+01:01:39.869 --> 01:01:45.004
+<v Max Skarpe>straight master batch record like
+finished MBRs and not GMBRs to.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/647-0
+01:01:42.364 --> 01:01:43.964
+<v Samuel Pereira>Correct, correct.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/649-0
+01:01:46.164 --> 01:01:51.663
+<v Max Skarpe>So I think we're quite a bit ahead when
+it comes to those things and and we we</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/649-1
+01:01:51.663 --> 01:01:56.884
+<v Max Skarpe>really need it as well as we have like
+over 800 SKUs. So we have a lot of.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/650-0
+01:01:55.964 --> 01:02:00.647
+<v Stefan Nilsson>Yeah,
+I think the complexity mandates that we</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/650-1
+01:02:00.647 --> 01:02:08.691
+<v Stefan Nilsson>have these and we have the most complex
+setup and maintenance on this as well.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/650-2
+01:02:08.691 --> 01:02:10.524
+<v Stefan Nilsson>And today we have.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/653-0
+01:02:11.524 --> 01:02:21.484
+<v Stefan Nilsson>28 PMBRs that are effective and that
+PMBRs, we got 65 of them effective.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/652-0
+01:02:13.644 --> 01:02:16.004
+<v Max Skarpe>Yeah, yeah, I think it's 28.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/654-0
+01:02:21.484 --> 01:02:24.739
+<v Samuel Pereira>OK.
+And and this effectively takes care of</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/654-1
+01:02:24.739 --> 01:02:25.724
+<v Samuel Pereira>all the SKUs?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/655-0
+01:02:27.564 --> 01:02:27.804
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/656-0
+01:02:27.724 --> 01:02:28.444
+<v Stefan Nilsson>Yes.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/657-0
+01:02:30.004 --> 01:02:32.662
+<v Samuel Pereira>OK,
+but is pomezia using it in the similar</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/657-1
+01:02:32.662 --> 01:02:36.804
+<v Samuel Pereira>fashion or let's say Val de Reuil using
+it in the similar fashion?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/658-0
+01:02:39.844 --> 01:02:45.366
+<v Max Skarpe>I am unsure,
+but as I said the the the what I've heard</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/658-1
+01:02:45.366 --> 01:02:52.997
+<v Max Skarpe>is that the the sites that are using
+PAS-X are basically only using MBRs so</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/658-2
+01:02:52.997 --> 01:02:54.604
+<v Max Skarpe>not sending down</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/659-0
+01:02:55.804 --> 01:02:56.884
+<v Max Skarpe>Parameters at all</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/660-0
+01:02:58.604 --> 01:02:59.244
+<v Max Skarpe>From the ERP.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/662-0
+01:02:58.644 --> 01:03:03.420
+<v Samuel Pereira>Yeah, because yes,
+because when I looked at some of the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/662-1
+01:03:03.420 --> 01:03:09.305
+<v Samuel Pereira>documentation for Pomezia,
+I did not find these parameters there and</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/661-0
+01:03:09.084 --> 01:03:09.644
+<v Max Skarpe>Yeah, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/662-2
+01:03:09.305 --> 01:03:13.484
+<v Samuel Pereira>that's why we are having the next call
+later on.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/665-0
+01:03:14.244 --> 01:03:18.563
+<v Samuel Pereira>To understand,
+you know if Pomezia  did something</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/663-0
+01:03:14.524 --> 01:03:14.724
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/664-0
+01:03:17.924 --> 01:03:18.124
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/665-1
+01:03:18.563 --> 01:03:23.833
+<v Samuel Pereira>similar and so on,
+because this is this is a good concept of</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/665-2
+01:03:23.833 --> 01:03:28.844
+<v Samuel Pereira>like making everything generic,
+less maintenance however.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/666-0
+01:03:31.484 --> 01:03:39.560
+<v Samuel Pereira>We also need to make sure the data is
+passed in in this manner to the to the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/666-1
+01:03:39.560 --> 01:03:40.924
+<v Samuel Pereira>PAS-X system.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/667-0
+01:03:44.564 --> 01:03:44.764
+<v Max Skarpe>Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/669-0
+01:03:45.404 --> 01:03:54.895
+<v Stefan Nilsson>Yeah. Yeah, I believe that the process,
+it's not for the whole production in</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/668-0
+01:03:46.004 --> 01:03:46.084
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/669-1
+01:03:54.895 --> 01:04:03.524
+<v Stefan Nilsson>maybe this in one of the sites.
+But I think value they don't have it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/670-0
+01:04:04.084 --> 01:04:12.796
+<v Stefan Nilsson>Everywhere and also the process is not as
+complex or they're only using some part</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/670-1
+01:04:12.796 --> 01:04:21.084
+<v Stefan Nilsson>of the capabilities while we have it
+everywhere and everything is covered so.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/671-0
+01:04:21.924 --> 01:04:26.694
+<v Stefan Nilsson>So we have we need to have an order
+approach.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/671-1
+01:04:26.694 --> 01:04:34.367
+<v Stefan Nilsson>I cannot say if other sites are using
+something similar approach like for</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/671-2
+01:04:34.367 --> 01:04:41.004
+<v Stefan Nilsson>Washington. Maybe I don't know.
+Again this would be a question.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/672-0
+01:04:41.164 --> 01:04:47.404
+<v Stefan Nilsson>For the, it was Pablo, the main MES guy.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/673-0
+01:04:49.244 --> 01:04:49.404
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/674-0
+01:04:49.964 --> 01:04:52.684
+<v Stefan Nilsson>So we can ask him that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/675-0
+01:04:52.484 --> 01:04:55.677
+<v Samuel Pereira>Yeah. So, Stefan,
+I think you are there in the next call,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/675-1
+01:04:55.677 --> 01:04:57.604
+<v Samuel Pereira>right? We could discuss this topic.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/678-0
+01:04:56.084 --> 01:05:00.956
+<v Stefan Nilsson>Yes. Yeah, we can talk with uh,
+Oscar then I don't have any more</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/676-0
+01:04:58.724 --> 01:04:58.924
+<v Samuel Pereira>Up.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/678-1
+01:05:00.956 --> 01:05:05.604
+<v Stefan Nilsson>information with the complexity,
+but I think it is like that.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/677-0
+01:05:04.244 --> 01:05:04.564
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/679-0
+01:05:07.004 --> 01:05:10.137
+<v Samuel Pereira>OK.
+And we and you will be able to explain it</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/679-1
+01:05:10.137 --> 01:05:12.044
+<v Samuel Pereira>much better than me to them?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/681-0
+01:05:13.444 --> 01:05:19.977
+<v Stefan Nilsson>Yeah. And also like Marcus,
+he probably knows a bit about it as well,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/680-0
+01:05:13.604 --> 01:05:15.604
+<v Samuel Pereira>At least the parameter, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/681-1
+01:05:19.977 --> 01:05:21.004
+<v Stefan Nilsson>so I think.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/682-0
+01:05:21.084 --> 01:05:27.663
+<v Samuel Pereira>OK. OK then perfect, Max. Max,
+would you send us that XML so I can just</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/682-1
+01:05:27.663 --> 01:05:30.404
+<v Samuel Pereira>compare it with our recording.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/683-0
+01:05:31.364 --> 01:05:33.044
+<v Max Skarpe>Yeah, yes, yes. I'll send it.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/684-0
+01:05:33.484 --> 01:05:38.684
+<v Samuel Pereira>And and that was the actual interface
+sent by the system, correct the XML.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/685-0
+01:05:37.324 --> 01:05:40.378
+<v Max Skarpe>Uh, yes,
+but not for the exact order we checked</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/685-1
+01:05:40.378 --> 01:05:42.924
+<v Max Skarpe>now, but but the same product. Ohh yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/686-0
+01:05:44.684 --> 01:05:46.804
+<v Samuel Pereira>Ohh OK can you?</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/687-0
+01:05:48.124 --> 01:05:53.096
+<v Samuel Pereira>Mostly give probably give me also the
+extract for the same product what we</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/687-1
+01:05:53.096 --> 01:05:55.284
+<v Samuel Pereira>discussed in our call. It's easy.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/689-0
+01:05:54.564 --> 01:05:57.849
+<v Max Skarpe>Yeah. Yeah. No, no, no. It was this,
+the same product,</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/689-1
+01:05:57.849 --> 01:06:01.671
+<v Max Skarpe>the same article number as well.
+But the batch number differed.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/688-0
+01:06:01.204 --> 01:06:01.444
+<v Samuel Pereira>OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/689-2
+01:06:01.671 --> 01:06:03.284
+<v Max Skarpe>So it's it's, I mean, yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/691-0
+01:06:04.164 --> 01:06:09.048
+<v Samuel Pereira>Only the production order was different.
+Doesn't matter. Yeah. OK. OK.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/690-0
+01:06:06.324 --> 01:06:07.684
+<v Max Skarpe>Yeah, yeah, exactly. Yeah.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/691-1
+01:06:09.048 --> 01:06:12.763
+<v Samuel Pereira>Thank you guys.
+It was very helpful and I'll set up a</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/691-2
+01:06:12.763 --> 01:06:16.340
+<v Samuel Pereira>follow up.
+Let me and my team look at this from the</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/691-3
+01:06:16.340 --> 01:06:20.124
+<v Samuel Pereira>documentation and after today's call,
+I will get back.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/692-0
+01:06:21.484 --> 01:06:22.324
+<v Samuel Pereira>Thank you so much.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/694-0
+01:06:23.484 --> 01:06:25.084
+<v Ishwar Ashok Jamgaonkar>Thank you so much. Bye.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/697-0
+01:06:23.524 --> 01:06:26.604
+<v Max Skarpe>Right. Thank you. OK, bye bye.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/693-0
+01:06:24.204 --> 01:06:24.564
+<v Stefan Nilsson>Thank you.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/695-0
+01:06:25.364 --> 01:06:25.724
+<v Daniel Ekstrand>Thanks.</v>
+
+b74a983d-222b-4d4d-a94e-081d1b7d664b/698-0
+01:06:26.204 --> 01:06:27.004
+<v Max Skarpe>Thank you. Bye.</v>

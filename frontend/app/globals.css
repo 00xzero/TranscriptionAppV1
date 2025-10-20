@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__next {
+  height: 100%;
+}
+
+:root {
+  --bg: #f9fafb;           /* light background */
+  --text: #111827;         /* gray-900 */
+  --surface: #ffffff;      /* cards */
+  --surface-alt: #f3f4f6;  /* subtle areas */
+  --border: #e5e7eb;       /* gray-200 */
+  --accent: #2563eb;       /* blue-600 */
+  --muted: #6b7280;        /* gray-500 */
+}
+
+[data-theme="dark"] {
+  --bg: #0b1118;
+  --text: #e5e7eb;
+  --surface: #111827;
+  --surface-alt: #0f172a;
+  --border: #1f2937;
+  --accent: #3b82f6;
+  --muted: #cbd5e1; /* slate-300 for strong contrast on dark surface */
+}
+
+[data-theme="blue"] {
+  --bg: #0b1220;           /* deep blue */
+  --text: #dbeafe;         /* blue-100 */
+  --surface: #0f1b2d;      /* bluish card */
+  --surface-alt: #102038;  /* darker bluish */
+  --border: #1e3a8a;       /* blue-900 */
+  --accent: #60a5fa;       /* blue-400 */
+  --muted: #bfdbfe;        /* blue-200 for readable secondary text */
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* Themed utility helpers */
+.bg-surface { background-color: var(--surface); }
+.bg-surface-alt { background-color: var(--surface-alt); }
+.border-base { border-color: var(--border); }
+.text-muted { color: var(--muted); }
+.accent { color: var(--accent); }
+.bg-accent-soft { background-color: color-mix(in oklab, var(--accent) 15%, var(--surface)); }
+
+.wavesurfer { position: relative; height: 96px; overflow: hidden; }
+/* Primary wave wrapper element in various builds */
+.wavesurfer wave, .wavesurfer .wave { position: relative; display: block; height: 100%; }
+/* Overlay canvases exactly on top of each other */
+.wavesurfer canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; display: block; }

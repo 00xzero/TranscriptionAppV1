@@ -1,0 +1,5021 @@
+WEBVTT
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/53-0
+00:00:04.205 --> 00:00:10.243
+<v Mirza, Hafeez>Here onwards we started an exercise on
+transformation readiness for EMEA sites,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/53-1
+00:00:10.243 --> 00:00:14.546
+<v Mirza, Hafeez>mostly Helsingborg, Val De Reuil,
+Sezanne and Wuppertal.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/53-2
+00:00:14.546 --> 00:00:19.074
+<v Mirza, Hafeez>For these four sites,
+we conduct a Phase zero assessment to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/53-3
+00:00:19.074 --> 00:00:22.245
+<v Mirza, Hafeez>really understand the business complexity,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/110-0
+00:00:23.165 --> 00:00:28.111
+<v Mirza, Hafeez>the capability of the site to adopt the
+oneS4 template as being designed in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/110-1
+00:00:28.111 --> 00:00:31.691
+<v Mirza, Hafeez>Pomezia, Mandra,
+and the US as well as to identify any</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/110-2
+00:00:31.691 --> 00:00:36.377
+<v Mirza, Hafeez>specific unique challenges at the site
+that that we wanted to document.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/110-3
+00:00:36.377 --> 00:00:41.258
+<v Mirza, Hafeez>So we got a great deal of information
+from the site mostly on the As-Is to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/110-4
+00:00:41.258 --> 00:00:42.365
+<v Mirza, Hafeez>really understand</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/157-0
+00:00:42.445 --> 00:00:47.815
+<v Mirza, Hafeez>the complexity of the manufacturing
+process at these sites as well as whether</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/157-1
+00:00:47.815 --> 00:00:51.050
+<v Mirza, Hafeez>or not,
+what stage of maturity they are in and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/157-2
+00:00:51.050 --> 00:00:54.974
+<v Mirza, Hafeez>what would it take for them to adopt the
+OneS4 template,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/157-3
+00:00:54.974 --> 00:00:59.725
+<v Mirza, Hafeez>that was our original ask from conducting
+the Phase zero assessment.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/193-0
+00:01:00.085 --> 00:01:05.051
+<v Mirza, Hafeez>And we have a very detailed report.
+I believe most of you might have seen it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/193-1
+00:01:05.051 --> 00:01:10.145
+<v Mirza, Hafeez>If you have not seen, do let us know.
+We'll share the report out to you guys to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/193-2
+00:01:10.145 --> 00:01:13.583
+<v Mirza, Hafeez>take a look.
+Out of that report came very good detail</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/193-3
+00:01:13.583 --> 00:01:17.085
+<v Mirza, Hafeez>in terms of unique capabilities that
+these sites have.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/234-0
+00:01:17.445 --> 00:01:22.461
+<v Mirza, Hafeez>And we wanted to deep dive further more
+into those sites to ensure that OneS4</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/234-1
+00:01:22.461 --> 00:01:27.091
+<v Mirza, Hafeez>Template road map and the plan for
+deployment can be built and how much</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/234-2
+00:01:27.091 --> 00:01:30.885
+<v Mirza, Hafeez>enhancement customizations configurations
+that are needed.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/234-3
+00:01:30.885 --> 00:01:34.165
+<v Mirza, Hafeez>We wanted to document ahead of the
+release itself.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/286-0
+00:01:34.765 --> 00:01:39.274
+<v Mirza, Hafeez>Release tentatively is marked to start
+sometime end of this year,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/286-1
+00:01:39.274 --> 00:01:44.125
+<v Mirza, Hafeez>mostly beginning of next year,
+after Pomezia's go-live and hyper care.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/286-2
+00:01:44.125 --> 00:01:46.790
+<v Mirza, Hafeez>So.
+So given that we have some time to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/286-3
+00:01:46.790 --> 00:01:49.660
+<v Mirza, Hafeez>prepare,
+wish to deep dive into the major</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/286-4
+00:01:49.660 --> 00:01:53.965
+<v Mirza, Hafeez>challenges that we have identified.
+There are approximately 28</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/344-0
+00:01:54.205 --> 00:01:58.194
+<v Mirza, Hafeez>major gaps that are requested by these
+sites. Out of those,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/344-1
+00:01:58.194 --> 00:02:03.047
+<v Mirza, Hafeez>we are looking into a few of them to
+which will give us 80 to 90% of the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/344-2
+00:02:03.047 --> 00:02:08.366
+<v Mirza, Hafeez>impact on the changes that are required
+and then we wish to see what additional</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/344-3
+00:02:08.366 --> 00:02:13.020
+<v Mirza, Hafeez>details that we can collect and
+information that we can collect which</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/344-4
+00:02:13.020 --> 00:02:13.885
+<v Mirza, Hafeez>will help us.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/362-0
+00:02:14.365 --> 00:02:18.798
+<v Mirza, Hafeez>to prepare a build a plan for one is for
+deployment. So.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/362-1
+00:02:18.798 --> 00:02:24.165
+<v Mirza, Hafeez>So given that any questions before we
+deep dive into the ask itself.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/366-0
+00:02:31.765 --> 00:02:32.045
+<v Mirza, Hafeez>Nope.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/370-0
+00:02:33.965 --> 00:02:35.565
+<v Mirza, Hafeez>So yeah, Hamza, let's start then.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/411-0
+00:02:37.725 --> 00:02:43.278
+<v Hamza Abikar>Right. So just a few other things, right.
+So these are the big rocks that we're</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/411-1
+00:02:43.278 --> 00:02:46.680
+<v Hamza Abikar>going to look at right for the first two
+months,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/411-2
+00:02:46.680 --> 00:02:51.470
+<v Hamza Abikar>we will concentrate on the Helsingborg
+site, on the finance process,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/411-3
+00:02:51.470 --> 00:02:54.525
+<v Hamza Abikar>royalty lease,
+which is this session today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/448-0
+00:02:55.765 --> 00:02:58.525
+<v Hamza Abikar>At the same time, in two weeks time,
+we will,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/448-1
+00:02:58.525 --> 00:03:03.145
+<v Hamza Abikar>once the French teams in Val-de-Reuil are
+back, we will start with the Toll,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/448-2
+00:03:03.145 --> 00:03:07.345
+<v Hamza Abikar>Non-toll operations on one same physical
+plant. I think that's a big,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/448-3
+00:03:07.345 --> 00:03:10.165
+<v Hamza Abikar>big rock from the Val-de-Reuil side of
+things.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/485-0
+00:03:10.725 --> 00:03:16.285
+<v Hamza Abikar>And then once September hits around,
+we will be able to concentrate on the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/485-1
+00:03:16.285 --> 00:03:22.142
+<v Hamza Abikar>more manufacturing side of big rocks,
+including the supermarket physical setup</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/485-2
+00:03:22.142 --> 00:03:26.294
+<v Hamza Abikar>and the Kanban,
+as well as the Pas X integration across</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/485-3
+00:03:26.294 --> 00:03:27.925
+<v Hamza Abikar>the Helsingborg sites.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/523-0
+00:03:28.845 --> 00:03:34.462
+<v Hamza Abikar>At the same time, for Val de Reuil,
+which has a few more big rocksmto address,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/523-1
+00:03:34.462 --> 00:03:40.009
+<v Hamza Abikar>we want to, once we address the toll,
+non-toll situation and that should roll</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/523-2
+00:03:40.009 --> 00:03:44.205
+<v Hamza Abikar>over to the material identifier for
+Pharma consumer goods.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/554-0
+00:03:44.765 --> 00:03:50.891
+<v Hamza Abikar>As well as helping with the purchase of
+raw materials of J&amp;J, Belgium,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/554-1
+00:03:50.891 --> 00:03:57.017
+<v Hamza Abikar>also the QA release of EU Imports,
+which is a big factor as part of Val de</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/554-2
+00:03:57.017 --> 00:04:00.285
+<v Hamza Abikar>Reuil site as well as finishing off with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/594-0
+00:04:00.885 --> 00:04:06.496
+<v Hamza Abikar>The GLS third Party logistics integration
+for finish shipment of finished goods to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/594-1
+00:04:06.496 --> 00:04:11.229
+<v Hamza Abikar>distribution sites and whatnot.
+So these are the big rocks that we're</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/594-2
+00:04:11.229 --> 00:04:16.570
+<v Hamza Abikar>going to focus on for the next three or
+so months and these, like Hafeez said,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/594-3
+00:04:16.570 --> 00:04:18.125
+<v Hamza Abikar>these big rocks will be</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/623-0
+00:04:18.685 --> 00:04:26.265
+<v Hamza Abikar>the biggest challenge that we'll face for
+getting the sites ready for the S4</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/623-1
+00:04:26.265 --> 00:04:33.451
+<v Hamza Abikar>transformation and just a quick
+understanding of the sessions and how we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/623-2
+00:04:33.451 --> 00:04:35.125
+<v Hamza Abikar>plan to run them.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/643-0
+00:04:35.805 --> 00:04:41.365
+<v Hamza Abikar>So essentially for we've broken down some
+of these big rocks on the slide below.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/646-0
+00:04:40.445 --> 00:04:43.725
+<v Hrishi R>Hamza, there's a question from Lisa,
+sorry to interrupt.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/686-0
+00:04:45.125 --> 00:04:48.699
+<v &#197;refors, Lisa>Thank you.
+Just going back to to the names on this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/686-1
+00:04:48.699 --> 00:04:52.905
+<v &#197;refors, Lisa>overall breakdown,
+I can see that there needs to be a shift</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/686-2
+00:04:52.905 --> 00:04:58.442
+<v &#197;refors, Lisa>in the names from the site in Helsingborg,
+because I mean you have under plan,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/686-3
+00:04:58.442 --> 00:05:00.405
+<v &#197;refors, Lisa>Howayda and Cecillia Hansen.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/709-0
+00:05:01.205 --> 00:05:05.897
+<v &#197;refors, Lisa>But Cecillia Hansen is no longer working
+within the company and she supported the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/709-1
+00:05:05.897 --> 00:05:09.045
+<v &#197;refors, Lisa>finance work stream.
+So here we should have Max Casen.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/746-0
+00:05:10.085 --> 00:05:14.799
+<v Hamza Abikar>Of course I can update that in the case
+and and Max is on the call.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/723-0
+00:05:11.045 --> 00:05:13.125
+<v &#197;refors, Lisa>Yeah, yeah, yeah. Thank you.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/725-0
+00:05:13.525 --> 00:05:14.245
+<v Hrishi R>Sure, Lisa.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/746-1
+00:05:14.799 --> 00:05:19.445
+<v Hamza Abikar>I believe he has the invite. So yeah,
+I can give that a quick one.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/749-0
+00:05:15.045 --> 00:05:20.730
+<v &#197;refors, Lisa>Yeah, yeah. Here's here's. Yeah.
+So just for clarity, just for clarity,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/740-0
+00:05:18.725 --> 00:05:18.845
+<v Cas&#232;n, Max>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/749-1
+00:05:20.730 --> 00:05:21.125
+<v &#197;refors, Lisa>yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/751-0
+00:05:21.805 --> 00:05:22.725
+<v Hamza Abikar>Thanks Lisa.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/753-0
+00:05:22.005 --> 00:05:24.445
+<v Hrishi R>Perfect. Thanks. Thanks, Lisa. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/809-0
+00:05:27.485 --> 00:05:32.006
+<v Hamza Abikar>All right.
+So continuing with just the structure of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/809-1
+00:05:32.006 --> 00:05:37.831
+<v Hamza Abikar>the workshops that we have,
+essentially we see it as a few phases.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/809-2
+00:05:37.831 --> 00:05:43.482
+<v Hamza Abikar>So for our session one,
+we want to give an recap of what we know</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/809-3
+00:05:43.482 --> 00:05:46.525
+<v Hamza Abikar>from the Phase Zero assessment and.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/854-0
+00:05:47.125 --> 00:05:51.651
+<v Hamza Abikar>As well as the oneS4 template that we
+understand so far and just run a further</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/854-1
+00:05:51.651 --> 00:05:56.120
+<v Hamza Abikar>deep dive of anything that we haven't
+covered as part of the Phase Zero phase</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/854-2
+00:05:56.120 --> 00:05:59.845
+<v Hamza Abikar>zero, we went into quick detail,
+but we covered a lot of things.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/854-3
+00:05:59.845 --> 00:06:04.543
+<v Hamza Abikar>Now we're honing in into these big rocks
+and essentially trying to get extract as</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/854-4
+00:06:04.543 --> 00:06:06.205
+<v Hamza Abikar>much information as possible.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/884-0
+00:06:06.565 --> 00:06:13.390
+<v Hamza Abikar>Needed for to understand what we have so
+far as As-Is as well as the S4 template</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/884-1
+00:06:13.390 --> 00:06:19.795
+<v Hamza Abikar>that rolls onto our second session.
+As we continue that As-Is deep dive and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/884-2
+00:06:19.795 --> 00:06:21.565
+<v Hamza Abikar>then have a first cup</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/918-0
+00:06:22.405 --> 00:06:28.535
+<v Hamza Abikar>Of a gap analysis to understand what is
+missing between the As-Is and the oneS4</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/918-1
+00:06:28.535 --> 00:06:32.520
+<v Hamza Abikar>template,
+as well as a brainstorm of the key design</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/918-2
+00:06:32.520 --> 00:06:36.965
+<v Hamza Abikar>sessions for each big rock,
+and then sessions 3 and 4, we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/962-0
+00:06:37.885 --> 00:06:41.395
+<v Hamza Abikar>Mature these design stations that we have
+right,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/962-1
+00:06:41.395 --> 00:06:47.341
+<v Hamza Abikar>we take inputs from the BPO and TPO teams
+as well as the sites and then come to by</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/962-2
+00:06:47.341 --> 00:06:51.997
+<v Hamza Abikar>the end of session four,
+we should have a decision on how we can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/962-3
+00:06:51.997 --> 00:06:53.645
+<v Hamza Abikar>navigate this big rock.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1009-0
+00:06:54.205 --> 00:07:00.403
+<v Hamza Abikar>Which leads into Session 5 where we
+report our findings to the BPOTPO leads</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1009-1
+00:07:00.403 --> 00:07:04.154
+<v Hamza Abikar>including the Arges and VINNIES of the
+world.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1009-2
+00:07:04.154 --> 00:07:08.395
+<v Hamza Abikar>Some big rocks are bigger than others.
+For example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1009-3
+00:07:08.395 --> 00:07:13.125
+<v Hamza Abikar>the toll on toll manufacturing is quite a
+large big rock.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1042-0
+00:07:13.605 --> 00:07:17.765
+<v Hamza Abikar>So for those sessions we have some repeat
+sessions.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1042-1
+00:07:17.765 --> 00:07:24.165
+<v Hamza Abikar>So for example session one and Session 2
+here might be doubled in that case and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1042-2
+00:07:24.165 --> 00:07:29.685
+<v Hamza Abikar>we'll we'll focus a full week on either
+gathering just the As-Is or.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1052-0
+00:07:30.725 --> 00:07:35.965
+<v Hamza Abikar>Having that idealisation of the to-be
+design.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1091-0
+00:07:37.365 --> 00:07:42.352
+<v Hamza Abikar>So that is the general structure of how
+we want to follow these sessions and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1091-1
+00:07:42.352 --> 00:07:45.850
+<v Hamza Abikar>hopefully as we go along,
+it should become, you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1091-2
+00:07:45.850 --> 00:07:51.033
+<v Hamza Abikar>more of a drum beat rhythm in terms of
+what needs to be prepared and what we're</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1091-3
+00:07:51.033 --> 00:07:53.365
+<v Hamza Abikar>going to look into for each session.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1116-0
+00:07:55.525 --> 00:07:59.027
+<v Hamza Abikar>All right.
+I think that's all I have in terms of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1116-1
+00:07:59.027 --> 00:08:04.532
+<v Hamza Abikar>introduction and our project aims.
+Any other questions before we go into the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1116-2
+00:08:04.532 --> 00:08:06.605
+<v Hamza Abikar>deep dives and I hand it off.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1151-0
+00:08:13.965 --> 00:08:18.525
+<v Hamza Abikar>All right. Perfect.
+As we all know for our first session,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1151-1
+00:08:18.525 --> 00:08:24.501
+<v Hamza Abikar>we are covering the finance processes,
+royalty and lease management, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1151-2
+00:08:24.501 --> 00:08:29.218
+<v Hamza Abikar>So two separate topics,
+we have royalty processes and lease</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1151-3
+00:08:29.218 --> 00:08:30.005
+<v Hamza Abikar>processes.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1174-0
+00:08:30.925 --> 00:08:37.582
+<v Hamza Abikar>We'll try cover both of them for this big
+rock. However, on our detailed breakdown,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1174-1
+00:08:37.582 --> 00:08:42.972
+<v Hamza Abikar>we cover them separately.
+So let me hand it off and we can continue</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1174-2
+00:08:42.972 --> 00:08:43.765
+<v Hamza Abikar>from here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1229-0
+00:08:45.605 --> 00:08:49.259
+<v Sumedh Kulkarni>Yes, thank you. Thank you, Hamza. Hello.
+Hi, everyone.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1229-1
+00:08:49.259 --> 00:08:54.242
+<v Sumedh Kulkarni>My name is Sumedh and I am an associate
+director in Innoverv Global. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1229-2
+00:08:54.242 --> 00:08:59.623
+<v Sumedh Kulkarni>And I will be covering the royalty and
+the lease management part where and I can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1229-3
+00:08:59.623 --> 00:09:05.005
+<v Sumedh Kulkarni>see some familiar faces here. For example,
+Erica, I think we spoke about in the.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1283-0
+00:09:05.365 --> 00:09:10.030
+<v Sumedh Kulkarni>With for the PO accrual process with Ian.
+So I'm happy to see her yet. See you here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1283-1
+00:09:10.030 --> 00:09:13.159
+<v Sumedh Kulkarni>So I think let's start, basically. Yes.
+Like Hamza said,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1283-2
+00:09:13.159 --> 00:09:17.330
+<v Sumedh Kulkarni>we are dividing this into two parts.
+One is the royalty part and then we'll</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1283-3
+00:09:17.330 --> 00:09:20.898
+<v Sumedh Kulkarni>move to the lease management part.
+This being our first session,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1283-4
+00:09:20.898 --> 00:09:25.125
+<v Sumedh Kulkarni>what we're trying to do here is we are
+trying to understand or meet you and.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1319-0
+00:09:25.165 --> 00:09:28.064
+<v Sumedh Kulkarni>Understand that. OK,
+what is the information that we have,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1319-1
+00:09:28.064 --> 00:09:30.471
+<v Sumedh Kulkarni>right,
+what we have understood with the existing</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1319-2
+00:09:30.471 --> 00:09:34.500
+<v Sumedh Kulkarni>information that we have and maybe based
+on that we can go with the clarification</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1319-3
+00:09:34.500 --> 00:09:37.645
+<v Sumedh Kulkarni>process that OK? No, no,
+this is not the correct understanding.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1319-4
+00:09:37.645 --> 00:09:41.085
+<v Sumedh Kulkarni>This is what it stands for and so on.
+So that it will give us a base.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1367-0
+00:09:42.325 --> 00:09:46.565
+<v Sumedh Kulkarni>To go ahead with the to be process or to
+talk about what can be the future in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1367-1
+00:09:46.565 --> 00:09:49.554
+<v Sumedh Kulkarni>Kenvue, right.
+So let's start with the royalty process</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1367-2
+00:09:49.554 --> 00:09:52.164
+<v Sumedh Kulkarni>and for this,
+I think I think a very nice lady,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1367-3
+00:09:52.164 --> 00:09:56.458
+<v Sumedh Kulkarni>Anu was kind enough to share some really
+nice documentation which helped us to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1367-4
+00:09:56.458 --> 00:09:59.285
+<v Sumedh Kulkarni>understand what does it existing royalty
+processes.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1413-0
+00:10:00.285 --> 00:10:03.148
+<v Sumedh Kulkarni>Which we have covered in one of the other
+slides. But yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1413-1
+00:10:03.148 --> 00:10:07.078
+<v Sumedh Kulkarni>we right now we have that information.
+So let's quickly deep dive in to see what</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1413-2
+00:10:07.078 --> 00:10:10.087
+<v Sumedh Kulkarni>we have as a warm up.
+This is kind of a warm up slate that we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1413-3
+00:10:10.087 --> 00:10:13.581
+<v Sumedh Kulkarni>have in terms of what we have and what
+are the pain points that we have</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1413-4
+00:10:13.581 --> 00:10:15.765
+<v Sumedh Kulkarni>understood from the existing process,
+right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1473-0
+00:10:16.365 --> 00:10:19.484
+<v Sumedh Kulkarni>So based on the documentation that we
+have right now,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1473-1
+00:10:19.484 --> 00:10:24.047
+<v Sumedh Kulkarni>what we have information is that there
+are three unique royalty processes that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1473-2
+00:10:24.047 --> 00:10:26.993
+<v Sumedh Kulkarni>we have.
+One is with the GSK sale that we have for</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1473-3
+00:10:26.993 --> 00:10:31.326
+<v Sumedh Kulkarni>12, but there is a royalty of 12%.
+Then there is another scenario where we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1473-4
+00:10:31.326 --> 00:10:35.485
+<v Sumedh Kulkarni>have the 8% part and then there is a
+super royalty portion which is not</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-0
+00:10:35.765 --> 00:10:38.904
+<v Sumedh Kulkarni>exactly royalty,
+but rather than internal adjustments,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-1
+00:10:38.904 --> 00:10:43.413
+<v Sumedh Kulkarni>that is done to ensure that the residual
+profit is transferred from one of the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-2
+00:10:43.413 --> 00:10:47.465
+<v Sumedh Kulkarni>entity to the another, right.
+So these three scenarios is what we have</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-3
+00:10:47.465 --> 00:10:50.776
+<v Sumedh Kulkarni>and we'll deep dive into them in the next
+slide for sure.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-4
+00:10:50.776 --> 00:10:54.600
+<v Sumedh Kulkarni>Then the second thing is yes,
+we are talking from royalty that is,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1527-5
+00:10:54.600 --> 00:10:55.285
+<v Sumedh Kulkarni>as a income.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1579-0
+00:10:55.685 --> 00:10:58.747
+<v Sumedh Kulkarni>Right.
+We're talking about royalty as income</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1579-1
+00:10:58.747 --> 00:11:03.647
+<v Sumedh Kulkarni>which which which can you is supposed to
+receive. That's the main part,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1579-2
+00:11:03.647 --> 00:11:08.207
+<v Sumedh Kulkarni>but obviously there is some internal
+process as well. For example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1579-3
+00:11:08.207 --> 00:11:13.175
+<v Sumedh Kulkarni>I think there is a transfer that happens
+between Cilag to McNeil, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1579-4
+00:11:13.175 --> 00:11:15.285
+<v Sumedh Kulkarni>So that becomes an intercompany</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1632-0
+00:11:15.405 --> 00:11:18.968
+<v Sumedh Kulkarni>process in a way,
+because in this case what happens is in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1632-1
+00:11:18.968 --> 00:11:22.408
+<v Sumedh Kulkarni>the end, yes,
+royalty is still coming as part of Kenvue</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1632-2
+00:11:22.408 --> 00:11:25.787
+<v Sumedh Kulkarni>as a group for sure.
+But as part of internal transfer,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1632-3
+00:11:25.787 --> 00:11:30.333
+<v Sumedh Kulkarni>if we talk about this is where Cilag
+plays an important role as a kind of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1632-4
+00:11:30.333 --> 00:11:35.125
+<v Sumedh Kulkarni>mediator between GSK and McNeil in terms
+of this process, right, and this is?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1645-0
+00:11:35.205 --> 00:11:39.685
+<v Sumedh Kulkarni>Where I have some questions,
+but we'll go into that later, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1683-0
+00:11:38.045 --> 00:11:42.347
+<v Yeabsley, Michelle>Yeah. So just just to be really clear,
+it's Michelle From tax,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1683-1
+00:11:42.347 --> 00:11:46.445
+<v Yeabsley, Michelle>we're talking about JNTL CH1 not not
+Cilag. That's a J&amp;</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1683-2
+00:11:46.445 --> 00:11:50.885
+<v Yeabsley, Michelle>J entity just just yeah,
+so we get our facts straight. Yeah, OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1670-0
+00:11:48.405 --> 00:11:48.565
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1732-0
+00:11:49.685 --> 00:11:54.449
+<v Sumedh Kulkarni>Perfect. That was actually my question,
+because what happened was I found one,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1732-1
+00:11:54.449 --> 00:11:58.670
+<v Sumedh Kulkarni>I got one word file where there was
+reference of 2014 which was Cilag</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1699-0
+00:11:58.365 --> 00:11:58.725
+<v Yeabsley, Michelle>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1732-2
+00:11:58.670 --> 00:12:01.867
+<v Sumedh Kulkarni>everywhere.
+And the presentations I think is where I</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1706-0
+00:12:00.685 --> 00:12:01.085
+<v Yeabsley, Michelle>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1732-3
+00:12:01.867 --> 00:12:05.907
+<v Sumedh Kulkarni>think we have now word ELC.
+I think that's that's maybe one of the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1732-4
+00:12:05.907 --> 00:12:09.285
+<v Sumedh Kulkarni>new terminology that I saw in one of the
+presentations.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1776-0
+00:12:10.165 --> 00:12:13.013
+<v Sumedh Kulkarni>But I will,
+I will make sure of this and I'll make</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1776-1
+00:12:13.013 --> 00:12:16.756
+<v Sumedh Kulkarni>the changes in this documentation after
+this call. Yeah, for sure.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1753-0
+00:12:16.085 --> 00:12:17.925
+<v Yeabsley, Michelle>OK, great. Thanks.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1776-2
+00:12:16.756 --> 00:12:21.169
+<v Sumedh Kulkarni>Wherever there is a Cilag reference,
+I will make sure it's a change to the new</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1764-0
+00:12:20.845 --> 00:12:21.925
+<v Yeabsley, Michelle>OK. Perfect, great.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1776-3
+00:12:21.169 --> 00:12:24.856
+<v Sumedh Kulkarni>one. Yeah. OK. Thank you.
+Thank you for identifying this part and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1776-4
+00:12:24.856 --> 00:12:26.085
+<v Sumedh Kulkarni>pointing it out. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1823-0
+00:12:26.845 --> 00:12:30.457
+<v Sumedh Kulkarni>So yes,
+I think one of the important thing that I</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1823-1
+00:12:30.457 --> 00:12:36.163
+<v Sumedh Kulkarni>saw in this is yes, as part of Kenvue,
+we are receiving royalty for example in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1823-2
+00:12:36.163 --> 00:12:41.509
+<v Sumedh Kulkarni>this case a third party GSK, right?
+So what we have seen is that based on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1823-3
+00:12:41.509 --> 00:12:46.205
+<v Sumedh Kulkarni>based on the process flow that is there
+mostly GSK is something.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1864-0
+00:12:46.365 --> 00:12:50.522
+<v Sumedh Kulkarni>GSK sends some information across in
+Excel format and other formats to help.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1864-1
+00:12:50.522 --> 00:12:54.355
+<v Sumedh Kulkarni>Can you understand that? OK,
+this is the sale that we have and this is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1864-2
+00:12:54.355 --> 00:12:58.296
+<v Sumedh Kulkarni>the royalty payable and so on.
+And therefore after that you know we have</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1864-3
+00:12:58.296 --> 00:13:01.805
+<v Sumedh Kulkarni>our entire process as to how to book the
+royalty and everything.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1913-0
+00:13:02.085 --> 00:13:06.146
+<v Sumedh Kulkarni>So indirectly for the royalty portion,
+we have a kind of dependency on a third</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1913-1
+00:13:06.146 --> 00:13:10.362
+<v Sumedh Kulkarni>party right to give us some information
+and based on that we are moving ahead and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1913-2
+00:13:10.362 --> 00:13:13.343
+<v Sumedh Kulkarni>posting the documents,
+posting the royalty portion right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1913-3
+00:13:13.343 --> 00:13:16.017
+<v Sumedh Kulkarni>Again there is I think like most of the
+big entity,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1913-4
+00:13:16.017 --> 00:13:18.125
+<v Sumedh Kulkarni>we have a central processing of invoices.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1956-0
+00:13:18.685 --> 00:13:23.595
+<v Sumedh Kulkarni>For the intercompany invoice booking as
+well for the third party royalty invoice</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1956-1
+00:13:23.595 --> 00:13:28.445
+<v Sumedh Kulkarni>that we raised and obviously there is
+accrual portion behind it as well, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1956-2
+00:13:28.445 --> 00:13:33.417
+<v Sumedh Kulkarni>So that is also something that was really
+nicely explained in those documentation</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1956-3
+00:13:33.417 --> 00:13:34.205
+<v Sumedh Kulkarni>that we have.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1994-0
+00:13:34.725 --> 00:13:39.490
+<v Sumedh Kulkarni>So that was really useful to understand
+the existing Kenvue process right then in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1994-1
+00:13:39.490 --> 00:13:43.093
+<v Sumedh Kulkarni>terms of the payment terms?
+I think it's quite unique for the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1994-2
+00:13:43.093 --> 00:13:46.172
+<v Sumedh Kulkarni>royalties,
+different royalty scenarios that we have,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1994-3
+00:13:46.172 --> 00:13:48.729
+<v Sumedh Kulkarni>for example,
+the one that we have with GSK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/1994-4
+00:13:48.729 --> 00:13:49.485
+<v Sumedh Kulkarni>the 12% part.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2037-0
+00:13:49.885 --> 00:13:54.230
+<v Sumedh Kulkarni>We have some for one of the products.
+We have advanced concept why for one of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2037-1
+00:13:54.230 --> 00:13:58.520
+<v Sumedh Kulkarni>the other products we have the you know
+post kind of concept where after the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2037-2
+00:13:58.520 --> 00:14:02.253
+<v Sumedh Kulkarni>quarter we raise it and so on.
+So it's a variety that I completely</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2037-3
+00:14:02.253 --> 00:14:05.485
+<v Sumedh Kulkarni>understand that that has to be booked in
+a different way.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2081-0
+00:14:05.885 --> 00:14:09.780
+<v Sumedh Kulkarni>And obviously based on difference and
+everything that true up also comes up,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2081-1
+00:14:09.780 --> 00:14:12.359
+<v Sumedh Kulkarni>which is again explained in the next
+slide, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2081-2
+00:14:12.359 --> 00:14:16.457
+<v Sumedh Kulkarni>So we will have a very healthy discussion
+on those individual royalty scenarios,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2081-3
+00:14:16.457 --> 00:14:20.402
+<v Sumedh Kulkarni>right. And I think just to summarise,
+I think based on what we have right now</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2081-4
+00:14:20.402 --> 00:14:22.325
+<v Sumedh Kulkarni>because of the content and everything.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2129-0
+00:14:22.885 --> 00:14:26.002
+<v Sumedh Kulkarni>Right now,
+the information that we haven't please</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2129-1
+00:14:26.002 --> 00:14:30.178
+<v Sumedh Kulkarni>correct me if I'm wrong,
+but right now we have royalty scenarios I</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2129-2
+00:14:30.178 --> 00:14:35.166
+<v Sumedh Kulkarni>think limited to Helsingborg out of some
+of the sites that we have looked into,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2129-3
+00:14:35.166 --> 00:14:39.405
+<v Sumedh Kulkarni>but we'll be happy to hear if there is
+some more royalty scenarios.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2177-0
+00:14:40.205 --> 00:14:43.425
+<v Sumedh Kulkarni>Especially Globe wide,
+because this will really help us to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2177-1
+00:14:43.425 --> 00:14:47.027
+<v Sumedh Kulkarni>understand solutions from the global
+template perspective, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2177-2
+00:14:47.027 --> 00:14:51.338
+<v Sumedh Kulkarni>It will really give us a vision to talk
+about entire Kenvue as a whole and not</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2177-3
+00:14:51.338 --> 00:14:54.940
+<v Sumedh Kulkarni>just Helsingborg over here.
+So I will take just a quick pause and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2177-4
+00:14:54.940 --> 00:14:58.925
+<v Sumedh Kulkarni>happy to hear our inputs on any of the
+points that I just now mentioned.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2181-0
+00:15:00.805 --> 00:15:02.765
+<v Sumedh Kulkarni>Any correction please. Please feel free.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2198-0
+00:15:06.645 --> 00:15:11.281
+<v Merrick, Anu>Not corrections to this,
+but there are actually other global flows</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2198-1
+00:15:11.281 --> 00:15:13.565
+<v Merrick, Anu>I believe outside of Helsingborg.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2197-0
+00:15:13.885 --> 00:15:14.125
+<v Yeabsley, Michelle>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2199-0
+00:15:14.405 --> 00:15:15.005
+<v Sumedh Kulkarni>Mm-hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2252-0
+00:15:15.925 --> 00:15:18.762
+<v Yeabsley, Michelle>Yeah,
+there are a number of intercompany</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2252-1
+00:15:18.762 --> 00:15:22.567
+<v Yeabsley, Michelle>royalty flows,
+particularly with with the Swiss entity</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2215-0
+00:15:19.925 --> 00:15:20.285
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2252-2
+00:15:22.567 --> 00:15:27.895
+<v Yeabsley, Michelle>and also with the the German entity.
+But it might be worth taking it offline</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2224-0
+00:15:22.725 --> 00:15:22.965
+<v Sumedh Kulkarni>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2252-3
+00:15:27.895 --> 00:15:33.085
+<v Yeabsley, Michelle>because and then actually sharing with
+you the royalty flows that we have.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2242-0
+00:15:28.485 --> 00:15:29.205
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2263-0
+00:15:33.685 --> 00:15:36.937
+<v Yeabsley, Michelle>In place,
+maybe the royalties team can support that,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2263-1
+00:15:36.937 --> 00:15:39.085
+<v Yeabsley, Michelle>but yeah, there are a number, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2320-0
+00:15:37.645 --> 00:15:40.857
+<v Foldi, Erika>Yeah,
+but I think here the point they tried to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2320-1
+00:15:40.857 --> 00:15:45.573
+<v Foldi, Erika>make is that relate like connected coming
+from manufacturing plants.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2320-2
+00:15:45.573 --> 00:15:50.357
+<v Foldi, Erika>So like maybe all the others had not
+necessary connected strongly the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2320-3
+00:15:50.357 --> 00:15:55.005
+<v Foldi, Erika>manufacturing plant or do we have in any
+other manufacturing plant.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2326-0
+00:15:53.845 --> 00:15:58.725
+<v Yeabsley, Michelle>I think you could probably argue that
+you've got Germany with OB.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2319-0
+00:15:55.045 --> 00:15:55.885
+<v Merrick, Anu>Yeah, there is.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2328-0
+00:16:00.085 --> 00:16:00.285
+<v Foldi, Erika>None.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2347-0
+00:16:00.445 --> 00:16:06.765
+<v Yeabsley, Michelle>So would be certainly be one that's
+linked to a manufacturing plant, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2364-0
+00:16:05.205 --> 00:16:11.672
+<v Foldi, Erika>Yeah, but I mean, even these points,
+what we who who would be the the the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2364-1
+00:16:11.672 --> 00:16:15.605
+<v Foldi, Erika>person who confirm that this is all
+correct.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2407-0
+00:16:16.605 --> 00:16:21.852
+<v Merrick, Anu>It would be Beatrice Rupero.
+I think she was my contact when I was</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2407-1
+00:16:21.852 --> 00:16:28.040
+<v Merrick, Anu>trying to confirm on the flows and she
+sent me a file that showed like all the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2407-2
+00:16:28.040 --> 00:16:31.643
+<v Merrick, Anu>other global flows,
+which I'm happy to share.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2407-3
+00:16:31.643 --> 00:16:35.325
+<v Merrick, Anu>But it's her and a team that actually
+does the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2419-0
+00:16:36.885 --> 00:16:40.085
+<v Merrick, Anu>Postings I believe and do the full yeah,
+yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2440-0
+00:16:38.245 --> 00:16:41.958
+<v Foldi, Erika>In big it's the.
+It's the global big thing, right? OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2428-0
+00:16:41.845 --> 00:16:42.325
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2440-1
+00:16:41.958 --> 00:16:45.604
+<v Foldi, Erika>So what you said,
+we do have a process owner for this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2440-2
+00:16:45.604 --> 00:16:47.765
+<v Foldi, Erika>royalty in the big organisation.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2468-0
+00:16:49.205 --> 00:16:52.116
+<v Foldi, Erika>OK, we need to involve them before,
+but OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2468-1
+00:16:52.116 --> 00:16:57.409
+<v Foldi, Erika>now we can connect with them and she
+would be able to confirm if these are all.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2468-2
+00:16:57.409 --> 00:16:59.725
+<v Foldi, Erika>Yeah. Like to get the confirmation.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2467-0
+00:17:00.525 --> 00:17:00.805
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2478-0
+00:17:01.365 --> 00:17:06.005
+<v Yeabsley, Michelle>But also then we have a royalties team
+that should be able to confirm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2472-0
+00:17:01.925 --> 00:17:02.085
+<v Foldi, Erika>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2525-0
+00:17:08.925 --> 00:17:13.635
+<v Merrick, Anu>You mean the one based in Manila that
+post the intercompany postings? Yeah,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2483-0
+00:17:09.325 --> 00:17:09.525
+<v Foldi, Erika>And.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2493-0
+00:17:11.085 --> 00:17:11.645
+<v Yeabsley, Michelle>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2514-0
+00:17:13.045 --> 00:17:16.605
+<v Yeabsley, Michelle>Like they do all the calculations. Yeah,
+yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2525-1
+00:17:13.635 --> 00:17:18.965
+<v Merrick, Anu>they the guys have both their names. Yeah.
+Yeah. Are provided both their names. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2521-0
+00:17:17.405 --> 00:17:18.085
+<v Hamza Abikar>Yes, I think.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2538-0
+00:17:19.445 --> 00:17:22.869
+<v Hamza Abikar>This might have been something Erica
+might mentioned on mail.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2538-1
+00:17:22.869 --> 00:17:26.405
+<v Hamza Abikar>I think we might need to contact.
+See who we can also bring in.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2540-0
+00:17:27.085 --> 00:17:27.405
+<v Foldi, Erika>Yep.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2582-0
+00:17:27.325 --> 00:17:33.134
+<v Merrick, Anu>I included the names in when I sent you
+all the documents, I can resend it again.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2582-1
+00:17:33.134 --> 00:17:38.236
+<v Merrick, Anu>So it was features for for like the
+royalties flow and the intercompany</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2562-0
+00:17:33.805 --> 00:17:34.565
+<v Hamza Abikar>Ah, perfect.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2582-2
+00:17:38.236 --> 00:17:41.991
+<v Merrick, Anu>calculations.
+It was Jonathan somebody so I can send</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2582-3
+00:17:41.991 --> 00:17:43.125
+<v Merrick, Anu>the names again.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2583-0
+00:17:43.565 --> 00:17:43.685
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2585-0
+00:17:44.285 --> 00:17:45.205
+<v Hamza Abikar>Perfect. Thank you.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2591-0
+00:17:51.365 --> 00:17:53.565
+<v Hamza Abikar>Alright, hand it back to you Sumedh.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2633-0
+00:17:54.205 --> 00:17:57.027
+<v Sumedh Kulkarni>Mm-hmm. Sure. Yes. Anything.
+It's good to validate.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2633-1
+00:17:57.027 --> 00:18:01.151
+<v Sumedh Kulkarni>The good thing is just come back. Hamza,
+I think that is on the right side.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2633-2
+00:18:01.151 --> 00:18:04.950
+<v Sumedh Kulkarni>I still have to cover the pain points.
+If you go back. Yeah, but yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2633-3
+00:18:04.950 --> 00:18:08.477
+<v Sumedh Kulkarni>I think luckily I I use the documentation
+that we have. But yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2633-4
+00:18:08.477 --> 00:18:11.245
+<v Sumedh Kulkarni>someone if someone can validate.
+That's also nice.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2672-0
+00:18:12.405 --> 00:18:16.459
+<v Sumedh Kulkarni>Yes. On the painpoint side, again,
+the documentation was beautiful.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2672-1
+00:18:16.459 --> 00:18:20.753
+<v Sumedh Kulkarni>It helped me understand the entire
+accrual as well as invoicing process</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2672-2
+00:18:20.753 --> 00:18:23.734
+<v Sumedh Kulkarni>right. Now,
+but the main thing that I observed in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2672-3
+00:18:23.734 --> 00:18:28.445
+<v Sumedh Kulkarni>those documentation was it's kind of
+manual driven. It's kind of excel driven.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-0
+00:18:28.885 --> 00:18:32.851
+<v Sumedh Kulkarni>Wherein the information is still coming
+from outside the organisation.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-1
+00:18:32.851 --> 00:18:35.868
+<v Sumedh Kulkarni>For example,
+in this case GSK and then we are putting</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-2
+00:18:35.868 --> 00:18:40.393
+<v Sumedh Kulkarni>into Excel that formula then based and
+then the accrual goes ahead and similarly</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-3
+00:18:40.393 --> 00:18:44.527
+<v Sumedh Kulkarni>next for the invoicing part, right.
+So the flow that is actually starting</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-4
+00:18:44.527 --> 00:18:47.096
+<v Sumedh Kulkarni>right,
+the flow or the actual process that is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2723-5
+00:18:47.096 --> 00:18:48.605
+<v Sumedh Kulkarni>starting is kind of manual.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2784-0
+00:18:48.765 --> 00:18:53.058
+<v Sumedh Kulkarni>or excel or kind of non automated process
+that is in place, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2784-1
+00:18:53.058 --> 00:18:58.056
+<v Sumedh Kulkarni>And that's maybe one of the pain points
+that I would say Kenvue would like to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2784-2
+00:18:58.056 --> 00:19:03.054
+<v Sumedh Kulkarni>resolve or move ahead with to ensure you
+know it's streamlined with the other</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2784-3
+00:19:03.054 --> 00:19:08.565
+<v Sumedh Kulkarni>existing process that we have for example,
+there are many, many processes or maximum.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2839-0
+00:19:08.725 --> 00:19:12.891
+<v Sumedh Kulkarni>processes which are end to end managed
+right from your logistics perspective</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2839-1
+00:19:12.891 --> 00:19:17.328
+<v Sumedh Kulkarni>sales perspective and everything right so
+similarly if something like this can be</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2839-2
+00:19:17.328 --> 00:19:21.441
+<v Sumedh Kulkarni>done for royalty where things are
+automatically calculated they are already</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2839-3
+00:19:21.441 --> 00:19:25.716
+<v Sumedh Kulkarni>taken care of in terms of calculations
+and posting I think that's maybe one of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2839-4
+00:19:25.716 --> 00:19:28.205
+<v Sumedh Kulkarni>the painpoints that I I could think of
+right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2843-0
+00:19:28.605 --> 00:19:31.285
+<v Sumedh Kulkarni>And everything that you see,
+all three points are connected to the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2843-1
+00:19:31.285 --> 00:19:31.805
+<v Sumedh Kulkarni>same process.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2881-0
+00:19:33.045 --> 00:19:37.378
+<v Sumedh Kulkarni>But feel free to tell me if if there are
+any more painpoints that you feel are</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2881-1
+00:19:37.378 --> 00:19:41.602
+<v Sumedh Kulkarni>really blocking your overall royalty.
+And I'm talking about general process,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2881-2
+00:19:41.602 --> 00:19:45.771
+<v Sumedh Kulkarni>not specific royalty scenario process,
+which we'll cover in the next slide.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2881-3
+00:19:45.771 --> 00:19:48.405
+<v Sumedh Kulkarni>But in overall process that you have
+right now.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2899-0
+00:19:48.965 --> 00:19:52.134
+<v Sumedh Kulkarni>Is there any other painpoint which I have
+not listed down here?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2899-1
+00:19:52.134 --> 00:19:55.749
+<v Sumedh Kulkarni>I I'll be happy to look into this after
+this call as well if if there is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2899-2
+00:19:55.749 --> 00:19:56.245
+<v Sumedh Kulkarni>something.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2916-0
+00:20:06.005 --> 00:20:09.055
+<v Ingreji, Rishi>And I think it's better to go speak to
+the team that do it today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2916-1
+00:20:09.055 --> 00:20:10.765
+<v Ingreji, Rishi>I don't think that that teams on the.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2939-0
+00:20:13.445 --> 00:20:16.445
+<v Sumedh Kulkarni>Sorry, sorry. I for me at least,
+maybe there was some network connection</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2939-1
+00:20:16.445 --> 00:20:17.925
+<v Sumedh Kulkarni>from my side. Can you please repeat?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2963-0
+00:20:17.965 --> 00:20:20.960
+<v Ingreji, Rishi>I don't know if you,
+I said it's better to go speak to the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2963-1
+00:20:20.960 --> 00:20:24.260
+<v Ingreji, Rishi>team that do it today.
+I don't think they're represented on this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2963-2
+00:20:24.260 --> 00:20:26.545
+<v Ingreji, Rishi>call.
+If you've got a global royalties team,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2956-0
+00:20:24.525 --> 00:20:24.565
+<v Sumedh Kulkarni>Oh.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/2963-3
+00:20:26.545 --> 00:20:28.525
+<v Ingreji, Rishi>then they're the ones feeling the pain.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-0
+00:20:29.805 --> 00:20:32.625
+<v Sumedh Kulkarni>OK, so I think for the next call, I think,
+Hamza,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-1
+00:20:32.625 --> 00:20:37.081
+<v Sumedh Kulkarni>I think the list that ANU sent across,
+I think we have to make sure those guys</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-2
+00:20:37.081 --> 00:20:40.635
+<v Sumedh Kulkarni>also there so that we will have a
+constructive call with them,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-3
+00:20:40.635 --> 00:20:43.681
+<v Sumedh Kulkarni>OK and maybe we'll,
+we'll ensure that we are actually</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-4
+00:20:43.681 --> 00:20:47.911
+<v Sumedh Kulkarni>catching all the painpoints or the
+difficulties that these guys have right</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3017-5
+00:20:47.911 --> 00:20:48.645
+<v Sumedh Kulkarni>now, correct.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3060-0
+00:20:49.245 --> 00:20:51.739
+<v Sumedh Kulkarni>So we'll do that. Yeah. So maybe now.
+Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3024-0
+00:20:50.645 --> 00:20:51.205
+<v Hamza Abikar>Perfect.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3060-1
+00:20:51.739 --> 00:20:54.518
+<v Sumedh Kulkarni>So maybe we can now move to the next
+slide. Yes.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3060-2
+00:20:54.518 --> 00:20:59.167
+<v Sumedh Kulkarni>Now these are the three scenarios that we
+have the as is where I've just tried to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3060-3
+00:20:59.167 --> 00:21:03.023
+<v Sumedh Kulkarni>give you a short summary.
+Just trying to highlight the main points,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3060-4
+00:21:03.023 --> 00:21:06.085
+<v Sumedh Kulkarni>but everything is from our documentation
+from Kenvue.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3106-0
+00:21:07.045 --> 00:21:10.821
+<v Sumedh Kulkarni>There are some things which might not be
+covered here just because I wanted to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3106-1
+00:21:10.821 --> 00:21:14.216
+<v Sumedh Kulkarni>cover everything into a single slide,
+but we can have a really healthy</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3106-2
+00:21:14.216 --> 00:21:18.136
+<v Sumedh Kulkarni>discussion on each of these topics, right?
+The first one is the most first one is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3106-3
+00:21:18.136 --> 00:21:21.005
+<v Sumedh Kulkarni>the one where we have GSK involved as a
+third party, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3158-0
+00:21:21.525 --> 00:21:24.650
+<v Sumedh Kulkarni>And over here,
+I think we have that unique process</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3158-1
+00:21:24.650 --> 00:21:28.695
+<v Sumedh Kulkarni>correct and like I mentioned earlier,
+you'll see Cilag over here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3158-2
+00:21:28.695 --> 00:21:32.126
+<v Sumedh Kulkarni>Ignore that part.
+I will change it to the new names for</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3158-3
+00:21:32.126 --> 00:21:35.620
+<v Sumedh Kulkarni>sure after this call, right.
+So this is again something.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3158-4
+00:21:35.620 --> 00:21:40.645
+<v Sumedh Kulkarni>The first thing I wanted to say is yes,
+it's again a third party royalty process.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3204-0
+00:21:41.045 --> 00:21:45.915
+<v Sumedh Kulkarni>Now over here there are two entities that
+are involved from Kenvue site.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3204-1
+00:21:45.915 --> 00:21:49.651
+<v Sumedh Kulkarni>The old name,
+Cilag and McNeil that you say wherein the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3204-2
+00:21:49.651 --> 00:21:54.187
+<v Sumedh Kulkarni>connection is such that the patent is
+actually owned by McNeil. OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3204-3
+00:21:54.187 --> 00:21:57.589
+<v Sumedh Kulkarni>Patent is actually owned by McNeil.
+So in the end,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3204-4
+00:21:57.589 --> 00:22:00.325
+<v Sumedh Kulkarni>McNeil is supposed to receive the royalty</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3232-0
+00:22:01.525 --> 00:22:04.833
+<v Sumedh Kulkarni>Right,
+But what is happening is and I think</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3232-1
+00:22:04.833 --> 00:22:10.248
+<v Sumedh Kulkarni>there might be some legal classification
+because of which this happens,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3232-2
+00:22:10.248 --> 00:22:14.685
+<v Sumedh Kulkarni>but what usually happens is that McNeil
+raises an invoice.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3269-0
+00:22:15.965 --> 00:22:18.871
+<v Sumedh Kulkarni>On Cilag, again,
+ignore the wrong old name. OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3269-1
+00:22:18.871 --> 00:22:23.352
+<v Sumedh Kulkarni>just this is just for right now.
+McNeil to Cilag and then Cilag raises to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3269-2
+00:22:23.352 --> 00:22:27.228
+<v Sumedh Kulkarni>GSK. Right the invoice.
+So the invoice flow happens from McNeil</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3269-3
+00:22:27.228 --> 00:22:30.861
+<v Sumedh Kulkarni>to Cilag, Cilag to GSK,
+but in the end GSK pays directly to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3269-4
+00:22:30.861 --> 00:22:31.285
+<v Sumedh Kulkarni>McNeil.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3310-0
+00:22:32.365 --> 00:22:36.056
+<v Sumedh Kulkarni>OK. So in the end,
+Cilag if you see it's it's it's zero over</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3310-1
+00:22:36.056 --> 00:22:40.292
+<v Sumedh Kulkarni>here, that's for sure in the end,
+royalty is going to McNeil and it's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3310-2
+00:22:40.292 --> 00:22:44.528
+<v Sumedh Kulkarni>coming through GSK now in this case the
+entire royalty documentation,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3310-3
+00:22:44.528 --> 00:22:46.525
+<v Sumedh Kulkarni>I think dependencies on GSK side.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3363-0
+00:22:46.885 --> 00:22:51.626
+<v Sumedh Kulkarni>Where they have to give you data in a
+specific format or the documentation that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3363-1
+00:22:51.626 --> 00:22:55.716
+<v Sumedh Kulkarni>has been agreed upon and after that the
+entire process starts right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3363-2
+00:22:55.716 --> 00:22:58.383
+<v Sumedh Kulkarni>So in this case indirectly and not
+directly,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3363-3
+00:22:58.383 --> 00:23:02.769
+<v Sumedh Kulkarni>it's only indirectly that Kenvue has the
+information coming from GSK. OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3363-4
+00:23:02.769 --> 00:23:06.325
+<v Sumedh Kulkarni>what is the sale?
+What is the royalty part? So there is no.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-0
+00:23:06.445 --> 00:23:08.885
+<v Sumedh Kulkarni>Control that Kenvue has on those
+information.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-1
+00:23:08.885 --> 00:23:11.273
+<v Sumedh Kulkarni>It's just becomes a receiver of
+information.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-2
+00:23:11.273 --> 00:23:15.676
+<v Sumedh Kulkarni>That's why there is no logistics or any
+kind of that kind of integration comes up.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-3
+00:23:15.676 --> 00:23:19.019
+<v Sumedh Kulkarni>It's pure finance part that comes up here
+right now over here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-4
+00:23:19.019 --> 00:23:23.051
+<v Sumedh Kulkarni>Also I think you have a very nice
+relation with GSK where you have multiple</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3413-5
+00:23:23.051 --> 00:23:24.325
+<v Sumedh Kulkarni>products where that are.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-0
+00:23:26.285 --> 00:23:29.125
+<v Sumedh Kulkarni>For which royalty is received from GSK.
+For example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-1
+00:23:29.125 --> 00:23:33.305
+<v Sumedh Kulkarni>if you see the there are two types of
+payment terms here and I think in terms</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-2
+00:23:33.305 --> 00:23:36.627
+<v Sumedh Kulkarni>of your product gum,
+what happens is that it's on the advance</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-3
+00:23:36.627 --> 00:23:39.575
+<v Sumedh Kulkarni>basis, right?
+It's there on the advance basis and what</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-4
+00:23:39.575 --> 00:23:42.415
+<v Sumedh Kulkarni>happens is that at and this is quarterly
+raised, OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3473-5
+00:23:42.415 --> 00:23:45.845
+<v Sumedh Kulkarni>So example right now we are in the third
+quarter, July, August.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3513-0
+00:23:45.925 --> 00:23:49.784
+<v Sumedh Kulkarni>September, right.
+So at the beginning of July, for example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3513-1
+00:23:49.784 --> 00:23:55.059
+<v Sumedh Kulkarni>an invoice advance invoice is raised to
+GSK and based on that and what happens is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3513-2
+00:23:55.059 --> 00:23:59.690
+<v Sumedh Kulkarni>that at the end of the quarter,
+whatever is the differential value that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3513-3
+00:23:59.690 --> 00:24:02.971
+<v Sumedh Kulkarni>you have right?
+Because when you raise an invoice,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3513-4
+00:24:02.971 --> 00:24:04.965
+<v Sumedh Kulkarni>it's with a value, let's say X.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3560-0
+00:24:05.485 --> 00:24:09.328
+<v Sumedh Kulkarni>Right. And obviously it will not be X.
+It will either be some value which is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3560-1
+00:24:09.328 --> 00:24:13.421
+<v Sumedh Kulkarni>below X or it will be above X and based
+on that you will have a invoice - true-up</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3560-2
+00:24:13.421 --> 00:24:15.667
+<v Sumedh Kulkarni>invoice that will be coming into play
+right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3560-3
+00:24:15.667 --> 00:24:19.610
+<v Sumedh Kulkarni>So this is what happens in one of the
+product while in case of another product</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3560-4
+00:24:19.610 --> 00:24:23.005
+<v Sumedh Kulkarni>and this is the only two products
+information that I had right now.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-0
+00:24:23.725 --> 00:24:27.575
+<v Sumedh Kulkarni>Which is I think, called lozenge.
+And sorry if I'm mispronouncing this now,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-1
+00:24:27.575 --> 00:24:30.362
+<v Sumedh Kulkarni>in this case,
+what happens is it's it's fairly simple.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-2
+00:24:30.362 --> 00:24:34.263
+<v Sumedh Kulkarni>This is where the invoice is raised at
+end of the quarter after the quarter.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-3
+00:24:34.263 --> 00:24:37.861
+<v Sumedh Kulkarni>So you have complete transparency in
+terms of what is the sales value.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-4
+00:24:37.861 --> 00:24:41.509
+<v Sumedh Kulkarni>GST is already telling you, OK,
+this is the sales value and this is the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3616-5
+00:24:41.509 --> 00:24:42.725
+<v Sumedh Kulkarni>royalty that is payable.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-0
+00:24:42.965 --> 00:24:46.504
+<v Sumedh Kulkarni>And so where there is no accrue or
+everything is required, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-1
+00:24:46.504 --> 00:24:49.508
+<v Sumedh Kulkarni>But the most important thing that comes
+up here is yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-2
+00:24:49.508 --> 00:24:52.672
+<v Sumedh Kulkarni>for these royalties you have accruals for
+these royalties,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-3
+00:24:52.672 --> 00:24:55.407
+<v Sumedh Kulkarni>you have accruals which are posted
+monthly, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-4
+00:24:55.407 --> 00:24:59.322
+<v Sumedh Kulkarni>And the invoices are raised quarterly.
+So this becomes one of your first</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3658-5
+00:24:59.322 --> 00:24:59.805
+<v Sumedh Kulkarni>scenario.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3705-0
+00:25:00.565 --> 00:25:04.939
+<v Sumedh Kulkarni>Now the second scenario is is a 8%
+royalty part where again in this case</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3705-1
+00:25:04.939 --> 00:25:09.613
+<v Sumedh Kulkarni>it's kind of a intercompany portion,
+which I found based on the documentation</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3705-2
+00:25:09.613 --> 00:25:13.688
+<v Sumedh Kulkarni>that we have in this case,
+again the old name Cilagignore pays make</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3705-3
+00:25:13.688 --> 00:25:15.965
+<v Sumedh Kulkarni>nearly 8% of the sale of products and.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3750-0
+00:25:18.085 --> 00:25:22.513
+<v Sumedh Kulkarni>Where obviously McNeil owns the brand or
+patent right now in this case also there</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3750-1
+00:25:22.513 --> 00:25:25.052
+<v Sumedh Kulkarni>is a payment term which is also little
+unique.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3750-2
+00:25:25.052 --> 00:25:28.508
+<v Sumedh Kulkarni>So it's a little different from what we
+saw earlier. Oh, sorry.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3750-3
+00:25:28.508 --> 00:25:31.856
+<v Sumedh Kulkarni>Before I go to scenario 2,
+let's let's stick to scenario one.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3750-4
+00:25:31.856 --> 00:25:33.045
+<v Sumedh Kulkarni>Please let me know if.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3773-0
+00:25:33.765 --> 00:25:37.458
+<v Sumedh Kulkarni>If I was clear if there is something I
+need to repeat or if there any questions,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3773-1
+00:25:37.458 --> 00:25:40.239
+<v Sumedh Kulkarni>anything that we can need to discuss
+about the scenario one,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3773-2
+00:25:40.239 --> 00:25:42.245
+<v Sumedh Kulkarni>then only we'll move it to scenario 2 and
+3</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3811-0
+00:25:52.005 --> 00:25:54.526
+<v Sumedh Kulkarni>My first question,
+maybe my first question,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3811-1
+00:25:54.526 --> 00:25:58.366
+<v Sumedh Kulkarni>is this scenario still valid?
+Can anybody confirm that because the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3811-2
+00:25:58.366 --> 00:26:02.950
+<v Sumedh Kulkarni>first document that I have is from 2014
+and like someone rightly pointed out it</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3811-3
+00:26:02.950 --> 00:26:06.045
+<v Sumedh Kulkarni>had reference of Johnson and Johnson and
+so on right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3844-0
+00:26:06.565 --> 00:26:09.883
+<v Sumedh Kulkarni>So the first question,
+is this still valid in terms of yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3844-1
+00:26:09.883 --> 00:26:14.253
+<v Sumedh Kulkarni>the scenario is still here. Second, yes,
+the payment terms are still the same.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3844-2
+00:26:14.253 --> 00:26:17.018
+<v Sumedh Kulkarni>Third, yes,
+we still have this hierarchy internal</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3844-3
+00:26:17.018 --> 00:26:20.005
+<v Sumedh Kulkarni>where one intercompany one,
+one of the entity raises.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3856-0
+00:26:22.565 --> 00:26:24.863
+<v Sumedh Kulkarni>Anybody can if if they can validate this
+information,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3856-1
+00:26:24.863 --> 00:26:26.565
+<v Sumedh Kulkarni>that would really help us to move ahead.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-0
+00:26:32.485 --> 00:26:36.414
+<v Foldi, Erika>Yeah, I think so. It just said my view,
+I think that's the point that we don't</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-1
+00:26:36.414 --> 00:26:40.294
+<v Foldi, Erika>have here. The people who doing this.
+So let's clarify what we can get out of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3873-0
+00:26:36.725 --> 00:26:36.845
+<v Yeabsley, Michelle>Right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3880-0
+00:26:38.805 --> 00:26:38.965
+<v Yeabsley, Michelle>That's.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-2
+00:26:40.294 --> 00:26:42.533
+<v Foldi, Erika>this course.
+So I don't think it's we don't,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-3
+00:26:42.533 --> 00:26:46.512
+<v Foldi, Erika>we should not really it is it really a
+point to talk through all these steps at</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3895-0
+00:26:45.045 --> 00:26:45.165
+<v Hamza Abikar>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-4
+00:26:46.512 --> 00:26:50.492
+<v Foldi, Erika>this point with all this paper on the
+core we have 25-26 people on the call but</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3923-5
+00:26:50.492 --> 00:26:51.885
+<v Foldi, Erika>no one is doing this process</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3916-0
+00:26:50.965 --> 00:26:51.205
+<v Sumedh Kulkarni>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3965-0
+00:26:51.925 --> 00:26:52.445
+<v Foldi, Erika></v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3969-0
+00:26:52.485 --> 00:26:58.022
+<v Foldi, Erika>So let's align and let's be clear on
+accountability right by we spending our</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3930-0
+00:26:55.925 --> 00:26:56.005
+<v Sumedh Kulkarni>Ah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3969-1
+00:26:58.022 --> 00:27:02.768
+<v Foldi, Erika>time with all this paper and what we try
+to get out of this call.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3969-2
+00:27:02.768 --> 00:27:08.234
+<v Foldi, Erika>It's good that we have tax People.
+Tax people is can always keep their view</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3969-3
+00:27:08.234 --> 00:27:11.829
+<v Foldi, Erika>right.
+So it's good to have me share feeling bad.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3969-4
+00:27:11.829 --> 00:27:12.405
+<v Foldi, Erika>So let's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4026-0
+00:27:12.525 --> 00:27:15.890
+<v Foldi, Erika>let's get their view that regarding
+loyalty and lease,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3974-0
+00:27:14.485 --> 00:27:14.605
+<v Yeabsley, Michelle>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4026-1
+00:27:15.890 --> 00:27:20.541
+<v Foldi, Erika>what they see today as pain point,
+but just let's get that view and then we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4026-2
+00:27:20.541 --> 00:27:24.151
+<v Foldi, Erika>take it from it,
+we take it then and then we then find the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/3993-0
+00:27:22.245 --> 00:27:22.445
+<v Sumedh Kulkarni>Sure.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4026-3
+00:27:24.151 --> 00:27:28.985
+<v Foldi, Erika>right contact with owning this process
+today in finance have a discussion with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4004-0
+00:27:25.245 --> 00:27:25.365
+<v Yeabsley, Michelle>None.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4026-4
+00:27:28.985 --> 00:27:32.045
+<v Foldi, Erika>them to go through these details we can
+validate.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4074-0
+00:27:32.365 --> 00:27:36.482
+<v Foldi, Erika>If this is still the case,
+and then even I think also we need to do</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4074-1
+00:27:36.482 --> 00:27:40.780
+<v Foldi, Erika>something internally in the S4 side,
+because who is owning the temp S4</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4074-2
+00:27:40.780 --> 00:27:44.171
+<v Foldi, Erika>template today?
+Because there are some things in market</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4074-3
+00:27:44.171 --> 00:27:48.046
+<v Foldi, Erika>work stream on royalty.
+So we need we need to connect with them</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4064-0
+00:27:46.605 --> 00:27:47.125
+<v Yeabsley, Michelle>Survive.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4074-4
+00:27:48.046 --> 00:27:50.165
+<v Foldi, Erika>and understand what you have an S4.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4109-0
+00:27:50.765 --> 00:27:55.267
+<v Foldi, Erika>So maybe if we go step by step,
+I think at this point the question for</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4109-1
+00:27:55.267 --> 00:27:58.438
+<v Foldi, Erika>this call,
+the question is we can start with tax.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4109-2
+00:27:58.438 --> 00:28:03.005
+<v Foldi, Erika>Is there anyone else who has view and
+points to add what is to process?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4157-0
+00:28:03.485 --> 00:28:06.505
+<v Yeabsley, Michelle>And and Erica.
+So this is Michelle from direct tax.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4157-1
+00:28:06.505 --> 00:28:09.990
+<v Yeabsley, Michelle>So in terms of these three scenarios,
+they all exist today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4120-0
+00:28:06.685 --> 00:28:06.845
+<v Foldi, Erika>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4157-2
+00:28:09.990 --> 00:28:14.811
+<v Yeabsley, Michelle>So I can tell you high level that nothing
+has changed in the contracts in terms of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4157-3
+00:28:14.811 --> 00:28:18.412
+<v Yeabsley, Michelle>for the GSK royalty,
+it's still a double invoicing process in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4149-0
+00:28:15.045 --> 00:28:15.285
+<v Sumedh Kulkarni>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4157-4
+00:28:18.412 --> 00:28:18.645
+<v Yeabsley, Michelle>the.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4198-0
+00:28:19.405 --> 00:28:23.847
+<v Yeabsley, Michelle>JNTL Switzerland invoice and GSK and then
+McNeil invoice JNTL. So it's that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4198-1
+00:28:23.847 --> 00:28:27.655
+<v Yeabsley, Michelle>So that hasn't changed.
+I don't know about the underlying payment</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4178-0
+00:28:26.205 --> 00:28:26.325
+<v Foldi, Erika>And.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4198-2
+00:28:27.655 --> 00:28:30.828
+<v Yeabsley, Michelle>terms or whether there's been any change
+to frequency,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4198-3
+00:28:30.828 --> 00:28:34.405
+<v Yeabsley, Michelle>but the fundamental scenarios are still
+still in place today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4213-0
+00:28:35.605 --> 00:28:38.742
+<v Foldi, Erika>OK. Thank you.
+And anything else you would add regarding</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4213-1
+00:28:38.742 --> 00:28:41.165
+<v Foldi, Erika>the royalty process from tax point of
+view?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4253-0
+00:28:42.285 --> 00:28:46.371
+<v Yeabsley, Michelle>Only to a point that was raised earlier,
+that because of the, you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4253-1
+00:28:46.371 --> 00:28:50.571
+<v Yeabsley, Michelle>the very manual process there is,
+you know, prone to manual to, you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4253-2
+00:28:50.571 --> 00:28:55.282
+<v Yeabsley, Michelle>human error and also my understanding was
+last year something that came up through</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4253-3
+00:28:55.282 --> 00:28:56.645
+<v Yeabsley, Michelle>the royalties team that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4299-0
+00:28:57.125 --> 00:29:02.031
+<v Yeabsley, Michelle>Due to various tools not being available
+in terms of granular level of detail on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4299-1
+00:29:02.031 --> 00:29:05.059
+<v Yeabsley, Michelle>product,
+there was a problem for a period of time</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4299-2
+00:29:05.059 --> 00:29:10.147
+<v Yeabsley, Michelle>in that the royalty team couldn't get the
+level of detail they needed to be able to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4299-3
+00:29:10.147 --> 00:29:14.085
+<v Yeabsley, Michelle>do some of the intercompany royalty
+calculations. So again it's.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4358-0
+00:29:14.525 --> 00:29:19.180
+<v Yeabsley, Michelle>Trying to find a way of automating the
+processes I I guess from the GSK 12%</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4358-1
+00:29:19.180 --> 00:29:24.141
+<v Yeabsley, Michelle>royalty perspective you're always going
+to be relying on GSK to provide you with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4358-2
+00:29:24.141 --> 00:29:27.755
+<v Yeabsley, Michelle>data because it's their NTS on which the
+royalty is based.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4358-3
+00:29:27.755 --> 00:29:31.246
+<v Yeabsley, Michelle>So only they know what their sales are
+out to the trade.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4358-4
+00:29:31.246 --> 00:29:34.125
+<v Yeabsley, Michelle>We don't have that information internally,
+so.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4375-0
+00:29:34.285 --> 00:29:37.567
+<v Yeabsley, Michelle>Always be that reliance on the external
+party,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4362-0
+00:29:36.685 --> 00:29:36.805
+<v Foldi, Erika>And.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4375-1
+00:29:37.567 --> 00:29:43.085
+<v Yeabsley, Michelle>but definitely online that with the more
+automation to make it more efficient.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4380-0
+00:29:47.525 --> 00:29:48.285
+<v Foldi, Erika>Thank you, Michelle.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4417-0
+00:29:47.685 --> 00:29:52.822
+<v Hrishi R>Yeah, I think, yeah,
+just coming back to the point you one of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4417-1
+00:29:52.822 --> 00:29:58.207
+<v Hrishi R>the main things as we mentioned at the
+start of the call, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4417-2
+00:29:58.207 --> 00:30:03.925
+<v Hrishi R>So we what we're discussing here is what
+we identified as big rocks.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4453-0
+00:30:04.645 --> 00:30:07.545
+<v Hrishi R>Which came out of the readiness
+assessment. Yeah,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4453-1
+00:30:07.545 --> 00:30:11.489
+<v Hrishi R>the Phase Zero that was conducted for
+Helsingborg and Val-de-Reuil.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4453-2
+00:30:11.489 --> 00:30:16.245
+<v Hrishi R>Now we are trying to take it one level
+deeper and and 100% point taken. You know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4453-3
+00:30:16.245 --> 00:30:19.725
+<v Hrishi R>we want to have that conversation with
+let's say royalties.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4498-0
+00:30:20.085 --> 00:30:24.861
+<v Hrishi R>Team that you know sits in Manila where
+we'll get the detailed answers,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4498-1
+00:30:24.861 --> 00:30:30.301
+<v Hrishi R>but to keep this session as productive as
+possible, maybe you can help us direct.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4498-2
+00:30:30.301 --> 00:30:33.751
+<v Hrishi R>You know,
+what would be the best use of everybody's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4498-3
+00:30:33.751 --> 00:30:38.461
+<v Hrishi R>time because on one side, yeah,
+there is a deep dive that the team has</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4498-4
+00:30:38.461 --> 00:30:39.125
+<v Hrishi R>conducted.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4535-0
+00:30:39.805 --> 00:30:44.366
+<v Hrishi R>To get to this level of detail,
+but the idea is not to sort of pull</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4535-1
+00:30:44.366 --> 00:30:48.726
+<v Hrishi R>everybody in this call into a level of
+detail where you know it,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4535-2
+00:30:48.726 --> 00:30:52.951
+<v Hrishi R>it doesn't become relevant. Yeah,
+so maybe a generic question,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4535-3
+00:30:52.951 --> 00:30:55.165
+<v Hrishi R>if there are any specific inputs.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4570-0
+00:30:55.485 --> 00:30:58.496
+<v Hrishi R>That anyone has at this point to help you
+know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4570-1
+00:30:58.496 --> 00:31:03.639
+<v Hrishi R>streamline this process from an overall
+S4 template perspective because I know we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4570-2
+00:31:03.639 --> 00:31:06.713
+<v Hrishi R>have both dimensions participating in
+this call.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4570-3
+00:31:06.713 --> 00:31:11.856
+<v Hrishi R>So maybe just an open-ended question at
+this point like you mentioned Erica would</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4570-4
+00:31:11.856 --> 00:31:12.045
+<v Hrishi R>be.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4575-0
+00:31:12.605 --> 00:31:14.445
+<v Hrishi R>Definitely very useful.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4621-0
+00:31:17.445 --> 00:31:22.985
+<v Ingreji, Rishi>So can I ask maybe a more basic question
+that is towards Erica in terms of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4621-1
+00:31:22.985 --> 00:31:27.417
+<v Ingreji, Rishi>requirements you see,
+has it been brought up so far that we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4621-2
+00:31:27.417 --> 00:31:32.219
+<v Ingreji, Rishi>need a more automated payment automated
+way to manage royalties?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4621-3
+00:31:32.219 --> 00:31:34.805
+<v Ingreji, Rishi>Obviously we have different royalty</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4650-0
+00:31:35.565 --> 00:31:40.563
+<v Ingreji, Rishi>Systems within our landscape,
+Listerine is one that pops to mind.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4650-1
+00:31:40.563 --> 00:31:47.000
+<v Ingreji, Rishi>Pretty manual, generally quite small size.
+Are we looking to try and bring that into</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4650-2
+00:31:47.000 --> 00:31:51.165
+<v Ingreji, Rishi>us or if that's for the long term
+ambition because SAP</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4660-0
+00:31:52.005 --> 00:31:55.827
+<v Ingreji, Rishi>doesn't do this that well.
+So a lot of it would be custom in my</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4660-1
+00:31:55.827 --> 00:31:56.365
+<v Ingreji, Rishi>thinking.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4712-0
+00:31:57.965 --> 00:32:03.092
+<v Ingreji, Rishi>So I'm just trying to get my head around
+what what we hope to achieve like we can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4712-1
+00:32:03.092 --> 00:32:08.156
+<v Ingreji, Rishi>go through the flows and and talk about
+the royalties that that are owed and how</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4712-2
+00:32:08.156 --> 00:32:11.532
+<v Ingreji, Rishi>they're calculated,
+how they're brought down and then</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4712-3
+00:32:11.532 --> 00:32:16.659
+<v Ingreji, Rishi>accruals that could be automated and then
+even theoretically invoice or a payment</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4712-4
+00:32:16.659 --> 00:32:17.285
+<v Ingreji, Rishi>structure.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4720-0
+00:32:17.365 --> 00:32:20.387
+<v Ingreji, Rishi>So that could be automated,
+but I'm just just trying to get my head</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4720-1
+00:32:20.387 --> 00:32:21.765
+<v Ingreji, Rishi>around what we're shooting for.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4735-0
+00:32:25.805 --> 00:32:30.008
+<v Foldi, Erika>Maybe the team could give us more
+background why this was identified as Big</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4735-1
+00:32:30.008 --> 00:32:30.285
+<v Foldi, Erika>Rock.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4790-0
+00:32:36.765 --> 00:32:39.723
+<v Hrishi R>Yeah, I mean,
+this one specifically came up at at</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4790-1
+00:32:39.723 --> 00:32:43.569
+<v Hrishi R>Helsingborg. Yeah. I mean,
+because if you see some of the points</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4790-2
+00:32:43.569 --> 00:32:48.362
+<v Hrishi R>that were mentioned on the as is right.
+So it's it's specifically in the context</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4790-3
+00:32:48.362 --> 00:32:53.214
+<v Hrishi R>of how the the processes at Helsingborg
+are structured in the context of no go go</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4790-4
+00:32:53.214 --> 00:32:55.285
+<v Hrishi R>back to that earlier slide, Hamza -</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4827-0
+00:32:55.925 --> 00:32:59.182
+<v Hrishi R>The one before. Yeah.
+So when we were discussing the the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4827-1
+00:32:59.182 --> 00:33:03.182
+<v Hrishi R>process steps at Helsingborg, right,
+so one of the points related to,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4827-2
+00:33:03.182 --> 00:33:07.182
+<v Hrishi R>I mean one of the main big rocks there
+was the physical layout of the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4827-3
+00:33:07.182 --> 00:33:10.325
+<v Hrishi R>Helsingborg site and the material
+movements and so on.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4875-0
+00:33:10.845 --> 00:33:14.106
+<v Hrishi R>But when we were prioritising these these
+big rocks,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4875-1
+00:33:14.106 --> 00:33:18.474
+<v Hrishi R>specifically for the month of August,
+we asked was to focus on finance</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4875-2
+00:33:18.474 --> 00:33:21.489
+<v Hrishi R>processes and when it came to finance
+processes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4875-3
+00:33:21.489 --> 00:33:26.534
+<v Hrishi R>this one was the the main point that was
+identified because of specificities that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4875-4
+00:33:26.534 --> 00:33:30.165
+<v Hrishi R>exist at Helsingborg.
+And maybe that's a generic question.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4916-0
+00:33:31.405 --> 00:33:35.526
+<v Hrishi R>When you read through this,
+is there anything that any of you in this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4916-1
+00:33:35.526 --> 00:33:38.881
+<v Hrishi R>call are aware?
+You know that needs to be connected into</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4916-2
+00:33:38.881 --> 00:33:43.179
+<v Hrishi R>into the broader global question that
+that Rishi just brought up, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4916-3
+00:33:43.179 --> 00:33:47.241
+<v Hrishi R>So in in the context of the big Rock,
+it was specifically related to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4916-4
+00:33:47.241 --> 00:33:49.125
+<v Hrishi R>helsingborg based on the points.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4966-0
+00:33:49.805 --> 00:33:55.099
+<v Hrishi R>That that Sumedh was elaborating earlier
+and what I mentioned on this slide,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4966-1
+00:33:55.099 --> 00:33:59.293
+<v Hrishi R>so this did not come up as a big rock
+item for Val-de-Reuil.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4966-2
+00:33:59.293 --> 00:34:04.656
+<v Hrishi R>So from a from a input perspective,
+this is specifically about Helsingborg as</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4966-3
+00:34:04.656 --> 00:34:08.093
+<v Hrishi R>a plant.
+But if it generically applies across the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4966-4
+00:34:08.093 --> 00:34:09.125
+<v Hrishi R>board globally.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4971-0
+00:34:09.445 --> 00:34:12.405
+<v Hrishi R>Then it's important to have that broader
+conversation.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/4974-0
+00:34:14.365 --> 00:34:15.365
+<v Hrishi R>Did I clarify?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-0
+00:34:17.445 --> 00:34:20.865
+<v Foldi, Erika>Yeah. So, so yeah,
+I think it makes sense that this is a</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-1
+00:34:20.865 --> 00:34:24.165
+<v Foldi, Erika>very complicated process for Helsingborg
+specifically.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-2
+00:34:24.165 --> 00:34:27.465
+<v Foldi, Erika>So it was identified as a big rock,
+which makes sense.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5009-0
+00:34:26.605 --> 00:34:26.965
+<v Hrishi R>Correct.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-3
+00:34:27.465 --> 00:34:31.125
+<v Foldi, Erika>But I think it's also fair to add to the
+context is that OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-4
+00:34:31.125 --> 00:34:35.085
+<v Foldi, Erika>when we looking royalty,
+we can't just look only whether only the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5041-5
+00:34:35.085 --> 00:34:37.245
+<v Foldi, Erika>has in book because there are other.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5092-0
+00:34:37.845 --> 00:34:42.460
+<v Foldi, Erika>Processes and if we've looking for an S4
+solution and it needs to be considered</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5045-0
+00:34:38.525 --> 00:34:39.285
+<v Hrishi R>100%.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5092-1
+00:34:42.460 --> 00:34:46.499
+<v Foldi, Erika>everything and then Rishi points,
+it also makes sense to say that OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5092-2
+00:34:46.499 --> 00:34:49.211
+<v Foldi, Erika>but what? What do we do?
+We really need an S4,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5092-3
+00:34:49.211 --> 00:34:53.942
+<v Foldi, Erika>be it a solution for this process and I
+think they also for that at this point we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5092-4
+00:34:53.942 --> 00:34:56.885
+<v Foldi, Erika>don't know.
+I think at this point we just need to.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5134-0
+00:34:56.925 --> 00:35:01.936
+<v Foldi, Erika>To check the process and that's my
+understanding is that at the end of this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5094-0
+00:34:58.885 --> 00:34:59.125
+<v Hrishi R>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5134-1
+00:35:01.936 --> 00:35:05.629
+<v Foldi, Erika>few few discussions,
+we should be able to say that yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5134-2
+00:35:05.629 --> 00:35:10.772
+<v Foldi, Erika>actually something to build in S4 would
+help in the process or maybe we don't</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5134-3
+00:35:10.772 --> 00:35:13.938
+<v Foldi, Erika>need anything in S4.
+But I think at this point,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5134-4
+00:35:13.938 --> 00:35:15.125
+<v Foldi, Erika>we don't know yet.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-0
+00:35:16.125 --> 00:35:19.339
+<v Hrishi R>100% Erica. In fact,
+that's exactly the the question and the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-1
+00:35:19.339 --> 00:35:22.343
+<v Hrishi R>answer we are looking for. Yeah.
+So the idea here is to,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5152-0
+00:35:21.325 --> 00:35:21.725
+<v Foldi, Erika>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-2
+00:35:22.343 --> 00:35:26.138
+<v Hrishi R>because we did the Phase zero assessment
+for Helsingborg, Val-de-Reuil,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-3
+00:35:26.138 --> 00:35:29.774
+<v Hrishi R>Sezanne and Wuppertal. Yeah.
+So specifically looking at Helsingborg,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-4
+00:35:29.774 --> 00:35:34.201
+<v Hrishi R>this point came up and the the complexity
+of why this came up is is as mentioned on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5177-0
+00:35:31.805 --> 00:35:32.005
+<v Foldi, Erika>Yep.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5192-5
+00:35:34.201 --> 00:35:35.045
+<v Hrishi R>this particular.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5225-0
+00:35:35.125 --> 00:35:40.427
+<v Hrishi R>Like and as Sumedh was explaining,
+but the idea of this conversation is not</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5191-0
+00:35:36.085 --> 00:35:36.285
+<v Foldi, Erika>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5225-1
+00:35:40.427 --> 00:35:43.985
+<v Hrishi R>to stay focused. Yeah,
+I mean on a granular level,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5225-2
+00:35:43.985 --> 00:35:47.473
+<v Hrishi R>the ask is to stay focused on,
+on on Helsingborg,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5225-3
+00:35:47.473 --> 00:35:50.125
+<v Hrishi R>because that's the immediate ask. But.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5264-0
+00:35:51.325 --> 00:35:54.346
+<v Hrishi R>Of course,
+we know that the the S4 template will</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5264-1
+00:35:54.346 --> 00:35:59.095
+<v Hrishi R>have to be adopted globally. Yeah.
+So while we are having that conversation,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5264-2
+00:35:59.095 --> 00:36:02.795
+<v Hrishi R>we discuss Helsingborg,
+but we also discuss it in a broader</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5264-3
+00:36:02.795 --> 00:36:05.570
+<v Hrishi R>context,
+how this can be adopted in a global</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5264-4
+00:36:05.570 --> 00:36:06.125
+<v Hrishi R>template.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5312-0
+00:36:06.685 --> 00:36:09.165
+<v Hrishi R>And the image also the next question of
+it,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5312-1
+00:36:09.165 --> 00:36:12.603
+<v Hrishi R>what should be and should not be adopted
+is also a question.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5312-2
+00:36:12.603 --> 00:36:16.886
+<v Hrishi R>I mean the idea of this particular
+exercise is also to ensure that we don't</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5312-3
+00:36:16.886 --> 00:36:21.452
+<v Hrishi R>enter into these roadblocks later into
+the stage. So once Helsingborg kicks off,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5312-4
+00:36:21.452 --> 00:36:24.045
+<v Hrishi R>you know,
+the implementation starts and then.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5353-0
+00:36:24.365 --> 00:36:27.576
+<v Hrishi R>You identify? Oh,
+I I did not identify these issues.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5353-1
+00:36:27.576 --> 00:36:30.908
+<v Hrishi R>And then it becomes late.
+And then you have to end up,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5353-2
+00:36:30.908 --> 00:36:33.574
+<v Hrishi R>you end up building new enhancements.
+Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5353-3
+00:36:33.574 --> 00:36:36.725
+<v Hrishi R>So we want to try and get to those kind
+of answers.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5371-0
+00:36:34.685 --> 00:36:37.643
+<v Foldi, Erika>Yeah. And we do have actually enhancement,
+yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5354-0
+00:36:37.605 --> 00:36:37.965
+<v Wadekar, Anuja>If.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5371-1
+00:36:37.643 --> 00:36:41.989
+<v Foldi, Erika>And we do have actually enhancements
+regarding royalty in the pipeline.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5371-2
+00:36:41.989 --> 00:36:44.525
+<v Foldi, Erika>So we need to then also connect with that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5408-0
+00:36:45.285 --> 00:36:47.831
+<v Hrishi R>Exactly. Yeah.
+So we need to contextualise it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5374-0
+00:36:45.725 --> 00:36:46.005
+<v Wadekar, Anuja>Oh.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5408-1
+00:36:47.831 --> 00:36:51.678
+<v Hrishi R>So what is already in the pipeline,
+does it fulfil these requirements?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5408-2
+00:36:51.678 --> 00:36:55.741
+<v Hrishi R>If it does, then no problem. Yeah.
+Then this does not remain a problem for</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5388-0
+00:36:52.085 --> 00:36:52.325
+<v Foldi, Erika>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5408-3
+00:36:55.741 --> 00:36:58.884
+<v Hrishi R>Helsingborg. Yeah.
+Is there anything specific that anyone</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5408-4
+00:36:58.884 --> 00:36:59.805
+<v Hrishi R>sees here? Which.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5434-0
+00:37:00.445 --> 00:37:05.285
+<v Hrishi R>Doesn't you know which is not adopted in
+the global template and therefore could</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5434-1
+00:37:05.285 --> 00:37:09.467
+<v Hrishi R>become a new enhancement or a new new
+process design specifically for</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5434-2
+00:37:09.467 --> 00:37:10.125
+<v Hrishi R>Helsingborg</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5436-0
+00:37:11.445 --> 00:37:12.045
+<v Hrishi R>Yes, anuja.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5475-0
+00:37:12.765 --> 00:37:16.855
+<v Wadekar, Anuja>Hi. So hi.
+My name is Anuja and I work as a senior</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5475-1
+00:37:16.855 --> 00:37:21.827
+<v Wadekar, Anuja>RSP for Helsingborg.
+I am not so much involved in the royalty</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5475-2
+00:37:21.827 --> 00:37:26.398
+<v Wadekar, Anuja>business as such but I'm aware of how it
+is functioning.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5475-3
+00:37:26.398 --> 00:37:28.885
+<v Wadekar, Anuja>Right now you're in Helsingborg</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5508-0
+00:37:29.645 --> 00:37:38.184
+<v Wadekar, Anuja>And since you are asking about just ideas
+on maybe a way to implement this into one</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5508-1
+00:37:38.184 --> 00:37:42.453
+<v Wadekar, Anuja>S4,
+what I was thinking was is we already</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5508-2
+00:37:42.453 --> 00:37:45.605
+<v Wadekar, Anuja>receive manufacturing POs from.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5511-0
+00:37:46.885 --> 00:37:48.605
+<v Wadekar, Anuja>Cilag for example.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5546-0
+00:37:50.005 --> 00:37:56.647
+<v Wadekar, Anuja>The product is produced and it is shipped
+from Helsingborg across against an</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5546-1
+00:37:56.647 --> 00:38:00.874
+<v Wadekar, Anuja>invoice.
+What could support over here is perhaps</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5546-2
+00:38:00.874 --> 00:38:07.085
+<v Wadekar, Anuja>based on the invoice quantity,
+an automatic royalty PO created to Cilag</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5559-0
+00:38:07.645 --> 00:38:12.645
+<v Wadekar, Anuja>So that no manual intervention is
+required from the Helsingborg perspective.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5594-0
+00:38:17.405 --> 00:38:22.726
+<v Foldi, Erika>And I think that that's something similar,
+but we already built.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5566-0
+00:38:17.485 --> 00:38:17.925
+<v Hrishi R>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5594-1
+00:38:22.726 --> 00:38:29.602
+<v Foldi, Erika>So we started to build something back for
+Canada and then I can see the enhancement</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5594-2
+00:38:29.602 --> 00:38:31.485
+<v Foldi, Erika>list some items for US.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5619-0
+00:38:32.045 --> 00:38:35.206
+<v Foldi, Erika>So yeah,
+I think we just need to then understand</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5619-1
+00:38:35.206 --> 00:38:40.045
+<v Foldi, Erika>what we have so far in S4 and better it
+would have what has in work, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5612-0
+00:38:37.125 --> 00:38:37.805
+<v Wadekar, Anuja>Exactly.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5618-0
+00:38:39.805 --> 00:38:40.965
+<v Wadekar, Anuja>All right, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5662-0
+00:38:40.445 --> 00:38:44.333
+<v Hrishi R>Yeah, perfect. So Sumedh,
+I think what might make sense is,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5662-1
+00:38:44.333 --> 00:38:47.378
+<v Hrishi R>you know,
+we have a focused discussion on this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5662-2
+00:38:47.378 --> 00:38:50.683
+<v Hrishi R>topic based on the input that anuja just
+provided.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5662-3
+00:38:50.683 --> 00:38:53.729
+<v Hrishi R>Let's have a conversation together with
+Erica.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5662-4
+00:38:53.729 --> 00:38:56.645
+<v Hrishi R>Let's look at what enhancements are
+already.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5702-0
+00:38:57.005 --> 00:39:01.302
+<v Hrishi R>In the pipeline? Yeah,
+because that visibility is not there with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5671-0
+00:38:59.485 --> 00:39:00.085
+<v Sumedh Kulkarni>Mm-hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5702-1
+00:39:01.302 --> 00:39:05.534
+<v Hrishi R>us at the moment. Yeah.
+So let's look at what is there and then</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5683-0
+00:39:04.285 --> 00:39:04.485
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5702-2
+00:39:05.534 --> 00:39:10.625
+<v Hrishi R>let's map it into the, let's say,
+the issues that you have identified. Yeah,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-0
+00:39:10.045 --> 00:39:13.328
+<v Sumedh Kulkarni>Yeah, actually that's.
+This was one of my questions in the next</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5702-3
+00:39:10.625 --> 00:39:11.485
+<v Hrishi R>I think that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-1
+00:39:13.328 --> 00:39:15.740
+<v Sumedh Kulkarni>slide.
+So we have created a list of questions,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-2
+00:39:15.740 --> 00:39:19.691
+<v Sumedh Kulkarni>but let's do I and this is I think I
+think you were speaking from the second</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-3
+00:39:19.691 --> 00:39:23.488
+<v Sumedh Kulkarni>scenario. For example in this case,
+I think this is where my question was</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-4
+00:39:23.488 --> 00:39:27.644
+<v Sumedh Kulkarni>specifically that is it a logistic sales
+driven process because this is the kind</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5748-5
+00:39:27.644 --> 00:39:29.645
+<v Sumedh Kulkarni>of thought process I also had from the.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-0
+00:39:29.725 --> 00:39:32.752
+<v Sumedh Kulkarni>The solution perspective right,
+but I think that's fine.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-1
+00:39:32.752 --> 00:39:35.673
+<v Sumedh Kulkarni>What we can do is we can quickly go on
+the next slide.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-2
+00:39:35.673 --> 00:39:38.434
+<v Sumedh Kulkarni>There are some generic questions that we
+can cover.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-3
+00:39:38.434 --> 00:39:42.895
+<v Sumedh Kulkarni>I think key decisions we can come back to
+later because I think this needs to go on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-4
+00:39:42.895 --> 00:39:46.772
+<v Sumedh Kulkarni>hold. So we can just quickly, yeah,
+just cover some questions because we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5800-5
+00:39:46.772 --> 00:39:48.525
+<v Sumedh Kulkarni>might get some breakthrough here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-0
+00:39:49.445 --> 00:39:52.536
+<v Sumedh Kulkarni>So saying we have already have some
+global solutions, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-1
+00:39:52.536 --> 00:39:55.475
+<v Sumedh Kulkarni>Some of these questions are similar to
+that. For example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-2
+00:39:55.475 --> 00:39:59.731
+<v Sumedh Kulkarni>the first question that I had and I think
+someone answered this at the beginning of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-3
+00:39:59.731 --> 00:40:03.279
+<v Sumedh Kulkarni>the call, which was my doubt,
+are these the only three processes that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-4
+00:40:03.279 --> 00:40:05.508
+<v Sumedh Kulkarni>we have.
+And I think if we look from global</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-5
+00:40:05.508 --> 00:40:07.991
+<v Sumedh Kulkarni>template perspective,
+I think we got the answer.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5844-6
+00:40:07.991 --> 00:40:09.005
+<v Sumedh Kulkarni>There are many more.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-0
+00:40:09.325 --> 00:40:11.889
+<v Sumedh Kulkarni>Right.
+And that's very important to understand</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-1
+00:40:11.889 --> 00:40:15.217
+<v Sumedh Kulkarni>because in the end,
+when any solution that goes ahead right,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-2
+00:40:15.217 --> 00:40:19.363
+<v Sumedh Kulkarni>maybe any solution that even the global
+template is working or not has been</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-3
+00:40:19.363 --> 00:40:21.872
+<v Sumedh Kulkarni>started.
+The benefit definitely is calculated</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-4
+00:40:21.872 --> 00:40:25.691
+<v Sumedh Kulkarni>based on number of scenarios on what is
+the scope of the work, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5896-5
+00:40:25.691 --> 00:40:28.965
+<v Sumedh Kulkarni>So example if only these three were there
+in entire Kenvue,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5941-0
+00:40:29.005 --> 00:40:33.731
+<v Sumedh Kulkarni>right then obviously going for a costly
+automated solution or something would not</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5941-1
+00:40:33.731 --> 00:40:37.882
+<v Sumedh Kulkarni>be feasible, right? But instead of three,
+if we have 13, if we have 30,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5941-2
+00:40:37.882 --> 00:40:42.032
+<v Sumedh Kulkarni>then for sure the solution and the
+potential of solution changes right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5941-3
+00:40:42.032 --> 00:40:46.125
+<v Sumedh Kulkarni>But someone already answered it.
+The only thing I can request is that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5979-0
+00:40:48.805 --> 00:40:53.087
+<v Sumedh Kulkarni>If we can have some kind of a consulted
+list or a kind of maybe some more</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5979-1
+00:40:53.087 --> 00:40:57.253
+<v Sumedh Kulkarni>information regarding the the royalty
+scenarios that we have other than</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/5979-2
+00:40:57.253 --> 00:41:00.205
+<v Sumedh Kulkarni>Helsingborg,
+that would really help us out, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6010-0
+00:41:01.845 --> 00:41:06.473
+<v Sumedh Kulkarni>Second question was also more or less
+answered that are these scenarios still</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6010-1
+00:41:06.473 --> 00:41:09.975
+<v Sumedh Kulkarni>valid? Yes, they are valid.
+Most of the things were clear.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6010-2
+00:41:09.975 --> 00:41:14.782
+<v Sumedh Kulkarni>I think the only thing that we are not
+sure about right now is the payment terms</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6010-3
+00:41:14.782 --> 00:41:16.325
+<v Sumedh Kulkarni>have let me change or not.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6068-0
+00:41:17.325 --> 00:41:22.152
+<v Sumedh Kulkarni>That can also be revisited with the guys
+who are actually handling right now the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6068-1
+00:41:22.152 --> 00:41:26.682
+<v Sumedh Kulkarni>royalty postings. So that's fine.
+We still got the maximum information that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6068-2
+00:41:26.682 --> 00:41:29.603
+<v Sumedh Kulkarni>we wanted.
+Third question is I think from global</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6068-3
+00:41:29.603 --> 00:41:34.311
+<v Sumedh Kulkarni>template perspective because see the
+postings are the when you are supposed to</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6068-4
+00:41:34.311 --> 00:41:35.325
+<v Sumedh Kulkarni>book the royalty.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6105-0
+00:41:35.725 --> 00:41:39.870
+<v Sumedh Kulkarni>The timelines that we have,
+everything is impacted by the accounting</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6105-1
+00:41:39.870 --> 00:41:42.514
+<v Sumedh Kulkarni>standards that we have, right.
+For example,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6105-2
+00:41:42.514 --> 00:41:46.359
+<v Sumedh Kulkarni>IFRS might say book royalty in this way,
+you might have US GAP,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6105-3
+00:41:46.359 --> 00:41:50.805
+<v Sumedh Kulkarni>which might say there might be a
+definition change over there, right? So.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6150-0
+00:41:51.005 --> 00:41:55.745
+<v Sumedh Kulkarni>This is where my question came up and
+this is something that we can understand</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6150-1
+00:41:55.745 --> 00:41:59.765
+<v Sumedh Kulkarni>once we understand how many processes are
+there. For example, yes,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6150-2
+00:41:59.765 --> 00:42:04.565
+<v Sumedh Kulkarni>from Europe's side we have these many
+where more or less most of the in most of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6150-3
+00:42:04.565 --> 00:42:07.565
+<v Sumedh Kulkarni>the places we have IFRS driven accounting,
+right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6202-0
+00:42:08.165 --> 00:42:11.426
+<v Sumedh Kulkarni>If there are some US based,
+we have to think from that perspective</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6202-1
+00:42:11.426 --> 00:42:15.028
+<v Sumedh Kulkarni>because that might impact your accrual
+kind of processing and the revenue</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6202-2
+00:42:15.028 --> 00:42:17.900
+<v Sumedh Kulkarni>booking for royalty, right.
+So once we have that scenario,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6202-3
+00:42:17.900 --> 00:42:21.502
+<v Sumedh Kulkarni>maybe that would really give us everyone
+a good perspective regarding the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6202-4
+00:42:21.502 --> 00:42:25.445
+<v Sumedh Kulkarni>different accounting standards as well as
+group reporting requirement behind it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6239-0
+00:42:25.965 --> 00:42:29.339
+<v Sumedh Kulkarni>Right then the 4th one was again kind of
+answered.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6239-1
+00:42:29.339 --> 00:42:34.434
+<v Sumedh Kulkarni>Are these long term agreements are
+expected to expire in foreseeable future,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6239-2
+00:42:34.434 --> 00:42:39.661
+<v Sumedh Kulkarni>so sorry, sorry this one not answered,
+but I think again it's an open question</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6239-3
+00:42:39.661 --> 00:42:41.845
+<v Sumedh Kulkarni>which we can get answer to later.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-0
+00:42:42.525 --> 00:42:46.062
+<v Sumedh Kulkarni>Because if any of these,
+because usually we have a timeline, right,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-1
+00:42:46.062 --> 00:42:48.403
+<v Sumedh Kulkarni>the agreements are maybe 10 years,
+15 years,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-2
+00:42:48.403 --> 00:42:52.461
+<v Sumedh Kulkarni>20 years down the line and if some of
+these are supposed to mature and not be</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-3
+00:42:52.461 --> 00:42:55.322
+<v Sumedh Kulkarni>in place, let's say one year,
+two years down the line,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-4
+00:42:55.322 --> 00:42:59.172
+<v Sumedh Kulkarni>then there is no point in building a
+solution for these kind of scenarios</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6289-5
+00:42:59.172 --> 00:43:01.565
+<v Sumedh Kulkarni>because then you're,
+I mean that there is no.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6293-0
+00:43:01.765 --> 00:43:04.205
+<v Sumedh Kulkarni>Benefit or cost benefit over here, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6344-0
+00:43:06.805 --> 00:43:09.657
+<v Sumedh Kulkarni>Then the 5th question,
+which was not clear maybe from the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6344-1
+00:43:09.657 --> 00:43:13.100
+<v Sumedh Kulkarni>documentation or I missed out is
+invoicing for sure is managed by the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6344-2
+00:43:13.100 --> 00:43:16.150
+<v Sumedh Kulkarni>central team right?
+So for the royalties all the invoices are</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6344-3
+00:43:16.150 --> 00:43:19.494
+<v Sumedh Kulkarni>managed by the central team.
+The only thing I was not sure about is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6344-4
+00:43:19.494 --> 00:43:23.085
+<v Sumedh Kulkarni>the accruals for this invoice.
+Is this also managed by the central team?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6359-0
+00:43:23.485 --> 00:43:28.338
+<v Sumedh Kulkarni>Or is it managed by the local team for
+the respective sites?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6359-1
+00:43:28.338 --> 00:43:30.885
+<v Sumedh Kulkarni>I'm sorry the next slide please.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6364-0
+00:43:30.005 --> 00:43:33.405
+<v Merrick, Anu>No,
+it's still managed by the team in Manila.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6392-0
+00:43:35.285 --> 00:43:37.809
+<v Sumedh Kulkarni>It's OK,
+so the accruals are managed by team in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6392-1
+00:43:37.809 --> 00:43:40.649
+<v Sumedh Kulkarni>local sites.
+Sorry Manila is your is that your shared</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6392-2
+00:43:40.649 --> 00:43:42.805
+<v Sumedh Kulkarni>service centre or is it the local centre?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6437-0
+00:43:41.765 --> 00:43:45.100
+<v Foldi, Erika>No, no, sorry to be clear.
+Local in Europe,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6437-1
+00:43:45.100 --> 00:43:49.498
+<v Foldi, Erika>the manufacturing side has local finance
+in make finance.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6437-2
+00:43:49.498 --> 00:43:53.971
+<v Foldi, Erika>So they that scope is the side spend like
+department cost,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6437-3
+00:43:53.971 --> 00:44:00.187
+<v Foldi, Erika>if there is any other process discussion,
+usually the teams is sitting in the two</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6437-4
+00:44:00.187 --> 00:44:01.325
+<v Foldi, Erika>global finance.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6490-0
+00:44:01.405 --> 00:44:04.407
+<v Foldi, Erika>Teams one is in Brazil and one is in
+Manila,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6490-1
+00:44:04.407 --> 00:44:09.478
+<v Foldi, Erika>and this royalty has also two parts,
+so there is not really a royalty team.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6446-0
+00:44:04.685 --> 00:44:05.005
+<v Sumedh Kulkarni>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6490-2
+00:44:09.478 --> 00:44:14.215
+<v Foldi, Erika>We don't have a royalty team.
+The royalty process is today is owned by</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6490-3
+00:44:14.215 --> 00:44:18.685
+<v Foldi, Erika>Supply chain  Finance Peak Team Peak team.
+That's the Brazil team.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6479-0
+00:44:15.565 --> 00:44:15.805
+<v Sumedh Kulkarni>And.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6535-0
+00:44:19.085 --> 00:44:23.616
+<v Foldi, Erika>But we also have an intercompany
+accounting team who are the one who</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6535-1
+00:44:23.616 --> 00:44:28.345
+<v Foldi, Erika>posted regular accrual journals like
+postings between the two entities,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6535-2
+00:44:28.345 --> 00:44:33.533
+<v Foldi, Erika>but they're not really process owners.
+They're more like a transactional team.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6512-0
+00:44:30.325 --> 00:44:30.485
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6535-3
+00:44:33.533 --> 00:44:37.605
+<v Foldi, Erika>So the process owner team is sitting in
+the Brazil peak team.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6537-0
+00:44:38.565 --> 00:44:41.125
+<v Sumedh Kulkarni>OK, that that clears it up. Yeah.
+Thank you.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-0
+00:44:42.965 --> 00:44:45.122
+<v Sumedh Kulkarni>OK.
+And then I think the last question</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-1
+00:44:45.122 --> 00:44:48.164
+<v Sumedh Kulkarni>because the last two questions are
+specific scenarios.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-2
+00:44:48.164 --> 00:44:51.428
+<v Sumedh Kulkarni>So and those people are not here,
+so we'll skip that part.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-3
+00:44:51.428 --> 00:44:53.862
+<v Sumedh Kulkarni>But and the 7th question that you see
+here,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-4
+00:44:53.862 --> 00:44:58.176
+<v Sumedh Kulkarni>I think Eric already answered that that
+is their solution that are built from</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6603-5
+00:44:58.176 --> 00:45:02.325
+<v Sumedh Kulkarni>global template perspectives that is
+being worked out. And I think we can.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6626-0
+00:45:02.405 --> 00:45:07.038
+<v Sumedh Kulkarni>And connect for that separately. Erica,
+just just to see what's being potentially</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6626-1
+00:45:07.038 --> 00:45:09.751
+<v Sumedh Kulkarni>built up,
+happy to learn something new and hear</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6626-2
+00:45:09.751 --> 00:45:13.085
+<v Sumedh Kulkarni>your thoughts as well on what's going on
+over there, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6625-0
+00:45:14.285 --> 00:45:14.485
+<v Foldi, Erika>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6635-0
+00:45:15.645 --> 00:45:19.045
+<v Sumedh Kulkarni>Yeah. So what? Yeah. Please, please.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6678-0
+00:45:16.085 --> 00:45:21.307
+<v Merrick, Anu>I can actually answer 8, so yeah,
+they do a monthly accrual and then the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6642-0
+00:45:20.365 --> 00:45:20.725
+<v Sumedh Kulkarni>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6678-1
+00:45:21.307 --> 00:45:24.598
+<v Merrick, Anu>quarterly invoicing,
+which is your month one,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6678-2
+00:45:24.598 --> 00:45:30.107
+<v Merrick, Anu>month 2 will be actuals and your month
+three will be - They base it on prior</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6654-0
+00:45:25.365 --> 00:45:25.965
+<v Sumedh Kulkarni>Mm-hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6678-3
+00:45:30.107 --> 00:45:33.685
+<v Merrick, Anu>year forecast that's that's how they do
+it today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6669-0
+00:45:30.485 --> 00:45:30.845
+<v Sumedh Kulkarni>Correct.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6701-0
+00:45:34.205 --> 00:45:37.480
+<v Merrick, Anu>And the true up is done at year end
+basically.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6701-1
+00:45:37.480 --> 00:45:41.382
+<v Merrick, Anu>Um so the the intercompany team that I'm
+talking about,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6701-2
+00:45:41.382 --> 00:45:45.285
+<v Merrick, Anu>they do kind of like the AP side and the
+AR side of it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6743-0
+00:45:49.565 --> 00:45:51.904
+<v Sumedh Kulkarni>OK, OK.
+But but just one scenario for the GSK</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6743-1
+00:45:51.904 --> 00:45:55.211
+<v Sumedh Kulkarni>part, for example, right,
+let's talk about let's divide into two</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6720-0
+00:45:54.645 --> 00:45:55.245
+<v Merrick, Anu>Mm-hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6743-2
+00:45:55.211 --> 00:45:58.415
+<v Sumedh Kulkarni>parts, the gum part, right?
+So for the gum invoices sent as an</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6743-3
+00:45:58.415 --> 00:46:01.264
+<v Sumedh Kulkarni>advance, right?
+So it's at the beginning of the quarter</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6743-4
+00:46:01.264 --> 00:46:02.485
+<v Sumedh Kulkarni>where it is sent across.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6772-0
+00:46:03.285 --> 00:46:07.254
+<v Merrick, Anu>So yeah,
+they do their monthly accrual based on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6745-0
+00:46:04.085 --> 00:46:04.125
+<v Sumedh Kulkarni>Uh.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6772-1
+00:46:07.254 --> 00:46:11.637
+<v Merrick, Anu>the reconciliation statement that they
+get from GSK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6772-2
+00:46:11.637 --> 00:46:16.765
+<v Merrick, Anu>which apparently is around mid month and
+it's 1/4 in arrears.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6780-0
+00:46:19.165 --> 00:46:21.525
+<v Sumedh Kulkarni>Sorry. Come again.
+Can you repeat that last sentence, please?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6819-0
+00:46:22.085 --> 00:46:26.513
+<v Merrick, Anu>So it's 1/4 in arrears what we are
+accruing and they normally get the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6791-0
+00:46:24.365 --> 00:46:24.965
+<v Sumedh Kulkarni>Mm-hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6819-1
+00:46:26.513 --> 00:46:31.763
+<v Merrick, Anu>reconciliation statement from GSK around
+mid month and that's what they base their</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6819-2
+00:46:31.763 --> 00:46:32.965
+<v Merrick, Anu>monthly accrual on.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6886-0
+00:46:34.045 --> 00:46:37.581
+<v Sumedh Kulkarni>OK, OK, noted noted. OK,
+I think that's that clears it up.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6886-1
+00:46:37.581 --> 00:46:42.316
+<v Sumedh Kulkarni>And then I think the last part is where I
+just maybe this will be very generic</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6886-2
+00:46:42.316 --> 00:46:46.512
+<v Sumedh Kulkarni>information because in the presentations
+which were really beautiful,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6886-3
+00:46:46.512 --> 00:46:51.127
+<v Sumedh Kulkarni>I think the reference for the 8% royalty
+is where we have ELC as the portion</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6886-4
+00:46:51.127 --> 00:46:53.765
+<v Sumedh Kulkarni>coming is name coming up.
+And for the word.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6926-0
+00:46:53.845 --> 00:46:57.089
+<v Sumedh Kulkarni>File which was little older.
+We had the Cilag reference.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6896-0
+00:46:56.885 --> 00:46:58.445
+<v Merrick, Anu>Yeah, they're the same. They're the same.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6926-1
+00:46:57.089 --> 00:47:00.505
+<v Sumedh Kulkarni>They are the same.
+OK that clears it up and I think this is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6926-2
+00:47:00.505 --> 00:47:05.115
+<v Sumedh Kulkarni>the one that you were explaining and I
+this is where I even I had the doubt that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6926-3
+00:47:05.115 --> 00:47:09.328
+<v Sumedh Kulkarni>the sales and everything I mean this
+entire process is already built into</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6926-4
+00:47:09.328 --> 00:47:10.125
+<v Sumedh Kulkarni>Kenvue, right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6981-0
+00:47:10.605 --> 00:47:13.945
+<v Sumedh Kulkarni>So, for example,
+ELC is where the entire manufacturing is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6981-1
+00:47:13.945 --> 00:47:18.265
+<v Sumedh Kulkarni>happening and the sales part for example.
+So this information, unlike GSK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6981-2
+00:47:18.265 --> 00:47:22.815
+<v Sumedh Kulkarni>Kenvue has complete control over it in
+terms of calculations and those kind of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6981-3
+00:47:22.815 --> 00:47:25.695
+<v Sumedh Kulkarni>things.
+The reason this is very important is that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/6981-4
+00:47:25.695 --> 00:47:30.245
+<v Sumedh Kulkarni>the solutions will kind vary because the
+first one is where you have complete.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-0
+00:47:30.405 --> 00:47:33.938
+<v Sumedh Kulkarni>Dependency on 3rd party to give you
+information while over here it's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-1
+00:47:33.938 --> 00:47:37.062
+<v Sumedh Kulkarni>completely internal,
+Kenvue system driven so the automations</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-2
+00:47:37.062 --> 00:47:40.902
+<v Sumedh Kulkarni>potentially that I was even envisioning
+are quite easier on the second one</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-3
+00:47:40.902 --> 00:47:44.692
+<v Sumedh Kulkarni>because the entire information is
+available internally on the Kenvue side</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-4
+00:47:44.692 --> 00:47:47.201
+<v Sumedh Kulkarni>and so the automation will become really
+easier.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7035-5
+00:47:47.201 --> 00:47:50.325
+<v Sumedh Kulkarni>But that's completely my perspective.
+We have to really see.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7043-0
+00:47:50.405 --> 00:47:54.245
+<v Sumedh Kulkarni>What's going on with the solutions that
+are being planned right now, right?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7045-0
+00:47:57.045 --> 00:47:57.325
+<v Merrick, Anu>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7086-0
+00:47:58.165 --> 00:48:01.582
+<v Sumedh Kulkarni>Yeah, but yes,
+I think that was the main thing I wanted</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7086-1
+00:48:01.582 --> 00:48:06.402
+<v Sumedh Kulkarni>to cover today for the royalty part.
+We do have a couple of slides on lease if</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7086-2
+00:48:06.402 --> 00:48:09.575
+<v Sumedh Kulkarni>everyone is OK, we can move there.
+But before that,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7086-3
+00:48:09.575 --> 00:48:13.725
+<v Sumedh Kulkarni>if anything anyone wants to say about
+royalty, that would be great.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7124-0
+00:48:14.165 --> 00:48:17.274
+<v Sumedh Kulkarni>And anything that they want to say for
+the next session, OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7124-1
+00:48:17.274 --> 00:48:20.689
+<v Sumedh Kulkarni>In addition to the peoples that you
+requested, that's really nice.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7124-2
+00:48:20.689 --> 00:48:24.562
+<v Sumedh Kulkarni>Anything else that you would like to
+cover as part of royalty in the second</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7124-3
+00:48:24.562 --> 00:48:28.538
+<v Sumedh Kulkarni>session so that we might we will make
+sure that you know let's concentrate on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7124-4
+00:48:28.538 --> 00:48:29.405
+<v Sumedh Kulkarni>this part for the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7126-0
+00:48:29.925 --> 00:48:30.845
+<v Sumedh Kulkarni>Remainder of the week.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7136-0
+00:48:37.725 --> 00:48:39.765
+<v Hrishi R>Move on to the release part, Sumedh</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7179-0
+00:48:39.845 --> 00:48:42.535
+<v Sumedh Kulkarni>OK, OK. So I'm writing.
+Let's we'll skip this one.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7179-1
+00:48:42.535 --> 00:48:46.491
+<v Sumedh Kulkarni>This is just a summary from one of the
+beautiful slides that we had. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7179-2
+00:48:46.491 --> 00:48:49.761
+<v Sumedh Kulkarni>Leasing. So in comparison to royalty,
+I mean for the royalty,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7179-3
+00:48:49.761 --> 00:48:52.609
+<v Sumedh Kulkarni>we got really nice documentation in terms
+of leasing.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7179-4
+00:48:52.609 --> 00:48:55.405
+<v Sumedh Kulkarni>I think we are still waiting for some
+documentation.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7234-0
+00:48:56.725 --> 00:49:01.106
+<v Sumedh Kulkarni>But still, we'll try to go through there.
+It might be a smaller topic to cover</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7234-1
+00:49:01.106 --> 00:49:04.100
+<v Sumedh Kulkarni>today, right?
+So the current information that we have</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7234-2
+00:49:04.100 --> 00:49:08.537
+<v Sumedh Kulkarni>is that the forklifts are the only case
+right now information and that's one of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7234-3
+00:49:08.537 --> 00:49:11.920
+<v Sumedh Kulkarni>the question also.
+But what we have right now information is</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7234-4
+00:49:11.920 --> 00:49:15.525
+<v Sumedh Kulkarni>forklifts which are 40 odd in count are
+the only are the assets.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7267-0
+00:49:15.645 --> 00:49:19.273
+<v Sumedh Kulkarni>That are under lease management,
+that's the first thing that we have.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7267-1
+00:49:19.273 --> 00:49:21.761
+<v Sumedh Kulkarni>Again,
+there is a central team which takes care</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7267-2
+00:49:21.761 --> 00:49:26.063
+<v Sumedh Kulkarni>of the accounting part for it for these
+lease, there is an invoice that is raised.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7267-3
+00:49:26.063 --> 00:49:30.365
+<v Sumedh Kulkarni>I think it might be monthly or quarterly
+based on the time frame that has been in.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7316-0
+00:49:31.965 --> 00:49:36.655
+<v Sumedh Kulkarni>Decide I did it upon and right now it's I
+think there was links which was in place</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7316-1
+00:49:36.655 --> 00:49:40.272
+<v Sumedh Kulkarni>for the invoicing part,
+but I think it is being covered as part</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7316-2
+00:49:40.272 --> 00:49:43.267
+<v Sumedh Kulkarni>of them right now.
+Again for this the painpoints are</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7316-3
+00:49:43.267 --> 00:49:47.958
+<v Sumedh Kulkarni>something similar to what we saw in the
+royalty. It's not a automated process, OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7316-4
+00:49:47.958 --> 00:49:50.445
+<v Sumedh Kulkarni>it's something that is handled outside
+ERP.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7366-0
+00:49:51.925 --> 00:49:56.342
+<v Sumedh Kulkarni>Then most of the leads adjustments are
+done at the IFRS adjustments are done at</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7366-1
+00:49:56.342 --> 00:50:00.704
+<v Sumedh Kulkarni>the group level where maybe the local
+team don't have that visibility and this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7366-2
+00:50:00.704 --> 00:50:04.900
+<v Sumedh Kulkarni>is something we can check if they really
+need that visibility or not right.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7366-3
+00:50:04.900 --> 00:50:07.716
+<v Sumedh Kulkarni>And yes,
+because of the this excel based solutions</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7366-4
+00:50:07.716 --> 00:50:09.925
+<v Sumedh Kulkarni>and everything again it's a manual work.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7411-0
+00:50:10.845 --> 00:50:15.311
+<v Sumedh Kulkarni>These are this is the only information we
+have from the limited documentation that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7411-1
+00:50:15.311 --> 00:50:19.185
+<v Sumedh Kulkarni>we have for the lease management part.
+But if anybody over here has any</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7411-2
+00:50:19.185 --> 00:50:23.060
+<v Sumedh Kulkarni>information or any can add any point
+regarding what we have or anything</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7411-3
+00:50:23.060 --> 00:50:27.365
+<v Sumedh Kulkarni>additional that would be really helpful
+for us to prepare for the next session.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7438-0
+00:50:32.725 --> 00:50:35.861
+<v Ingreji, Rishi>Who manages leases today?
+That's maybe my question.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7438-1
+00:50:35.861 --> 00:50:40.505
+<v Ingreji, Rishi>I'm just trying to send why this is an
+issue with with one set of forklifts.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7438-2
+00:50:40.505 --> 00:50:44.245
+<v Ingreji, Rishi>This isn't something that's come up
+before in our discussion.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7455-0
+00:50:47.845 --> 00:50:51.668
+<v Ingreji, Rishi>So I'm trying to understand why it's been
+a big Rock.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7455-1
+00:50:51.668 --> 00:50:54.925
+<v Ingreji, Rishi>What has been highlighted as being the
+issue.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7498-0
+00:50:58.605 --> 00:51:02.809
+<v Hrishi R>Yeah. Again, Rishi,
+I think it's something that came up</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7498-1
+00:51:02.809 --> 00:51:06.563
+<v Hrishi R>specifically in the context of
+Helsingborg. Yeah,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7498-2
+00:51:06.563 --> 00:51:12.044
+<v Hrishi R>I mean it's it's a specific leasing
+process that happens at Helsingborg,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7498-3
+00:51:12.044 --> 00:51:15.948
+<v Hrishi R>you know,
+in terms of the the volume and and how it</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7498-4
+00:51:15.948 --> 00:51:17.525
+<v Hrishi R>sort of gets managed.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7524-0
+00:51:18.365 --> 00:51:24.615
+<v Hrishi R>Within within that particular site it's,
+it's just the the way.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7524-1
+00:51:24.615 --> 00:51:32.722
+<v Hrishi R>If if you look at what we know you know,
+so there are specific number of forklifts</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7524-2
+00:51:32.722 --> 00:51:34.285
+<v Hrishi R>there which are.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7556-0
+00:51:35.125 --> 00:51:40.192
+<v Hrishi R>Leased and then the way that invoicing
+and accounting is handled,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7556-1
+00:51:40.192 --> 00:51:45.337
+<v Hrishi R>it's just a way it is managed today.
+Manual excel based, you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7556-2
+00:51:45.337 --> 00:51:50.405
+<v Hrishi R>manual journal entries.
+So there was a a question that was posed.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7587-0
+00:51:51.205 --> 00:51:57.048
+<v Hrishi R>Is there a better process to manage it in
+a in a global template format so this one</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7587-1
+00:51:57.048 --> 00:52:01.918
+<v Hrishi R>is more of a question. Yeah,
+so it's in in terms of the impact or the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7587-2
+00:52:01.918 --> 00:52:05.605
+<v Hrishi R>complexity lower compared to some of the
+other ones.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7607-0
+00:52:06.325 --> 00:52:09.099
+<v Hrishi R>It basically came up as a question saying,
+OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7592-0
+00:52:07.885 --> 00:52:08.005
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7607-1
+00:52:09.099 --> 00:52:13.820
+<v Hrishi R>it's a painpoint in our existing process.
+Is there something better that we can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7607-2
+00:52:13.820 --> 00:52:14.765
+<v Hrishi R>look forward to?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7610-0
+00:52:16.725 --> 00:52:16.885
+<v Ingreji, Rishi>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7642-0
+00:52:17.205 --> 00:52:21.502
+<v Hrishi R>So for now it's it's more of a question
+you know is there,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7642-1
+00:52:21.502 --> 00:52:27.110
+<v Hrishi R>is there a process already set up in,
+in the S4 template you know which will</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7642-2
+00:52:27.110 --> 00:52:31.625
+<v Hrishi R>solve this problem.
+Personally I believe the answer should be</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7642-3
+00:52:31.625 --> 00:52:32.645
+<v Hrishi R>yes, but just.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7644-0
+00:52:33.365 --> 00:52:34.725
+<v Hrishi R>A question to everybody here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7683-0
+00:52:40.405 --> 00:52:44.656
+<v Ingreji, Rishi>Right now,
+it hasn't come up in the discussions I've</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7683-1
+00:52:44.656 --> 00:52:48.024
+<v Ingreji, Rishi>had.
+We haven't activated anything on the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7668-0
+00:52:47.525 --> 00:52:47.805
+<v Hrishi R>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7683-2
+00:52:48.024 --> 00:52:53.959
+<v Ingreji, Rishi>contract lease management side.
+We have obviously the asset management or</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7683-3
+00:52:53.959 --> 00:52:56.045
+<v Ingreji, Rishi>or fixed asset but leases.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7689-0
+00:52:56.525 --> 00:52:58.525
+<v Ingreji, Rishi>I haven't been discussed. I have.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7731-0
+00:52:58.525 --> 00:53:02.651
+<v Hrishi R>Yeah. And and Rishi,
+just to also clarify on that point, right,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7690-0
+00:52:59.725 --> 00:53:00.165
+<v Sumedh Kulkarni>And would.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7731-1
+00:53:02.651 --> 00:53:07.035
+<v Hrishi R>so also what we did is when we were doing
+the readiness assessment,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7731-2
+00:53:07.035 --> 00:53:10.839
+<v Hrishi R>the the Phase Zero,
+we did not we we could not look at the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7731-3
+00:53:10.839 --> 00:53:13.805
+<v Hrishi R>to-be template in in a great level of
+detail.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7774-0
+00:53:14.845 --> 00:53:18.818
+<v Hrishi R>But wherever we knew that there would be
+a process to handle it,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7774-1
+00:53:18.818 --> 00:53:22.547
+<v Hrishi R>we sort of took a a sort of a calculated
+judgement that, OK,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7774-2
+00:53:22.547 --> 00:53:26.642
+<v Hrishi R>this may not be a problem,
+but since you also mentioned right that</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7774-3
+00:53:26.642 --> 00:53:31.104
+<v Hrishi R>lease management has not come up.
+So maybe it turns into a potential gap</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7774-4
+00:53:31.104 --> 00:53:32.205
+<v Hrishi R>once we deep dive.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7812-0
+00:53:32.485 --> 00:53:36.225
+<v Hrishi R>And that's the reason why it's here. Yeah,
+so maybe just what?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7812-1
+00:53:36.225 --> 00:53:40.796
+<v Hrishi R>We'll also check it from our side.
+If there is a a solution which is already</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7812-2
+00:53:40.796 --> 00:53:44.001
+<v Hrishi R>envisaged here,
+but if it's not then potentially this</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7812-3
+00:53:44.001 --> 00:53:47.682
+<v Hrishi R>turns into a gap, right,
+which either has to be built in with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7812-4
+00:53:47.682 --> 00:53:49.285
+<v Hrishi R>standard SAP functionality.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7816-0
+00:53:49.805 --> 00:53:51.765
+<v Hrishi R>Or might even turn into an announcement.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7824-0
+00:53:53.485 --> 00:53:55.685
+<v Hrishi R>So that's the deep dive investigation we
+need to do here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7856-0
+00:53:59.085 --> 00:54:02.420
+<v Ingreji, Rishi>Yeah,
+it'd be important for me to understand</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7856-1
+00:54:02.420 --> 00:54:07.831
+<v Ingreji, Rishi>what pain point we're trying to remedy.
+Obviously excel based. I get it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7856-2
+00:54:07.831 --> 00:54:11.462
+<v Ingreji, Rishi>That's not great,
+but where's the pain and that?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7856-3
+00:54:11.462 --> 00:54:14.205
+<v Ingreji, Rishi>So we have so we can keep clear what?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7851-0
+00:54:11.805 --> 00:54:12.365
+<v Hrishi R>Yeah, and.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7905-0
+00:54:14.765 --> 00:54:19.739
+<v Ingreji, Rishi>SAP is capable of doing because if you
+take an Excel spreadsheet and you say</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7905-1
+00:54:19.739 --> 00:54:22.840
+<v Ingreji, Rishi>look each month I have to make payment
+for $10,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7905-2
+00:54:22.840 --> 00:54:26.846
+<v Ingreji, Rishi>000 or whatever the currency being used
+here, Swedish kroner,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7880-0
+00:54:24.165 --> 00:54:24.405
+<v Hrishi R>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7905-3
+00:54:26.846 --> 00:54:30.011
+<v Ingreji, Rishi>then that's that isn't very difficult to
+set up.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7905-4
+00:54:30.011 --> 00:54:33.565
+<v Ingreji, Rishi>You don't have to set up the whole
+condition contract.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7922-0
+00:54:33.965 --> 00:54:36.368
+<v Ingreji, Rishi>And track it like you know the granular
+level.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7922-1
+00:54:36.368 --> 00:54:40.204
+<v Ingreji, Rishi>You could set up some form of repeat
+payment or anything like that to keep</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7922-2
+00:54:40.204 --> 00:54:41.125
+<v Ingreji, Rishi>keep on top of it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7928-0
+00:54:43.045 --> 00:54:45.205
+<v Hrishi R>Yeah, it's a very yeah, sorry.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7930-0
+00:54:43.325 --> 00:54:43.965
+<v Ingreji, Rishi>So.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7950-0
+00:54:46.645 --> 00:54:50.762
+<v Ingreji, Rishi>So yeah, that was out for me.
+Is just trying to ensure that when we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7950-1
+00:54:50.762 --> 00:54:55.485
+<v Ingreji, Rishi>talk about pain point is what pain that
+we're trying to relieve ourselves of.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7992-0
+00:54:57.485 --> 00:55:00.680
+<v Hrishi R>Yeah, I'll,
+I'll try and explain and maybe if there's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7992-1
+00:55:00.680 --> 00:55:03.816
+<v Hrishi R>somebody who can explain it from a site
+perspective,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7992-2
+00:55:03.816 --> 00:55:08.551
+<v Hrishi R>I know we have some limited participation
+in this call today conscious of that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/7992-3
+00:55:08.551 --> 00:55:13.285
+<v Hrishi R>But one of the main pinpoints that came
+up at Helsingborg repeatedly, Rishi is.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-0
+00:55:13.685 --> 00:55:18.123
+<v Hrishi R>You know, firstly they are on.
+I don't want to digress this discussion.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-1
+00:55:18.123 --> 00:55:21.082
+<v Hrishi R>Yeah.
+So but just to give an overall context at</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-2
+00:55:21.082 --> 00:55:24.288
+<v Hrishi R>the moment,
+they use a very old system called MoveX</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-3
+00:55:24.288 --> 00:55:27.678
+<v Hrishi R>as an ERP. Yeah, it's it's, I mean,
+if I can say that,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-4
+00:55:27.678 --> 00:55:31.932
+<v Hrishi R>you know it's painfully old,
+you know it's one of the oldest systems</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8037-0
+00:55:31.565 --> 00:55:32.765
+<v Ingreji, Rishi>Yeah, familiar with it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8041-5
+00:55:31.932 --> 00:55:33.165
+<v Hrishi R>I've come across in.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8074-0
+00:55:33.685 --> 00:55:38.251
+<v Hrishi R>Yeah. So that's movex.
+And then what to address the the system,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8074-1
+00:55:38.251 --> 00:55:43.460
+<v Hrishi R>what they have done is they have created
+a number of Excel spreadsheets,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8074-2
+00:55:43.460 --> 00:55:48.312
+<v Hrishi R>some 300 plus to be honest,
+which are consolidated into a framework</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8074-3
+00:55:48.312 --> 00:55:49.525
+<v Hrishi R>called Data Mart.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8111-0
+00:55:50.205 --> 00:55:54.765
+<v Hrishi R>And those excel spreadsheets are then
+used to solve a number of their</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8111-1
+00:55:54.765 --> 00:55:59.064
+<v Hrishi R>operational topics. You know,
+on one side it could be transaction</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8111-2
+00:55:59.064 --> 00:56:02.647
+<v Hrishi R>management and on the other side,
+it's also reporting.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8111-3
+00:56:02.647 --> 00:56:06.165
+<v Hrishi R>So what happened was when we were going
+through this.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8148-0
+00:56:06.365 --> 00:56:10.394
+<v Hrishi R>We went through a lot of those Excel
+spreadsheets, you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8148-1
+00:56:10.394 --> 00:56:15.546
+<v Hrishi R>to look at where they are and a number of
+them would get solved directly with</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8148-2
+00:56:15.546 --> 00:56:20.830
+<v Hrishi R>standard SAP functionality. You know,
+material movements, inventory management,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8148-3
+00:56:20.830 --> 00:56:22.085
+<v Hrishi R>material numbering.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8185-0
+00:56:22.685 --> 00:56:27.256
+<v Hrishi R>Batch management, et cetera, et cetera.
+You know some related to quality</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8161-0
+00:56:26.285 --> 00:56:26.725
+<v Aniruddha Mukherjee></v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8185-1
+00:56:27.256 --> 00:56:31.452
+<v Hrishi R>management and so on. This one,
+we were not sure and that's why we</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8185-2
+00:56:31.452 --> 00:56:36.524
+<v Hrishi R>captured it as one of the the potential
+big rocks just to check that you know it</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8185-3
+00:56:36.524 --> 00:56:37.965
+<v Hrishi R>doesn't appear as as a.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8224-0
+00:56:38.565 --> 00:56:43.105
+<v Hrishi R>As a gap later in the process,
+So what we'll also do if unless if</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8224-1
+00:56:43.105 --> 00:56:48.677
+<v Hrishi R>somebody can already answer it here in
+terms of the volume and the complexity of</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8224-2
+00:56:48.677 --> 00:56:53.631
+<v Hrishi R>the effort, we'll we'll verify that.
+If it turns out it's a low volume,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8224-3
+00:56:53.631 --> 00:56:57.965
+<v Hrishi R>low effort activity which can continue to
+be managed in Excel.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8258-0
+00:56:58.365 --> 00:57:03.271
+<v Hrishi R>And we don't on one side we it has not
+come up in any other site and therefore</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8258-1
+00:57:03.271 --> 00:57:06.686
+<v Hrishi R>we don't have a standard SAP solution in
+the template.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8258-2
+00:57:06.686 --> 00:57:09.543
+<v Hrishi R>And looking at the volume and the
+complexity,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8258-3
+00:57:09.543 --> 00:57:14.325
+<v Hrishi R>we don't even think it should be built
+continuing with an Excel solution is.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8291-0
+00:57:14.605 --> 00:57:18.274
+<v Hrishi R>Is good enough? Maybe that's our answer.
+Yeah. So right now,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8291-1
+00:57:18.274 --> 00:57:22.906
+<v Hrishi R>the idea was just to put it out out here
+and and to arrive at that kind of a</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8291-2
+00:57:22.906 --> 00:57:25.974
+<v Hrishi R>conclusion.
+So that then we capture it as a design</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8291-3
+00:57:25.974 --> 00:57:30.245
+<v Hrishi R>decision that it's specific to
+Helsingborg. It's not a global problem.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8306-0
+00:57:31.845 --> 00:57:36.134
+<v Hrishi R>It's not so high volume, high complexity.
+It can continue to be managed in Excel,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8306-1
+00:57:36.134 --> 00:57:36.605
+<v Hrishi R>so be it.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8323-0
+00:57:40.005 --> 00:57:42.473
+<v Hrishi R>Yeah,
+but we just need to get to that answer in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8323-1
+00:57:42.473 --> 00:57:44.787
+<v Hrishi R>a factual,
+databased way that that's all the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8323-2
+00:57:44.787 --> 00:57:45.765
+<v Hrishi R>intention was here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8326-0
+00:57:50.005 --> 00:57:50.605
+<v Hrishi R>Did I clarify?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8330-0
+00:57:51.965 --> 00:57:52.965
+<v Hrishi R>Or any follow on question.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8333-0
+00:57:56.045 --> 00:57:56.285
+<v Ingreji, Rishi>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-0
+00:57:58.205 --> 00:58:01.451
+<v Foldi, Erika>Yeah, thanks for this background.
+I think at least for me,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-1
+00:58:01.451 --> 00:58:05.248
+<v Foldi, Erika>it helped a lot like it's really
+clarifies how we get to this point.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-2
+00:58:05.248 --> 00:58:08.715
+<v Foldi, Erika>But my view is that OK,
+at this point then now we need to find</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-3
+00:58:08.715 --> 00:58:13.117
+<v Foldi, Erika>who are the people who doing this process
+and who are actually the ones who has</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8373-0
+00:58:12.245 --> 00:58:12.485
+<v Hrishi R>Hmm.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-4
+00:58:13.117 --> 00:58:16.694
+<v Foldi, Erika>this pain point, right.
+And we need to talk with them and that's</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8391-5
+00:58:16.694 --> 00:58:18.125
+<v Foldi, Erika>actually not an easy task.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8425-0
+00:58:18.245 --> 00:58:23.307
+<v Foldi, Erika>in today's Kenvue work with all the
+global regional teams? But like,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8425-1
+00:58:23.307 --> 00:58:28.224
+<v Foldi, Erika>that's the next step, right?
+We need to discuss with that specific</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8418-0
+00:58:26.645 --> 00:58:29.245
+<v Hrishi R>Yeah, we'll we'll take that.
+I think that's one of the main.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8425-2
+00:58:28.224 --> 00:58:30.205
+<v Foldi, Erika>that those specific people.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-0
+00:58:31.045 --> 00:58:33.476
+<v Hrishi R>Yeah,
+I think that's one of the main takeaways</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-1
+00:58:33.476 --> 00:58:37.718
+<v Hrishi R>from this call. Yeah. I mean on one side,
+we want to ensure we have all the right</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8440-0
+00:58:34.045 --> 00:58:34.365
+<v Foldi, Erika>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-2
+00:58:37.718 --> 00:58:41.597
+<v Hrishi R>participants in these calls. So,
+so as we make this absolutely productive,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8451-0
+00:58:38.045 --> 00:58:38.165
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8465-0
+00:58:41.445 --> 00:58:41.725
+<v Foldi, Erika>Yep.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-3
+00:58:41.597 --> 00:58:43.821
+<v Hrishi R>yeah.
+So we definitely need the right site</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-4
+00:58:43.821 --> 00:58:47.029
+<v Hrishi R>participation. Yeah, yeah.
+We'll we'll work on ensuring that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8471-0
+00:58:44.365 --> 00:58:44.605
+<v Foldi, Erika>OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8489-5
+00:58:47.029 --> 00:58:50.805
+<v Hrishi R>And then also when we are discussing a
+specific topic like we discussed.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-0
+00:58:50.885 --> 00:58:54.363
+<v Hrishi R>discussed on the royalty,
+maybe we'll also have to identify if</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-1
+00:58:54.363 --> 00:58:56.792
+<v Hrishi R>there are specific central teams,
+you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-2
+00:58:56.792 --> 00:58:59.939
+<v Hrishi R>like we we just discussed earlier in in
+this call. Yeah,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-3
+00:58:59.939 --> 00:59:04.300
+<v Hrishi R>we need to ensure that they are there so
+that they can then rubber stamp this,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-4
+00:59:04.300 --> 00:59:06.729
+<v Hrishi R>you know, OK,
+this is actually my pinpoint.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8528-5
+00:59:06.729 --> 00:59:08.165
+<v Hrishi R>Can you solve this please?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8559-0
+00:59:09.285 --> 00:59:12.971
+<v Hrishi R>Yeah, or this is not OK.
+If you tell me I have to manage it in</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8559-1
+00:59:12.971 --> 00:59:16.423
+<v Hrishi R>Excel. Fine for me.
+I continue the way I'm doing it today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8559-2
+00:59:16.423 --> 00:59:19.056
+<v Hrishi R>Yeah,
+and that allows us to get to those key</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8559-3
+00:59:19.056 --> 00:59:23.445
+<v Hrishi R>design decisions quicker and then we are
+able to close these points. Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8584-0
+00:59:24.925 --> 00:59:28.320
+<v Hrishi R>But I think personally I think just based
+on this discussion,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8584-1
+00:59:28.320 --> 00:59:32.209
+<v Hrishi R>we already made good progress. You know,
+we have to now clarify those.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8584-2
+00:59:32.209 --> 00:59:36.645
+<v Hrishi R>Those open questions quickly and then
+then we get to those answers that we want.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8618-0
+00:59:42.325 --> 00:59:45.367
+<v Hrishi R>Hey,
+is there anyone on the on the call who</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8618-1
+00:59:45.367 --> 00:59:50.830
+<v Hrishi R>can help clarify some of the doubts that
+were raised Anuja since you mentioned</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8618-2
+00:59:50.830 --> 00:59:54.565
+<v Hrishi R>earlier on the royalty, you know,
+just sorry I don't.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8627-0
+00:59:53.645 --> 00:59:57.845
+<v Wadekar, Anuja>No, no, no, no, no, no, no, no.
+It's plant specific, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8647-0
+00:59:56.245 --> 00:59:59.490
+<v Hrishi R>OK. No, sorry. Didn't want no.
+Didn't want to put you on the spot,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8647-1
+00:59:59.490 --> 01:00:03.366
+<v Hrishi R>but just wanted to ask if there's anyone
+else who can who can answer it similar</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8634-0
+01:00:00.525 --> 01:00:00.645
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8647-2
+01:00:03.366 --> 01:00:04.965
+<v Hrishi R>like how you did for the royalty?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8659-0
+01:00:09.245 --> 01:00:11.811
+<v Hrishi R>Yeah. If not,
+we'll we'll go back to the site and and</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8659-1
+01:00:11.811 --> 01:00:13.285
+<v Hrishi R>try and get this clarification.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8702-0
+01:00:16.525 --> 01:00:21.583
+<v Hamza Abikar>I think the person who has highlighted
+the the leasing process to us during the</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8702-1
+01:00:21.583 --> 01:00:25.439
+<v Hamza Abikar>phase series was Christian and Cecillia.
+I think as we knew,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8702-2
+01:00:25.439 --> 01:00:30.055
+<v Hamza Abikar>Cecillia has left and Christian,
+I believe he's out of office for today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8702-3
+01:00:30.055 --> 01:00:32.205
+<v Hamza Abikar>So I'll try get them specifically.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8699-0
+01:00:31.605 --> 01:00:31.965
+<v Hrishi R>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8720-0
+01:00:32.725 --> 01:00:35.201
+<v Hamza Abikar>Oh,
+at least Christian on a one-on-one on</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8720-1
+01:00:35.201 --> 01:00:39.565
+<v Hamza Abikar>this try. See his understanding.
+And if there's any wider teams involved.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8714-0
+01:00:36.965 --> 01:00:37.285
+<v Hrishi R>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8721-0
+01:00:40.605 --> 01:00:40.725
+<v Sumedh Kulkarni>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-0
+01:00:40.925 --> 01:00:44.128
+<v Hrishi R>Yeah, Hamza,
+let's also capture that as as a learning</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-1
+01:00:44.128 --> 01:00:46.856
+<v Hrishi R>for the next session. Yeah,
+so that you know,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-2
+01:00:46.856 --> 01:00:49.763
+<v Hrishi R>if some of the key stakeholders,
+if they're not,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-3
+01:00:49.763 --> 01:00:54.330
+<v Hrishi R>then we we act as mediators, you know,
+I mean that's not ideal all the time.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-4
+01:00:54.330 --> 01:00:56.702
+<v Hrishi R>Yeah.
+So we we could literally get to a</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8761-5
+01:00:56.702 --> 01:00:58.245
+<v Hrishi R>conclusion here, you know.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8767-0
+01:00:58.845 --> 01:01:02.885
+<v Hrishi R>What is the volume?
+What is the complexity? Yeah. OK.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8769-0
+01:01:06.605 --> 01:01:06.765
+<v Hamza Abikar>Cool.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8771-0
+01:01:08.445 --> 01:01:08.845
+<v Hrishi R>That enough?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8787-0
+01:01:12.165 --> 01:01:15.285
+<v Hrishi R>So I think let let's park these questions
+right now. Summit, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8788-0
+01:01:14.205 --> 01:01:16.485
+<v Sumedh Kulkarni>Yeah, yeah, yeah, yeah. Pleasure.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8805-0
+01:01:17.645 --> 01:01:20.337
+<v Hrishi R>OK.
+Is there anything else we wanted to cover?</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8805-1
+01:01:20.337 --> 01:01:24.405
+<v Hrishi R>I'm just conscious of the time. I mean,
+we have 24 people on the call.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8811-0
+01:01:27.605 --> 01:01:30.165
+<v Hrishi R>If we can give back the time,
+let's do that.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8813-0
+01:01:29.565 --> 01:01:31.045
+<v Sumedh Kulkarni>Yeah, yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8824-0
+01:01:33.765 --> 01:01:36.885
+<v Hrishi R>Anything else we wanted to cover?
+Hafeez is anything to add from your side.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8825-0
+01:01:36.045 --> 01:01:37.645
+<v Sumedh Kulkarni>No, nothing from my side at least.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8879-0
+01:01:42.405 --> 01:01:45.840
+<v Mirza, Hafeez>No, I think we're good.
+We got most of the questions addressed.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8879-1
+01:01:45.840 --> 01:01:50.242
+<v Mirza, Hafeez>Some are still pending to be you know,
+from the global teams that we need to get.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8879-2
+01:01:50.242 --> 01:01:53.517
+<v Mirza, Hafeez>Like Erica pointed out,
+once we have the connects from them,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8879-3
+01:01:53.517 --> 01:01:57.811
+<v Mirza, Hafeez>we'll reestablish another call with the
+global teams to understand exactly what</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8879-4
+01:01:57.811 --> 01:01:58.885
+<v Mirza, Hafeez>they're doing today.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8886-0
+01:02:00.085 --> 01:02:02.085
+<v Mirza, Hafeez>And then see how we can map it out into
+SAP</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8921-0
+01:02:03.365 --> 01:02:07.579
+<v Mirza, Hafeez>And as Rishi mentioned as well,
+we didn't looked into contract and lease</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8921-1
+01:02:07.579 --> 01:02:10.465
+<v Mirza, Hafeez>management,
+maybe that's another area that we can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8921-2
+01:02:10.465 --> 01:02:14.045
+<v Mirza, Hafeez>explore and see how we can enable that
+capability within SAP.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8923-0
+01:02:16.245 --> 01:02:16.485
+<v Hrishi R>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8967-0
+01:02:18.165 --> 01:02:21.074
+<v Mirza, Hafeez>Yeah.
+Previous I think if if we can conclude</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8967-1
+01:02:21.074 --> 01:02:24.436
+<v Mirza, Hafeez>then we'll share minutes as well as the
+attendance.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8942-0
+01:02:24.045 --> 01:02:24.165
+<v Hamza Abikar>Yeah.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8967-2
+01:02:24.436 --> 01:02:29.737
+<v Mirza, Hafeez>And Erica if you can share the names of
+the global team participants who can join</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8967-3
+01:02:29.737 --> 01:02:34.973
+<v Mirza, Hafeez>can take that as an action for the next
+call on Friday to see if those folks can</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8967-4
+01:02:34.973 --> 01:02:35.685
+<v Mirza, Hafeez>be invited.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8977-0
+01:02:37.405 --> 01:02:38.485
+<v Mirza, Hafeez>And then we can close out.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8984-0
+01:02:37.605 --> 01:02:42.925
+<v Merrick, Anu>I've sent that for royalties already have
+fees. I've sent the name for royalties.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/8986-0
+01:02:44.565 --> 01:02:45.325
+<v Mirza, Hafeez>Yeah. Good.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9022-0
+01:02:54.805 --> 01:02:58.417
+<v Hamza Abikar>All right. Perfect.
+I think that's an hour on the dots.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9022-1
+01:02:58.417 --> 01:03:01.513
+<v Hamza Abikar>I think we'll give 25 minutes back to
+everyone.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9022-2
+01:03:01.513 --> 01:03:04.415
+<v Hamza Abikar>We'll get in contact with the royalty
+teams.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9022-3
+01:03:04.415 --> 01:03:08.995
+<v Hamza Abikar>I think we will have a focus session and
+then hopefully for next week,</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9022-4
+01:03:08.995 --> 01:03:12.285
+<v Hamza Abikar>we can bring them along into the wider
+forum here.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9047-0
+01:03:14.845 --> 01:03:19.045
+<v Mirza, Hafeez>Great. Thank you. Thank you. Thanks, Eva.
+Thank you. Bye.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9051-0
+01:03:15.525 --> 01:03:21.605
+<v Hamza Abikar>OK. Thank you. Thank you. Bye, bye.
+Thanks everyone. Bye. Thank you.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9045-0
+01:03:15.965 --> 01:03:19.245
+<v Merrick, Anu>Thank you. Thank you. Bye, bye.</v>
+
+a29eddb3-96a0-4ec0-9a83-e8d2528baa47/9048-0
+01:03:16.405 --> 01:03:20.085
+<v &#197;refors, Lisa>Thank you. Bye bye bye.</v>
