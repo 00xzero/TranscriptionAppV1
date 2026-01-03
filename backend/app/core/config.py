@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     single_user_token: str = Field(default="devtoken")
 
+    # Deepgram STT
+    deepgram_api_key: str = Field(default="")
+    deepgram_model: str = Field(default="nova-3")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

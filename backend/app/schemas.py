@@ -105,3 +105,14 @@ class SegmentUpdate(BaseModel):
     start_ms: Optional[int] = None
     end_ms: Optional[int] = None
     speaker_id: Optional[str] = None
+
+
+class JobRead(BaseModel):
+    id: str
+    project_id: str
+    type: str
+    status: str
+    payload: dict | None = None
+
+    class Config:
+        from_attributes = True

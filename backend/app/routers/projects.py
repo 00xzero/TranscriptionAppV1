@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import uuid4
+from io import BytesIO
 
 from ..db import get_db
 from ..models import Project, Segment, Word, Speaker
@@ -24,6 +26,7 @@ from ..schemas import (
 )
 from ..services.s3 import presign_put_url, normalize_key_component, presign_get_url, delete_prefix
 from ..services.tasks import enqueue_transcription
+from ..services.exports import generate_docx, generate_vtt
 
 router = APIRouter()
 
@@ -241,3 +244,73 @@ def update_speaker(speaker_id: str, payload: SpeakerUpdate, db: Session = Depend
     db.commit()
     db.refresh(sp)
     return sp
+
+
+@router.get("/projects/{project_id}/export/docx")
+def export_docx(project_id: str, include_timestamps: bool = True, db: Session = Depends(get_db)):
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Load segments and speakers
+    segments = db.query(Segment).filter(Segment.project_id == project_id).order_by(Segment.start_ms.asc()).all()
+    speakers = db.query(Speaker).filter(Speaker.project_id == project_id).all()
+    
+    # Build speakers map
+    speakers_map = {sp.id: {"label": sp.label, "color": sp.color} for sp in speakers}
+    
+    # Convert segments to dicts
+    segments_data = [
+        {
+            "speaker_id": seg.speaker_id,
+            "start_ms": seg.start_ms,
+            "end_ms": seg.end_ms,
+            "text": seg.text
+        }
+        for seg in segments
+    ]
+    
+    # Generate DOCX
+    buffer = generate_docx(proj.title or f"Project {project_id}", segments_data, speakers_map, include_timestamps)
+    
+    filename = f"{proj.title or project_id}_transcript.docx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/projects/{project_id}/export/vtt")
+def export_vtt(project_id: str, db: Session = Depends(get_db)):
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Load segments and speakers
+    segments = db.query(Segment).filter(Segment.project_id == project_id).order_by(Segment.start_ms.asc()).all()
+    speakers = db.query(Speaker).filter(Speaker.project_id == project_id).all()
+    
+    # Build speakers map
+    speakers_map = {sp.id: {"label": sp.label, "color": sp.color} for sp in speakers}
+    
+    # Convert segments to dicts
+    segments_data = [
+        {
+            "speaker_id": seg.speaker_id,
+            "start_ms": seg.start_ms,
+            "end_ms": seg.end_ms,
+            "text": seg.text
+        }
+        for seg in segments
+    ]
+    
+    # Generate VTT
+    vtt_content = generate_vtt(segments_data, speakers_map)
+    
+    filename = f"{proj.title or project_id}_captions.vtt"
+    return StreamingResponse(
+        BytesIO(vtt_content.encode("utf-8")),
+        media_type="text/vtt",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )

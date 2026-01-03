@@ -216,7 +216,6 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     return words
   }
 
-  const apiBase = getApiBase()
   const scheduleSave = useCallback((segId: string, newText: string) => {
     // update UI immediately
     setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
@@ -229,7 +228,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     // debounce before saving
     const timerId = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${apiBase}/segments/${segId}`, {
+        const res = await fetch(`${getApiBase()}/segments/${segId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: newText }),
@@ -244,7 +243,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
       }
     }, SAVE_DEBOUNCE_MS)
     saveTimers.current[segId] = timerId
-  }, [apiBase])
+  }, [])
 
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []
@@ -429,6 +428,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
   const canNavigate = hasMatches && !isFindDirty
   const matchSummary = isFindDirty ? 'Press Search' : (totalMatches ? `${matchIndex + 1}/${totalMatches}` : '0 matches')
 
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Editor: {params.id}</h1>
@@ -518,7 +518,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 space-y-3 max-h-[70vh] overflow-auto">
           <h2 className="font-medium">Transcript</h2>
-          <div className="space-y-3">
+            <div className="space-y-3">
             {segments.map((s: Seg, idx: number) => {
               const isActive = activeIds.segId === s.id
               const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
