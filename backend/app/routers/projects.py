@@ -159,6 +159,12 @@ def import_segments(project_id: str, payload: BulkImportSegments, db: Session = 
         return sp.id
 
     for s in payload.segments:
+        if s.end_ms < s.start_ms:
+            raise HTTPException(status_code=400, detail="end_ms must be >= start_ms")
+        if s.words:
+            for w in s.words:
+                if w.end_ms < w.start_ms:
+                    raise HTTPException(status_code=400, detail="end_ms must be >= start_ms")
         seg_id = s.id or str(uuid.uuid4())
         speaker_id = s.speaker_id or get_or_create_speaker(s.speaker_label)
         seg = Segment(
