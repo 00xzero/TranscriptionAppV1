@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import String, DateTime, Integer, ForeignKey, Float, JSON
+from sqlalchemy import String, DateTime, Integer, ForeignKey, Float, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -14,9 +14,9 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    status: Mapped[str] = mapped_column(String(32), default="created", nullable=False)
-    source_object_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    title: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="created", nullable=False, index=True)
+    source_object_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -36,8 +36,8 @@ class Speaker(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True)
-    label: Mapped[str] = mapped_column(String(64), default="Speaker")
-    color: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    label: Mapped[str] = mapped_column(String(128), default="Speaker")
+    color: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
@@ -54,9 +54,9 @@ class Segment(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), index=True)
     speaker_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("speakers.id", ondelete="SET NULL"), nullable=True, index=True)
-    start_ms: Mapped[int] = mapped_column(Integer, index=True)
-    end_ms: Mapped[int] = mapped_column(Integer, index=True)
-    text: Mapped[str] = mapped_column(String(8000), default="")
+    start_ms: Mapped[int] = mapped_column(Integer)
+    end_ms: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text, default="")
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
@@ -75,7 +75,7 @@ class Word(Base):
     segment_id: Mapped[str] = mapped_column(String(36), ForeignKey("segments.id", ondelete="CASCADE"), index=True)
     start_ms: Mapped[int] = mapped_column(Integer)
     end_ms: Mapped[int] = mapped_column(Integer)
-    text: Mapped[str] = mapped_column(String(128))
+    text: Mapped[str] = mapped_column(String(256))
     confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0)
 
