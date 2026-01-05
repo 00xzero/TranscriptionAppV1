@@ -1,6 +1,19 @@
 # Changelog
 
-All notable changes to this project are documented in this file.
+All notable changes to this project will be documented in this file.
+
+## [2025-01-05] - Project Cleanup
+
+### Removed
+- **Redundant files**: `create.json`, `projects.json`, `url.txt`, `pid.txt` (test output files)
+- **Root `package-lock.json`**: Empty duplicate (actual lockfile is in `/frontend`)
+- **`scripts/` directory**: Windows PowerShell test scripts (unused on macOS)
+- **`worker/Dockerfile`**: Obsolete Dockerfile (replaced by `Dockerfile.unified`)
+
+### Notes
+- Removed 9 redundant files totaling ~15KB
+- No functional changes - only cleanup of unused/obsolete files
+- Empty `__init__.py` files preserved (required Python package markers)
 
 ## [Unreleased] - 2026-01-05
 
