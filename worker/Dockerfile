@@ -12,6 +12,10 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy shared backend code (models, config, db) for ORM access
+COPY backend_app ./backend_app
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 COPY app ./app
 
 CMD ["celery", "-A", "app.worker.app", "worker", "--loglevel=INFO"]

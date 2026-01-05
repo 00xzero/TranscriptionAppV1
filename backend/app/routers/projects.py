@@ -8,12 +8,14 @@ from uuid import uuid4
 from io import BytesIO
 
 from ..db import get_db
-from ..models import Project, Segment, Word, Speaker
+from ..core.auth import require_auth
+from ..models import Project, Segment, Word, Speaker, Job
 from ..schemas import (
     ProjectCreate,
     ProjectRead,
     PresignedUpload,
     JobEnqueued,
+    JobRead,
     MediaUrl,
     SegmentRead,
     BulkImportSegments,
@@ -28,7 +30,8 @@ from ..services.s3 import presign_put_url, normalize_key_component, presign_get_
 from ..services.tasks import enqueue_transcription
 from ..services.exports import generate_docx, generate_vtt
 
-router = APIRouter()
+# All routes in this router require authentication
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.post("/projects", response_model=PresignedUpload)
@@ -77,9 +80,23 @@ def start_project(project_id: str, db: Session = Depends(get_db)):
 
     proj.status = "queued"
     db.add(proj)
+    
+    # Create a Job record to track this transcription
+    job = Job(
+        project_id=project_id,
+        type="transcribe",
+        status="queued",
+    )
+    db.add(job)
     db.commit()
+    db.refresh(job)
 
-    task_id = enqueue_transcription(project_id)
+    task_id = enqueue_transcription(project_id, job_id=job.id)
+    
+    # Update job with celery task ID
+    job.celery_task_id = task_id
+    db.commit()
+    
     return JobEnqueued(project_id=project_id, task_id=task_id)
 
 
@@ -90,6 +107,16 @@ def project_media_url(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     url = presign_get_url(proj.source_object_key)
     return MediaUrl(project_id=project_id, object_key=proj.source_object_key, url=url)
+
+
+@router.get("/projects/{project_id}/jobs", response_model=List[JobRead])
+def list_project_jobs(project_id: str, db: Session = Depends(get_db)):
+    """List all jobs for a project, ordered by creation time (newest first)."""
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    jobs = db.query(Job).filter(Job.project_id == project_id).order_by(Job.created_at.desc()).all()
+    return jobs
 
 
 @router.get("/projects/{project_id}/segments", response_model=list[SegmentRead])

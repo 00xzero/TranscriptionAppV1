@@ -58,8 +58,8 @@ services:
 
   worker:
     build:
-      context: ../worker
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: worker/Dockerfile.unified
     environment:
       DATABASE_URL: postgresql://app:app@postgres:5432/meeting
       REDIS_URL: redis://redis:6379/0

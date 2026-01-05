@@ -110,9 +110,13 @@ class SegmentUpdate(BaseModel):
 class JobRead(BaseModel):
     id: str
     project_id: str
+    celery_task_id: str | None = None
     type: str
     status: str
     payload: dict | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
     class Config:
         from_attributes = True
