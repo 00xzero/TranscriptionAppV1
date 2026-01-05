@@ -11,11 +11,17 @@ const makeJsonResponse = (data: unknown, status = 200) => ({
 
 const mockFetch = () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    if (url.endsWith('/media-url') && (!init || init.method === 'GET')) {
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request).url
+    const method = (init?.method || 'GET').toUpperCase()
+    if (url.includes('/media-url') && method === 'GET') {
       return makeJsonResponse({ url: 'http://example.com/audio.mp3' })
     }
-    if (url.includes('/segments') && (!init || init.method === 'GET')) {
+    if (url.includes('/segments') && method === 'GET') {
       const segs = [
         { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.' },
         { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.' },

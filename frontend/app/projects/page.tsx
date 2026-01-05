@@ -1,12 +1,16 @@
 "use client"
 import Link from 'next/link'
+import { useState } from 'react'
 import { useProjects, useProjectActions } from '../../lib/swr'
 
 export default function ProjectsPage() {
   const { projects, isLoading, mutate } = useProjects()
   const { startProject: startProjectAction, deleteProject: deleteProjectAction } = useProjectActions()
+  const [starting, setStarting] = useState<Record<string, boolean>>({})
 
   const startProject = async (id: string) => {
+    if (starting[id]) return
+    setStarting((prev) => ({ ...prev, [id]: true }))
     try {
       await startProjectAction(id)
       // Revalidate the projects list
@@ -14,6 +18,11 @@ export default function ProjectsPage() {
     } catch (e) {
       console.error(e)
       alert(String(e))
+      setStarting((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
     }
   }
 
@@ -48,12 +57,25 @@ export default function ProjectsPage() {
               <div className="text-xs text-muted">{p.status} • {new Date(p.created_at).toLocaleString()}</div>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
-                onClick={() => startProject(p.id)}
-                disabled={!['created', 'queued', 'error'].includes(p.status)}
-                title="Start transcription"
-              >Start</button>
+              {(() => {
+                const isCompleted = p.status === 'completed'
+                const isTranscribing = !!starting[p.id] || ['queued', 'processing'].includes(p.status)
+                const canTranscribe = !isCompleted && !isTranscribing && ['created', 'error'].includes(p.status)
+                const label = isCompleted ? 'Transcribed' : isTranscribing ? 'Transcribing...' : 'Transcribe'
+                const className = isCompleted
+                  ? 'px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50'
+                  : 'px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50'
+                return (
+                  <button
+                    className={className}
+                    onClick={() => startProject(p.id)}
+                    disabled={!canTranscribe}
+                    title="Transcribe audio"
+                  >
+                    {label}
+                  </button>
+                )
+              })()}
               <Link href={`/editor/${p.id}`} className="accent hover:underline">Open</Link>
               <button
                 className="p-2 rounded bg-red-600 text-white hover:bg-red-700"

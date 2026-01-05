@@ -2,7 +2,7 @@
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
-import { getApiBase } from '../../../lib/api'
+import { getApiBase, getAuthHeaders } from '../../../lib/api'
 
 type Word = { key: string; start_ms: number; end_ms: number; text: string }
 type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[] }
@@ -43,7 +43,9 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     const init = async () => {
       try {
         const base = getApiBase()
-        const res = await fetch(`${base}/projects/${params.id}/media-url`)
+        const res = await fetch(`${base}/projects/${params.id}/media-url`, {
+          headers: getAuthHeaders(),
+        })
         if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
         const j = await res.json()
         const url: string = j.url
@@ -71,7 +73,9 @@ export default function EditorPage({ params }: { params: { id: string }}) {
         await ws.load(url)
 
         // Load segments
-        const segRes = await fetch(`${base}/projects/${params.id}/segments`)
+        const segRes = await fetch(`${base}/projects/${params.id}/segments`, {
+          headers: getAuthHeaders(),
+        })
         if (!cancelled && segRes.ok) {
           const segs = await segRes.json()
           // Derive approximate word timings if not provided
@@ -100,7 +104,9 @@ export default function EditorPage({ params }: { params: { id: string }}) {
 
         // Load speakers
         try {
-          const spRes = await fetch(`${base}/projects/${params.id}/speakers`)
+          const spRes = await fetch(`${base}/projects/${params.id}/speakers`, {
+            headers: getAuthHeaders(),
+          })
           if (!cancelled && spRes.ok) {
             const sps: Speaker[] = await spRes.json()
             setSpeakers(sps)
@@ -230,7 +236,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
       try {
         const res = await fetch(`${getApiBase()}/segments/${segId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: newText }),
         })
         if (!res.ok) throw new Error(String(res.status))

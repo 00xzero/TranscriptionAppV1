@@ -34,7 +34,7 @@ def ensure_bucket_cors() -> None:
                     {
                         "AllowedHeaders": ["*"],
                         "AllowedMethods": ["PUT", "GET", "HEAD"],
-                        "AllowedOrigins": ["http://localhost:3000"],
+                        "AllowedOrigins": ["http://localhost:3000", "http://localhost:3001"],
                         "ExposeHeaders": ["ETag"],
                         "MaxAgeSeconds": 3000,
                     }

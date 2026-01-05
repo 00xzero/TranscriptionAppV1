@@ -59,16 +59,22 @@ async def startup_event():
         if run_migrations():
             logger.info("Database migrations completed successfully")
         else:
-            # Fallback to create_all if migrations not available
-            logger.info("Falling back to create_all for database setup")
-            Base.metadata.create_all(bind=engine)
+            if settings.env == "dev":
+                logger.info("Falling back to create_all for database setup")
+                Base.metadata.create_all(bind=engine)
+            else:
+                raise RuntimeError("alembic.ini not found; refusing to run create_all outside dev")
     except Exception as e:
-        logger.warning("Database migration failed: %s, falling back to create_all", e)
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables ensured via create_all fallback")
-        except Exception as e2:
-            logger.error("Database setup failed: %s", e2)
+        if settings.env == "dev":
+            logger.warning("Database migration failed: %s, falling back to create_all", e)
+            try:
+                Base.metadata.create_all(bind=engine)
+                logger.info("Database tables ensured via create_all fallback")
+            except Exception as e2:
+                logger.error("Database setup failed: %s", e2)
+        else:
+            logger.error("Database migration failed: %s", e)
+            raise
     
     # Ensure MinIO bucket exists
     try:

@@ -1,7 +1,7 @@
 "use client"
 import React from 'react'
 import { useCallback, useEffect, useState } from 'react'
-import { getApiBase } from '../../lib/api'
+import { getApiBase, getAuthHeaders } from '../../lib/api'
 
 // Expected JSON format for transcript import:
 // {
@@ -276,7 +276,7 @@ export default function ImportPage() {
       setStatus('Creating project...')
       const createRes = await fetch(`${api}/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: audio.name, filename: audio.name, content_type: audio.type || 'application/octet-stream' }),
       })
       if (!createRes.ok) throw new Error(`Create project failed: ${createRes.status}`)
@@ -295,7 +295,7 @@ export default function ImportPage() {
       setStatus('Importing segments...')
       const impRes = await fetch(`${api}/projects/${presigned.project.id}/segments/import`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
       if (!impRes.ok) {

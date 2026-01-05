@@ -2,7 +2,7 @@
 
 A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and open components, with speaker diarization, vocabulary watchlist corrections, an inline transcript editor, and exports (DOCX, VTT).
 
-> **Recent Updates:** This codebase has undergone significant architectural improvements including unified database access, job lifecycle tracking, authentication enforcement, Alembic migrations, memory-efficient media handling, and smart data fetching. See [CHANGELOG.md](CHANGELOG.md) for details.
+> **Recent Updates:** This codebase has undergone significant architectural improvements including unified database access, job lifecycle tracking, authentication enforcement, Alembic migrations, memory-efficient media handling, and smart data fetching, plus UAT UX improvements to prevent upload spam and clarify transcription actions. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## Tech Stack
 

@@ -8,6 +8,15 @@ All notable changes to this project are documented in this file.
 
 This release includes significant architectural refactoring to improve code quality, scalability, security, and maintainability.
 
+### Frontend UX Improvements (UAT)
+
+- **Upload:** Prevent repeated submissions by locking the upload action while in-flight, disabling inputs during upload, and redirecting to **Projects** after a successful upload.
+- **Projects:** Renamed **Start** to **Transcribe** with clearer button states:
+  - `Transcribe` (clickable)
+  - `Transcribing...` (disabled while `queued`/`processing`)
+  - `Transcribed` (disabled, blue) when `completed`
+- **Tests:** Improved editor test `fetch` mocking to be robust to `Request` inputs and missing `method` (defaulting to `GET`).
+
 ---
 
 ## 🔧 1. Unified Database Access Layer
