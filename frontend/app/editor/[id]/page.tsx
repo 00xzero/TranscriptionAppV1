@@ -7,7 +7,7 @@ import { getApiBase, getAuthHeaders } from '../../../lib/api'
 type Word = { key: string; start_ms: number; end_ms: number; text: string }
 type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[] }
 type Speaker = { id: string; project_id: string; label: string; color?: string | null }
-type Match = { segId: string; index: number; length: number }
+type Match = { segId: string; cardKey: string; index: number; length: number }
 type SegmentMatch = { index: number; length: number; matchIdx: number }
 
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
@@ -17,6 +17,7 @@ const SYNC_OFFSET_MS = 150
 type DisplaySeg = Seg & {
   isFirstInGroup: boolean  // True if this is the first card in a speaker group
   groupIndex: number       // Index within the speaker group (0, 1, 2...)
+  cardKey: string          // Unique key for this display card (id + groupIndex)
 }
 
 // Configuration for word-count-based chunking
@@ -113,6 +114,7 @@ function chunkSpeakerGroup(group: Seg[]): DisplaySeg[] {
 
   if (validWords.length === 0) {
     // Return single empty segment
+    const emptyCardKey = `${firstSegmentId}-chunk-0`
     return [{
       id: firstSegmentId,
       start_ms: group[0].start_ms,
@@ -122,6 +124,7 @@ function chunkSpeakerGroup(group: Seg[]): DisplaySeg[] {
       words: [],
       isFirstInGroup: true,
       groupIndex: 0,
+      cardKey: emptyCardKey,
     }]
   }
 
@@ -154,20 +157,24 @@ function chunkSpeakerGroup(group: Seg[]): DisplaySeg[] {
     // Use the first source segment's ID for this chunk (for editing)
     const sourceIds = Array.from(new Set(chunkWords.map(w => w.segmentId)))
 
+    // Generate unique cardKey for this chunk (for state tracking)
+    const cardKey = `${sourceIds[0]}-chunk-${groupIndex}`
+
     chunks.push({
-      id: sourceIds[0], // Primary segment ID for saving
+      id: sourceIds[0], // Primary segment ID for API saving
       start_ms: chunkStartMs,
       end_ms: chunkEndMs,
       text: chunkText,
       speaker_id: speakerId,
       words: chunkWords.map((w, i) => ({
-        key: `${sourceIds[0]}:${chunkStart + i}`,
+        key: `${cardKey}:word-${i}`,
         start_ms: w.start_ms,
         end_ms: w.end_ms,
         text: w.text,
       })),
       isFirstInGroup: groupIndex === 0,
       groupIndex: groupIndex,
+      cardKey: cardKey, // Unique identifier for this display chunk
     })
 
     chunkStart = chunkEnd
@@ -421,33 +428,33 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     return words
   }
 
-  const scheduleSave = useCallback((segId: string, newText: string) => {
-    // update UI immediately
-    setSegments((prev: DisplaySeg[]) => prev.map((s: DisplaySeg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
-    setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
+  const scheduleSave = useCallback((cardKey: string, segmentId: string, newText: string) => {
+    // update UI immediately - use cardKey to find the specific chunk
+    setSegments((prev: DisplaySeg[]) => prev.map((s: DisplaySeg) => s.cardKey === cardKey ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
+    setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [cardKey]: 'saving' }))
 
-    // clear existing timer
-    const t = saveTimers.current[segId]
-    if (t) { window.clearTimeout(t); delete saveTimers.current[segId] }
+    // clear existing timer - use cardKey for timer tracking
+    const t = saveTimers.current[cardKey]
+    if (t) { window.clearTimeout(t); delete saveTimers.current[cardKey] }
 
-    // debounce before saving
+    // debounce before saving - use segmentId for API call
     const timerId = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${getApiBase()}/segments/${segId}`, {
+        const res = await fetch(`${getApiBase()}/segments/${segmentId}`, {
           method: 'PATCH',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: newText }),
         })
         if (!res.ok) throw new Error(String(res.status))
-        setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saved' }))
+        setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [cardKey]: 'saved' }))
         // reset saved flag after a moment
-        window.setTimeout(() => setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [segId]: 'idle' })), 1200)
+        window.setTimeout(() => setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [cardKey]: 'idle' })), 1200)
       } catch (e) {
         console.error('save failed', e)
-        setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'error' }))
+        setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [cardKey]: 'error' }))
       }
     }, SAVE_DEBOUNCE_MS)
-    saveTimers.current[segId] = timerId
+    saveTimers.current[cardKey] = timerId
   }, [])
 
   const matches = useMemo<Match[]>(() => {
@@ -456,13 +463,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (!needle.length) return []
     const found: Match[] = []
     for (const seg of segments) {
-      const text = editingTexts[seg.id] ?? seg.text ?? ''
+      // Use cardKey for text lookup since editingTexts is now keyed by cardKey
+      const text = editingTexts[seg.cardKey] ?? seg.text ?? ''
       const haystack = caseSensitive ? text : text.toLowerCase()
       let start = 0
       while (true) {
         const idx = haystack.indexOf(needle, start)
         if (idx === -1) break
-        found.push({ segId: seg.id, index: idx, length: needle.length })
+        found.push({ segId: seg.id, cardKey: seg.cardKey, index: idx, length: needle.length })
         start = idx + Math.max(needle.length, 1)
       }
     }
@@ -573,41 +581,46 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const handleReplace = useCallback(() => {
     if (!currentMatch) return
-    const seg = segments.find((s: Seg) => s.id === currentMatch.segId)
+    const seg = segments.find((s: DisplaySeg) => s.cardKey === currentMatch.cardKey)
     if (!seg) return
-    const text = editingTexts[seg.id] ?? seg.text ?? ''
+    const text = editingTexts[seg.cardKey] ?? seg.text ?? ''
     const before = text.slice(0, currentMatch.index)
     const after = text.slice(currentMatch.index + currentMatch.length)
     const updated = before + replaceTerm + after
-    setEditingTexts((prev: Record<string, string>) => ({ ...prev, [seg.id]: updated }))
-    scheduleSave(seg.id, updated)
+    setEditingTexts((prev: Record<string, string>) => ({ ...prev, [seg.cardKey]: updated }))
+    scheduleSave(seg.cardKey, seg.id, updated)
     handleNext()
   }, [currentMatch, segments, editingTexts, replaceTerm, scheduleSave, handleNext])
 
   const handleReplaceAll = useCallback(() => {
     if (!totalMatches) return
     const baseTexts: Record<string, string> = {}
-    segments.forEach((seg: Seg) => {
-      baseTexts[seg.id] = editingTexts[seg.id] ?? seg.text ?? ''
+    segments.forEach((seg: DisplaySeg) => {
+      baseTexts[seg.cardKey] = editingTexts[seg.cardKey] ?? seg.text ?? ''
     })
     const shifts: Record<string, number> = {}
     const updatedTexts: Record<string, string> = {}
+    // Track which cardKey maps to which segmentId for API calls
+    const cardKeyToSegId: Record<string, string> = {}
+    segments.forEach((seg: DisplaySeg) => {
+      cardKeyToSegId[seg.cardKey] = seg.id
+    })
 
     matches.forEach((match: Match) => {
-      const segId = match.segId
-      const prior = updatedTexts[segId] ?? baseTexts[segId]
-      const shift = shifts[segId] ?? 0
+      const cardKey = match.cardKey
+      const prior = updatedTexts[cardKey] ?? baseTexts[cardKey]
+      const shift = shifts[cardKey] ?? 0
       const idx = match.index + shift
       const before = prior.slice(0, idx)
       const after = prior.slice(idx + match.length)
       const updated = before + replaceTerm + after
-      updatedTexts[segId] = updated
-      shifts[segId] = shift + replaceTerm.length - match.length
+      updatedTexts[cardKey] = updated
+      shifts[cardKey] = shift + replaceTerm.length - match.length
     })
 
     if (Object.keys(updatedTexts).length === 0) return
     setEditingTexts((prev: Record<string, string>) => ({ ...prev, ...updatedTexts }))
-    Object.entries(updatedTexts).forEach(([segId, text]) => scheduleSave(segId, text))
+    Object.entries(updatedTexts).forEach(([cardKey, text]) => scheduleSave(cardKey, cardKeyToSegId[cardKey], text))
   }, [totalMatches, matches, segments, editingTexts, replaceTerm, scheduleSave])
 
   const applyFindTerm = useCallback(() => {
@@ -771,35 +784,35 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       <div className="text-[11px] text-muted mb-1 flex items-center gap-2">
                         <span>{msToTimestamp(s.start_ms)} — {msToTimestamp(s.end_ms)}</span>
                         <span className="ml-auto text-[11px]">
-                          {saveStatus[s.id] === 'saving' && <span className="text-amber-600">Saving…</span>}
-                          {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
-                          {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
+                          {saveStatus[s.cardKey] === 'saving' && <span className="text-amber-600">Saving…</span>}
+                          {saveStatus[s.cardKey] === 'saved' && <span className="text-emerald-600">Saved</span>}
+                          {saveStatus[s.cardKey] === 'error' && <span className="text-red-600">Save failed</span>}
                         </span>
                         <button
                           className="text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation()
-                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
+                            setEditingId((prev: string | null) => (prev === s.cardKey ? null : s.cardKey))
+                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.cardKey]: s.text }))
                           }}
-                        >{editingId === s.id ? 'Close' : 'Edit'}</button>
+                        >{editingId === s.cardKey ? 'Close' : 'Edit'}</button>
                       </div>
-                      {editingId === s.id ? (
+                      {editingId === s.cardKey ? (
                         <div className="text-sm">
                           <textarea
                             ref={(node: HTMLTextAreaElement | null) => {
                               if (node) {
-                                textAreaRefs.current[s.id] = node
+                                textAreaRefs.current[s.cardKey] = node
                               } else {
-                                delete textAreaRefs.current[s.id]
+                                delete textAreaRefs.current[s.cardKey]
                               }
                             }}
                             className="w-full border border-base bg-surface rounded p-2 min-h-[100px] text-current"
-                            value={editingTexts[s.id] ?? s.text}
+                            value={editingTexts[s.cardKey] ?? s.text}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
                               const value = e.target.value
-                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
-                              scheduleSave(s.id, value)
+                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.cardKey]: value }))
+                              scheduleSave(s.cardKey, s.id, value)
                             }}
                             onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
                           />
