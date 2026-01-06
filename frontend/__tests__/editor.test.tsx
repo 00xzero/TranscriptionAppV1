@@ -22,14 +22,22 @@ const mockFetch = () => {
       return makeJsonResponse({ url: 'http://example.com/audio.mp3' })
     }
     if (url.includes('/segments') && method === 'GET') {
+      // Use different speaker_ids so segments aren't merged by normalizeSegments
       const segs = [
-        { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.' },
-        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.' },
+        { id: 's1', speaker_id: 'sp1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.' },
+        { id: 's2', speaker_id: 'sp2', start_ms: 2000, end_ms: 4000, text: 'world says hello.' },
       ]
       return makeJsonResponse(segs)
     }
     if (url.includes('/segments/') && init?.method === 'PATCH') {
       return makeJsonResponse({}, 200)
+    }
+    if (url.includes('/speakers') && method === 'GET') {
+      // Return mock speakers to prevent errors
+      return makeJsonResponse([
+        { id: 'sp1', project_id: 'p1', label: 'Speaker 1' },
+        { id: 'sp2', project_id: 'p1', label: 'Speaker 2' },
+      ])
     }
     return makeJsonResponse('Not found', 404)
   })
@@ -51,6 +59,7 @@ describe('EditorPage - Find & Replace', () => {
     // Wait for page and segments to load
     await screen.findByText(/Editor: p1/i)
     const segmentsRendered = await screen.findAllByTestId('segment-card')
+    // With different speaker_ids, segments should remain separate (2 cards)
     expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
 
     const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
@@ -88,6 +97,7 @@ describe('EditorPage - Find & Replace', () => {
     // Wait for UI header present
     await screen.findByText(/Editor: p1/i)
     const segmentCards = await screen.findAllByTestId('segment-card')
+    // With different speaker_ids, segments should remain separate (2 cards)
     expect(segmentCards.length).toBeGreaterThanOrEqual(2)
 
     const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
@@ -102,7 +112,9 @@ describe('EditorPage - Find & Replace', () => {
 
     await waitFor(() => {
       const patchCalls = (fetchSpy as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('/segments/') && c[1]?.method === 'PATCH')
+      // 'hello' appears in both segments, so we should have at least 2 PATCH calls
       expect(patchCalls.length).toBeGreaterThanOrEqual(2)
     }, { timeout: 1500 })
   })
 })
+

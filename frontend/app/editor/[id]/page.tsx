@@ -13,13 +13,203 @@ type SegmentMatch = { index: number; length: number; matchIdx: number }
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
 
-export default function EditorPage({ params }: { params: { id: string }}) {
+// Extended segment type for display (includes grouping info)
+type DisplaySeg = Seg & {
+  isFirstInGroup: boolean  // True if this is the first card in a speaker group
+  groupIndex: number       // Index within the speaker group (0, 1, 2...)
+}
+
+// Configuration for word-count-based chunking
+const TARGET_WORDS_PER_CARD = 40
+const MIN_WORDS_PER_CARD = 35
+const MAX_WORDS_PER_CARD = 50
+
+/**
+ * Normalize segments by:
+ * 1. Grouping consecutive same-speaker segments
+ * 2. Pooling their words together
+ * 3. Re-chunking into ~35-45 word display segments
+ * 
+ * This merges tiny fragments and splits large monologues.
+ */
+function normalizeSegments(segments: Seg[]): DisplaySeg[] {
+  if (segments.length === 0) return []
+
+  const result: DisplaySeg[] = []
+
+  // Step 1: Group consecutive same-speaker segments
+  const speakerGroups: Seg[][] = []
+  let currentGroup: Seg[] = []
+  let currentSpeakerId = segments[0].speaker_id
+
+  for (const segment of segments) {
+    if (segment.speaker_id === currentSpeakerId) {
+      currentGroup.push(segment)
+    } else {
+      if (currentGroup.length > 0) {
+        speakerGroups.push(currentGroup)
+      }
+      currentGroup = [segment]
+      currentSpeakerId = segment.speaker_id
+    }
+  }
+  if (currentGroup.length > 0) {
+    speakerGroups.push(currentGroup)
+  }
+
+  // Step 2: Process each speaker group
+  for (const group of speakerGroups) {
+    const chunked = chunkSpeakerGroup(group)
+    result.push(...chunked)
+  }
+
+  return result
+}
+
+/**
+ * Chunk a speaker group into ~35-45 word display segments.
+ * Preserves word-level timing for accurate timestamps.
+ */
+function chunkSpeakerGroup(group: Seg[]): DisplaySeg[] {
+  const speakerId = group[0].speaker_id
+  const firstSegmentId = group[0].id
+
+  // Collect all words from all segments in this group
+  type WordWithTiming = { text: string; start_ms: number; end_ms: number; segmentId: string }
+  const allWords: WordWithTiming[] = []
+
+  for (const seg of group) {
+    // If segment has word-level timing, use it
+    if (seg.words && seg.words.length > 0) {
+      for (const w of seg.words) {
+        allWords.push({
+          text: w.text.trim(),
+          start_ms: w.start_ms,
+          end_ms: w.end_ms,
+          segmentId: seg.id,
+        })
+      }
+    } else {
+      // Otherwise, estimate word timings from segment
+      const words = seg.text.split(/\s+/).filter(Boolean)
+      if (words.length === 0) continue
+
+      const duration = seg.end_ms - seg.start_ms
+      const perWord = duration / words.length
+
+      words.forEach((word, i) => {
+        allWords.push({
+          text: word,
+          start_ms: Math.round(seg.start_ms + i * perWord),
+          end_ms: Math.round(seg.start_ms + (i + 1) * perWord),
+          segmentId: seg.id,
+        })
+      })
+    }
+  }
+
+  // Filter out empty words
+  const validWords = allWords.filter(w => w.text.length > 0)
+
+  if (validWords.length === 0) {
+    // Return single empty segment
+    return [{
+      id: firstSegmentId,
+      start_ms: group[0].start_ms,
+      end_ms: group[group.length - 1].end_ms,
+      text: '',
+      speaker_id: speakerId,
+      words: [],
+      isFirstInGroup: true,
+      groupIndex: 0,
+    }]
+  }
+
+  // Chunk words into ~35-45 word segments
+  const chunks: DisplaySeg[] = []
+  let chunkStart = 0
+  let groupIndex = 0
+
+  while (chunkStart < validWords.length) {
+    // Determine chunk size: aim for TARGET, but allow MIN to MAX
+    let chunkEnd = Math.min(chunkStart + TARGET_WORDS_PER_CARD, validWords.length)
+
+    // If remaining words would leave a tiny orphan chunk, absorb them
+    const remaining = validWords.length - chunkEnd
+    if (remaining > 0 && remaining < MIN_WORDS_PER_CARD) {
+      // Either extend current chunk or leave for next iteration
+      if (chunkEnd - chunkStart + remaining <= MAX_WORDS_PER_CARD) {
+        chunkEnd = validWords.length // Absorb remaining
+      }
+    }
+
+    // Try to break at sentence boundary if possible
+    chunkEnd = findSentenceBoundary(validWords, chunkStart, chunkEnd)
+
+    const chunkWords = validWords.slice(chunkStart, chunkEnd)
+    const chunkText = chunkWords.map(w => w.text).join(' ')
+    const chunkStartMs = chunkWords[0].start_ms
+    const chunkEndMs = chunkWords[chunkWords.length - 1].end_ms
+
+    // Use the first source segment's ID for this chunk (for editing)
+    const sourceIds = Array.from(new Set(chunkWords.map(w => w.segmentId)))
+
+    chunks.push({
+      id: sourceIds[0], // Primary segment ID for saving
+      start_ms: chunkStartMs,
+      end_ms: chunkEndMs,
+      text: chunkText,
+      speaker_id: speakerId,
+      words: chunkWords.map((w, i) => ({
+        key: `${sourceIds[0]}:${chunkStart + i}`,
+        start_ms: w.start_ms,
+        end_ms: w.end_ms,
+        text: w.text,
+      })),
+      isFirstInGroup: groupIndex === 0,
+      groupIndex: groupIndex,
+    })
+
+    chunkStart = chunkEnd
+    groupIndex++
+  }
+
+  return chunks
+}
+
+/**
+ * Find a good sentence boundary near the target end position.
+ * Looks for sentence-ending punctuation (.!?) followed by a word.
+ */
+function findSentenceBoundary(
+  words: { text: string }[],
+  start: number,
+  targetEnd: number
+): number {
+  // Don't adjust if we're at the end
+  if (targetEnd >= words.length) return targetEnd
+
+  // Look backward from targetEnd for a sentence boundary
+  const searchStart = Math.max(start + MIN_WORDS_PER_CARD, targetEnd - 10)
+
+  for (let i = targetEnd - 1; i >= searchStart; i--) {
+    const word = words[i].text
+    if (/[.!?]$/.test(word)) {
+      return i + 1 // Break after this word
+    }
+  }
+
+  // No good boundary found, use original target
+  return targetEnd
+}
+
+export default function EditorPage({ params }: { params: { id: string } }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wavesurferRef = useRef<WaveSurfer | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
-  const [segments, setSegments] = useState<Seg[]>([])
+  const [segments, setSegments] = useState<DisplaySeg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [follow, setFollow] = useState(true)
   const [playbackRate, setPlaybackRate] = useState(1.0)
@@ -27,7 +217,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
-  const [saveStatus, setSaveStatus] = useState<Record<string, 'idle'|'saving'|'saved'|'error'>>({})
+  const [saveStatus, setSaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
   const saveTimers = useRef<Record<string, number>>({})
   const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -53,7 +243,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
         if (!containerRef.current) return
         // If an instance already exists (e.g., StrictMode remount), tear it down first
         if (wavesurferRef.current) {
-          try { wavesurferRef.current.destroy() } catch {}
+          try { wavesurferRef.current.destroy() } catch { }
           wavesurferRef.current = null
         }
         // Ensure the container is empty (StrictMode double-effect in dev may leave remnants)
@@ -78,28 +268,36 @@ export default function EditorPage({ params }: { params: { id: string }}) {
         })
         if (!cancelled && segRes.ok) {
           const segs = await segRes.json()
-          // Derive approximate word timings if not provided
-          const withWords = (segs as any[]).map((s: Seg) => {
-            const duration = Math.max(1, (s.end_ms - s.start_ms))
-            const tokens = String(s.text || '').split(/(\s+)/).filter(Boolean)
-            const words: Word[] = []
-            let cursor = 0
-            const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-            for (let i = 0; i < tokens.length; i++) {
-              const t = tokens[i]
-              if (/^\s+$/.test(t)) {
-                // whitespace: attach to previous word visually
-                if (words.length > 0) words[words.length - 1].text += t
-                continue
-              }
-              const start = s.start_ms + cursor
-              const end = i === tokens.length - 1 ? s.end_ms : Math.min(s.end_ms, start + per)
-              cursor += per
-              words.push({ key: `${s.id}:${i}`, start_ms: start, end_ms: end, text: t })
-            }
-            return { ...s, words }
-          })
-          setSegments(withWords)
+
+          // DEBUG: Log raw API response to understand segmentation
+          console.log('=== DEBUG: Raw segments from API ===')
+          console.log('Number of segments:', segs.length)
+          console.log('Segment details:', segs.map((s: any) => ({
+            id: s.id,
+            speaker_id: s.speaker_id,
+            start_ms: s.start_ms,
+            end_ms: s.end_ms,
+            text: s.text?.substring(0, 50) + (s.text?.length > 50 ? '...' : ''),
+            duration: s.end_ms - s.start_ms
+          })))
+          console.log('=== END DEBUG ===')
+
+          // Normalize segments: merge small fragments, split large ones into ~40 word chunks
+          const normalizedSegments = normalizeSegments(segs)
+
+          console.log('=== DEBUG: After normalizing ===')
+          console.log('Number of display segments:', normalizedSegments.length)
+          console.log('Segment details:', normalizedSegments.map((s: DisplaySeg) => ({
+            id: s.id,
+            speaker_id: s.speaker_id,
+            isFirstInGroup: s.isFirstInGroup,
+            groupIndex: s.groupIndex,
+            wordCount: s.text.split(/\s+/).filter(Boolean).length,
+            text: s.text?.substring(0, 60) + (s.text?.length > 60 ? '...' : ''),
+          })))
+          console.log('=== END NORMALIZE DEBUG ===')
+
+          setSegments(normalizedSegments)
         }
 
         // Load speakers
@@ -117,14 +315,15 @@ export default function EditorPage({ params }: { params: { id: string }}) {
           const tSec = ws.getCurrentTime() || 0
           const tMs = Math.floor(tSec * 1000)
           const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
-          let segId: string | undefined
+          let activeCardKey: string | undefined
           for (const s of segmentsRef.current) {
             if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
-              segId = s.id
+              // Use unique card key (ID + groupIndex) to identify the specific chunk
+              activeCardKey = `${s.id}-chunk-${s.groupIndex ?? 0}`
               break
             }
           }
-          setActiveIds({ segId, wordKey: undefined })
+          setActiveIds({ segId: activeCardKey, wordKey: undefined })
         }
 
         ws.on('audioprocess', onProcess)
@@ -224,8 +423,8 @@ export default function EditorPage({ params }: { params: { id: string }}) {
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
     // update UI immediately
-    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
-    setSaveStatus((prev: Record<string, 'idle'|'saving'|'saved'|'error'>) => ({ ...prev, [segId]: 'saving' }))
+    setSegments((prev: DisplaySeg[]) => prev.map((s: DisplaySeg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
+    setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
 
     // clear existing timer
     const t = saveTimers.current[segId]
@@ -301,7 +500,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     for (let i = 0; i < key.length; i++) {
       hash = (hash * 31 + key.charCodeAt(i)) >>> 0
     }
-    const palette = ['#6366F1','#10B981','#F59E0B','#EF4444','#14B8A6','#8B5CF6','#F472B6','#22C55E','#EAB308','#0EA5E9']
+    const palette = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
     return palette[hash % palette.length]
   }, [])
 
@@ -524,41 +723,46 @@ export default function EditorPage({ params }: { params: { id: string }}) {
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 space-y-3 max-h-[70vh] overflow-auto">
           <h2 className="font-medium">Transcript</h2>
-            <div className="space-y-3">
-            {segments.map((s: Seg, idx: number) => {
-              const isActive = activeIds.segId === s.id
+          <div className="space-y-3">
+            {segments.map((s: DisplaySeg, idx: number) => {
+              // Use cardKey for active state to uniquely identify chunks
+              const cardKey = `${s.id}-chunk-${s.groupIndex ?? 0}`
+              const isActive = activeIds.segId === cardKey
               const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
               const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
               let charCursor = 0
-              const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
-              const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
+              // Use isFirstInGroup from normalizeSegments for header visibility
+              const showSpeakerHeader = s.isFirstInGroup
               const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
               const speakerLabel = sp?.label || 'Unknown'
               const avatarBg = colorForSpeaker(sp)
               const initials = getInitials(speakerLabel)
               return (
                 <div
-                  key={s.id}
+                  key={cardKey}
                   data-testid="segment-card"
                   ref={(node: HTMLDivElement | null) => {
                     if (node) {
-                      segmentRefs.current[s.id] = node
+                      segmentRefs.current[cardKey] = node
                       if (isActive) activeSegRef.current = node
                     } else {
-                      delete segmentRefs.current[s.id]
+                      delete segmentRefs.current[cardKey]
                     }
                   }}
-                  className={`rounded p-2 cursor-pointer ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
+                  className={`group rounded p-2 cursor-pointer ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
                   onClick={() => onSegmentClick(s.start_ms)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="shrink-0 pt-0.5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white" style={{ backgroundColor: avatarBg }}>
-                        {initials}
-                      </div>
+                    {/* Always render avatar container for consistent width, but hide content for non-first cards */}
+                    <div className="shrink-0 pt-0.5 w-8">
+                      {showSpeakerHeader && (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white" style={{ backgroundColor: avatarBg }}>
+                          {initials}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
-                      {needHeader && (
+                      {showSpeakerHeader && (
                         <div className="text-[11px] uppercase tracking-wide text-muted mb-1 flex items-center gap-2">
                           <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: avatarBg }} />
                           <span>{speakerLabel}</span>
@@ -572,7 +776,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
                           {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
                         </span>
                         <button
-                          className="text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt"
+                          className="text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation()
                             setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
@@ -601,8 +805,8 @@ export default function EditorPage({ params }: { params: { id: string }}) {
                           />
                         </div>
                       ) : (
-                        <div className="text-sm leading-7">
-                          {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+                        <div className="text-sm leading-7 break-words">
+                          {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word, wordIdx: number, wordsArr: Word[]) => {
                             const wordText = w.text
                             const wordStart = charCursor
                             const wordEnd = wordStart + wordText.length
@@ -630,9 +834,11 @@ export default function EditorPage({ params }: { params: { id: string }}) {
                               }
                               content = <>{pieces}</>
                             }
-                            charCursor = wordEnd
+                            charCursor = wordEnd + 1 // +1 for the space we're adding
+                            // Add space after word (except for last word)
+                            const needsSpace = wordIdx < wordsArr.length - 1
                             return (
-                              <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
+                              <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}{needsSpace ? ' ' : ''}</span>
                             )
                           })}
                         </div>
