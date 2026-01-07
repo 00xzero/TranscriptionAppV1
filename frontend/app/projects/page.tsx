@@ -1,53 +1,28 @@
 "use client"
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getApiBase } from '../../lib/api'
-
-type Project = {
-  id: string
-  title?: string
-  status: string
-  source_object_key: string
-  created_at: string
-  updated_at: string
-}
+import { useState } from 'react'
+import { useProjects, useProjectActions } from '../../lib/swr'
 
 export default function ProjectsPage() {
-  const [items, setItems] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
-  const api = getApiBase()
-
-  useEffect(() => {
-    let timer: any
-    const load = async () => {
-      try {
-        const res = await fetch(`${api}/projects`)
-        const data = await res.json()
-        setItems(data)
-      } catch (e) {
-        console.error(e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-    timer = setInterval(load, 5000)
-    return () => clearInterval(timer)
-  }, [api])
+  const { projects, isLoading, mutate } = useProjects()
+  const { startProject: startProjectAction, deleteProject: deleteProjectAction } = useProjectActions()
+  const [starting, setStarting] = useState<Record<string, boolean>>({})
 
   const startProject = async (id: string) => {
+    if (starting[id]) return
+    setStarting((prev) => ({ ...prev, [id]: true }))
     try {
-      const res = await fetch(`${api}/projects/${id}/start`, { method: 'POST' })
-      if (!res.ok) {
-        const t = await res.text()
-        throw new Error(`Start failed (${res.status}): ${t}`)
-      }
-      // Refresh list after starting
-      const list = await fetch(`${api}/projects`).then(r => r.json())
-      setItems(list)
+      await startProjectAction(id)
+      // Revalidate the projects list
+      mutate()
     } catch (e) {
       console.error(e)
       alert(String(e))
+      setStarting((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
     }
   }
 
@@ -57,13 +32,12 @@ export default function ProjectsPage() {
     )
     if (!ok) return
     try {
-      const res = await fetch(`${api}/projects/${id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const t = await res.text()
-        throw new Error(`Delete failed (${res.status}): ${t}`)
-      }
-      // Optimistically update list
-      setItems(prev => prev.filter(p => p.id !== id))
+      await deleteProjectAction(id)
+      // Optimistically update cache and revalidate
+      mutate(
+        projects.filter(p => p.id !== id),
+        { revalidate: true }
+      )
     } catch (e) {
       console.error(e)
       alert(String(e))
@@ -73,22 +47,35 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Projects</h1>
-      {loading && <div className="text-muted">Loading...</div>}
-      {!loading && items.length === 0 && <div className="text-muted">No projects yet.</div>}
+      {isLoading && <div className="text-muted">Loading...</div>}
+      {!isLoading && projects.length === 0 && <div className="text-muted">No projects yet.</div>}
       <ul className="space-y-2">
-        {items.map((p) => (
+        {projects.map((p) => (
           <li key={p.id} className="bg-surface border border-base rounded p-3 flex justify-between items-center">
             <div>
               <div className="font-medium">{p.title || p.id}</div>
               <div className="text-xs text-muted">{p.status} • {new Date(p.created_at).toLocaleString()}</div>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
-                onClick={() => startProject(p.id)}
-                disabled={!['created', 'queued', 'error'].includes(p.status)}
-                title="Start transcription"
-              >Start</button>
+              {(() => {
+                const isCompleted = p.status === 'completed'
+                const isTranscribing = !!starting[p.id] || ['queued', 'processing'].includes(p.status)
+                const canTranscribe = !isCompleted && !isTranscribing && ['created', 'error'].includes(p.status)
+                const label = isCompleted ? 'Transcribed' : isTranscribing ? 'Transcribing...' : 'Transcribe'
+                const className = isCompleted
+                  ? 'px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50'
+                  : 'px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50'
+                return (
+                  <button
+                    className={className}
+                    onClick={() => startProject(p.id)}
+                    disabled={!canTranscribe}
+                    title="Transcribe audio"
+                  >
+                    {label}
+                  </button>
+                )
+              })()}
               <Link href={`/editor/${p.id}`} className="accent hover:underline">Open</Link>
               <button
                 className="p-2 rounded bg-red-600 text-white hover:bg-red-700"

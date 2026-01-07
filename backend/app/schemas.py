@@ -110,9 +110,38 @@ class SegmentUpdate(BaseModel):
 class JobRead(BaseModel):
     id: str
     project_id: str
+    celery_task_id: str | None = None
     type: str
     status: str
     payload: dict | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
 
     class Config:
         from_attributes = True
+
+
+class ChunkRead(BaseModel):
+    """Consolidated transcript chunk for front-end display."""
+    id: str
+    project_id: str
+    speaker_id: str | None = None
+    start_ms: int
+    end_ms: int
+    text: str
+    is_edited: bool
+    is_filler: bool
+    source_segment_ids: list[str] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChunkUpdate(BaseModel):
+    """Update a chunk (marks it as edited)."""
+    text: str | None = None
+    speaker_id: str | None = None
+

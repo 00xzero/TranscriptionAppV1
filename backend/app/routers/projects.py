@@ -8,12 +8,14 @@ from uuid import uuid4
 from io import BytesIO
 
 from ..db import get_db
-from ..models import Project, Segment, Word, Speaker
+from ..core.auth import require_auth
+from ..models import Project, Segment, Word, Speaker, Job, Chunk
 from ..schemas import (
     ProjectCreate,
     ProjectRead,
     PresignedUpload,
     JobEnqueued,
+    JobRead,
     MediaUrl,
     SegmentRead,
     BulkImportSegments,
@@ -23,12 +25,15 @@ from ..schemas import (
     SpeakerRead,
     SpeakerCreate,
     SpeakerUpdate,
+    ChunkRead,
+    ChunkUpdate,
 )
 from ..services.s3 import presign_put_url, normalize_key_component, presign_get_url, delete_prefix
 from ..services.tasks import enqueue_transcription
 from ..services.exports import generate_docx, generate_vtt
 
-router = APIRouter()
+# All routes in this router require authentication
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.post("/projects", response_model=PresignedUpload)
@@ -77,9 +82,23 @@ def start_project(project_id: str, db: Session = Depends(get_db)):
 
     proj.status = "queued"
     db.add(proj)
+    
+    # Create a Job record to track this transcription
+    job = Job(
+        project_id=project_id,
+        type="transcribe",
+        status="queued",
+    )
+    db.add(job)
     db.commit()
+    db.refresh(job)
 
-    task_id = enqueue_transcription(project_id)
+    task_id = enqueue_transcription(project_id, job_id=job.id)
+    
+    # Update job with celery task ID
+    job.celery_task_id = task_id
+    db.commit()
+    
     return JobEnqueued(project_id=project_id, task_id=task_id)
 
 
@@ -90,6 +109,16 @@ def project_media_url(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     url = presign_get_url(proj.source_object_key)
     return MediaUrl(project_id=project_id, object_key=proj.source_object_key, url=url)
+
+
+@router.get("/projects/{project_id}/jobs", response_model=List[JobRead])
+def list_project_jobs(project_id: str, db: Session = Depends(get_db)):
+    """List all jobs for a project, ordered by creation time (newest first)."""
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    jobs = db.query(Job).filter(Job.project_id == project_id).order_by(Job.created_at.desc()).all()
+    return jobs
 
 
 @router.get("/projects/{project_id}/segments", response_model=list[SegmentRead])
@@ -132,6 +161,12 @@ def import_segments(project_id: str, payload: BulkImportSegments, db: Session = 
         return sp.id
 
     for s in payload.segments:
+        if s.end_ms < s.start_ms:
+            raise HTTPException(status_code=400, detail="end_ms must be >= start_ms")
+        if s.words:
+            for w in s.words:
+                if w.end_ms < w.start_ms:
+                    raise HTTPException(status_code=400, detail="end_ms must be >= start_ms")
         seg_id = s.id or str(uuid.uuid4())
         speaker_id = s.speaker_id or get_or_create_speaker(s.speaker_label)
         seg = Segment(
@@ -314,3 +349,55 @@ def export_vtt(project_id: str, db: Session = Depends(get_db)):
         media_type="text/vtt",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# ============================================================================
+# Chunks Endpoints (Consolidated Transcript Data)
+# ============================================================================
+
+@router.get("/projects/{project_id}/chunks", response_model=list[ChunkRead])
+def list_project_chunks(project_id: str, db: Session = Depends(get_db)):
+    """
+    List consolidated chunks for a project.
+    
+    This is the primary endpoint for front-end transcript display.
+    Returns fewer, larger chunks than raw segments for better readability.
+    """
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    chunks = (
+        db.query(Chunk)
+        .filter(Chunk.project_id == project_id)
+        .order_by(Chunk.start_ms.asc())
+        .all()
+    )
+    return chunks
+
+
+@router.patch("/chunks/{chunk_id}", response_model=ChunkRead)
+def update_chunk(chunk_id: str, payload: ChunkUpdate, db: Session = Depends(get_db)):
+    """
+    Update a chunk's text or speaker.
+    
+    Once edited, the chunk is marked as is_edited=True to prevent
+    automatic re-consolidation from overwriting user changes.
+    """
+    chunk = db.get(Chunk, chunk_id)
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    
+    if payload.text is not None:
+        chunk.text = payload.text
+        chunk.is_edited = True  # Mark as edited to freeze auto-consolidation
+    
+    if payload.speaker_id is not None:
+        chunk.speaker_id = payload.speaker_id
+        chunk.is_edited = True
+    
+    db.add(chunk)
+    db.commit()
+    db.refresh(chunk)
+    return chunk
+

@@ -38,6 +38,8 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
+    env_file:
+      - ../.env
     environment:
       DATABASE_URL: postgresql://app:app@postgres:5432/meeting
       REDIS_URL: redis://redis:6379/0
@@ -47,8 +49,6 @@ services:
       S3_BUCKET: media
       SECRET_KEY: dev
       SINGLE_USER_TOKEN: devtoken
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-3}
     depends_on:
       - postgres
       - redis
@@ -58,8 +58,10 @@ services:
 
   worker:
     build:
-      context: ../worker
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: worker/Dockerfile.unified
+    env_file:
+      - ../.env
     environment:
       DATABASE_URL: postgresql://app:app@postgres:5432/meeting
       REDIS_URL: redis://redis:6379/0
@@ -68,8 +70,6 @@ services:
       S3_SECRET_ACCESS_KEY: minioadmin
       S3_BUCKET: media
       SECRET_KEY: dev
-      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
-      DEEPGRAM_MODEL: ${DEEPGRAM_MODEL:-nova-3}
     depends_on:
       - postgres
       - redis
@@ -80,6 +80,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+    env_file:
+      - ../.env
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:

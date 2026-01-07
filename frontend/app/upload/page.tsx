@@ -1,6 +1,7 @@
 "use client"
-import { useEffect, useState, useCallback } from 'react'
-import { getApiBase } from '../../lib/api'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { getApiBase, getAuthHeaders } from '../../lib/api'
 
 type PresignedUpload = {
   project: {
@@ -15,11 +16,13 @@ type PresignedUpload = {
 }
 
 export default function UploadPage() {
+  const router = useRouter()
   const [api, setApi] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string>('Idle')
   const [uploading, setUploading] = useState<boolean>(false)
   const [result, setResult] = useState<PresignedUpload | null>(null)
+  const uploadLockRef = useRef(false)
 
   useEffect(() => { setApi(getApiBase()) }, [])
 
@@ -32,12 +35,14 @@ export default function UploadPage() {
 
   const onUpload = useCallback(async () => {
     if (!file) return
+    if (uploadLockRef.current) return
+    uploadLockRef.current = true
     setUploading(true)
     setStatus('Creating project...')
     try {
       const createRes = await fetch(`${api}/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: file.name, filename: file.name, content_type: file.type || 'application/octet-stream' }),
       })
       if (!createRes.ok) throw new Error(`Create project failed: ${createRes.status}`)
@@ -54,13 +59,15 @@ export default function UploadPage() {
       })
       if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
       setStatus(`Upload complete. Project ID: ${presigned.project.id}`)
+      router.push('/projects')
     } catch (e: any) {
       console.error(e)
       setStatus(`Error: ${e.message || e}`)
     } finally {
       setUploading(false)
+      uploadLockRef.current = false
     }
-  }, [api, file])
+  }, [api, file, router])
 
   return (
     <div className="space-y-4">
@@ -68,7 +75,7 @@ export default function UploadPage() {
       <p className="text-sm text-muted">API base: {api}</p>
 
       <div className="bg-surface border border-base rounded p-4 space-y-3">
-        <input type="file" onChange={onFileChange} accept="audio/*,video/*" />
+        <input type="file" onChange={onFileChange} accept="audio/*,video/*" disabled={uploading} />
         <div className="flex items-center gap-2">
           <button
             className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
