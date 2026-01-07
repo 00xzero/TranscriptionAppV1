@@ -21,14 +21,14 @@ const mockFetch = () => {
     if (url.includes('/media-url') && method === 'GET') {
       return makeJsonResponse({ url: 'http://example.com/audio.mp3' })
     }
-    if (url.includes('/segments') && method === 'GET') {
+    if (url.includes('/chunks') && method === 'GET') {
       const segs = [
         { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.' },
         { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.' },
       ]
       return makeJsonResponse(segs)
     }
-    if (url.includes('/segments/') && init?.method === 'PATCH') {
+    if (url.includes('/chunks/') && init?.method === 'PATCH') {
       return makeJsonResponse({}, 200)
     }
     return makeJsonResponse('Not found', 404)
@@ -75,7 +75,7 @@ describe('EditorPage - Find & Replace', () => {
     const replaceBtn = screen.getByRole('button', { name: /Replace$/i })
     await user.click(replaceBtn)
     await waitFor(() => {
-      const patchCalls = (fetchSpy as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('/segments/') && c[1]?.method === 'PATCH')
+      const patchCalls = (fetchSpy as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('/chunks/') && c[1]?.method === 'PATCH')
       expect(patchCalls.length).toBeGreaterThanOrEqual(1)
     }, { timeout: 1500 })
   })
@@ -101,7 +101,7 @@ describe('EditorPage - Find & Replace', () => {
     await user.click(replaceAllBtn)
 
     await waitFor(() => {
-      const patchCalls = (fetchSpy as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('/segments/') && c[1]?.method === 'PATCH')
+      const patchCalls = (fetchSpy as jest.Mock).mock.calls.filter((c) => String(c[0]).includes('/chunks/') && c[1]?.method === 'PATCH')
       expect(patchCalls.length).toBeGreaterThanOrEqual(2)
     }, { timeout: 1500 })
   })

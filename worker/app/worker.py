@@ -15,6 +15,7 @@ from celery import Celery
 from backend_app.core.config import settings
 from backend_app.db import SessionLocal
 from backend_app.models import Project, Segment, Word, Speaker, Watchlist, Job
+from backend_app.services.consolidation import consolidate_and_save_chunks
 
 DEEPGRAM_ENDPOINT = "https://api.deepgram.com/v1/listen"
 
@@ -282,6 +283,10 @@ def transcribe_project(project_id: str, job_id: str) -> str:
         # Update duration if we have it
         if max_end_ms > 0:
             project.duration_seconds = max_end_ms // 1000
+
+        # Run consolidation post-processing to create chunks
+        # This merges fragmented segments into larger, readable chunks
+        consolidate_and_save_chunks(db, project_id)
 
         # Done - mark both project and job as completed
         project.status = "completed"
