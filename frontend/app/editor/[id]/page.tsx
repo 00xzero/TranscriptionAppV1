@@ -5,7 +5,7 @@ import WaveSurfer from 'wavesurfer.js'
 import { getApiBase, getAuthHeaders } from '../../../lib/api'
 
 type Word = { key: string; start_ms: number; end_ms: number; text: string }
-type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[] }
+type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[]; is_edited?: boolean; is_filler?: boolean }
 type Speaker = { id: string; project_id: string; label: string; color?: string | null }
 type Match = { segId: string; index: number; length: number }
 type SegmentMatch = { index: number; length: number; matchIdx: number }
@@ -13,7 +13,7 @@ type SegmentMatch = { index: number; length: number; matchIdx: number }
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
 
-export default function EditorPage({ params }: { params: { id: string }}) {
+export default function EditorPage({ params }: { params: { id: string } }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wavesurferRef = useRef<WaveSurfer | null>(null)
   const [status, setStatus] = useState('Loading media...')
@@ -27,7 +27,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
-  const [saveStatus, setSaveStatus] = useState<Record<string, 'idle'|'saving'|'saved'|'error'>>({})
+  const [saveStatus, setSaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
   const saveTimers = useRef<Record<string, number>>({})
   const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -53,7 +53,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
         if (!containerRef.current) return
         // If an instance already exists (e.g., StrictMode remount), tear it down first
         if (wavesurferRef.current) {
-          try { wavesurferRef.current.destroy() } catch {}
+          try { wavesurferRef.current.destroy() } catch { }
           wavesurferRef.current = null
         }
         // Ensure the container is empty (StrictMode double-effect in dev may leave remnants)
@@ -72,8 +72,8 @@ export default function EditorPage({ params }: { params: { id: string }}) {
         ws.on('pause', () => setPlaying(false))
         await ws.load(url)
 
-        // Load segments
-        const segRes = await fetch(`${base}/projects/${params.id}/segments`, {
+        // Load chunks (consolidated segments)
+        const segRes = await fetch(`${base}/projects/${params.id}/chunks`, {
           headers: getAuthHeaders(),
         })
         if (!cancelled && segRes.ok) {
@@ -225,7 +225,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
   const scheduleSave = useCallback((segId: string, newText: string) => {
     // update UI immediately
     setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
-    setSaveStatus((prev: Record<string, 'idle'|'saving'|'saved'|'error'>) => ({ ...prev, [segId]: 'saving' }))
+    setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
 
     // clear existing timer
     const t = saveTimers.current[segId]
@@ -234,7 +234,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     // debounce before saving
     const timerId = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${getApiBase()}/segments/${segId}`, {
+        const res = await fetch(`${getApiBase()}/chunks/${segId}`, {
           method: 'PATCH',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: newText }),
@@ -301,7 +301,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
     for (let i = 0; i < key.length; i++) {
       hash = (hash * 31 + key.charCodeAt(i)) >>> 0
     }
-    const palette = ['#6366F1','#10B981','#F59E0B','#EF4444','#14B8A6','#8B5CF6','#F472B6','#22C55E','#EAB308','#0EA5E9']
+    const palette = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
     return palette[hash % palette.length]
   }, [])
 
@@ -524,7 +524,7 @@ export default function EditorPage({ params }: { params: { id: string }}) {
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 space-y-3 max-h-[70vh] overflow-auto">
           <h2 className="font-medium">Transcript</h2>
-            <div className="space-y-3">
+          <div className="space-y-3">
             {segments.map((s: Seg, idx: number) => {
               const isActive = activeIds.segId === s.id
               const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
