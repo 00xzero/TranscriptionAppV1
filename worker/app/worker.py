@@ -126,12 +126,18 @@ def _insert_word(db, segment_id: str, start_ms: int, end_ms: int, text: str, con
     db.add(word)
 
 
-def _build_keywords_params(db, project_id: str) -> list[tuple[str, str]]:
-    """Load watchlist terms for Deepgram keyword boosting."""
+def _build_keyterm_params(db, project_id: str) -> list[tuple[str, str]]:
+    """Load key terms for Deepgram keyterm parameter.
+    
+    The keyterm parameter tells Deepgram to more reliably transcribe specific words,
+    which is useful for domain-specific or obscure terminology.
+    """
     params: list[tuple[str, str]] = []
     watchlist_items = db.query(Watchlist).filter(Watchlist.project_id == project_id).all()
+    if watchlist_items:
+        print(f"[transcribe] Sending {len(watchlist_items)} key terms to Deepgram")
     for item in watchlist_items:
-        params.append(("keywords", f"{item.term}:2"))
+        params.append(("keyterm", item.term))
     return params
 
 
@@ -187,7 +193,7 @@ def transcribe_project(project_id: str, job_id: str) -> str:
             ("diarize", "true"),
             ("utterances", "true"),
         ]
-        params += _build_keywords_params(db, project_id)
+        params += _build_keyterm_params(db, project_id)
 
         # Choose between URL fetch (memory-efficient) or byte upload (fallback)
         if _can_use_url_fetch():

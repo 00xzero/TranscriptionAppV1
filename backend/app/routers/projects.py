@@ -9,7 +9,7 @@ from io import BytesIO
 
 from ..db import get_db
 from ..core.auth import require_auth
-from ..models import Project, Segment, Word, Speaker, Job, Chunk
+from ..models import Project, Segment, Word, Speaker, Job, Chunk, Watchlist
 from ..schemas import (
     ProjectCreate,
     ProjectRead,
@@ -50,12 +50,37 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
       source_object_key=object_key,
     )
     db.add(proj)
+    
+    # Store key terms in watchlist table if provided
+    stored_key_terms: list[str] = []
+    if payload.key_terms:
+        for term in payload.key_terms:
+            watchlist_entry = Watchlist(
+                project_id=project_id,
+                term=term,
+                canonical=term.casefold(),
+            )
+            db.add(watchlist_entry)
+            stored_key_terms.append(term)
+    
     db.commit()
     db.refresh(proj)
 
     url = presign_put_url(object_key=object_key, content_type=payload.content_type or "application/octet-stream")
+    
+    # Build response with key_terms if present
+    project_data = {
+        "id": proj.id,
+        "title": proj.title,
+        "status": proj.status,
+        "source_object_key": proj.source_object_key,
+        "duration_seconds": proj.duration_seconds,
+        "created_at": proj.created_at,
+        "updated_at": proj.updated_at,
+        "key_terms": stored_key_terms if stored_key_terms else None,
+    }
 
-    return PresignedUpload(project=proj, upload_url=url, object_key=object_key)
+    return PresignedUpload(project=project_data, upload_url=url, object_key=object_key)
 
 
 @router.get("/projects", response_model=List[ProjectRead])

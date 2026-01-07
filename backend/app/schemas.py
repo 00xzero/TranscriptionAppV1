@@ -1,8 +1,13 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from datetime import datetime
+
+
+# Constants for key terms validation
+MAX_KEY_TERMS = 100
+MAX_KEY_TERM_LENGTH = 64
 
 
 class ProjectBase(BaseModel):
@@ -12,6 +17,44 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     filename: str = Field(..., description="Original filename for the uploaded media")
     content_type: Optional[str] = Field(default="application/octet-stream")
+    key_terms: Optional[list[str]] = Field(
+        default=None,
+        description="Optional key terms to improve transcription accuracy for obscure words"
+    )
+
+    @field_validator("key_terms", mode="before")
+    @classmethod
+    def parse_and_validate_key_terms(cls, v: Optional[list[str]]) -> Optional[list[str]]:
+        """Parse, dedupe, and validate key terms."""
+        if v is None or len(v) == 0:
+            return None
+        
+        # Deduplicate case-insensitively, preserving first-seen casing
+        seen_canonical: dict[str, str] = {}
+        for term in v:
+            if not isinstance(term, str):
+                continue
+            trimmed = term.strip()
+            if not trimmed:
+                continue
+            canonical = trimmed.casefold()
+            if canonical not in seen_canonical:
+                seen_canonical[canonical] = trimmed
+        
+        terms = list(seen_canonical.values())
+        
+        if not terms:
+            return None
+        
+        # Validate limits
+        if len(terms) > MAX_KEY_TERMS:
+            raise ValueError(f"Too many key terms: {len(terms)} exceeds limit of {MAX_KEY_TERMS}")
+        
+        for term in terms:
+            if len(term) > MAX_KEY_TERM_LENGTH:
+                raise ValueError(f"Key term too long: '{term[:20]}...' exceeds {MAX_KEY_TERM_LENGTH} characters")
+        
+        return terms
 
 
 class ProjectRead(ProjectBase):
@@ -19,6 +62,7 @@ class ProjectRead(ProjectBase):
     status: str
     source_object_key: str
     duration_seconds: Optional[int] = None
+    key_terms: Optional[list[str]] = None
     created_at: datetime
     updated_at: datetime
 
