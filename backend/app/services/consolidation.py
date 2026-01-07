@@ -33,26 +33,27 @@ from ..models import Segment, Word, Chunk, ChunkWord
 class ConsolidationConfig:
     """Tunable parameters for the consolidation algorithm."""
     
-    # Soft target for words per chunk
-    target_words: int = 40
+    # Soft target for words per chunk (triggers break at sentence boundary)
+    target_words: int = 60
     
     # Hard break if pause between segments exceeds this (milliseconds)
-    max_gap_ms: int = 1500
+    max_gap_ms: int = 2000
     
     # Hard cap on chunk duration (milliseconds)
-    max_duration_ms: int = 15000
+    max_duration_ms: int = 15000  # Reduced from 18s to enforce 15s limit (AC-5)
     
     # Fragments with <= this many words get absorbed into adjacent chunks
-    min_absorb_words: int = 5
+    min_absorb_words: int = 3
     
     # Patterns to tag as filler (case-insensitive, matched at start after strip)
     filler_patterns: tuple[str, ...] = (
         "k.", "okay.", "ok.", "yeah.", "yes.", "no.", "mm.", "mhmm.", 
         "uh.", "um.", "hmm.", "right.", "sure.", "so.", "well.",
+        "yep.", "nope.", "oh.", "ah.", "alright.",
     )
     
     # Algorithm version for lineage tracking
-    algo_version: str = "v1.0"
+    algo_version: str = "v1.3"
 
 
 # Default configuration instance
