@@ -21,6 +21,7 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
 
     /**
      * Parse input string into terms array.
+     * - Normalize newlines/tabs to spaces (preserves multi-word phrases)
      * - Split by comma
      * - Trim whitespace
      * - Drop empty terms
@@ -29,7 +30,13 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
     const parseTerms = useCallback((input: string): string[] => {
         const seen = new Map<string, string>()
 
-        input.split(',').forEach(part => {
+        // Normalize: convert newlines/tabs to spaces, collapse multiple spaces
+        const normalized = input
+            .replace(/[\n\r]+/g, ' ')
+            .replace(/\t+/g, ' ')
+            .replace(/\s+/g, ' ')
+
+        normalized.split(',').forEach(part => {
             const trimmed = part.trim()
             if (!trimmed) return
 
@@ -127,8 +134,8 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
                             <span
                                 key={`${term}-${index}`}
                                 className={`inline-flex items-center gap-1 px-2 py-1 rounded text-sm ${isTooLong
-                                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border border-red-300'
-                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border border-red-300'
+                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                                     }`}
                             >
                                 <span className="max-w-[200px] truncate" title={term}>
