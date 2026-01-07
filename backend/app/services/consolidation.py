@@ -290,13 +290,20 @@ def consolidate_and_save_chunks(
     # Run consolidation algorithm
     chunk_data_list = consolidate_segments(segment_data_list, config)
     
-    # Clear any existing chunks for this project (idempotent re-runs)
+    # Clear any existing UNEDITED chunks for this project (preserve user edits)
+    # P1 FIX: Filter by is_edited=False to avoid data loss on re-consolidation
     db.query(ChunkWord).filter(
         ChunkWord.chunk_id.in_(
-            db.query(Chunk.id).filter(Chunk.project_id == project_id)
+            db.query(Chunk.id).filter(
+                Chunk.project_id == project_id,
+                Chunk.is_edited == False  # Only delete unedited chunks
+            )
         )
     ).delete(synchronize_session=False)
-    db.query(Chunk).filter(Chunk.project_id == project_id).delete(synchronize_session=False)
+    db.query(Chunk).filter(
+        Chunk.project_id == project_id,
+        Chunk.is_edited == False  # Only delete unedited chunks
+    ).delete(synchronize_session=False)
     
     # Create new chunks
     created_chunks: list[Chunk] = []
