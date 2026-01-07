@@ -9,7 +9,7 @@ from io import BytesIO
 
 from ..db import get_db
 from ..core.auth import require_auth
-from ..models import Project, Segment, Word, Speaker, Job
+from ..models import Project, Segment, Word, Speaker, Job, Chunk
 from ..schemas import (
     ProjectCreate,
     ProjectRead,
@@ -25,6 +25,8 @@ from ..schemas import (
     SpeakerRead,
     SpeakerCreate,
     SpeakerUpdate,
+    ChunkRead,
+    ChunkUpdate,
 )
 from ..services.s3 import presign_put_url, normalize_key_component, presign_get_url, delete_prefix
 from ..services.tasks import enqueue_transcription
@@ -347,3 +349,55 @@ def export_vtt(project_id: str, db: Session = Depends(get_db)):
         media_type="text/vtt",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# ============================================================================
+# Chunks Endpoints (Consolidated Transcript Data)
+# ============================================================================
+
+@router.get("/projects/{project_id}/chunks", response_model=list[ChunkRead])
+def list_project_chunks(project_id: str, db: Session = Depends(get_db)):
+    """
+    List consolidated chunks for a project.
+    
+    This is the primary endpoint for front-end transcript display.
+    Returns fewer, larger chunks than raw segments for better readability.
+    """
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    chunks = (
+        db.query(Chunk)
+        .filter(Chunk.project_id == project_id)
+        .order_by(Chunk.start_ms.asc())
+        .all()
+    )
+    return chunks
+
+
+@router.patch("/chunks/{chunk_id}", response_model=ChunkRead)
+def update_chunk(chunk_id: str, payload: ChunkUpdate, db: Session = Depends(get_db)):
+    """
+    Update a chunk's text or speaker.
+    
+    Once edited, the chunk is marked as is_edited=True to prevent
+    automatic re-consolidation from overwriting user changes.
+    """
+    chunk = db.get(Chunk, chunk_id)
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+    
+    if payload.text is not None:
+        chunk.text = payload.text
+        chunk.is_edited = True  # Mark as edited to freeze auto-consolidation
+    
+    if payload.speaker_id is not None:
+        chunk.speaker_id = payload.speaker_id
+        chunk.is_edited = True
+    
+    db.add(chunk)
+    db.commit()
+    db.refresh(chunk)
+    return chunk
+
