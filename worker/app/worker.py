@@ -19,6 +19,48 @@ from backend_app.services.consolidation import consolidate_and_save_chunks
 
 DEEPGRAM_ENDPOINT = "https://api.deepgram.com/v1/listen"
 
+# Error type constants for job.payload
+ERROR_TYPE_KEYTERM = "keyterm_error"
+ERROR_TYPE_GENERAL = "transcription_error"
+
+
+def _classify_error(error_text: str) -> tuple[str, str]:
+    """
+    Classify an error and return (error_type, user_friendly_message).
+    
+    Detects keyterm-specific errors from Deepgram and provides
+    user-friendly messages for display in the UI.
+    """
+    error_lower = error_text.lower()
+    
+    # Keyterm limit exceeded
+    if "keyterm" in error_lower and "limit" in error_lower:
+        return (
+            ERROR_TYPE_KEYTERM,
+            "Too many key terms. Please reduce to fewer terms or shorter phrases."
+        )
+    
+    # Token limit (keyterms use tokens internally)
+    if "token" in error_lower and ("limit" in error_lower or "exceed" in error_lower):
+        return (
+            ERROR_TYPE_KEYTERM,
+            "Key terms exceed the token limit. Try using fewer multi-word phrases."
+        )
+    
+    # Generic keyterm error
+    if "keyterm" in error_lower:
+        return (
+            ERROR_TYPE_KEYTERM,
+            "There was an issue with your key terms. Please review and try again."
+        )
+    
+    # General transcription error
+    return (
+        ERROR_TYPE_GENERAL,
+        f"Transcription failed: {error_text[:200]}"
+    )
+
+
 app = Celery("transcription_worker", broker=settings.redis_url, backend=settings.redis_url)
 
 
@@ -126,12 +168,18 @@ def _insert_word(db, segment_id: str, start_ms: int, end_ms: int, text: str, con
     db.add(word)
 
 
-def _build_keywords_params(db, project_id: str) -> list[tuple[str, str]]:
-    """Load watchlist terms for Deepgram keyword boosting."""
+def _build_keyterm_params(db, project_id: str) -> list[tuple[str, str]]:
+    """Load key terms for Deepgram keyterm parameter.
+    
+    The keyterm parameter tells Deepgram to more reliably transcribe specific words,
+    which is useful for domain-specific or obscure terminology.
+    """
     params: list[tuple[str, str]] = []
     watchlist_items = db.query(Watchlist).filter(Watchlist.project_id == project_id).all()
+    if watchlist_items:
+        print(f"[transcribe] Sending {len(watchlist_items)} key terms to Deepgram")
     for item in watchlist_items:
-        params.append(("keywords", f"{item.term}:2"))
+        params.append(("keyterm", item.term))
     return params
 
 
@@ -187,7 +235,7 @@ def transcribe_project(project_id: str, job_id: str) -> str:
             ("diarize", "true"),
             ("utterances", "true"),
         ]
-        params += _build_keywords_params(db, project_id)
+        params += _build_keyterm_params(db, project_id)
 
         # Choose between URL fetch (memory-efficient) or byte upload (fallback)
         if _can_use_url_fetch():
@@ -297,9 +345,13 @@ def transcribe_project(project_id: str, job_id: str) -> str:
         return project_id
 
     except Exception as e:
-        # Store error state
+        # Store error state with classification
         db.rollback()
         try:
+            # Classify the error and get user-friendly message
+            error_text = str(e)
+            error_type, user_message = _classify_error(error_text)
+            
             project = db.get(Project, project_id)
             if project:
                 project.status = "error"
@@ -309,10 +361,15 @@ def transcribe_project(project_id: str, job_id: str) -> str:
                 if job:
                     job.status = "error"
                     job.finished_at = datetime.now(timezone.utc)
-                    job.payload = {"error": str(e)}
+                    job.payload = {
+                        "error": user_message,
+                        "error_type": error_type,
+                        "raw_error": error_text[:500]  # Keep raw for debugging
+                    }
             db.commit()
         except Exception:
             pass  # Best effort error logging
         return project_id
     finally:
         db.close()
+

@@ -294,3 +294,35 @@ Alembic will automatically create the database schema on first startup.
 ## Contributors
 
 - Architectural review and implementation: January 2026
+
+---
+
+## 🎯 7. Key Term Prompting & Retry [08-01-2026]
+
+**Problem:** Users couldn't provide context-specific terms (names, acronyms) to improve transcription accuracy. Transcription failures due to invalid terms (e.g., too many) were unrecoverable, requiring re-upload.
+
+**Solution:** Implemented key term support during upload, robust error handling for term limits, and a retry flow for correcting terms post-failure.
+
+### Changes
+- **Database:** Reused `Watchlist` table with unique constraint on `(project_id, canonical)`
+- **API (New endpoints):**
+  - `PATCH /projects/{id}/key-terms` - Update terms for existing project
+  - `GET /projects/{id}` - Now returns `key_terms`
+  - `POST /projects` - Accepts `key_terms` payload
+- **Worker:**
+  - Uses `keyterm` parameter for Deepgram (replacing legacy `keywords`)
+  - Classifies errors (`keyterm_error` vs `transcription_error`)
+  - Returns user-friendly error messages (e.g., "Too many key terms")
+- **Frontend:**
+  - `KeyTermsInput` component with scrollable chips and pasting support (normalizes newlines/tabs)
+  - `EditKeyTermsModal` for fixing and retrying failed projects
+  - Error banner on projects page with direct "Edit Key Terms" action
+
+### Benefits
+- **Higher Accuracy:** Domain-specific terms are correctly transcribed.
+- **Recoverability:** Users can fix term-limit errors without re-uploading large files.
+- **Better UX:**
+  - Immediate visual feedback on term count/length
+  - Easy pasting of lists from spreadsheets/docs
+  - Clear explanations for failures
+
