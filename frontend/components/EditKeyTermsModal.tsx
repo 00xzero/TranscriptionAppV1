@@ -9,11 +9,13 @@ type EditKeyTermsModalProps = {
     isOpen: boolean
     onClose: () => void
     onSaved: (newTerms: string[]) => void
+    onRetry: () => Promise<void>  // Callback to trigger transcription retry
 }
 
 /**
  * Modal for editing key terms on an existing project.
  * Used for retry scenarios when initial key terms caused transcription failure.
+ * After saving, automatically triggers transcription retry.
  */
 export function EditKeyTermsModal({
     projectId,
@@ -21,17 +23,19 @@ export function EditKeyTermsModal({
     isOpen,
     onClose,
     onSaved,
+    onRetry,
 }: EditKeyTermsModalProps) {
     const [terms, setTerms] = useState<string[]>(currentTerms)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [status, setStatus] = useState<'editing' | 'saving' | 'retrying'>('editing')
 
     const handleTermsChange = useCallback((newTerms: string[]) => {
         setTerms(newTerms)
         setError(validateKeyTerms(newTerms))
     }, [])
 
-    const handleSave = useCallback(async () => {
+    const handleSaveAndRetry = useCallback(async () => {
         const validationError = validateKeyTerms(terms)
         if (validationError) {
             setError(validationError)
@@ -39,9 +43,11 @@ export function EditKeyTermsModal({
         }
 
         setSaving(true)
+        setStatus('saving')
         setError(null)
 
         try {
+            // Step 1: Update key terms
             const response = await fetch(`${getApiBase()}/projects/${projectId}/key-terms`, {
                 method: 'PATCH',
                 headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
@@ -55,15 +61,23 @@ export function EditKeyTermsModal({
 
             const result = await response.json()
             onSaved(result.key_terms || [])
+
+            // Step 2: Trigger transcription retry
+            setStatus('retrying')
+            await onRetry()
+
             onClose()
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e))
+            setStatus('editing')
         } finally {
             setSaving(false)
         }
-    }, [projectId, terms, onSaved, onClose])
+    }, [projectId, terms, onSaved, onRetry, onClose])
 
     if (!isOpen) return null
+
+    const buttonLabel = status === 'saving' ? 'Saving...' : status === 'retrying' ? 'Starting transcription...' : 'Save & Retry'
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -101,14 +115,15 @@ export function EditKeyTermsModal({
                         Cancel
                     </button>
                     <button
-                        onClick={handleSave}
+                        onClick={handleSaveAndRetry}
                         disabled={saving || !!error}
                         className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                        {saving ? 'Saving...' : 'Save & Retry'}
+                        {buttonLabel}
                     </button>
                 </div>
             </div>
         </div>
     )
 }
+

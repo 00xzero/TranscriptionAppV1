@@ -86,7 +86,26 @@ def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
 
 @router.get("/projects", response_model=List[ProjectRead])
 def list_projects(db: Session = Depends(get_db)):
-    return db.query(Project).order_by(Project.created_at.desc()).limit(100).all()
+    projects = db.query(Project).order_by(Project.created_at.desc()).limit(100).all()
+    
+    # Load key terms for each project
+    result = []
+    for proj in projects:
+        watchlist_items = db.query(Watchlist).filter(Watchlist.project_id == proj.id).all()
+        key_terms = [item.term for item in watchlist_items] if watchlist_items else None
+        
+        result.append(ProjectRead(
+            id=proj.id,
+            title=proj.title,
+            status=proj.status,
+            source_object_key=proj.source_object_key,
+            duration_seconds=proj.duration_seconds,
+            key_terms=key_terms,
+            created_at=proj.created_at,
+            updated_at=proj.updated_at,
+        ))
+    
+    return result
 
 
 @router.get("/projects/{project_id}", response_model=ProjectRead)

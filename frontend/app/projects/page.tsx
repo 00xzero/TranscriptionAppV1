@@ -114,6 +114,11 @@ export default function ProjectsPage() {
     }
   }
 
+  const handleRetry = useCallback(async () => {
+    if (!editingProject) return
+    await startProjectAction(editingProject.id)
+  }, [editingProject, startProjectAction])
+
   const getErrorInfo = (projectId: string) => projectErrors[projectId]
 
   return (
@@ -201,6 +206,7 @@ export default function ProjectsPage() {
           isOpen={true}
           onClose={() => setEditingProject(null)}
           onSaved={handleKeyTermsSaved}
+          onRetry={handleRetry}
         />
       )}
     </div>
