@@ -21,8 +21,8 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
 
     /**
      * Parse input string into terms array.
-     * - Normalize newlines/tabs to spaces (preserves multi-word phrases)
-     * - Split by comma
+     * - Split by comma/newline/tab
+     * - Collapse internal whitespace
      * - Trim whitespace
      * - Drop empty terms
      * - Deduplicate case-insensitively (keep first-seen casing)
@@ -30,14 +30,10 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
     const parseTerms = useCallback((input: string): string[] => {
         const seen = new Map<string, string>()
 
-        // Normalize: convert newlines/tabs to spaces, collapse multiple spaces
-        const normalized = input
-            .replace(/[\n\r]+/g, ' ')
-            .replace(/\t+/g, ' ')
-            .replace(/\s+/g, ' ')
+        const normalized = input.replace(/\r/g, '')
 
-        normalized.split(',').forEach(part => {
-            const trimmed = part.trim()
+        normalized.split(/[,\n\t]+/).forEach(part => {
+            const trimmed = part.trim().replace(/\s+/g, ' ')
             if (!trimmed) return
 
             const canonical = trimmed.toLowerCase()

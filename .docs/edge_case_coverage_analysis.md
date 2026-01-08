@@ -27,17 +27,8 @@ Our implementation handles **42 out of 42** edge cases with varying levels of co
 | 10 | 65 characters | ✅ | Tested in `test_reject_term_longer_than_64_chars` |
 | 11 | Unicode/emoji | ✅ | **Allowed** - Tested with "日本語" (passed) |
 | 12 | Special chars | ✅ | **Allowed** - Tested with "Move™" (passed) |
-| 13 | Newlines in input | ⚠️ | **Not explicitly handled**<br>Browser input fields typically strip newlines, but needs verification |
-| 14 | Tabs in input | ⚠️ | **Not explicitly handled**<br>Standard `.trim()` handles leading/trailing tabs but not mid-term tabs |
-
-**Recommendation for #13-14**: Add explicit handling in frontend:
-```typescript
-const parseTerms = (input: string): string[] => {
-    // Strip newlines and replace tabs with spaces
-    const cleaned = input.replace(/[\n\r]/g, '').replace(/\t/g, ' ')
-    // ... rest of parsing
-}
-```
+| 13 | Newlines in input | ✅ | Frontend splits on `,`/`\n`/`\t` and collapses internal whitespace |
+| 14 | Tabs in input | ✅ | Tabs are treated as delimiters and trimmed |
 
 ---
 
@@ -47,7 +38,7 @@ const parseTerms = (input: string): string[] => {
 |---|----------|--------|------------------------|
 | 15 | Remove all chips | ✅ | Results in empty array → `None` in backend |
 | 16 | Add, remove, re-add same | ✅ | Component state handles this correctly |
-| 17 | Copy-paste from spreadsheet | ⚠️ | **Tabs not treated as delimiters**<br>Only commas are delimiters |
+| 17 | Copy-paste from spreadsheet | ✅ | Tabs/newlines are treated as delimiters |
 | 18 | Copy-paste formatted text | ✅ | HTML input fields strip formatting automatically |
 | 19 | Very long single term | ✅ | Validation catches and blocks at 64 chars |
 | 20 | Input 50, paste 60 more | ✅ | Validation runs on `onChange` in parent component |
@@ -91,7 +82,7 @@ input.split(/[,\t]/).forEach(...)
 
 | # | Scenario | Status | Implementation Details |
 |---|----------|--------|------------------------|
-| 31 | Deepgram API rejects key terms | ❌ | **Not explicitly handled**<br>Would currently fail the transcription job |
+| 31 | Deepgram API rejects key terms | ⚠️ | **Intentional**: job fails with a keyterm-specific error and edit/retry flow (no fallback without key terms) |
 | 32 | Deepgram rate limit hit | ⚠️ | Assumes existing Celery retry logic applies |
 | 33 | Empty key terms stored | ✅ | Worker checks: `if watchlist_items:` before logging |
 | 34 | Term ordering matters | ⚠️ | Not researched, but Deepgram docs state order doesn't matter |
@@ -125,7 +116,7 @@ except DeepgramError as e:
 | # | Scenario | Status | Implementation Details |
 |---|----------|--------|------------------------|
 | 39 | Very long term in chip | ✅ | `max-w-[200px] truncate` with `title={term}` tooltip |
-| 40 | 100 chips displayed | ✅ | `flex flex-wrap gap-2` - tested with UI, performs well |
+| 40 | 100 chips displayed | ✅ | Scrollable container (`max-h-32` with `overflow-y-auto`) |
 | 41 | Mobile input | ✅ | Remove buttons are tappable (24px × minimum) |
 | 42 | Screen reader usage | ✅ | `aria-label={Remove ${term}}` on remove buttons |
 
@@ -148,17 +139,8 @@ except DeepgramError as e:
 ### 🟡 Important (Aligned with Deepgram Best Practices)
 
 3. **Point 1 - Newlines/Tabs Handling**
-   - Deepgram accepts multi-word phrases with spaces (URL-encoded as `%20` or `+`)
-   - Newlines/tabs should be **normalized to spaces**, not stripped entirely
-   - This preserves multi-word term intent
-   
-   **Updated Recommendation**:
-   ```typescript
-   const cleaned = input
-       .replace(/[\n\r]+/g, ' ')  // Convert newlines to spaces
-       .replace(/\t+/g, ' ')       // Convert tabs to spaces
-       .replace(/\s+/g, ' ')       // Collapse multiple spaces
-   ```
+   - Implemented: input now splits on comma/newline/tab and collapses internal whitespace
+   - This supports spreadsheet pastes while preserving multi-word phrases
 
 4. **Point 3 - Character Set (Per Deepgram Docs)**
    
@@ -196,8 +178,17 @@ except DeepgramError as e:
 
 | Issue | Original Recommendation | Rebased Recommendation (per Deepgram) |
 |-------|------------------------|--------------------------------------|
-| **#1 Newlines/Tabs** | Strip newlines, convert tabs to spaces | **Convert both to spaces** (preserves multi-word phrase intent) |
+| **#1 Newlines/Tabs** | Strip newlines, convert tabs to spaces | **Split on comma/newline/tab, collapse internal whitespace** |
 | **#2 Worker Errors** | Add try-catch for Deepgram rejection | **Deferred** - user expanding on journey flow |
+
+---
+
+## Design Gaps (Intentional for Now)
+
+- **Uncommitted input on upload**: Users must commit terms via comma/enter/blur before clicking Upload; partially typed text is not auto-flushed.
+- **No fallback transcription**: If Deepgram rejects key terms, the job fails with a keyterm-specific error and the UI prompts edit/retry.
+- **Navigate away mid-upload**: No draft persistence or navigation warning.
+- **Comma-in-term**: Terms containing commas are unsupported (no quoting/escape).
 | **#3 Character Set** | Decision needed on Unicode/special chars | **Allow all** - Deepgram supports proper nouns, technical terms, multi-word phrases |
 
 ---
