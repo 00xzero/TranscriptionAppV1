@@ -127,7 +127,7 @@ export function KeyTermsInput({ value, onChange, disabled = false, error }: KeyT
 
             {/* Chips display */}
             {value.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
+                <div className="flex flex-wrap gap-2 mt-2 max-h-32 overflow-y-auto pr-1">
                     {value.map((term, index) => {
                         const isTooLong = term.length > MAX_KEY_TERM_LENGTH
                         return (
