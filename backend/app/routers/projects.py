@@ -27,6 +27,7 @@ from ..schemas import (
     SpeakerUpdate,
     ChunkRead,
     ChunkUpdate,
+    KeyTermsUpdate,
 )
 from ..services.s3 import presign_put_url, normalize_key_component, presign_get_url, delete_prefix
 from ..services.tasks import enqueue_transcription
@@ -93,7 +94,22 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
     proj = db.get(Project, project_id)
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
-    return proj
+    
+    # Load key terms from watchlist
+    watchlist_items = db.query(Watchlist).filter(Watchlist.project_id == project_id).all()
+    key_terms = [item.term for item in watchlist_items] if watchlist_items else None
+    
+    # Create response with key_terms populated
+    return ProjectRead(
+        id=proj.id,
+        title=proj.title,
+        status=proj.status,
+        source_object_key=proj.source_object_key,
+        duration_seconds=proj.duration_seconds,
+        key_terms=key_terms,
+        created_at=proj.created_at,
+        updated_at=proj.updated_at,
+    )
 
 
 @router.post("/projects/{project_id}/start", response_model=JobEnqueued)
@@ -134,6 +150,44 @@ def project_media_url(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     url = presign_get_url(proj.source_object_key)
     return MediaUrl(project_id=project_id, object_key=proj.source_object_key, url=url)
+
+
+@router.patch("/projects/{project_id}/key-terms")
+def update_key_terms(project_id: str, payload: KeyTermsUpdate, db: Session = Depends(get_db)):
+    """
+    Update key terms for an existing project.
+    
+    Only allowed when project is in 'created' or 'error' state.
+    Useful for retry scenarios when initial key terms caused transcription failure.
+    """
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Only allow editing in states where transcription hasn't completed
+    if project.status not in ("created", "error", "queued"):
+        raise HTTPException(
+            status_code=409, 
+            detail=f"Cannot edit key terms while project is '{project.status}'"
+        )
+    
+    # Clear existing key terms
+    db.query(Watchlist).filter(Watchlist.project_id == project_id).delete()
+    
+    # Insert new key terms
+    stored_terms: list[str] = []
+    for term in payload.key_terms:
+        watchlist_entry = Watchlist(
+            project_id=project_id,
+            term=term,
+            canonical=term.casefold(),
+        )
+        db.add(watchlist_entry)
+        stored_terms.append(term)
+    
+    db.commit()
+    
+    return {"project_id": project_id, "key_terms": stored_terms}
 
 
 @router.get("/projects/{project_id}/jobs", response_model=List[JobRead])

@@ -23,13 +23,13 @@ export async function fetcher<T>(url: string): Promise<T> {
       'Content-Type': 'application/json',
     },
   })
-  
+
   if (!res.ok) {
     const error = new Error('API request failed') as Error & { status: number }
     error.status = res.status
     throw error
   }
-  
+
   return res.json()
 }
 
@@ -48,12 +48,12 @@ export async function mutationFetcher<T>(
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
-  
+
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Request failed (${res.status}): ${text}`)
   }
-  
+
   // Handle empty responses (e.g., DELETE)
   const text = await res.text()
   return (text ? JSON.parse(text) : null) as T
@@ -66,6 +66,7 @@ export type Project = {
   status: string
   source_object_key: string
   duration_seconds?: number
+  key_terms?: string[] | null
   created_at: string
   updated_at: string
 }
@@ -88,7 +89,7 @@ export type Job = {
  */
 export function useProjects(config?: SWRConfiguration) {
   const api = getApiBase()
-  
+
   const { data, error, isLoading, mutate } = useSWR<Project[]>(
     `${api}/projects`,
     fetcher,
@@ -96,7 +97,7 @@ export function useProjects(config?: SWRConfiguration) {
       // Smart polling: refresh based on whether any project is processing
       refreshInterval: (latestData: Project[] | undefined) => {
         if (!latestData) return 0
-        const hasActiveJobs = latestData.some((p: Project) => 
+        const hasActiveJobs = latestData.some((p: Project) =>
           ['queued', 'processing'].includes(p.status)
         )
         return hasActiveJobs ? 3000 : 0 // Poll every 3s if active, otherwise stop
@@ -106,7 +107,7 @@ export function useProjects(config?: SWRConfiguration) {
       ...config,
     }
   )
-  
+
   return {
     projects: data || [],
     isLoading,
@@ -121,7 +122,7 @@ export function useProjects(config?: SWRConfiguration) {
  */
 export function useProject(projectId: string | null, config?: SWRConfiguration) {
   const api = getApiBase()
-  
+
   const { data, error, isLoading, mutate } = useSWR<Project>(
     projectId ? `${api}/projects/${projectId}` : null,
     fetcher,
@@ -130,7 +131,7 @@ export function useProject(projectId: string | null, config?: SWRConfiguration) 
       ...config,
     }
   )
-  
+
   return {
     project: data,
     isLoading,
@@ -145,14 +146,14 @@ export function useProject(projectId: string | null, config?: SWRConfiguration) 
  */
 export function useProjectJobs(projectId: string | null, config?: SWRConfiguration) {
   const api = getApiBase()
-  
+
   const { data, error, isLoading, mutate } = useSWR<Job[]>(
     projectId ? `${api}/projects/${projectId}/jobs` : null,
     fetcher,
     {
       refreshInterval: (latestData: Job[] | undefined) => {
         if (!latestData) return 0
-        const hasActiveJobs = latestData.some((j: Job) => 
+        const hasActiveJobs = latestData.some((j: Job) =>
           ['queued', 'processing'].includes(j.status)
         )
         return hasActiveJobs ? 2000 : 0
@@ -160,7 +161,7 @@ export function useProjectJobs(projectId: string | null, config?: SWRConfigurati
       ...config,
     }
   )
-  
+
   return {
     jobs: data || [],
     isLoading,
@@ -175,23 +176,28 @@ export function useProjectJobs(projectId: string | null, config?: SWRConfigurati
  */
 export function useProjectActions() {
   const api = getApiBase()
-  
+
   const startProject = async (projectId: string) => {
     return mutationFetcher<{ project_id: string; task_id: string }>(
       `${api}/projects/${projectId}/start`,
       { method: 'POST' }
     )
   }
-  
+
   const deleteProject = async (projectId: string) => {
     return mutationFetcher<void>(
       `${api}/projects/${projectId}`,
       { method: 'DELETE' }
     )
   }
-  
+
+  const getProjectJobs = async (projectId: string): Promise<Job[]> => {
+    return fetcher<Job[]>(`${api}/projects/${projectId}/jobs`)
+  }
+
   return {
     startProject,
     deleteProject,
+    getProjectJobs,
   }
 }

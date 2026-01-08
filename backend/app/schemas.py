@@ -81,6 +81,45 @@ class JobEnqueued(BaseModel):
     task_id: str
 
 
+class KeyTermsUpdate(BaseModel):
+    """Schema for updating key terms on an existing project."""
+    key_terms: list[str] = Field(
+        default_factory=list,
+        description="New key terms to replace existing ones"
+    )
+
+    @field_validator("key_terms", mode="before")
+    @classmethod
+    def parse_and_validate_key_terms(cls, v: Optional[list[str]]) -> list[str]:
+        """Parse, dedupe, and validate key terms."""
+        if v is None or len(v) == 0:
+            return []
+        
+        # Deduplicate case-insensitively, preserving first-seen casing
+        seen_canonical: dict[str, str] = {}
+        for term in v:
+            if not isinstance(term, str):
+                continue
+            trimmed = term.strip()
+            if not trimmed:
+                continue
+            canonical = trimmed.casefold()
+            if canonical not in seen_canonical:
+                seen_canonical[canonical] = trimmed
+        
+        terms = list(seen_canonical.values())
+        
+        # Validate limits
+        if len(terms) > MAX_KEY_TERMS:
+            raise ValueError(f"Too many key terms: {len(terms)} exceeds limit of {MAX_KEY_TERMS}")
+        
+        for term in terms:
+            if len(term) > MAX_KEY_TERM_LENGTH:
+                raise ValueError(f"Key term too long: '{term[:20]}...' exceeds {MAX_KEY_TERM_LENGTH} characters")
+        
+        return terms
+
+
 class MediaUrl(BaseModel):
     project_id: str
     object_key: str
