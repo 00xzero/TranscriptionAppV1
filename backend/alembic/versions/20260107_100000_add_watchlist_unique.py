@@ -1,7 +1,7 @@
 """Add unique constraint on watchlist project_id + canonical
 
-Revision ID: 002_watchlist_unique
-Revises: 001_initial
+Revision ID: 003_watchlist_unique
+Revises: 002_add_chunks
 Create Date: 2026-01-07 10:00:00.000000
 
 """
