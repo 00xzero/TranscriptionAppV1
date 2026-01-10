@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-10] - Speaker Assignment Feature
+
+### Added
+- **SpeakerPopover component**: New `frontend/components/SpeakerPopover.tsx` for speaker management
+- **Clickable speaker avatars**: Avatars in transcript segments are now interactive buttons
+- **Global speaker rename**: Click current speaker → inline edit → Enter to rename across all segments
+- **Create & reassign speaker**: Type new name → Tag to create speaker and reassign single segment
+- **Reassign to existing speaker**: Click different speaker to move segment to that speaker
+- **Untag/reset speaker**: "Reset to generic name" reverts custom names back to "Speaker X" format
+- **Search/filter speakers**: Typing in the input filters the suggested speakers list
+- **Keyboard support**: Escape closes popover, Enter submits rename/tag
+
+### UI/UX
+- Popover positioned below clicked avatar with fixed positioning
+- Current speaker highlighted with "Click to rename" hint
+- Optimistic UI updates with error rollback
+- Hover ring effect on speaker avatar buttons
+
+---
+
 ## [2025-01-05] - Project Cleanup
 
 ### Removed

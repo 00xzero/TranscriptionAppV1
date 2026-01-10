@@ -3,6 +3,7 @@ import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import { getApiBase, getAuthHeaders } from '../../../lib/api'
+import SpeakerPopover from '../../../components/SpeakerPopover'
 
 type Word = { key: string; start_ms: number; end_ms: number; text: string }
 type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[]; is_edited?: boolean; is_filler?: boolean }
@@ -36,6 +37,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [replaceTerm, setReplaceTerm] = useState('')
   const [matchIndex, setMatchIndex] = useState(0)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorRect: DOMRect } | null>(null)
 
 
   useEffect(() => {
@@ -434,6 +436,123 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const canNavigate = hasMatches && !isFindDirty
   const matchSummary = isFindDirty ? 'Press Search' : (totalMatches ? `${matchIndex + 1}/${totalMatches}` : '0 matches')
 
+  // Speaker popover handlers
+  const handleAvatarClick = useCallback((e: React.MouseEvent, chunkId: string, speakerId: string | null) => {
+    e.stopPropagation()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setSpeakerPopover({ chunkId, speakerId, anchorRect: rect })
+  }, [])
+
+  const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
+    if (!speakerPopover) return
+    const { chunkId } = speakerPopover
+    
+    // Optimistic update
+    setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: speaker.id } : s))
+    setSpeakerPopover(null)
+    
+    try {
+      const res = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speaker_id: speaker.id }),
+      })
+      if (!res.ok) throw new Error(`Failed to reassign speaker: ${res.status}`)
+    } catch (err) {
+      console.error('Failed to reassign speaker:', err)
+      // Revert on error - reload segments
+      const segRes = await fetch(`${getApiBase()}/projects/${params.id}/chunks`, { headers: getAuthHeaders() })
+      if (segRes.ok) setSegments(await segRes.json())
+    }
+  }, [speakerPopover, params.id])
+
+  const handleCreateSpeaker = useCallback(async (label: string) => {
+    if (!speakerPopover) return
+    const { chunkId } = speakerPopover
+    
+    setSpeakerPopover(null)
+    
+    try {
+      // Create new speaker
+      const createRes = await fetch(`${getApiBase()}/projects/${params.id}/speakers`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label }),
+      })
+      if (!createRes.ok) throw new Error(`Failed to create speaker: ${createRes.status}`)
+      const newSpeaker: Speaker = await createRes.json()
+      
+      // Add to speakers list
+      setSpeakers(prev => [...prev, newSpeaker])
+      
+      // Reassign chunk to new speaker
+      const patchRes = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ speaker_id: newSpeaker.id }),
+      })
+      if (!patchRes.ok) throw new Error(`Failed to reassign chunk: ${patchRes.status}`)
+      
+      // Update segment
+      setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: newSpeaker.id } : s))
+    } catch (err) {
+      console.error('Failed to create speaker:', err)
+    }
+  }, [speakerPopover, params.id])
+
+  const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
+    // Optimistic update
+    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
+    setSpeakerPopover(null)
+    
+    try {
+      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newLabel }),
+      })
+      if (!res.ok) throw new Error(`Failed to rename speaker: ${res.status}`)
+    } catch (err) {
+      console.error('Failed to rename speaker:', err)
+      // Revert on error
+      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
+    }
+  }, [])
+
+  const handleUntag = useCallback(async (speaker: Speaker) => {
+    // Find next available "Speaker X" number
+    const existingNumbers = speakers
+      .map(sp => {
+        const match = sp.label.match(/^Speaker\s+(\d+)$/i)
+        return match ? parseInt(match[1], 10) : -1
+      })
+      .filter(n => n >= 0)
+    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 0
+    const newLabel = `Speaker ${nextNumber}`
+    
+    // Optimistic update
+    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
+    setSpeakerPopover(null)
+    
+    try {
+      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newLabel }),
+      })
+      if (!res.ok) throw new Error(`Failed to untag speaker: ${res.status}`)
+    } catch (err) {
+      console.error('Failed to untag speaker:', err)
+      // Revert on error
+      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
+    }
+  }, [speakers])
+
+  const currentPopoverSpeaker = useMemo(() => {
+    if (!speakerPopover?.speakerId) return undefined
+    return speakers.find(sp => sp.id === speakerPopover.speakerId)
+  }, [speakerPopover, speakers])
+
 
   return (
     <div className="space-y-4">
@@ -553,9 +672,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 >
                   <div className="flex items-start gap-3">
                     <div className="shrink-0 pt-0.5">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white" style={{ backgroundColor: avatarBg }}>
+                      <button
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
+                        style={{ backgroundColor: avatarBg }}
+                        onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
+                        title="Click to change speaker"
+                      >
                         {initials}
-                      </div>
+                      </button>
                     </div>
                     <div className="flex-1">
                       {needHeader && (
@@ -645,6 +769,20 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           </div>
         </div>
       </div>
+
+      {/* Speaker Popover */}
+      {speakerPopover && (
+        <SpeakerPopover
+          speakers={speakers}
+          currentSpeaker={currentPopoverSpeaker}
+          anchorRect={speakerPopover.anchorRect}
+          onSelectSpeaker={handleSelectSpeaker}
+          onCreateSpeaker={handleCreateSpeaker}
+          onRenameSpeaker={handleRenameSpeaker}
+          onUntag={handleUntag}
+          onClose={() => setSpeakerPopover(null)}
+        />
+      )}
     </div>
   )
 }
