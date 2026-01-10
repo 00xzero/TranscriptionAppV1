@@ -106,16 +106,50 @@ export default function SpeakerPopover({
     inputRef.current?.focus()
   }, [])
 
-  // Calculate position
+  // Calculate position with viewport boundary detection
+  const [position, setPosition] = useState<{ top: number; left: number; flipUp: boolean }>({ top: 0, left: 0, flipUp: false })
+
+  useEffect(() => {
+    if (!anchorRect) return
+
+    const POPOVER_HEIGHT = 320 // Approximate max height of popover
+    const GAP = 8
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+
+    // Check if there's enough space below
+    const spaceBelow = viewportHeight - anchorRect.bottom - GAP
+    const spaceAbove = anchorRect.top - GAP
+    const flipUp = spaceBelow < POPOVER_HEIGHT && spaceAbove > spaceBelow
+
+    // Calculate top position
+    let top: number
+    if (flipUp) {
+      top = anchorRect.top - GAP - Math.min(POPOVER_HEIGHT, spaceAbove)
+    } else {
+      top = anchorRect.bottom + GAP
+    }
+
+    // Ensure left doesn't go off-screen (popover is 288px wide)
+    let left = anchorRect.left
+    if (left + 288 > viewportWidth) {
+      left = viewportWidth - 288 - 16
+    }
+    if (left < 16) left = 16
+
+    setPosition({ top, left, flipUp })
+  }, [anchorRect])
+
   const style: React.CSSProperties = useMemo(() => {
     if (!anchorRect) return { display: 'none' }
     return {
       position: 'fixed',
-      top: anchorRect.bottom + 8,
-      left: anchorRect.left,
+      top: position.top,
+      left: position.left,
       zIndex: 1000,
+      maxHeight: position.flipUp ? `${anchorRect.top - 16}px` : `${window.innerHeight - anchorRect.bottom - 16}px`,
     }
-  }, [anchorRect])
+  }, [anchorRect, position])
 
   const handleTagClick = () => {
     const trimmed = searchValue.trim()
@@ -180,17 +214,17 @@ export default function SpeakerPopover({
     <div
       ref={popoverRef}
       style={style}
-      className="bg-surface border border-base rounded-lg shadow-lg w-72 overflow-hidden"
+      className="bg-surface border border-base rounded-lg shadow-lg w-72 overflow-hidden flex flex-col"
     >
       {/* Header */}
-      <div className="px-3 py-2 border-b border-base bg-surface-alt">
+      <div className="px-3 py-2 border-b border-base bg-surface-alt shrink-0">
         <span className="text-xs font-medium text-muted uppercase tracking-wide">
           Suggested Speakers
         </span>
       </div>
 
       {/* Speaker list */}
-      <div className="max-h-48 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {filteredSpeakers.length === 0 ? (
           <div className="px-3 py-4 text-sm text-muted text-center">
             No speakers found
@@ -247,7 +281,7 @@ export default function SpeakerPopover({
       </div>
 
       {/* Input section */}
-      <div className="border-t border-base p-3 space-y-2">
+      <div className="border-t border-base p-3 space-y-2 shrink-0">
         <div className="flex gap-2">
           <input
             ref={inputRef}
