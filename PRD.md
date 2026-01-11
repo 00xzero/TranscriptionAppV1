@@ -64,19 +64,24 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 * Use Deepgram’s built-in **speaker diarization**.
 * Editable speaker labels in UI.
 
-### 4.4 Vocabulary Watchlist
+### 4.4 Vocabulary Watchlist / Key Terms
 
-* Users add terms (e.g., “PAS-X”, “Val de Reuil”).
-* Deepgram supports **keywords (boosted terms)**.
-* Post-processing correction available as fallback.
+* ✅ Users add key terms during upload (e.g., "PAS-X", "Val de Reuil").
+* ✅ Terms sent to Deepgram via `keyterm` parameter for improved recognition.
+* ✅ Limit: 100 terms, 64 chars each (within Deepgram's 500-token limit).
+* ✅ Edit & retry flow for failed transcriptions due to term errors.
+* ⏳ Post-processing watchlist correction in editor (planned).
 
 ### 4.5 Transcript Editing
 
-* Inline editor with autosave.
-* Word-level timestamps from API.
-* Speaker reassignment, segment split/merge.
-* **Bulk Find & Replace** with regex and preview.
-* Undo/redo history.
+* ✅ Inline editor with debounced autosave (500ms).
+* ✅ Word-level timestamps displayed per segment.
+* ✅ **Bulk Find & Replace** with case-sensitivity toggle, match highlighting, and preview.
+* ✅ Replace single or replace all.
+* ✅ **Speaker reassignment UI**: click avatar to rename globally, create new speaker, or reassign segment.
+* ⏳ Segment split/merge (planned).
+* ⏳ Undo/redo history beyond browser native (planned).
+* ⏳ Regex support in find/replace (planned).
 
 ### 4.6 Export Options
 
@@ -96,15 +101,21 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### Editor Layout
 
-* **Left**: waveform with playhead.
-* **Center**: transcript grouped by speaker turns.
-* **Right**: speaker list (rename/color).
-* **Toolbar**: find/replace, apply watchlist, export dropdown.
+* **Left/Top**: waveform with playhead (wavesurfer.js).
+* **Center/Bottom**: transcript grouped by speaker turns with avatar, initials, and color.
+* **Toolbar**: find/replace panel with case sensitivity, playback controls, rate selector.
+* ✅ **Speaker popover**: click avatar to rename, reassign, or create new speaker.
+* ⏳ **Toolbar**: apply watchlist button, export dropdown (planned).
 
-### Shortcuts
+### Shortcuts (Implemented)
 
 * Space = play/pause.
-* ←/→ = seek ±2s.
+* J/L = seek ±2s.
+* ,/. = fine seek ±0.25s.
+* Click segment/word = seek to timestamp.
+
+### Shortcuts (Planned)
+
 * Ctrl/Cmd+F = find.
 * Ctrl/Cmd+H = replace.
 * Ctrl/Cmd+S = save.
@@ -179,11 +190,20 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ## 11. Acceptance Criteria
 
+### ✅ Completed
 * Upload file → Deepgram (Nova 3) transcript generated with labeled speakers.
-* Watchlist terms recognized/corrected.
-* Editor supports inline edits, bulk replace, undo/redo.
+* Key terms supported during upload for improved recognition.
+* Editor supports inline edits with autosave.
+* Editor supports bulk find & replace with case sensitivity.
 * Exports produce valid DOCX and VTT files.
-* Meets performance and privacy requirements.
+* Waveform playback with seek controls and playback rate.
+* Speaker avatars with color coding.
+
+### ⏳ Planned
+* Post-transcription watchlist correction.
+* Segment split/merge.
+* Undo/redo history.
+* Regex in find/replace.
 
 ---
 
