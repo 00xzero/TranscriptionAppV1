@@ -29,6 +29,14 @@ type SpeakerPopoverProps = {
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
 
+/**
+ * Selects a hex color for a speaker.
+ *
+ * If the speaker has an explicit `color`, that value is returned; otherwise a deterministic color is chosen from `COLORS` based on the speaker's `id` or `label` (falls back to `'unknown'` when neither is available).
+ *
+ * @param speaker - Optional speaker object; `id` or `label` are used when `color` is not provided.
+ * @returns A hex color string from `COLORS` (or the speaker's explicit color)
+ */
 function getColorForSpeaker(speaker?: Speaker): string {
   if (speaker?.color) return speaker.color
   const key = speaker?.id || speaker?.label || 'unknown'
@@ -39,6 +47,12 @@ function getColorForSpeaker(speaker?: Speaker): string {
   return COLORS[hash % COLORS.length]
 }
 
+/**
+ * Derives up to two uppercase initials from a display name, falling back to 'U'.
+ *
+ * @param name - The display name to extract initials from; may be empty or whitespace.
+ * @returns `U` if no usable characters are found, otherwise the first letters of the first two name parts in uppercase.
+ */
 function getInitials(name: string): string {
   const parts = (name || 'U').trim().split(/\s+/)
   const first = parts[0]?.[0] || ''
@@ -46,6 +60,22 @@ function getInitials(name: string): string {
   return (first + second || 'U').toUpperCase()
 }
 
+/**
+ * Render a positioned popover UI for selecting, creating, renaming, and untagging speakers.
+ *
+ * Displays a searchable list of speakers, highlights the current speaker (with inline rename),
+ * allows creating a new speaker from the input, and exposes an option to reset a custom name.
+ *
+ * @param speakers - Array of speaker objects to display in the list.
+ * @param currentSpeaker - The currently selected speaker, or `null` if none.
+ * @param anchorRect - Bounding rectangle of the anchor element used to compute popover position; when absent the component renders nothing.
+ * @param onSelectSpeaker - Callback invoked with a speaker to assign/reassign selection.
+ * @param onCreateSpeaker - Callback invoked with a trimmed label to create a new speaker.
+ * @param onRenameSpeaker - Callback invoked with `(speaker, newLabel)` when a speaker is renamed.
+ * @param onUntag - Callback invoked with the current speaker to reset it to a generic name.
+ * @param onClose - Callback invoked to close the popover.
+ * @returns The popover JSX element positioned relative to `anchorRect`, or `null` when `anchorRect` is not provided.
+ */
 export default function SpeakerPopover({
   speakers,
   currentSpeaker,

@@ -14,6 +14,13 @@ type SegmentMatch = { index: number; length: number; matchIdx: number }
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
 
+/**
+ * Renders the editor page for a project, including waveform playback, transcript segments, search/replace, editing with debounced saves, and speaker assignment UI.
+ *
+ * @param params - Route parameters object containing the project/editor identifier
+ * @param params.id - The project ID for which to load media, segments, and speakers
+ * @returns The React element for the editor UI
+ */
 export default function EditorPage({ params }: { params: { id: string } }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wavesurferRef = useRef<WaveSurfer | null>(null)
