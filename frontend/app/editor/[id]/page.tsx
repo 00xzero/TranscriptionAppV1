@@ -38,6 +38,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [matchIndex, setMatchIndex] = useState(0)
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorRect: DOMRect } | null>(null)
+  const [projectTitle, setProjectTitle] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleInput, setTitleInput] = useState('')
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
 
 
   useEffect(() => {
@@ -112,6 +116,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           if (!cancelled && spRes.ok) {
             const sps: Speaker[] = await spRes.json()
             setSpeakers(sps)
+          }
+        } catch (_) { /* ignore */ }
+
+        // Load project metadata for title
+        try {
+          const projRes = await fetch(`${base}/projects/${params.id}`, {
+            headers: getAuthHeaders(),
+          })
+          if (!cancelled && projRes.ok) {
+            const projData = await projRes.json()
+            setProjectTitle(projData.title || null)
           }
         } catch (_) { /* ignore */ }
 
@@ -296,16 +311,29 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     return initials.toUpperCase()
   }, [])
 
+  const speakerColorPalette = useMemo(() => [
+    '#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6',
+    '#8B5CF6', '#F472B6', '#0EA5E9', '#84CC16', '#EC4899',
+    '#06B6D4', '#A855F7', '#22C55E', '#F97316', '#3B82F6'
+  ], [])
+
+  const speakerColorMap = useMemo(() => {
+    const map = new Map<string, string>()
+    speakers.forEach((sp, idx) => {
+      if (sp.color) {
+        map.set(sp.id, sp.color)
+      } else {
+        map.set(sp.id, speakerColorPalette[idx % speakerColorPalette.length])
+      }
+    })
+    return map
+  }, [speakers, speakerColorPalette])
+
   const colorForSpeaker = useCallback((sp?: Speaker) => {
-    if (sp?.color) return sp.color
-    const key = sp?.id || sp?.label || 'unknown'
-    let hash = 0
-    for (let i = 0; i < key.length; i++) {
-      hash = (hash * 31 + key.charCodeAt(i)) >>> 0
-    }
-    const palette = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
-    return palette[hash % palette.length]
-  }, [])
+    if (!sp) return '#9CA3AF'
+    if (sp.color) return sp.color
+    return speakerColorMap.get(sp.id) || '#9CA3AF'
+  }, [speakerColorMap])
 
   const totalMatches = matches.length
   const currentMatch = totalMatches ? matches[Math.min(matchIndex, totalMatches - 1)] : null
@@ -566,10 +594,67 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     return speakers.find(sp => sp.id === speakerPopover.speakerId)
   }, [speakerPopover, speakers])
 
+  const startEditingTitle = useCallback(() => {
+    setTitleInput(projectTitle || '')
+    setEditingTitle(true)
+    setTimeout(() => titleInputRef.current?.focus(), 0)
+  }, [projectTitle])
+
+  const saveTitle = useCallback(async () => {
+    const newTitle = titleInput.trim()
+    if (!newTitle) {
+      setEditingTitle(false)
+      return
+    }
+    try {
+      const base = getApiBase()
+      const res = await fetch(`${base}/projects/${params.id}`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      })
+      if (res.ok) {
+        setProjectTitle(newTitle)
+      }
+    } catch (err) {
+      console.error('Failed to save title:', err)
+    }
+    setEditingTitle(false)
+  }, [titleInput, params.id])
+
+  const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      saveTitle()
+    } else if (e.key === 'Escape') {
+      setEditingTitle(false)
+    }
+  }, [saveTitle])
+
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Editor: {params.id}</h1>
+      <div className="flex items-center gap-2">
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            className="text-xl font-semibold border border-base rounded px-2 py-1 bg-surface text-current min-w-[300px]"
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            onKeyDown={onTitleKeyDown}
+            onBlur={saveTitle}
+            placeholder="Project title"
+          />
+        ) : (
+          <h1
+            className="text-xl font-semibold cursor-pointer hover:text-emerald-600 transition-colors"
+            onClick={startEditingTitle}
+            title="Click to edit title"
+          >
+            {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}
+          </h1>
+        )}
+      </div>
       <div className="bg-surface border border-base rounded p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
@@ -596,7 +681,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             Match case
           </label>
           <button
-            className="px-3 py-1.5 rounded bg-accent text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
             onClick={applyFindTerm}
             disabled={!findInput.trim() && !findTerm.trim()}
           >Search</button>
@@ -656,7 +741,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 space-y-3 max-h-[70vh] overflow-auto">
           <h2 className="font-medium">Transcript</h2>
-          <div className="space-y-3">
+          <div>
             {segments.map((s: Seg, idx: number) => {
               const isActive = activeIds.segId === s.id
               const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
@@ -664,6 +749,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               let charCursor = 0
               const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
               const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
+              const isContinuation = !needHeader
               const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
               const speakerLabel = sp?.label || 'Unknown'
               const avatarBg = colorForSpeaker(sp)
@@ -680,20 +766,22 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       delete segmentRefs.current[s.id]
                     }
                   }}
-                  className={`rounded p-2 cursor-pointer ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
+                  className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
                   onClick={() => onSegmentClick(s.start_ms)}
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="shrink-0 pt-0.5">
-                      <button
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
-                        style={{ backgroundColor: avatarBg }}
-                        onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
-                        title="Click to change speaker"
-                      >
-                        {initials}
-                      </button>
-                    </div>
+                  <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
+                    {needHeader && (
+                      <div className="shrink-0 pt-0.5">
+                        <button
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
+                          style={{ backgroundColor: avatarBg }}
+                          onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
+                          title="Click to change speaker"
+                        >
+                          {initials}
+                        </button>
+                      </div>
+                    )}
                     <div className="flex-1">
                       {needHeader && (
                         <div className="text-[11px] uppercase tracking-wide text-muted mb-1 flex items-center gap-2">
@@ -709,7 +797,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                           {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
                         </span>
                         <button
-                          className="text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt"
+                          className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation()
                             setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
