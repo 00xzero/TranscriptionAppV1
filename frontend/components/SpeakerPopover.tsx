@@ -239,10 +239,18 @@ export default function SpeakerPopover({
             return (
               <div
                 key={sp.id}
-                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                  isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt'
+                role="button"
+                tabIndex={isEditing ? -1 : 0}
+                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent ${
+                  isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
                 }`}
                 onClick={() => !isEditing && handleSpeakerClick(sp)}
+                onKeyDown={e => {
+                  if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault()
+                    handleSpeakerClick(sp)
+                  }
+                }}
               >
                 {/* Avatar */}
                 <div

@@ -201,7 +201,6 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### ⏳ Planned
 * Post-transcription watchlist correction.
-* Speaker reassignment in editor.
 * Segment split/merge.
 * Undo/redo history.
 * Regex in find/replace.
