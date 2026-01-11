@@ -472,6 +472,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     
     setSpeakerPopover(null)
     
+    let newSpeaker: Speaker | null = null
+    
     try {
       // Create new speaker
       const createRes = await fetch(`${getApiBase()}/projects/${params.id}/speakers`, {
@@ -480,23 +482,34 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         body: JSON.stringify({ label }),
       })
       if (!createRes.ok) throw new Error(`Failed to create speaker: ${createRes.status}`)
-      const newSpeaker: Speaker = await createRes.json()
+      const createdSpeaker: Speaker = await createRes.json()
+      newSpeaker = createdSpeaker
       
-      // Add to speakers list
-      setSpeakers(prev => [...prev, newSpeaker])
-      
-      // Reassign chunk to new speaker
+      // Reassign chunk to new speaker (do this BEFORE adding to state)
       const patchRes = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
         method: 'PATCH',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: newSpeaker.id }),
+        body: JSON.stringify({ speaker_id: createdSpeaker.id }),
       })
       if (!patchRes.ok) throw new Error(`Failed to reassign chunk: ${patchRes.status}`)
       
-      // Update segment
-      setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: newSpeaker.id } : s))
+      // Both succeeded - now update state
+      setSpeakers(prev => [...prev, createdSpeaker])
+      setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: createdSpeaker.id } : s))
     } catch (err) {
       console.error('Failed to create speaker:', err)
+      
+      // Rollback: if speaker was created but chunk patch failed, delete the orphan speaker
+      if (newSpeaker) {
+        try {
+          await fetch(`${getApiBase()}/speakers/${newSpeaker.id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders(),
+          })
+        } catch (cleanupErr) {
+          console.error('Failed to cleanup orphan speaker:', cleanupErr)
+        }
+      }
     }
   }, [speakerPopover, params.id])
 
