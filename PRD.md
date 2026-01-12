@@ -107,12 +107,21 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 * ✅ **Speaker popover**: click avatar to rename, reassign, or create new speaker.
 * ⏳ **Toolbar**: apply watchlist button, export dropdown (planned).
 
+### Playback Sync
+
+* ✅ **Sync to audio button**: Floating button appears when user scrolls away from active segment.
+* ✅ **Auto-follow mode**: Clicking sync re-enables automatic transcript scrolling with audio.
+* ✅ **Directional arrows**: Button shows ↑/↓ indicating direction to active segment.
+* ✅ **Smart detection**: Only user scroll (wheel/touch) breaks follow mode, not programmatic scroll.
+* ✅ **Edit/popover aware**: Button hidden during editing or when speaker popover is open.
+
 ### Shortcuts (Implemented)
 
 * Space = play/pause.
 * J/L = seek ±2s.
 * ,/. = fine seek ±0.25s.
 * Click segment/word = seek to timestamp.
+* Scroll transcript = break follow mode, show sync button.
 
 ### Shortcuts (Planned)
 
@@ -198,6 +207,7 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 * Exports produce valid DOCX and VTT files.
 * Waveform playback with seek controls and playback rate.
 * Speaker avatars with color coding.
+* Sync to audio button for user-controlled transcript following.
 
 ### ⏳ Planned
 * Post-transcription watchlist correction.

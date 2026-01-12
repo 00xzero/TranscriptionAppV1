@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-12] - Sync to Audio Feature
+
+### Added
+- **Floating "Sync to audio" button**: Replaces aggressive auto-follow checkbox with user-controlled sync
+- **Directional arrows**: Button shows ↑ or ↓ arrow indicating scroll direction to active segment
+- **Auto-follow mode**: After clicking sync, transcript automatically follows audio playback
+- **Smart scroll detection**: Distinguishes user scroll (wheel/touch) from programmatic scroll
+- **Edit mode awareness**: Button hidden while editing transcript cards
+- **Speaker popover awareness**: Button hidden when speaker popover is open
+
+### Changed
+- **Removed "Follow playback" checkbox**: Replaced with more intuitive sync button UX
+- **Transcript container restructured**: Outer container now has `relative` positioning for proper button placement
+
+### UI/UX
+- Button positioned at bottom center of transcript panel (not viewport)
+- Purple pill-style button with white text and SVG arrow icons
+- Smooth scroll animation when syncing to active segment
+- Button appears immediately when user scrolls, regardless of active segment visibility
+
+### Technical
+- New state: `isFollowMode`, `isUserScrollingRef` for tracking follow behavior
+- Event listeners for `wheel`, `touchstart`, `scrollend` to detect user-initiated scrolling
+- Auto-scroll effect triggered when `activeIds.segId` changes while in follow mode
+
+---
+
 ## [2026-01-10] - Speaker Assignment Feature
 
 ### Added
