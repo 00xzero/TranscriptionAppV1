@@ -85,9 +85,12 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### 4.6 Export Options
 
-* **DOCX**: structured by speaker turns, optional timestamps.
-* **VTT**: segmented by 3–6 seconds with proper formatting.
-* Metadata footer (watchlist applied, generation date).
+* ✅ **PDF**: Print-friendly format with metadata (Date of Transcription, Duration)
+* ✅ **DOCX**: Structured by speaker turns with timestamps and metadata
+* ✅ **VTT**: WebVTT format with speaker voice tags and proper cue identifiers
+* ✅ **Filename format**: `{title}_{FORMAT}_{YYYY-MM-DD}.ext` for easy organization
+* ✅ **Export modal**: User-friendly interface with format selection and download feedback
+* ✅ **Metadata included**: Date of Transcription and Duration (when available)
 
 ---
 

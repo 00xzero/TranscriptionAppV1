@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import { getApiBase, getAuthHeaders } from '../../../lib/api'
 import SpeakerPopover from '../../../components/SpeakerPopover'
+import ExportModal from '../../../components/ExportModal'
 
 type Word = { key: string; start_ms: number; end_ms: number; text: string }
 type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[]; is_edited?: boolean; is_filler?: boolean }
@@ -47,6 +48,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [titleSaveError, setTitleSaveError] = useState<string | null>(null)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   const isSavingTitleRef = useRef(false)
+  const [exportModalOpen, setExportModalOpen] = useState(false)
 
 
   useEffect(() => {
@@ -201,7 +203,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       if (!activeEl) {
         return
       }
-      
+
       const containerRect = container.getBoundingClientRect()
       const activeRect = activeEl.getBoundingClientRect()
 
@@ -544,11 +546,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
     if (!speakerPopover) return
     const { chunkId } = speakerPopover
-    
+
     // Optimistic update
     setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: speaker.id } : s))
     setSpeakerPopover(null)
-    
+
     try {
       const res = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
         method: 'PATCH',
@@ -567,11 +569,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
     const { chunkId } = speakerPopover
-    
+
     setSpeakerPopover(null)
-    
+
     let newSpeaker: Speaker | null = null
-    
+
     try {
       // Create new speaker
       const createRes = await fetch(`${getApiBase()}/projects/${params.id}/speakers`, {
@@ -582,7 +584,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       if (!createRes.ok) throw new Error(`Failed to create speaker: ${createRes.status}`)
       const createdSpeaker: Speaker = await createRes.json()
       newSpeaker = createdSpeaker
-      
+
       // Reassign chunk to new speaker (do this BEFORE adding to state)
       const patchRes = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
         method: 'PATCH',
@@ -590,13 +592,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         body: JSON.stringify({ speaker_id: createdSpeaker.id }),
       })
       if (!patchRes.ok) throw new Error(`Failed to reassign chunk: ${patchRes.status}`)
-      
+
       // Both succeeded - now update state
       setSpeakers(prev => [...prev, createdSpeaker])
       setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: createdSpeaker.id } : s))
     } catch (err) {
       console.error('Failed to create speaker:', err)
-      
+
       // Rollback: if speaker was created but chunk patch failed, delete the orphan speaker
       if (newSpeaker) {
         try {
@@ -615,7 +617,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // Optimistic update
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
     setSpeakerPopover(null)
-    
+
     try {
       const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
         method: 'PATCH',
@@ -640,11 +642,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       .filter(n => n >= 0)
     const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 0
     const newLabel = `Speaker ${nextNumber}`
-    
+
     // Optimistic update
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
     setSpeakerPopover(null)
-    
+
     try {
       const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
         method: 'PATCH',
@@ -673,17 +675,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const saveTitle = useCallback(async () => {
     if (isSavingTitleRef.current) return
-    
+
     const newTitle = titleInput.trim()
     if (!newTitle) {
       setEditingTitle(false)
       setTitleSaveError(null)
       return
     }
-    
+
     isSavingTitleRef.current = true
     setTitleSaveError(null)
-    
+
     try {
       const base = getApiBase()
       const res = await fetch(`${base}/projects/${params.id}`, {
@@ -778,22 +780,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
             onClick={applyFindTerm}
             disabled={!findInput.trim() && !findTerm.trim()}
-          >Search</button>
-          <span data-testid="match-summary" className="text-sm text-muted ml-auto">{matchSummary}</span>
-        </div>
-        <div className="flex flex-wrap gap-2">
+          >Find</button>
           <button
-            className="px-3 py-1.5 rounded border border-base bg-surface-alt disabled:opacity-50"
-            onClick={handlePrev}
-            disabled={!canNavigate}
-          >Prev</button>
-          <button
-            className="px-3 py-1.5 rounded border border-base bg-surface-alt disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-surface-alt disabled:opacity-50"
             onClick={handleNext}
             disabled={!canNavigate}
           >Next</button>
           <button
-            className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-surface-alt disabled:opacity-50"
+            onClick={handlePrev}
+            disabled={!canNavigate}
+          >Prev</button>
+          {canNavigate && (
+            <span className="text-sm text-muted">
+              {matchIndex + 1} / {totalMatches}
+            </span>
+          )}
+          <button
+            className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
             onClick={handleReplace}
             disabled={!canNavigate}
           >Replace</button>
@@ -802,6 +806,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             onClick={handleReplaceAll}
             disabled={!canNavigate}
           >Replace all</button>
+
+          {/* Export Button */}
+          <div className="ml-auto">
+            <button
+              className="px-4 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              onClick={() => setExportModalOpen(true)}
+            >
+              Export
+            </button>
+          </div>
+          <span data-testid="match-summary" className="text-sm text-muted ml-auto">{matchSummary}</span>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -831,138 +846,138 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 max-h-[70vh] relative flex flex-col">
           <h2 className="font-medium mb-3 shrink-0">Transcript</h2>
-          
+
           {/* Scrollable transcript content */}
           <div className="flex-1 overflow-auto space-y-3" ref={transcriptScrollRef}>
-          <div>
-            {segments.map((s: Seg, idx: number) => {
-              const isActive = activeIds.segId === s.id
-              const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
-              const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
-              let charCursor = 0
-              const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
-              const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
-              const isContinuation = !needHeader
-              const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
-              const speakerLabel = sp?.label || 'Unknown'
-              const avatarBg = colorForSpeaker(sp)
-              const initials = getInitials(speakerLabel)
-              return (
-                <div
-                  key={s.id}
-                  data-testid="segment-card"
-                  ref={(node: HTMLDivElement | null) => {
-                    if (node) {
-                      segmentRefs.current[s.id] = node
-                      if (isActive) activeSegRef.current = node
-                    } else {
-                      delete segmentRefs.current[s.id]
-                    }
-                  }}
-                  className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
-                  onClick={() => onSegmentClick(s.start_ms)}
-                >
-                  <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
-                    {needHeader && (
-                      <div className="shrink-0 pt-0.5">
-                        <button
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
-                          style={{ backgroundColor: avatarBg }}
-                          onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
-                          title="Click to change speaker"
-                        >
-                          {initials}
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex-1">
+            <div>
+              {segments.map((s: Seg, idx: number) => {
+                const isActive = activeIds.segId === s.id
+                const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+                const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
+                let charCursor = 0
+                const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
+                const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
+                const isContinuation = !needHeader
+                const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
+                const speakerLabel = sp?.label || 'Unknown'
+                const avatarBg = colorForSpeaker(sp)
+                const initials = getInitials(speakerLabel)
+                return (
+                  <div
+                    key={s.id}
+                    data-testid="segment-card"
+                    ref={(node: HTMLDivElement | null) => {
+                      if (node) {
+                        segmentRefs.current[s.id] = node
+                        if (isActive) activeSegRef.current = node
+                      } else {
+                        delete segmentRefs.current[s.id]
+                      }
+                    }}
+                    className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
+                    onClick={() => onSegmentClick(s.start_ms)}
+                  >
+                    <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
                       {needHeader && (
-                        <div className="text-[11px] uppercase tracking-wide text-muted mb-1 flex items-center gap-2">
-                          <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: avatarBg }} />
-                          <span>{speakerLabel}</span>
+                        <div className="shrink-0 pt-0.5">
+                          <button
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
+                            style={{ backgroundColor: avatarBg }}
+                            onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
+                            title="Click to change speaker"
+                          >
+                            {initials}
+                          </button>
                         </div>
                       )}
-                      <div className="text-[11px] text-muted mb-1 flex items-center gap-2">
-                        <span>{msToTimestamp(s.start_ms)} — {msToTimestamp(s.end_ms)}</span>
-                        <span className="ml-auto text-[11px]">
-                          {saveStatus[s.id] === 'saving' && <span className="text-amber-600">Saving…</span>}
-                          {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
-                          {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
-                        </span>
-                        <button
-                          className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                          }}
-                        >{editingId === s.id ? 'Close' : 'Edit'}</button>
-                      </div>
-                      {editingId === s.id ? (
-                        <div className="text-sm">
-                          <textarea
-                            ref={(node: HTMLTextAreaElement | null) => {
-                              if (node) {
-                                textAreaRefs.current[s.id] = node
-                              } else {
-                                delete textAreaRefs.current[s.id]
-                              }
+                      <div className="flex-1">
+                        {needHeader && (
+                          <div className="text-[11px] uppercase tracking-wide text-muted mb-1 flex items-center gap-2">
+                            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: avatarBg }} />
+                            <span>{speakerLabel}</span>
+                          </div>
+                        )}
+                        <div className="text-[11px] text-muted mb-1 flex items-center gap-2">
+                          <span>{msToTimestamp(s.start_ms)} — {msToTimestamp(s.end_ms)}</span>
+                          <span className="ml-auto text-[11px]">
+                            {saveStatus[s.id] === 'saving' && <span className="text-amber-600">Saving…</span>}
+                            {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
+                            {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
+                          </span>
+                          <button
+                            className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                              e.stopPropagation()
+                              setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
+                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
                             }}
-                            className="w-full border border-base bg-surface rounded p-2 min-h-[100px] text-current"
-                            value={editingTexts[s.id] ?? s.text}
-                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                              const value = e.target.value
-                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
-                              scheduleSave(s.id, value)
-                            }}
-                            onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
-                          />
+                          >{editingId === s.id ? 'Close' : 'Edit'}</button>
                         </div>
-                      ) : (
-                        <div className="text-sm leading-7">
-                          {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
-                            const wordText = w.text
-                            const wordStart = charCursor
-                            const wordEnd = wordStart + wordText.length
-                            let content: React.ReactNode
-                            const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
-                            if (overlapping.length === 0) {
-                              content = <>{wordText}</>
-                            } else {
-                              let localPos = 0
-                              const pieces: React.ReactNode[] = []
-                              overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
-                                const startIdx = Math.max(0, m.index - wordStart)
-                                const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
-                                if (startIdx > localPos) {
-                                  pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
+                        {editingId === s.id ? (
+                          <div className="text-sm">
+                            <textarea
+                              ref={(node: HTMLTextAreaElement | null) => {
+                                if (node) {
+                                  textAreaRefs.current[s.id] = node
+                                } else {
+                                  delete textAreaRefs.current[s.id]
                                 }
-                                const highlight = wordText.slice(startIdx, endIdx)
-                                pieces.push(
-                                  <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-yellow-400 text-black' : 'bg-yellow-200 text-black'}`}>{highlight}</span>
-                                )
-                                localPos = endIdx
-                              })
-                              if (localPos < wordText.length) {
-                                pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                              }}
+                              className="w-full border border-base bg-surface rounded p-2 min-h-[100px] text-current"
+                              value={editingTexts[s.id] ?? s.text}
+                              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                                const value = e.target.value
+                                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
+                                scheduleSave(s.id, value)
+                              }}
+                              onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
+                            />
+                          </div>
+                        ) : (
+                          <div className="text-sm leading-7">
+                            {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+                              const wordText = w.text
+                              const wordStart = charCursor
+                              const wordEnd = wordStart + wordText.length
+                              let content: React.ReactNode
+                              const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
+                              if (overlapping.length === 0) {
+                                content = <>{wordText}</>
+                              } else {
+                                let localPos = 0
+                                const pieces: React.ReactNode[] = []
+                                overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
+                                  const startIdx = Math.max(0, m.index - wordStart)
+                                  const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
+                                  if (startIdx > localPos) {
+                                    pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
+                                  }
+                                  const highlight = wordText.slice(startIdx, endIdx)
+                                  pieces.push(
+                                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-yellow-400 text-black' : 'bg-yellow-200 text-black'}`}>{highlight}</span>
+                                  )
+                                  localPos = endIdx
+                                })
+                                if (localPos < wordText.length) {
+                                  pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                                }
+                                content = <>{pieces}</>
                               }
-                              content = <>{pieces}</>
-                            }
-                            charCursor = wordEnd
-                            return (
-                              <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
-                            )
-                          })}
-                        </div>
-                      )}
+                              charCursor = wordEnd
+                              return (
+                                <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
           </div>
-          </div>
-          
+
           {/* Floating sync button - shows when not in follow mode and not editing */}
           {!isFollowMode && activeIds.segId && !speakerPopover && !editingId && (
             <button
@@ -974,9 +989,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               }}
             >
               {syncDirection === 'up' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
               )}
               Sync to audio
             </button>
@@ -984,11 +999,22 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
+      {/* Export Modal */}
+      {
+        exportModalOpen && (
+          <ExportModal
+            projectId={params.id}
+            projectTitle={projectTitle}
+            onClose={() => setExportModalOpen(false)}
+          />
+        )
+      }
+
       {/* Speaker Popover */}
       {speakerPopover && (
         <SpeakerPopover
           speakers={speakers}
-          currentSpeaker={currentPopoverSpeaker}
+          currentSpeaker={speakerPopover.speakerId ? speakers.find(s => s.id === speakerPopover.speakerId) : undefined}
           anchorRect={speakerPopover.anchorRect}
           onSelectSpeaker={handleSelectSpeaker}
           onCreateSpeaker={handleCreateSpeaker}
@@ -999,7 +1025,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         />
       )}
 
-    </div>
+    </div >
   )
 }
 
