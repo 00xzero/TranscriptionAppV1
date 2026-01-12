@@ -208,3 +208,8 @@ class ChunkUpdate(BaseModel):
     """Update a chunk (marks it as edited)."""
     text: str | None = None
     speaker_id: str | None = None
+
+
+class ProjectUpdate(BaseModel):
+    """Update project metadata (e.g., title)."""
+    title: str | None = None

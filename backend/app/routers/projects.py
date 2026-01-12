@@ -13,6 +13,7 @@ from ..models import Project, Segment, Word, Speaker, Job, Chunk, Watchlist
 from ..schemas import (
     ProjectCreate,
     ProjectRead,
+    ProjectUpdate,
     PresignedUpload,
     JobEnqueued,
     JobRead,
@@ -119,6 +120,36 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
     key_terms = [item.term for item in watchlist_items] if watchlist_items else None
     
     # Create response with key_terms populated
+    return ProjectRead(
+        id=proj.id,
+        title=proj.title,
+        status=proj.status,
+        source_object_key=proj.source_object_key,
+        duration_seconds=proj.duration_seconds,
+        key_terms=key_terms,
+        created_at=proj.created_at,
+        updated_at=proj.updated_at,
+    )
+
+
+@router.patch("/projects/{project_id}", response_model=ProjectRead)
+def update_project(project_id: str, payload: ProjectUpdate, db: Session = Depends(get_db)):
+    """Update project metadata such as title."""
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if payload.title is not None:
+        proj.title = payload.title
+    
+    db.add(proj)
+    db.commit()
+    db.refresh(proj)
+    
+    # Load key terms from watchlist
+    watchlist_items = db.query(Watchlist).filter(Watchlist.project_id == project_id).all()
+    key_terms = [item.term for item in watchlist_items] if watchlist_items else None
+    
     return ProjectRead(
         id=proj.id,
         title=proj.title,
