@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-12] - Transcript Export Feature
+
+### Added
+- **Export button in editor toolbar**: Blue "Export" button positioned on the right side of the search/replace controls
+- **Export modal component**: Modal dialog for selecting export format (PDF, DOCX, VTT)
+- **PDF export support**: New export format generating print-friendly PDF documents
+- **Enhanced DOCX export**: Updated to include "Date of Transcription" and "Duration" metadata
+- **Enhanced VTT export**: Updated with proper cue identifiers and speaker voice tags
+- **Proper filename generation**: All exports use format `{title}_{FORMAT}_{YYYY-MM-DD}.ext`
+
+### Changed
+- **Export data source**: Switched from raw segments to consolidated chunks for all exports
+- **DOCX structure**: Now matches PRD requirements with centered title, metadata block, and speaker turns
+- **VTT format**: Now includes project-based cue IDs and proper speaker voice tags (`<v Speaker Name>`)
+- **Export endpoints**: Updated to pass transcription date and duration metadata
+
+### Technical
+- **Backend**: Added `reportlab` dependency for PDF generation
+- **Backend**: New `generate_pdf()` function in `services/exports.py`
+- **Backend**: Updated `generate_docx()` and `generate_vtt()` with new parameters
+- **Backend**: Added `format_duration()` helper for human-readable duration formatting
+- **Backend**: New `/projects/{id}/export/pdf` endpoint
+- **Frontend**: New `ExportModal.tsx` component with loading/success/error states
+- **Frontend**: Export integration in editor with modal state management
+- **Tests**: Comprehensive unit tests for all export functions (format_duration, DOCX, VTT, PDF)
+
+### Benefits
+- Users can now export transcripts in three formats (PDF, DOCX, VTT)
+- All exports include proper metadata (Date of Transcription, Duration when available)
+- Filenames are consistent and include dates for easy organization
+- PDF format provides print-friendly option for sharing
+- Export UI provides clear feedback during processing
+
+---
+
 ## [2026-01-12] - Sync to Audio Feature
 
 ### Added

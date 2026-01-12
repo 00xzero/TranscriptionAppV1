@@ -32,7 +32,7 @@ from ..schemas import (
 )
 from ..services.s3 import presign_put_url, normalize_key_component, presign_get_url, delete_prefix
 from ..services.tasks import enqueue_transcription
-from ..services.exports import generate_docx, generate_vtt
+from ..services.exports import generate_docx, generate_vtt, generate_pdf
 
 # All routes in this router require authentication
 router = APIRouter(dependencies=[Depends(require_auth)])
@@ -411,33 +411,44 @@ def update_speaker(speaker_id: str, payload: SpeakerUpdate, db: Session = Depend
 
 
 @router.get("/projects/{project_id}/export/docx")
-def export_docx(project_id: str, include_timestamps: bool = True, db: Session = Depends(get_db)):
+def export_docx(project_id: str, db: Session = Depends(get_db)):
+    """Export transcript as DOCX with metadata."""
     proj = db.get(Project, project_id)
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Load segments and speakers
-    segments = db.query(Segment).filter(Segment.project_id == project_id).order_by(Segment.start_ms.asc()).all()
+    # Load chunks (consolidated segments) and speakers
+    chunks = db.query(Chunk).filter(Chunk.project_id == project_id).order_by(Chunk.start_ms.asc()).all()
     speakers = db.query(Speaker).filter(Speaker.project_id == project_id).all()
     
     # Build speakers map
     speakers_map = {sp.id: {"label": sp.label, "color": sp.color} for sp in speakers}
     
-    # Convert segments to dicts
-    segments_data = [
+    # Convert chunks to dicts
+    chunks_data = [
         {
-            "speaker_id": seg.speaker_id,
-            "start_ms": seg.start_ms,
-            "end_ms": seg.end_ms,
-            "text": seg.text
+            "speaker_id": chunk.speaker_id,
+            "start_ms": chunk.start_ms,
+            "end_ms": chunk.end_ms,
+            "text": chunk.text
         }
-        for seg in segments
+        for chunk in chunks
     ]
     
-    # Generate DOCX
-    buffer = generate_docx(proj.title or f"Project {project_id}", segments_data, speakers_map, include_timestamps)
+    # Generate DOCX with metadata
+    buffer = generate_docx(
+        project_title=proj.title or "Transcript",
+        chunks=chunks_data,
+        speakers_map=speakers_map,
+        transcription_date=proj.created_at,
+        duration_seconds=proj.duration_seconds,
+    )
     
-    filename = f"{proj.title or project_id}_transcript.docx"
+    # Filename format: {title}_DOCX_{YYYY-MM-DD}.docx
+    date_str = proj.created_at.strftime("%Y-%m-%d")
+    safe_title = normalize_key_component(proj.title or "Transcript")
+    filename = f"{safe_title}_DOCX_{date_str}.docx"
+    
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -447,35 +458,90 @@ def export_docx(project_id: str, include_timestamps: bool = True, db: Session = 
 
 @router.get("/projects/{project_id}/export/vtt")
 def export_vtt(project_id: str, db: Session = Depends(get_db)):
+    """Export transcript as WebVTT captions."""
     proj = db.get(Project, project_id)
     if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    # Load segments and speakers
-    segments = db.query(Segment).filter(Segment.project_id == project_id).order_by(Segment.start_ms.asc()).all()
+    # Load chunks (consolidated segments) and speakers
+    chunks = db.query(Chunk).filter(Chunk.project_id == project_id).order_by(Chunk.start_ms.asc()).all()
+    speakers = db.query(Speaker).filter(Speaker.project_id == project_id).all()
+    
+    # Build speakers map  
+    speakers_map = {sp.id: {"label": sp.label, "color": sp.color} for sp in speakers}
+    
+    # Convert chunks to dicts
+    chunks_data = [
+        {
+            "speaker_id": chunk.speaker_id,
+            "start_ms": chunk.start_ms,
+            "end_ms": chunk.end_ms,
+            "text": chunk.text
+        }
+        for chunk in chunks
+    ]
+    
+    # Generate VTT
+    vtt_content = generate_vtt(
+        chunks=chunks_data,
+        speakers_map=speakers_map,
+        project_id=project_id
+    )
+    
+    # Filename format: {title}_VTT_{YYYY-MM-DD}.vtt
+    date_str = proj.created_at.strftime("%Y-%m-%d")
+    safe_title = normalize_key_component(proj.title or "Transcript")
+    filename = f"{safe_title}_VTT_{date_str}.vtt"
+    
+    return StreamingResponse(
+        BytesIO(vtt_content.encode("utf-8")),
+        media_type="text/vtt",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/projects/{project_id}/export/pdf")
+def export_pdf(project_id: str, db: Session = Depends(get_db)):
+    """Export transcript as PDF with metadata."""
+    proj = db.get(Project, project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Load chunks (consolidated segments) and speakers
+    chunks = db.query(Chunk).filter(Chunk.project_id == project_id).order_by(Chunk.start_ms.asc()).all()
     speakers = db.query(Speaker).filter(Speaker.project_id == project_id).all()
     
     # Build speakers map
     speakers_map = {sp.id: {"label": sp.label, "color": sp.color} for sp in speakers}
     
-    # Convert segments to dicts
-    segments_data = [
+    # Convert chunks to dicts
+    chunks_data = [
         {
-            "speaker_id": seg.speaker_id,
-            "start_ms": seg.start_ms,
-            "end_ms": seg.end_ms,
-            "text": seg.text
+            "speaker_id": chunk.speaker_id,
+            "start_ms": chunk.start_ms,
+            "end_ms": chunk.end_ms,
+            "text": chunk.text
         }
-        for seg in segments
+        for chunk in chunks
     ]
     
-    # Generate VTT
-    vtt_content = generate_vtt(segments_data, speakers_map)
+    # Generate PDF with metadata
+    buffer = generate_pdf(
+        project_title=proj.title or "Transcript",
+        chunks=chunks_data,
+        speakers_map=speakers_map,
+        transcription_date=proj.created_at,
+        duration_seconds=proj.duration_seconds,
+    )
     
-    filename = f"{proj.title or project_id}_captions.vtt"
+    # Filename format: {title}_PDF_{YYYY-MM-DD}.pdf
+    date_str = proj.created_at.strftime("%Y-%m-%d")
+    safe_title = normalize_key_component(proj.title or "Transcript")
+    filename = f"{safe_title}_PDF_{date_str}.pdf"
+    
     return StreamingResponse(
-        BytesIO(vtt_content.encode("utf-8")),
-        media_type="text/vtt",
+        buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
