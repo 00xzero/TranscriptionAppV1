@@ -24,8 +24,9 @@ All notable changes to this project will be documented in this file.
 
 ### Technical
 - New state: `isFollowMode`, `isUserScrollingRef` for tracking follow behavior
-- Event listeners for `wheel`, `touchstart`, `scrollend` to detect user-initiated scrolling
+- Event listeners for `wheel`, `touchstart` plus debounced `scroll` fallback to detect user-initiated scrolling reliably across browsers
 - Auto-scroll effect triggered when `activeIds.segId` changes while in follow mode
+- Removed unused `isOutOfSync` state (button visibility is controlled by `isFollowMode`)
 
 ---
 

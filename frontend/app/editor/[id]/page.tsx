@@ -25,7 +25,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const activeSegRef = useRef<HTMLDivElement | null>(null)
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
-  const [isOutOfSync, setIsOutOfSync] = useState(false)
   const [syncDirection, setSyncDirection] = useState<'up' | 'down'>('down')
   const [isFollowMode, setIsFollowMode] = useState(true)
   const isUserScrollingRef = useRef(false)
@@ -193,7 +192,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (speakerPopover) return // Skip detection while popover is open
     const container = transcriptScrollRef.current
     if (!container || !activeIds.segId) {
-      setIsOutOfSync(false)
       return
     }
 
@@ -201,18 +199,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       // Get activeEl fresh each time since it changes as audio plays
       const activeEl = activeSegRef.current
       if (!activeEl) {
-        setIsOutOfSync(false)
         return
       }
       
       const containerRect = container.getBoundingClientRect()
       const activeRect = activeEl.getBoundingClientRect()
-      
-      // Check if active segment is visible within the scroll container
-      const isVisible = activeRect.top >= containerRect.top - 50 && 
-                        activeRect.bottom <= containerRect.bottom + 50
-      
-      setIsOutOfSync(!isVisible)
+
       // Determine direction: if active is above viewport, need to scroll up
       setSyncDirection(activeRect.top < containerRect.top ? 'up' : 'down')
     }
@@ -228,22 +220,25 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // Detect user-initiated scroll vs programmatic scroll
     const handleWheel = () => { isUserScrollingRef.current = true }
     const handleTouchStart = () => { isUserScrollingRef.current = true }
+    let scrollEndTimer: number | undefined
     const handleScrollEnd = () => {
-      setTimeout(() => { isUserScrollingRef.current = false }, 100)
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
+      scrollEndTimer = window.setTimeout(() => { isUserScrollingRef.current = false }, 100)
     }
 
     checkSync()
     container.addEventListener('scroll', handleUserScroll)
+    container.addEventListener('scroll', handleScrollEnd)
     container.addEventListener('wheel', handleWheel)
     container.addEventListener('touchstart', handleTouchStart)
-    container.addEventListener('scrollend', handleScrollEnd)
     // Also check periodically as audio plays and active segment changes
     const interval = setInterval(checkSync, 300)
     return () => {
       container.removeEventListener('scroll', handleUserScroll)
+      container.removeEventListener('scroll', handleScrollEnd)
       container.removeEventListener('wheel', handleWheel)
       container.removeEventListener('touchstart', handleTouchStart)
-      container.removeEventListener('scrollend', handleScrollEnd)
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
       clearInterval(interval)
     }
   }, [activeIds.segId, speakerPopover])
