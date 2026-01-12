@@ -22,9 +22,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [playing, setPlaying] = useState(false)
   const [segments, setSegments] = useState<Seg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [follow, setFollow] = useState(true)
   const [playbackRate, setPlaybackRate] = useState(1.0)
   const activeSegRef = useRef<HTMLDivElement | null>(null)
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
+  const [syncDirection, setSyncDirection] = useState<'up' | 'down'>('down')
+  const [isFollowMode, setIsFollowMode] = useState(true)
+  const isUserScrollingRef = useRef(false)
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
@@ -184,13 +187,78 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const segmentsRef = useRef(segments)
   useEffect(() => { segmentsRef.current = segments }, [segments])
 
-  // Auto-scroll to active segment
+  // Detect if transcript is out of sync with audio playback
   useEffect(() => {
-    if (!follow) return
-    if (activeSegRef.current) {
-      activeSegRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    if (speakerPopover) return // Skip detection while popover is open
+    const container = transcriptScrollRef.current
+    if (!container || !activeIds.segId) {
+      return
     }
-  }, [activeIds.segId, follow])
+
+    const checkSync = () => {
+      // Get activeEl fresh each time since it changes as audio plays
+      const activeEl = activeSegRef.current
+      if (!activeEl) {
+        return
+      }
+      
+      const containerRect = container.getBoundingClientRect()
+      const activeRect = activeEl.getBoundingClientRect()
+
+      // Determine direction: if active is above viewport, need to scroll up
+      setSyncDirection(activeRect.top < containerRect.top ? 'up' : 'down')
+    }
+
+    // Handle user scroll - disable follow mode when user scrolls manually
+    const handleUserScroll = () => {
+      if (isUserScrollingRef.current) {
+        setIsFollowMode(false)
+      }
+      checkSync()
+    }
+
+    // Detect user-initiated scroll vs programmatic scroll
+    const handleWheel = () => { isUserScrollingRef.current = true }
+    const handleTouchStart = () => { isUserScrollingRef.current = true }
+    let scrollEndTimer: number | undefined
+    const handleScrollEnd = () => {
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
+      scrollEndTimer = window.setTimeout(() => { isUserScrollingRef.current = false }, 100)
+    }
+
+    checkSync()
+    container.addEventListener('scroll', handleUserScroll)
+    container.addEventListener('scroll', handleScrollEnd)
+    container.addEventListener('wheel', handleWheel)
+    container.addEventListener('touchstart', handleTouchStart)
+    // Also check periodically as audio plays and active segment changes
+    const interval = setInterval(checkSync, 300)
+    return () => {
+      container.removeEventListener('scroll', handleUserScroll)
+      container.removeEventListener('scroll', handleScrollEnd)
+      container.removeEventListener('wheel', handleWheel)
+      container.removeEventListener('touchstart', handleTouchStart)
+      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
+      clearInterval(interval)
+    }
+  }, [activeIds.segId, speakerPopover])
+
+  // Auto-scroll to active segment when in follow mode
+  useEffect(() => {
+    if (!isFollowMode || !activeIds.segId) return
+    const activeEl = activeSegRef.current
+    if (activeEl) {
+      isUserScrollingRef.current = false // Mark as programmatic scroll
+      activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }
+  }, [activeIds.segId, isFollowMode])
+
+  // Turn off follow mode when user starts editing
+  useEffect(() => {
+    if (editingId) {
+      setIsFollowMode(false)
+    }
+  }, [editingId])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -757,16 +825,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 ))}
               </select>
             </div>
-            <label className="ml-auto inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={follow} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFollow(e.target.checked)} />
-              Follow playback
-            </label>
           </div>
           <div className="text-sm text-muted">{status}</div>
         </div>
 
-        <div className="lg:col-span-5 bg-surface border border-base rounded p-4 space-y-3 max-h-[70vh] overflow-auto">
-          <h2 className="font-medium">Transcript</h2>
+        <div className="lg:col-span-5 bg-surface border border-base rounded p-4 max-h-[70vh] relative flex flex-col">
+          <h2 className="font-medium mb-3 shrink-0">Transcript</h2>
+          
+          {/* Scrollable transcript content */}
+          <div className="flex-1 overflow-auto space-y-3" ref={transcriptScrollRef}>
           <div>
             {segments.map((s: Seg, idx: number) => {
               const isActive = activeIds.segId === s.id
@@ -894,6 +961,26 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               )
             })}
           </div>
+          </div>
+          
+          {/* Floating sync button - shows when not in follow mode and not editing */}
+          {!isFollowMode && activeIds.segId && !speakerPopover && !editingId && (
+            <button
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-purple-600 text-white rounded-full shadow-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
+              onClick={() => {
+                isUserScrollingRef.current = false // Mark as programmatic scroll
+                setIsFollowMode(true) // Enable follow mode
+                activeSegRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+              }}
+            >
+              {syncDirection === 'up' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              )}
+              Sync to audio
+            </button>
+          )}
         </div>
       </div>
 
@@ -911,6 +998,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           getColorForSpeaker={colorForSpeaker}
         />
       )}
+
     </div>
   )
 }
