@@ -41,7 +41,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
+  const [titleSaveError, setTitleSaveError] = useState<string | null>(null)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const isSavingTitleRef = useRef(false)
 
 
   useEffect(() => {
@@ -596,16 +598,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const startEditingTitle = useCallback(() => {
     setTitleInput(projectTitle || '')
+    setTitleSaveError(null)
     setEditingTitle(true)
     setTimeout(() => titleInputRef.current?.focus(), 0)
   }, [projectTitle])
 
   const saveTitle = useCallback(async () => {
+    if (isSavingTitleRef.current) return
+    
     const newTitle = titleInput.trim()
     if (!newTitle) {
       setEditingTitle(false)
+      setTitleSaveError(null)
       return
     }
+    
+    isSavingTitleRef.current = true
+    setTitleSaveError(null)
+    
     try {
       const base = getApiBase()
       const res = await fetch(`${base}/projects/${params.id}`, {
@@ -615,11 +625,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       })
       if (res.ok) {
         setProjectTitle(newTitle)
+        setEditingTitle(false)
+      } else {
+        setTitleSaveError(`Failed to save title (${res.status})`)
       }
     } catch (err) {
       console.error('Failed to save title:', err)
+      setTitleSaveError('Failed to save title. Please try again.')
+    } finally {
+      isSavingTitleRef.current = false
     }
-    setEditingTitle(false)
   }, [titleInput, params.id])
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -628,31 +643,42 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       saveTitle()
     } else if (e.key === 'Escape') {
       setEditingTitle(false)
+      setTitleSaveError(null)
     }
+  }, [saveTitle])
+
+  const onTitleBlur = useCallback(() => {
+    if (isSavingTitleRef.current) return
+    saveTitle()
   }, [saveTitle])
 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        {editingTitle ? (
-          <input
-            ref={titleInputRef}
-            className="text-xl font-semibold border border-base rounded px-2 py-1 bg-surface text-current min-w-[300px]"
-            value={titleInput}
-            onChange={(e) => setTitleInput(e.target.value)}
-            onKeyDown={onTitleKeyDown}
-            onBlur={saveTitle}
-            placeholder="Project title"
-          />
-        ) : (
-          <h1
-            className="text-xl font-semibold cursor-pointer hover:text-emerald-600 transition-colors"
-            onClick={startEditingTitle}
-            title="Click to edit title"
-          >
-            {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}
-          </h1>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              className={`text-xl font-semibold border rounded px-2 py-1 bg-surface text-current min-w-[300px] ${titleSaveError ? 'border-red-500' : 'border-base'}`}
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onKeyDown={onTitleKeyDown}
+              onBlur={onTitleBlur}
+              placeholder="Project title"
+            />
+          ) : (
+            <h1
+              className="text-xl font-semibold cursor-pointer hover:text-emerald-600 transition-colors"
+              onClick={startEditingTitle}
+              title="Click to edit title"
+            >
+              {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}
+            </h1>
+          )}
+        </div>
+        {titleSaveError && (
+          <span className="text-sm text-red-500">{titleSaveError}</span>
         )}
       </div>
       <div className="bg-surface border border-base rounded p-4 space-y-3">
@@ -882,6 +908,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           onRenameSpeaker={handleRenameSpeaker}
           onUntag={handleUntag}
           onClose={() => setSpeakerPopover(null)}
+          getColorForSpeaker={colorForSpeaker}
         />
       )}
     </div>

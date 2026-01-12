@@ -25,6 +25,8 @@ type SpeakerPopoverProps = {
   onUntag: (speaker: Speaker) => void
   /** Called when popover should close */
   onClose: () => void
+  /** Optional color getter for consistent colors with parent */
+  getColorForSpeaker?: (speaker?: Speaker) => string
 }
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
@@ -55,7 +57,10 @@ export default function SpeakerPopover({
   onRenameSpeaker,
   onUntag,
   onClose,
+  getColorForSpeaker: getColorForSpeakerProp,
 }: SpeakerPopoverProps) {
+  // Use provided color function or fallback to local hash-based one
+  const getSpeakerColor = getColorForSpeakerProp || getColorForSpeaker
   const [searchValue, setSearchValue] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -232,7 +237,7 @@ export default function SpeakerPopover({
         ) : (
           filteredSpeakers.map(sp => {
             const isCurrentSp = sp.id === currentSpeaker?.id
-            const color = getColorForSpeaker(sp)
+            const color = getSpeakerColor(sp)
             const initials = getInitials(sp.label)
             const isEditing = editingId === sp.id
 
