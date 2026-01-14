@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 2 - Auth and Session Wiring |
+| **Phase** | 3 - Storage and Upload Flow |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -18,7 +18,7 @@
 |:---|:---|:---|:---|
 | 0 | Discovery + Consolidation Spike | ✅ Complete | 2026-01-13 |
 | 1 | Supabase Foundation | ✅ Complete | 2026-01-14 |
-| 2 | Auth and Session Wiring | ⏳ Not Started | - |
+| 2 | Auth and Session Wiring | ✅ Complete | 2026-01-14 |
 | 3 | Storage and Upload Flow | ⏳ Not Started | - |
 | 4 | Inngest Setup | ⏳ Not Started | - |
 | 5 | Deepgram Async Integration | ⏳ Not Started | - |
@@ -77,6 +77,27 @@
 - RLS uses `auth.uid()` - ensure client sends valid JWT
 - Service role key needed for Inngest (bypasses RLS)
 
+### Phase 2 → Phase 3
+
+**Key Deliverables Created:**
+- Supabase client utilities: `lib/supabase/client.ts`, `lib/supabase/server.ts`
+- Middleware for session refresh and route protection: `middleware.ts`
+- Auth UI with email/password: `app/auth/page.tsx`
+- Sign out action: `app/auth/actions.ts`
+- Auth status header component: `components/AuthStatus.tsx`
+- Environment configuration: `.env.example`, `.env.local`
+
+**For Phase 3:**
+- Use `createClient` from `@/lib/supabase/client` for browser-side storage uploads
+- Use `createClient` from `@/lib/supabase/server` for server-side signed URL generation
+- Storage path convention (from Phase 1): `{user_id}/{project_id}/{filename}`
+- User ID available via `supabase.auth.getUser()` after login
+
+**Gotchas:**
+- Auth UI requires email confirmation by default (configurable in Supabase dashboard)
+- Protected routes: `/projects`, `/editor/*`, `/upload`, `/import`
+- Legacy API still uses `X-API-Key` header - migration deferred to later phases
+
 *(Continue for each phase transition)*
 
 ## Blockers and Dependencies
@@ -93,3 +114,14 @@
 | 2026-01-13 | 0 | Supabase Realtime with polling fallback | Robustness for unreliable connections |
 | 2026-01-13 | 0 | Signed URLs for Deepgram | Security over convenience |
 | 2026-01-13 | 0 | TypeScript for consolidation | Unified modern stack; runs in Inngest Node.js |
+| 2026-01-14 | 1 | Supabase project in eu-west-1 (Ireland) | User preference for region |
+| 2026-01-14 | 1 | Single shared migration set | Simpler than separate dev/prod migrations |
+| 2026-01-14 | 1 | UUID primary keys with UUID[] arrays | Native Postgres types over VARCHAR(36) |
+| 2026-01-14 | 1 | RLS with nested policies | Multi-tenant security via auth.uid() |
+| 2026-01-14 | 1 | Private storage with owner-folder paths | Security over public access; path: {user_id}/{project_id}/{filename} |
+| 2026-01-14 | 1 | Jobs table: inngest_event_id | Replaced celery_task_id for Inngest integration |
+| 2026-01-14 | 1 | Trigger function security hardening | SECURITY DEFINER + SET search_path to prevent attacks |
+| 2026-01-14 | 2 | Cookie-based sessions with @supabase/ssr | SSR-compatible auth; works with middleware |
+| 2026-01-14 | 2 | Supabase pre-built Auth UI | Faster implementation; UI overhaul planned post-refactor |
+| 2026-01-14 | 2 | Email/password only (for now) | Magic link + OAuth deferred to post-launch |
+| 2026-01-14 | 2 | Theme-aware auth styling | Override Supabase UI with CSS variables for light/dark mode |
