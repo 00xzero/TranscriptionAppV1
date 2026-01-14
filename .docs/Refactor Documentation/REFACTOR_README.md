@@ -1,0 +1,34 @@
+# Documentation Index
+
+## For New Engineers
+
+| Document | Purpose | Read When |
+|:---|:---|:---|
+| [ONBOARDING.md](./ONBOARDING.md) | Quick start guide | First day |
+| [GLOSSARY.md](./GLOSSARY.md) | Term definitions | Reference |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System diagrams | Understanding the stack |
+
+## For Project Tracking
+
+| Document | Purpose | Read When |
+|:---|:---|:---|
+| [REFACTOR_PLAN.md](./REFACTOR_PLAN.md) | Master refactor plan | Starting any phase |
+| [PHASE_STATUS.md](./PHASE_STATUS.md) | Current progress + handoffs | Picking up work |
+| [PHASE_TEMPLATE.md](./PHASE_TEMPLATE.md) | Template for phase docs | Starting a new phase |
+
+## Existing Project Docs
+
+| Document | Purpose |
+|:---|:---|
+| [../README.md](../README.md) | Project overview and quickstart |
+| [../PRD.md](../PRD.md) | Product requirements |
+| [../CHANGELOG.md](../CHANGELOG.md) | Version history |
+
+## Phase-Specific Context
+
+*Add links as phases are completed:*
+
+- [x] Phase 0: Discovery → [API_ROUTE_MAPPING.md](./API_ROUTE_MAPPING.md), [SCHEMA_MAPPING.md](./SCHEMA_MAPPING.md)
+- [ ] Phase 1: Supabase Foundation (TBD)
+- [ ] Phase 2: Auth (TBD)
+- *(Continue for each phase)*

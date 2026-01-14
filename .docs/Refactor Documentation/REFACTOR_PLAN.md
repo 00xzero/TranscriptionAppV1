@@ -56,22 +56,33 @@ Frontend features to preserve:
 
 ## Phased Plan of Attack
 
-### Phase 0 - Discovery and Decisions (1 to 2 days)
+### Phase 0 - Discovery and Decisions (2 to 3 days)
 Deliverables:
 - Confirm file size and duration expectations.
 - Confirm desired auth methods (email/password, magic link, social).
 - Decide on realtime strategy (Supabase Realtime vs explicit polling fallback).
 - Decide where exports will run (Vercel Node runtime vs separate function).
 - Decide on Deepgram integration mode (async required for longer files).
+- **Consolidation port spike completed and decision made.**
 
 Tasks:
 - Inventory all current API routes and map to target endpoints or direct Supabase access.
 - Inventory all DB tables and relationships for Supabase schema.
 - Determine which endpoints must remain server-side (service role key).
+- **Spike: Port consolidation logic to TypeScript and test on sample data.**
+- **Decision: Keep consolidation in TypeScript OR use Python via Inngest Python functions.**
 
 Risks:
 - Underestimating long audio duration and serverless timeouts.
 - Export library limitations in serverless runtime.
+- **Consolidation port complexity may require keeping Python implementation.**
+
+Decisions Made:
+- Max file size: 1.5GB / 4 hours (current limit)
+- Auth: Email/password + magic link (Google OAuth post-launch)
+- Realtime: Supabase Realtime for project/job status with polling fallback
+- Exports: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)
+- Storage: Signed URLs for Deepgram access (not public)
 
 ### Phase 1 - Supabase Foundation (2 to 4 days)
 Deliverables:
@@ -124,97 +135,99 @@ Tasks:
 - Implement signed download URLs for playback.
 - Ensure Deepgram can access media (signed URL or object accessible by Deepgram).
 
-### Phase 4 - Job Orchestration with Inngest (4 to 7 days)
+### Phase 4 - Inngest Setup and Webhook Handler (3 to 5 days)
 Deliverables:
-- Inngest functions for transcription pipeline.
-- Job lifecycle updates persisted to Supabase.
-- Retry and error classification parity.
+- Inngest project configured (dev and prod).
+- Webhook handler skeleton for Deepgram callbacks.
+- Job lifecycle event structure.
 
 Tasks:
+- Set up Inngest project and signing keys.
 - Create Inngest event model:
-  - project.created
   - transcription.requested
-  - transcription.started
+  - transcription.webhook (for Deepgram callbacks)
   - transcription.completed
   - transcription.failed
-- Replace Celery queue with Inngest function(s).
-- Implement job status updates with timestamps.
-- Port error classification logic from worker (key term errors vs general).
+- Create skeleton webhook handler function in Inngest.
 - Add idempotency for job triggers and updates.
 - Add concurrency controls and rate limits (Deepgram quotas).
+- Configure Inngest dev server for local development.
 
-### Phase 5 - Deepgram Async Integration (3 to 6 days)
+### Phase 5 - Deepgram Async Integration (4 to 7 days)
 Deliverables:
 - Async transcription handling.
-- Webhook receiver for completion.
-- Storage of transcription results in DB (segments, words, chunks).
+- Webhook receiver triggering Inngest function.
+- Storage of transcription results in DB (segments, words).
 
 Tasks:
-- Call Deepgram async endpoint using signed URL.
-- Store Deepgram request id and map it to job.
-- Implement webhook endpoint to receive results.
-- Parse utterances/words and store:
-  - segments
-  - words
-  - speaker mapping
-- Trigger consolidation pipeline after raw import.
-- Update project duration based on max end time.
-- Mark job and project status complete or error.
+- Create Next.js API route or Inngest function to initiate transcription.
+- Call Deepgram async endpoint using signed URL from Supabase Storage.
+- Store Deepgram request_id and map it to job in Supabase.
+- Implement webhook endpoint (Next.js API route) that triggers Inngest `transcription.webhook` event.
+- In Inngest webhook handler:
+  - Parse Deepgram utterances/words
+  - Store segments with speaker mapping
+  - Store words with timestamps and confidence
+  - Update project duration based on max end time
+  - Trigger consolidation pipeline
+  - Mark job and project status as completed or error
+- Port error classification logic from worker (key term errors vs general).
+- Update job status with timestamps throughout pipeline.
 
-### Phase 6 - Consolidation Pipeline Port (2 to 4 days)
+### Phase 6 - Consolidation Pipeline Port (2 to 5 days)
 Deliverables:
 - Consolidation algorithm parity with current Python logic.
 - Chunk + chunk_words generation.
 
 Tasks:
-- Port consolidation logic to TypeScript (or SQL functions if desired).
+- Implement consolidation logic (TypeScript in Inngest OR Python via Inngest Python functions).
 - Preserve behavior: gap/duration breaks, filler detection, sentence boundary handling.
 - Preserve chunk metadata: source_segment_ids, is_edited, is_filler, algo_version.
 - Ensure consolidation runs after every transcription import.
+- Add comprehensive tests comparing outputs with current Python implementation.
 
-### Phase 7 - Frontend Data Flow Updates (3 to 6 days)
+> **Note**: If Phase 0 spike reveals complexity, keep this as a Python function called by Inngest. Inngest supports Python natively, avoiding risky rewrites of tuned algorithms.
+
+### Phase 7 - Frontend Data Flow Updates (4 to 7 days)
 Deliverables:
 - Supabase data access in all pages.
-- Realtime updates for job status and project list.
+- Realtime updates for job status and project list with polling fallback.
 - Editor operations wired to new backend or direct DB access.
 
 Tasks:
 - Replace SWR polling with Supabase Realtime subscriptions:
-  - projects status updates
-  - jobs status updates
-  - chunk edits (if needed)
-- Update Projects page for realtime status.
-- Update Editor page to read chunks and speakers via Supabase.
-- Update speaker creation/rename and chunk edits.
+  - projects status updates (primary)
+  - jobs status updates (primary)
+  - **Add polling fallback (5s interval) if subscription fails**
+- Update Projects page for realtime status with loading states.
+- Update Editor page to read chunks and speakers via Supabase client.
+- Update speaker creation/rename and chunk edits with optimistic UI.
 - Update key terms editing with Supabase tables.
 - Update Import flow to insert segments and words in Supabase.
 - Update Export flow to call server route.
+- Add error handling for network failures and subscription disconnects.
 
 ### Phase 8 - Export Parity (2 to 4 days)
 Deliverables:
-- DOCX, VTT, PDF exports with current formatting.
+- DOCX and VTT exports with current formatting.
+- PDF export optional (post-launch if needed).
 
 Tasks:
-- Implement server-side export in Next route handler (Node runtime).
-- Use suitable Node libraries (docx, pdfkit or equivalent).
+- Implement server-side export in Next.js API route handler (Node runtime, not Edge).
+- Use Node libraries:
+  - `docx` for DOCX generation ✅
+  - Plain text formatting for VTT ✅
+  - (PDF: `pdf-lib` or keep in Python if complex)
 - Preserve formatting used in Python exports:
   - Title, metadata, duration
   - Speaker labels and timestamps
-  - VTT speaker cues
-- Ensure server routes are authenticated and authorized.
+  - VTT speaker cues and timing
+- Ensure server routes are authenticated (Supabase auth) and authorized (RLS).
+- Test export file validity with sample projects.
 
-### Phase 9 - Speaker Naming Upfront (1 to 2 days)
-Deliverables:
-- UI to input speaker names before transcription starts.
-- Mapping logic from diarization speaker indices to user-provided names.
 
-Tasks:
-- Add speaker names to project creation flow.
-- Store initial speakers in DB before transcription.
-- Map diarization output to existing speaker rows.
-- Allow edits to speaker names after transcription.
 
-### Phase 10 - Local Dev via Docker-Only (2 to 4 days)
+### Phase 9 - Local Dev via Docker-Only (2 to 4 days)
 Deliverables:
 - One-command local dev with Docker Compose.
 - Supabase local stack inside Docker.
@@ -232,7 +245,7 @@ Tasks:
 - Update env templates with Supabase and Inngest variables.
 - Update README with new local dev command and URLs.
 
-### Phase 11 - Deployment and Release (2 to 4 days)
+### Phase 10 - Deployment and Release (2 to 4 days)
 Deliverables:
 - Vercel project and env vars configured.
 - Supabase project configured (prod).
@@ -246,7 +259,7 @@ Tasks:
 - Add CORS and allowed origins in Supabase/Next.
 - Add health endpoints and basic smoke tests.
 
-### Phase 12 - Cleanup and Documentation (1 to 2 days)
+### Phase 11 - Cleanup and Documentation (1 to 2 days)
 Deliverables:
 - Updated README and architecture docs.
 - Deprecation notice for old Docker Compose stack.
@@ -258,22 +271,26 @@ Tasks:
 - Update `CHANGELOG.md`.
 
 ## Effort Estimate Summary
-Total: ~13 to 27 dev days (2 to 4 weeks)
+Total: ~26 to 53 dev days (4 to 8 weeks for single engineer)
 
 Estimated by phase (single engineer):
-- Phase 0: 1 to 2 days
+- Phase 0: 2 to 3 days (includes consolidation spike)
 - Phase 1: 2 to 4 days
 - Phase 2: 2 to 4 days
 - Phase 3: 2 to 4 days
-- Phase 4: 4 to 7 days
-- Phase 5: 3 to 6 days
-- Phase 6: 2 to 4 days
-- Phase 7: 3 to 6 days
-- Phase 8: 2 to 4 days
-- Phase 9: 1 to 2 days
-- Phase 10: 2 to 4 days
-- Phase 11: 2 to 4 days
-- Phase 12: 1 to 2 days
+- Phase 4: 3 to 5 days (Inngest setup)
+- Phase 5: 4 to 7 days (Deepgram async + webhook)
+- Phase 6: 2 to 5 days (consolidation port)
+- Phase 7: 4 to 7 days (frontend + realtime)
+- Phase 8: 2 to 4 days (exports)
+- Phase 9: 2 to 4 days (Docker local dev)
+- Phase 10: 2 to 4 days (deployment)
+- Phase 11: 1 to 2 days (cleanup)
+
+**Post-Launch Enhancements** (not in critical path):
+- Speaker naming upfront: 1 to 2 days
+- PDF export (if needed): 1 to 2 days
+- Google OAuth: 1 day
 
 ## Risks and Mitigations
 - Serverless timeouts for long transcription:
@@ -300,23 +317,29 @@ Estimated by phase (single engineer):
 - Production deploy is Vercel + Supabase + Inngest with no servers.
 
 ## Suggested Order (Strict)
-1. Phase 0 (decisions)
-2. Phase 1 (Supabase schema + RLS)
-3. Phase 2 (Auth)
-4. Phase 3 (Storage + upload)
-5. Phase 4 + 5 (Inngest + Deepgram async)
-6. Phase 6 (Consolidation)
-7. Phase 7 (Frontend integration + realtime)
-8. Phase 8 (Exports)
-9. Phase 9 (Speaker naming upfront)
-10. Phase 10 (Docker-only local dev)
-11. Phase 11 (Deployment)
-12. Phase 12 (Cleanup)
+1. **Phase 0**: Discovery + consolidation spike
+2. **Phase 1**: Supabase schema + RLS
+3. **Phase 2**: Auth
+4. **Phase 3**: Storage + upload
+5. **Phase 4**: Inngest setup + webhook handler skeleton
+6. **Phase 5**: Deepgram async + webhook → Inngest
+7. **Phase 6**: Consolidation (TypeScript or Python)
+8. **Phase 7**: Frontend integration + realtime (with polling fallback)
+9. **Phase 8**: Exports (DOCX, VTT)
+10. **Phase 9**: Docker-only local dev
+11. **Phase 10**: Deployment
+12. **Phase 11**: Cleanup
 
-## Open Questions to Resolve Early
-- Expected max audio duration and file size.
-- Which auth providers to enable.
-- Is realtime required for all views or only project status?
-- Should exports run in Vercel Node runtime or external service?
-- Which storage policy is acceptable for Deepgram URL access (signed vs public)?
+**Post-Launch** (Phase 12+):
+- Speaker naming upfront
+- PDF export
+- Google OAuth
+
+## Decisions Made (Phase 0)
+✅ **Max file size**: 1.5GB / 4 hours (maintain current limit)  
+✅ **Auth providers**: Email/password + magic link (Google OAuth post-launch)  
+✅ **Realtime strategy**: Supabase Realtime for project/job status with 5s polling fallback  
+✅ **Exports**: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)  
+✅ **Storage policy**: Signed URLs for Deepgram access (not public)  
+✅ **Consolidation**: Decide after Phase 0 spike (TypeScript or Python via Inngest)
 
