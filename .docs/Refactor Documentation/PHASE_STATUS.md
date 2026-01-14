@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 1 - Supabase Foundation |
+| **Phase** | 2 - Auth and Session Wiring |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -17,7 +17,7 @@
 | Phase | Name | Status | Completion Date |
 |:---|:---|:---|:---|
 | 0 | Discovery + Consolidation Spike | ✅ Complete | 2026-01-13 |
-| 1 | Supabase Foundation | ⏳ Not Started | - |
+| 1 | Supabase Foundation | ✅ Complete | 2026-01-14 |
 | 2 | Auth and Session Wiring | ⏳ Not Started | - |
 | 3 | Storage and Upload Flow | ⏳ Not Started | - |
 | 4 | Inngest Setup | ⏳ Not Started | - |
@@ -53,7 +53,29 @@
 - Note: Use `inngest_event_id` instead of `celery_task_id` in jobs table
 
 ### Phase 1 → Phase 2
-*To be filled when Phase 1 completes*
+
+**Key Deliverables Created:**
+- Supabase project: `transcription-app` (`svzeffnmlqbdnjzhcgyx`) in eu-west-1
+- 8 tables with RLS policies: projects, speakers, segments, words, chunks, chunk_words, watchlist, jobs
+- Storage bucket: `media` with owner-folder policies
+- Local migration file: `infra/supabase/migrations/20260114000000_initial_schema.sql`
+- Seed data: `infra/supabase/seed.sql`
+
+**Supabase Connection Details:**
+- URL: `https://svzeffnmlqbdnjzhcgyx.supabase.co`
+- Anon Key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2emVmZm5tbHFiZG5qemhjZ3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNDI4ODAsImV4cCI6MjA4MzkxODg4MH0.bW_kkfhxlZFwjxkbcQXBF_kVdnKCEM-5Oo1VZpxop1g`
+- Publishable Key: `sb_publishable__UhRdEdXQnMz3og1J18kKQ__mOaK5q3`
+
+**For Phase 2:**
+- Set up Supabase client in Next.js (browser + server)
+- Add auth UI (sign in/up, magic link)
+- Replace X-API-Key header with Supabase auth
+- Add route protection in app router
+
+**Gotchas:**
+- Storage path convention: `{user_id}/{project_id}/{filename}`
+- RLS uses `auth.uid()` - ensure client sends valid JWT
+- Service role key needed for Inngest (bypasses RLS)
 
 *(Continue for each phase transition)*
 
