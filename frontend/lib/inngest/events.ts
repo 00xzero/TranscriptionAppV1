@@ -9,6 +9,7 @@ export type TranscriptionEvents = {
     "transcription/requested": {
         data: {
             projectId: string;
+            jobId: string;
             userId: string;
             mediaUrl: string;
             keyTerms?: string[];
@@ -33,7 +34,7 @@ export type TranscriptionEvents = {
             projectId: string;
             jobId: string;
             error: string;
-            errorType: "keyterm" | "general";
+            errorType: "keyterm_error" | "transcription_error";
         };
     };
 };

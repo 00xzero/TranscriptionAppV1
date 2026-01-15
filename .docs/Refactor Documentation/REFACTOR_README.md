@@ -33,5 +33,6 @@
 - [x] Phase 2: Auth and Session Wiring → [Phase 2/](./Phase%202/)
 - [x] Phase 3: Storage and Upload Flow → [Phase 3/](./Phase%203/)
 - [x] Phase 4: Inngest Setup → [Phase 4/](./Phase%204/)
-- [ ] Phase 5: Deepgram Async Integration (TBD)
+- [x] Phase 5: Deepgram Async Integration → [Phase 5/](./Phase%205/)
+- [ ] Phase 6: Consolidation Pipeline Port (TBD)
 
