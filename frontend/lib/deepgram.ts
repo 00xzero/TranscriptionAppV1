@@ -7,9 +7,9 @@
 
 const DEEPGRAM_API_URL = "https://api.deepgram.com/v1/listen";
 
-// Error type constants matching legacy worker
-export const ERROR_TYPE_KEYTERM = "keyterm" as const;
-export const ERROR_TYPE_GENERAL = "general" as const;
+// Error type constants matching legacy worker and UI
+export const ERROR_TYPE_KEYTERM = "keyterm_error" as const;
+export const ERROR_TYPE_GENERAL = "transcription_error" as const;
 
 export type ErrorType = typeof ERROR_TYPE_KEYTERM | typeof ERROR_TYPE_GENERAL;
 
@@ -118,11 +118,11 @@ export async function startAsyncTranscription(
     params.append("utterances", "true");
     params.append("callback", callbackUrl);
 
-    // Add key terms if provided
+    // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {
         console.log(`[deepgram] Sending ${keyTerms.length} key terms`);
         for (const term of keyTerms) {
-            params.append("keywords", term);
+            params.append("keyterm", term);
         }
     }
 

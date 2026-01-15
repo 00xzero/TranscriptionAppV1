@@ -97,11 +97,34 @@ export const handleTranscriptionRequested = inngest.createFunction(
  * Handle Deepgram webhook callback
  * Triggered when Deepgram completes transcription and sends results.
  * Parses utterances/words and stores in Supabase.
+ * 
+ * On failure (after retries exhausted), emits transcription/failed event
+ * so the UI can surface the error to the user.
  */
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
         id: "handle-transcription-webhook",
         retries: 3,
+        onFailure: async ({ event, error }) => {
+            // When retries are exhausted, emit failure event so job/project get error status
+            // In onFailure, original event is nested under event.data.event
+            const originalEvent = event.data.event;
+            const { projectId } = originalEvent.data;
+            const errorMessage = error.message || String(error);
+            
+            console.error(`[inngest] Webhook handler failed for project ${projectId}:`, errorMessage);
+            
+            // Emit transcription/failed to update job/project status
+            await inngest.send({
+                name: "transcription/failed",
+                data: {
+                    projectId,
+                    jobId: "", // Will be looked up in the failed handler if needed
+                    error: errorMessage,
+                    errorType: "transcription_error",
+                },
+            });
+        },
     },
     { event: "transcription/webhook" },
     async ({ event, step }) => {

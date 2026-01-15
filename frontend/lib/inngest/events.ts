@@ -34,7 +34,7 @@ export type TranscriptionEvents = {
             projectId: string;
             jobId: string;
             error: string;
-            errorType: "keyterm" | "general";
+            errorType: "keyterm_error" | "transcription_error";
         };
     };
 };
