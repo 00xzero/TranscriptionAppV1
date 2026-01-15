@@ -109,17 +109,35 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             // When retries are exhausted, emit failure event so job/project get error status
             // In onFailure, original event is nested under event.data.event
             const originalEvent = event.data.event;
-            const { projectId } = originalEvent.data;
+            const { projectId, requestId } = originalEvent.data;
             const errorMessage = error.message || String(error);
             
             console.error(`[inngest] Webhook handler failed for project ${projectId}:`, errorMessage);
+            
+            // Look up the job by requestId to get the real jobId
+            let jobId = "";
+            try {
+                const supabase = createAdminClient();
+                const { data: job } = await supabase
+                    .from("jobs")
+                    .select("id")
+                    .eq("project_id", projectId)
+                    .eq("inngest_event_id", requestId)
+                    .single();
+                
+                if (job) {
+                    jobId = job.id;
+                }
+            } catch (lookupError) {
+                console.error("[inngest] Failed to lookup job in onFailure:", lookupError);
+            }
             
             // Emit transcription/failed to update job/project status
             await inngest.send({
                 name: "transcription/failed",
                 data: {
                     projectId,
-                    jobId: "", // Will be looked up in the failed handler if needed
+                    jobId,
                     error: errorMessage,
                     errorType: "transcription_error",
                 },
@@ -397,7 +415,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
     { id: "handle-transcription-failed", retries: 1 },
     { event: "transcription/failed" },
     async ({ event, step }) => {
-        const { projectId, jobId, error, errorType } = event.data;
+        const { projectId, jobId: providedJobId, error, errorType } = event.data;
 
         console.log(`[inngest] Transcription failed for project: ${projectId}`);
         console.log(`[inngest] Error type: ${errorType}, message: ${error}`);
@@ -414,22 +432,45 @@ export const handleTranscriptionFailed = inngest.createFunction(
             const finalErrorType = errorType || classified.type;
             const finalMessage = classified.message;
 
-            // Update job with error details
-            const { error: jobError } = await supabase
-                .from("jobs")
-                .update({
-                    status: "error",
-                    finished_at: now,
-                    payload: {
-                        error: finalMessage,
-                        error_type: finalErrorType,
-                        raw_error: errorString.slice(0, 500),
-                    },
-                })
-                .eq("id", jobId);
+            // If jobId is empty, try to find the most recent processing job for this project
+            let jobId = providedJobId;
+            if (!jobId) {
+                console.log("[inngest] No jobId provided, looking up by projectId");
+                const { data: job } = await supabase
+                    .from("jobs")
+                    .select("id")
+                    .eq("project_id", projectId)
+                    .eq("status", "processing")
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (job) {
+                    jobId = job.id;
+                    console.log(`[inngest] Found job ${jobId} by projectId lookup`);
+                }
+            }
 
-            if (jobError) {
-                console.error("[inngest] Failed to update job:", jobError);
+            // Update job with error details (only if we have a jobId)
+            if (jobId) {
+                const { error: jobError } = await supabase
+                    .from("jobs")
+                    .update({
+                        status: "error",
+                        finished_at: now,
+                        payload: {
+                            error: finalMessage,
+                            error_type: finalErrorType,
+                            raw_error: errorString.slice(0, 500),
+                        },
+                    })
+                    .eq("id", jobId);
+
+                if (jobError) {
+                    console.error("[inngest] Failed to update job:", jobError);
+                }
+            } else {
+                console.error("[inngest] No job found to update for project:", projectId);
             }
 
             // Update project status
@@ -448,7 +489,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
         return {
             status: "failed",
             projectId,
-            jobId,
+            jobId: providedJobId,
             error,
             errorType,
         };
