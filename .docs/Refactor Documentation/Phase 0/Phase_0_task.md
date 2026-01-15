@@ -25,7 +25,7 @@ Complete discovery work and make key architectural decisions before Phase 1.
 - [x] **Decision**: TypeScript ✅ (unified modern stack)
 
 ### 4. Finalize Decisions
-- [x] Max file size: 1.5GB / 4 hours ✅
+- [x] Max file size: 50MB default (configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours ✅
 - [x] Auth: Email/password + magic link ✅  
 - [x] Realtime: Supabase Realtime with polling fallback ✅
 - [x] Exports: Vercel Node runtime for DOCX/VTT ✅

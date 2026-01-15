@@ -17,7 +17,7 @@ Complete discovery work and make key architectural decisions before implementing
 
 > [!NOTE]
 > **Decisions Already Made** (per REFACTOR_PLAN.md):
-> - Max file size: 1.5GB / 4 hours
+> - Max file size: 50MB default (configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours
 > - Auth: Email/password + magic link (Google OAuth post-launch)
 > - Realtime: Supabase Realtime with 5s polling fallback
 > - Exports: Vercel Node runtime for DOCX/VTT (PDF optional)

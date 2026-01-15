@@ -55,13 +55,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     let cancelled = false
     const init = async () => {
       try {
-        const base = getApiBase()
-        const res = await fetch(`${base}/projects/${params.id}/media-url`, {
-          headers: getAuthHeaders(),
-        })
+        // Use new Next.js API route for media URL (Supabase Storage)
+        const res = await fetch(`/api/projects/${params.id}/media-url`)
         if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
         const j = await res.json()
         const url: string = j.url
+
+        // Legacy API base for other endpoints (chunks, speakers, etc.)
+        const base = getApiBase()
 
         if (!containerRef.current) return
         // If an instance already exists (e.g., StrictMode remount), tear it down first

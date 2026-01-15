@@ -78,7 +78,7 @@ Risks:
 - **Consolidation port complexity may require keeping Python implementation.**
 
 Decisions Made:
-- Max file size: 1.5GB / 4 hours (current limit)
+- Max file size: 50MB default (free tier limit, configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours
 - Auth: Email/password + magic link (Google OAuth post-launch)
 - Realtime: Supabase Realtime for project/job status with polling fallback
 - Exports: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)
@@ -336,7 +336,7 @@ Estimated by phase (single engineer):
 - Google OAuth
 
 ## Decisions Made (Phase 0)
-✅ **Max file size**: 1.5GB / 4 hours (maintain current limit)  
+✅ **Max file size**: 50MB default (configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours    
 ✅ **Auth providers**: Email/password only (magic link + Google OAuth post-launch)  
 ✅ **Realtime strategy**: Supabase Realtime for project/job status with 5s polling fallback  
 ✅ **Exports**: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)  
@@ -347,7 +347,7 @@ Estimated by phase (single engineer):
 ✅ **Supabase project**: Created `transcription-app` (ID: `svzeffnmlqbdnjzhcgyx`) in eu-west-1 (Ireland)  
 ✅ **Database schema**: 8 tables with native UUID primary keys, JSONB for flexible data, UUID[] for arrays  
 ✅ **RLS strategy**: Direct ownership on `projects` table, project-scoped for related tables, nested for deeply related tables  
-✅ **Storage bucket**: Private `media` bucket with 1.5GB limit, owner-folder path convention (`{user_id}/{project_id}/{filename}`)  
+✅ **Storage bucket**: Private `media` bucket with configurable limit (50MB Free, up to 1.5GB Pro via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`), owner-folder path convention (`{user_id}/{project_id}/{filename}`)  
 ✅ **Migration strategy**: Single shared migration set for dev/prod (no separate local/cloud migrations)  
 ✅ **Jobs table**: Renamed `celery_task_id` → `inngest_event_id` for Inngest integration  
 ✅ **Trigger security**: Applied `SECURITY DEFINER` and `SET search_path = public` to prevent search_path attacks

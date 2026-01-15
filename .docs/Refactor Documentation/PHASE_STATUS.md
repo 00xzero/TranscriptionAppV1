@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 3 - Storage and Upload Flow |
+| **Phase** | 4 - Inngest Setup |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -19,7 +19,7 @@
 | 0 | Discovery + Consolidation Spike | ✅ Complete | 2026-01-13 |
 | 1 | Supabase Foundation | ✅ Complete | 2026-01-14 |
 | 2 | Auth and Session Wiring | ✅ Complete | 2026-01-14 |
-| 3 | Storage and Upload Flow | ⏳ Not Started | - |
+| 3 | Storage and Upload Flow | ✅ Complete | 2026-01-15 |
 | 4 | Inngest Setup | ⏳ Not Started | - |
 | 5 | Deepgram Async Integration | ⏳ Not Started | - |
 | 6 | Consolidation Pipeline Port | ⏳ Not Started | - |
@@ -99,6 +99,26 @@
 - Protected routes: `/projects`, `/editor/*`, `/upload`, `/import`
 - Legacy API still uses `X-API-Key` header - migration deferred to later phases
 
+### Phase 3 → Phase 4
+
+**Key Deliverables Created:**
+- Storage helpers: `lib/supabase/storage.ts` (upload, signed URLs, delete, validation)
+- API route: `app/api/projects/route.ts` (POST /api/projects)
+- API route: `app/api/projects/[id]/media-url/route.ts` (GET /api/projects/[id]/media-url)
+- Updated upload page with Supabase Storage flow + progress bar
+- Updated editor to use new media URL endpoint
+
+**For Phase 4:**
+- Storage path is in `projects.source_object_key`
+- Use `getSignedMediaUrl()` or server-side `createSignedUrl()` for Deepgram access
+- Signed URLs have 1-hour expiry by default
+- Service role key may be needed for Inngest functions to bypass RLS
+
+**Gotchas:**
+- Legacy API (FastAPI) still handles: chunks, speakers, segments, exports
+- Upload and media-url endpoints are fully replaced by Next.js routes
+- File size limit: 50MB default, due to Supabase free plan limit, can be upgraded to 500GB (configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`)
+
 *(Continue for each phase transition)*
 
 ## Blockers and Dependencies
@@ -126,3 +146,6 @@
 | 2026-01-14 | 2 | Supabase pre-built Auth UI | Faster implementation; UI overhaul planned post-refactor |
 | 2026-01-14 | 2 | Email/password only (for now) | Magic link + OAuth deferred to post-launch |
 | 2026-01-14 | 2 | Theme-aware auth styling | Override Supabase UI with CSS variables for light/dark mode |
+| 2026-01-15 | 3 | Replace legacy upload fully | Next.js API routes replace FastAPI for upload/media-url |
+| 2026-01-15 | 3 | Client-side upload to Supabase | Direct upload via Supabase Storage SDK, not presigned URLs |
+| 2026-01-15 | 3 | File size validation | 50MB default (Free plan), configurable for Pro plan upgrade (up to 500GB)  via env var |
