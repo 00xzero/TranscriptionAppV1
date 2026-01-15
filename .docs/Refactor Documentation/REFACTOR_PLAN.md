@@ -370,4 +370,10 @@ Estimated by phase (single engineer):
 ✅ **Concurrency**: Account-scoped concurrency limit for Deepgram, configurable via `DEEPGRAM_CONCURRENCY_LIMIT` (default: 5)  
 ✅ **Job Queueing**: Synchronous job record creation in Start endpoint before triggering async Inngest event (ensures ID availability)
 
-
+## Decisions Made (Phase 5)
+✅ **Deepgram Async API**: Used callback-based async API instead of synchronous (prevents serverless timeouts for long files)  
+✅ **Service Role Key**: Created Supabase admin client with service role key for Inngest functions (bypasses RLS for background jobs)  
+✅ **Callback URL Strategy**: Derive from `NEXT_PUBLIC_APP_URL` by default, with `DEEPGRAM_CALLBACK_URL` override for local tunnel development  
+✅ **Model Configuration**: Configurable via `DEEPGRAM_MODEL` env var (default: nova-3)  
+✅ **Idempotent Webhook Processing**: Clear existing segments before inserting new ones (safe for webhook retries)  
+✅ **Speaker Caching**: Cache speaker IDs during utterance processing to reduce database queries  

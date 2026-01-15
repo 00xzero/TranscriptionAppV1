@@ -112,6 +112,7 @@ export async function POST(
             name: "transcription/requested",
             data: {
                 projectId: id,
+                jobId: job.id,
                 userId: user.id,
                 mediaUrl,
                 keyTerms: keyTerms?.map((k) => k.term) || [],

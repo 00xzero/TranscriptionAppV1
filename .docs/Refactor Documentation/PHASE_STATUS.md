@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 5 - Deepgram Async Integration |
+| **Phase** | 6 - Consolidation Pipeline Port |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -21,7 +21,7 @@
 | 2 | Auth and Session Wiring | ✅ Complete | 2026-01-14 |
 | 3 | Storage and Upload Flow | ✅ Complete | 2026-01-15 |
 | 4 | Inngest Setup | ✅ Complete | 2026-01-15 |
-| 5 | Deepgram Async Integration | ⏳ Not Started | - |
+| 5 | Deepgram Async Integration | ✅ Complete | 2026-01-15 |
 | 6 | Consolidation Pipeline Port | ⏳ Not Started | - |
 | 7 | Frontend Data Flow | ⏳ Not Started | - |
 | 8 | Export Parity | ⏳ Not Started | - |
@@ -142,6 +142,31 @@
 - Concurrency configurable via `DEEPGRAM_CONCURRENCY_LIMIT` env var (default: 5)
 - Service role key needed for Inngest functions to update DB (bypasses RLS)
 
+### Phase 5 → Phase 6
+
+**Key Deliverables Created:**
+- Supabase admin client: `lib/supabase/admin.ts` (service role, bypasses RLS)
+- Deepgram service: `lib/deepgram.ts` (async API, error classification)
+- Full Inngest function implementations in `lib/inngest/functions.ts`
+- Updated event types with `jobId` in `lib/inngest/events.ts`
+
+**For Phase 6:**
+- Segments and words are stored in Supabase after transcription
+- Consolidation should trigger at end of `handleTranscriptionWebhook`
+- TypeScript consolidation exists at `lib/consolidation.ts` (ported in Phase 0)
+- Use `createAdminClient()` for consolidation DB operations
+
+**Gotchas:**
+- Consolidation must save chunks and chunk_words to Supabase
+- Need to adapt consolidation.ts to use Supabase instead of in-memory data
+- Consolidation runs after every transcription, before marking "completed"
+
+**Environment Variables Added:**
+- `SUPABASE_SERVICE_ROLE_KEY` - Required for Inngest DB writes
+- `NEXT_PUBLIC_APP_URL` - Base URL for Deepgram callbacks
+- `DEEPGRAM_CALLBACK_URL` - Optional override for local tunnels
+- `DEEPGRAM_MODEL` - Model selection (default: nova-3)
+
 *(Continue for each phase transition)*
 
 ## Blockers and Dependencies
@@ -175,3 +200,7 @@
 | 2026-01-15 | 4 | Deepgram webhook via dg-token | Official Deepgram auth method; simpler than HMAC |
 | 2026-01-15 | 4 | Configurable Deepgram concurrency | Account-scoped limit via `DEEPGRAM_CONCURRENCY_LIMIT` env var |
 | 2026-01-15 | 4 | TypeScript 5.8+ upgrade | Required by Inngest 3.49+ for modern type features |
+| 2026-01-15 | 5 | Deepgram async API with callbacks | Prevents serverless timeouts for long files |
+| 2026-01-15 | 5 | Service role key for Inngest | Bypasses RLS for background job DB writes |
+| 2026-01-15 | 5 | Callback URL derivation with override | Default from APP_URL, override for tunnels |
+| 2026-01-15 | 5 | nova-3 as default model | Latest Deepgram model, configurable via env var |

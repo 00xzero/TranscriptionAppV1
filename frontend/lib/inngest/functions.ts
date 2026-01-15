@@ -2,10 +2,20 @@
  * Inngest Functions
  * 
  * Background job handlers for the transcription lifecycle.
- * These are skeleton implementations - actual logic added in Phase 5-6.
+ * Implements Deepgram async transcription with webhook callbacks.
  */
 
 import { inngest } from "./client";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+    startAsyncTranscription,
+    getCallbackUrl,
+    classifyError,
+    getMajoritySpeaker,
+    DeepgramResponse,
+    DeepgramWord,
+    DeepgramUtterance,
+} from "@/lib/deepgram";
 
 // Configurable concurrency limit for Deepgram API calls
 const DEEPGRAM_CONCURRENCY = parseInt(
@@ -16,7 +26,7 @@ const DEEPGRAM_CONCURRENCY = parseInt(
 /**
  * Handle transcription request
  * Triggered when user starts a new transcription job.
- * Phase 5: Will call Deepgram async API and store request_id.
+ * Calls Deepgram async API and stores request_id.
  */
 export const handleTranscriptionRequested = inngest.createFunction(
     {
@@ -30,20 +40,55 @@ export const handleTranscriptionRequested = inngest.createFunction(
     },
     { event: "transcription/requested" },
     async ({ event, step }) => {
-        const { projectId, userId, mediaUrl, keyTerms } = event.data;
+        const { projectId, jobId, userId, mediaUrl, keyTerms } = event.data;
 
-        // Phase 5: Call Deepgram async API with callback URL
-        // Phase 5: Store request_id in jobs table
-        // Phase 5: Update job status to "processing"
+        console.log(`[inngest] Transcription requested for project: ${projectId}`);
 
-        console.log(`[Skeleton] Transcription requested for project: ${projectId}`);
+        // Step 1: Call Deepgram async API
+        const result = await step.run("call-deepgram-async", async () => {
+            const callbackUrl = getCallbackUrl();
+            console.log(`[inngest] Using callback URL: ${callbackUrl}`);
+
+            const response = await startAsyncTranscription({
+                mediaUrl,
+                callbackUrl,
+                projectId,
+                keyTerms,
+            });
+
+            if (response.error) {
+                throw new Error(response.error);
+            }
+
+            return { requestId: response.requestId };
+        });
+
+        // Step 2: Update job with request_id and status
+        await step.run("update-job-status", async () => {
+            const supabase = createAdminClient();
+
+            const { error } = await supabase
+                .from("jobs")
+                .update({
+                    status: "processing",
+                    inngest_event_id: result.requestId,
+                    started_at: new Date().toISOString(),
+                })
+                .eq("id", jobId);
+
+            if (error) {
+                console.error("[inngest] Failed to update job:", error);
+                throw new Error(`Failed to update job: ${error.message}`);
+            }
+
+            console.log(`[inngest] Job ${jobId} updated with request_id: ${result.requestId}`);
+        });
 
         return {
-            status: "skeleton",
+            status: "processing",
             projectId,
-            userId,
-            mediaUrl: mediaUrl.substring(0, 50) + "...",
-            keyTermsCount: keyTerms?.length || 0,
+            jobId,
+            requestId: result.requestId,
         };
     }
 );
@@ -51,8 +96,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
 /**
  * Handle Deepgram webhook callback
  * Triggered when Deepgram completes transcription and sends results.
- * Phase 5: Will parse utterances/words and store in DB.
- * Phase 6: Will trigger consolidation pipeline.
+ * Parses utterances/words and stores in Supabase.
  */
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
@@ -61,42 +105,263 @@ export const handleTranscriptionWebhook = inngest.createFunction(
     },
     { event: "transcription/webhook" },
     async ({ event, step }) => {
-        const { requestId, projectId } = event.data;
+        const { requestId, projectId, result } = event.data;
+        const response = result as DeepgramResponse;
 
-        // Phase 5: Parse Deepgram utterances/words
-        // Phase 5: Store segments with speaker mapping
-        // Phase 5: Store words with timestamps
-        // Phase 6: Trigger consolidation pipeline
+        console.log(`[inngest] Webhook received for project: ${projectId}, request: ${requestId}`);
 
-        console.log(`[Skeleton] Webhook received for request: ${requestId}`);
+        // Step 1: Find the job for this project
+        const job = await step.run("find-job", async () => {
+            const supabase = createAdminClient();
+
+            const { data, error } = await supabase
+                .from("jobs")
+                .select("id")
+                .eq("project_id", projectId)
+                .eq("status", "processing")
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+
+            if (error || !data) {
+                console.error("[inngest] Job not found for project:", projectId);
+                throw new Error(`Job not found for project: ${projectId}`);
+            }
+
+            return data;
+        });
+
+        // Step 2: Parse and store transcription results
+        const transcriptionResult = await step.run("store-transcription", async () => {
+            const supabase = createAdminClient();
+
+            // Parse Deepgram response
+            const results = response.results || {};
+            const channels = results.channels || [];
+            const alt = channels[0]?.alternatives?.[0];
+            const utterances = results.utterances;
+            const words = alt?.words || [];
+
+            // Clear existing segments for idempotency
+            await supabase
+                .from("segments")
+                .delete()
+                .eq("project_id", projectId);
+
+            let maxEndMs = 0;
+            let segmentCount = 0;
+            let wordCount = 0;
+
+            // Speaker cache: speaker number -> speaker ID
+            const speakerCache: Record<number, string> = {};
+
+            // Helper: Get or create speaker
+            async function getOrCreateSpeaker(speakerNum: number): Promise<string> {
+                if (speakerCache[speakerNum]) {
+                    return speakerCache[speakerNum];
+                }
+
+                const label = `Speaker ${speakerNum}`;
+
+                // Check if speaker exists
+                const { data: existing } = await supabase
+                    .from("speakers")
+                    .select("id")
+                    .eq("project_id", projectId)
+                    .eq("label", label)
+                    .single();
+
+                if (existing) {
+                    speakerCache[speakerNum] = existing.id;
+                    return existing.id;
+                }
+
+                // Create new speaker
+                const { data: newSpeaker, error } = await supabase
+                    .from("speakers")
+                    .insert({ project_id: projectId, label })
+                    .select("id")
+                    .single();
+
+                if (error || !newSpeaker) {
+                    throw new Error(`Failed to create speaker: ${error?.message}`);
+                }
+
+                speakerCache[speakerNum] = newSpeaker.id;
+                return newSpeaker.id;
+            }
+
+            // Helper: Insert segment with words
+            async function insertSegment(
+                speakerId: string | null,
+                startMs: number,
+                endMs: number,
+                text: string,
+                segmentWords: DeepgramWord[]
+            ): Promise<void> {
+                const { data: segment, error: segError } = await supabase
+                    .from("segments")
+                    .insert({
+                        project_id: projectId,
+                        speaker_id: speakerId,
+                        start_ms: startMs,
+                        end_ms: endMs,
+                        text,
+                    })
+                    .select("id")
+                    .single();
+
+                if (segError || !segment) {
+                    throw new Error(`Failed to insert segment: ${segError?.message}`);
+                }
+
+                segmentCount++;
+
+                // Insert words for this segment
+                if (segmentWords.length > 0) {
+                    const wordRows = segmentWords.map((w, idx) => ({
+                        segment_id: segment.id,
+                        start_ms: Math.round(w.start * 1000),
+                        end_ms: Math.round(w.end * 1000),
+                        text: w.word,
+                        confidence: w.confidence,
+                        order_index: idx,
+                    }));
+
+                    const { error: wordError } = await supabase
+                        .from("words")
+                        .insert(wordRows);
+
+                    if (wordError) {
+                        throw new Error(`Failed to insert words: ${wordError.message}`);
+                    }
+
+                    wordCount += wordRows.length;
+                }
+            }
+
+            // Process utterances (preferred) or words
+            if (utterances && utterances.length > 0) {
+                for (const utt of utterances as DeepgramUtterance[]) {
+                    const startMs = Math.round(utt.start * 1000);
+                    const endMs = Math.round(utt.end * 1000);
+                    maxEndMs = Math.max(maxEndMs, endMs);
+
+                    // Determine majority speaker
+                    const speakerNum = getMajoritySpeaker(utt.words || []);
+                    let speakerId: string | null = null;
+
+                    if (typeof speakerNum === "number") {
+                        speakerId = await getOrCreateSpeaker(speakerNum);
+                    }
+
+                    await insertSegment(
+                        speakerId,
+                        startMs,
+                        endMs,
+                        utt.transcript || "",
+                        utt.words || []
+                    );
+                }
+            } else if (words.length > 0) {
+                // Fallback: single segment covering all words
+                const startMs = Math.round(words[0].start * 1000);
+                const endMs = Math.round(words[words.length - 1].end * 1000);
+                maxEndMs = Math.max(maxEndMs, endMs);
+
+                const speakerNum = getMajoritySpeaker(words);
+                let speakerId: string | null = null;
+
+                if (typeof speakerNum === "number") {
+                    speakerId = await getOrCreateSpeaker(speakerNum);
+                }
+
+                const transcript = alt?.transcript || "";
+                await insertSegment(speakerId, startMs, endMs, transcript, words);
+            } else {
+                // No words returned; create empty segment
+                await insertSegment(null, 0, 0, alt?.transcript || "", []);
+            }
+
+            return {
+                segmentCount,
+                wordCount,
+                durationMs: maxEndMs,
+            };
+        });
+
+        // Step 3: Trigger completion event
+        await step.sendEvent("trigger-completed", {
+            name: "transcription/completed",
+            data: {
+                projectId,
+                jobId: job.id,
+                duration: Math.floor(transcriptionResult.durationMs / 1000),
+            },
+        });
+
+        console.log(
+            `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
+            `${transcriptionResult.wordCount} words, ${transcriptionResult.durationMs}ms duration`
+        );
 
         return {
-            status: "skeleton",
-            requestId,
+            status: "stored",
             projectId,
+            jobId: job.id,
+            ...transcriptionResult,
         };
     }
 );
 
 /**
  * Handle transcription completed
- * Triggered after successful processing and consolidation.
- * Phase 5: Will update job and project status.
+ * Triggered after successful processing.
+ * Updates job and project status.
  */
 export const handleTranscriptionCompleted = inngest.createFunction(
     { id: "handle-transcription-completed", retries: 3 },
     { event: "transcription/completed" },
-    async ({ event }) => {
+    async ({ event, step }) => {
         const { projectId, jobId, duration } = event.data;
 
-        // Phase 5: Mark job as completed
-        // Phase 5: Update project status to "completed"
-        // Phase 5: Update project duration
+        console.log(`[inngest] Transcription completed for project: ${projectId}`);
 
-        console.log(`[Skeleton] Transcription completed for project: ${projectId}`);
+        await step.run("update-status", async () => {
+            const supabase = createAdminClient();
+            const now = new Date().toISOString();
+
+            // Update job status
+            const { error: jobError } = await supabase
+                .from("jobs")
+                .update({
+                    status: "completed",
+                    finished_at: now,
+                })
+                .eq("id", jobId);
+
+            if (jobError) {
+                console.error("[inngest] Failed to update job:", jobError);
+            }
+
+            // Update project status and duration
+            const { error: projectError } = await supabase
+                .from("projects")
+                .update({
+                    status: "completed",
+                    duration_seconds: duration,
+                })
+                .eq("id", projectId);
+
+            if (projectError) {
+                console.error("[inngest] Failed to update project:", projectError);
+            }
+
+            console.log(`[inngest] Project ${projectId} marked as completed`);
+        });
 
         return {
-            status: "skeleton",
+            status: "completed",
             projectId,
             jobId,
             duration,
@@ -107,23 +372,59 @@ export const handleTranscriptionCompleted = inngest.createFunction(
 /**
  * Handle transcription failure
  * Triggered when transcription fails for any reason.
- * Phase 5: Will classify error type and update job status.
+ * Classifies error type and updates job/project status.
  */
 export const handleTranscriptionFailed = inngest.createFunction(
-    { id: "handle-transcription-failed" },
+    { id: "handle-transcription-failed", retries: 1 },
     { event: "transcription/failed" },
-    async ({ event }) => {
+    async ({ event, step }) => {
         const { projectId, jobId, error, errorType } = event.data;
 
-        // Phase 5: Mark job as failed with error details
-        // Phase 5: Classify error type (keyterm vs general)
-        // Phase 5: Update project status to "error"
+        console.log(`[inngest] Transcription failed for project: ${projectId}`);
+        console.log(`[inngest] Error type: ${errorType}, message: ${error}`);
 
-        console.log(`[Skeleton] Transcription failed for project: ${projectId}`);
-        console.log(`[Skeleton] Error type: ${errorType}, message: ${error}`);
+        await step.run("update-error-status", async () => {
+            const supabase = createAdminClient();
+            const now = new Date().toISOString();
+
+            // Classify error if not already classified
+            const classified = classifyError(error);
+            const finalErrorType = errorType || classified.type;
+            const finalMessage = classified.message;
+
+            // Update job with error details
+            const { error: jobError } = await supabase
+                .from("jobs")
+                .update({
+                    status: "error",
+                    finished_at: now,
+                    payload: {
+                        error: finalMessage,
+                        error_type: finalErrorType,
+                        raw_error: error.slice(0, 500),
+                    },
+                })
+                .eq("id", jobId);
+
+            if (jobError) {
+                console.error("[inngest] Failed to update job:", jobError);
+            }
+
+            // Update project status
+            const { error: projectError } = await supabase
+                .from("projects")
+                .update({ status: "error" })
+                .eq("id", projectId);
+
+            if (projectError) {
+                console.error("[inngest] Failed to update project:", projectError);
+            }
+
+            console.log(`[inngest] Project ${projectId} marked as error: ${finalErrorType}`);
+        });
 
         return {
-            status: "skeleton",
+            status: "failed",
             projectId,
             jobId,
             error,

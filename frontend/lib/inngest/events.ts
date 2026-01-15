@@ -9,6 +9,7 @@ export type TranscriptionEvents = {
     "transcription/requested": {
         data: {
             projectId: string;
+            jobId: string;
             userId: string;
             mediaUrl: string;
             keyTerms?: string[];
