@@ -1,8 +1,9 @@
 -- Add UNIQUE constraint on speakers(project_id, label) for upsert support
 -- This prevents duplicate speakers with the same label within a project
 
--- Step 1: Deduplicate existing speakers before adding constraint
--- For each (project_id, label) pair, keep the oldest speaker and update segments to point to it
+-- Step 1: Create temp table to store duplicate speaker mappings
+-- For each (project_id, label) pair, map duplicate speaker IDs to the keeper (oldest)
+CREATE TEMP TABLE speaker_dedup_map AS
 WITH duplicates AS (
     SELECT 
         id,
@@ -13,37 +14,31 @@ WITH duplicates AS (
 ),
 keepers AS (
     SELECT id, project_id, label FROM duplicates WHERE rn = 1
-),
-to_delete AS (
-    SELECT d.id as old_id, k.id as new_id
-    FROM duplicates d
-    JOIN keepers k ON d.project_id = k.project_id AND d.label = k.label
-    WHERE d.rn > 1
 )
--- Update segments to point to the keeper speaker before deleting duplicates
+SELECT d.id as old_id, k.id as new_id
+FROM duplicates d
+JOIN keepers k ON d.project_id = k.project_id AND d.label = k.label
+WHERE d.rn > 1;
+
+-- Step 2: Update segments to point to the keeper speaker
 UPDATE segments s
-SET speaker_id = td.new_id
-FROM to_delete td
-WHERE s.speaker_id = td.old_id;
+SET speaker_id = m.new_id
+FROM speaker_dedup_map m
+WHERE s.speaker_id = m.old_id;
 
--- Update chunks to point to the keeper speaker before deleting duplicates
+-- Step 3: Update chunks to point to the keeper speaker
 UPDATE chunks c
-SET speaker_id = td.new_id
-FROM to_delete td
-WHERE c.speaker_id = td.old_id;
+SET speaker_id = m.new_id
+FROM speaker_dedup_map m
+WHERE c.speaker_id = m.old_id;
 
--- Step 2: Delete duplicate speakers (keeping the oldest)
+-- Step 4: Delete duplicate speakers using the temp table
 DELETE FROM speakers
-WHERE id IN (
-    SELECT id FROM (
-        SELECT 
-            id,
-            ROW_NUMBER() OVER (PARTITION BY project_id, label ORDER BY created_at ASC, id ASC) as rn
-        FROM speakers
-    ) ranked
-    WHERE rn > 1
-);
+WHERE id IN (SELECT old_id FROM speaker_dedup_map);
 
--- Step 3: Add the UNIQUE constraint
+-- Step 5: Clean up temp table
+DROP TABLE speaker_dedup_map;
+
+-- Step 6: Add the UNIQUE constraint
 ALTER TABLE speakers
 ADD CONSTRAINT speakers_project_id_label_unique UNIQUE (project_id, label);
