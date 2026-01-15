@@ -119,13 +119,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 .select("id")
                 .eq("project_id", projectId)
                 .eq("status", "processing")
+                .eq("inngest_event_id", requestId)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .single();
 
             if (error || !data) {
-                console.error("[inngest] Job not found for project:", projectId);
-                throw new Error(`Job not found for project: ${projectId}`);
+                console.error("[inngest] Job not found for project:", projectId, "requestId:", requestId);
+                throw new Error(`Job not found for project: ${projectId}, requestId: ${requestId}`);
             }
 
             return data;
@@ -143,10 +144,15 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const words = alt?.words || [];
 
             // Clear existing segments for idempotency
-            await supabase
+            const { error: deleteError } = await supabase
                 .from("segments")
                 .delete()
                 .eq("project_id", projectId);
+
+            if (deleteError) {
+                console.error("[inngest] Failed to clear segments:", deleteError);
+                throw new Error(`Failed to clear segments: ${deleteError.message}`);
+            }
 
             let maxEndMs = 0;
             let segmentCount = 0;
@@ -155,7 +161,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             // Speaker cache: speaker number -> speaker ID
             const speakerCache: Record<number, string> = {};
 
-            // Helper: Get or create speaker
+            // Helper: Get or create speaker using upsert (requires UNIQUE constraint on project_id, label)
             async function getOrCreateSpeaker(speakerNum: number): Promise<string> {
                 if (speakerCache[speakerNum]) {
                     return speakerCache[speakerNum];
@@ -163,32 +169,22 @@ export const handleTranscriptionWebhook = inngest.createFunction(
 
                 const label = `Speaker ${speakerNum}`;
 
-                // Check if speaker exists
-                const { data: existing } = await supabase
+                // Upsert speaker - DB uniqueness constraint prevents duplicates
+                const { data: speaker, error } = await supabase
                     .from("speakers")
-                    .select("id")
-                    .eq("project_id", projectId)
-                    .eq("label", label)
-                    .single();
-
-                if (existing) {
-                    speakerCache[speakerNum] = existing.id;
-                    return existing.id;
-                }
-
-                // Create new speaker
-                const { data: newSpeaker, error } = await supabase
-                    .from("speakers")
-                    .insert({ project_id: projectId, label })
+                    .upsert(
+                        { project_id: projectId, label },
+                        { onConflict: "project_id,label" }
+                    )
                     .select("id")
                     .single();
 
-                if (error || !newSpeaker) {
-                    throw new Error(`Failed to create speaker: ${error?.message}`);
+                if (error || !speaker) {
+                    throw new Error(`Failed to upsert speaker: ${error?.message}`);
                 }
 
-                speakerCache[speakerNum] = newSpeaker.id;
-                return newSpeaker.id;
+                speakerCache[speakerNum] = speaker.id;
+                return speaker.id;
             }
 
             // Helper: Insert segment with words
@@ -387,8 +383,11 @@ export const handleTranscriptionFailed = inngest.createFunction(
             const supabase = createAdminClient();
             const now = new Date().toISOString();
 
+            // Coerce error to string for safe slicing
+            const errorString = typeof error === "string" ? error : String(error);
+            
             // Classify error if not already classified
-            const classified = classifyError(error);
+            const classified = classifyError(errorString);
             const finalErrorType = errorType || classified.type;
             const finalMessage = classified.message;
 
@@ -401,7 +400,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     payload: {
                         error: finalMessage,
                         error_type: finalErrorType,
-                        raw_error: error.slice(0, 500),
+                        raw_error: errorString.slice(0, 500),
                     },
                 })
                 .eq("id", jobId);

@@ -36,7 +36,7 @@ The target stack uses:
 
 ### Supabase Admin Client
 
-#### [NEW] [admin.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/supabase/admin.ts)
+#### [NEW] `frontend/lib/supabase/admin.ts`
 
 Service role client for Inngest functions (bypasses RLS):
 
@@ -56,7 +56,7 @@ export function createAdminClient() {
 
 ### Deepgram Service
 
-#### [NEW] [deepgram.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/deepgram.ts)
+#### [NEW] `frontend/lib/deepgram.ts`
 
 Deepgram async API client:
 
@@ -90,7 +90,7 @@ export function classifyError(errorText: string): { type: "keyterm" | "general";
 
 ### Inngest Function Updates
 
-#### [MODIFY] [events.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/events.ts)
+#### [MODIFY] `frontend/lib/inngest/events.ts`
 
 Add `jobId` to `transcription/requested` event for tracking:
 
@@ -108,7 +108,7 @@ Add `jobId` to `transcription/requested` event for tracking:
 
 ---
 
-#### [MODIFY] [functions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts)
+#### [MODIFY] `frontend/lib/inngest/functions.ts`
 
 Replace skeleton implementations with real logic:
 
@@ -141,7 +141,7 @@ Replace skeleton implementations with real logic:
 
 ### Start Endpoint Update
 
-#### [MODIFY] [route.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/api/projects/%5Bid%5D/start/route.ts)
+#### [MODIFY] `frontend/app/api/projects/[id]/start/route.ts`
 
 Add `jobId` to Inngest event data for tracking:
 
@@ -250,6 +250,44 @@ await inngest.send({
 | RLS blocks Inngest writes | Use admin client with service role key |
 | Signed URL expires before Deepgram processes | 1-hour expiry should be sufficient; Deepgram typically starts within minutes |
 | Duplicate webhook callbacks | Idempotent: Clear segments before inserting |
+
+---
+
+## Post-Implementation Fixes
+
+The following fixes were applied after initial implementation:
+
+### 1. Error String Guard
+**File**: `frontend/lib/inngest/functions.ts` (handleTranscriptionFailed)  
+**Issue**: `error.slice(0, 500)` would throw if `error` wasn't a string  
+**Fix**: Coerce error to string before slicing:
+```typescript
+const errorString = typeof error === "string" ? error : String(error);
+```
+
+### 2. Job Lookup Validation
+**File**: `frontend/lib/inngest/functions.ts` (handleTranscriptionWebhook)  
+**Issue**: Job lookup could match wrong processing job without verifying requestId  
+**Fix**: Added `.eq("inngest_event_id", requestId)` filter to job query
+
+### 3. Delete Error Handling
+**File**: `frontend/lib/inngest/functions.ts` (handleTranscriptionWebhook)  
+**Issue**: Segment delete ignored errors, could proceed with inserts after failed delete  
+**Fix**: Check `deleteError` and throw before continuing to inserts
+
+### 4. Speaker Race Condition
+**File**: `frontend/lib/inngest/functions.ts` + new migration  
+**Issue**: SELECT+INSERT pattern caused race conditions creating duplicate speakers  
+**Fix**: 
+- Added `UNIQUE (project_id, label)` constraint via migration
+- Replaced SELECT+INSERT with `.upsert()` using `onConflict`
+
+### 5. New Migration
+**File**: `infra/supabase/migrations/20260115000000_speakers_unique_constraint.sql`
+```sql
+ALTER TABLE speakers
+ADD CONSTRAINT speakers_project_id_label_unique UNIQUE (project_id, label);
+```
 
 ---
 

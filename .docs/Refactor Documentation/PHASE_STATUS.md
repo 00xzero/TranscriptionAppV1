@@ -149,6 +149,13 @@
 - Deepgram service: `lib/deepgram.ts` (async API, error classification)
 - Full Inngest function implementations in `lib/inngest/functions.ts`
 - Updated event types with `jobId` in `lib/inngest/events.ts`
+- New migration: `20260115000000_speakers_unique_constraint.sql`
+
+**Post-Implementation Fixes Applied:**
+1. **Error string guard** - Coerce error to string before `.slice()` in handleTranscriptionFailed
+2. **Job lookup validation** - Added `inngest_event_id` filter to prevent matching wrong job
+3. **Delete error handling** - Check segment delete errors before proceeding with inserts
+4. **Speaker race condition** - Added UNIQUE constraint + replaced SELECT/INSERT with upsert
 
 **For Phase 6:**
 - Segments and words are stored in Supabase after transcription
@@ -160,6 +167,7 @@
 - Consolidation must save chunks and chunk_words to Supabase
 - Need to adapt consolidation.ts to use Supabase instead of in-memory data
 - Consolidation runs after every transcription, before marking "completed"
+- Speaker upsert uses `onConflict: "project_id,label"` - constraint must exist
 
 **Environment Variables Added:**
 - `SUPABASE_SERVICE_ROLE_KEY` - Required for Inngest DB writes

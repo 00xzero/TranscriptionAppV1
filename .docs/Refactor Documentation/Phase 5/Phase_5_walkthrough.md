@@ -168,6 +168,44 @@ The following require Inngest Dev Server + Deepgram API key:
 
 ---
 
+## Post-Implementation Fixes
+
+After initial implementation, the following issues were identified and fixed:
+
+### 1. Error String Guard
+**Issue**: `error.slice(0, 500)` in `handleTranscriptionFailed` would throw if error wasn't a string  
+**Fix**: Added type coercion before slicing:
+```typescript
+const errorString = typeof error === "string" ? error : String(error);
+```
+
+### 2. Job Lookup Validation
+**Issue**: Job lookup could match wrong processing job without verifying requestId  
+**Fix**: Added `.eq("inngest_event_id", requestId)` filter to ensure correct job match
+
+### 3. Delete Error Handling
+**Issue**: Segment delete operation ignored errors, could proceed with inserts after failed delete  
+**Fix**: Check `deleteError` and throw before continuing to inserts for proper idempotency
+
+### 4. Speaker Race Condition
+**Issue**: SELECT+INSERT pattern caused race conditions creating duplicate speakers  
+**Fix**: 
+- Added `UNIQUE (project_id, label)` constraint via migration
+- Replaced SELECT+INSERT with `.upsert()` using `onConflict: "project_id,label"`
+
+### 5. Documentation Portability
+**Issue**: Implementation plan used developer-specific absolute file URLs  
+**Fix**: Replaced with relative repository paths for portability
+
+### New Migration
+Created `infra/supabase/migrations/20260115000000_speakers_unique_constraint.sql`:
+```sql
+ALTER TABLE speakers
+ADD CONSTRAINT speakers_project_id_label_unique UNIQUE (project_id, label);
+```
+
+---
+
 ## What's Next (Phase 6)
 
 Phase 6 will port the consolidation pipeline:
