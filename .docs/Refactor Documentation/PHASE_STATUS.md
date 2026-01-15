@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 4 - Inngest Setup |
+| **Phase** | 5 - Deepgram Async Integration |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -20,7 +20,7 @@
 | 1 | Supabase Foundation | ✅ Complete | 2026-01-14 |
 | 2 | Auth and Session Wiring | ✅ Complete | 2026-01-14 |
 | 3 | Storage and Upload Flow | ✅ Complete | 2026-01-15 |
-| 4 | Inngest Setup | ⏳ Not Started | - |
+| 4 | Inngest Setup | ✅ Complete | 2026-01-15 |
 | 5 | Deepgram Async Integration | ⏳ Not Started | - |
 | 6 | Consolidation Pipeline Port | ⏳ Not Started | - |
 | 7 | Frontend Data Flow | ⏳ Not Started | - |
@@ -119,6 +119,29 @@
 - Upload and media-url endpoints are fully replaced by Next.js routes
 - File size limit: 50MB default, due to Supabase free plan limit, can be upgraded to 500GB (configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`)
 
+### Phase 4 → Phase 5
+
+**Key Deliverables Created:**
+- Inngest package installed (TypeScript upgraded to 5.8+)
+- Event types: `lib/inngest/events.ts`
+- Inngest client: `lib/inngest/client.ts`
+- Skeleton functions: `lib/inngest/functions.ts`
+- API routes: `/api/inngest`, `/api/webhooks/deepgram`, `/api/projects/[id]/start`
+- Environment config updated with Inngest + Deepgram variables
+
+**For Phase 5:**
+- Call Deepgram async API with callback URL: `/api/webhooks/deepgram`
+- Pass `project_id` in Deepgram metadata for callback matching
+- Store `request_id` from Deepgram response in jobs table
+- Parse webhook response for utterances/words
+- Store segments with speaker mapping in Supabase
+
+**Gotchas:**
+- Signed URLs from `getSignedMediaUrl()` have 1-hour expiry
+- Webhook uses `dg-token` header verification via `DEEPGRAM_API_KEY_IDENTIFIER`
+- Concurrency configurable via `DEEPGRAM_CONCURRENCY_LIMIT` env var (default: 5)
+- Service role key needed for Inngest functions to update DB (bypasses RLS)
+
 *(Continue for each phase transition)*
 
 ## Blockers and Dependencies
@@ -149,3 +172,6 @@
 | 2026-01-15 | 3 | Replace legacy upload fully | Next.js API routes replace FastAPI for upload/media-url |
 | 2026-01-15 | 3 | Client-side upload to Supabase | Direct upload via Supabase Storage SDK, not presigned URLs |
 | 2026-01-15 | 3 | File size validation | 50MB default (Free plan), configurable for Pro plan upgrade (up to 500GB)  via env var |
+| 2026-01-15 | 4 | Deepgram webhook via dg-token | Official Deepgram auth method; simpler than HMAC |
+| 2026-01-15 | 4 | Configurable Deepgram concurrency | Account-scoped limit via `DEEPGRAM_CONCURRENCY_LIMIT` env var |
+| 2026-01-15 | 4 | TypeScript 5.8+ upgrade | Required by Inngest 3.49+ for modern type features |
