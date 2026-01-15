@@ -107,15 +107,26 @@ export async function POST(
     }
 
     // Trigger Inngest function for async processing
-    await inngest.send({
-        name: "transcription/requested",
-        data: {
-            projectId: id,
-            userId: user.id,
-            mediaUrl,
-            keyTerms: keyTerms?.map((k) => k.term) || [],
-        },
-    });
+    try {
+        await inngest.send({
+            name: "transcription/requested",
+            data: {
+                projectId: id,
+                userId: user.id,
+                mediaUrl,
+                keyTerms: keyTerms?.map((k) => k.term) || [],
+            },
+        });
+    } catch (sendError) {
+        console.error("Failed to send Inngest event:", sendError);
+        // Rollback: Update project status back and mark job as failed
+        await supabase.from("projects").update({ status: "error" }).eq("id", id);
+        await supabase.from("jobs").update({ status: "failed" }).eq("id", job.id);
+        return NextResponse.json(
+            { error: "Failed to start transcription" },
+            { status: 500 }
+        );
+    }
 
     console.log(`Transcription started for project: ${id}, job: ${job.id}`);
 
