@@ -6,7 +6,7 @@ Implement Supabase Auth with cookie-based sessions in the Next.js 14 App Router 
 
 ### Supabase Client Setup
 
-#### [NEW] `frontend/lib/supabase/client.ts`
+#### [NEW] [client.ts] `frontend/lib/supabase/client.ts`
 
 Browser-side Supabase client for client components:
 
@@ -21,7 +21,7 @@ export function createClient() {
 }
 ```
 
-#### [NEW] `frontend/lib/supabase/server.ts`
+#### [NEW] [server.ts] `frontend/lib/supabase/server.ts`
 
 Server-side Supabase client for RSC and API routes:
 
@@ -57,7 +57,7 @@ export async function createClient() {
 
 ### Middleware for Session Refresh
 
-#### [NEW] `frontend/middleware.ts`
+#### [NEW] [middleware.ts] `frontend/middleware.ts`
 
 Refreshes auth tokens on every request; redirects unauthenticated users to `/auth`:
 
@@ -71,7 +71,7 @@ Refreshes auth tokens on every request; redirects unauthenticated users to `/aut
 
 ### Auth UI Page
 
-#### [NEW] `frontend/app/auth/page.tsx`
+#### [NEW] [page.tsx] `frontend/app/auth/page.tsx`
 
 Login/signup page using Supabase pre-built Auth UI:
 
@@ -83,7 +83,7 @@ Login/signup page using Supabase pre-built Auth UI:
 
 ### Sign Out Action
 
-#### [NEW] `frontend/app/auth/actions.ts`
+#### [NEW] [actions.ts] `frontend/app/auth/actions.ts`
 
 Server action for logout:
 
