@@ -6,7 +6,7 @@ Implement Supabase Auth with cookie-based sessions in the Next.js 14 App Router 
 
 ### Supabase Client Setup
 
-#### [NEW] [client.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/supabase/client.ts)
+#### [NEW] `frontend/lib/supabase/client.ts`
 
 Browser-side Supabase client for client components:
 
@@ -21,7 +21,7 @@ export function createClient() {
 }
 ```
 
-#### [NEW] [server.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/supabase/server.ts)
+#### [NEW] `frontend/lib/supabase/server.ts`
 
 Server-side Supabase client for RSC and API routes:
 
@@ -57,7 +57,7 @@ export async function createClient() {
 
 ### Middleware for Session Refresh
 
-#### [NEW] [middleware.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/middleware.ts)
+#### [NEW] `frontend/middleware.ts`
 
 Refreshes auth tokens on every request; redirects unauthenticated users to `/auth`:
 
@@ -71,7 +71,7 @@ Refreshes auth tokens on every request; redirects unauthenticated users to `/aut
 
 ### Auth UI Page
 
-#### [NEW] [page.tsx](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/auth/page.tsx)
+#### [NEW] `frontend/app/auth/page.tsx`
 
 Login/signup page using Supabase pre-built Auth UI:
 
@@ -83,7 +83,7 @@ Login/signup page using Supabase pre-built Auth UI:
 
 ### Sign Out Action
 
-#### [NEW] [actions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/auth/actions.ts)
+#### [NEW] `frontend/app/auth/actions.ts`
 
 Server action for logout:
 
@@ -103,7 +103,7 @@ export async function signOut() {
 
 ### Layout Updates
 
-#### [MODIFY] [layout.tsx](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/layout.tsx)
+#### [MODIFY] `frontend/app/layout.tsx`
 
 Add sign out button to header for authenticated users.
 
@@ -136,7 +136,7 @@ npm install @supabase/supabase-js @supabase/ssr @supabase/auth-ui-react @supabas
 
 ### Automated Tests
 
-No existing auth tests to build on. Writing unit tests for auth UI is deferred since we're using Supabase's pre-built components. The existing tests in [consolidation.test.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/__tests__/consolidation.test.ts) and [editor.test.tsx](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/__tests__/editor.test.tsx) test unrelated features.
+No existing auth tests to build on. Writing unit tests for auth UI is deferred since we're using Supabase's pre-built components. The existing tests in `frontend/__tests__/consolidation.test.ts` and `frontend/__tests__/editor.test.tsx` test unrelated features.
 
 Run existing tests to ensure no regressions:
 ```bash
