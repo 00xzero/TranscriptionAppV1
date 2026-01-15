@@ -78,7 +78,7 @@ Risks:
 - **Consolidation port complexity may require keeping Python implementation.**
 
 Decisions Made:
-- Max file size: 50MB default ( free tire limit, configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours
+- Max file size: 50MB default (free tier limit, configurable via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`) / 4 hours
 - Auth: Email/password + magic link (Google OAuth post-launch)
 - Realtime: Supabase Realtime for project/job status with polling fallback
 - Exports: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)

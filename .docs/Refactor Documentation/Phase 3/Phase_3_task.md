@@ -13,7 +13,7 @@ Replace legacy S3/MinIO presigned URL upload with Supabase Storage, implementing
 - [x] Review Supabase client utilities from Phase 2
 - [x] Review existing S3/MinIO services (`backend/app/services/s3.py`)
 - [x] Review Supabase schema and storage policies
-- [ ] Create implementation plan
+- [x] Create implementation plan
 
 ---
 

@@ -2,7 +2,7 @@
  * Supabase Storage utilities for media file handling.
  * 
  * Storage path convention: {user_id}/{project_id}/{filename}
- * Bucket: 'media' (private, 1.5GB limit)
+ * Bucket: 'media' (private, 50MB default - configurable via NEXT_PUBLIC_MAX_FILE_SIZE_MB)
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
