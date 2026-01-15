@@ -26,6 +26,12 @@ SET speaker_id = td.new_id
 FROM to_delete td
 WHERE s.speaker_id = td.old_id;
 
+-- Update chunks to point to the keeper speaker before deleting duplicates
+UPDATE chunks c
+SET speaker_id = td.new_id
+FROM to_delete td
+WHERE c.speaker_id = td.old_id;
+
 -- Step 2: Delete duplicate speakers (keeping the oldest)
 DELETE FROM speakers
 WHERE id IN (
