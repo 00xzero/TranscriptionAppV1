@@ -337,9 +337,26 @@ Estimated by phase (single engineer):
 
 ## Decisions Made (Phase 0)
 ✅ **Max file size**: 1.5GB / 4 hours (maintain current limit)  
-✅ **Auth providers**: Email/password + magic link (Google OAuth post-launch)  
+✅ **Auth providers**: Email/password only (magic link + Google OAuth post-launch)  
 ✅ **Realtime strategy**: Supabase Realtime for project/job status with 5s polling fallback  
 ✅ **Exports**: Vercel Node runtime for DOCX/VTT (PDF optional/post-launch)  
 ✅ **Storage policy**: Signed URLs for Deepgram access (not public)  
-✅ **Consolidation**: Decide after Phase 0 spike (TypeScript or Python via Inngest)
+✅ **Consolidation**: TypeScript (unified stack, runs in Inngest Node.js functions)
+
+## Decisions Made (Phase 1)
+✅ **Supabase project**: Created `transcription-app` (ID: `svzeffnmlqbdnjzhcgyx`) in eu-west-1 (Ireland)  
+✅ **Database schema**: 8 tables with native UUID primary keys, JSONB for flexible data, UUID[] for arrays  
+✅ **RLS strategy**: Direct ownership on `projects` table, project-scoped for related tables, nested for deeply related tables  
+✅ **Storage bucket**: Private `media` bucket with 1.5GB limit, owner-folder path convention (`{user_id}/{project_id}/{filename}`)  
+✅ **Migration strategy**: Single shared migration set for dev/prod (no separate local/cloud migrations)  
+✅ **Jobs table**: Renamed `celery_task_id` → `inngest_event_id` for Inngest integration  
+✅ **Trigger security**: Applied `SECURITY DEFINER` and `SET search_path = public` to prevent search_path attacks
+
+## Decisions Made (Phase 2)
+✅ **Auth package**: `@supabase/ssr` for cookie-based sessions (SSR-compatible)  
+✅ **Auth UI**: Supabase pre-built Auth UI (faster implementation; UI overhaul planned post-refactor)  
+✅ **Auth methods**: Email/password only (magic link + Google OAuth deferred to post-launch)  
+✅ **Route protection**: Middleware-based with protected routes: `/projects`, `/editor/*`, `/upload`, `/import`  
+✅ **Session refresh**: Automatic via middleware on every request  
+✅ **Theme integration**: CSS variable overrides for light/dark mode compatibility
 

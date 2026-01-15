@@ -102,6 +102,7 @@ CREATE TABLE chunk_words (
 
 CREATE INDEX idx_chunk_words_chunk_id ON chunk_words(chunk_id);
 CREATE INDEX idx_chunk_words_word_id ON chunk_words(word_id);
+CREATE UNIQUE INDEX idx_chunk_words_unique ON chunk_words(chunk_id, word_id);
 
 -- ============================================================================
 -- Table: watchlist (key terms)
@@ -291,7 +292,7 @@ VALUES (
     'media', 
     false,
     1610612736,  -- 1.5GB in bytes
-    ARRAY['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/m4a', 'audio/aac',
+    ARRAY['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/mp4', 'audio/aac',
           'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
 );
 

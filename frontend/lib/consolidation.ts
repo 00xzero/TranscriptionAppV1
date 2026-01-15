@@ -91,7 +91,7 @@ export function getChunkDurationMs(chunk: ChunkData): number {
  */
 export function isSentenceBoundary(text: string): boolean {
     const stripped = text.trimEnd();
-    return /[.?!"']$/.test(stripped);
+    return /[.?!"]$/.test(stripped);
 }
 
 /**
@@ -198,9 +198,9 @@ export function consolidateSegments(
         // Check for speaker change
         const speakerChanged = segment.speakerId !== currentChunk.speakerId;
 
-        // Get current chunk duration if we were to add this segment
-        const segmentDurationMs = segment.endMs - segment.startMs;
-        const projectedDurationMs = getChunkDurationMs(currentChunk) + segmentDurationMs;
+        // Calculate projected duration if we were to merge this segment
+        // Use the actual time span (segment.endMs - currentChunk.startMs) not sum of individual durations
+        const projectedDurationMs = segment.endMs - currentChunk.startMs;
 
         // Check hard break conditions
         const shouldBreak = (

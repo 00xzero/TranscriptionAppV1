@@ -60,16 +60,16 @@ Create `.docs/Refactor Documentation/API_ROUTE_MAPPING.md`:
 Create `.docs/Refactor Documentation/SCHEMA_MAPPING.md`:
 
 #### Tables Requiring user_id Addition
-- [projects](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#88-110) - owner of the project
+- `projects` - owner of the project (see `backend/app/routers/projects.py`)
 - `watchlist` - inherits from project
 
 #### Tables Scoped via Project Foreign Key
-- [speakers](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#355-362) (project_id)
-- [segments](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#262-329) (project_id)
+- `speakers` (project_id)
+- `segments` (project_id)
 - `words` (segment_id → project_id)
-- [chunks](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#553-572) (project_id)
+- `chunks` (project_id)
 - `chunk_words` (chunk_id → project_id)
-- [jobs](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#243-251) (project_id)
+- `jobs` (project_id)
 
 #### RLS Policy Summary
 
@@ -88,15 +88,15 @@ Create `.docs/Refactor Documentation/SCHEMA_MAPPING.md`:
 
 ### 3. Consolidation Algorithm Spike
 
-#### [NEW] [consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts)
+#### [NEW] `frontend/lib/consolidation.ts`
 
-Port the core algorithm from Python:
-- [ConsolidationConfig](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/services/consolidation.py#32-57) interface
-- [SegmentData](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/services/consolidation.py#67-84) / [ChunkData](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/services/consolidation.py#86-114) types
+Port the core algorithm from Python (`backend/app/services/consolidation.py`):
+- `ConsolidationConfig` interface
+- `SegmentData` / `ChunkData` types
 - `consolidateSegments()` function
 - `isSentenceBoundary()` / `isFiller()` / `normalizeText()` helpers
 
-#### [NEW] [consolidation.test.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code folder/CascadeProjects/TranscriptionAppV1/frontend/__tests__/consolidation.test.ts)
+#### [NEW] `frontend/__tests__/consolidation.test.ts`
 
 Test cases:
 1. Empty input returns empty

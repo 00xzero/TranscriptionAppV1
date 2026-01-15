@@ -29,6 +29,7 @@
 *Add links as phases are completed:*
 
 - [x] Phase 0: Discovery → [API_ROUTE_MAPPING.md](./API_ROUTE_MAPPING.md), [SCHEMA_MAPPING.md](./SCHEMA_MAPPING.md)
-- [ ] Phase 1: Supabase Foundation (TBD)
-- [ ] Phase 2: Auth (TBD)
+- [x] Phase 1: Supabase Foundation → [Phase 1/](./Phase%201/)
+- [x] Phase 2: Auth and Session Wiring → [Phase 2/](./Phase%202/)
+- [ ] Phase 3: Storage and Upload Flow (TBD)
 - *(Continue for each phase)*
