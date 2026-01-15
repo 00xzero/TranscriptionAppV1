@@ -115,6 +115,8 @@ VALUES (
 
 **Storage Path Convention:** `{user_id}/{project_id}/{filename}`
 
+> **Note**: The 1.5GB bucket limit is the maximum allowed. The actual limit shown to users is controlled by `NEXT_PUBLIC_MAX_FILE_SIZE_MB` (default: 50MB for Supabase Free plan).
+
 **Policies:**
 - Upload: Owner can upload to their folder
 - Read: Owner can read from their folder

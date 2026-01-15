@@ -47,7 +47,7 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 * Drag-and-drop audio/video files (.mp3, .wav, .m4a, .aac, .flac, .mp4, .mov, .mkv).
 * Automatic extraction of audio from video.
-* Support files up to **1.5 GB** or **4 hours**.
+* Support files up to **1.5 GB** or **4 hours** (This is capped 50mb as of now due to Supabase free plan limit file upload limit, can be upgraded to 500GB per upload in the pro plan). 
 * **Sensible cap enforced**: files beyond this are rejected.
 
 ### 4.2 Speech-to-Text
