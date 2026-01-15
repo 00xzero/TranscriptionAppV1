@@ -84,7 +84,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
  * Phase 5: Will update job and project status.
  */
 export const handleTranscriptionCompleted = inngest.createFunction(
-    { id: "handle-transcription-completed" },
+    { id: "handle-transcription-completed", retries: 3 },
     { event: "transcription/completed" },
     async ({ event }) => {
         const { projectId, jobId, duration } = event.data;
