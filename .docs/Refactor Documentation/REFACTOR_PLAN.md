@@ -358,5 +358,16 @@ Estimated by phase (single engineer):
 ✅ **Auth methods**: Email/password only (magic link + Google OAuth deferred to post-launch)  
 ✅ **Route protection**: Middleware-based with protected routes: `/projects`, `/editor/*`, `/upload`, `/import`  
 ✅ **Session refresh**: Automatic via middleware on every request  
-✅ **Theme integration**: CSS variable overrides for light/dark mode compatibility
+
+## Decisions Made (Phase 3)
+✅ **Upload Strategy**: Replaced legacy FastAPI upload with Next.js API routes (full replacement)  
+✅ **Client Upload**: Direct upload to Supabase Storage via SDK (bypassing presigned URLs for simpler flow)  
+✅ **File Limits**: 50MB default limit (Free plan compatible), configurable to 1.5GB+ via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`  
+
+## Decisions Made (Phase 4)
+✅ **Inngest Integration**: Upgraded TypeScript to 5.8+ to support latest Inngest SDK features  
+✅ **Webhook Security**: Used `dg-token` header (API Key Identifier) for Deepgram verification instead of HMAC (simpler, official method)  
+✅ **Concurrency**: Account-scoped concurrency limit for Deepgram, configurable via `DEEPGRAM_CONCURRENCY_LIMIT` (default: 5)  
+✅ **Job Queueing**: Synchronous job record creation in Start endpoint before triggering async Inngest event (ensures ID availability)
+
 

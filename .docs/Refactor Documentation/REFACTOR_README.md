@@ -32,6 +32,6 @@
 - [x] Phase 1: Supabase Foundation → [Phase 1/](./Phase%201/)
 - [x] Phase 2: Auth and Session Wiring → [Phase 2/](./Phase%202/)
 - [x] Phase 3: Storage and Upload Flow → [Phase 3/](./Phase%203/)
-- [ ] Phase 4: Inngest Setup (TBD)
-- *(Continue for each phase)*
+- [x] Phase 4: Inngest Setup → [Phase 4/](./Phase%204/)
+- [ ] Phase 5: Deepgram Async Integration (TBD)
 
