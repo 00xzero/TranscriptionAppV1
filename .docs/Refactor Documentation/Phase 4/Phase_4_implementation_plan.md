@@ -330,7 +330,7 @@ cd frontend && npm run lint   # Verify no linting errors
 1. **Inngest Dev Server Integration**
    - Start Next.js: `cd frontend && npm run dev`
    - Start Inngest Dev Server: `npx inngest-cli@latest dev`
-   - Open http://localhost:8288
+   - Open <http://localhost:8288> in your browser
    - Verify "transcription-app" appears with 4 functions
 
 2. **Test Event Trigger (Inngest Dev UI)**

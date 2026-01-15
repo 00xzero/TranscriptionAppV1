@@ -24,9 +24,9 @@ Phase 4 set up Inngest for background job processing, replacing the legacy Celer
 
 | File | Purpose |
 |:---|:---|
-| [lib/inngest/events.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/events.ts) | TypeScript event type definitions |
-| [lib/inngest/client.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/client.ts) | Inngest client with typed schemas |
-| [lib/inngest/functions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts) | Skeleton functions for transcription lifecycle |
+| [lib/inngest/events.ts] | TypeScript event type definitions |
+| [lib/inngest/client.ts] | Inngest client with typed schemas |
+| [lib/inngest/functions.ts] | Skeleton functions for transcription lifecycle |
 
 **Event Types Defined:**
 - `transcription/requested` - User triggers transcription
@@ -38,16 +38,16 @@ Phase 4 set up Inngest for background job processing, replacing the legacy Celer
 
 | File | Endpoint | Purpose |
 |:---|:---|:---|
-| [app/api/inngest/route.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/api/inngest/route.ts) | `/api/inngest` | Inngest serve handler (GET/POST/PUT) |
-| [app/api/webhooks/deepgram/route.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/api/webhooks/deepgram/route.ts) | `/api/webhooks/deepgram` | Deepgram callback with dg-token verification |
-| [app/api/projects/[id]/start/route.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/api/projects/%5Bid%5D/start/route.ts) | `/api/projects/{id}/start` | Start transcription for a project |
+| [app/api/inngest/route.ts] | `/api/inngest` | Inngest serve handler (GET/POST/PUT) |
+| [app/api/webhooks/deepgram/route.ts] | `/api/webhooks/deepgram` | Deepgram callback with dg-token verification |
+| [app/api/projects/[id]/start/route.ts] | `/api/projects/{id}/start` | Start transcription for a project |
 
 ### 4. Updated Environment Configuration
 
 | File | Changes |
 |:---|:---|
-| [.env.example](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/.env.example) | Added Inngest + Deepgram variables |
-| [.env.local](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/.env.local) | Added placeholder variables |
+| [.env.example] | Added Inngest + Deepgram variables |
+| [.env.local] | Added placeholder variables |
 
 **New Environment Variables:**
 ```plaintext
@@ -64,14 +64,24 @@ DEEPGRAM_CONCURRENCY_LIMIT=5 # Configurable
 
 ### Deepgram Webhook Security
 
-Uses Deepgram's official `dg-token` header verification:
+Uses Deepgram's official `dg-token` header verification with **timing-safe comparison** to prevent timing attacks:
 
 ```typescript
-const dgToken = request.headers.get("dg-token");
-if (dgToken !== process.env.DEEPGRAM_API_KEY_IDENTIFIER) {
+// Updated to use crypto.timingSafeEqual for security
+const source = Buffer.from(dgToken);
+const target = Buffer.from(process.env.DEEPGRAM_API_KEY_IDENTIFIER);
+if (!timingSafeEqual(source, target)) {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 ```
+
+### Robust Error Handling
+- Added `try-catch` block around `inngest.send()` in start endpoint.
+- Implements rollback logic (marks project/job as failed) if Inngest is unavailable.
+- Prevents silent failures where checking operations would appear successful but no background job runs.
+
+### Retry Policy
+- Added explicit retries (`retries: 3`) to `handleTranscriptionCompleted` to ensure database updates in Phase 5 are robust against transient failures.
 
 ### Configurable Concurrency
 

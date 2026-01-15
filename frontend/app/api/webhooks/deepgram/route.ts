@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { inngest } from "@/lib/inngest/client";
 
 export async function POST(request: NextRequest) {
@@ -23,7 +24,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (dgToken !== expectedToken) {
+        if (!dgToken || dgToken.length !== expectedToken.length) {
+            console.warn(
+                "Invalid dg-token received:",
+                dgToken?.substring(0, 8) + "..."
+            );
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const source = Buffer.from(dgToken);
+        const target = Buffer.from(expectedToken);
+
+        if (!timingSafeEqual(source as any, target as any)) {
             console.warn(
                 "Invalid dg-token received:",
                 dgToken?.substring(0, 8) + "..."
