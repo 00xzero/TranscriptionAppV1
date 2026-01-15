@@ -62,9 +62,10 @@
 - Seed data: `infra/supabase/seed.sql`
 
 **Supabase Connection Details:**
-- URL: `https://svzeffnmlqbdnjzhcgyx.supabase.co`
-- Anon Key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN2emVmZm5tbHFiZG5qemhjZ3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNDI4ODAsImV4cCI6MjA4MzkxODg4MH0.bW_kkfhxlZFwjxkbcQXBF_kVdnKCEM-5Oo1VZpxop1g`
-- Publishable Key: `sb_publishable__UhRdEdXQnMz3og1J18kKQ__mOaK5q3`
+- Configured via environment variables in `frontend/.env.local` (copy from `.env.example`)
+- Required variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- See Supabase dashboard (Settings → API) for your project's keys
+- For key rotation guidance, see [Supabase API Keys docs](https://supabase.com/docs/guides/platform/api-keys)
 
 **For Phase 2:**
 - Set up Supabase client in Next.js (browser + server)

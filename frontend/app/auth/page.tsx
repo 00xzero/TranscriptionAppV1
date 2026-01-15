@@ -12,59 +12,61 @@ import { createClient } from '@/lib/supabase/client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
+// Create client at module scope to prevent subscription churn on re-renders
+const supabase = createClient()
+
 export default function AuthPage() {
-    const supabase = createClient()
-    const router = useRouter()
+  const router = useRouter()
 
-    useEffect(() => {
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
-            if (event === 'SIGNED_IN') {
-                router.push('/projects')
-                router.refresh()
+  useEffect(() => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
+      if (event === 'SIGNED_IN') {
+        router.push('/projects')
+        router.refresh()
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router])
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <h1 className="auth-title">Transcription App</h1>
+        <p className="auth-subtitle">Sign in to continue</p>
+
+        <Auth
+          supabaseClient={supabase}
+          appearance={{
+            theme: ThemeSupa,
+            variables: {
+              default: {
+                colors: {
+                  brand: 'var(--accent)',
+                  brandAccent: '#2563eb',
+                  inputBackground: 'var(--surface)',
+                  inputText: 'var(--text)',
+                  inputBorder: 'var(--border)',
+                  inputBorderFocus: 'var(--accent)',
+                  inputBorderHover: 'var(--muted)',
+                }
+              }
+            },
+            className: {
+              container: 'auth-ui-container',
+              button: 'auth-ui-button',
+              input: 'auth-ui-input',
             }
-        })
+          }}
+          providers={[]}
+          view="sign_in"
+          showLinks={true}
+          redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/projects`}
+        />
+      </div>
 
-        return () => subscription.unsubscribe()
-    }, [supabase, router])
-
-    return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <h1 className="auth-title">Transcription App</h1>
-                <p className="auth-subtitle">Sign in to continue</p>
-
-                <Auth
-                    supabaseClient={supabase}
-                    appearance={{
-                        theme: ThemeSupa,
-                        variables: {
-                            default: {
-                                colors: {
-                                    brand: 'var(--accent)',
-                                    brandAccent: '#2563eb',
-                                    inputBackground: 'var(--surface)',
-                                    inputText: 'var(--text)',
-                                    inputBorder: 'var(--border)',
-                                    inputBorderFocus: 'var(--accent)',
-                                    inputBorderHover: 'var(--muted)',
-                                }
-                            }
-                        },
-                        className: {
-                            container: 'auth-ui-container',
-                            button: 'auth-ui-button',
-                            input: 'auth-ui-input',
-                        }
-                    }}
-                    providers={[]}
-                    view="sign_in"
-                    showLinks={true}
-                    redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/projects`}
-                />
-            </div>
-
-            <style jsx global>{`
+      <style jsx global>{`
         .auth-container {
           min-height: calc(100vh - 60px);
           display: flex;
@@ -126,6 +128,6 @@ export default function AuthPage() {
           color: var(--text) !important;
         }
       `}</style>
-        </div>
-    )
+    </div>
+  )
 }

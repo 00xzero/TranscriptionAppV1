@@ -22,12 +22,12 @@ npm install @supabase/supabase-js @supabase/ssr @supabase/auth-ui-react @supabas
 
 | File | Purpose |
 |:---|:---|
-| [client.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/supabase/client.ts) | Browser-side client for client components |
-| [server.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/supabase/server.ts) | Server-side client for RSC and API routes |
+| `frontend/lib/supabase/client.ts` | Browser-side client for client components |
+| `frontend/lib/supabase/server.ts` | Server-side client for RSC and API routes |
 
 ### 3. Implemented Middleware
 
-Created [middleware.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/middleware.ts) that:
+Created `frontend/middleware.ts` that:
 - Refreshes auth tokens on every request
 - Redirects unauthenticated users to `/auth` for protected routes
 - Redirects authenticated users away from `/auth` to `/projects`
@@ -36,20 +36,20 @@ Created [middleware.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%2
 
 ### 4. Created Auth UI
 
-[app/auth/page.tsx](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/auth/page.tsx) - Login/signup page using Supabase pre-built Auth UI:
+`frontend/app/auth/page.tsx` - Login/signup page using Supabase pre-built Auth UI:
 
 ![Auth Page](auth_page_initial_view_1768414221436.png)
 
 ### 5. Added Sign Out Functionality
 
-- Server action in [app/auth/actions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/app/auth/actions.ts)
-- Header component [components/AuthStatus.tsx](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/components/AuthStatus.tsx) showing user email + sign out button
+- Server action in `frontend/app/auth/actions.ts`
+- Header component `frontend/components/AuthStatus.tsx` showing user email + sign out button
 
 ### 6. Updated Configuration
 
-- Added path alias `@/*` to [tsconfig.json](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/tsconfig.json)
-- Created [.env.example](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/.env.example) with required Supabase env vars
-- Created `.env.local` with project credentials from Phase 1
+- Added path alias `@/*` to `frontend/tsconfig.json`
+- Created `frontend/.env.example` with required Supabase env vars
+- Created `frontend/.env.local` with project credentials from Phase 1 (copy from `.env.example`)
 
 ---
 

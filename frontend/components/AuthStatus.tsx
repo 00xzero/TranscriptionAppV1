@@ -9,8 +9,10 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 
+// Create client at module scope to prevent subscription churn on re-renders
+const supabase = createClient()
+
 export default function AuthStatus() {
-    const supabase = createClient()
     const pathname = usePathname()
     const router = useRouter()
     const [user, setUser] = useState<User | null>(null)
@@ -31,7 +33,7 @@ export default function AuthStatus() {
         })
 
         return () => subscription.unsubscribe()
-    }, [supabase])
+    }, [])
 
     // Don't show on auth page
     if (pathname?.startsWith('/auth')) {
@@ -70,7 +72,7 @@ export default function AuthStatus() {
         
         .user-email {
           font-size: 0.875rem;
-          color: var(--text-muted);
+          color: var(--muted);
           max-width: 150px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -80,7 +82,7 @@ export default function AuthStatus() {
         .sign-out-button {
           padding: 0.375rem 0.75rem;
           font-size: 0.875rem;
-          color: var(--text-muted);
+          color: var(--muted);
           background: transparent;
           border: 1px solid var(--border);
           border-radius: 6px;
@@ -90,7 +92,7 @@ export default function AuthStatus() {
         
         .sign-out-button:hover {
           color: var(--text);
-          border-color: var(--text-muted);
+          border-color: var(--muted);
         }
       `}</style>
         </div>

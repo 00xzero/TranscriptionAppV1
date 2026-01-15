@@ -91,7 +91,7 @@ export function getChunkDurationMs(chunk: ChunkData): number {
  */
 export function isSentenceBoundary(text: string): boolean {
     const stripped = text.trimEnd();
-    return /[.?!"']$/.test(stripped);
+    return /[.?!"]$/.test(stripped);
 }
 
 /**

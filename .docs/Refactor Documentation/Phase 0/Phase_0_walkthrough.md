@@ -10,7 +10,7 @@ Completed Phase 0 discovery work for the stack refactor (FastAPI/Celery/Redis/Mi
 
 ### 1. API Route Mapping
 
-[API_ROUTE_MAPPING.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor Documentation/API_ROUTE_MAPPING.md)
+[API_ROUTE_MAPPING.md](./API_ROUTE_MAPPING.md)
 
 | Category | Count |
 |:---|:---:|
@@ -21,15 +21,15 @@ Completed Phase 0 discovery work for the stack refactor (FastAPI/Celery/Redis/Mi
 
 ### 2. Database Schema Mapping
 
-[SCHEMA_MAPPING.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor Documentation/SCHEMA_MAPPING.md)
+[SCHEMA_MAPPING.md](./SCHEMA_MAPPING.md)
 
 - 8 tables documented with column mappings
 - RLS policies defined for all tables
-- `user_id` addition planned for [projects](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/app/routers/projects.py#88-110) table
+- `user_id` addition planned for `projects` table (see `backend/app/routers/projects.py`)
 
 ### 3. TypeScript Consolidation Algorithm
 
-[consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts)
+`frontend/lib/consolidation.ts`
 
 Ported Python consolidation logic (~350 lines) to TypeScript (~250 lines).
 
@@ -77,12 +77,12 @@ Tests:       38 passed, 38 total
 
 | File | Action |
 |:---|:---|
-| [.docs/Refactor Documentation/API_ROUTE_MAPPING.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor%20Documentation/API_ROUTE_MAPPING.md) | Created |
-| [.docs/Refactor Documentation/SCHEMA_MAPPING.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor%20Documentation/SCHEMA_MAPPING.md) | Created |
-| [.docs/Refactor Documentation/PHASE_STATUS.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor%20Documentation/PHASE_STATUS.md) | Updated |
-| [.docs/Refactor Documentation/REFACTOR_README.md](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/.docs/Refactor%20Documentation/REFACTOR_README.md) | Updated |
-| [frontend/lib/consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts) | Created |
-| [frontend/__tests__/consolidation.test.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/__tests__/consolidation.test.ts) | Created |
+| `.docs/Refactor Documentation/API_ROUTE_MAPPING.md` | Created |
+| `.docs/Refactor Documentation/SCHEMA_MAPPING.md` | Created |
+| `.docs/Refactor Documentation/PHASE_STATUS.md` | Updated |
+| `.docs/Refactor Documentation/REFACTOR_README.md` | Updated |
+| `frontend/lib/consolidation.ts` | Created |
+| `frontend/__tests__/consolidation.test.ts` | Created |
 
 ---
 

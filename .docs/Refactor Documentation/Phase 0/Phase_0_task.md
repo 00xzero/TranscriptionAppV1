@@ -18,7 +18,7 @@ Complete discovery work and make key architectural decisions before Phase 1.
 - [x] Plan RLS policies per table
 
 ### 3. Consolidation Algorithm Spike
-- [x] Port [consolidation.py](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/backend/tests/test_consolidation.py) to TypeScript ✅
+- [x] Port `backend/app/services/consolidation.py` to TypeScript ✅
 - [x] Create test harness with sample data ✅
 - [x] Compare outputs with Python implementation ✅
 - [x] Document complexity and edge cases ✅
