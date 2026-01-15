@@ -203,10 +203,11 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const supabase = createAdminClient();
 
             // Parse Deepgram response
+            // Utterances can be at results level or under alternatives (legacy worker handled both)
             const results = response.results || {};
             const channels = results.channels || [];
             const alt = channels[0]?.alternatives?.[0];
-            const utterances = results.utterances;
+            const utterances = results.utterances || (alt as { utterances?: DeepgramUtterance[] })?.utterances;
             const words = alt?.words || [];
 
             // Clear existing segments for idempotency
