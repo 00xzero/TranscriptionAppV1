@@ -27,6 +27,9 @@ const DEEPGRAM_CONCURRENCY = parseInt(
  * Handle transcription request
  * Triggered when user starts a new transcription job.
  * Calls Deepgram async API and stores request_id.
+ * 
+ * On failure (e.g., Deepgram API rejection), emits transcription/failed
+ * so job/project status is updated and users see the error.
  */
 export const handleTranscriptionRequested = inngest.createFunction(
     {
@@ -37,6 +40,28 @@ export const handleTranscriptionRequested = inngest.createFunction(
             limit: DEEPGRAM_CONCURRENCY,
         },
         retries: 2,
+        onFailure: async ({ event, error }) => {
+            // When retries are exhausted, emit failure event
+            const originalEvent = event.data.event;
+            const { projectId, jobId } = originalEvent.data;
+            const errorMessage = error.message || String(error);
+            
+            console.error(`[inngest] Transcription request failed for project ${projectId}:`, errorMessage);
+            
+            // Classify error to detect keyterm issues
+            const classified = classifyError(errorMessage);
+            
+            // Emit transcription/failed to update job/project status
+            await inngest.send({
+                name: "transcription/failed",
+                data: {
+                    projectId,
+                    jobId,
+                    error: errorMessage,
+                    errorType: classified.type,
+                },
+            });
+        },
     },
     { event: "transcription/requested" },
     async ({ event, step }) => {
