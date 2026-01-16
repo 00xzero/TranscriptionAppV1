@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 6 - Consolidation Pipeline Port |
+| **Phase** | 7 - Frontend Data Flow |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -22,7 +22,7 @@
 | 3 | Storage and Upload Flow | ✅ Complete | 2026-01-15 |
 | 4 | Inngest Setup | ✅ Complete | 2026-01-15 |
 | 5 | Deepgram Async Integration | ✅ Complete | 2026-01-15 |
-| 6 | Consolidation Pipeline Port | ⏳ Not Started | - |
+| 6 | Consolidation Pipeline Port | ✅ Complete | 2026-01-16 |
 | 7 | Frontend Data Flow | ⏳ Not Started | - |
 | 8 | Export Parity | ⏳ Not Started | - |
 | 9 | Local Dev Docker | ⏳ Not Started | - |
@@ -168,6 +168,8 @@
 - Need to adapt consolidation.ts to use Supabase instead of in-memory data
 - Consolidation runs after every transcription, before marking "completed"
 - Speaker upsert uses `onConflict: "project_id,label"` - constraint must exist
+- **Deepgram Metadata**: Must use `extra` query param, not JSON body `metadata`
+- **Large Transcripts**: Fetching words by segment IDs requires batching to avoid URL limit errors
 
 **Environment Variables Added:**
 - `SUPABASE_SERVICE_ROLE_KEY` - Required for Inngest DB writes
@@ -175,7 +177,30 @@
 - `DEEPGRAM_CALLBACK_URL` - Optional override for local tunnels
 - `DEEPGRAM_MODEL` - Model selection (default: nova-3)
 
-*(Continue for each phase transition)*
+### Phase 6 → Phase 7
+
+**Key Deliverables Created:**
+- Consolidation service: `lib/inngest/consolidation-service.ts`
+- Updated `handleTranscriptionWebhook` with consolidation step
+
+**Implementation Details:**
+- Consolidation runs as Step 3 in `handleTranscriptionWebhook`
+- Uses admin client (service role) to bypass RLS
+- Fetches segments with word IDs directly from Supabase (Option A)
+- Clears existing chunks before insert (idempotency)
+- Algorithm version: v1.3-ts
+
+**For Phase 7:**
+- Chunks are now generated automatically after transcription
+- Editor should read from `chunks` table (not `segments`)
+- Use `source_segment_ids` for linking back to raw data
+- `is_filler` can be used to style filler chunks differently
+- Replace SWR polling with Supabase Realtime subscriptions
+
+**Gotchas:**
+- Chunks cascade-delete chunk_words (no need for manual cleanup)
+- `chunk_words.order_index` tracks word position within chunk
+- Empty transcriptions result in 0 chunks (no error)
 
 ## Blockers and Dependencies
 
@@ -212,3 +237,9 @@
 | 2026-01-15 | 5 | Service role key for Inngest | Bypasses RLS for background job DB writes |
 | 2026-01-15 | 5 | Callback URL derivation with override | Default from APP_URL, override for tunnels |
 | 2026-01-15 | 5 | nova-3 as default model | Latest Deepgram model, configurable via env var |
+| 2026-01-16 | 6 | Consolidation fetches word IDs from DB | Self-contained service, reusable for re-consolidation |
+| 2026-01-16 | 6 | Consolidation step in webhook handler | Runs after segments/words stored, before completion event |
+| 2026-01-16 | 6 | Idempotent chunk creation | Clear existing chunks before insert, cascade deletes chunk_words |
+| 2026-01-16 | 6 | Deepgram `extra` param for metadata | Standard mechanism for passing metadata to webhook callbacks |
+| 2026-01-16 | 6 | Batched word fetching | Prevents URL length errors for long transcripts (50 per batch) |
+

@@ -40,7 +40,7 @@ Phase 5 implements asynchronous transcription using Deepgram's callback API with
 **TypeScript types exported:**
 - `DeepgramAsyncOptions`, `DeepgramAsyncResponse`
 - `DeepgramUtterance`, `DeepgramWord`, `DeepgramResponse`
-- `ErrorType` ("keyterm" | "general")
+- `ErrorType` ("keyterm_error" | "transcription_error")
 
 ### 3. Updated Inngest Functions
 
@@ -55,15 +55,17 @@ Phase 5 implements asynchronous transcription using Deepgram's callback API with
 1. Calls Deepgram async API with callback URL
 2. Stores `request_id` in jobs table (`inngest_event_id` column)
 3. Updates job status to "processing"
+4. On failure: emits `transcription/failed` with error classification
 
 **`handleTranscriptionWebhook`:**
-1. Finds the processing job for the project
-2. Parses Deepgram response (utterances preferred, words fallback)
+1. Finds the processing job by `inngest_event_id` (requestId)
+2. Parses Deepgram response (checks `results.utterances` then `alt.utterances`)
 3. Clears existing segments for idempotency
-4. Creates/gets speakers with "Speaker X" labels (cached)
+4. Upserts speakers with "Speaker X" labels (cached, uses unique constraint)
 5. Inserts segments with speaker mapping
 6. Inserts words with timestamps and confidence
 7. Triggers `transcription/completed` event
+8. On failure: emits `transcription/failed` with job lookup
 
 **`handleTranscriptionCompleted`:**
 1. Updates job status to "completed" with `finished_at`
@@ -71,9 +73,10 @@ Phase 5 implements asynchronous transcription using Deepgram's callback API with
 3. Updates project `duration_seconds`
 
 **`handleTranscriptionFailed`:**
-1. Classifies error (keyterm vs general)
-2. Updates job with error payload
-3. Updates project status to "error"
+1. Looks up job by `jobId` or falls back to finding processing job by `projectId`
+2. Classifies error (`keyterm_error` vs `transcription_error`)
+3. Updates job with error payload including `error_type`
+4. Updates project status to "error"
 
 ### 4. Updated Start Endpoint
 
@@ -197,11 +200,91 @@ const errorString = typeof error === "string" ? error : String(error);
 **Issue**: Implementation plan used developer-specific absolute file URLs  
 **Fix**: Replaced with relative repository paths for portability
 
-### New Migration
+### 6. Keyterm Parameter Alignment
+**Issue**: Deepgram async request used `keywords` param, but legacy worker and Deepgram docs use `keyterm`  
+**Fix**: Changed param name in `startAsyncTranscription()`:
+```typescript
+// Before: params.append("keywords", term);
+params.append("keyterm", term);
+```
+
+### 7. Error Type Enum Alignment
+**Issue**: Error types used `"keyterm"` / `"general"` but UI checks for `"keyterm_error"` / `"transcription_error"`  
+**Fix**: Updated constants in `deepgram.ts` and `events.ts`:
+```typescript
+export const ERROR_TYPE_KEYTERM = "keyterm_error" as const;
+export const ERROR_TYPE_GENERAL = "transcription_error" as const;
+```
+
+### 8. Webhook onFailure Handler
+**Issue**: When webhook handler fails (e.g., DB insert error), job stayed stuck in "processing"  
+**Fix**: Added `onFailure` callback to `handleTranscriptionWebhook`:
+- Looks up jobId by requestId before emitting
+- Emits `transcription/failed` event
+- Job/project status updated to error
+
+### 9. Request onFailure Handler
+**Issue**: When Deepgram API rejects request (e.g., invalid key terms), job stayed stuck in "queued"  
+**Fix**: Added `onFailure` callback to `handleTranscriptionRequested`:
+- Uses `classifyError()` to detect keyterm errors
+- Emits `transcription/failed` with appropriate error type
+- UI shows "Edit Key Terms" CTA for keyterm errors
+
+### 10. JobId Fallback in Failed Handler
+**Issue**: If `jobId` was empty in `transcription/failed` event, job row wasn't updated  
+**Fix**: Added fallback lookup in `handleTranscriptionFailed`:
+```typescript
+if (!jobId) {
+    const { data: job } = await supabase
+        .from("jobs")
+        .eq("project_id", projectId)
+        .eq("status", "processing")
+        .maybeSingle();
+    if (job) jobId = job.id;
+}
+```
+
+### 11. Utterances Fallback Path
+**Issue**: Webhook parser only checked `results.utterances`, missing `alt.utterances`  
+**Fix**: Added fallback matching legacy worker behavior:
+```typescript
+const utterances = results.utterances || (alt as { utterances?: DeepgramUtterance[] })?.utterances;
+```
+
+### 12. Migration Deduplication
+**Issue**: Adding UNIQUE constraint would fail if duplicate speaker labels already exist  
+**Fix**: Migration now deduplicates before adding constraint:
+1. Creates temp table with duplicate→keeper mapping
+2. Updates segments to point to keeper speaker
+3. Updates chunks to point to keeper speaker
+4. Deletes duplicate speakers
+5. Adds UNIQUE constraint
+
+### New Migration (Updated)
 Created `infra/supabase/migrations/20260115000000_speakers_unique_constraint.sql`:
 ```sql
-ALTER TABLE speakers
-ADD CONSTRAINT speakers_project_id_label_unique UNIQUE (project_id, label);
+-- Create temp table with dedup mapping
+CREATE TEMP TABLE speaker_dedup_map AS
+WITH duplicates AS (
+    SELECT id, project_id, label,
+           ROW_NUMBER() OVER (PARTITION BY project_id, label 
+                              ORDER BY created_at ASC, id ASC) as rn
+    FROM speakers
+),
+keepers AS (SELECT id, project_id, label FROM duplicates WHERE rn = 1)
+SELECT d.id as old_id, k.id as new_id
+FROM duplicates d
+JOIN keepers k ON d.project_id = k.project_id AND d.label = k.label
+WHERE d.rn > 1;
+
+-- Update foreign key references
+UPDATE segments SET speaker_id = m.new_id FROM speaker_dedup_map m WHERE speaker_id = m.old_id;
+UPDATE chunks SET speaker_id = m.new_id FROM speaker_dedup_map m WHERE speaker_id = m.old_id;
+
+-- Delete duplicates and add constraint
+DELETE FROM speakers WHERE id IN (SELECT old_id FROM speaker_dedup_map);
+DROP TABLE speaker_dedup_map;
+ALTER TABLE speakers ADD CONSTRAINT speakers_project_id_label_unique UNIQUE (project_id, label);
 ```
 
 ---

@@ -44,13 +44,16 @@ export async function POST(request: NextRequest) {
         }
 
         const payload = await request.json();
-        const requestId = payload.request_id;
 
-        // Extract project ID from metadata (set when calling Deepgram in Phase 5)
-        const projectId = payload.metadata?.project_id;
+        // Extract metadata from payload
+        // Deepgram returns request_id in metadata object and extra params in metadata.extra
+        const metadata = payload.metadata;
+        const requestId = metadata?.request_id;
+        const projectId = metadata?.extra?.project_id;
 
         if (!projectId || !requestId) {
             console.warn("Missing project_id or request_id in webhook payload");
+            console.warn("Payload metadata:", JSON.stringify(metadata, null, 2));
             return NextResponse.json(
                 { error: "Missing project_id or request_id" },
                 { status: 400 }

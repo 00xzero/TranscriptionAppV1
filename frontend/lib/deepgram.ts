@@ -118,6 +118,9 @@ export async function startAsyncTranscription(
     params.append("utterances", "true");
     params.append("callback", callbackUrl);
 
+    // Pass project ID via extra parameter (returned in metadata.extra in callback)
+    params.append("extra", `project_id:${projectId}`);
+
     // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {
         console.log(`[deepgram] Sending ${keyTerms.length} key terms`);
@@ -137,9 +140,6 @@ export async function startAsyncTranscription(
             },
             body: JSON.stringify({
                 url: mediaUrl,
-                metadata: {
-                    project_id: projectId,
-                },
             }),
         });
 

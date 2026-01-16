@@ -1,0 +1,2206 @@
+{
+  "project": {
+    "id": "a6c35775-9001-4e5e-93db-f2675fc22265",
+    "title": "KT Session - Quality II - 18th Dec 25.mp3",
+    "status": "completed"
+  },
+  "stats": {
+    "segmentCount": 560,
+    "chunkCount": 270,
+    "wordCount": null,
+    "speakerCount": 7,
+    "consolidationRatio": "48.2%"
+  },
+  "speakers": [
+    {
+      "id": "c730dec5-f30a-4564-9e45-b16cdc720942",
+      "label": "Speaker 1"
+    },
+    {
+      "id": "55d18c60-3659-4d42-b314-18490a51e39c",
+      "label": "Speaker 0"
+    },
+    {
+      "id": "37a2c5dd-a9c1-4c9f-b79d-71ad233a06a1",
+      "label": "Speaker 2"
+    },
+    {
+      "id": "6e91bd9a-aec0-4aa4-b872-7cd68c2a2587",
+      "label": "Speaker 3"
+    },
+    {
+      "id": "2fabed91-eaf1-4dba-acab-e424e5b5a81d",
+      "label": "Speaker 4"
+    },
+    {
+      "id": "9e1e99a8-1d31-4b6f-a4a1-5d5ae29d29bb",
+      "label": "Speaker 5"
+    },
+    {
+      "id": "ed914bd5-bbfd-4daf-bba6-6fa7998be255",
+      "label": "Speaker 6"
+    }
+  ],
+  "chunks": [
+    {
+      "startTime": "0:02",
+      "endTime": "0:14",
+      "speaker": "Speaker 1",
+      "text": "Through the questions? Yes, Rishi. Thank yeah. I'll I'll do that. Thank you. Hello, everyone. So as Rishi has already mentioned that it would be kind of a, you know, question and answer, kind of discussion that we'll have today.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "0:14",
+      "endTime": "0:23",
+      "speaker": "Speaker 1",
+      "text": "And, there was set of questions that we have documented last, last time when we met for the quality Katie sessions. We received certain answers as well,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "0:23",
+      "endTime": "0:33",
+      "speaker": "Speaker 1",
+      "text": "from the side. So few of them, very straightforward. If I go to the first one, like, are there any exception case where raw materials are received at Stettina or Atticula? So,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "0:34",
+      "endTime": "0:47",
+      "speaker": "Speaker 1",
+      "text": "like, you know, the good receipt, it happens for raw material and packaging material at all the warehouses locations. So it happens at Stettina, at at Ecola, and at Naviste as well. So this is a straight answer to the question.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "0:48",
+      "endTime": "1:00",
+      "speaker": "Speaker 1",
+      "text": "And I I'll move on to the questions. If there is anything, maybe you can just pitch in if there is any comment or Yeah. Maybe on just on that, Amit, just to quickly, you know, qualify that. So as we",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "1:00",
+      "endTime": "1:08",
+      "speaker": "Speaker 0",
+      "text": "discussed in the previous calls, so there are three physical sites. Yeah. So there is Tatena, which is the main manufacturing site, but it has limited storage capacity.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "1:09",
+      "endTime": "1:18",
+      "speaker": "Speaker 0",
+      "text": "There is Atecula, which is the main warehouse site where storage happens. And then there is Noastay, which is the which is the overflow warehouse.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "1:18",
+      "endTime": "1:33",
+      "speaker": "Speaker 0",
+      "text": "Yeah. So if there is lack of space in in Atecula, then Noastay is used. And Noastay is only used for packaging and raw materials. So it is not used for finished goods. When it comes to goods receipts of raw materials,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "1:33",
+      "endTime": "1:46",
+      "speaker": "Speaker 0",
+      "text": "this can happen physically at all the three locations. Yeah? So that is the answer we have confirmed. So if it is urgently required, it is directly received at starting and then used for production.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "1:47",
+      "endTime": "2:01",
+      "speaker": "Speaker 0",
+      "text": "In a in an ideal world, in in a default state, it is first received at Reticula. Yeah. But the goods receipt can happen at all the three sites. But then also connecting it back to the organization structure because,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "2:01",
+      "endTime": "2:15",
+      "speaker": "Speaker 0",
+      "text": "I mean, we have already arrived at this design decision that this these all three physical sites will be one plant and even one warehouse as far as their design is concerned. And therefore, from a",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "2:15",
+      "endTime": "2:29",
+      "speaker": "Speaker 0",
+      "text": "SAP design perspective, it it is not any impact at all. So you will receive it and then you will allocate it to the appropriate storage location and storage bin inside SAP.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "2:33",
+      "endTime": "2:35",
+      "speaker": "Speaker 0",
+      "text": "Any questions, comments?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "2:41",
+      "endTime": "2:44",
+      "speaker": "Speaker 0",
+      "text": "Yes, Nava. Yeah. Amit, we move to the next one.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "2:45",
+      "endTime": "2:56",
+      "speaker": "Speaker 1",
+      "text": "So yeah. So the next one was specifically on the release that whether the raw materials that are being received can be used, you know, before the quality release in in supermarket.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "2:56",
+      "endTime": "3:11",
+      "speaker": "Speaker 1",
+      "text": "So the answer is no. RM needs to be released. You know, the raw material need to be released before it goes to the supermarket. And then additionally, for finished goods as well, which are actually produced or manufactured in Statena,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "3:11",
+      "endTime": "3:26",
+      "speaker": "Speaker 1",
+      "text": "once they are moved to a tequila location for final shipment, even before they they are shipped to the final affiliates, or end customers, they need to be quality released. So this is the process that they follow as of now. Quality release is",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "3:26",
+      "endTime": "3:35",
+      "speaker": "Speaker 1",
+      "text": "pretty much you know, we have to do the quality release there before moving the So raw materials or finished goods. So it means they are not doing at all any",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "3:36",
+      "endTime": "3:41",
+      "speaker": "Speaker 2",
+      "text": "consumption at risk manufacturing at risk. They are releasing everything before to consume. Right?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "3:41",
+      "endTime": "3:42",
+      "speaker": "Speaker 0",
+      "text": "Yes.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "3:43",
+      "endTime": "3:47",
+      "speaker": "Speaker 3",
+      "text": "Okay. I",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "3:51",
+      "endTime": "3:54",
+      "speaker": "Speaker 2",
+      "text": "can't see you anymore. I don't know if it's only me.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "3:55",
+      "endTime": "3:57",
+      "speaker": "Speaker 4",
+      "text": "No. Same for me. You've always been breaking.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "3:58",
+      "endTime": "3:59",
+      "speaker": "Speaker 1",
+      "text": "Yeah. It seems there is some issue.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "4:00",
+      "endTime": "4:11",
+      "speaker": "Speaker 2",
+      "text": "Yeah. You are, like, underwater. It's not better. I assume this was your question, but it's not.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "4:12",
+      "endTime": "4:19",
+      "speaker": "Speaker 1",
+      "text": "Maybe, Rishi, if you can turn off your video, it will help. In the meanwhile, I'll move to the next question.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "4:22",
+      "endTime": "4:22",
+      "speaker": "Speaker 3",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "4:25",
+      "endTime": "4:37",
+      "speaker": "Speaker 1",
+      "text": "So that yeah. So the next one was, is there any additional quality inspection required during weighing orders, whatever other weighing orders? So, again, here as well, we don't it is not required.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "4:37",
+      "endTime": "4:48",
+      "speaker": "Speaker 1",
+      "text": "Is no extra release of quality on supermarket, and therefore, you know, it it it is not required. So no additional quality releases, required for any of the supermarket consumption.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "4:50",
+      "endTime": "4:57",
+      "speaker": "Speaker 1",
+      "text": "K. The fourth question is somewhat similar. Like, we because the though the questions were,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "4:58",
+      "endTime": "5:07",
+      "speaker": "Speaker 1",
+      "text": "I would say, in written in a different way, but more or less, they they are similar kind of concept, like, whether there is a release or an approval necessary",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "5:07",
+      "endTime": "5:20",
+      "speaker": "Speaker 1",
+      "text": "before an RM can be moved physically. So RM is not used before quality release. It can't be used. It has to be released only it has to be used only after the quality release. Then there was very specific ask for the",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "5:21",
+      "endTime": "5:23",
+      "speaker": "Speaker 1",
+      "text": "labels that are that are, you know, Sorry. Current",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "5:25",
+      "endTime": "5:37",
+      "speaker": "Speaker 2",
+      "text": "Sorry. Be be before you go to the next one, I can't remember who has this question neither. What was the the context of the question, but I think the question was before it can be moved physically.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "5:37",
+      "endTime": "5:51",
+      "speaker": "Speaker 2",
+      "text": "I think the answer we get is that is not huge before quality release, but moving from one place to another place even before it's consumed. At least I read this question this way. Move physically, I think, is different than used.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "5:54",
+      "endTime": "6:07",
+      "speaker": "Speaker 1",
+      "text": "Correct. You're right. You're right, Marie. But, basically, like, you know, it was more on the consumption part. But if it is specifically for a physical movement, for FG, it applies. For RM,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "6:07",
+      "endTime": "6:20",
+      "speaker": "Speaker 1",
+      "text": "maybe we can crosscheck it again. But for FG, it applies. You can move it, but you can't ship it directly to the final vendor or affiliates. But we can check this point from you with the physical menu. Mhmm. Thank",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "6:20",
+      "endTime": "6:21",
+      "speaker": "Speaker 3",
+      "text": "you. Okay.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "6:22",
+      "endTime": "6:33",
+      "speaker": "Speaker 1",
+      "text": "Then the fifth and sixth question are a combination of the labels that are generally that are printed in Helzenberg. So we were following up with site people to get the labels.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "6:33",
+      "endTime": "6:43",
+      "speaker": "Speaker 1",
+      "text": "It was, like, multiple times that we followed up, and we got few of the samples as well. Shuam, if you can switch to the PPT, please. Yes.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "7:01",
+      "endTime": "7:09",
+      "speaker": "Speaker 1",
+      "text": "Yep. Thank you. So these are the four labels that we have received other than and we had also received certain, you know, shipping",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "7:09",
+      "endTime": "7:22",
+      "speaker": "Speaker 1",
+      "text": "document forms as well. So these are very specific to the good receipt, the sample label, the finished good or shipping label, and the post production label, which is printed at pass x or or they call it a PASX label as well.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "7:23",
+      "endTime": "7:37",
+      "speaker": "Speaker 1",
+      "text": "So, Marie, what what we have observed after receiving these labels and, doing analysis of these labels along with the current one s four template, what we what we have seen that there is no, as such, you know, deviation",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "7:37",
+      "endTime": "7:40",
+      "speaker": "Speaker 1",
+      "text": "deviation in a sense, the site, so,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "7:41",
+      "endTime": "8:01",
+      "speaker": "Speaker 1",
+      "text": "one more point to be made. We received these labels, but we didn't got the time to work with site team. We didn't get the attendance from the site team to work on the alignment. Like, if we have certain thing in one four, we and it just be printed in a certain way. We didn't have that, you know, that connect where we can align. But after analyzing the one s four template labels,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "8:01",
+      "endTime": "8:16",
+      "speaker": "Speaker 1",
+      "text": "what is observed that they they don't have very specific ask for for an example. If I give you an example, for Waldoroy, we had very specific ask from site team that they need a material identifier for a pharma or a consumer product in their labels.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "8:16",
+      "endTime": "8:31",
+      "speaker": "Speaker 1",
+      "text": "So those kind of typical ask which may then, you know, go into the gap and and the deviation were not in HSB, but which we have found. And these are the four labels as of now that we have received. They do print other labels as well,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "8:32",
+      "endTime": "8:46",
+      "speaker": "Speaker 1",
+      "text": "but then we were not able to get that from the site. And these, you know, these label discussion may need further deep dives as well. But these labels are available on the deck, and it will be helpful when once the deep dive session would have happened with the site people later on.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "8:47",
+      "endTime": "8:53",
+      "speaker": "Speaker 0",
+      "text": "Yeah. But in general, I think sorry. Can you hear me now? Sorry about the Yes, Rishi. Yeah. Yeah. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "8:53",
+      "endTime": "9:04",
+      "speaker": "Speaker 0",
+      "text": "So there there doesn't appear to be a major gap anywhere. Yeah. I mean, the the label format that we have inside the template right now will be reusable for Elzingo.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "9:06",
+      "endTime": "9:20",
+      "speaker": "Speaker 0",
+      "text": "Yeah. So in Valderoy, as as Amit was saying, there was this specific ask about about yeah. I'm sorry. Don't don't type anything because I'm worried if any other app slows me down. Yeah. So",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "9:21",
+      "endTime": "9:35",
+      "speaker": "Speaker 0",
+      "text": "yeah. So the yeah. So Walderoy had this unique sort of scenario where they have this thing called a material identifier that they use today, which will which which",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "9:35",
+      "endTime": "9:46",
+      "speaker": "Speaker 0",
+      "text": "may result in a in a potential gap. But in in Elsinburg, we don't we don't see that. Yeah. So there are different types of labels, but most of them is",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "9:47",
+      "endTime": "9:51",
+      "speaker": "Speaker 0",
+      "text": "are are, you know, fully adhered to in terms of the template.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "9:54",
+      "endTime": "9:59",
+      "speaker": "Speaker 2",
+      "text": "And I I have a question because you mentioned identification. So are we",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "10:01",
+      "endTime": "10:10",
+      "speaker": "Speaker 2",
+      "text": "I I I'm not so sure we get the answer on this on serialization because serialization would request a new number as well here. Right? Or is it what you are talking about when you are saying that Valdore was",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "10:11",
+      "endTime": "10:16",
+      "speaker": "Speaker 2",
+      "text": "potentially asking for an additional number? Is what you mean? Is it serialization number that we are talking? Serialization",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "10:16",
+      "endTime": "10:29",
+      "speaker": "Speaker 0",
+      "text": "number exists, summary at at Helsingborg. But again, that's not a not a gap. I mean, that we had we had a discussion on this. So serialization as a design was created for Madrid, but it was not deployed.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "10:30",
+      "endTime": "10:43",
+      "speaker": "Speaker 0",
+      "text": "So we compared it with that. But what I was talking about for Walderoy was slightly different. In Walderoy, I I don't I mean, this this session was mainly focusing on Elzingo, but just since we are on it, for Wilderoi,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "10:43",
+      "endTime": "10:48",
+      "speaker": "Speaker 0",
+      "text": "they have two plants right now in the system. So Let let let's let's sorry,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "10:49",
+      "endTime": "10:58",
+      "speaker": "Speaker 2",
+      "text": "Richie. We we have only thirty minutes, so let's focus only on Elzingo. I don't want to to know at least for now on on Valderay. Okay. My question is really serialization",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "10:58",
+      "endTime": "11:10",
+      "speaker": "Speaker 0",
+      "text": "in Elzingo. Do they have it or not? I'm I'm not so clear. They have it. They have it. They have it. Okay. For a packaging line? Yeah. They have it. Okay. Good. Thank you. Yeah. And if you need details, it's there in the make slide pack. Maria,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "11:10",
+      "endTime": "11:28",
+      "speaker": "Speaker 2",
+      "text": "Hamzah, let's make sure we are sharing the make slide pack as well because there will be integration touch points. Yeah. So that detail is captured there. If you can share and give us access because I asked Maharaj, you already provide me the invite from make and the recording, but I don't have access to it. I don't know if I've been given since I asked,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "11:28",
+      "endTime": "11:35",
+      "speaker": "Speaker 2",
+      "text": "but yesterday, at least I could not. So if you can be sure that you provide us, at least to to me and I will share to the team to show all",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "11:35",
+      "endTime": "11:44",
+      "speaker": "Speaker 2",
+      "text": "the recording you have been doing and to ensure that we we have access to it. We can listen to them. Thank you. Absolutely. Of course. Yeah. Sure.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "11:46",
+      "endTime": "11:52",
+      "speaker": "Speaker 0",
+      "text": "Okay. Yeah. Just conscious of the time, Amit. Let's move on. Yeah. Shubham, if you can come back to the Excel.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "11:52",
+      "endTime": "12:03",
+      "speaker": "Speaker 1",
+      "text": "So the deck contains the samples that we have received. There will there would be few more samples if you see in question six where we got some answers that how and where they are printed, but we",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "12:04",
+      "endTime": "12:15",
+      "speaker": "Speaker 1",
+      "text": "don't have the labels as of now. For example, few of them, the Entrest TNT, the track and trace packaging lines. The label for this is printed at the Entrest system.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "12:15",
+      "endTime": "12:24",
+      "speaker": "Speaker 1",
+      "text": "But then, again, the information or or the, you know, the data that needs to be printed, it is transferred to the system, via Mubix.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "12:24",
+      "endTime": "12:34",
+      "speaker": "Speaker 1",
+      "text": "So it is sent from, PASX to Entrez, but it is via Mubix system. So this is these are certain information that we have documented so far, whatever we have received from the site team.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "12:36",
+      "endTime": "12:39",
+      "speaker": "Speaker 1",
+      "text": "Any specific ask on the label summary?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "12:39",
+      "endTime": "12:55",
+      "speaker": "Speaker 2",
+      "text": "Like, you know, if if there is anything very specific that needs to be Please. Documented. Don't ask only the question and don't only talk to me. You know, there is a big team with me. It's it's Yeah. Maybe anyone. For only being me. You know? I'm not it's not only me, this team. I I have many people working with",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "12:56",
+      "endTime": "13:11",
+      "speaker": "Speaker 1",
+      "text": "me here. So they may have question as well. Exactly. So if there is anything very specific ask around the labels, you know, we can again try to reach out to site team and get those details. But, whatever is the detail that we have received, these are documented.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "13:12",
+      "endTime": "13:20",
+      "speaker": "Speaker 1",
+      "text": "Mhmm. Okay. To the seventh question, which was very specific to the LIMS integration, how the,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "13:20",
+      "endTime": "13:32",
+      "speaker": "Speaker 1",
+      "text": "you know, how how the LIMS integration works. So PASX again, PASX is not integrated with LIMS directly, but the data moved from PASX to Movex and then, Movex to PASX. Now",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "13:32",
+      "endTime": "13:43",
+      "speaker": "Speaker 1",
+      "text": "further on the what information in terms of scoping that we received is that currently the LIM system assist system is the VX version six system in Helzenberg,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "13:43",
+      "endTime": "13:57",
+      "speaker": "Speaker 1",
+      "text": "and the plan is, of course, to move to the global LIMs, which we assume is version eight. So, potentially, again, no deviation as such in future. The site would be onboarded to the LEMS system, which is available, and",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "13:57",
+      "endTime": "14:11",
+      "speaker": "Speaker 1",
+      "text": "there were no deviations as such called out too. But any inputs here from anyone, Like, you know, any any further, details to be investigated for LIMS?",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "14:17",
+      "endTime": "14:19",
+      "speaker": "Speaker 4",
+      "text": "Yep. Okay. Okay. The",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "14:19",
+      "endTime": "14:24",
+      "speaker": "Speaker 1",
+      "text": "next question, which is the eighth one, which was very specific to batch release,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "14:24",
+      "endTime": "14:42",
+      "speaker": "Speaker 1",
+      "text": "is it at the batch level or at the pilot level? So the information that we received from the site is that it can be at the batch or a pilot label, but it is determined by the material type. So whatever is the material type setup, accordingly, batch or the pilot label releases determined.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "14:43",
+      "endTime": "14:52",
+      "speaker": "Speaker 1",
+      "text": "There is an example quoted as well for nicotine materials are released at batch level while the other material types can be at pallet level. So these are specific, input that we have received from site.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "14:55",
+      "endTime": "15:03",
+      "speaker": "Speaker 0",
+      "text": "That's mainly as an example. Yeah. I mean, what happens, it connects back again. Please refer to the make slide. So we had a a detailed discussion on this yesterday.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "15:04",
+      "endTime": "15:19",
+      "speaker": "Speaker 0",
+      "text": "So, you know, there is there is a certain way they as part of their supermarket setup, they look at a a batch in their current system, which may not be exactly how it is translated one on one in the one s four template. Yeah. So some of these things will change",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "15:20",
+      "endTime": "15:29",
+      "speaker": "Speaker 0",
+      "text": "going forward as well. But in the meantime, if you look at it from a current perspective, the batch release can happen at either",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "15:30",
+      "endTime": "15:42",
+      "speaker": "Speaker 0",
+      "text": "the the batch level or the pallet level. Both both are possible and this is determined by the material type. So so mainly it's controlled by if because there are nicotine controlled substances.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "15:42",
+      "endTime": "15:48",
+      "speaker": "Speaker 0",
+      "text": "So those have specific control procedures, whereas some others which do not need that level of control.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "15:53",
+      "endTime": "15:59",
+      "speaker": "Speaker 2",
+      "text": "Is this so this is a gap concept versus a template. Right?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "16:00",
+      "endTime": "16:08",
+      "speaker": "Speaker 0",
+      "text": "Potentially, Marie. I mean, we have not called it a gap right now, but it's it will be determined through the the the make process",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "16:09",
+      "endTime": "16:24",
+      "speaker": "Speaker 0",
+      "text": "in terms of the batch definition and and the concept of the palette, how they have it currently at Helsinko. So this this will need a further deep dive because this is also in a way connected to the integration between PassX and Movex. So this was something we recorded yesterday",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "16:24",
+      "endTime": "16:35",
+      "speaker": "Speaker 0",
+      "text": "together with Chandra and Francois. So so they are aware of this. So it will need a further deep dive. But, yes, it Okay. May result in a potential gap. I wouldn't call it a gap at this point of time.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "16:35",
+      "endTime": "16:50",
+      "speaker": "Speaker 2",
+      "text": "Okay. Can you identify clearly, you know, on the on on this file, you know, I think what what we think it's a deviation or not or or to have, I don't know, either an additional color, neither a good color. So that would be okay. This is",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "16:50",
+      "endTime": "17:03",
+      "speaker": "Speaker 2",
+      "text": "as per template, no change. It's okay. So we get the answer to the question. Fine. No big deal. Or here, maybe we need to deep dive a bit more if it can help us. So that that would help us. Thank you. Will do. Thank you.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "17:07",
+      "endTime": "17:19",
+      "speaker": "Speaker 1",
+      "text": "Yeah. Coming to the next question on batch release review and, Shoham, like, if you can just switch to tech and, Rishi, if you can just take this up, the BRR part. Yeah. It's related to what I was just saying. Right? Yeah. So",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "17:21",
+      "endTime": "17:34",
+      "speaker": "Speaker 0",
+      "text": "yeah. So so what happens is there is currently an interface, which is used, to to sort of do the batch release from pass x to currently Moox.",
+      "isFiller": false,
+      "sourceSegments": 6
+    },
+    {
+      "startTime": "17:35",
+      "endTime": "17:48",
+      "speaker": "Speaker 0",
+      "text": "But if we were to change this part of the design, then pass x would have to be changed. And and this is the potential gap which is connected to the the point that we were discussing just earlier as well. Yeah. So",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "17:49",
+      "endTime": "18:01",
+      "speaker": "Speaker 0",
+      "text": "in in terms of a going in position, we have sort of discussed that ideally we would not want to touch pass six, you know, in terms of any system configuration or design.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "18:01",
+      "endTime": "18:13",
+      "speaker": "Speaker 0",
+      "text": "And if that does not happen, then that means this interface will exist the way it is. And therefore, there will have to be an adjustment to be made on the one s four side to accommodate this this",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "18:14",
+      "endTime": "18:24",
+      "speaker": "Speaker 2",
+      "text": "batch release review as they call it. When you say Richie, when you say the we didn't want to change pass x account quote to your sentence anymore, who is we?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "18:26",
+      "endTime": "18:40",
+      "speaker": "Speaker 0",
+      "text": "Was it Elsinburg request or No. No. No. It's not a Elsinburg request, Marie. It's mainly a conversation that started between, you know, which started with a thought between this team, the the BPO SWAT team that was working on Elsinburg and Walderoy,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "18:40",
+      "endTime": "18:53",
+      "speaker": "Speaker 0",
+      "text": "me and the rest of the team. And then we have sort of bounced off these discussions together with Francois Chandra in the make sessions, and and that's where we are. So we have recorded that as an output, but that will also then have a,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "18:54",
+      "endTime": "19:02",
+      "speaker": "Speaker 0",
+      "text": "let's say, a subsequent collateral, you know, impact on the quality process. That's what I meant. Thank",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "19:03",
+      "endTime": "19:04",
+      "speaker": "Speaker 5",
+      "text": "you. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "19:09",
+      "endTime": "19:11",
+      "speaker": "Speaker 0",
+      "text": "Yeah. Okay. I think we can move on.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "19:12",
+      "endTime": "19:27",
+      "speaker": "Speaker 1",
+      "text": "Shubham, if we can come back to the Excel, please. Yep. Now ninth and tenth, you know, were the kind of BRR questions which Tricia has already covered. Eleventh question was regarding the two ETQ and Mensen systems,",
+      "isFiller": false,
+      "sourceSegments": 6
+    },
+    {
+      "startTime": "19:27",
+      "endTime": "19:29",
+      "speaker": "Speaker 1",
+      "text": "whether they are independent or",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "19:30",
+      "endTime": "19:49",
+      "speaker": "Speaker 1",
+      "text": "how they are used. So I mentioned it caters to the inbound processes mainly and ETQ for bulk and finished goods. But then we got further information from site where it is specifically called out or from the BPOs as well that mentioned is out of scope for s four. So that we didn't concentrate in much there. For ETQ,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "19:49",
+      "endTime": "20:03",
+      "speaker": "Speaker 1",
+      "text": "the specific task that are being done is investigation during production and recording deviations and the quality notifications part. So these are certain information that we have received from site, but it will it will definitely require",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "20:03",
+      "endTime": "20:10",
+      "speaker": "Speaker 1",
+      "text": "some further deep dive analysis and sessions in order to understand how the eTUQ has to be integrated.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "20:12",
+      "endTime": "20:19",
+      "speaker": "Speaker 1",
+      "text": "So we have very, you know, briefly covered the pointers here, what what exactly the ecosystem does as of now.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "20:20",
+      "endTime": "20:23",
+      "speaker": "Speaker 2",
+      "text": "And and did they had concern with whatever we are doing? Or",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "20:24",
+      "endTime": "20:25",
+      "speaker": "Speaker 4",
+      "text": "No.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "20:25",
+      "endTime": "20:27",
+      "speaker": "Speaker 3",
+      "text": "Okay. No. Thank you. No.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "20:30",
+      "endTime": "20:42",
+      "speaker": "Speaker 1",
+      "text": "Twelfth, SUI process, I think we have covered it multiple times in different sessions. It is not applicable at Heldenburg. Mhmm. The scrapping part, thirteenth and fourteenth question mainly,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "20:43",
+      "endTime": "20:54",
+      "speaker": "Speaker 1",
+      "text": "they are, like, kind of a mix of a question where it is specifically asked that whether there are any subcontractors involved. So there is a separate department which handles scrapping,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "20:54",
+      "endTime": "21:06",
+      "speaker": "Speaker 1",
+      "text": "and then materials are sent away for final destruction. What we understood from site that, yes, there was a subcontractor involved in the past, but that process or that, you know, function has been discontinued now.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "21:07",
+      "endTime": "21:12",
+      "speaker": "Speaker 1",
+      "text": "So this this is the information that specifically we have received from the site for on subcontractors.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "21:13",
+      "endTime": "21:16",
+      "speaker": "Speaker 2",
+      "text": "So does that mean that they are doing destruction on-site. Right?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "21:18",
+      "endTime": "21:18",
+      "speaker": "Speaker 0",
+      "text": "Yes.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "21:19",
+      "endTime": "21:21",
+      "speaker": "Speaker 1",
+      "text": "Yeah. It's a separate department and the site.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "21:22",
+      "endTime": "21:27",
+      "speaker": "Speaker 2",
+      "text": "Yeah. But even if it's a separate department, this is handled by the site. Handled by the site. And done on-site.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "21:28",
+      "endTime": "21:42",
+      "speaker": "Speaker 0",
+      "text": "Yeah. There was a subcontracting element earlier here, but that has been discontinued. And and based on whatever we know so far, there is no major subcontracting element anywhere",
+      "isFiller": false,
+      "sourceSegments": 6
+    },
+    {
+      "startTime": "21:42",
+      "endTime": "21:55",
+      "speaker": "Speaker 0",
+      "text": "in in any of the processes. Yeah. There was a subcontractor involvement in the packaging line at at Atticula only. There was no subcontracting element at Staterna, but even that has now stopped.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "21:57",
+      "endTime": "22:09",
+      "speaker": "Speaker 0",
+      "text": "So so there is no subcontractor process as such. There is only one open question, I think, which is a little further below. What was that Sean, where is that gone? The",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "22:10",
+      "endTime": "22:13",
+      "speaker": "Speaker 0",
+      "text": "there was some subcontractor element",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "22:13",
+      "endTime": "22:19",
+      "speaker": "Speaker 6",
+      "text": "that we have Sorry. Yeah. It was on mute. So fourteen and fifteen question.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "22:22",
+      "endTime": "22:36",
+      "speaker": "Speaker 0",
+      "text": "Repackaging of taste samples. Yeah. I think it's a very minor somewhere, you know, but but I don't think this involves any quality or make or any other logistical processes. This would be",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "22:37",
+      "endTime": "22:44",
+      "speaker": "Speaker 0",
+      "text": "purely a finance driven subcontracting purchase order process, if at all?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "22:47",
+      "endTime": "22:48",
+      "speaker": "Speaker 2",
+      "text": "Did it work, you mean?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "22:49",
+      "endTime": "22:56",
+      "speaker": "Speaker 0",
+      "text": "No. I mean, so the taste samples, Marie. So I think I I don't know, to be honest. I I don't want to give any wrong information.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "22:57",
+      "endTime": "23:02",
+      "speaker": "Speaker 2",
+      "text": "So Which item are you here? I'm lost. Test sample. What do you mean? Don't know where you are. 14.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "23:05",
+      "endTime": "23:17",
+      "speaker": "Speaker 0",
+      "text": "So is repacking work? So the first one was for the scrapping. So scrapping, we have just discussed. But then on 14, this is related to repackaging work, which is done on the site, which may involve a subcontractor.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "23:19",
+      "endTime": "23:30",
+      "speaker": "Speaker 2",
+      "text": "So repackaging But it may have it it may have an impact on on quality here. We we need to have a rework process. So I think so. Yeah. Okay.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "23:30",
+      "endTime": "23:45",
+      "speaker": "Speaker 0",
+      "text": "Maybe we can we can keep that under record and and check it again. But it was also based on our understanding, a very small subset of what are being called taste samples. Honestly, don't have any more information compared. And",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "23:46",
+      "endTime": "23:53",
+      "speaker": "Speaker 2",
+      "text": "and and sorry to come back on the one before. So you say there is no subcontractor, but can you please confirm that",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "23:55",
+      "endTime": "24:02",
+      "speaker": "Speaker 2",
+      "text": "the scrapping is done at the sites and executed at the site? We will ask again. Mean, we have asked this a multiple Because the",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "24:03",
+      "endTime": "24:14",
+      "speaker": "Speaker 2",
+      "text": "answer we are getting is not 1% clear. We are saying, so the answer is, okay, it's not done or we don't have any contract with a subcontractor. But okay, is it still done at the site? Question mark.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "24:15",
+      "endTime": "24:27",
+      "speaker": "Speaker 2",
+      "text": "I am so, but it's it's not 1% clear. Know, and sometime this is where we are getting lost into the detail and the way we are failing. So sorry to to be No. No. It's clear. Clear. Clear. Clear. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "24:32",
+      "endTime": "24:45",
+      "speaker": "Speaker 1",
+      "text": "Yep. Over to the next question, which is, like, how will supermarket the sixteenth line? How will be the supermarket and pass six to be integrated with template? So this is, like",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "24:46",
+      "endTime": "24:58",
+      "speaker": "Speaker 1",
+      "text": "it's it's documented in the make slide pack, but, like, you know, in it is covered in a detailed manner there. But, Rishi, if you do you want to talk about this? Or we I think we have already covered this in yesterday's session. But",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "24:59",
+      "endTime": "25:12",
+      "speaker": "Speaker 0",
+      "text": "No. I would say we shared this slide because this will take, to one hour one hour to explain. Yeah? So it's all detailed, very clearly Check. In the make warehouse if you can just review that. Yeah. It's captured in a lot of detail.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "25:16",
+      "endTime": "25:27",
+      "speaker": "Speaker 1",
+      "text": "Yep. The seventeenth line, which talks about the manufacturing date and expiry date, how where actually, the question was, like, how where they are calculated.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "25:27",
+      "endTime": "25:38",
+      "speaker": "Speaker 1",
+      "text": "It comes from Movex. What was the answer? And then there is a there is a slide how it shows, like, how the calculation is done. It is present in this quality KT package itself.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "25:39",
+      "endTime": "25:43",
+      "speaker": "Speaker 1",
+      "text": "But majorly, there's a Movex system from where these these dates are, you know,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "25:44",
+      "endTime": "25:54",
+      "speaker": "Speaker 2",
+      "text": "sent over. Yeah. But it it it's coming from Movex today. Right? Yes. But from Movex, where is it the date coming from? Is it coming from another system?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "25:55",
+      "endTime": "25:56",
+      "speaker": "Speaker 0",
+      "text": "From Pathx. Pathx.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "25:57",
+      "endTime": "26:12",
+      "speaker": "Speaker 2",
+      "text": "So it's coming pass x is giving this day to Movex. Right? Correct. Yes. Okay. So it means that for one s four, we would need to have it from pass x to s four. Correct. Correct. Do do you mind to share quickly the slide 35?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "26:12",
+      "endTime": "26:14",
+      "speaker": "Speaker 3",
+      "text": "Yeah. Yeah. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "26:16",
+      "endTime": "26:17",
+      "speaker": "Speaker 6",
+      "text": "Yes. I'll",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "26:18",
+      "endTime": "26:27",
+      "speaker": "Speaker 5",
+      "text": "Rishi, another question. You mentioned only on the finished product. What about for the bulks or the hull material?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "26:28",
+      "endTime": "26:29",
+      "speaker": "Speaker 0",
+      "text": "It's it's here. Okay.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "26:32",
+      "endTime": "26:35",
+      "speaker": "Speaker 2",
+      "text": "But this slide is the one coming from us. Right? This is the",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "26:36",
+      "endTime": "26:49",
+      "speaker": "Speaker 0",
+      "text": "template. What is here. Right? No. No. No. It's not. It's not, Marie. This is the logic that Okay. It's okay. It looks like that's why. Sorry. Sorry. No. No. I I think we have used the temp the the the Yeah. No. It's fine. No worry. You did well. No worry. No worries. Of the template.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "26:50",
+      "endTime": "27:03",
+      "speaker": "Speaker 0",
+      "text": "But yeah. Just to clarify, I mean, see, there is a specific logic that they use. It's mainly, you know, if you see how they calculate the end exact expiry with a certain month logic that they add,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "27:04",
+      "endTime": "27:15",
+      "speaker": "Speaker 0",
+      "text": "you know, with the one month deducted before the expiry printed. This is something which we discussed with them whether it is a hard and fast rule. So",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "27:15",
+      "endTime": "27:27",
+      "speaker": "Speaker 0",
+      "text": "it just I would say it would be a a small conversation to be had in terms of showing them how it is in the in the template and then getting an answer whether this is a gap yes or no.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "27:27",
+      "endTime": "27:39",
+      "speaker": "Speaker 0",
+      "text": "Okay. At this point, we have just captured it as a potential gap. Yeah? So if they say we have to stick with exactly this logic, then it would translate into a small a gap, basically. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "27:41",
+      "endTime": "27:49",
+      "speaker": "Speaker 2",
+      "text": "But based on this slide, this is what we have developed already. So this is for finished good. Right? Okay. So whatever is here is whatever we are doing.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "27:49",
+      "endTime": "27:52",
+      "speaker": "Speaker 0",
+      "text": "Okay. Then then there is no problem.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "27:52",
+      "endTime": "27:55",
+      "speaker": "Speaker 2",
+      "text": "Yeah. Can can you answer the question from Andrew?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "27:55",
+      "endTime": "28:10",
+      "speaker": "Speaker 0",
+      "text": "I cannot. I have to get a clarification. I I don't know why we did we get that answer? Anyone Shubhum, do you know if we have the answer for the bulk the work work in progress? I'm sure we asked it.",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "28:11",
+      "endTime": "28:13",
+      "speaker": "Speaker 0",
+      "text": "I don't don't remember looking at the answer.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "28:14",
+      "endTime": "28:24",
+      "speaker": "Speaker 6",
+      "text": "I can give the answer, but I'm not really under I'll reconfirm this once, and I'll give a solid answer on that person. Don't want to go down. Is it the same logic, Shubham, if you just",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "28:26",
+      "endTime": "28:36",
+      "speaker": "Speaker 6",
+      "text": "It's the same, but what I know anyway, like, I'll reconfirm this with Sam and then come on this issue. Okay. Okay. Sure. Yeah. Let's document that here. Yeah?",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "28:37",
+      "endTime": "28:52",
+      "speaker": "Speaker 2",
+      "text": "And then if you are checking again if if you are checking again, if you can check as well, it's coming from past six or at least the the for finish good. It's coming from past six, but what what does that mean? So what what means is date? Which date are we talking about from past six from a process point of view?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "28:53",
+      "endTime": "29:06",
+      "speaker": "Speaker 0",
+      "text": "It is the expiry date. It's actually documented in the interface details as well, Marie. So behind this behind these slides, there is a set of interfaces which are not in this",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "29:06",
+      "endTime": "29:21",
+      "speaker": "Speaker 0",
+      "text": "call, but they are inside the the SharePoint link that we will share with you. Yeah, Manju, you can check that as well. Yeah. So that that that interface list has a list of all the fields and the logic of how those fields get transferred across. So there's a detailed exercise which has been done,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "29:22",
+      "endTime": "29:26",
+      "speaker": "Speaker 0",
+      "text": "and that should give you the answer. So all Basics interfaces are documented in detail.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "29:37",
+      "endTime": "29:37",
+      "speaker": "Speaker 0",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "29:39",
+      "endTime": "29:40",
+      "speaker": "Speaker 1",
+      "text": "Yep.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "29:41",
+      "endTime": "29:49",
+      "speaker": "Speaker 5",
+      "text": "Sure. And this for those APIs, APIs are the ones which they they will procure as a raw material or or how it is?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "29:49",
+      "endTime": "29:52",
+      "speaker": "Speaker 0",
+      "text": "It is raw material, Manju. Okay.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "29:54",
+      "endTime": "30:08",
+      "speaker": "Speaker 0",
+      "text": "Yeah. It's an externally procured material. Right? Okay. So Yeah. I mean, to be fair, they they do not have a concept of a material type at the moment. Right? How how we would define a material type in SAP. So Okay. That's where at at points we sort of",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "30:09",
+      "endTime": "30:22",
+      "speaker": "Speaker 0",
+      "text": "we we try to get as much answer as possible. But, you know, if you look at it in the context of what is a raw material, what is a hull, what is a a finished good, in SAP terms versus how they define it today, there is a slight difference.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "30:22",
+      "endTime": "30:29",
+      "speaker": "Speaker 0",
+      "text": "Yeah. That's all. So but API, you know, it's basically an externally procured and therefore a raw material. Okay.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "30:30",
+      "endTime": "30:31",
+      "speaker": "Speaker 3",
+      "text": "Yeah.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "30:36",
+      "endTime": "30:38",
+      "speaker": "Speaker 0",
+      "text": "Back to the spreadsheet. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "30:40",
+      "endTime": "30:55",
+      "speaker": "Speaker 1",
+      "text": "Yes. So I think we have covered the help, the expiry date of help captured. So, again, it is, of course, it would need some confirmation, but, this is the logic that it is set in Mubix and shelf life calculation happens in pass six.",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "30:55",
+      "endTime": "31:00",
+      "speaker": "Speaker 1",
+      "text": "This is what is the answer on the help shelf life logic.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "31:02",
+      "endTime": "31:16",
+      "speaker": "Speaker 0",
+      "text": "And the expiry date we just discussed. Yeah. But, Mari, we take that point that we actually don't see a gap. So good. Yeah. But we'll clearly document where we see the potential gaps as you have asked,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "31:16",
+      "endTime": "31:29",
+      "speaker": "Speaker 2",
+      "text": "and then get some of the other clarity. He just mentioned the the answer. There is a gap with respect to logic used by Lingbo for expiry dates calculation. This has also been discussed in the next session. So I'm I'm wondering what is the",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "31:31",
+      "endTime": "31:42",
+      "speaker": "Speaker 0",
+      "text": "gap here. No. I think we'll take your confirmation that you just when you saw the slide and you said there is no gap. Yeah. So we'll update this. I assume so. So guys,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "31:42",
+      "endTime": "31:51",
+      "speaker": "Speaker 2",
+      "text": "team Blanca, Manju, so what what do you think? Do you see any gap on what we have seen or am I maybe I'm missing something? Yep. Just go back to the slide,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "31:51",
+      "endTime": "32:00",
+      "speaker": "Speaker 4",
+      "text": "Shubhav. Yes. I think the the only thing is the the batch release thing. Yeah. When we look in total of all the questions, but so far, I think",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "32:01",
+      "endTime": "32:03",
+      "speaker": "Speaker 2",
+      "text": "No. No. But on on this on the",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "32:04",
+      "endTime": "32:05",
+      "speaker": "Speaker 3",
+      "text": "On the expiration date?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "32:06",
+      "endTime": "32:19",
+      "speaker": "Speaker 4",
+      "text": "I think we have, again, right, done plus the TSL minus one month, I think. I think it's current setup. Right? So I don't see any Okay. Or maybe minus",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "32:19",
+      "endTime": "32:29",
+      "speaker": "Speaker 4",
+      "text": "one month or the last day of previous months. Maybe we need to go on the detail. What is it meant by minus one month? Yeah. Yeah. Yeah. Maybe last day of",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "32:29",
+      "endTime": "32:40",
+      "speaker": "Speaker 0",
+      "text": "Yeah. It was exactly that, Jim. That was that was the potential gap that we we thought we need a change of logic. Yeah? That that's exactly what it was. Yeah. Because you see, Marie, it's",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "32:41",
+      "endTime": "32:54",
+      "speaker": "Speaker 4",
+      "text": "actual shelf life ends. Think Yeah. No. I It's not the last day of the previous month, so it's really thirty thirty days. So really one month back from the time. Yep. It could be the middle of the month as well. Correct. Yep.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "32:56",
+      "endTime": "33:09",
+      "speaker": "Speaker 5",
+      "text": "So, Rishi, in this case, did you ask in site that all the products follow the same approach or is it some product level they have a different phase of",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "33:10",
+      "endTime": "33:14",
+      "speaker": "Speaker 0",
+      "text": "No. We we asked that question, Manju. This is the logic that they apply",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:14",
+      "endTime": "33:21",
+      "speaker": "Speaker 5",
+      "text": "for all products. All products follow the same approach for even for the DOM and the SLAD calculations. Yes. Yes. Yes. Yes.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:22",
+      "endTime": "33:23",
+      "speaker": "Speaker 2",
+      "text": "But you said",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:24",
+      "endTime": "33:29",
+      "speaker": "Speaker 0",
+      "text": "a system won't to manage multiple logics, Manju. Maybe that's also a reason.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "33:30",
+      "endTime": "33:39",
+      "speaker": "Speaker 5",
+      "text": "I agree. I agree. But the my my only concern is they have different product types. Right? Like, it's nicotine is a major. Yes.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "33:39",
+      "endTime": "33:53",
+      "speaker": "Speaker 5",
+      "text": "But will the nicotine follows a different approach of DOM calculation and for the other pros may have a different approach. That that was The only other only other non nicotine product is the rhino cord, the allergy product. Okay. But that follows the same logic like this then.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:54",
+      "endTime": "33:55",
+      "speaker": "Speaker 3",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:55",
+      "endTime": "33:57",
+      "speaker": "Speaker 0",
+      "text": "Yeah. So",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "33:57",
+      "endTime": "34:04",
+      "speaker": "Speaker 2",
+      "text": "And and coming back to the slide, when I see expiry date, so it's mentioned twenty two three December thirty first.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "34:04",
+      "endTime": "34:17",
+      "speaker": "Speaker 2",
+      "text": "So this is expiration date. So Yeah. I was mixing, I think, with the extra shard left in. Right? Yeah. That is mentioned. Okay. We we can discuss further, but at least from what I can see, I don't see any gap. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "34:18",
+      "endTime": "34:24",
+      "speaker": "Speaker 0",
+      "text": "Okay. I mean, we can remove that comment then about the potential gap. Yeah. It's",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "34:27",
+      "endTime": "34:28",
+      "speaker": "Speaker 0",
+      "text": "if that's okay with all of you.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "34:30",
+      "endTime": "34:43",
+      "speaker": "Speaker 5",
+      "text": "Yeah. Maybe maybe some more some some two, three questions. Okay? So for this one, I know this this site follows unique products. Okay? They will they will manufacture a unique product.",
+      "isFiller": false,
+      "sourceSegments": 6
+    },
+    {
+      "startTime": "34:44",
+      "endTime": "34:59",
+      "speaker": "Speaker 5",
+      "text": "But still, are there any shared codes between the sites between this site to other sites? Any any what? Shared codes? Yeah. Shared codes? No. No. No. Kind of getting the raw material from other side or or or any other",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "34:59",
+      "endTime": "35:11",
+      "speaker": "Speaker 5",
+      "text": "something like No. Okay. Okay. And the second question, you mentioned on the all the raw materials will be released well before using to the next process.",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "35:11",
+      "endTime": "35:17",
+      "speaker": "Speaker 5",
+      "text": "So is it applies to the work materials also? I mean, the packaging materials which goes to the packaging line?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "35:21",
+      "endTime": "35:33",
+      "speaker": "Speaker 0",
+      "text": "We will reconfirm that, Manju. I don't think it applies to packaging material in a strict sense, but we will reconfirm that point. Shoom, can we just note that down?",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "35:36",
+      "endTime": "35:48",
+      "speaker": "Speaker 0",
+      "text": "I mean, the answer we have received is all raw and packaging material will follow that same logic that they cannot be used before quality release. Okay. But we will be confirm this answer.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "35:49",
+      "endTime": "36:02",
+      "speaker": "Speaker 5",
+      "text": "Okay. And as you said, this kind of procure products can be received at any of the locations under the plant premises, all all three locations. So they",
+      "isFiller": false,
+      "sourceSegments": 7
+    },
+    {
+      "startTime": "36:02",
+      "endTime": "36:06",
+      "speaker": "Speaker 5",
+      "text": "have a chances that they can move the stocks under the quality between the locations?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "36:07",
+      "endTime": "36:08",
+      "speaker": "Speaker 0",
+      "text": "100%.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "36:08",
+      "endTime": "36:13",
+      "speaker": "Speaker 5",
+      "text": "Yes. That answer is yes. Okay. And and that applies to the Fort also?",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "36:14",
+      "endTime": "36:19",
+      "speaker": "Speaker 0",
+      "text": "That applies to fault also. Yes. Between the sites, yes. Outside of the sites, no.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "36:20",
+      "endTime": "36:35",
+      "speaker": "Speaker 5",
+      "text": "Okay. So final outbound to the customer, it's always, of course, on the final release. After the release only, you are going to ship it to the fault materials. 100%. For within the within the site, they can they can do an STO or a stock transfer between the sites",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "36:35",
+      "endTime": "36:39",
+      "speaker": "Speaker 5",
+      "text": "on on QIDQI across all the material types.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "36:40",
+      "endTime": "36:52",
+      "speaker": "Speaker 0",
+      "text": "Yes. Yes. In fact, that is also one of the reasons, I mean, when if you look at the initial discussion that we had, you know, when within the team, we were looking at setting up those three physical sites,",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "36:53",
+      "endTime": "37:08",
+      "speaker": "Speaker 0",
+      "text": "if not as separate plants, but definitely as separate warehouses. But Chandra challenged that, you know, rightfully now when we look at it in the bigger context. Because if you see Atticula, right, it's physically about a few kilometers away",
+      "isFiller": false,
+      "sourceSegments": 4
+    },
+    {
+      "startTime": "37:08",
+      "endTime": "37:22",
+      "speaker": "Speaker 0",
+      "text": "from Statena, but it's practically like an ex like a connected warehouse to the to the physical site. Yeah. So so that's how it would be, you know, if you if you have a physical site with with ample warehousing capacity, then you will not,",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "37:23",
+      "endTime": "37:32",
+      "speaker": "Speaker 0",
+      "text": "you know, wait for a quality release to just go and store it in the in the warehouse bin because it would just be attached there. That's how you can look at it.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "37:32",
+      "endTime": "37:40",
+      "speaker": "Speaker 5",
+      "text": "K. And does the scrapping follows in any particular location in this three locations?",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "37:40",
+      "endTime": "37:41",
+      "speaker": "Speaker 0",
+      "text": "Articular.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "37:41",
+      "endTime": "37:50",
+      "speaker": "Speaker 5",
+      "text": "Okay. So which means any product which can we it is stored and blocked in one location, they are to get it back to the articular, then they follow the scrapping.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "37:51",
+      "endTime": "37:52",
+      "speaker": "Speaker 3",
+      "text": "Yes.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "37:56",
+      "endTime": "37:57",
+      "speaker": "Speaker 0",
+      "text": "Yep.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "37:58",
+      "endTime": "38:07",
+      "speaker": "Speaker 5",
+      "text": "And I missed one part on the LIMS. Is it is it LIMS is already active or is it LIMS? V six v six is active,",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "38:08",
+      "endTime": "38:14",
+      "speaker": "Speaker 0",
+      "text": "but they're on the road map to v 8. So in fact, they want v 8.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "38:16",
+      "endTime": "38:20",
+      "speaker": "Speaker 2",
+      "text": "We we I think, Manju, we need to check we need to check when they will be moving to eight.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "38:21",
+      "endTime": "38:30",
+      "speaker": "Speaker 5",
+      "text": "Yeah. Then then in that case, this is similar to r one what they had initially at the time of go live. And recently, they changed to v eight.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "38:31",
+      "endTime": "38:42",
+      "speaker": "Speaker 0",
+      "text": "Yeah. But we we were as part of this exercise, Manju, unfortunately, you know, we didn't touch on the road map for the for the ecosystem ecosystems. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "38:43",
+      "endTime": "38:43",
+      "speaker": "Speaker 5",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "38:44",
+      "endTime": "38:46",
+      "speaker": "Speaker 2",
+      "text": "So Yeah. The",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "38:46",
+      "endTime": "39:01",
+      "speaker": "Speaker 2",
+      "text": "plan was to move to LIMS eight before we implement one s four. Yeah. Okay. Before even implementing one s four. Okay. We we we we need to check this again for sure. I think it will be an check we'll have to do, but I assume this is what will happen.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "39:01",
+      "endTime": "39:07",
+      "speaker": "Speaker 5",
+      "text": "Okay. So for quality from the ecosystem perspective, it's a LIMS and the ATQ.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "39:08",
+      "endTime": "39:09",
+      "speaker": "Speaker 0",
+      "text": "Yeah.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "39:16",
+      "endTime": "39:17",
+      "speaker": "Speaker 2",
+      "text": "And pass x for them.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "39:18",
+      "endTime": "39:24",
+      "speaker": "Speaker 5",
+      "text": "Yeah. Of course. Yeah. That's that's manufacturing. Yeah. But, yes, from the perspective. Yes. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "39:26",
+      "endTime": "39:26",
+      "speaker": "Speaker 3",
+      "text": "Yeah.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "39:27",
+      "endTime": "39:37",
+      "speaker": "Speaker 0",
+      "text": "But I think coming back to the gaps then we will record them. Potential gaps. The main potential gap is the batch release review, which is connected between the past six and and one s four.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "39:40",
+      "endTime": "39:49",
+      "speaker": "Speaker 0",
+      "text": "The manufacturing date we agreed, that's not a gap. And there was one more at the top right. Shubhrant, just go back up.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "39:52",
+      "endTime": "39:59",
+      "speaker": "Speaker 2",
+      "text": "What we agree that was not a gap is not the manufacturing date, is the expiration date of the finished good. The rest is not clear still.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "40:02",
+      "endTime": "40:02",
+      "speaker": "Speaker 0",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "40:04",
+      "endTime": "40:08",
+      "speaker": "Speaker 0",
+      "text": "Yeah. So we we we'll record these points and and update. And",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "40:10",
+      "endTime": "40:17",
+      "speaker": "Speaker 2",
+      "text": "And again yeah. If you if you can share all the recording of all the session you have been not only quality, but sharing to all of us those session.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "40:18",
+      "endTime": "40:21",
+      "speaker": "Speaker 0",
+      "text": "Yeah. Hamzah, can you do that? I I I",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "40:21",
+      "endTime": "40:29",
+      "speaker": "Speaker 2",
+      "text": "think it's really difficult to to have only one view. So we need to have the end to end view. So we need to understand the end to end process.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "40:30",
+      "endTime": "40:41",
+      "speaker": "Speaker 3",
+      "text": "Sure. Just very quick gonna read you which quick one. So I can send you the recordings. We have that. Are you interested in just make warehouse source as well, which Everything.",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "40:44",
+      "endTime": "40:47",
+      "speaker": "Speaker 3",
+      "text": "Sure thing. No worries in that case. Thank you.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "40:50",
+      "endTime": "40:56",
+      "speaker": "Speaker 2",
+      "text": "And if you can be sure that it it everyone can listen to it so that we don't have to act request access individually.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "40:57",
+      "endTime": "41:03",
+      "speaker": "Speaker 3",
+      "text": "No worries. Thank you. I think we have done now. I think that shouldn't be an issue anymore. Okay.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "41:08",
+      "endTime": "41:12",
+      "speaker": "Speaker 0",
+      "text": "Anything else? If not, then we close.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "41:15",
+      "endTime": "41:22",
+      "speaker": "Speaker 2",
+      "text": "Therefore, for the feedback, so which way you will provide us feedback? So we you will send us via email, those those additional questions, just yellow point?",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "41:23",
+      "endTime": "41:25",
+      "speaker": "Speaker 4",
+      "text": "Yes, Marik. Yeah. I mean, unfortunately,",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "41:25",
+      "endTime": "41:38",
+      "speaker": "Speaker 0",
+      "text": "just to just to be practical. Right? I mean, our intention was to continue this into the workshop sessions, which are now Yeah. Mark. So officially, our role on the project ends tomorrow.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "41:39",
+      "endTime": "41:49",
+      "speaker": "Speaker 0",
+      "text": "Yeah? Uh-huh. Okay. Okay. So so we I mean, for sure, yeah, if you have any questions, doubts, please ask and we will respond. Yeah? I mean, you have",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "41:51",
+      "endTime": "42:01",
+      "speaker": "Speaker 0",
+      "text": "looking at where we are in terms of the the project and and the recent announcements, as a as a project team, we will be sort of ending tomorrow.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "42:02",
+      "endTime": "42:14",
+      "speaker": "Speaker 0",
+      "text": "Yeah? Okay. Okay. Good. But So then yeah. You Hopefully, you can. Yeah. Yeah. We'll we'll do it as quickly as we can. And and if there are any further questions also, happy to answer. Yeah.",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "42:15",
+      "endTime": "42:17",
+      "speaker": "Speaker 2",
+      "text": "Okay. Thank you so much.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "42:18",
+      "endTime": "42:26",
+      "speaker": "Speaker 3",
+      "text": "So what I can do from our side, my side is, you know, send over the recording as well as all other recordings we sent for",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "42:27",
+      "endTime": "42:38",
+      "speaker": "Speaker 3",
+      "text": "the for the KT workshops. Right? I think there's over, I think, ten hours, maybe fifteen hours. So I think a lot of homework from your side, Mary, but we can send that over",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "42:38",
+      "endTime": "42:53",
+      "speaker": "Speaker 3",
+      "text": "as well as, you know, the requirements we have so far. I think a lot of the requirements that that we spoke about are cross requirements and, you know, cross the either with make and warehouse so I can send those along as well as those any of those specific",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "42:53",
+      "endTime": "43:07",
+      "speaker": "Speaker 3",
+      "text": "identified for quality. And then, hopefully, from your side, I think we're just looking for, you know, acknowledgment or sign off that we are okay. This is the logical conclusion from where, you know,",
+      "isFiller": false,
+      "sourceSegments": 5
+    },
+    {
+      "startTime": "43:07",
+      "endTime": "43:16",
+      "speaker": "Speaker 3",
+      "text": "we can pick up from. But at least this is, you know, from our point of view, you know, we have delivered the KT sessions and whatnot.",
+      "isFiller": false,
+      "sourceSegments": 3
+    },
+    {
+      "startTime": "43:18",
+      "endTime": "43:19",
+      "speaker": "Speaker 2",
+      "text": "Okay.",
+      "isFiller": true,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "43:21",
+      "endTime": "43:33",
+      "speaker": "Speaker 3",
+      "text": "Perfect. And I think yes. I think one person from the BPO. I think that's yourself, Marie, and then Manju from the TPO. Right? Just to represent, you know, just try and get that acknowledgment",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "43:33",
+      "endTime": "43:36",
+      "speaker": "Speaker 2",
+      "text": "and sign up. Uh-huh. Uh-huh. Okay. Okay. Fair enough.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "43:39",
+      "endTime": "43:42",
+      "speaker": "Speaker 0",
+      "text": "Okay then. Thank you so much for your time.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "43:43",
+      "endTime": "43:49",
+      "speaker": "Speaker 2",
+      "text": "Good day. Thanks so much with you to to you for all the work that has been compiled",
+      "isFiller": false,
+      "sourceSegments": 2
+    },
+    {
+      "startTime": "43:49",
+      "endTime": "43:59",
+      "speaker": "Speaker 2",
+      "text": "and for the collaboration. So thank you so much. Take care everyone, and enjoy the break. Bye bye. Happy Christmas, Zach. Happy New Year. Thank you. Bye bye. Thank you.",
+      "isFiller": false,
+      "sourceSegments": 1
+    },
+    {
+      "startTime": "43:59",
+      "endTime": "44:01",
+      "speaker": "Speaker 6",
+      "text": "Happy holidays. Bye bye.",
+      "isFiller": false,
+      "sourceSegments": 1
+    }
+  ]
+}
