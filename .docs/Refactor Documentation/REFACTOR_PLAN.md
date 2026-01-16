@@ -377,3 +377,7 @@ Estimated by phase (single engineer):
 ✅ **Model Configuration**: Configurable via `DEEPGRAM_MODEL` env var (default: nova-3)  
 ✅ **Idempotent Webhook Processing**: Clear existing segments before inserting new ones (safe for webhook retries)  
 ✅ **Speaker Caching**: Cache speaker IDs during utterance processing to reduce database queries  
+
+## Decisions Made (Phase 6)
+✅ **Deepgram Metadata Strategy**: Use `extra` query parameter to pass project_id to webhook (JSON body `metadata` not returned in callback)  
+✅ **Large Dataset Handling**: Implemented batched word fetching (50 segments/batch) to avoid URL length-related errors in consolidation  

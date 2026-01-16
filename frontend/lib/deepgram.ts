@@ -48,7 +48,18 @@ export interface DeepgramAlternative {
 export interface DeepgramResponse {
     request_id: string;
     metadata?: {
-        project_id?: string;
+        request_id?: string;
+        transaction_key?: string;
+        sha256?: string;
+        created?: string;
+        duration?: number;
+        channels?: number;
+        models?: string[];
+        model_info?: Record<string, unknown>;
+        extra?: {
+            project_id?: string;
+            [key: string]: string | undefined;
+        };
     };
     results?: {
         channels?: Array<{
@@ -118,6 +129,9 @@ export async function startAsyncTranscription(
     params.append("utterances", "true");
     params.append("callback", callbackUrl);
 
+    // Pass project ID via extra parameter (returned in metadata.extra in callback)
+    params.append("extra", `project_id:${projectId}`);
+
     // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {
         console.log(`[deepgram] Sending ${keyTerms.length} key terms`);
@@ -137,9 +151,6 @@ export async function startAsyncTranscription(
             },
             body: JSON.stringify({
                 url: mediaUrl,
-                metadata: {
-                    project_id: projectId,
-                },
             }),
         });
 

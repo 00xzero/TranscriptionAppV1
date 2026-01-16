@@ -7,6 +7,7 @@
 
 import { inngest } from "./client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { runConsolidation } from "@/lib/inngest/consolidation-service";
 import {
     startAsyncTranscription,
     getCallbackUrl,
@@ -45,12 +46,12 @@ export const handleTranscriptionRequested = inngest.createFunction(
             const originalEvent = event.data.event;
             const { projectId, jobId } = originalEvent.data;
             const errorMessage = error.message || String(error);
-            
+
             console.error(`[inngest] Transcription request failed for project ${projectId}:`, errorMessage);
-            
+
             // Classify error to detect keyterm issues
             const classified = classifyError(errorMessage);
-            
+
             // Emit transcription/failed to update job/project status
             await inngest.send({
                 name: "transcription/failed",
@@ -130,15 +131,21 @@ export const handleTranscriptionWebhook = inngest.createFunction(
     {
         id: "handle-transcription-webhook",
         retries: 3,
+        // Limit to 1 concurrent execution per project to prevent
+        // interleaving of consolidation (which deletes and re-inserts chunks)
+        concurrency: {
+            limit: 1,
+            key: "event.data.projectId",
+        },
         onFailure: async ({ event, error }) => {
             // When retries are exhausted, emit failure event so job/project get error status
             // In onFailure, original event is nested under event.data.event
             const originalEvent = event.data.event;
             const { projectId, requestId } = originalEvent.data;
             const errorMessage = error.message || String(error);
-            
+
             console.error(`[inngest] Webhook handler failed for project ${projectId}:`, errorMessage);
-            
+
             // Look up the job by requestId to get the real jobId
             let jobId = "";
             try {
@@ -149,14 +156,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                     .eq("project_id", projectId)
                     .eq("inngest_event_id", requestId)
                     .single();
-                
+
                 if (job) {
                     jobId = job.id;
                 }
             } catch (lookupError) {
                 console.error("[inngest] Failed to lookup job in onFailure:", lookupError);
             }
-            
+
             // Emit transcription/failed to update job/project status
             await inngest.send({
                 name: "transcription/failed",
@@ -353,13 +360,22 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             };
         });
 
-        // Step 3: Trigger completion event
+        // Step 3: Run consolidation pipeline
+        const consolidationResult = await step.run("run-consolidation", async () => {
+            console.log(`[inngest] Running consolidation for project: ${projectId}`);
+            return await runConsolidation(projectId);
+        });
+
+        // Step 4: Trigger completion event
         await step.sendEvent("trigger-completed", {
             name: "transcription/completed",
             data: {
                 projectId,
                 jobId: job.id,
                 duration: Math.floor(transcriptionResult.durationMs / 1000),
+                chunkCount: consolidationResult.chunkCount,
+                chunkWordCount: consolidationResult.chunkWordCount,
+                algoVersion: consolidationResult.algoVersion,
             },
         });
 
@@ -367,12 +383,17 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
             `${transcriptionResult.wordCount} words, ${transcriptionResult.durationMs}ms duration`
         );
+        console.log(
+            `[inngest] Consolidation complete: ${consolidationResult.chunkCount} chunks, ` +
+            `${consolidationResult.chunkWordCount} chunk_words (${consolidationResult.algoVersion})`
+        );
 
         return {
             status: "stored",
             projectId,
             jobId: job.id,
             ...transcriptionResult,
+            ...consolidationResult,
         };
     }
 );
@@ -452,7 +473,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
 
             // Coerce error to string for safe slicing
             const errorString = typeof error === "string" ? error : String(error);
-            
+
             // Classify error if not already classified
             const classified = classifyError(errorString);
             const finalErrorType = errorType || classified.type;
@@ -470,7 +491,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     .order("created_at", { ascending: false })
                     .limit(1)
                     .maybeSingle();
-                
+
                 if (job) {
                     jobId = job.id;
                     console.log(`[inngest] Found job ${jobId} by projectId lookup`);

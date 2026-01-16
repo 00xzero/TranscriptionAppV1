@@ -34,5 +34,5 @@
 - [x] Phase 3: Storage and Upload Flow → [Phase 3/](./Phase%203/)
 - [x] Phase 4: Inngest Setup → [Phase 4/](./Phase%204/)
 - [x] Phase 5: Deepgram Async Integration → [Phase 5/](./Phase%205/)
-- [ ] Phase 6: Consolidation Pipeline Port (TBD)
+- [x] Phase 6: Consolidation Pipeline Port → [Phase 6/](./Phase%206/)
 
