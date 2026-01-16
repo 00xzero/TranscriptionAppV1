@@ -47,8 +47,8 @@ Phase 6 integrates the TypeScript consolidation algorithm (ported in Phase 0) in
 
 | File | Action | Purpose |
 |:---|:---|:---|
-| `lib/inngest/consolidation-service.ts` | NEW | Consolidation service module |
-| `lib/inngest/functions.ts` | MODIFIED | Added consolidation step |
+| `frontend/lib/inngest/consolidation-service.ts` | NEW | Consolidation service module |
+| `frontend/lib/inngest/functions.ts` | MODIFIED | Added consolidation step |
 
 ---
 
@@ -177,6 +177,7 @@ The following improvements were made based on code review feedback:
 | `run-consolidation.ts` | Added CLI argument parsing and error handling |
 | `test-consolidation.ts` | Added error checking for all segment insertions |
 | SQL Migration | Added `save_consolidated_chunks` RPC function |
+| SQL Migration | Revoked `authenticated` role access to RPC function (Service Role only) |
 
 ---
 

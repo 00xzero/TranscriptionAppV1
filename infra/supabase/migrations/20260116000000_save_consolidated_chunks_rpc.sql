@@ -67,8 +67,7 @@ BEGIN
 END;
 $$;
 
--- Grant execute permission to authenticated and service_role
-GRANT EXECUTE ON FUNCTION save_consolidated_chunks(UUID, JSONB) TO authenticated;
+-- Grant execute permission to service_role only
 GRANT EXECUTE ON FUNCTION save_consolidated_chunks(UUID, JSONB) TO service_role;
 
 COMMENT ON FUNCTION save_consolidated_chunks IS 

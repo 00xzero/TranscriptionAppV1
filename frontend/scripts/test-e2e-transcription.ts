@@ -174,10 +174,15 @@ async function main() {
     console.log(`   Segments: ${segments?.length || 0}`);
 
     // Get words count
-    const { count: wordCount } = await supabase
-        .from("words")
-        .select("id", { count: "exact" })
-        .in("segment_id", segments?.map(s => s.id) || []);
+    let wordCount = 0;
+    const segmentIds = segments?.map(s => s.id) || [];
+    if (segmentIds.length > 0) {
+        const { count } = await supabase
+            .from("words")
+            .select("id", { count: "exact" })
+            .in("segment_id", segmentIds);
+        wordCount = count || 0;
+    }
 
     console.log(`   Words: ${wordCount || 0}`);
 
@@ -191,10 +196,15 @@ async function main() {
     console.log(`   Chunks: ${chunks?.length || 0}`);
 
     // Get chunk_words count
-    const { count: chunkWordCount } = await supabase
-        .from("chunk_words")
-        .select("id", { count: "exact" })
-        .in("chunk_id", chunks?.map(c => c.id) || []);
+    let chunkWordCount = 0;
+    const chunkIds = chunks?.map(c => c.id) || [];
+    if (chunkIds.length > 0) {
+        const { count } = await supabase
+            .from("chunk_words")
+            .select("id", { count: "exact" })
+            .in("chunk_id", chunkIds);
+        chunkWordCount = count || 0;
+    }
 
     console.log(`   Chunk Words: ${chunkWordCount || 0}`);
 

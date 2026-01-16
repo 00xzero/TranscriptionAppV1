@@ -15,6 +15,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const PROJECT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
+const BATCH_SIZE = 500;
 
 async function main() {
     console.log("📊 Transcription Results for project:", PROJECT_ID);
@@ -48,15 +49,30 @@ async function main() {
     console.log(`\nChunks: ${chunks?.length || 0}`);
 
     // Get stats
-    const { count: segmentCount } = await supabase
+    const { data: segments, error: segmentsError } = await supabase
         .from("segments")
-        .select("id", { count: "exact" })
+        .select("id")
         .eq("project_id", PROJECT_ID);
+    if (segmentsError) {
+        throw segmentsError;
+    }
 
-    const { count: wordCount } = await supabase
-        .from("words")
-        .select("id", { count: "exact" })
-        .in("segment_id", (await supabase.from("segments").select("id").eq("project_id", PROJECT_ID)).data?.map(s => s.id) || []);
+    const segmentCount = segments?.length || 0;
+    let wordCount = 0;
+
+    if (segments && segments.length > 0) {
+        for (let i = 0; i < segments.length; i += BATCH_SIZE) {
+            const batchIds = segments.slice(i, i + BATCH_SIZE).map(s => s.id);
+            const { count, error } = await supabase
+                .from("words")
+                .select("id", { count: "exact", head: true })
+                .in("segment_id", batchIds);
+            if (error) {
+                throw error;
+            }
+            wordCount += count || 0;
+        }
+    }
 
     console.log(`Segments: ${segmentCount}`);
     console.log(`Words: ${wordCount}`);
