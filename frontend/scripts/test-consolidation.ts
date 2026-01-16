@@ -98,7 +98,12 @@ async function main() {
         confidence: 0.95,
         order_index: idx,
     }));
-    await supabase.from("words").insert(wordRows1);
+    const { error: wordRows1Error } = await supabase.from("words").insert(wordRows1);
+    if (wordRows1Error) {
+        console.error("Failed to create words for segment 1:", wordRows1Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
 
     // Segment 2: Adjacent segment (should merge)
     const { data: seg2, error: seg2Error } = await supabase
@@ -128,7 +133,12 @@ async function main() {
         confidence: 0.93,
         order_index: idx,
     }));
-    await supabase.from("words").insert(wordRows2);
+    const { error: wordRows2Error } = await supabase.from("words").insert(wordRows2);
+    if (wordRows2Error) {
+        console.error("Failed to create words for segment 2:", wordRows2Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
 
     // Segment 3: Filler (should be marked as filler)
     const { data: seg3, error: seg3Error } = await supabase
@@ -149,7 +159,7 @@ async function main() {
         process.exit(1);
     }
 
-    await supabase.from("words").insert({
+    const { error: word3Error } = await supabase.from("words").insert({
         segment_id: seg3.id,
         text: "Yeah.",
         start_ms: 4100,
@@ -157,6 +167,11 @@ async function main() {
         confidence: 0.99,
         order_index: 0,
     });
+    if (word3Error) {
+        console.error("Failed to create words for segment 3:", word3Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
 
     // Segment 4: Another sentence after gap (should be separate chunk due to gap > 2000ms)
     const { data: seg4, error: seg4Error } = await supabase
@@ -186,7 +201,12 @@ async function main() {
         confidence: 0.91,
         order_index: idx,
     }));
-    await supabase.from("words").insert(wordRows4);
+    const { error: wordRows4Error } = await supabase.from("words").insert(wordRows4);
+    if (wordRows4Error) {
+        console.error("Failed to create words for segment 4:", wordRows4Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
 
     console.log("   Created 4 segments with words");
 
@@ -224,10 +244,16 @@ async function main() {
 
     // Step 6: Verify chunk_words
     console.log("6️⃣ Verifying chunk_words...");
-    const { data: chunkWords } = await supabase
+    const { data: chunkWords, error: chunkWordsError } = await supabase
         .from("chunk_words")
         .select("id, chunk_id, word_id, order_index")
         .in("chunk_id", chunks.map(c => c.id));
+
+    if (chunkWordsError || !chunkWords) {
+        console.error("Failed to fetch chunk_words:", chunkWordsError);
+        await cleanup(project.id);
+        process.exit(1);
+    }
 
     console.log(`   Found ${chunkWords?.length || 0} chunk_words`);
 
@@ -272,4 +298,7 @@ async function cleanup(projectId: string) {
     console.log(`   Deleted project ${projectId}`);
 }
 
-main().catch(console.error);
+main().catch(err => {
+    console.error(err);
+    process.exit(1);
+});
