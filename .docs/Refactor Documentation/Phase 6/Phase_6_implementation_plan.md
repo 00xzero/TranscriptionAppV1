@@ -22,7 +22,7 @@ Phase 6 adds consolidation between steps 3 and 4.
 
 ### lib/inngest
 
-#### [NEW] [consolidation-service.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/consolidation-service.ts)
+#### [NEW] consolidation-service.ts
 
 A service module that bridges the consolidation algorithm with Supabase:
 
@@ -47,7 +47,7 @@ runConsolidation(projectId: string): Promise<ConsolidationResult>
 1. Fetch segments ordered by `start_ms`
 2. For each segment, fetch word IDs
 3. Transform to `SegmentData[]` format
-4. Call [consolidateAndProcess()](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#282-292) from [lib/consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts)
+4. Call `consolidateAndProcess()` from `frontend/lib/consolidation.ts`
 5. Delete existing chunks for project (idempotency)
 6. Insert chunks with:
    - `project_id`, `speaker_id`, `start_ms`, `end_ms`, `text`
@@ -57,7 +57,7 @@ runConsolidation(projectId: string): Promise<ConsolidationResult>
 
 ---
 
-#### [MODIFY] [functions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts)
+#### [MODIFY] functions.ts
 
 Add consolidation step to `handleTranscriptionWebhook` after storing transcription:
 
@@ -145,7 +145,7 @@ sequenceDiagram
 
 ### SegmentData Transformation
 
-The consolidation expects [SegmentData](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#50-58):
+The consolidation expects `SegmentData` (defined in `frontend/lib/consolidation.ts`):
 ```typescript
 interface SegmentData {
     id: string;
@@ -158,7 +158,7 @@ interface SegmentData {
 ```
 
 From Supabase segments, map:
-- [id](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#164-237) → [id](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#164-237)
+- `id` → `id`
 - `speaker_id` → `speakerId`
 - `start_ms` → `startMs`
 - `end_ms` → `endMs`
@@ -176,6 +176,6 @@ The consolidation algorithm returns `wordIds` per chunk, which are the word UUID
 
 ### Error Handling
 
-- If consolidation fails, let the Inngest [onFailure](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts#43-65) handler emit `transcription/failed`
+- If consolidation fails, let the Inngest `onFailure` handler (in `frontend/lib/inngest/functions.ts`) emit `transcription/failed`
 - Clear chunks before insert to handle retries
 - Log chunk/word counts for debugging

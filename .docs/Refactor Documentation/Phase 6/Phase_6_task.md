@@ -1,22 +1,22 @@
 # Phase 6: Consolidation Pipeline Port
 
 ## Overview
-Integrate TypeScript consolidation algorithm into Inngest transcription pipeline. The consolidation code was ported in Phase 0 ([lib/consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts)) and needs to be wired into the webhook handler.
+Integrate TypeScript consolidation algorithm into Inngest transcription pipeline. The consolidation code was ported in Phase 0 (`frontend/lib/consolidation.ts`) and needs to be wired into the webhook handler.
 
 ## Tasks
 
 ### Planning
 - [x] Review Phase 5 walkthrough and handoff notes
-- [x] Review existing consolidation code ([lib/consolidation.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts))
-- [x] Review current Inngest functions ([lib/inngest/functions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts))
+- [x] Review existing consolidation code (`frontend/lib/consolidation.ts`)
+- [x] Review current Inngest functions (`frontend/lib/inngest/functions.ts`)
 - [x] Review database schema for chunks and chunk_words tables
 - [x] Create implementation plan
 
 ### Implementation
-- [x] Create consolidation service module ([lib/inngest/consolidation-service.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/consolidation-service.ts))
+- [x] Create consolidation service module (`frontend/lib/inngest/consolidation-service.ts`)
   - Fetch segments and words from Supabase after transcription
-  - Transform to [SegmentData](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#50-58) format required by consolidation
-  - Call [consolidateAndProcess()](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/consolidation.ts#282-292) 
+  - Transform to `SegmentData` format required by consolidation
+  - Call `consolidateAndProcess()` from `frontend/lib/consolidation.ts` 
   - Save chunks and chunk_words to Supabase
 - [x] Update `handleTranscriptionWebhook`
   - Add consolidation step after segments/words are stored

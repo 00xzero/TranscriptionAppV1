@@ -17,7 +17,7 @@ Phase 6 integrates the TypeScript consolidation algorithm (ported in Phase 0) in
 
 | File | Purpose |
 |:---|:---|
-| [consolidation-service.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/consolidation-service.ts) | Bridge between Inngest and consolidation algorithm |
+| `frontend/lib/inngest/consolidation-service.ts` | Bridge between Inngest and consolidation algorithm |
 
 **Key functions:**
 - `fetchSegmentsWithWords()` - Fetches segments and word IDs from Supabase
@@ -33,7 +33,7 @@ Phase 6 integrates the TypeScript consolidation algorithm (ported in Phase 0) in
 
 | File | Changes |
 |:---|:---|
-| [functions.ts](file:///Users/hamzaabikar/Documents/Miscellaneous/Code%20folder/CascadeProjects/TranscriptionAppV1/frontend/lib/inngest/functions.ts) | Added consolidation step to handleTranscriptionWebhook |
+| `frontend/lib/inngest/functions.ts` | Added consolidation step to handleTranscriptionWebhook |
 
 **Modified steps in `handleTranscriptionWebhook`:**
 1. **Step 1: find-job** - Find the job for this webhook
@@ -79,7 +79,7 @@ sequenceDiagram
 
 ### ✅ Build Passes
 
-```
+```text
 ✓ Linting and checking validity of types
 ✓ Generating static pages (12/12)
 
@@ -150,6 +150,33 @@ Verified with real audio file `KT Session - Quality II - 18th Dec 25.mp3`.
 - 560 segments exceeded URL limits for `.in()` query
 - Implemented batched word fetching (50 segments per batch) in `fetchSegmentsWithWords`
 - Ensures scalability for long transcripts
+
+**Per-Project Concurrency:**
+- Added `concurrency: { limit: 1, key: "event.data.projectId" }` to webhook handler
+- Prevents interleaving of consolidation operations for same project
+- Ensures atomic chunk updates even with retries
+
+**Transactional Chunk Saving:**
+- Created `save_consolidated_chunks` PostgreSQL RPC function
+- Atomic DELETE + INSERT within single transaction
+- Prevents partial state if any insert fails
+
+---
+
+## Post-PR Fixes Applied
+
+The following improvements were made based on code review feedback:
+
+| Area | Fix |
+|:---|:---|
+| Documentation | Replaced all `file://` links with repo-relative paths |
+| Documentation | Added `text` language hint to build output code block |
+| `DeepgramResponse` type | Added `metadata.extra.project_id` to match webhook handler |
+| `consolidation-service.ts` | Replaced row-by-row inserts with transactional RPC |
+| `functions.ts` | Added per-project concurrency control |
+| `run-consolidation.ts` | Added CLI argument parsing and error handling |
+| `test-consolidation.ts` | Added error checking for all segment insertions |
+| SQL Migration | Added `save_consolidated_chunks` RPC function |
 
 ---
 

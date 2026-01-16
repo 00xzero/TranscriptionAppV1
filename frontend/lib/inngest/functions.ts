@@ -131,6 +131,12 @@ export const handleTranscriptionWebhook = inngest.createFunction(
     {
         id: "handle-transcription-webhook",
         retries: 3,
+        // Limit to 1 concurrent execution per project to prevent
+        // interleaving of consolidation (which deletes and re-inserts chunks)
+        concurrency: {
+            limit: 1,
+            key: "event.data.projectId",
+        },
         onFailure: async ({ event, error }) => {
             // When retries are exhausted, emit failure event so job/project get error status
             // In onFailure, original event is nested under event.data.event
@@ -367,6 +373,9 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 projectId,
                 jobId: job.id,
                 duration: Math.floor(transcriptionResult.durationMs / 1000),
+                chunkCount: consolidationResult.chunkCount,
+                chunkWordCount: consolidationResult.chunkWordCount,
+                algoVersion: consolidationResult.algoVersion,
             },
         });
 

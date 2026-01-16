@@ -119,6 +119,7 @@ async function fetchSegmentsWithWords(projectId: string): Promise<SegmentData[]>
 
 /**
  * Save processed chunks and their word mappings to Supabase.
+ * Uses a transactional RPC function to ensure atomicity.
  * 
  * @param projectId - Project UUID
  * @param chunks - Processed chunks from consolidation
@@ -129,61 +130,36 @@ async function saveChunks(
     chunks: ProcessedChunk[]
 ): Promise<number> {
     const supabase = createAdminClient();
-    let totalChunkWords = 0;
 
-    // Clear existing chunks for idempotency (cascade deletes chunk_words)
-    const { error: deleteError } = await supabase
-        .from("chunks")
-        .delete()
-        .eq("project_id", projectId);
+    // Transform chunks to JSON format expected by RPC
+    const chunksPayload = chunks.map(chunk => ({
+        speakerId: chunk.speakerId,
+        startMs: chunk.startMs,
+        endMs: chunk.endMs,
+        text: chunk.text,
+        sourceSegmentIds: chunk.sourceSegmentIds,
+        isFiller: chunk.isFiller,
+        algoVersion: chunk.algoVersion,
+        wordIds: chunk.wordIds,
+    }));
 
-    if (deleteError) {
-        throw new Error(`Failed to clear chunks: ${deleteError.message}`);
+    // Call transactional RPC function for atomic delete + insert
+    const { data, error } = await supabase.rpc("save_consolidated_chunks", {
+        p_project_id: projectId,
+        p_chunks: chunksPayload,
+    });
+
+    if (error) {
+        throw new Error(`Failed to save chunks: ${error.message}`);
     }
 
-    // Insert chunks one by one to get IDs for chunk_words
-    for (const chunk of chunks) {
-        const { data: insertedChunk, error: chunkError } = await supabase
-            .from("chunks")
-            .insert({
-                project_id: projectId,
-                speaker_id: chunk.speakerId,
-                start_ms: chunk.startMs,
-                end_ms: chunk.endMs,
-                text: chunk.text,
-                source_segment_ids: chunk.sourceSegmentIds,
-                is_edited: false,
-                is_filler: chunk.isFiller,
-                algo_version: chunk.algoVersion,
-            })
-            .select("id")
-            .single();
-
-        if (chunkError || !insertedChunk) {
-            throw new Error(`Failed to insert chunk: ${chunkError?.message}`);
-        }
-
-        // Insert chunk_words junction records
-        if (chunk.wordIds.length > 0) {
-            const chunkWordRows = chunk.wordIds.map((wordId, index) => ({
-                chunk_id: insertedChunk.id,
-                word_id: wordId,
-                order_index: index,
-            }));
-
-            const { error: cwError } = await supabase
-                .from("chunk_words")
-                .insert(chunkWordRows);
-
-            if (cwError) {
-                throw new Error(`Failed to insert chunk_words: ${cwError.message}`);
-            }
-
-            totalChunkWords += chunkWordRows.length;
-        }
+    // RPC returns array with single row containing counts
+    const result = data?.[0];
+    if (!result) {
+        throw new Error("save_consolidated_chunks returned no result");
     }
 
-    return totalChunkWords;
+    return result.chunk_word_count;
 }
 
 // ============================================================================

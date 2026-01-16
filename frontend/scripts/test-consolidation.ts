@@ -101,7 +101,7 @@ async function main() {
     await supabase.from("words").insert(wordRows1);
 
     // Segment 2: Adjacent segment (should merge)
-    const { data: seg2 } = await supabase
+    const { data: seg2, error: seg2Error } = await supabase
         .from("segments")
         .insert({
             project_id: project.id,
@@ -113,9 +113,15 @@ async function main() {
         .select("id")
         .single();
 
+    if (seg2Error || !seg2) {
+        console.error("Failed to create segment 2:", seg2Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
+
     const words2 = ["We", "have", "a", "lot", "to", "discuss."];
     const wordRows2 = words2.map((text, idx) => ({
-        segment_id: seg2!.id,
+        segment_id: seg2.id,
         text,
         start_ms: 2100 + idx * 300,
         end_ms: 2100 + (idx + 1) * 300,
@@ -125,7 +131,7 @@ async function main() {
     await supabase.from("words").insert(wordRows2);
 
     // Segment 3: Filler (should be marked as filler)
-    const { data: seg3 } = await supabase
+    const { data: seg3, error: seg3Error } = await supabase
         .from("segments")
         .insert({
             project_id: project.id,
@@ -137,8 +143,14 @@ async function main() {
         .select("id")
         .single();
 
+    if (seg3Error || !seg3) {
+        console.error("Failed to create segment 3:", seg3Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
+
     await supabase.from("words").insert({
-        segment_id: seg3!.id,
+        segment_id: seg3.id,
         text: "Yeah.",
         start_ms: 4100,
         end_ms: 4500,
@@ -147,7 +159,7 @@ async function main() {
     });
 
     // Segment 4: Another sentence after gap (should be separate chunk due to gap > 2000ms)
-    const { data: seg4 } = await supabase
+    const { data: seg4, error: seg4Error } = await supabase
         .from("segments")
         .insert({
             project_id: project.id,
@@ -159,9 +171,15 @@ async function main() {
         .select("id")
         .single();
 
+    if (seg4Error || !seg4) {
+        console.error("Failed to create segment 4:", seg4Error);
+        await cleanup(project.id);
+        process.exit(1);
+    }
+
     const words4 = ["Let's", "start", "with", "the", "first", "agenda", "item."];
     const wordRows4 = words4.map((text, idx) => ({
-        segment_id: seg4!.id,
+        segment_id: seg4.id,
         text,
         start_ms: 7000 + idx * 280,
         end_ms: 7000 + (idx + 1) * 280,

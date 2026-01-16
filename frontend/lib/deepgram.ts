@@ -48,7 +48,18 @@ export interface DeepgramAlternative {
 export interface DeepgramResponse {
     request_id: string;
     metadata?: {
-        project_id?: string;
+        request_id?: string;
+        transaction_key?: string;
+        sha256?: string;
+        created?: string;
+        duration?: number;
+        channels?: number;
+        models?: string[];
+        model_info?: Record<string, unknown>;
+        extra?: {
+            project_id?: string;
+            [key: string]: string | undefined;
+        };
     };
     results?: {
         channels?: Array<{
