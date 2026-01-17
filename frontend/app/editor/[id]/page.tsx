@@ -2,13 +2,23 @@
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
-import { getApiBase, getAuthHeaders } from '../../../lib/api'
+import {
+  fetchChunks,
+  fetchSpeakers,
+  fetchProjectById,
+  updateChunk,
+  updateProject,
+  createSpeaker,
+  updateSpeaker,
+  deleteSpeaker,
+} from '../../../lib/supabase/queries'
+import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
 import SpeakerPopover from '../../../components/SpeakerPopover'
 import ExportModal from '../../../components/ExportModal'
 
-type Word = { key: string; start_ms: number; end_ms: number; text: string }
-type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[]; is_edited?: boolean; is_filler?: boolean }
-type Speaker = { id: string; project_id: string; label: string; color?: string | null }
+type Word = EditorWord
+type Seg = Chunk & { words?: Word[] }
+type Speaker = SpeakerType
 type Match = { segId: string; index: number; length: number }
 type SegmentMatch = { index: number; length: number; matchIdx: number }
 
@@ -61,9 +71,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         const j = await res.json()
         const url: string = j.url
 
-        // Legacy API base for other endpoints (chunks, speakers, etc.)
-        const base = getApiBase()
-
         if (!containerRef.current) return
         // If an instance already exists (e.g., StrictMode remount), tear it down first
         if (wavesurferRef.current) {
@@ -86,14 +93,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         ws.on('pause', () => setPlaying(false))
         await ws.load(url)
 
-        // Load chunks (consolidated segments)
-        const segRes = await fetch(`${base}/projects/${params.id}/chunks`, {
-          headers: getAuthHeaders(),
-        })
-        if (!cancelled && segRes.ok) {
-          const segs = await segRes.json()
+        // Load chunks from Supabase
+        const segs = await fetchChunks(params.id)
+        if (!cancelled) {
           // Derive approximate word timings if not provided
-          const withWords = (segs as any[]).map((s: Seg) => {
+          const withWords = segs.map((s) => {
             const duration = Math.max(1, (s.end_ms - s.start_ms))
             const tokens = String(s.text || '').split(/(\s+)/).filter(Boolean)
             const words: Word[] = []
@@ -116,24 +120,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           setSegments(withWords)
         }
 
-        // Load speakers
+        // Load speakers from Supabase
         try {
-          const spRes = await fetch(`${base}/projects/${params.id}/speakers`, {
-            headers: getAuthHeaders(),
-          })
-          if (!cancelled && spRes.ok) {
-            const sps: Speaker[] = await spRes.json()
+          const sps = await fetchSpeakers(params.id)
+          if (!cancelled) {
             setSpeakers(sps)
           }
         } catch (_) { /* ignore */ }
 
-        // Load project metadata for title
+        // Load project metadata from Supabase
         try {
-          const projRes = await fetch(`${base}/projects/${params.id}`, {
-            headers: getAuthHeaders(),
-          })
-          if (!cancelled && projRes.ok) {
-            const projData = await projRes.json()
+          const projData = await fetchProjectById(params.id)
+          if (!cancelled && projData) {
             setProjectTitle(projData.title || null)
           }
         } catch (_) { /* ignore */ }
@@ -324,12 +322,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // debounce before saving
     const timerId = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${getApiBase()}/chunks/${segId}`, {
-          method: 'PATCH',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: newText }),
-        })
-        if (!res.ok) throw new Error(String(res.status))
+        await updateChunk(segId, { text: newText })
         setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saved' }))
         // reset saved flag after a moment
         window.setTimeout(() => setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [segId]: 'idle' })), 1200)
@@ -553,17 +546,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: speaker.id }),
-      })
-      if (!res.ok) throw new Error(`Failed to reassign speaker: ${res.status}`)
+      await updateChunk(chunkId, { speaker_id: speaker.id })
     } catch (err) {
       console.error('Failed to reassign speaker:', err)
       // Revert on error - reload segments
-      const segRes = await fetch(`${getApiBase()}/projects/${params.id}/chunks`, { headers: getAuthHeaders() })
-      if (segRes.ok) setSegments(await segRes.json())
+      const segs = await fetchChunks(params.id)
+      setSegments(segs.map(s => ({ ...s, words: [] })))
     }
   }, [speakerPopover, params.id])
 
@@ -577,22 +565,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
     try {
       // Create new speaker
-      const createRes = await fetch(`${getApiBase()}/projects/${params.id}/speakers`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label }),
-      })
-      if (!createRes.ok) throw new Error(`Failed to create speaker: ${createRes.status}`)
-      const createdSpeaker: Speaker = await createRes.json()
+      const createdSpeaker = await createSpeaker(params.id, label)
       newSpeaker = createdSpeaker
 
-      // Reassign chunk to new speaker (do this BEFORE adding to state)
-      const patchRes = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: createdSpeaker.id }),
-      })
-      if (!patchRes.ok) throw new Error(`Failed to reassign chunk: ${patchRes.status}`)
+      // Reassign chunk to new speaker
+      await updateChunk(chunkId, { speaker_id: createdSpeaker.id })
 
       // Both succeeded - now update state
       setSpeakers(prev => [...prev, createdSpeaker])
@@ -603,10 +580,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       // Rollback: if speaker was created but chunk patch failed, delete the orphan speaker
       if (newSpeaker) {
         try {
-          await fetch(`${getApiBase()}/speakers/${newSpeaker.id}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders(),
-          })
+          await deleteSpeaker(newSpeaker.id)
         } catch (cleanupErr) {
           console.error('Failed to cleanup orphan speaker:', cleanupErr)
         }
@@ -620,12 +594,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel }),
-      })
-      if (!res.ok) throw new Error(`Failed to rename speaker: ${res.status}`)
+      await updateSpeaker(speaker.id, { label: newLabel })
     } catch (err) {
       console.error('Failed to rename speaker:', err)
       // Revert on error
@@ -649,12 +618,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel }),
-      })
-      if (!res.ok) throw new Error(`Failed to untag speaker: ${res.status}`)
+      await updateSpeaker(speaker.id, { label: newLabel })
     } catch (err) {
       console.error('Failed to untag speaker:', err)
       // Revert on error
@@ -688,18 +652,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setTitleSaveError(null)
 
     try {
-      const base = getApiBase()
-      const res = await fetch(`${base}/projects/${params.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle }),
-      })
-      if (res.ok) {
-        setProjectTitle(newTitle)
-        setEditingTitle(false)
-      } else {
-        setTitleSaveError(`Failed to save title (${res.status})`)
-      }
+      await updateProject(params.id, { title: newTitle })
+      setProjectTitle(newTitle)
+      setEditingTitle(false)
     } catch (err) {
       console.error('Failed to save title:', err)
       setTitleSaveError('Failed to save title. Please try again.')
