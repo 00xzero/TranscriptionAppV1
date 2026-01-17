@@ -360,8 +360,17 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             };
         });
 
-        // Step 3: Run consolidation pipeline
+        // Step 3: Run consolidation pipeline (if enabled)
+        const consolidationEnabled = process.env.CONSOLIDATION_ENABLED !== "false";
         const consolidationResult = await step.run("run-consolidation", async () => {
+            if (!consolidationEnabled) {
+                console.log(`[inngest] Consolidation DISABLED for project: ${projectId} (CONSOLIDATION_ENABLED=false)`);
+                return {
+                    chunkCount: 0,
+                    chunkWordCount: 0,
+                    algoVersion: "skipped",
+                };
+            }
             console.log(`[inngest] Running consolidation for project: ${projectId}`);
             return await runConsolidation(projectId);
         });

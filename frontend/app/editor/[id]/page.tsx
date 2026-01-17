@@ -3,10 +3,12 @@ import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import {
-  fetchChunks,
+  fetchTranscriptData,
+  fetchChunks, // Keep for error recovery fallback if needed
   fetchSpeakers,
   fetchProjectById,
   updateChunk,
+  updateSegment,
   updateProject,
   createSpeaker,
   updateSpeaker,
@@ -58,6 +60,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [titleSaveError, setTitleSaveError] = useState<string | null>(null)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   const isSavingTitleRef = useRef(false)
+  const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [exportModalOpen, setExportModalOpen] = useState(false)
 
 
@@ -93,11 +96,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         ws.on('pause', () => setPlaying(false))
         await ws.load(url)
 
-        // Load chunks from Supabase
-        const segs = await fetchChunks(params.id)
+        // Load transcript data (chunks or segments)
+        const { items: segs, source: dataSource } = await fetchTranscriptData(params.id)
         if (!cancelled) {
+          setSource(dataSource)
           // Derive approximate word timings if not provided
           const withWords = segs.map((s) => {
+            // @ts-ignore - Handle missing properties between Chunk/Segment types if needed
             const duration = Math.max(1, (s.end_ms - s.start_ms))
             const tokens = String(s.text || '').split(/(\s+)/).filter(Boolean)
             const words: Word[] = []
@@ -115,9 +120,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               cursor += per
               words.push({ key: `${s.id}:${i}`, start_ms: start, end_ms: end, text: t })
             }
+            // @ts-ignore
             return { ...s, words }
           })
-          setSegments(withWords)
+          setSegments(withWords as Seg[])
         }
 
         // Load speakers from Supabase
@@ -311,6 +317,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
+    if (source === 'segments') return
+
     // update UI immediately
     setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
     setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
@@ -546,14 +554,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      await updateChunk(chunkId, { speaker_id: speaker.id })
+      if (source === 'segments') {
+        await updateSegment(chunkId, { speaker_id: speaker.id })
+      } else {
+        await updateChunk(chunkId, { speaker_id: speaker.id })
+      }
     } catch (err) {
       console.error('Failed to reassign speaker:', err)
       // Revert on error - reload segments
-      const segs = await fetchChunks(params.id)
-      setSegments(segs.map(s => ({ ...s, words: [] })))
+      const { items: segs } = await fetchTranscriptData(params.id)
+      setSegments(segs.map(s => ({ ...s, words: [] } as unknown as Seg)))
     }
-  }, [speakerPopover, params.id])
+  }, [speakerPopover, params.id, source])
 
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
@@ -568,8 +580,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       const createdSpeaker = await createSpeaker(params.id, label)
       newSpeaker = createdSpeaker
 
-      // Reassign chunk to new speaker
-      await updateChunk(chunkId, { speaker_id: createdSpeaker.id })
+      // Reassign chunk/segment to new speaker
+      if (source === 'segments') {
+        await updateSegment(chunkId, { speaker_id: createdSpeaker.id })
+      } else {
+        await updateChunk(chunkId, { speaker_id: createdSpeaker.id })
+      }
 
       // Both succeeded - now update state
       setSpeakers(prev => [...prev, createdSpeaker])
@@ -586,7 +602,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         }
       }
     }
-  }, [speakerPopover, params.id])
+  }, [speakerPopover, params.id, source])
 
   const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
     // Optimistic update
@@ -707,6 +723,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           <span className="text-sm text-red-500">{titleSaveError}</span>
         )}
       </div>
+
+      {source === 'segments' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-amber-800">Mix Mode (Raw Segments)</h3>
+            <p className="text-sm text-amber-700 mt-1">
+              Text editing is disabled because consolidation was skipped, but you can assign speakers.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-surface border border-base rounded p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
@@ -719,15 +750,19 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               placeholder="Search text"
             />
           </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-muted uppercase tracking-wide">Replace</label>
-            <input
-              className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
-              value={replaceTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
-              placeholder="Replacement"
-            />
-          </div>
+
+          {source !== 'segments' && (
+            <div className="flex flex-col">
+              <label className="text-xs text-muted uppercase tracking-wide">Replace</label>
+              <input
+                className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
+                value={replaceTerm}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
+                placeholder="Replacement"
+              />
+            </div>
+          )}
+
           <label className="flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={caseSensitive} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaseSensitive(e.target.checked)} />
             Match case
@@ -752,16 +787,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               {matchIndex + 1} / {totalMatches}
             </span>
           )}
-          <button
-            className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
-            onClick={handleReplace}
-            disabled={!canNavigate}
-          >Replace</button>
-          <button
-            className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
-            onClick={handleReplaceAll}
-            disabled={!canNavigate}
-          >Replace all</button>
+
+          {source !== 'segments' && (
+            <>
+              <button
+                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                onClick={handleReplace}
+                disabled={!canNavigate}
+              >Replace</button>
+              <button
+                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                onClick={handleReplaceAll}
+                disabled={!canNavigate}
+              >Replace all</button>
+            </>
+          )}
 
           {/* Export Button */}
           <div className="ml-auto">
@@ -860,14 +900,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                             {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
                             {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
                           </span>
-                          <button
-                            className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                              e.stopPropagation()
-                              setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                            }}
-                          >{editingId === s.id ? 'Close' : 'Edit'}</button>
+                          {source !== 'segments' && (
+                            <button
+                              className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                e.stopPropagation()
+                                setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
+                                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
+                              }}
+                            >{editingId === s.id ? 'Close' : 'Edit'}</button>
+                          )}
                         </div>
                         {editingId === s.id ? (
                           <div className="text-sm">

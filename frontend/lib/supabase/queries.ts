@@ -14,6 +14,7 @@ import type {
     SpeakerUpdate,
     SpeakerInsert,
     ProjectUpdate,
+    Segment,
 } from './types'
 
 // ============================================================================
@@ -116,6 +117,48 @@ export async function fetchChunks(projectId: string): Promise<Chunk[]> {
 }
 
 /**
+ * Fetch all segments for a project (fallback when chunks unavailable).
+ */
+export async function fetchSegments(projectId: string): Promise<Segment[]> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('segments')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('start_ms', { ascending: true })
+
+    if (error) throw error
+    return data || []
+}
+
+/**
+ * Fetch transcript data for editor display.
+ * Prefers chunks if available, falls back to segments.
+ * Returns normalized data structure compatible with editor.
+ */
+export async function fetchTranscriptData(projectId: string): Promise<{
+    items: Array<{
+        id: string
+        project_id: string
+        speaker_id: string | null
+        start_ms: number
+        end_ms: number
+        text: string
+    }>
+    source: 'chunks' | 'segments'
+}> {
+    // Try chunks first
+    const chunks = await fetchChunks(projectId)
+    if (chunks.length > 0) {
+        return { items: chunks, source: 'chunks' }
+    }
+
+    // Fall back to segments
+    const segments = await fetchSegments(projectId)
+    return { items: segments, source: 'segments' }
+}
+
+/**
  * Update a chunk (text, speaker, etc).
  */
 export async function updateChunk(
@@ -126,6 +169,25 @@ export async function updateChunk(
     const { data, error } = await supabase
         .from('chunks')
         .update({ ...updates, is_edited: true })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
+/**
+ * Update a segment (speaker only usually).
+ */
+export async function updateSegment(
+    id: string,
+    updates: { speaker_id?: string | null }
+): Promise<Segment> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('segments')
+        .update(updates)
         .eq('id', id)
         .select()
         .single()
