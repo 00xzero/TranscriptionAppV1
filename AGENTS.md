@@ -20,6 +20,18 @@ docker compose -f infra/docker-compose.yml exec api python -m pytest -v
 ```
 Notes: the primary workflow is Docker-based; compose config lives at `infra/docker-compose.yml`. Backend tests are pytest-based and some are integration-style (they may skip if the API is not running). Run any frontend checks inside the `frontend` container.
 
+## Local Dev (Frontend + Inngest)
+From `frontend/`:
+```bash
+npx inngest-cli@latest dev --port 8288
+npm run dev
+```
+
+# App test Authentication (login)
+Use this to login to the app as a test user:
+email address: ui5nvlw97q@mkzaso.com
+password: 4qdGNrheWHR25Js
+
 ## Coding Style & Naming Conventions
 - TypeScript/React: 2-space indentation, PascalCase components, and Tailwind CSS utilities for styling.
 - Python: 4-space indentation, snake_case functions/variables, type hints in Pydantic models.
