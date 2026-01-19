@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 8 - Export Parity |
+| **Phase** | 9 - Local Dev Docker |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -24,7 +24,7 @@
 | 5 | Deepgram Async Integration | ✅ Complete | 2026-01-15 |
 | 6 | Consolidation Pipeline Port | ✅ Complete | 2026-01-16 |
 | 7 | Frontend Data Flow | ✅ Complete | 2026-01-17 |
-| 8 | Export Parity | ⏳ Not Started | - |
+| 8 | Export Parity | ✅ Complete | 2026-01-19 |
 | 9 | Local Dev Docker | ⏳ Not Started | - |
 | 10 | Deployment | ⏳ Not Started | - |
 | 11 | Cleanup | ⏳ Not Started | - |
@@ -228,6 +228,28 @@
 - `lib/swr.ts` is deprecated but kept for test compatibility
 - SpeakerPopover now imports Speaker type from shared types
 - Connection status indicator shows Live/Connecting/Disconnected
+
+### Phase 8 → Phase 9
+
+**Key Deliverables Created:**
+- `lib/exports.ts` - TypeScript export generators (DOCX, VTT)
+- `app/api/projects/[id]/export/docx/route.ts` - DOCX export endpoint
+- `app/api/projects/[id]/export/vtt/route.ts` - VTT export endpoint
+- `__tests__/exports.test.ts` - 22 unit tests
+
+**Implementation Details:**
+- Uses `docx@^9.0.0` npm package for DOCX generation
+- Exports use Blob → ArrayBuffer conversion for Response compatibility
+- PDF export marked as "Coming Soon" in ExportModal
+
+**For Phase 9:**
+- Export endpoints are fully functional, no legacy FastAPI dependencies
+- All export routes use Supabase session auth (cookie-based)
+- Docker compose should expose port 3000 for frontend
+
+**Gotchas:**
+- `Packer.toBuffer()` returns incompatible type; use `Packer.toBlob().arrayBuffer()`
+- Legacy `lib/api.ts` still exists but is no longer used by ExportModal
 
 ## Blockers and Dependencies
 
