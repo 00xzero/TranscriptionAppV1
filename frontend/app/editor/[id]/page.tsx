@@ -405,7 +405,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [togglePlay, seekRelative])
 
   const onWordClick = (ms: number) => {
     seekToMs(ms)
@@ -447,7 +447,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       }
     }, SAVE_DEBOUNCE_MS)
     saveTimers.current[segId] = timerId
-  }, [])
+  }, [source])
 
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []

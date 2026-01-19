@@ -92,19 +92,28 @@ export function useProjectRealtime(projectId: string | null) {
     // Action: Update project
     const updateProject = useCallback(
         async (updates: ProjectUpdate) => {
-            if (!projectId || data.length === 0) return
-            const previous = data[0]
-            // Optimistic update
-            mutate([{ ...previous, ...updates }])
+            if (!projectId) return
+
+            // Capture previous data for rollback using functional update
+            let previous: Project | null = null
+            mutate((current) => {
+                if (!current || current.length === 0) return current
+                previous = current[0]
+                return [{ ...previous, ...updates }]
+            })
+
+            // If there was no data to update, exit early
+            if (!previous) return
 
             try {
                 await updateProjectQuery(projectId, updates)
             } catch (err) {
-                mutate([previous])
+                // Rollback on error
+                if (previous) mutate([previous])
                 throw err
             }
         },
-        [projectId, data, mutate]
+        [projectId, mutate]
     )
 
     return {

@@ -1,11 +1,21 @@
 #!/bin/bash
 
-# Configuration
-NGROK_DOMAIN="janiya-slinkier-cursorily.ngrok-free.dev"
 # Get the directory where the script is stored
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PID_DIR="$SCRIPT_DIR/.dev_pids_dir"
 LOG_DIR="$SCRIPT_DIR/.dev_logs"
+
+# Extract ngrok domain from frontend/.env.local (DEEPGRAM_CALLBACK_URL)
+# Example: DEEPGRAM_CALLBACK_URL=https://janiya-slinkier-cursorily.ngrok-free.dev/api/webhooks/deepgram
+ENV_FILE="$SCRIPT_DIR/frontend/.env.local"
+if [ -f "$ENV_FILE" ]; then
+    CALLBACK_URL=$(grep '^DEEPGRAM_CALLBACK_URL=' "$ENV_FILE" | cut -d'=' -f2-)
+    # Extract domain from URL (remove https:// and everything after the domain)
+    NGROK_DOMAIN=$(echo "$CALLBACK_URL" | sed -E 's|https?://([^/]+).*|\1|')
+fi
+
+# Fallback to environment variable or default if not found
+NGROK_DOMAIN="${NGROK_DOMAIN:-janiya-slinkier-cursorily.ngrok-free.dev}"
 
 setup_dirs() {
     mkdir -p "$LOG_DIR"
