@@ -65,7 +65,7 @@ export function formatDuration(seconds: number): string {
  * msToTimestamp(3665000) // "1:01:05"
  */
 export function msToTimestamp(ms: number): string {
-    const totalSec = Math.floor(ms / 1000)
+    const totalSec = Math.floor(Math.max(0, ms) / 1000)
     const s = totalSec % 60
     const m = Math.floor((totalSec / 60) % 60)
     const h = Math.floor(totalSec / 3600)
@@ -117,6 +117,14 @@ export interface GenerateVttParams {
 }
 
 /**
+ * Escape special characters for VTT content.
+ * Prevents breaking cues if text contains '<' or '&'.
+ */
+function escapeVttText(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+}
+
+/**
  * Generate a WebVTT file from transcript chunks.
  *
  * @returns VTT content as string
@@ -129,8 +137,10 @@ export function generateVtt({
     const lines: string[] = ['WEBVTT', '']
 
     chunks.forEach((chunk, idx) => {
-        const speakerLabel =
+        const rawLabel =
             speakersMap[chunk.speaker_id ?? '']?.label ?? 'Speaker'
+        const speakerLabel = escapeVttText(rawLabel)
+        const text = escapeVttText(chunk.text)
 
         const startVtt = msToVttTimestamp(chunk.start_ms)
         const endVtt = msToVttTimestamp(chunk.end_ms)
@@ -140,7 +150,7 @@ export function generateVtt({
 
         lines.push(cueId)
         lines.push(`${startVtt} --> ${endVtt}`)
-        lines.push(`<v ${speakerLabel}>${chunk.text}</v>`)
+        lines.push(`<v ${speakerLabel}>${text}</v>`)
         lines.push('')
     })
 
@@ -188,7 +198,7 @@ export async function generateDocx({
     )
 
     // Metadata block - centered, smaller font, gray
-    const dateStr = transcriptionDate.toLocaleDateString('en-US', {
+    const dateStr = transcriptionDate.toLocaleString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
