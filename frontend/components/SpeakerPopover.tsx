@@ -1,12 +1,6 @@
 "use client"
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-
-type Speaker = {
-  id: string
-  project_id: string
-  label: string
-  color?: string | null
-}
+import type { Speaker } from '../lib/supabase/types'
 
 type SpeakerPopoverProps = {
   /** All speakers in the project */
@@ -246,9 +240,8 @@ export default function SpeakerPopover({
                 key={sp.id}
                 role="button"
                 tabIndex={isEditing ? -1 : 0}
-                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent ${
-                  isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
-                }`}
+                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
+                  }`}
                 onClick={() => !isEditing && handleSpeakerClick(sp)}
                 onKeyDown={e => {
                   if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {

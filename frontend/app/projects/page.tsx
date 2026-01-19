@@ -1,25 +1,22 @@
 "use client"
 import Link from 'next/link'
 import { useState, useCallback, useEffect } from 'react'
-import { useProjects, useProjectActions, Project } from '../../lib/swr'
+import { useProjectsRealtime, useProjectJobsRealtime } from '../../lib/supabase/hooks'
+import { fetchProjectJobs, fetchWatchlistTerms } from '../../lib/supabase/queries'
 import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
+import type { Project, Job } from '../../lib/supabase/types'
 
 type JobPayload = {
   error?: string
   error_type?: string
 }
 
-type Job = {
-  id: string
-  status: string
-  payload?: JobPayload | null
-}
-
 export default function ProjectsPage() {
-  const { projects, isLoading, mutate } = useProjects()
-  const { startProject: startProjectAction, deleteProject: deleteProjectAction, getProjectJobs } = useProjectActions()
+  const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
+  const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
+  const [termsLoadError, setTermsLoadError] = useState<Record<string, string>>({})
 
   // Modal state
   const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
@@ -27,21 +24,22 @@ export default function ProjectsPage() {
   // Fetch error info for projects in error state
   const fetchProjectError = useCallback(async (projectId: string) => {
     try {
-      const jobs: Job[] = await getProjectJobs(projectId)
-      const errorJob = jobs.find(j => j.status === 'error' && j.payload?.error)
+      const jobs = await fetchProjectJobs(projectId)
+      const errorJob = jobs.find(j => j.status === 'error' && (j.payload as JobPayload)?.error)
       if (errorJob?.payload) {
+        const payload = errorJob.payload as JobPayload
         setProjectErrors(prev => ({
           ...prev,
           [projectId]: {
-            error: errorJob.payload?.error || 'Unknown error',
-            error_type: errorJob.payload?.error_type || 'transcription_error'
+            error: payload.error || 'Unknown error',
+            error_type: payload.error_type || 'transcription_error'
           }
         }))
       }
     } catch (e) {
       console.error('Failed to fetch project error:', e)
     }
-  }, [getProjectJobs])
+  }, [])
 
   // Fetch errors for projects in error state on initial load
   useEffect(() => {
@@ -56,18 +54,24 @@ export default function ProjectsPage() {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
     try {
-      await startProjectAction(id)
+      // Use existing Next.js API route for starting transcription
+      const res = await fetch(`/api/projects/${id}/start`, { method: 'POST' })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`Failed to start project: ${text}`)
+      }
       // Clear any previous error
       setProjectErrors(prev => {
         const next = { ...prev }
         delete next[id]
         return next
       })
-      // Revalidate the projects list
-      mutate()
+      // Refetch projects to get updated status
+      refetch()
     } catch (e) {
       console.error(e)
       alert(String(e))
+    } finally {
       setStarting((prev) => {
         const next = { ...prev }
         delete next[id]
@@ -76,34 +80,46 @@ export default function ProjectsPage() {
     }
   }
 
-  const deleteProject = async (id: string) => {
+  const handleDeleteProject = async (id: string) => {
     const ok = window.confirm(
       'Disclaimer: Deleting a project will permanently remove the project and all associated data (segments, speakers, and jobs). This action cannot be undone. Do you want to proceed?'
     )
     if (!ok) return
     try {
       await deleteProjectAction(id)
-      // Optimistically update cache and revalidate
-      mutate(
-        projects.filter(p => p.id !== id),
-        { revalidate: true }
-      )
     } catch (e) {
       console.error(e)
       alert(String(e))
     }
   }
 
-  const handleOpenEditModal = (project: Project) => {
-    setEditingProject({
-      id: project.id,
-      terms: project.key_terms || []
+  const handleOpenEditModal = async (project: Project) => {
+    if (loadingTerms[project.id]) return
+    setLoadingTerms(prev => ({ ...prev, [project.id]: true }))
+    setTermsLoadError(prev => {
+      const next = { ...prev }
+      delete next[project.id]
+      return next
     })
+
+    try {
+      const terms = await fetchWatchlistTerms(project.id)
+      setEditingProject({ id: project.id, terms })
+    } catch (e) {
+      console.error('Failed to load key terms:', e)
+      setTermsLoadError(prev => ({ ...prev, [project.id]: 'Failed to load key terms. Please try again.' }))
+    } finally {
+      setLoadingTerms(prev => {
+        const next = { ...prev }
+        delete next[project.id]
+        return next
+      })
+    }
   }
 
   const handleKeyTermsSaved = (newTerms: string[]) => {
-    // Update local state and trigger project list refresh
-    mutate()
+    // Trigger project list refresh
+    refetch()
     // Clear error since user fixed the terms
     if (editingProject) {
       setProjectErrors(prev => {
@@ -116,20 +132,32 @@ export default function ProjectsPage() {
 
   const handleRetry = useCallback(async () => {
     if (!editingProject) return
-    await startProjectAction(editingProject.id)
-  }, [editingProject, startProjectAction])
+    await startProject(editingProject.id)
+  }, [editingProject, startProject])
 
   const getErrorInfo = (projectId: string) => projectErrors[projectId]
 
+  // Connection status indicator
+  const statusColor = connectionStatus === 'connected' ? 'bg-green-500' :
+    connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Projects</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Projects</h1>
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+          <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
+        </div>
+      </div>
       {isLoading && <div className="text-muted">Loading...</div>}
       {!isLoading && projects.length === 0 && <div className="text-muted">No projects yet.</div>}
       <ul className="space-y-2">
         {projects.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
+          const isLoadingTerms = !!loadingTerms[p.id]
+          const termLoadError = termsLoadError[p.id]
 
           return (
             <li key={p.id} className="bg-surface border border-base rounded p-3">
@@ -161,7 +189,7 @@ export default function ProjectsPage() {
                   <Link href={`/editor/${p.id}`} className="accent hover:underline">Open</Link>
                   <button
                     className="p-2 rounded bg-red-600 text-white hover:bg-red-700"
-                    onClick={() => deleteProject(p.id)}
+                    onClick={() => handleDeleteProject(p.id)}
                     title="Delete project"
                     aria-label="Delete project"
                   >
@@ -184,10 +212,16 @@ export default function ProjectsPage() {
                       {isKeytermError && (
                         <button
                           onClick={() => handleOpenEditModal(p)}
-                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          disabled={isLoadingTerms}
+                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
                         >
-                          Edit Key Terms
+                          {isLoadingTerms ? 'Loading terms...' : 'Edit Key Terms'}
                         </button>
+                      )}
+                      {termLoadError && (
+                        <div className="mt-1 text-xs text-red-700 dark:text-red-300">
+                          {termLoadError}
+                        </div>
                       )}
                     </div>
                   </div>

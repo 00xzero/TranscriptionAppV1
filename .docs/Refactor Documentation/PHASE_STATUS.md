@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 7 - Frontend Data Flow |
+| **Phase** | 8 - Export Parity |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -23,7 +23,7 @@
 | 4 | Inngest Setup | ✅ Complete | 2026-01-15 |
 | 5 | Deepgram Async Integration | ✅ Complete | 2026-01-15 |
 | 6 | Consolidation Pipeline Port | ✅ Complete | 2026-01-16 |
-| 7 | Frontend Data Flow | ⏳ Not Started | - |
+| 7 | Frontend Data Flow | ✅ Complete | 2026-01-17 |
 | 8 | Export Parity | ⏳ Not Started | - |
 | 9 | Local Dev Docker | ⏳ Not Started | - |
 | 10 | Deployment | ⏳ Not Started | - |
@@ -202,6 +202,33 @@
 - `chunk_words.order_index` tracks word position within chunk
 - Empty transcriptions result in 0 chunks (no error)
 
+### Phase 7 → Phase 8
+
+**Key Deliverables Created:**
+- `lib/supabase/realtime.ts` - Generic Realtime hook with polling fallback
+- `lib/supabase/queries.ts` - Typed query helpers for Supabase
+- `lib/supabase/hooks.ts` - React hooks: useProjectsRealtime, useChunksRealtime, useSpeakersRealtime
+- `lib/supabase/types.ts` - Generated TypeScript types from Supabase schema
+- **Audio Sync Fix**: Updated `EditorPage` with `WebAudio` backend and robust seek logic to fix VBR sync issues
+
+**Implementation Details:**
+- Projects page uses `useProjectsRealtime()` with connection status indicator
+- Editor page uses `fetchChunks()`, `fetchSpeakers()`, `fetchProjectById()` from Supabase
+- All mutations (chunk edits, speaker ops, title save) use Supabase `update*()` functions
+- Optimistic UI with rollback on error for all mutations
+- 5-second polling fallback when Realtime connection fails
+
+**For Phase 8:**
+- Export endpoints should use the new Supabase queries, not legacy API
+- Use `fetchChunks()` to get transcript data for export
+- Use `fetchSpeakers()` to resolve speaker labels
+- Export endpoints: `/api/projects/[id]/export/docx`, `/api/projects/[id]/export/vtt`
+
+**Gotchas:**
+- `lib/swr.ts` is deprecated but kept for test compatibility
+- SpeakerPopover now imports Speaker type from shared types
+- Connection status indicator shows Live/Connecting/Disconnected
+
 ## Blockers and Dependencies
 
 | Blocker | Affects Phase | Owner | Status |
@@ -242,4 +269,8 @@
 | 2026-01-16 | 6 | Idempotent chunk creation | Clear existing chunks before insert, cascade deletes chunk_words |
 | 2026-01-16 | 6 | Deepgram `extra` param for metadata | Standard mechanism for passing metadata to webhook callbacks |
 | 2026-01-16 | 6 | Batched word fetching | Prevents URL length errors for long transcripts (50 per batch) |
-
+| 2026-01-17 | 7 | Supabase Realtime as primary | Replaces SWR polling; 5s polling fallback for reliability |
+| 2026-01-17 | 7 | Shared types from Supabase schema | Single source of truth for TypeScript types |
+| 2026-01-17 | 7 | Optimistic UI with rollback | Better UX for mutations; reverts on error |
+| 2026-01-17 | 7 | Deprecate lib/swr.ts | Keep for backwards compatibility; new code uses hooks.ts |
+| 2026-01-19 | 7 | Audio Sync: WebAudio backend | Fixes seek accuracy issues for VBR files; robust seek logic added |

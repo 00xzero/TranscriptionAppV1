@@ -82,7 +82,7 @@ export async function POST(
         .insert({
             project_id: id,
             status: "queued",
-            job_type: "transcription",
+            type: "transcription",
         })
         .select()
         .single();
