@@ -85,6 +85,24 @@ describe('normalizeFilename', () => {
     it('collapses multiple underscores', () => {
         expect(normalizeFilename('hello   world')).toBe('hello_world')
     })
+
+    it('trims leading underscores', () => {
+        expect(normalizeFilename('  leading spaces')).toBe('leading_spaces')
+    })
+
+    it('trims trailing underscores', () => {
+        expect(normalizeFilename('trailing spaces  ')).toBe('trailing_spaces')
+    })
+
+    it('truncates to 100 characters', () => {
+        const longName = 'a'.repeat(150)
+        const result = normalizeFilename(longName)
+        expect(result.length).toBe(100)
+    })
+
+    it('preserves hyphens', () => {
+        expect(normalizeFilename('my-file-name')).toBe('my-file-name')
+    })
 })
 
 describe('generateVtt', () => {

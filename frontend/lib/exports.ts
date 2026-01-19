@@ -162,7 +162,7 @@ export interface GenerateDocxParams {
 /**
  * Generate a DOCX file from transcript chunks.
  *
- * @returns Promise resolving to Uint8Array buffer of DOCX file
+ * @returns Promise resolving to Buffer of DOCX file
  */
 export async function generateDocx({
     projectTitle,
@@ -170,7 +170,7 @@ export async function generateDocx({
     speakersMap,
     transcriptionDate,
     durationSeconds,
-}: GenerateDocxParams): Promise<ArrayBuffer> {
+}: GenerateDocxParams): Promise<Buffer> {
     const children: Paragraph[] = []
 
     // Title - centered, 16pt bold
@@ -227,15 +227,17 @@ export async function generateDocx({
     children.push(new Paragraph({ children: [] }))
 
     // Transcript body - group chunks by speaker turns
-    let currentSpeakerId: string | null = null
+    // Use stable key to ensure null speakers get a header on first occurrence
+    let currentSpeakerKey: string | null = null
 
     for (const chunk of chunks) {
+        const speakerKey = chunk.speaker_id ?? '__null__'
         const speakerLabel =
             speakersMap[chunk.speaker_id ?? '']?.label ?? 'Unknown Speaker'
 
         // Check if we need a new speaker label
-        if (chunk.speaker_id !== currentSpeakerId) {
-            currentSpeakerId = chunk.speaker_id
+        if (speakerKey !== currentSpeakerKey) {
+            currentSpeakerKey = speakerKey
             children.push(
                 new Paragraph({
                     children: [
@@ -285,7 +287,6 @@ export async function generateDocx({
         ],
     })
 
-    // Convert to blob then to ArrayBuffer for response compatibility
-    const blob = await Packer.toBlob(doc)
-    return await blob.arrayBuffer()
+    // Convert to buffer (Node.js native, returns Buffer which extends Uint8Array)
+    return await Packer.toBuffer(doc)
 }
