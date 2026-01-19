@@ -223,10 +223,16 @@ export function useSpeakersRealtime(projectId: string | null) {
         async (label: string) => {
             if (!projectId) throw new Error('No project ID')
             const newSpeaker = await createSpeakerQuery(projectId, label)
-            mutate([...data, newSpeaker])
+            // Use functional mutate to prevent duplicates from Realtime echoes
+            mutate((prev) => {
+                if (!prev) return [newSpeaker]
+                // Check if speaker already exists (from Realtime INSERT echo)
+                if (prev.some((s) => s.id === newSpeaker.id)) return prev
+                return [...prev, newSpeaker]
+            })
             return newSpeaker
         },
-        [projectId, data, mutate]
+        [projectId, mutate]
     )
 
     // Action: Update speaker with optimistic update

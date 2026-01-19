@@ -152,14 +152,7 @@ export async function fetchSegments(projectId: string): Promise<Segment[]> {
  * Returns normalized data structure compatible with editor.
  */
 export async function fetchTranscriptData(projectId: string): Promise<{
-    items: Array<{
-        id: string
-        project_id: string
-        speaker_id: string | null
-        start_ms: number
-        end_ms: number
-        text: string
-    }>
+    items: Chunk[] | Segment[]
     source: 'chunks' | 'segments'
 }> {
     // Try chunks first

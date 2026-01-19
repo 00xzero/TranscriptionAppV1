@@ -7,7 +7,7 @@ I have created a [dev.sh](file:///Users/hamzaabikar/Documents/Miscellaneous/Code
 - **Start**: Launches the following services in the background:
     - **Frontend**: `http://localhost:3000`
     - **Inngest**: `http://localhost:8288`
-    - **Ngrok**: Forwards to port 3000 using your specific domain `janiya-slinkier-cursorily.ngrok-free.dev`.
+    - **Ngrok**: Forwards to port 3000 using your domain (extracted from `DEEPGRAM_CALLBACK_URL` in `frontend/.env.local`).
 - **Stop**: Safely terminates all background processes created by the script.
 - **Restart**: Stops and then starts the services.
 

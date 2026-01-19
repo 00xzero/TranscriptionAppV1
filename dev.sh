@@ -10,12 +10,14 @@ LOG_DIR="$SCRIPT_DIR/.dev_logs"
 ENV_FILE="$SCRIPT_DIR/frontend/.env.local"
 if [ -f "$ENV_FILE" ]; then
     CALLBACK_URL=$(grep '^DEEPGRAM_CALLBACK_URL=' "$ENV_FILE" | cut -d'=' -f2-)
+    # Strip surrounding single or double quotes if present
+    CALLBACK_URL=$(echo "$CALLBACK_URL" | sed -E "s/^['\"]//;s/['\"]$//")
     # Extract domain from URL (remove https:// and everything after the domain)
     NGROK_DOMAIN=$(echo "$CALLBACK_URL" | sed -E 's|https?://([^/]+).*|\1|')
 fi
 
 # Fallback to environment variable or default if not found
-NGROK_DOMAIN="${NGROK_DOMAIN:-janiya-slinkier-cursorily.ngrok-free.dev}"
+NGROK_DOMAIN="${NGROK_DOMAIN:-${DEEPGRAM_NGROK_DOMAIN:-}}"
 
 setup_dirs() {
     mkdir -p "$LOG_DIR"
@@ -45,17 +47,24 @@ remove_pid() {
 # --- Service Control Functions ---
 
 start_ngrok() {
-    if [ -n "$(get_pid ngrok)" ]; then
-        echo "Ngrok is already running (PID: $(get_pid ngrok))"
-        # We don't return here because we might be restarting other services
-        # providing a "start" command should be idempotent-ish or at least noisy
-    else
-        echo "Starting Ngrok on domain $NGROK_DOMAIN..."
-        ngrok http --domain="$NGROK_DOMAIN" 3000 > "$LOG_DIR/ngrok.log" 2>&1 &
-        local pid=$!
-        save_pid ngrok $pid
-        echo "Ngrok started (PID: $pid)"
+    local pid=$(get_pid ngrok)
+    if [ -n "$pid" ]; then
+        # Verify the process is actually alive
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Ngrok is already running (PID: $pid)"
+            return
+        else
+            # Stale PID file, remove it
+            echo "Removing stale ngrok PID file..."
+            remove_pid ngrok
+        fi
     fi
+    
+    echo "Starting Ngrok on domain $NGROK_DOMAIN..."
+    ngrok http --domain="$NGROK_DOMAIN" 3000 > "$LOG_DIR/ngrok.log" 2>&1 &
+    local new_pid=$!
+    save_pid ngrok $new_pid
+    echo "Ngrok started (PID: $new_pid)"
 }
 
 stop_ngrok() {
@@ -73,15 +82,22 @@ stop_ngrok() {
 }
 
 start_inngest() {
-    if [ -n "$(get_pid inngest)" ]; then
-        echo "Inngest is already running (PID: $(get_pid inngest))"
-    else
-        echo "Starting Inngest..."
-        cd "$SCRIPT_DIR/frontend" && npm run inngest > "$LOG_DIR/inngest.log" 2>&1 &
-        local pid=$!
-        save_pid inngest $pid
-        echo "Inngest started (PID: $pid)"
+    local pid=$(get_pid inngest)
+    if [ -n "$pid" ]; then
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Inngest is already running (PID: $pid)"
+            return
+        else
+            echo "Removing stale inngest PID file..."
+            remove_pid inngest
+        fi
     fi
+    
+    echo "Starting Inngest..."
+    cd "$SCRIPT_DIR/frontend" && npm run inngest > "$LOG_DIR/inngest.log" 2>&1 &
+    local new_pid=$!
+    save_pid inngest $new_pid
+    echo "Inngest started (PID: $new_pid)"
 }
 
 stop_inngest() {
@@ -102,15 +118,22 @@ stop_inngest() {
 }
 
 start_frontend() {
-    if [ -n "$(get_pid frontend)" ]; then
-        echo "Frontend is already running (PID: $(get_pid frontend))"
-    else
-        echo "Starting Frontend..."
-        cd "$SCRIPT_DIR/frontend" && npm run dev > "$LOG_DIR/frontend.log" 2>&1 &
-        local pid=$!
-        save_pid frontend $pid
-        echo "Frontend started (PID: $pid)"
+    local pid=$(get_pid frontend)
+    if [ -n "$pid" ]; then
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Frontend is already running (PID: $pid)"
+            return
+        else
+            echo "Removing stale frontend PID file..."
+            remove_pid frontend
+        fi
     fi
+    
+    echo "Starting Frontend..."
+    cd "$SCRIPT_DIR/frontend" && npm run dev > "$LOG_DIR/frontend.log" 2>&1 &
+    local new_pid=$!
+    save_pid frontend $new_pid
+    echo "Frontend started (PID: $new_pid)"
 }
 
 stop_frontend() {
