@@ -133,7 +133,7 @@ export default function ProjectsPage() {
   const handleRetry = useCallback(async () => {
     if (!editingProject) return
     await startProject(editingProject.id)
-  }, [editingProject])
+  }, [editingProject, startProject])
 
   const getErrorInfo = (projectId: string) => projectErrors[projectId]
 

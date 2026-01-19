@@ -40,9 +40,12 @@ export function useProjectsRealtime() {
     // Action: Delete project with optimistic update
     const deleteProject = useCallback(
         async (id: string) => {
-            const previousData = data
-            // Optimistic update
-            mutate(data.filter((p) => p.id !== id))
+            // Capture previous data for rollback using functional update
+            let previousData: Project[] = []
+            mutate((current) => {
+                previousData = current ?? []
+                return previousData.filter((p) => p.id !== id)
+            })
 
             try {
                 await deleteProjectQuery(id)
@@ -52,7 +55,7 @@ export function useProjectsRealtime() {
                 throw err
             }
         },
-        [data, mutate]
+        [mutate]
     )
 
     return {
