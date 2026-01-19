@@ -381,3 +381,9 @@ Estimated by phase (single engineer):
 ## Decisions Made (Phase 6)
 ✅ **Deepgram Metadata Strategy**: Use `extra` query parameter to pass project_id to webhook (JSON body `metadata` not returned in callback)  
 ✅ **Large Dataset Handling**: Implemented batched word fetching (50 segments/batch) to avoid URL length-related errors in consolidation  
+
+## Decisions Made (Phase 7)
+✅ **Realtime as Primary**: Supabase Realtime subscriptions for project/job status; 5s polling fallback for reliability  
+✅ **Optimistic UI**: Implemented for all editor mutations (edit, speaker change) to ensure responsive UX  
+✅ **Shared Types**: Generated TypeScript types from Supabase schema as single source of truth  
+✅ **Audio Sync Strategy**: Switched WaveSurfer to `WebAudio` backend + custom `seekToMs` logic to fix VBR seek accuracy

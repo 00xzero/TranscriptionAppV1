@@ -208,7 +208,9 @@
 - `lib/supabase/realtime.ts` - Generic Realtime hook with polling fallback
 - `lib/supabase/queries.ts` - Typed query helpers for Supabase
 - `lib/supabase/hooks.ts` - React hooks: useProjectsRealtime, useChunksRealtime, useSpeakersRealtime
+- `lib/supabase/hooks.ts` - React hooks: useProjectsRealtime, useChunksRealtime, useSpeakersRealtime
 - `lib/supabase/types.ts` - Generated TypeScript types from Supabase schema
+- **Audio Sync Fix**: Updated `EditorPage` with `WebAudio` backend and robust seek logic to fix VBR sync issues
 
 **Implementation Details:**
 - Projects page uses `useProjectsRealtime()` with connection status indicator
@@ -272,4 +274,5 @@
 | 2026-01-17 | 7 | Shared types from Supabase schema | Single source of truth for TypeScript types |
 | 2026-01-17 | 7 | Optimistic UI with rollback | Better UX for mutations; reverts on error |
 | 2026-01-17 | 7 | Deprecate lib/swr.ts | Keep for backwards compatibility; new code uses hooks.ts |
+| 2026-01-19 | 7 | Audio Sync: WebAudio backend | Fixes seek accuracy issues for VBR files; robust seek logic added |
 

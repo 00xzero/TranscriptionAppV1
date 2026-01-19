@@ -26,6 +26,9 @@ type SegmentMatch = { index: number; length: number; matchIdx: number }
 
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
+const SEEK_LOCK_MS = 3000
+const SEEK_RESUME_TIMEOUT_MS = 1000
+const SEEK_TOLERANCE_MS = 250
 
 export default function EditorPage({ params }: { params: { id: string } }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -62,12 +65,93 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const isSavingTitleRef = useRef(false)
   const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  // Ref to prevent timeupdate/audioprocess from overriding manual card clicks
+  const clickLockRef = useRef<number | null>(null)
+  const readyRef = useRef(false)
+  const pendingSeekRef = useRef<number | null>(null)
+  const seekTokenRef = useRef(0)
+  const seekTimeoutRef = useRef<number | null>(null)
+
+  const seekToMs = useCallback((targetMs: number) => {
+    const ws = wavesurferRef.current
+    if (!ws) return
+
+    if (!readyRef.current) {
+      pendingSeekRef.current = targetMs
+      return
+    }
+
+    const durationMs = (ws.getDuration() || 0) * 1000
+    const clampedMs = durationMs ? Math.min(Math.max(0, targetMs), durationMs) : Math.max(0, targetMs)
+    const targetSec = clampedMs / 1000
+    const wasPlaying = ws.isPlaying()
+    const media = typeof ws.getMediaElement === 'function' ? ws.getMediaElement() : null
+    const isHtmlMedia = typeof HTMLMediaElement !== 'undefined' && media instanceof HTMLMediaElement
+    const token = ++seekTokenRef.current
+
+    if (seekTimeoutRef.current) {
+      window.clearTimeout(seekTimeoutRef.current)
+      seekTimeoutRef.current = null
+    }
+
+    if (wasPlaying) {
+      // Pause to avoid playing stale buffered audio while seeking
+      ws.pause()
+    }
+
+    if (isHtmlMedia) {
+      clickLockRef.current = Date.now() + SEEK_LOCK_MS
+    } else {
+      clickLockRef.current = null
+    }
+
+    const attemptSeek = (attempt: number) => {
+      ws.setTime(targetSec)
+
+      if (!media || !isHtmlMedia) {
+        clickLockRef.current = null
+        if (wasPlaying) ws.play()
+        return
+      }
+
+      const handleSeeked = () => {
+        if (seekTokenRef.current !== token) return
+
+        const actualMs = Math.floor(ws.getCurrentTime() * 1000)
+        const diff = Math.abs(actualMs - clampedMs)
+        if (diff > SEEK_TOLERANCE_MS && attempt < 1) {
+          if (seekTimeoutRef.current) {
+            window.clearTimeout(seekTimeoutRef.current)
+            seekTimeoutRef.current = null
+          }
+          attemptSeek(attempt + 1)
+          return
+        }
+
+        clickLockRef.current = null
+        if (wasPlaying) ws.play()
+      }
+
+      media.addEventListener('seeked', handleSeeked, { once: true })
+
+      seekTimeoutRef.current = window.setTimeout(() => {
+        if (seekTokenRef.current !== token) return
+        clickLockRef.current = null
+        if (wasPlaying) ws.play()
+      }, SEEK_RESUME_TIMEOUT_MS)
+    }
+
+    attemptSeek(0)
+  }, [])
 
 
   useEffect(() => {
     let cancelled = false
     const init = async () => {
       try {
+        setStatus('Loading media...')
+        setReady(false)
+        readyRef.current = false
         // Use new Next.js API route for media URL (Supabase Storage)
         const res = await fetch(`/api/projects/${params.id}/media-url`)
         if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
@@ -88,9 +172,22 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           progressColor: '#2563EB',
           cursorColor: '#111827',
           height: 96,
+          // Use WebAudio for accurate seeks on initial load (tradeoff: upfront decode)
+          backend: 'WebAudio',
         })
         wavesurferRef.current = ws
-        ws.on('ready', () => { if (cancelled) return; setReady(true); setStatus('Ready'); ws.setPlaybackRate(playbackRate) })
+        ws.on('ready', () => {
+          if (cancelled) return
+          readyRef.current = true
+          setReady(true)
+          setStatus('Ready')
+          ws.setPlaybackRate(playbackRate)
+          const pendingSeekMs = pendingSeekRef.current
+          if (pendingSeekMs !== null) {
+            pendingSeekRef.current = null
+            seekToMs(pendingSeekMs)
+          }
+        })
         ws.on('error', (e: unknown) => { setStatus(`Error: ${String(e)}`) })
         ws.on('play', () => setPlaying(true))
         ws.on('pause', () => setPlaying(false))
@@ -142,9 +239,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           }
         } catch (_) { /* ignore */ }
 
-        const onProcess = () => {
-          const tSec = ws.getCurrentTime() || 0
-          const tMs = Math.floor(tSec * 1000)
+        // Helper to find and set active segment based on time in ms
+        const syncActiveSegment = (tMs: number) => {
+          // Guard: Don't update if segments aren't loaded yet
+          if (segmentsRef.current.length === 0) return
+
+          // Guard: Skip if click lock is active (prevents overriding manual clicks)
+          if (clickLockRef.current && Date.now() < clickLockRef.current) {
+            return
+          }
+
           const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
           let segId: string | undefined
           for (const s of segmentsRef.current) {
@@ -153,10 +257,25 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               break
             }
           }
-          setActiveIds({ segId, wordKey: undefined })
+          // Only update if we found a segment (prevents clearing activeIds prematurely)
+          if (segId) {
+            setActiveIds({ segId, wordKey: undefined })
+          }
+        }
+
+        const onProcess = () => {
+          const tSec = ws.getCurrentTime() || 0
+          const tMs = Math.floor(tSec * 1000)
+          syncActiveSegment(tMs)
+        }
+
+        // Use timeupdate for reliable sync - fires during playback AND after seeks
+        const onTimeUpdate = (currentTime: number) => {
+          syncActiveSegment(Math.floor(currentTime * 1000))
         }
 
         ws.on('audioprocess', onProcess)
+        ws.on('timeupdate', onTimeUpdate)
 
       } catch (e: any) {
         console.error(e)
@@ -166,12 +285,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     init()
     return () => {
       cancelled = true
+      if (seekTimeoutRef.current) {
+        window.clearTimeout(seekTimeoutRef.current)
+        seekTimeoutRef.current = null
+      }
+      readyRef.current = false
       wavesurferRef.current?.destroy()
       wavesurferRef.current = null
       // Also clear the container in case destroy() didn't remove canvases
       try { containerRef.current?.replaceChildren() } catch { if (containerRef.current) containerRef.current.innerHTML = '' }
     }
-  }, [params.id])
+  }, [params.id, seekToMs])
 
   const togglePlay = () => {
     const ws = wavesurferRef.current
@@ -187,7 +311,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     let next = cur + sec
     if (next < 0) next = 0
     if (next > dur) next = dur
-    ws.setTime(next)
+    seekToMs(next * 1000)
   }
 
   // Keep a ref to latest segments to use inside WS callbacks
@@ -282,12 +406,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [])
 
   const onWordClick = (ms: number) => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    ws.setTime(ms / 1000)
+    seekToMs(ms)
   }
 
-  const onSegmentClick = (ms: number) => onWordClick(ms)
+  // Direct segment click - set activeIds immediately without time-based lookup
+  const onSegmentClick = (segId: string, ms: number) => {
+    setActiveIds({ segId, wordKey: undefined })
+    seekToMs(ms)
+  }
 
   const onRateChange = (r: number) => {
     setPlaybackRate(r)
@@ -871,7 +997,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       }
                     }}
                     className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
-                    onClick={() => onSegmentClick(s.start_ms)}
+                    onClick={() => onSegmentClick(s.id, s.start_ms)}
                   >
                     <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
                       {needHeader && (

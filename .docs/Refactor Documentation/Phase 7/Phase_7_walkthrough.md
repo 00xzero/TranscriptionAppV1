@@ -27,9 +27,15 @@ Phase 7 replaced legacy FastAPI polling with Supabase Realtime subscriptions as 
 | File | Changes |
 |:---|:---|
 | `app/projects/page.tsx` | Uses `useProjectsRealtime()` with connection status indicator |
-| `app/editor/[id]/page.tsx` | All fetches and mutations use Supabase queries |
+| `app/editor/[id]/page.tsx` | All fetches/mutations use Supabase; added WebAudio backend fix |
 | `components/SpeakerPopover.tsx` | Imports shared Speaker type |
 | `lib/swr.ts` | Added deprecation notice |
+
+### Critical Fixes
+
+**Audio-Transcript Sync**:
+- Switched WaveSurfer backend from `MediaElement` to `WebAudio` to resolve seek position inaccuracies with VBR MP3 files.
+- Implemented robust `seekToMs` logic with tolerance checking to ensure transcript clicks land on the exact correct audio frame.
 
 ---
 
