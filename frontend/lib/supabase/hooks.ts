@@ -238,8 +238,12 @@ export function useSpeakersRealtime(projectId: string | null) {
     // Action: Update speaker with optimistic update
     const updateSpeaker = useCallback(
         async (id: string, updates: SpeakerUpdate) => {
-            const previous = data
-            mutate(data.map((s) => (s.id === id ? { ...s, ...updates } : s)))
+            // Capture previous data for rollback using functional update
+            let previous: Speaker[] = []
+            mutate((current) => {
+                previous = current ?? []
+                return previous.map((s) => (s.id === id ? { ...s, ...updates } : s))
+            })
 
             try {
                 await updateSpeakerQuery(id, updates)
@@ -248,14 +252,18 @@ export function useSpeakersRealtime(projectId: string | null) {
                 throw err
             }
         },
-        [data, mutate]
+        [mutate]
     )
 
     // Action: Delete speaker
     const deleteSpeaker = useCallback(
         async (id: string) => {
-            const previous = data
-            mutate(data.filter((s) => s.id !== id))
+            // Capture previous data for rollback using functional update
+            let previous: Speaker[] = []
+            mutate((current) => {
+                previous = current ?? []
+                return previous.filter((s) => s.id !== id)
+            })
 
             try {
                 await deleteSpeakerQuery(id)
@@ -264,7 +272,7 @@ export function useSpeakersRealtime(projectId: string | null) {
                 throw err
             }
         },
-        [data, mutate]
+        [mutate]
     )
 
     return {

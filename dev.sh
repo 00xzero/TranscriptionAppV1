@@ -60,6 +60,13 @@ start_ngrok() {
         fi
     fi
     
+    # Validate NGROK_DOMAIN is set
+    if [ -z "$NGROK_DOMAIN" ]; then
+        echo "Error: NGROK_DOMAIN is not set."
+        echo "Please set DEEPGRAM_CALLBACK_URL in frontend/.env.local or export DEEPGRAM_NGROK_DOMAIN."
+        return 1
+    fi
+    
     echo "Starting Ngrok on domain $NGROK_DOMAIN..."
     ngrok http --domain="$NGROK_DOMAIN" 3000 > "$LOG_DIR/ngrok.log" 2>&1 &
     local new_pid=$!
