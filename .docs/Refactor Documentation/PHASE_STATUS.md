@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 8 - Export Parity |
+| **Phase** | 9 - Local Dev Docker |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -24,7 +24,7 @@
 | 5 | Deepgram Async Integration | ✅ Complete | 2026-01-15 |
 | 6 | Consolidation Pipeline Port | ✅ Complete | 2026-01-16 |
 | 7 | Frontend Data Flow | ✅ Complete | 2026-01-17 |
-| 8 | Export Parity | ⏳ Not Started | - |
+| 8 | Export Parity | ✅ Complete | 2026-01-19 |
 | 9 | Local Dev Docker | ⏳ Not Started | - |
 | 10 | Deployment | ⏳ Not Started | - |
 | 11 | Cleanup | ⏳ Not Started | - |
@@ -229,6 +229,29 @@
 - SpeakerPopover now imports Speaker type from shared types
 - Connection status indicator shows Live/Connecting/Disconnected
 
+### Phase 8 → Phase 9
+
+**Key Deliverables Created:**
+- `lib/exports.ts` - TypeScript export generators (DOCX, VTT)
+- `app/api/projects/[id]/export/docx/route.ts` - DOCX export endpoint
+- `app/api/projects/[id]/export/vtt/route.ts` - VTT export endpoint
+- `__tests__/exports.test.ts` - 22 unit tests
+
+**Implementation Details:**
+- Uses `docx@^9.5.1` npm package for DOCX generation
+- Exports use Blob → ArrayBuffer conversion for Response compatibility
+- PDF export marked as "Coming Soon" in ExportModal
+
+**For Phase 9:**
+- Export endpoints are fully functional, no legacy FastAPI dependencies
+- All export routes use Supabase session auth (cookie-based)
+- Docker compose should expose port 3000 for frontend
+
+**Gotchas:**
+- `Packer.toBuffer()` returns incompatible type; use `new Uint8Array(Packer.toBuffer())`
+- Legacy `lib/api.ts` still exists but is no longer used by ExportModal
+- `docx` library requires `runtime = 'nodejs'` in Next.js API route
+
 ## Blockers and Dependencies
 
 | Blocker | Affects Phase | Owner | Status |
@@ -274,3 +297,6 @@
 | 2026-01-17 | 7 | Optimistic UI with rollback | Better UX for mutations; reverts on error |
 | 2026-01-17 | 7 | Deprecate lib/swr.ts | Keep for backwards compatibility; new code uses hooks.ts |
 | 2026-01-19 | 7 | Audio Sync: WebAudio backend | Fixes seek accuracy issues for VBR files; robust seek logic added |
+| 2026-01-19 | 8 | Native Node.js DOCX generation | Moved from Python to `docx` npm package; better integration with Next.js |
+| 2026-01-19 | 8 | Stable Speaker Grouping | Added fallback key for null speakers to fix missing headers in exports |
+| 2026-01-19 | 8 | Shared Data Fetching | Centralized export data logic in `lib/exports/data.ts` to reduce duplication |

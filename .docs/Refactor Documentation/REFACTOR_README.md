@@ -36,4 +36,5 @@
 - [x] Phase 5: Deepgram Async Integration → [Phase 5/](./Phase%205/)
 - [x] Phase 6: Consolidation Pipeline Port → [Phase 6/](./Phase%206/)
 - [x] Phase 7: Frontend Data Flow → [Phase 7/](./Phase%207/)
+- [x] Phase 8: Export Parity → [Phase 8/](./Phase%208/)
 
