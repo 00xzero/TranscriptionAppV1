@@ -126,12 +126,20 @@ export function useSupabaseRealtime<T extends { id: string }>(
 
                 if (status === 'SUBSCRIBED') {
                     setConnectionStatus('connected')
-                    stopPolling() // Stop polling when connected
+                    // Keep polling as backup even when connected, but at a slower rate
+                    // This ensures we never miss updates due to realtime timing issues
+                    stopPolling()
+                    if (enablePollingFallback) {
+                        pollingRef.current = setInterval(() => {
+                            fetchData()
+                        }, pollingInterval * 2) // Poll at half the frequency when realtime is active
+                    }
                 } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
                     setConnectionStatus('disconnected')
-                    startPolling() // Start polling fallback
+                    startPolling() // Start aggressive polling fallback
                 } else {
                     setConnectionStatus('connecting')
+                    startPolling() // Also poll while connecting to catch any missed updates
                 }
             })
 
@@ -145,7 +153,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
                 channelRef.current = null
             }
         }
-    }, [table, fetchData, startPolling, stopPolling])
+    }, [table, fetchData, startPolling, stopPolling, enablePollingFallback, pollingInterval])
 
     return {
         data,

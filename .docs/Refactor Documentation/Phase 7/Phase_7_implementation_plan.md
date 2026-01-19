@@ -37,8 +37,8 @@ Already using Next.js API routes and Supabase Storage (from Phase 3).
 
 ### 5. Updated Shared Types
 
-- SpeakerPopover now imports Speaker type from `lib/supabase/types.ts`
-- Added deprecation notice to legacy `lib/swr.ts`
+- SpeakerPopover now imports Speaker type from `frontend/lib/supabase/types.ts`
+- Added deprecation notice to legacy `frontend/lib/swr.ts`
 
 ---
 
@@ -46,14 +46,14 @@ Already using Next.js API routes and Supabase Storage (from Phase 3).
 
 | File | Action | Purpose |
 |:---|:---|:---|
-| `lib/supabase/realtime.ts` | NEW | Generic Realtime hook |
-| `lib/supabase/queries.ts` | NEW | Query helpers |
-| `lib/supabase/hooks.ts` | NEW | React hooks |
-| `lib/supabase/types.ts` | NEW | TypeScript types |
-| `app/projects/page.tsx` | MODIFIED | Use Realtime hooks |
-| `app/editor/[id]/page.tsx` | MODIFIED | Use Supabase queries |
-| `components/SpeakerPopover.tsx` | MODIFIED | Import shared Speaker type |
-| `lib/swr.ts` | MODIFIED | Added deprecation notice |
+| `frontend/lib/supabase/realtime.ts` | NEW | Generic Realtime hook |
+| `frontend/lib/supabase/queries.ts` | NEW | Query helpers |
+| `frontend/lib/supabase/hooks.ts` | NEW | React hooks |
+| `frontend/lib/supabase/types.ts` | NEW | TypeScript types |
+| `frontend/app/projects/page.tsx` | MODIFIED | Use Realtime hooks |
+| `frontend/app/editor/[id]/page.tsx` | MODIFIED | Use Supabase queries |
+| `frontend/components/SpeakerPopover.tsx` | MODIFIED | Import shared Speaker type |
+| `frontend/lib/swr.ts` | MODIFIED | Added deprecation notice |
 
 ---
 

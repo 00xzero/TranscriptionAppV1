@@ -30,6 +30,30 @@ const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
 
+const computeWordsForSegment = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
+  const duration = Math.max(1, (seg.end_ms - seg.start_ms))
+  const tokens = String(seg.text || '').split(/(\s+)/).filter(Boolean)
+  const words: Word[] = []
+  let cursor = 0
+  const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]
+    if (/^\s+$/.test(t)) {
+      if (words.length > 0) words[words.length - 1].text += t
+      continue
+    }
+    const start = seg.start_ms + cursor
+    const end = i === tokens.length - 1 ? seg.end_ms : Math.min(seg.end_ms, start + per)
+    cursor += per
+    words.push({ key: `${seg.id}:${i}`, start_ms: start, end_ms: end, text: t })
+  }
+  return words
+}
+
+const computeWordsForSegments = <T extends { id: string; start_ms: number; end_ms: number; text: string }>(
+  items: T[]
+): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
+
 export default function EditorPage({ params }: { params: { id: string } }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const wavesurferRef = useRef<WaveSurfer | null>(null)
@@ -198,29 +222,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         if (!cancelled) {
           setSource(dataSource)
           // Derive approximate word timings if not provided
-          const withWords = segs.map((s) => {
-            // @ts-ignore - Handle missing properties between Chunk/Segment types if needed
-            const duration = Math.max(1, (s.end_ms - s.start_ms))
-            const tokens = String(s.text || '').split(/(\s+)/).filter(Boolean)
-            const words: Word[] = []
-            let cursor = 0
-            const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-            for (let i = 0; i < tokens.length; i++) {
-              const t = tokens[i]
-              if (/^\s+$/.test(t)) {
-                // whitespace: attach to previous word visually
-                if (words.length > 0) words[words.length - 1].text += t
-                continue
-              }
-              const start = s.start_ms + cursor
-              const end = i === tokens.length - 1 ? s.end_ms : Math.min(s.end_ms, start + per)
-              cursor += per
-              words.push({ key: `${s.id}:${i}`, start_ms: start, end_ms: end, text: t })
-            }
-            // @ts-ignore
-            return { ...s, words }
-          })
-          setSegments(withWords as Seg[])
+          setSegments(computeWordsForSegments(segs) as Seg[])
         }
 
         // Load speakers from Supabase
@@ -297,13 +299,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }, [params.id, seekToMs])
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const ws = wavesurferRef.current
     if (!ws) return
     ws.isPlaying() ? ws.pause() : ws.play()
-  }
+  }, [source])
 
-  const seekRelative = (sec: number) => {
+  const seekRelative = useCallback((sec: number) => {
     const ws = wavesurferRef.current
     if (!ws) return
     const dur = ws.getDuration() || 0
@@ -312,7 +314,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (next < 0) next = 0
     if (next > dur) next = dur
     seekToMs(next * 1000)
-  }
+  }, [seekToMs])
 
   // Keep a ref to latest segments to use inside WS callbacks
   const segmentsRef = useRef(segments)
@@ -421,32 +423,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (ws) ws.setPlaybackRate(r)
   }
 
-  // Debounced save of segment text
-  const recomputeWords = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
-    const duration = Math.max(1, (seg.end_ms - seg.start_ms))
-    const tokens = String(seg.text || '').split(/(\s+)/).filter(Boolean)
-    const words: Word[] = []
-    let cursor = 0
-    const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-    for (let i = 0; i < tokens.length; i++) {
-      const t = tokens[i]
-      if (/^\s+$/.test(t)) {
-        if (words.length > 0) words[words.length - 1].text += t
-        continue
-      }
-      const start = seg.start_ms + cursor
-      const end = i === tokens.length - 1 ? seg.end_ms : Math.min(seg.end_ms, start + per)
-      cursor += per
-      words.push({ key: `${seg.id}:${i}`, start_ms: start, end_ms: end, text: t })
-    }
-    return words
-  }
-
   const scheduleSave = useCallback((segId: string, newText: string) => {
     if (source === 'segments') return
 
     // update UI immediately
-    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
+    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: computeWordsForSegment({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
     setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
 
     // clear existing timer
@@ -689,7 +670,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       console.error('Failed to reassign speaker:', err)
       // Revert on error - reload segments
       const { items: segs } = await fetchTranscriptData(params.id)
-      setSegments(segs.map(s => ({ ...s, words: [] } as unknown as Seg)))
+      setSegments(computeWordsForSegments(segs) as Seg[])
     }
   }, [speakerPopover, params.id, source])
 

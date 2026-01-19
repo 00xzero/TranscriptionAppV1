@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useState, useCallback, useEffect } from 'react'
 import { useProjectsRealtime, useProjectJobsRealtime } from '../../lib/supabase/hooks'
-import { fetchProjectJobs } from '../../lib/supabase/queries'
+import { fetchProjectJobs, fetchWatchlistTerms } from '../../lib/supabase/queries'
 import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
 import type { Project, Job } from '../../lib/supabase/types'
 
@@ -15,6 +15,8 @@ export default function ProjectsPage() {
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
+  const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
+  const [termsLoadError, setTermsLoadError] = useState<Record<string, string>>({})
 
   // Modal state
   const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
@@ -69,6 +71,7 @@ export default function ProjectsPage() {
     } catch (e) {
       console.error(e)
       alert(String(e))
+    } finally {
       setStarting((prev) => {
         const next = { ...prev }
         delete next[id]
@@ -90,12 +93,28 @@ export default function ProjectsPage() {
     }
   }
 
-  const handleOpenEditModal = (project: Project) => {
-    // Note: key_terms are stored in watchlist table, will need to fetch separately if needed
-    setEditingProject({
-      id: project.id,
-      terms: [] // TODO: Fetch from watchlist table if needed
+  const handleOpenEditModal = async (project: Project) => {
+    if (loadingTerms[project.id]) return
+    setLoadingTerms(prev => ({ ...prev, [project.id]: true }))
+    setTermsLoadError(prev => {
+      const next = { ...prev }
+      delete next[project.id]
+      return next
     })
+
+    try {
+      const terms = await fetchWatchlistTerms(project.id)
+      setEditingProject({ id: project.id, terms })
+    } catch (e) {
+      console.error('Failed to load key terms:', e)
+      setTermsLoadError(prev => ({ ...prev, [project.id]: 'Failed to load key terms. Please try again.' }))
+    } finally {
+      setLoadingTerms(prev => {
+        const next = { ...prev }
+        delete next[project.id]
+        return next
+      })
+    }
   }
 
   const handleKeyTermsSaved = (newTerms: string[]) => {
@@ -137,6 +156,8 @@ export default function ProjectsPage() {
         {projects.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
+          const isLoadingTerms = !!loadingTerms[p.id]
+          const termLoadError = termsLoadError[p.id]
 
           return (
             <li key={p.id} className="bg-surface border border-base rounded p-3">
@@ -191,10 +212,16 @@ export default function ProjectsPage() {
                       {isKeytermError && (
                         <button
                           onClick={() => handleOpenEditModal(p)}
-                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          disabled={isLoadingTerms}
+                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
                         >
-                          Edit Key Terms
+                          {isLoadingTerms ? 'Loading terms...' : 'Edit Key Terms'}
                         </button>
+                      )}
+                      {termLoadError && (
+                        <div className="mt-1 text-xs text-red-700 dark:text-red-300">
+                          {termLoadError}
+                        </div>
                       )}
                     </div>
                   </div>

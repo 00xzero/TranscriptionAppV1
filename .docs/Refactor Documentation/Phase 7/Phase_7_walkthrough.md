@@ -17,19 +17,19 @@ Phase 7 replaced legacy FastAPI polling with Supabase Realtime subscriptions as 
 
 | File | Purpose |
 |:---|:---|
-| `lib/supabase/realtime.ts` | Generic Realtime hook with 5s polling fallback |
-| `lib/supabase/queries.ts` | Typed query helpers for CRUD operations |
-| `lib/supabase/hooks.ts` | React hooks: useProjectsRealtime, useChunksRealtime, useSpeakersRealtime |
-| `lib/supabase/types.ts` | Generated TypeScript types from Supabase schema |
+| `frontend/lib/supabase/realtime.ts` | Generic Realtime hook with 5s polling fallback |
+| `frontend/lib/supabase/queries.ts` | Typed query helpers for CRUD operations |
+| `frontend/lib/supabase/hooks.ts` | React hooks: useProjectsRealtime, useChunksRealtime, useSpeakersRealtime |
+| `frontend/lib/supabase/types.ts` | Generated TypeScript types from Supabase schema |
 
 ### Files Modified
 
 | File | Changes |
 |:---|:---|
-| `app/projects/page.tsx` | Uses `useProjectsRealtime()` with connection status indicator |
-| `app/editor/[id]/page.tsx` | All fetches/mutations use Supabase; added WebAudio backend fix |
-| `components/SpeakerPopover.tsx` | Imports shared Speaker type |
-| `lib/swr.ts` | Added deprecation notice |
+| `frontend/app/projects/page.tsx` | Uses `useProjectsRealtime()` with connection status indicator |
+| `frontend/app/editor/[id]/page.tsx` | All fetches/mutations use Supabase; added WebAudio backend fix |
+| `frontend/components/SpeakerPopover.tsx` | Imports shared Speaker type |
+| `frontend/lib/swr.ts` | Added deprecation notice |
 
 ### Critical Fixes
 

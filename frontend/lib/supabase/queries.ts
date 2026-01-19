@@ -69,6 +69,21 @@ export async function fetchProjectJobs(projectId: string): Promise<Job[]> {
 }
 
 /**
+ * Fetch watchlist terms for a project.
+ */
+export async function fetchWatchlistTerms(projectId: string): Promise<string[]> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('watchlist')
+        .select('term')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: true })
+
+    if (error) throw error
+    return (data || []).map((row) => row.term)
+}
+
+/**
  * Update a project.
  */
 export async function updateProject(

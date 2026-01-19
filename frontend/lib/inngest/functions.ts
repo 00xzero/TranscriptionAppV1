@@ -376,6 +376,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         });
 
         // Step 4: Trigger completion event
+        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}, consolidation: ${consolidationEnabled ? 'enabled' : 'disabled'}`);
         await step.sendEvent("trigger-completed", {
             name: "transcription/completed",
             data: {
@@ -387,6 +388,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 algoVersion: consolidationResult.algoVersion,
             },
         });
+        console.log(`[inngest] transcription/completed event sent successfully for project: ${projectId}`);
 
         console.log(
             `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
@@ -448,6 +450,8 @@ export const handleTranscriptionCompleted = inngest.createFunction(
 
             if (projectError) {
                 console.error("[inngest] Failed to update project:", projectError);
+            } else {
+                console.log(`[inngest] Project ${projectId} status updated to 'completed' in database`);
             }
 
             console.log(`[inngest] Project ${projectId} marked as completed`);
