@@ -387,3 +387,9 @@ Estimated by phase (single engineer):
 ✅ **Optimistic UI**: Implemented for all editor mutations (edit, speaker change) to ensure responsive UX  
 ✅ **Shared Types**: Generated TypeScript types from Supabase schema as single source of truth  
 ✅ **Audio Sync Strategy**: Switched WaveSurfer to `WebAudio` backend + custom `seekToMs` logic to fix VBR seek accuracy
+
+## Decisions Made (Phase 8)
+✅ **Node.js Export Generation**: Replaced Python/FastAPI exports with native Node.js libraries (`docx`) for direct integration with Next.js (no external service dependency)
+✅ **Stable Speaker Grouping**: Implemented stable key generation for chunks to ensuring inconsistent speaker IDs (e.g. nulls) don't break document structure
+✅ **Shared Data Fetching**: Centralized export data retrieval in `lib/exports/data.ts` to eliminate code duplication between export formats
+✅ **PDF Deferred**: Decided to mark PDF export as "Coming Soon" to prioritize high-fidelity DOCX/VTT parity first (PDF generation in Node.js is complex and heavy)

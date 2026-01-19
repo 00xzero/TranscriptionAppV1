@@ -238,7 +238,7 @@
 - `__tests__/exports.test.ts` - 22 unit tests
 
 **Implementation Details:**
-- Uses `docx@^9.0.0` npm package for DOCX generation
+- Uses `docx@^9.5.1` npm package for DOCX generation
 - Exports use Blob → ArrayBuffer conversion for Response compatibility
 - PDF export marked as "Coming Soon" in ExportModal
 
@@ -248,8 +248,9 @@
 - Docker compose should expose port 3000 for frontend
 
 **Gotchas:**
-- `Packer.toBuffer()` returns incompatible type; use `Packer.toBlob().arrayBuffer()`
+- `Packer.toBuffer()` returns incompatible type; use `new Uint8Array(Packer.toBuffer())`
 - Legacy `lib/api.ts` still exists but is no longer used by ExportModal
+- `docx` library requires `runtime = 'nodejs'` in Next.js API route
 
 ## Blockers and Dependencies
 
@@ -296,3 +297,6 @@
 | 2026-01-17 | 7 | Optimistic UI with rollback | Better UX for mutations; reverts on error |
 | 2026-01-17 | 7 | Deprecate lib/swr.ts | Keep for backwards compatibility; new code uses hooks.ts |
 | 2026-01-19 | 7 | Audio Sync: WebAudio backend | Fixes seek accuracy issues for VBR files; robust seek logic added |
+| 2026-01-19 | 8 | Native Node.js DOCX generation | Moved from Python to `docx` npm package; better integration with Next.js |
+| 2026-01-19 | 8 | Stable Speaker Grouping | Added fallback key for null speakers to fix missing headers in exports |
+| 2026-01-19 | 8 | Shared Data Fetching | Centralized export data logic in `lib/exports/data.ts` to reduce duplication |

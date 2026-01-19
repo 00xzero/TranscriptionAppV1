@@ -75,7 +75,7 @@ Test Suites: 1 passed, 1 total
 Tests:       22 passed, 22 total
 ```
 
-### Pending Manual Testing
+### ✅ Completed Manual Testing
 
 1. **DOCX Export** - Export a completed project, verify file opens in Word
 2. **VTT Export** - Export VTT, verify format and speaker tags
