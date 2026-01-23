@@ -1,0 +1,45 @@
+# Docker Compose for Local Development (Inngest + Frontend)
+# Supabase runs separately via `supabase start`
+#
+# Usage:
+#   1. Start Supabase: cd infra && supabase start
+#   2. Copy env: cp .env.docker.example .env.docker
+#   3. Update .env.docker with keys from `supabase status`
+#   4. Start services: docker compose -f docker-compose.dev.yml up --build
+
+services:
+  inngest:
+    image: inngest/inngest:v0.27.0
+    command: 'inngest dev -u http://host.docker.internal:3000/api/inngest'
+    ports:
+      - '8288:8288'
+    environment:
+      - INNGEST_DEV=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    environment:
+      # Server-side Supabase URL (container to host)
+      - SUPABASE_URL=http://host.docker.internal:54321
+      # Inngest dev mode
+      - INNGEST_DEV=1
+      - INNGEST_BASE_URL=http://inngest:8288
+    ports:
+      - '3000:3000'
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+      - /app/.next
+      # Override .env.local with Docker-specific env to use local Supabase
+      - ./.env.docker:/app/.env.local:ro
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - inngest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

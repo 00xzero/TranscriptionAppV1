@@ -20,11 +20,13 @@ export function createAdminClient(): SupabaseClient {
         return adminClient;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    // Use SUPABASE_URL for server-side (Docker: host.docker.internal:54321)
+    // Fall back to NEXT_PUBLIC_SUPABASE_URL for non-Docker environments
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl) {
-        throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured");
+        throw new Error("SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is not configured");
     }
 
     if (!serviceRoleKey) {

@@ -59,7 +59,14 @@ export async function GET(
             )
         }
 
-        return NextResponse.json({ url: data.signedUrl })
+        // In Docker, the signed URL may contain host.docker.internal which the browser can't access
+        // Replace with localhost for browser access
+        let signedUrl = data.signedUrl
+        if (signedUrl.includes('host.docker.internal')) {
+            signedUrl = signedUrl.replace('host.docker.internal', 'localhost')
+        }
+
+        return NextResponse.json({ url: signedUrl })
     } catch (error) {
         console.error('[api/media-url] Unexpected error:', error)
         return NextResponse.json(

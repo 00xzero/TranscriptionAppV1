@@ -6,13 +6,17 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js, SWR
+### New Stack (Recommended)
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js
+- **Backend:** Supabase (Postgres, Auth, Storage, Realtime)
+- **Background Jobs:** Inngest
+- **ML:** Deepgram Nova 3 (STT)
+- **Deployment:** Vercel + Supabase Cloud + Inngest Cloud
+
+### Legacy Stack (Being Deprecated)
 - **Backend:** FastAPI (Python 3.11), SQLAlchemy, Alembic
 - **Workers:** Celery + Redis
 - **Storage:** PostgreSQL + MinIO (S3-compatible)
-- **Media:** ffmpeg
-- **ML:** Deepgram Nova 3 (STT)
-- **Infra:** Docker Compose
 
 ## Monorepo Layout
 
@@ -22,7 +26,38 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
 - `infra/` Docker Compose files and Nginx config
 - `shared/` Shared schemas/utilities (TBD)
 
-## Quickstart (Local Dev)
+## Quickstart: Docker Local Dev (New Stack)
+
+> **Prerequisites:** Docker Desktop, [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
+
+1. Install Supabase CLI (one-time):
+   ```bash
+   brew install supabase/tap/supabase
+   ```
+
+2. Start everything with one command:
+   ```bash
+   cd infra && ./start-local.sh
+   ```
+
+3. Update Deepgram API key in `infra/.env.docker`
+
+4. Access the application:
+   | Service | URL |
+   |:---|:---|
+   | Frontend | http://localhost:3000 |
+   | Supabase Studio | http://localhost:54323 |
+   | Inngest | http://localhost:8288 |
+   | Inbucket (email) | http://localhost:54324 |
+
+5. Stop services:
+   ```bash
+   cd infra && ./stop-local.sh
+   ```
+
+## Quickstart: Legacy Stack (Deprecated)
+
+> **Note:** This stack will be removed after Phase 11. Use the new Docker local dev stack above.
 
 1. Copy environment example and adjust values:
    ```bash
@@ -49,6 +84,7 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
    - **MinIO Console:** http://localhost:9001 (login: minioadmin/minioadmin)
 
 6. Default authentication token for local dev: `devtoken`
+
 
 ## Environment Variables
 

@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 9 - Local Dev Docker |
+| **Phase** | 10 - Deployment |
 | **Status** | Not Started |
 | **Owner** | TBD |
 | **Started** | - |
@@ -25,7 +25,7 @@
 | 6 | Consolidation Pipeline Port | ✅ Complete | 2026-01-16 |
 | 7 | Frontend Data Flow | ✅ Complete | 2026-01-17 |
 | 8 | Export Parity | ✅ Complete | 2026-01-19 |
-| 9 | Local Dev Docker | ⏳ Not Started | - |
+| 9 | Local Dev Docker | ✅ Complete | 2026-01-19 |
 | 10 | Deployment | ⏳ Not Started | - |
 | 11 | Cleanup | ⏳ Not Started | - |
 
@@ -252,6 +252,40 @@
 - Legacy `lib/api.ts` still exists but is no longer used by ExportModal
 - `docx` library requires `runtime = 'nodejs'` in Next.js API route
 
+### Phase 9 → Phase 10
+
+**Key Deliverables Created:**
+- `infra/supabase/config.toml` - Supabase CLI local configuration
+- `infra/docker-compose.dev.yml` - Docker Compose for Inngest + Frontend
+- `infra/.env.docker.example` - Environment template for Docker dev
+- `infra/start-local.sh` - One-command startup script (with ngrok integration)
+- `infra/stop-local.sh` - Stop script
+- `frontend/app/auth/callback/route.ts` - Auth code exchange endpoint
+- `frontend/app/api/media-proxy/route.ts` - Media proxy for Deepgram via ngrok
+
+**Implementation Details:**
+- Uses Supabase CLI (`supabase start`) for local Supabase services
+- Frontend and Inngest run in Docker containers with hot reload
+- `start-local.sh` auto-extracts Supabase keys and configures `.env.docker`
+- Ports: Frontend=3000, Studio=54323, Inngest=8288, API=54321
+- Fixed Docker auth cookie mismatch via explicit `cookieOptions.name` in all Supabase clients
+- Added `SUPABASE_URL` env var for server-side Docker networking
+- Media proxy enables Deepgram to access local storage through ngrok tunnel
+
+**For Phase 10:**
+- Deploy to Vercel: Set root directory to `frontend/`
+- Configure Supabase production project via dashboard
+- Set Inngest production keys
+- Update DEEPGRAM_CALLBACK_URL to production Vercel URL
+
+**Gotchas:**
+- Supabase CLI must be installed (`brew install supabase/tap/supabase`)
+- ngrok required for transcription (Deepgram needs public callback URL)
+- All Supabase clients must use same `cookieOptions.name` for Docker auth to work
+- Docker `host.docker.internal` used for cross-container communication
+- Migrations apply automatically on `supabase start`
+- `.env.docker` is gitignored (template provided)
+
 ## Blockers and Dependencies
 
 | Blocker | Affects Phase | Owner | Status |
@@ -300,3 +334,11 @@
 | 2026-01-19 | 8 | Native Node.js DOCX generation | Moved from Python to `docx` npm package; better integration with Next.js |
 | 2026-01-19 | 8 | Stable Speaker Grouping | Added fallback key for null speakers to fix missing headers in exports |
 | 2026-01-19 | 8 | Shared Data Fetching | Centralized export data logic in `lib/exports/data.ts` to reduce duplication |
+| 2026-01-19 | 9 | Supabase CLI for local dev | Official approach with guaranteed service compatibility and auto-migrations |
+| 2026-01-19 | 9 | Hybrid Docker + CLI approach | Supabase via CLI, Inngest/Frontend via Docker for container isolation |
+| 2026-01-19 | 9 | Convenience scripts | `start-local.sh` and `stop-local.sh` for one-command startup/shutdown |
+| 2026-01-23 | 9 | Explicit cookie name for Docker auth | Fixes auth mismatch when server uses `host.docker.internal` but browser uses `localhost` |
+| 2026-01-23 | 9 | Media proxy endpoint | Enables Deepgram to access local storage via single ngrok tunnel |
+| 2026-01-23 | 9 | Auth callback route | Required for Supabase code exchange; middleware excludes from redirect logic |
+| 2026-01-23 | 9 | SUPABASE_URL env var | Allows server-side to use Docker internal host while browser uses localhost |
+

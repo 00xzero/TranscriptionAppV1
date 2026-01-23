@@ -13,13 +13,19 @@ const PROTECTED_ROUTES = ['/projects', '/editor', '/upload', '/import']
 // Routes that should redirect to /projects if already authenticated
 const AUTH_ROUTES = ['/auth']
 
+// Routes that should be excluded from auth redirect logic (callbacks, etc)
+const CALLBACK_ROUTES = ['/auth/callback']
+
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
         request,
     })
 
+    // Use SUPABASE_URL for server-side (Docker), fallback to NEXT_PUBLIC for browser
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
@@ -38,6 +44,10 @@ export async function middleware(request: NextRequest) {
                     )
                 },
             },
+            cookieOptions: {
+                // Use consistent cookie name for local dev (different URLs for client/server in Docker)
+                name: 'sb-local-auth-token',
+            }
         }
     )
 
@@ -58,6 +68,16 @@ export async function middleware(request: NextRequest) {
     const isAuthRoute = AUTH_ROUTES.some(route =>
         path === route || path.startsWith(`${route}/`)
     )
+
+    // Check if the path is a callback route (skip redirect logic)
+    const isCallbackRoute = CALLBACK_ROUTES.some(route =>
+        path === route || path.startsWith(`${route}/`)
+    )
+
+    // Skip redirect logic for callback routes
+    if (isCallbackRoute) {
+        return supabaseResponse
+    }
 
     // Redirect unauthenticated users away from protected routes
     if (isProtectedRoute && !user) {
