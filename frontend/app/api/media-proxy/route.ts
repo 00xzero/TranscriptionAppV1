@@ -15,8 +15,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Generate a random secret on startup (or use env var)
-const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET || crypto.randomUUID();
+// Use env var or deterministic fallback for local dev
+// Both this file and start/route.ts must use the same fallback
+const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET || "local-dev-proxy-secret";
 
 // Export the secret so it can be used when generating proxy URLs
 export function getProxySecret(): string {

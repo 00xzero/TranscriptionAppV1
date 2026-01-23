@@ -83,7 +83,7 @@ export async function POST(
             || process.env.NEXT_PUBLIC_APP_URL
             || "http://localhost:3000";
         // Use media proxy endpoint with the storage path and auth token
-        const proxySecret = process.env.MEDIA_PROXY_SECRET || "";
+        const proxySecret = process.env.MEDIA_PROXY_SECRET || "local-dev-proxy-secret";
         mediaUrl = `${callbackBase}/api/media-proxy?path=${encodeURIComponent(project.source_object_key)}&token=${encodeURIComponent(proxySecret)}`;
         console.log(`[start] Using media proxy for Deepgram (path: ${project.source_object_key})`);
     }
