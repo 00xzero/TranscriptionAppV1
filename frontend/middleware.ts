@@ -15,6 +15,8 @@ const AUTH_ROUTES = ['/auth']
 
 // Routes that should be excluded from auth redirect logic (callbacks, etc)
 const CALLBACK_ROUTES = ['/auth/callback']
+const SUPABASE_COOKIE_NAME =
+    process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
 
 export async function middleware(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -46,7 +48,7 @@ export async function middleware(request: NextRequest) {
             },
             cookieOptions: {
                 // Use consistent cookie name for local dev (different URLs for client/server in Docker)
-                name: 'sb-local-auth-token',
+                name: SUPABASE_COOKIE_NAME,
             }
         }
     )

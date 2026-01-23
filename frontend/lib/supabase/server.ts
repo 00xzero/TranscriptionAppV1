@@ -11,6 +11,8 @@ export async function createClient() {
 
     // Use SUPABASE_URL for server-side (Docker), fallback to NEXT_PUBLIC for browser
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const cookieName =
+        process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
 
     return createServerClient(
         supabaseUrl,
@@ -33,7 +35,7 @@ export async function createClient() {
             },
             cookieOptions: {
                 // Use consistent cookie name for local dev (different URLs for client/server in Docker)
-                name: 'sb-local-auth-token',
+                name: cookieName,
             }
         }
     )

@@ -30,13 +30,13 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # Step 1: Start Supabase
-echo -e "\n${YELLOW}[1/3] Starting Supabase...${NC}"
+echo -e "\n${YELLOW}[1/4] Starting Supabase...${NC}"
 cd supabase
 supabase start
 cd ..
 
 # Step 2: Extract Supabase keys and create .env.docker if needed
-echo -e "\n${YELLOW}[2/3] Configuring environment...${NC}"
+echo -e "\n${YELLOW}[2/4] Configuring environment...${NC}"
 if [ ! -f ".env.docker" ]; then
     echo "Creating .env.docker from template..."
     cp .env.docker.example .env.docker
@@ -57,6 +57,26 @@ if [ ! -f ".env.docker" ]; then
     echo -e "${YELLOW}⚠️  Please update DEEPGRAM_API_KEY in .env.docker${NC}"
 else
     echo ".env.docker already exists, skipping..."
+fi
+
+# Ensure media proxy settings are present for local Deepgram proxy usage
+if [ -f ".env.docker" ]; then
+    if ! grep -q '^MEDIA_PROXY_SECRET=' .env.docker; then
+        if command -v uuidgen &> /dev/null; then
+            PROXY_SECRET=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        elif command -v openssl &> /dev/null; then
+            PROXY_SECRET=$(openssl rand -hex 16)
+        else
+            PROXY_SECRET=$(date +%s%N)
+        fi
+        echo "MEDIA_PROXY_SECRET=${PROXY_SECRET}" >> .env.docker
+        echo -e "${YELLOW}Added MEDIA_PROXY_SECRET to .env.docker${NC}"
+    fi
+
+    if ! grep -q '^DEEPGRAM_USE_PROXY=' .env.docker; then
+        echo "DEEPGRAM_USE_PROXY=true" >> .env.docker
+        echo -e "${YELLOW}Set DEEPGRAM_USE_PROXY=true in .env.docker${NC}"
+    fi
 fi
 
 # Step 3: Start Docker services
@@ -110,4 +130,3 @@ ${YELLOW}Commands:${NC}
   View logs:    docker compose -f docker-compose.dev.yml logs -f
   Reset DB:     cd supabase && supabase db reset
 "
-

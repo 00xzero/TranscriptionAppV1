@@ -15,12 +15,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Use env var or deterministic fallback for local dev
-// Both this file and start/route.ts must use the same fallback
-const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET || "local-dev-proxy-secret";
+// Explicit env var required when proxy is enabled
+const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET;
 
-// Export the secret so it can be used when generating proxy URLs
+// Export the secret so it can be used when generating proxy URLs (throws if missing)
 export function getProxySecret(): string {
+    if (!PROXY_SECRET) {
+        throw new Error("MEDIA_PROXY_SECRET is required when DEEPGRAM_USE_PROXY=true");
+    }
     return PROXY_SECRET;
 }
 
@@ -39,6 +41,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json(
             { error: "Media proxy is not enabled" },
             { status: 403 }
+        );
+    }
+
+    if (!PROXY_SECRET) {
+        console.error("[media-proxy] MEDIA_PROXY_SECRET is required when DEEPGRAM_USE_PROXY=true");
+        return NextResponse.json(
+            { error: "Media proxy misconfigured: missing MEDIA_PROXY_SECRET" },
+            { status: 500 }
         );
     }
 

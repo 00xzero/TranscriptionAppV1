@@ -10,28 +10,28 @@ Phase 9 added a one-command local development setup using Supabase CLI for datab
 
 | File | Purpose |
 |:---|:---|
-| [config.toml](infra/supabase/config.toml) | Supabase CLI local configuration |
-| [docker-compose.dev.yml](infra/docker-compose.dev.yml) | Docker Compose for Inngest + Frontend |
-| [.env.docker.example](infra/.env.docker.example) | Environment template for Docker dev |
-| [start-local.sh](infra/start-local.sh) | One-command startup script (with ngrok integration) |
-| [stop-local.sh](infra/stop-local.sh) | Stop script for all services |
-| [auth/callback/route.ts](frontend/app/auth/callback/route.ts) | Auth code exchange callback endpoint |
-| [api/media-proxy/route.ts](frontend/app/api/media-proxy/route.ts) | Media proxy for Deepgram to access local storage via ngrok |
+| [config.toml](/infra/supabase/config.toml) | Supabase CLI local configuration |
+| [docker-compose.dev.yml](/infra/docker-compose.dev.yml) | Docker Compose for Inngest + Frontend |
+| [.env.docker.example](/infra/.env.docker.example) | Environment template for Docker dev |
+| [start-local.sh](/infra/start-local.sh) | One-command startup script (with ngrok integration) |
+| [stop-local.sh](/infra/stop-local.sh) | Stop script for all services |
+| [auth/callback/route.ts](/frontend/app/auth/callback/route.ts) | Auth code exchange callback endpoint |
+| [api/media-proxy/route.ts](/frontend/app/api/media-proxy/route.ts) | Media proxy for Deepgram to access local storage via ngrok |
 
 ### Modified Files
 
 | File | Changes |
 |:---|:---|
 | [README.md](/README.md) | Added Docker local dev quickstart section, tech stack update |
-| [REFACTOR_README.md](../REFACTOR_README.md) | Added Phase 9 link |
-| [PHASE_STATUS.md](../PHASE_STATUS.md) | Marked Phase 9 complete, added handoff notes |
-| [lib/supabase/client.ts](frontend/lib/supabase/client.ts) | Added `cookieOptions` for consistent cookie names in Docker |
-| [lib/supabase/server.ts](frontend/lib/supabase/server.ts) | Added `SUPABASE_URL` env var support + `cookieOptions` |
-| [lib/supabase/admin.ts](frontend/lib/supabase/admin.ts) | Added `SUPABASE_URL` env var fallback |
-| [middleware.ts](frontend/middleware.ts) | Added callback route exclusion + `SUPABASE_URL` support |
-| [auth/page.tsx](frontend/app/auth/page.tsx) | Added session check on mount + improved auth state handling |
-| [api/projects/[id]/media-url/route.ts](frontend/app/api/projects/[id]/media-url/route.ts) | Fix `host.docker.internal` → `localhost` for browser access |
-| [api/projects/[id]/start/route.ts](frontend/app/api/projects/[id]/start/route.ts) | Media proxy integration for Deepgram via ngrok |
+| [REFACTOR_README.md](/.docs/Refactor%20Documentation/REFACTOR_README.md) | Added Phase 9 link |
+| [PHASE_STATUS.md](/.docs/Refactor%20Documentation/PHASE_STATUS.md) | Marked Phase 9 complete, added handoff notes |
+| [lib/supabase/client.ts](/frontend/lib/supabase/client.ts) | Added `cookieOptions` for consistent cookie names in Docker |
+| [lib/supabase/server.ts](/frontend/lib/supabase/server.ts) | Added `SUPABASE_URL` env var support + `cookieOptions` |
+| [lib/supabase/admin.ts](/frontend/lib/supabase/admin.ts) | Added `SUPABASE_URL` env var fallback |
+| [middleware.ts](/frontend/middleware.ts) | Added callback route exclusion + `SUPABASE_URL` support |
+| [auth/page.tsx](/frontend/app/auth/page.tsx) | Added session check on mount + improved auth state handling |
+| [api/projects/[id]/media-url/route.ts](/frontend/app/api/projects/[id]/media-url/route.ts) | Fix `host.docker.internal` → `localhost` for browser access |
+| [api/projects/[id]/start/route.ts](/frontend/app/api/projects/[id]/start/route.ts) | Media proxy integration for Deepgram via ngrok |
 
 ---
 
