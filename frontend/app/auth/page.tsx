@@ -19,9 +19,20 @@ export default function AuthPage() {
   const router = useRouter()
 
   useEffect(() => {
+    // Check for existing session on mount
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        router.push('/projects')
+        router.refresh()
+      }
+    }
+    checkSession()
+
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
-      if (event === 'SIGNED_IN') {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session) => {
+      console.log('Auth state change:', event, !!session)
+      if (event === 'SIGNED_IN' && session) {
         router.push('/projects')
         router.refresh()
       }

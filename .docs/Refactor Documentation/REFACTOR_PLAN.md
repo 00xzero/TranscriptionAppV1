@@ -393,3 +393,12 @@ Estimated by phase (single engineer):
 ✅ **Stable Speaker Grouping**: Implemented stable key generation for chunks to ensuring inconsistent speaker IDs (e.g. nulls) don't break document structure
 ✅ **Shared Data Fetching**: Centralized export data retrieval in `lib/exports/data.ts` to eliminate code duplication between export formats
 ✅ **PDF Deferred**: Decided to mark PDF export as "Coming Soon" to prioritize high-fidelity DOCX/VTT parity first (PDF generation in Node.js is complex and heavy)
+
+## Decisions Made (Phase 9)
+✅ **Supabase CLI for Local Dev**: Official CLI approach (`supabase start`) guarantees service compatibility and auto-applies migrations
+✅ **Hybrid Docker + CLI**: Supabase via CLI (native ports), Inngest/Frontend via Docker Compose for container isolation with hot reload
+✅ **Explicit Cookie Name**: Fixed Docker auth mismatch by setting `cookieOptions.name` in all Supabase clients (server uses `host.docker.internal`, browser uses `localhost`)
+✅ **SUPABASE_URL Env Var**: Separate server-side URL for Docker networking; falls back to `NEXT_PUBLIC_SUPABASE_URL` for non-Docker environments
+✅ **Auth Callback Route**: Added `/auth/callback` for Supabase code exchange; middleware excludes from redirect logic
+✅ **Media Proxy for Deepgram**: Created `/api/media-proxy` endpoint to stream local storage files through ngrok tunnel (Deepgram needs public URL for media access)
+✅ **ngrok Integration**: `start-local.sh` auto-starts ngrok and displays tunnel URL for Deepgram callbacks

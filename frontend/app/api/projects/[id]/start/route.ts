@@ -74,7 +74,34 @@ export async function POST(
         );
     }
 
-    const mediaUrl = signedUrlResult.url;
+    let mediaUrl = signedUrlResult.url;
+
+    // For local dev with single ngrok tunnel: Use media proxy endpoint
+    // This allows Deepgram to access local media through the same ngrok tunnel as callbacks
+    if (process.env.DEEPGRAM_USE_PROXY === "true") {
+        const callbackBase = process.env.DEEPGRAM_CALLBACK_URL?.replace("/api/webhooks/deepgram", "")
+            || process.env.NEXT_PUBLIC_APP_URL
+            || "http://localhost:3000";
+        // Use media proxy endpoint with the storage path and auth token
+        const proxySecret = process.env.MEDIA_PROXY_SECRET;
+        if (!proxySecret) {
+            console.error("[start] MEDIA_PROXY_SECRET is required when DEEPGRAM_USE_PROXY=true");
+            return NextResponse.json(
+                { error: "Media proxy misconfigured: missing MEDIA_PROXY_SECRET" },
+                { status: 500 }
+            );
+        }
+        mediaUrl = `${callbackBase}/api/media-proxy?path=${encodeURIComponent(project.source_object_key)}&token=${encodeURIComponent(proxySecret)}`;
+        console.log(`[start] Using media proxy for Deepgram (path: ${project.source_object_key})`);
+    }
+    // Alternative: If DEEPGRAM_STORAGE_URL is set, replace the base URL
+    else if (process.env.DEEPGRAM_STORAGE_URL) {
+        const localStoragePrefix = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        if (localStoragePrefix && mediaUrl.includes(localStoragePrefix)) {
+            mediaUrl = mediaUrl.replace(localStoragePrefix, process.env.DEEPGRAM_STORAGE_URL);
+            console.log(`[start] Replaced media URL base for Deepgram: ${process.env.DEEPGRAM_STORAGE_URL}`);
+        }
+    }
 
     // Create job record
     const { data: job, error: jobError } = await supabase

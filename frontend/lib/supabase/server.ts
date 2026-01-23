@@ -9,8 +9,13 @@ import { cookies } from 'next/headers'
 export async function createClient() {
     const cookieStore = await cookies()
 
+    // Use SUPABASE_URL for server-side (Docker), fallback to NEXT_PUBLIC for browser
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const cookieName =
+        process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
+
     return createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
@@ -28,6 +33,10 @@ export async function createClient() {
                     }
                 },
             },
+            cookieOptions: {
+                // Use consistent cookie name for local dev (different URLs for client/server in Docker)
+                name: cookieName,
+            }
         }
     )
 }

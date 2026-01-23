@@ -1,0 +1,82 @@
+# Supabase Local Development Configuration
+# Used by `supabase start` to configure local services
+# See: https://supabase.com/docs/guides/cli/config
+
+project_id = "transcription-app-local"
+
+# API Configuration
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+# Database Configuration
+[db]
+port = 54322
+major_version = 15
+
+# Connection pooler (disabled for local dev)
+[db.pooler]
+enabled = false
+pool_mode = "transaction"
+default_pool_size = 20
+
+# Migration settings
+[db.migrations]
+enabled = true
+
+# Seed data
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+# Realtime Configuration
+[realtime]
+enabled = true
+ip_version = "IPv4"
+
+# Studio Configuration (Supabase Dashboard)
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+# Storage Configuration
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+# Storage bucket (matches production)
+[storage.buckets.media]
+public = false
+file_size_limit = "50MiB"
+allowed_mime_types = ["audio/*", "video/*"]
+
+# Auth Configuration
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+# Email auth
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+secure_password_change = false
+
+# Inbucket (local email testing)
+[inbucket]
+enabled = true
+port = 54324
+
+# Analytics (disabled for local)
+[analytics]
+enabled = false
