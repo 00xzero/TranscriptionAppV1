@@ -109,6 +109,10 @@ See `env.example` for the full list. Key vars:
 - `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8000`)
 - `NEXT_PUBLIC_API_TOKEN` - API authentication token (default: `devtoken`)
 
+### Known Limitations
+
+- **Deepgram Webhook Payload:** The Vercel-hosted webhook has a hard 4.5 MB request body limit. Deepgram payloads for very long recordings (typically 3+ hours) may exceed this limit, causing `413 Payload Too Large` errors. For enterprise use cases requiring multi-hour transcription support, deploy the webhook function to AWS Lambda or Google Cloud Run.
+
 ## Development Notes
 
 ### Architecture
