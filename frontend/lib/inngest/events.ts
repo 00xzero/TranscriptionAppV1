@@ -19,7 +19,6 @@ export type TranscriptionEvents = {
         data: {
             requestId: string;
             projectId: string;
-            result: unknown;
         };
     };
     "transcription/completed": {
@@ -27,6 +26,9 @@ export type TranscriptionEvents = {
             projectId: string;
             jobId: string;
             duration: number;
+            chunkCount?: number;
+            chunkWordCount?: number;
+            algoVersion?: string;
         };
     };
     "transcription/failed": {

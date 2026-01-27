@@ -18,7 +18,7 @@ import {
     updateSpeaker as updateSpeakerQuery,
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
-import type { Project, Job, Chunk, Speaker, ChunkUpdate, SpeakerUpdate, ProjectUpdate } from './types'
+import type { Project, JobSummary, Chunk, Speaker, ChunkUpdate, SpeakerUpdate, ProjectUpdate } from './types'
 
 // ============================================================================
 // Projects Hook
@@ -131,6 +131,7 @@ export function useProjectRealtime(projectId: string | null) {
 
 /**
  * Hook for fetching jobs for a project.
+ * Returns JobSummary (excludes payload) to avoid large JSON in browser.
  */
 export function useProjectJobsRealtime(projectId: string | null) {
     const fetchFn = useCallback(async () => {
@@ -138,10 +139,17 @@ export function useProjectJobsRealtime(projectId: string | null) {
         return fetchProjectJobs(projectId)
     }, [projectId])
 
-    const { data, isLoading, error, refetch } = useSupabaseRealtime<Job>(
+    // Transform realtime payloads to strip the large 'payload' field
+    // Supabase Realtime sends full rows, which would reintroduce multi-MB JSON
+    const transformRealtimePayload = useCallback((row: Record<string, unknown>): JobSummary => {
+        const { payload: _payload, ...rest } = row
+        return rest as JobSummary
+    }, [])
+
+    const { data, isLoading, error, refetch } = useSupabaseRealtime<JobSummary>(
         'jobs',
         fetchFn,
-        { enablePollingFallback: true }
+        { enablePollingFallback: true, transformRealtimePayload }
     )
 
     return {

@@ -19,6 +19,8 @@ interface UseRealtimeOptions<T> {
     enablePollingFallback?: boolean
     /** Custom polling interval in ms (default: 5000) */
     pollingInterval?: number
+    /** Transform function to strip unwanted fields from realtime payloads */
+    transformRealtimePayload?: (row: Record<string, unknown>) => T
 }
 
 /**
@@ -29,7 +31,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     fetchFn: () => Promise<T[]>,
     options: UseRealtimeOptions<T> = {}
 ) {
-    const { initialData = [], enablePollingFallback = true, pollingInterval = 5000 } = options
+    const { initialData = [], enablePollingFallback = true, pollingInterval = 5000, transformRealtimePayload } = options
 
     const [data, setData] = useState<T[]>(initialData)
     const [isLoading, setIsLoading] = useState(true)
@@ -107,11 +109,17 @@ export function useSupabaseRealtime<T extends { id: string }>(
                     if (!isMountedRef.current) return
 
                     if (payload.eventType === 'INSERT') {
-                        setData(prev => [...prev, payload.new as T])
+                        const newItem = transformRealtimePayload 
+                            ? transformRealtimePayload(payload.new as Record<string, unknown>)
+                            : payload.new as T
+                        setData(prev => [...prev, newItem])
                     } else if (payload.eventType === 'UPDATE') {
+                        const updatedItem = transformRealtimePayload
+                            ? transformRealtimePayload(payload.new as Record<string, unknown>)
+                            : payload.new as T
                         setData(prev =>
                             prev.map(item =>
-                                item.id === (payload.new as T).id ? (payload.new as T) : item
+                                item.id === updatedItem.id ? updatedItem : item
                             )
                         )
                     } else if (payload.eventType === 'DELETE') {

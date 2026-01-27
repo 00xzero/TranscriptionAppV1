@@ -178,8 +178,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
     },
     { event: "transcription/webhook" },
     async ({ event, step }) => {
-        const { requestId, projectId, result } = event.data;
-        const response = result as DeepgramResponse;
+        const { requestId, projectId } = event.data;
 
         console.log(`[inngest] Webhook received for project: ${projectId}, request: ${requestId}`);
 
@@ -191,7 +190,6 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 .from("jobs")
                 .select("id")
                 .eq("project_id", projectId)
-                .eq("status", "processing")
                 .eq("inngest_event_id", requestId)
                 .order("created_at", { ascending: false })
                 .limit(1)
@@ -208,6 +206,24 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         // Step 2: Parse and store transcription results
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();
+
+            // Load Deepgram payload (stored by webhook route)
+            const { data: jobRow, error: jobRowError } = await supabase
+                .from("jobs")
+                .select("payload")
+                .eq("id", job.id)
+                .single();
+
+            if (jobRowError || !jobRow) {
+                throw new Error(`Failed to load job payload: ${jobRowError?.message}`);
+            }
+
+            const jobPayload = (jobRow as { payload: any }).payload;
+            const response = jobPayload?.deepgram as DeepgramResponse | undefined;
+
+            if (!response) {
+                throw new Error("Deepgram payload missing from job payload");
+            }
 
             // Parse Deepgram response
             // Utterances can be at results level or under alternatives (legacy worker handled both)

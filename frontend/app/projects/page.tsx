@@ -1,15 +1,10 @@
 "use client"
 import Link from 'next/link'
 import { useState, useCallback, useEffect } from 'react'
-import { useProjectsRealtime, useProjectJobsRealtime } from '../../lib/supabase/hooks'
-import { fetchProjectJobs, fetchWatchlistTerms } from '../../lib/supabase/queries'
+import { useProjectsRealtime } from '../../lib/supabase/hooks'
+import { fetchJobError, fetchWatchlistTerms } from '../../lib/supabase/queries'
 import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
-import type { Project, Job } from '../../lib/supabase/types'
-
-type JobPayload = {
-  error?: string
-  error_type?: string
-}
+import type { Project } from '../../lib/supabase/types'
 
 export default function ProjectsPage() {
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
@@ -22,18 +17,13 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
 
   // Fetch error info for projects in error state
-  const fetchProjectError = useCallback(async (projectId: string) => {
+  const fetchProjectErrorInfo = useCallback(async (projectId: string) => {
     try {
-      const jobs = await fetchProjectJobs(projectId)
-      const errorJob = jobs.find(j => j.status === 'error' && (j.payload as JobPayload)?.error)
-      if (errorJob?.payload) {
-        const payload = errorJob.payload as JobPayload
+      const errorInfo = await fetchJobError(projectId)
+      if (errorInfo) {
         setProjectErrors(prev => ({
           ...prev,
-          [projectId]: {
-            error: payload.error || 'Unknown error',
-            error_type: payload.error_type || 'transcription_error'
-          }
+          [projectId]: errorInfo
         }))
       }
     } catch (e) {
@@ -45,10 +35,10 @@ export default function ProjectsPage() {
   useEffect(() => {
     projects.forEach(p => {
       if (p.status === 'error' && !projectErrors[p.id]) {
-        fetchProjectError(p.id)
+        fetchProjectErrorInfo(p.id)
       }
     })
-  }, [projects, projectErrors, fetchProjectError])
+  }, [projects, projectErrors, fetchProjectErrorInfo])
 
   const startProject = async (id: string) => {
     if (starting[id]) return

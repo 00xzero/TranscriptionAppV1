@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-27] - Webhook Robustness & Documentation
+
+### Fixed
+- **Large Payload Handling**: Updated client-side job fetching to exclude the potentially large `payload` column (Deepgram JSON). This prevents multi-MB payloads from being sent to browsers during job polling or realtime updates.
+- **Error Display**: Implemented dedicated `fetchJobError` function to retrieve error details only when needed (for failed jobs), preserving error visibility without performance penalty.
+- **Type Safety**: Introduced `JobSummary` type to enforce payload exclusion in frontend components.
+
+### Documentation
+- **Webhook Limitations**: Documented Vercel's 4.5 MB request body limit for the Deepgram webhook. Long recordings (3+ hours) may exceed this limit and require external hosting (e.g., AWS Lambda).
+- **Code Comments**: Added detailed warnings in webhook handler and Supabase queries about payload size implications.
+
+---
+
+## [2026-01-23] - Major Stack Refactor Completion
+
+### Added
+- **Modern Tech Stack**: Migration to Next.js 14 (App Router), Supabase, and Inngest.
+- **Supabase Integration**: Unified Database (Postgres), Authentication, Storage, and Realtime updates.
+- **Inngest Background Jobs**: Event-driven architecture for transcription and consolidation pipelines.
+- **Deepgram Async Pipeline**: Robust transcription handling with callback webhooks and automatic consolidation.
+- **TypeScript Consolidation**: Ported the core consolidation algorithm from Python to TypeScript for a unified stack.
+- **Local Dev Experience**: Integrated Supabase CLI and Docker Compose for a one-command local setup with ngrok support.
+- **DOCX/VTT Exports**: Native Node.js implementation for transcript exports directly from the frontend.
+
+### Changed
+- **Architecture**: Moved from a fragmented FastAPI/Celery/Redis/MinIO stack to a streamlined serverless-ready architecture.
+- **Realtime**: Replaced SWR polling with Supabase Realtime subscriptions and 5s polling fallback.
+- **Auth**: Switched from token-based headers to cookie-based Supabase Auth (SSR compatible).
+- **Legacy Components**: Marked `backend/` and `worker/` as legacy and archived.
+
+### Benefits
+- **Simplified Operations**: Reduced infrastructure complexity with managed services.
+- **Improved DX**: Single language (TypeScript) across the entire stack.
+- **Better Reliability**: Idempotent job handling and robust error classification.
+- **Modern UI/UX**: Faster response times with Optimistic UI updates.
+
+---
+
 ## [2026-01-12] - Transcript Export Feature
 
 ### Added

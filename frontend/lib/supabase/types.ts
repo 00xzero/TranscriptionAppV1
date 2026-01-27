@@ -40,6 +40,13 @@ export interface Job {
     updated_at: string
 }
 
+/**
+ * Job summary type for client-side use.
+ * Excludes the large `payload` field to prevent multi-MB JSON being sent to browsers.
+ * The payload is stored in the database for backend/Inngest processing only.
+ */
+export type JobSummary = Omit<Job, 'payload'>
+
 export interface Speaker {
     id: string
     project_id: string

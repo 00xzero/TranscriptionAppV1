@@ -7,7 +7,7 @@
 import { createClient } from './client'
 import type {
     Project,
-    Job,
+    JobSummary,
     Chunk,
     Speaker,
     ChunkUpdate,
@@ -54,18 +54,56 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
 }
 
 /**
- * Fetch jobs for a project.
+ * Columns to select for job summaries (excludes large `payload` field).
+ * The payload can be multi-MB for long transcriptions and should only be
+ * accessed by backend/Inngest processing, not sent to browsers.
  */
-export async function fetchProjectJobs(projectId: string): Promise<Job[]> {
+const JOB_SUMMARY_COLUMNS = 'id, project_id, inngest_event_id, type, status, created_at, started_at, finished_at, updated_at'
+
+/**
+ * Fetch jobs for a project.
+ * Returns JobSummary (excludes payload) to avoid sending large JSON to clients.
+ */
+export async function fetchProjectJobs(projectId: string): Promise<JobSummary[]> {
     const supabase = createClient()
     const { data, error } = await supabase
         .from('jobs')
-        .select('*')
+        .select(JOB_SUMMARY_COLUMNS)
         .eq('project_id', projectId)
         .order('created_at', { ascending: false })
 
     if (error) throw error
     return data || []
+}
+
+/**
+ * Fetch error info for a job.
+ * Only fetches payload for jobs in error state to get error details.
+ * This is separate from fetchProjectJobs to avoid sending large Deepgram payloads.
+ */
+export async function fetchJobError(projectId: string): Promise<{
+    error: string
+    error_type: string
+} | null> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('jobs')
+        .select('payload')
+        .eq('project_id', projectId)
+        .eq('status', 'error')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+    if (error || !data) return null
+
+    const payload = data.payload as { error?: string; error_type?: string } | null
+    if (!payload?.error) return null
+
+    return {
+        error: payload.error,
+        error_type: payload.error_type || 'transcription_error',
+    }
 }
 
 /**

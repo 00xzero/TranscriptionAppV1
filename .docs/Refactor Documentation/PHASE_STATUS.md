@@ -6,11 +6,11 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 10 - Deployment |
-| **Status** | Not Started |
-| **Owner** | TBD |
-| **Started** | - |
-| **Target Completion** | - |
+| **Phase** | 10 - Cleanup |
+| **Status** | ✅ Complete |
+| **Owner** | Cascade |
+| **Started** | 2026-01-23 |
+| **Target Completion** | 2026-01-23 |
 
 ## Phase Progress
 
@@ -26,10 +26,10 @@
 | 7 | Frontend Data Flow | ✅ Complete | 2026-01-17 |
 | 8 | Export Parity | ✅ Complete | 2026-01-19 |
 | 9 | Local Dev Docker | ✅ Complete | 2026-01-19 |
-| 10 | Deployment | ⏳ Not Started | - |
-| 11 | Cleanup | ⏳ Not Started | - |
+| 10 | Cleanup | ✅ Complete | 2026-01-23 |
+| 11 | Deployment (Deferred) | ⏸ Deferred | - |
 
-**Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked
+**Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked | ⏸ Deferred
 
 ## Phase Handoff Notes
 
@@ -265,18 +265,21 @@
 
 **Implementation Details:**
 - Uses Supabase CLI (`supabase start`) for local Supabase services
-- Frontend and Inngest run in Docker containers with hot reload
-- `start-local.sh` auto-extracts Supabase keys and configures `.env.docker`
-- Ports: Frontend=3000, Studio=54323, Inngest=8288, API=54321
-- Fixed Docker auth cookie mismatch via explicit `cookieOptions.name` in all Supabase clients
-- Added `SUPABASE_URL` env var for server-side Docker networking
-- Media proxy enables Deepgram to access local storage through ngrok tunnel
 
 **For Phase 10:**
-- Deploy to Vercel: Set root directory to `frontend/`
-- Configure Supabase production project via dashboard
-- Set Inngest production keys
-- Update DEEPGRAM_CALLBACK_URL to production Vercel URL
+- Mark old backend/worker as legacy (or move to branch).
+- Update `README.md` with the new stack and dev steps.
+- Update `CHANGELOG.md`.
+- Phase 11 (Deployment) is deferred.
+- Addressed critical reliability issue with large Deepgram payloads
+- Implemented decoupled payload storage pattern
+- Optimized Inngest functions to respect size limits
+
+**Deferred (Phase 11 - Deployment):**
+- Deploy to Vercel: Set root directory to `frontend/`.
+- Configure Supabase production project via dashboard.
+- Set Inngest production keys.
+- Update `DEEPGRAM_CALLBACK_URL` to production Vercel URL.
 
 **Gotchas:**
 - Supabase CLI must be installed (`brew install supabase/tap/supabase`)
@@ -285,6 +288,28 @@
 - Docker `host.docker.internal` used for cross-container communication
 - Migrations apply automatically on `supabase start`
 - `.env.docker` is gitignored (template provided)
+
+### Phase 10 → Phase 11
+
+**Key Deliverables Created:**
+- `app/api/webhooks/deepgram/route.ts` (Modified for payload persistence)
+- `lib/inngest/functions.ts` (Optimized for size limits)
+- `__tests__/deepgramWebhook.test.ts` (Regression test)
+
+**Implementation Details:**
+- Webhook now saves full Deepgram payload to `jobs.payload` (Supabase)
+- Inngest event triggers with minimal data (`requestId`, `projectId`)
+- Function loads payload directly from DB inside `store-transcription` step
+
+**For Phase 11:**
+- Deployment plan remains unchanged from Phase 9 notes.
+- Ensure `jobs` table in production has the `payload` JSONB column.
+
+**Gotchas:**
+- Inngest payload limit is ~256KB (free tier) / ~3MB (observed)
+- Deepgram responses for long audio can easily exceed 5MB
+- Always use the DB-persistence pattern for large webhook payloads
+
 
 ## Blockers and Dependencies
 
@@ -341,4 +366,6 @@
 | 2026-01-23 | 9 | Media proxy endpoint | Enables Deepgram to access local storage via single ngrok tunnel |
 | 2026-01-23 | 9 | Auth callback route | Required for Supabase code exchange; middleware excludes from redirect logic |
 | 2026-01-23 | 9 | SUPABASE_URL env var | Allows server-side to use Docker internal host while browser uses localhost |
+| 2026-01-27 | 10 | Decoupled Webhook Payload | Persist Deepgram payload to DB (`jobs.payload`) instead of passing via Inngest event to avoid size limits |
+| 2026-01-27 | 10 | In-Step Payload Loading | Load payload inside Inngest step (not as output) to avoid step size limits |
 

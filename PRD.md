@@ -18,11 +18,12 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### Goals
 
-* Provide accurate, timestamped transcription.
-* Automatically detect and tag speakers.
-* Support exports: DOCX and VTT.
-* Enable custom vocabularies for domain-specific terms.
-* Offer an inline editor with bulk edit capabilities.
+*   Multi-user support with secure data isolation (RLS).
+*   Provide accurate, timestamped transcription.
+*   Automatically detect and tag speakers.
+*   Support exports: DOCX and VTT.
+*   Enable custom vocabularies for domain-specific terms.
+*   Offer an inline editor with bulk edit capabilities.
 
 ### Non-Goals
 
@@ -47,8 +48,8 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 * Drag-and-drop audio/video files (.mp3, .wav, .m4a, .aac, .flac, .mp4, .mov, .mkv).
 * Automatic extraction of audio from video.
-* Support files up to **1.5 GB** or **4 hours** (This is capped at 50MB as of now due to Supabase free plan file upload limit, can be upgraded to support our desired cap of 1.5GB in the pro plan). 
-* **Sensible cap enforced**: files beyond this are rejected.
+*   Support files up to **1.5 GB** or **4 hours** (Capped at 50MB by default for Supabase Free plan; configurable up to 1.5GB+ via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`).
+*   **Sensible cap enforced**: Validation on frontend and backend rejects files beyond the configured limit.
 
 ### 4.2 Speech-to-Text
 
@@ -85,7 +86,7 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### 4.6 Export Options
 
-* ✅ **PDF**: Print-friendly format with metadata (Date of Transcription, Duration)
+* ⏳ **PDF**: (Coming Soon) Print-friendly format with metadata
 * ✅ **DOCX**: Structured by speaker turns with timestamps and metadata
 * ✅ **VTT**: WebVTT format with speaker voice tags and proper cue identifiers
 * ✅ **Filename format**: `{title}_{FORMAT}_{YYYY-MM-DD}.ext` for easy organization
@@ -108,7 +109,7 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 * **Center/Bottom**: transcript grouped by speaker turns with avatar, initials, and color.
 * **Toolbar**: find/replace panel with case sensitivity, playback controls, rate selector.
 * ✅ **Speaker popover**: click avatar to rename, reassign, or create new speaker.
-* ⏳ **Toolbar**: apply watchlist button, export dropdown (planned).
+* ✅ **Export button**: opens modal for format selection (DOCX, VTT).
 
 ### Playback Sync
 
@@ -138,78 +139,90 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ### Frontend
 
-* Framework: **Next.js 14 (App Router)**, TypeScript.
-* Styling: Tailwind CSS.
-* Audio player: **wavesurfer.js**.
-* State: Zustand or React Query.
+*   Framework: **Next.js 14 (App Router)**, TypeScript.
+*   Styling: Tailwind CSS.
+*   Audio player: **wavesurfer.js** (WebAudio backend).
+*   Data Fetching: **Supabase SDK** + **SWR** (polling fallback).
+*   Realtime: **Supabase Realtime** for project/job status updates.
 
-### Backend
+### Backend (Serverless)
 
-* Framework: **FastAPI (Python 3.11)**.
-* Workers: Celery + Redis.
-* Storage: PostgreSQL + MinIO (S3-compatible).
-* **Speech-to-text pipeline**: via Deepgram API (Nova 3 model).
-* Media handling: ffmpeg for preprocessing.
+*   Database: **Supabase Postgres** with Row Level Security (RLS).
+*   Auth: **Supabase Auth** (Email/Password, Magic Link).
+*   Storage: **Supabase Storage** (S3-compatible, signed URLs).
+*   Background Jobs: **Inngest** (event-driven functions).
+*   Transcription Pipeline: **Deepgram Async API** + Webhook handlers.
 
-### Deployment
+### Infrastructure
 
-* Dockerized services (frontend, API, worker, Redis, Postgres, MinIO).
-* Nginx reverse proxy.
-* Scales horizontally by queueing Deepgram transcription jobs.
+*   Deployment: Vercel (Frontend/API), Supabase Cloud, Inngest Cloud.
+*   Local Dev: **Supabase CLI** + Docker Compose + **ngrok** (for webhooks).
 
 ---
 
 ## 7. Data Model (simplified)
 
-* **Project**: metadata (title, status, source file, duration).
-* **Speaker**: label, color.
-* **Segment**: text, timestamps, linked to speaker.
-* **Word**: per-segment with timestamps/confidence.
-* **Watchlist**: terms and canonical forms.
-* **Job**: background tasks (transcribe, diarize, export).
+* **Project**: metadata (title, status, source file, duration, user_id).
+* **Speaker**: label, color, linked to project.
+* **Segment**: raw transcript segments (from STT provider).
+* **Word**: raw word timings (linked to segments).
+* **Chunk**: consolidated segments for editing (idempotent generation).
+* **Chunk_word**: words mapped to consolidated chunks.
+* **Watchlist**: key terms and canonical forms for transcription boosting.
+* **Job**: background task records (queued, processing, completed, error).
 
 ---
 
-## 8. API Endpoints (examples)
+## 8. API Endpoints
 
-* `POST /projects` → create project, return upload URL.
-* `POST /projects/{id}/start` → send media URL to Deepgram (Nova 3) for transcription.
-* `GET /projects/{id}` → project metadata.
-* `GET /projects/{id}/segments` → transcript data.
-* `PATCH /speakers/{id}` → rename speaker.
-* `POST /projects/{id}/bulk-replace` → run bulk edit.
-* `POST /projects/{id}/export/vtt` → generate VTT file.
-* `POST /projects/{id}/export/docx` → generate DOCX file.
+### Next.js API Routes (Server-side)
+* `POST /api/projects` → Create project and initiate storage upload.
+* `POST /api/projects/[id]/start` → Trigger Inngest transcription flow.
+* `GET /api/projects/[id]/media-url` → Generate signed URL for playback.
+* `POST /api/inngest` → Inngest function execution handler.
+* `POST /api/webhooks/deepgram` → Deepgram transcription callback handler.
+* `GET /api/projects/[id]/export/docx` → Native Node.js DOCX generation.
+* `GET /api/projects/[id]/export/vtt` → Native Node.js VTT generation.
+
+### Direct Supabase Access (Client-side)
+* `SELECT * FROM projects` → RLS-filtered project list.
+* `SELECT * FROM chunks` → Fetch transcript data with Realtime subscription.
+* `PATCH /projects` → Update project title or status.
+* `UPSERT /speakers` → Rename or create speakers.
 
 ---
 
 ## 9. Performance Targets
 
-* 60-min file processed via Deepgram Nova 3 in **≤ 30 min** (async mode).
+* 60-min file processed via Deepgram Nova 3 in **≤ 5 min** (async mode typically handles 1 hour in under 2 minutes).
 * Bulk replace applied in **< 1s** for 1-hour transcript.
-* Editor autosave every 5s; no more than 1s data loss on crash.
+* Editor autosave: debounced updates (500ms) with optimistic UI.
 
 ---
 
 ## 10. Privacy & Security
 
-* Signed S3 upload/download URLs.
-* Media auto-deletion enforced: **1 day retention period**.
-* HTTPS enforced.
-* JWT authentication (v2), single-user locked in v1.
+*   **Data Isolation**: Row Level Security (RLS) ensures users only access their own data.
+*   **Secure Storage**: Supabase Storage with owner-folder policies; signed URLs for Deepgram and playback.
+*   Media retention: 1-day retention policy (Policy stated; enforcement via automated cleanup task in progress).
+*   **Authentication**: Multi-user support via **Supabase Auth** (Email/Password).
+*   **Encryption**: HTTPS/TLS enforced for all transit; storage encrypted at rest.
 
 ---
 
 ## 11. Acceptance Criteria
 
 ### ✅ Completed
-* Upload file → Deepgram (Nova 3) transcript generated with labeled speakers.
+* Multi-user authentication and secure data isolation.
+* Upload file → Deepgram (Nova 3) async transcript generation.
+* Realtime status updates with polling fallback.
+* TypeScript-based consolidation pipeline (v1.3-ts).
 * Key terms supported during upload for improved recognition.
-* Editor supports inline edits with autosave.
+* Editor supports inline edits with autosave and Optimistic UI.
 * Editor supports bulk find & replace with case sensitivity.
-* Exports produce valid DOCX and VTT files.
-* Waveform playback with seek controls and playback rate.
-* Speaker avatars with color coding.
+* Native Node.js exports for DOCX and VTT.
+* Waveform playback (WebAudio) with robust VBR sync.
+* Speaker avatars with color coding and global renaming.
 * Sync to audio button for user-controlled transcript following.
 
 ### ⏳ Planned
@@ -222,10 +235,10 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 
 ## 12. Stretch Features (Future)
 
-* Multi-user collaboration.
-* Automatic summarization.
-* Entity highlighting (e.g., legal codes, product names).
-* Real-time transcription for live calls (Deepgram real-time API).
+*   Automatic summarization.
+*   Entity highlighting (e.g., legal codes, product names).
+*   Real-time transcription for live calls (Deepgram real-time API).
+*   Advanced export formats (PDF, JSON).
 
 ---
 
