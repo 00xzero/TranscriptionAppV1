@@ -1,14 +1,35 @@
 /**
- * Deepgram Webhook Handler
+ * Deepgram Webhook Handler (Edge Runtime)
  * 
  * Receives transcription results from Deepgram async API.
  * Validates the dg-token header and forwards to Inngest for processing.
+ * 
+ * Uses Edge Runtime to bypass Vercel's 4.5 MB Node.js request body limit,
+ * which is critical for long transcriptions that can exceed this size.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 import { inngest } from "@/lib/inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// Edge Runtime: streams request bodies, no 4.5 MB limit
+export const runtime = "edge";
+
+/**
+ * Constant-time string comparison for Edge Runtime.
+ * Prevents timing attacks when validating webhook tokens.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    
+    let result = 0;
+    for (let i = 0; i < a.length; i++) {
+        result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return result === 0;
+}
 
 export async function POST(request: NextRequest) {
     console.log("[deepgram-webhook] Received callback request");
@@ -36,18 +57,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized - no token" }, { status: 401 });
         }
 
-        if (dgToken.length !== expectedToken.length) {
-            console.warn(
-                `[deepgram-webhook] Token length mismatch: received ${dgToken.length}, expected ${expectedToken.length}`
-            );
-            return NextResponse.json({ error: "Unauthorized - length mismatch" }, { status: 401 });
-        }
-
-        const source = Buffer.from(dgToken);
-        const target = Buffer.from(expectedToken);
-
-        if (!timingSafeEqual(source as any, target as any)) {
-            console.warn("[deepgram-webhook] Token value mismatch (timingSafeEqual failed)");
+        if (!timingSafeEqual(dgToken, expectedToken)) {
+            console.warn("[deepgram-webhook] Token validation failed");
             return NextResponse.json({ error: "Unauthorized - invalid token" }, { status: 401 });
         }
 
