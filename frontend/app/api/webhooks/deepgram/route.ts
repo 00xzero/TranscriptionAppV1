@@ -3,6 +3,20 @@
  * 
  * Receives transcription results from Deepgram async API.
  * Validates the dg-token header and forwards to Inngest for processing.
+ * 
+ * LIMITATION: Vercel Node.js functions have a 4.5 MB request body limit.
+ * This applies to all plans and cannot be increased. Deepgram payloads for
+ * very long recordings (typically 2.5-3+ hours) may exceed this limit,
+ * causing a 413 FUNCTION_PAYLOAD_TOO_LARGE error before code executes.
+ * 
+ * Typical payload sizes:
+ * - 30-min recording: ~500 KB - 1 MB
+ * - 1-hour recording: ~1-2 MB
+ * - 2-hour recording: ~3-4 MB
+ * - 3+ hour recording: May exceed 4.5 MB limit
+ * 
+ * For enterprise use cases requiring very long recordings, consider hosting
+ * this webhook on AWS Lambda (6 MB limit) or Google Cloud Run (32 MB limit).
  */
 
 import { NextRequest, NextResponse } from "next/server";
