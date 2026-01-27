@@ -139,10 +139,17 @@ export function useProjectJobsRealtime(projectId: string | null) {
         return fetchProjectJobs(projectId)
     }, [projectId])
 
+    // Transform realtime payloads to strip the large 'payload' field
+    // Supabase Realtime sends full rows, which would reintroduce multi-MB JSON
+    const transformRealtimePayload = useCallback((row: Record<string, unknown>): JobSummary => {
+        const { payload: _payload, ...rest } = row
+        return rest as JobSummary
+    }, [])
+
     const { data, isLoading, error, refetch } = useSupabaseRealtime<JobSummary>(
         'jobs',
         fetchFn,
-        { enablePollingFallback: true }
+        { enablePollingFallback: true, transformRealtimePayload }
     )
 
     return {
