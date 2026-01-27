@@ -20,10 +20,8 @@ export async function POST(request: NextRequest) {
         const expectedToken = process.env.DEEPGRAM_API_KEY_IDENTIFIER;
 
         console.log("[deepgram-webhook] Step 1: Token validation");
-        console.log("[deepgram-webhook] dg-token present:", !!dgToken);
-        console.log("[deepgram-webhook] dg-token value:", dgToken ? `${dgToken.substring(0, 8)}...${dgToken.substring(dgToken.length - 4)}` : "null");
+        console.log("[deepgram-webhook] dg-token present:", !!dgToken, "length:", dgToken?.length || 0);
         console.log("[deepgram-webhook] expectedToken present:", !!expectedToken);
-        console.log("[deepgram-webhook] expectedToken value:", expectedToken ? `${expectedToken.substring(0, 8)}...${expectedToken.substring(expectedToken.length - 4)}` : "null");
 
         if (!expectedToken) {
             console.error("[deepgram-webhook] DEEPGRAM_API_KEY_IDENTIFIER not configured");

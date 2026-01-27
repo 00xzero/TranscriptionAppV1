@@ -245,7 +245,7 @@ Tasks:
 - Update env templates with Supabase and Inngest variables.
 - Update README with new local dev command and URLs.
 
-### Phase 10 - Cleanup, Documentation,and Reliability (1 to 2 days)
+### Phase 10 - Cleanup, Documentation, and Reliability (1 to 2 days)
 Deliverables:
 - Updated README and architecture docs.
 - Deprecation notice for old Docker Compose stack.

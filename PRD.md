@@ -179,7 +179,7 @@ A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speak
 * `POST /api/projects` → Create project and initiate storage upload.
 * `POST /api/projects/[id]/start` → Trigger Inngest transcription flow.
 * `GET /api/projects/[id]/media-url` → Generate signed URL for playback.
-* `POST /api/inngest` → Inngest function execution endpoint.
+* `POST /api/inngest` → Inngest function execution handler.
 * `POST /api/webhooks/deepgram` → Deepgram transcription callback handler.
 * `GET /api/projects/[id]/export/docx` → Native Node.js DOCX generation.
 * `GET /api/projects/[id]/export/vtt` → Native Node.js VTT generation.
