@@ -38,4 +38,6 @@
 - [x] Phase 7: Frontend Data Flow → [Phase 7/](./Phase%207/)
 - [x] Phase 8: Export Parity → [Phase 8/](./Phase%208/)
 - [x] Phase 9: Local Dev Docker → [Phase 9/](./Phase%209/)
+- [x] Phase 10: Cleanup, documentation, and Reliability → [Phase 10/](./Phase%2010/)
+- [ ] Phase 11: Deployment and Release (Deferred)
 

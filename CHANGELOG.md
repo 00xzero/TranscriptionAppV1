@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-01-23] - Major Stack Refactor Completion
+
+### Added
+- **Modern Tech Stack**: Migration to Next.js 14 (App Router), Supabase, and Inngest.
+- **Supabase Integration**: Unified Database (Postgres), Authentication, Storage, and Realtime updates.
+- **Inngest Background Jobs**: Event-driven architecture for transcription and consolidation pipelines.
+- **Deepgram Async Pipeline**: Robust transcription handling with callback webhooks and automatic consolidation.
+- **TypeScript Consolidation**: Ported the core consolidation algorithm from Python to TypeScript for a unified stack.
+- **Local Dev Experience**: Integrated Supabase CLI and Docker Compose for a one-command local setup with ngrok support.
+- **DOCX/VTT Exports**: Native Node.js implementation for transcript exports directly from the frontend.
+
+### Changed
+- **Architecture**: Moved from a fragmented FastAPI/Celery/Redis/MinIO stack to a streamlined serverless-ready architecture.
+- **Realtime**: Replaced SWR polling with Supabase Realtime subscriptions and 5s polling fallback.
+- **Auth**: Switched from token-based headers to cookie-based Supabase Auth (SSR compatible).
+- **Legacy Components**: Marked `backend/` and `worker/` as legacy and archived.
+
+### Benefits
+- **Simplified Operations**: Reduced infrastructure complexity with managed services.
+- **Improved DX**: Single language (TypeScript) across the entire stack.
+- **Better Reliability**: Idempotent job handling and robust error classification.
+- **Modern UI/UX**: Faster response times with Optimistic UI updates.
+
+---
+
 ## [2026-01-12] - Transcript Export Feature
 
 ### Added

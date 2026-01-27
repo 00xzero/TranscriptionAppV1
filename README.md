@@ -6,33 +6,33 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
 
 ## Tech Stack
 
-### New Stack (Recommended)
+### Modern Stack (Current)
 - **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js
 - **Backend:** Supabase (Postgres, Auth, Storage, Realtime)
 - **Background Jobs:** Inngest
 - **ML:** Deepgram Nova 3 (STT)
 - **Deployment:** Vercel + Supabase Cloud + Inngest Cloud
 
-### Legacy Stack (Being Deprecated)
-- **Backend:** FastAPI (Python 3.11), SQLAlchemy, Alembic
-- **Workers:** Celery + Redis
-- **Storage:** PostgreSQL + MinIO (S3-compatible)
+### Legacy Stack (Archived)
+- **Backend:** FastAPI (Python 3.11) -> Replaced by Next.js + Supabase
+- **Workers:** Celery + Redis -> Replaced by Inngest
+- **Storage:** MinIO -> Replaced by Supabase Storage
 
 ## Monorepo Layout
 
-- `frontend/` Next.js app (TBD)
-- `backend/` FastAPI service
-- `worker/` Celery worker service
-- `infra/` Docker Compose files and Nginx config
-- `shared/` Shared schemas/utilities (TBD)
+- `frontend/` - Next.js application, API routes, and Inngest functions
+- `backend/` - [LEGACY] FastAPI service (archived)
+- `worker/` - [LEGACY] Celery worker service (archived)
+- `infra/` - Local development configuration (Docker + Supabase CLI)
+- `.docs/` - Refactor documentation and architecture diagrams
 
-## Quickstart: Docker Local Dev (New Stack)
+## Quickstart: Docker Local Dev (Modern Stack)
 
-> **Prerequisites:** Docker Desktop, [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started)
+> **Prerequisites:** Docker Desktop, [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started), [ngrok](https://ngrok.com/download) (for transcription)
 
-1. Install Supabase CLI (one-time):
+1. Install prerequisites (macOS):
    ```bash
-   brew install supabase/tap/supabase
+   brew install supabase/tap/supabase ngrok
    ```
 
 2. Start everything with one command:
@@ -40,15 +40,19 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
    cd infra && ./start-local.sh
    ```
 
-3. Update Deepgram API key in `infra/.env.docker`
+3. Update `infra/.env.docker` with your keys:
+   - `DEEPGRAM_API_KEY`: Your Deepgram API key.
+   - `DEEPGRAM_CALLBACK_URL`: Set to the ngrok URL displayed in the terminal.
 
 4. Access the application:
    | Service | URL |
    |:---|:---|
    | Frontend | http://localhost:3000 |
    | Supabase Studio | http://localhost:54323 |
-   | Inngest | http://localhost:8288 |
-   | Inbucket (email) | http://localhost:54324 |
+   | Inngest Dev Server | http://localhost:8288 |
+   | ngrok Inspector | http://localhost:4040 |
+   | Inbucket (Email) | http://localhost:54324 |
+   | Supabase API | http://localhost:54321 |
 
 5. Stop services:
    ```bash

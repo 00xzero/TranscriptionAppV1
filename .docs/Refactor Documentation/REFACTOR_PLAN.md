@@ -245,7 +245,21 @@ Tasks:
 - Update env templates with Supabase and Inngest variables.
 - Update README with new local dev command and URLs.
 
-### Phase 10 - Deployment and Release (2 to 4 days)
+### Phase 10 - Cleanup, Documentation,and Reliability (1 to 2 days)
+Deliverables:
+- Updated README and architecture docs.
+- Deprecation notice for old Docker Compose stack.
+- Clear onboarding instructions.
+- **Robust Deepgram Webhook Handling (Large Payload Fix).**
+
+Tasks:
+- Mark old backend/worker as legacy (or move to branch).
+- Update `README.md` with new stack and dev steps.
+- Update `CHANGELOG.md`.
+- **Implement decoupled webhook payload storage (Supabase `jobs.payload`).**
+- **Optimize Inngest function to avoid step output size limits.**
+
+### Phase 11 - Deployment and Release (Deferred) (2 to 4 days)
 Deliverables:
 - Vercel project and env vars configured.
 - Supabase project configured (prod).
@@ -258,17 +272,6 @@ Tasks:
 - Deploy Inngest functions and set signing keys.
 - Add CORS and allowed origins in Supabase/Next.
 - Add health endpoints and basic smoke tests.
-
-### Phase 11 - Cleanup and Documentation (1 to 2 days)
-Deliverables:
-- Updated README and architecture docs.
-- Deprecation notice for old Docker Compose stack.
-- Clear onboarding instructions.
-
-Tasks:
-- Mark old backend/worker as legacy (or move to branch).
-- Update `README.md` with new stack and dev steps.
-- Update `CHANGELOG.md`.
 
 ## Effort Estimate Summary
 Total: ~26 to 53 dev days (4 to 8 weeks for single engineer)
@@ -284,8 +287,8 @@ Estimated by phase (single engineer):
 - Phase 7: 4 to 7 days (frontend + realtime)
 - Phase 8: 2 to 4 days (exports)
 - Phase 9: 2 to 4 days (Docker local dev)
-- Phase 10: 2 to 4 days (deployment)
-- Phase 11: 1 to 2 days (cleanup)
+- Phase 10: 1 to 2 days (cleanup)
+- Phase 11: 2 to 4 days (deployment)
 
 **Post-Launch Enhancements** (not in critical path):
 - Speaker naming upfront: 1 to 2 days
@@ -327,8 +330,8 @@ Estimated by phase (single engineer):
 8. **Phase 7**: Frontend integration + realtime (with polling fallback)
 9. **Phase 8**: Exports (DOCX, VTT)
 10. **Phase 9**: Docker-only local dev
-11. **Phase 10**: Deployment
-12. **Phase 11**: Cleanup
+11. **Phase 10**: Cleanup
+12. **Phase 11**: Deployment (Deferred)
 
 **Post-Launch** (Phase 12+):
 - Speaker naming upfront
