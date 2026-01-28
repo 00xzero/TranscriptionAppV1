@@ -1,7 +1,7 @@
 "use client"
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import WaveSurfer from 'wavesurfer.js'
+import AudioPlayer, { AudioPlayerRef } from '../../../components/AudioPlayer'
 import {
   fetchTranscriptData,
   fetchChunks, // Keep for error recovery fallback if needed
@@ -55,8 +55,8 @@ const computeWordsForSegments = <T extends { id: string; start_ms: number; end_m
 ): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
 
 export default function EditorPage({ params }: { params: { id: string } }) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const wavesurferRef = useRef<WaveSurfer | null>(null)
+  const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
+  const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -97,78 +97,71 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const seekTimeoutRef = useRef<number | null>(null)
 
   const seekToMs = useCallback((targetMs: number) => {
-    const ws = wavesurferRef.current
-    if (!ws) return
+    const player = audioPlayerRef.current
+    if (!player) return
 
     if (!readyRef.current) {
       pendingSeekRef.current = targetMs
       return
     }
 
-    const durationMs = (ws.getDuration() || 0) * 1000
-    const clampedMs = durationMs ? Math.min(Math.max(0, targetMs), durationMs) : Math.max(0, targetMs)
-    const targetSec = clampedMs / 1000
-    const wasPlaying = ws.isPlaying()
-    const media = typeof ws.getMediaElement === 'function' ? ws.getMediaElement() : null
-    const isHtmlMedia = typeof HTMLMediaElement !== 'undefined' && media instanceof HTMLMediaElement
-    const token = ++seekTokenRef.current
+    // Set click lock to prevent sync overriding manual seeks
+    clickLockRef.current = Date.now() + SEEK_LOCK_MS
 
-    if (seekTimeoutRef.current) {
-      window.clearTimeout(seekTimeoutRef.current)
-      seekTimeoutRef.current = null
-    }
-
-    if (wasPlaying) {
-      // Pause to avoid playing stale buffered audio while seeking
-      ws.pause()
-    }
-
-    if (isHtmlMedia) {
-      clickLockRef.current = Date.now() + SEEK_LOCK_MS
-    } else {
-      clickLockRef.current = null
-    }
-
-    const attemptSeek = (attempt: number) => {
-      ws.setTime(targetSec)
-
-      if (!media || !isHtmlMedia) {
-        clickLockRef.current = null
-        if (wasPlaying) ws.play()
-        return
-      }
-
-      const handleSeeked = () => {
-        if (seekTokenRef.current !== token) return
-
-        const actualMs = Math.floor(ws.getCurrentTime() * 1000)
-        const diff = Math.abs(actualMs - clampedMs)
-        if (diff > SEEK_TOLERANCE_MS && attempt < 1) {
-          if (seekTimeoutRef.current) {
-            window.clearTimeout(seekTimeoutRef.current)
-            seekTimeoutRef.current = null
-          }
-          attemptSeek(attempt + 1)
-          return
-        }
-
-        clickLockRef.current = null
-        if (wasPlaying) ws.play()
-      }
-
-      media.addEventListener('seeked', handleSeeked, { once: true })
-
-      seekTimeoutRef.current = window.setTimeout(() => {
-        if (seekTokenRef.current !== token) return
-        clickLockRef.current = null
-        if (wasPlaying) ws.play()
-      }, SEEK_RESUME_TIMEOUT_MS)
-    }
-
-    attemptSeek(0)
+    // Delegate to AudioPlayer's seekToMs
+    player.seekToMs(targetMs)
   }, [])
 
 
+  // Helper to find and set active segment based on time in ms
+  const syncActiveSegment = useCallback((tMs: number) => {
+    // Guard: Don't update if segments aren't loaded yet
+    if (segmentsRef.current.length === 0) return
+
+    // Guard: Skip if click lock is active (prevents overriding manual clicks)
+    if (clickLockRef.current && Date.now() < clickLockRef.current) {
+      return
+    }
+
+    const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
+    let segId: string | undefined
+    for (const s of segmentsRef.current) {
+      if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
+        segId = s.id
+        break
+      }
+    }
+    // Only update if we found a segment (prevents clearing activeIds prematurely)
+    if (segId) {
+      setActiveIds({ segId, wordKey: undefined })
+    }
+  }, [])
+
+  // AudioPlayer callback handlers
+  const handleAudioReady = useCallback(() => {
+    readyRef.current = true
+    setReady(true)
+    setStatus('Ready')
+    const pendingSeekMs = pendingSeekRef.current
+    if (pendingSeekMs !== null) {
+      pendingSeekRef.current = null
+      seekToMs(pendingSeekMs)
+    }
+  }, [seekToMs])
+
+  const handleAudioError = useCallback((error: string) => {
+    setStatus(`Error: ${error}`)
+  }, [])
+
+  const handlePlayingChange = useCallback((isPlaying: boolean) => {
+    setPlaying(isPlaying)
+  }, [])
+
+  const handleTimeUpdate = useCallback((currentTime: number) => {
+    syncActiveSegment(Math.floor(currentTime * 1000))
+  }, [syncActiveSegment])
+
+  // Data loading effect - simpler now that AudioPlayer handles audio
   useEffect(() => {
     let cancelled = false
     const init = async () => {
@@ -176,46 +169,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         setStatus('Loading media...')
         setReady(false)
         readyRef.current = false
-        // Use new Next.js API route for media URL (Supabase Storage)
+
+        // Fetch the media URL
         const res = await fetch(`/api/projects/${params.id}/media-url`)
         if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
         const j = await res.json()
         const url: string = j.url
 
-        if (!containerRef.current) return
-        // If an instance already exists (e.g., StrictMode remount), tear it down first
-        if (wavesurferRef.current) {
-          try { wavesurferRef.current.destroy() } catch { }
-          wavesurferRef.current = null
-        }
-        // Ensure the container is empty (StrictMode double-effect in dev may leave remnants)
-        try { containerRef.current.replaceChildren() } catch { containerRef.current.innerHTML = '' }
-        const ws = WaveSurfer.create({
-          container: containerRef.current,
-          waveColor: '#9CA3AF',
-          progressColor: '#2563EB',
-          cursorColor: '#111827',
-          height: 96,
-          // Use WebAudio for accurate seeks on initial load (tradeoff: upfront decode)
-          backend: 'WebAudio',
-        })
-        wavesurferRef.current = ws
-        ws.on('ready', () => {
-          if (cancelled) return
-          readyRef.current = true
-          setReady(true)
-          setStatus('Ready')
-          ws.setPlaybackRate(playbackRate)
-          const pendingSeekMs = pendingSeekRef.current
-          if (pendingSeekMs !== null) {
-            pendingSeekRef.current = null
-            seekToMs(pendingSeekMs)
-          }
-        })
-        ws.on('error', (e: unknown) => { setStatus(`Error: ${String(e)}`) })
-        ws.on('play', () => setPlaying(true))
-        ws.on('pause', () => setPlaying(false))
-        await ws.load(url)
+        if (cancelled) return
+        setAudioSrc(url)
 
         // Load transcript data (chunks or segments)
         const { items: segs, source: dataSource } = await fetchTranscriptData(params.id)
@@ -241,44 +203,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           }
         } catch (_) { /* ignore */ }
 
-        // Helper to find and set active segment based on time in ms
-        const syncActiveSegment = (tMs: number) => {
-          // Guard: Don't update if segments aren't loaded yet
-          if (segmentsRef.current.length === 0) return
-
-          // Guard: Skip if click lock is active (prevents overriding manual clicks)
-          if (clickLockRef.current && Date.now() < clickLockRef.current) {
-            return
-          }
-
-          const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
-          let segId: string | undefined
-          for (const s of segmentsRef.current) {
-            if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
-              segId = s.id
-              break
-            }
-          }
-          // Only update if we found a segment (prevents clearing activeIds prematurely)
-          if (segId) {
-            setActiveIds({ segId, wordKey: undefined })
-          }
-        }
-
-        const onProcess = () => {
-          const tSec = ws.getCurrentTime() || 0
-          const tMs = Math.floor(tSec * 1000)
-          syncActiveSegment(tMs)
-        }
-
-        // Use timeupdate for reliable sync - fires during playback AND after seeks
-        const onTimeUpdate = (currentTime: number) => {
-          syncActiveSegment(Math.floor(currentTime * 1000))
-        }
-
-        ws.on('audioprocess', onProcess)
-        ws.on('timeupdate', onTimeUpdate)
-
       } catch (e: any) {
         console.error(e)
         setStatus(`Error: ${e.message || e}`)
@@ -292,29 +216,20 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         seekTimeoutRef.current = null
       }
       readyRef.current = false
-      wavesurferRef.current?.destroy()
-      wavesurferRef.current = null
-      // Also clear the container in case destroy() didn't remove canvases
-      try { containerRef.current?.replaceChildren() } catch { if (containerRef.current) containerRef.current.innerHTML = '' }
     }
-  }, [params.id, seekToMs])
+  }, [params.id])
 
   const togglePlay = useCallback(() => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    ws.isPlaying() ? ws.pause() : ws.play()
-  }, [source])
+    const player = audioPlayerRef.current
+    if (!player) return
+    player.togglePlay()
+  }, [])
 
   const seekRelative = useCallback((sec: number) => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    const dur = ws.getDuration() || 0
-    const cur = ws.getCurrentTime() || 0
-    let next = cur + sec
-    if (next < 0) next = 0
-    if (next > dur) next = dur
-    seekToMs(next * 1000)
-  }, [seekToMs])
+    const player = audioPlayerRef.current
+    if (!player) return
+    player.seekRelative(sec)
+  }, [])
 
   // Keep a ref to latest segments to use inside WS callbacks
   const segmentsRef = useRef(segments)
@@ -419,8 +334,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const onRateChange = (r: number) => {
     setPlaybackRate(r)
-    const ws = wavesurferRef.current
-    if (ws) ws.setPlaybackRate(r)
+    const player = audioPlayerRef.current
+    if (player) player.setPlaybackRate(r)
   }
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
@@ -923,28 +838,23 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 bg-surface border border-base rounded p-4 space-y-3">
-          <div ref={containerRef} className="wavesurfer" />
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50" disabled={!ready} onClick={togglePlay}>
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button className="px-3 py-1.5 rounded bg-surface-alt" onClick={() => seekRelative(-2)}>-2s</button>
-            <button className="px-3 py-1.5 rounded bg-surface-alt" onClick={() => seekRelative(2)}>+2s</button>
-            <div className="ml-2 flex items-center gap-1">
-              <label className="text-sm text-muted">Rate</label>
-              <select
-                className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                value={playbackRate}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onRateChange(parseFloat(e.target.value))}
-              >
-                {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
-                  <option key={r} value={r}>{r.toFixed(2)}x</option>
-                ))}
-              </select>
+        <div className="lg:col-span-7 bg-surface border border-base rounded p-4">
+          {audioSrc ? (
+            <AudioPlayer
+              ref={audioPlayerRef}
+              src={audioSrc}
+              onReady={handleAudioReady}
+              onError={handleAudioError}
+              onPlayingChange={handlePlayingChange}
+              onTimeUpdate={handleTimeUpdate}
+              initialPlaybackRate={playbackRate}
+            />
+          ) : (
+            <div className="h-24 flex items-center justify-center text-muted">
+              Loading audio...
             </div>
-          </div>
-          <div className="text-sm text-muted">{status}</div>
+          )}
+          <div className="mt-2 text-sm text-muted">{status}</div>
         </div>
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 max-h-[70vh] relative flex flex-col">
