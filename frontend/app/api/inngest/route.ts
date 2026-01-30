@@ -12,6 +12,7 @@ import {
     handleTranscriptionWebhook,
     handleTranscriptionCompleted,
     handleTranscriptionFailed,
+    handleTranscriptionTimeouts,
 } from "@/lib/inngest/functions";
 
 export const { GET, POST, PUT } = serve({
@@ -21,5 +22,6 @@ export const { GET, POST, PUT } = serve({
         handleTranscriptionWebhook,
         handleTranscriptionCompleted,
         handleTranscriptionFailed,
+        handleTranscriptionTimeouts,
     ],
 });

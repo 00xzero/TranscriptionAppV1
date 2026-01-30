@@ -24,6 +24,69 @@ import { timingSafeEqual } from "crypto";
 import { inngest } from "@/lib/inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+async function persistWebhookFailure(params: {
+    projectId?: string | null;
+    requestId?: string | null;
+    message: string;
+}) {
+    const supabase = createAdminClient();
+    let resolvedProjectId = params.projectId || null;
+    let resolvedJobId: string | null = null;
+
+    if (!resolvedProjectId && params.requestId) {
+        const { data: jobByRequest } = await supabase
+            .from("jobs")
+            .select("id, project_id")
+            .eq("inngest_event_id", params.requestId)
+            .maybeSingle();
+        if (jobByRequest) {
+            resolvedProjectId = jobByRequest.project_id;
+            resolvedJobId = jobByRequest.id;
+        }
+    }
+
+    if (resolvedProjectId && !resolvedJobId) {
+        const { data: fallbackJob } = await supabase
+            .from("jobs")
+            .select("id")
+            .eq("project_id", resolvedProjectId)
+            .in("status", ["queued", "processing"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (fallbackJob) {
+            resolvedJobId = fallbackJob.id;
+        }
+    }
+
+    const payload = {
+        error: params.message,
+        error_type: "transcription_error",
+        raw_error: params.message.slice(0, 500),
+    };
+    const now = new Date().toISOString();
+
+    if (resolvedJobId) {
+        const { error: jobError } = await supabase
+            .from("jobs")
+            .update({ status: "error", finished_at: now, payload })
+            .eq("id", resolvedJobId);
+        if (jobError) {
+            console.error("[deepgram-webhook] Failed to update job error status:", jobError);
+        }
+    }
+
+    if (resolvedProjectId) {
+        const { error: projectError } = await supabase
+            .from("projects")
+            .update({ status: "error" })
+            .eq("id", resolvedProjectId);
+        if (projectError) {
+            console.error("[deepgram-webhook] Failed to update project error status:", projectError);
+        }
+    }
+}
+
 export async function POST(request: NextRequest) {
     console.log("[deepgram-webhook] Received callback request");
 
@@ -87,6 +150,11 @@ export async function POST(request: NextRequest) {
         if (!projectId || !requestId) {
             console.warn("[deepgram-webhook] Missing project_id or request_id in webhook payload");
             console.warn("[deepgram-webhook] Full metadata:", JSON.stringify(metadata, null, 2));
+            await persistWebhookFailure({
+                projectId,
+                requestId,
+                message: "Deepgram webhook missing project_id or request_id.",
+            });
             return NextResponse.json(
                 { error: "Missing project_id or request_id" },
                 { status: 400 }
@@ -137,6 +205,11 @@ export async function POST(request: NextRequest) {
             console.error("[deepgram-webhook] No job found to persist payload", {
                 projectId,
                 requestId,
+            });
+            await persistWebhookFailure({
+                projectId,
+                requestId,
+                message: "Deepgram webhook received but job was not found.",
             });
             throw new Error("Job not found for Deepgram webhook");
         }

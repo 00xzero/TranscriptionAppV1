@@ -2,7 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-01-27] - Webhook Robustness & Documentation
+## [2026-01-30] - Production-Grade Pipeline Improvements
+
+### Added
+- **Idempotency Keys**: Prevents duplicate transcription jobs from client-side retries or double-clicks
+  - Added `idempotency_key` column to jobs table with unique constraint
+  - Start route checks for existing job with matching `x-idempotency-key` header before creating new one
+  - Frontend generates unique key: `${projectId}-${timestamp}-${uuid}`
+  - Race condition handling: Returns cached job if concurrent requests create duplicate
+- **Rate Limiting**: Protects transcription endpoint from abuse
+  - In-memory sliding window rate limiter (`lib/rate-limit.ts`)
+  - Default limit: 10 transcriptions per hour per user
+  - Returns `429 Too Many Requests` with `Retry-After` header when exceeded
+  - Configurable via `RATE_LIMIT_MODE` env var (`memory`, `off`)
+  - Disabled by default in production, enabled in development
+- **Structured Logging**: Request tracing with correlation IDs
+  - New `lib/logger.ts` utility with correlation ID support
+  - Pretty logs in development, JSON output in production for log aggregation
+  - Format: `[component] [correlation-id] message {data}`
+  - Child logger support for request context propagation
+- **Dead Letter Queue**: Disaster recovery for failed events
+  - New `failed_events` table for storing events that exhausted all retries
+  - Helper functions in `lib/dead-letter-queue.ts`
+  - Indexes for quick lookup of unresolved failures
+  - Resolution tracking with `resolved_at`, `resolved_by`, and `resolution_notes`
+- **Health Check Endpoint**: Monitoring for webhook infrastructure
+  - New `GET /api/webhooks/deepgram/health` endpoint
+  - Checks Supabase connectivity with latency measurement
+  - Validates environment configuration (Deepgram key, Inngest, callback URL)
+  - Returns `healthy`, `degraded`, or `unhealthy` status
+  - Optional token-based auth via `WEBHOOK_HEALTHCHECK_SECRET`
+  - Hidden in production unless explicitly enabled
+
+### Changed
+- **Consolidation Failure Handling**: Transcription completes even if consolidation fails
+  - Wrapped consolidation step in try-catch
+  - On failure, marks `algoVersion: 'failed'` with error message
+  - Stores `consolidation_warning` in job payload for debugging
+  - Users can still access raw transcription segments
+  - Added `consolidationError` to `transcription/completed` event type
+  - Fixed: Merges consolidation warning with existing payload instead of overwriting
+- **Timeout Detection**: Improved stale job detection for reliability
+  - Now queries three separate categories: processing jobs, processing without start time, and queued jobs
+  - Uses ISO timestamp cutoff for more efficient queries
+  - Added concurrency limit to timeout handler to prevent concurrent executions
+  - Fixed: Loads current payload before updating to preserve existing data
+- **Health Endpoint Security**: Protected sensitive monitoring endpoint
+  - Requires `x-health-token` header or `?token=` query param when `WEBHOOK_HEALTHCHECK_SECRET` is set
+  - Returns 404 in production when secret is not configured
+  - Open in development for easier local testing
+
+### Fixed
+- **Media Proxy Export**: Removed invalid `getProxySecret` export from Next.js route file
+
+### Testing
+- **Rate Limiting**: 10 unit tests covering all scenarios
+- **Logger**: 9 unit tests for all log levels and correlation IDs
+- **Rate Limit Context**: 5 additional transcription-specific tests
+- **Total**: 92 tests passing (71 existing + 21 new)
+
+### Configuration
+- `RATE_LIMIT_MODE` - Rate limit mode (`memory` or `off`). Defaults to `off` in production, `memory` in development
+- `WEBHOOK_HEALTHCHECK_SECRET` - Optional secret for health endpoint auth
+
+### Documentation
+- Created comprehensive walkthrough in `.docs/production_pipeline_improvements.md`
+
+---
+ [2026-01-27] - Webhook Robustness & Documentation
 
 ### Fixed
 - **Large Payload Handling**: Updated client-side job fetching to exclude the potentially large `payload` column (Deepgram JSON). This prevents multi-MB payloads from being sent to browsers during job polling or realtime updates.

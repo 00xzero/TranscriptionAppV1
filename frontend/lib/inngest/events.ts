@@ -29,6 +29,7 @@ export type TranscriptionEvents = {
             chunkCount?: number;
             chunkWordCount?: number;
             algoVersion?: string;
+            consolidationError?: string | null;
         };
     };
     "transcription/failed": {

@@ -90,7 +90,7 @@ export async function fetchJobError(projectId: string): Promise<{
         .from('jobs')
         .select('payload')
         .eq('project_id', projectId)
-        .eq('status', 'error')
+        .in('status', ['error', 'failed'])
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()

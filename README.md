@@ -108,6 +108,9 @@ See `env.example` for the full list. Key vars:
 ### Frontend
 - `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8000`)
 - `NEXT_PUBLIC_API_TOKEN` - API authentication token (default: `devtoken`)
+- `TRANSCRIPTION_TIMEOUT_MINUTES` - Marks queued/processing transcription jobs as `error` after this many minutes (default: `45`)
+- `RATE_LIMIT_MODE` - Rate limit mode for transcription start (`memory` or `off`). Defaults to `off` in production and `memory` in development.
+- `WEBHOOK_HEALTHCHECK_SECRET` - If set, required for `GET /api/webhooks/deepgram/health` via `x-health-token` header or `?token=`
 
 ### Known Limitations
 
@@ -147,6 +150,10 @@ curl -H "Authorization: Bearer devtoken" http://localhost:8000/projects
 # Using X-API-Key header
 curl -H "X-API-Key: devtoken" http://localhost:8000/projects
 ```
+
+### Idempotency (Transcription Start)
+`POST /api/projects/:id/start` supports optional idempotency via `x-idempotency-key`.
+Provide a stable key to safely retry start requests without creating duplicate jobs.
 
 ## Features
 
