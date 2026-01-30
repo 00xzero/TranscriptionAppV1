@@ -71,6 +71,8 @@ All notable changes to this project will be documented in this file.
 ---
  [2026-01-27] - Webhook Robustness & Documentation
 
+
+## [2026-01-27] - Webhook Robustness & Documentation
 ### Fixed
 - **Large Payload Handling**: Updated client-side job fetching to exclude the potentially large `payload` column (Deepgram JSON). This prevents multi-MB payloads from being sent to browsers during job polling or realtime updates.
 - **Error Display**: Implemented dedicated `fetchJobError` function to retrieve error details only when needed (for failed jobs), preserving error visibility without performance penalty.
