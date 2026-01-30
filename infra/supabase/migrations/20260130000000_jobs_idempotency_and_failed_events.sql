@@ -37,4 +37,9 @@ CREATE INDEX IF NOT EXISTS idx_failed_events_job_id ON failed_events(job_id);
 CREATE INDEX IF NOT EXISTS idx_failed_events_created_at ON failed_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_failed_events_resolved_at ON failed_events(resolved_at);
 
+-- RLS is intentionally enabled with NO policies. This table is designed to be
+-- accessed ONLY via the Supabase service role (admin client) for DLQ management
+-- and admin investigation. Application users should never directly query this table.
+-- If application-level access is needed in the future, add explicit policies here.
 ALTER TABLE failed_events ENABLE ROW LEVEL SECURITY;
+

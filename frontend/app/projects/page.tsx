@@ -9,6 +9,8 @@ import type { Project } from '../../lib/supabase/types'
 export default function ProjectsPage() {
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
+  // Cache idempotency keys per project - reused until request completes to prevent double-click issues
+  const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
   const [projectErrorLoadErrors, setProjectErrorLoadErrors] = useState<Record<string, string>>({})
   const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
@@ -54,10 +56,15 @@ export default function ProjectsPage() {
   const startProject = async (id: string) => {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
-    try {
-      // Generate idempotency key to prevent duplicate jobs from retries/double-clicks
-      const idempotencyKey = `${id}-${Date.now()}-${crypto.randomUUID()}`
 
+    // Get or generate idempotency key - cached to prevent double-click from creating new keys
+    let idempotencyKey = idempotencyKeys[id]
+    if (!idempotencyKey) {
+      idempotencyKey = `${id}-${Date.now()}-${crypto.randomUUID()}`
+      setIdempotencyKeys((prev) => ({ ...prev, [id]: idempotencyKey }))
+    }
+
+    try {
       // Use existing Next.js API route for starting transcription
       const res = await fetch(`/api/projects/${id}/start`, {
         method: 'POST',
@@ -88,6 +95,12 @@ export default function ProjectsPage() {
       setActionError(String(e))
     } finally {
       setStarting((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      // Clear cached idempotency key so next intentional click generates a fresh key
+      setIdempotencyKeys((prev) => {
         const next = { ...prev }
         delete next[id]
         return next

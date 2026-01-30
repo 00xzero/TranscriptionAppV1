@@ -1,9 +1,9 @@
 /**
  * Webhook Health Check Endpoint
- * 
+ *
  * Provides status information about the webhook endpoint and its dependencies.
  * Useful for monitoring and pre-flight checks before relying on the webhook.
- * 
+ *
  * GET /api/webhooks/deepgram/health
  */
 
@@ -67,12 +67,10 @@ export async function GET(request: NextRequest) {
 
     // Check environment configuration
     const deepgramKeyConfigured = !!(
-        process.env.DEEPGRAM_API_KEY ||
-        process.env.DG_API_KEY
+        process.env.DEEPGRAM_API_KEY || process.env.DG_API_KEY
     );
     const inngestConfigured = !!(
-        process.env.INNGEST_EVENT_KEY ||
-        process.env.INNGEST_SIGNING_KEY
+        process.env.INNGEST_EVENT_KEY || process.env.INNGEST_SIGNING_KEY
     );
     const callbackUrlConfigured = !!process.env.DEEPGRAM_CALLBACK_URL;
 
@@ -101,7 +99,8 @@ export async function GET(request: NextRequest) {
         },
     };
 
-    const httpStatus = status === "healthy" ? 200 : status === "degraded" ? 200 : 503;
+    const httpStatus =
+        status === "healthy" ? 200 : status === "degraded" ? 200 : 503;
 
     return NextResponse.json(healthResponse, {
         status: httpStatus,
