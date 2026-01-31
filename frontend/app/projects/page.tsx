@@ -79,7 +79,7 @@ export default function ProjectsPage() {
     })
   }, [projects, idempotencyKeys])
 
-  const startProject = async (id: string) => {
+  const startProject = useCallback(async (id: string) => {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
 
@@ -132,7 +132,7 @@ export default function ProjectsPage() {
         return next
       })
     }
-  }
+  }, [starting, idempotencyKeys, refetch])
 
   const handleDeleteProject = async (id: string) => {
     const ok = window.confirm(

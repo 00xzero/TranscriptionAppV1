@@ -24,6 +24,53 @@ const DEEPGRAM_CONCURRENCY = parseInt(
     10
 );
 
+type TranscriptionFailurePayload = {
+    error: string;
+    error_type: string;
+    raw_error: string;
+};
+
+async function writeTranscriptionFailureFallback({
+    projectId,
+    jobId,
+    payload,
+    context,
+}: {
+    projectId: string;
+    jobId?: string;
+    payload: TranscriptionFailurePayload;
+    context: string;
+}) {
+    try {
+        const supabase = createAdminClient();
+        const now = new Date().toISOString();
+
+        if (jobId) {
+            const { error: jobError } = await supabase
+                .from("jobs")
+                .update({
+                    status: "error",
+                    finished_at: now,
+                    payload,
+                })
+                .eq("id", jobId);
+            if (jobError) {
+                console.error(`[inngest] Failed to update job in ${context} fallback:`, jobError);
+            }
+        }
+
+        const { error: projectError } = await supabase
+            .from("projects")
+            .update({ status: "error" })
+            .eq("id", projectId);
+        if (projectError) {
+            console.error(`[inngest] Failed to update project in ${context} fallback:`, projectError);
+        }
+    } catch (dbError) {
+        console.error(`[inngest] ${context} fallback failed:`, dbError);
+    }
+}
+
 /**
  * Handle transcription request
  * Triggered when user starts a new transcription job.
@@ -66,40 +113,17 @@ export const handleTranscriptionRequested = inngest.createFunction(
             } catch (sendError) {
                 console.error("[inngest] Failed to emit transcription/failed:", sendError);
                 // Fallback: write error directly so the UI can surface it
-                try {
-                    const supabase = createAdminClient();
-                    const now = new Date().toISOString();
-                    const errorString = errorMessage;
-                    const payload = {
-                        error: classified.message,
-                        error_type: classified.type,
-                        raw_error: errorString.slice(0, 500),
-                    };
-
-                    if (jobId) {
-                        const { error: jobError } = await supabase
-                            .from("jobs")
-                            .update({
-                                status: "error",
-                                finished_at: now,
-                                payload,
-                            })
-                            .eq("id", jobId);
-                        if (jobError) {
-                            console.error("[inngest] Failed to update job in onFailure fallback:", jobError);
-                        }
-                    }
-
-                    const { error: projectError } = await supabase
-                        .from("projects")
-                        .update({ status: "error" })
-                        .eq("id", projectId);
-                    if (projectError) {
-                        console.error("[inngest] Failed to update project in onFailure fallback:", projectError);
-                    }
-                } catch (dbError) {
-                    console.error("[inngest] onFailure fallback failed:", dbError);
-                }
+                const payload = {
+                    error: classified.message,
+                    error_type: classified.type,
+                    raw_error: errorMessage.slice(0, 500),
+                };
+                await writeTranscriptionFailureFallback({
+                    projectId,
+                    jobId,
+                    payload,
+                    context: "onFailure",
+                });
             }
         },
     },
@@ -231,39 +255,17 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             } catch (sendError) {
                 console.error("[inngest] Failed to emit transcription/failed:", sendError);
                 // Fallback: write error directly so the UI can surface it
-                try {
-                    const supabase = createAdminClient();
-                    const now = new Date().toISOString();
-                    const payload = {
-                        error: `Transcription failed: ${errorMessage.slice(0, 200)}`,
-                        error_type: "transcription_error",
-                        raw_error: errorMessage.slice(0, 500),
-                    };
-
-                    if (jobId) {
-                        const { error: jobError } = await supabase
-                            .from("jobs")
-                            .update({
-                                status: "error",
-                                finished_at: now,
-                                payload,
-                            })
-                            .eq("id", jobId);
-                        if (jobError) {
-                            console.error("[inngest] Failed to update job in onFailure fallback:", jobError);
-                        }
-                    }
-
-                    const { error: projectError } = await supabase
-                        .from("projects")
-                        .update({ status: "error" })
-                        .eq("id", projectId);
-                    if (projectError) {
-                        console.error("[inngest] Failed to update project in onFailure fallback:", projectError);
-                    }
-                } catch (dbError) {
-                    console.error("[inngest] onFailure fallback failed:", dbError);
-                }
+                const payload = {
+                    error: `Transcription failed: ${errorMessage.slice(0, 200)}`,
+                    error_type: "transcription_error",
+                    raw_error: errorMessage.slice(0, 500),
+                };
+                await writeTranscriptionFailureFallback({
+                    projectId,
+                    jobId,
+                    payload,
+                    context: "onFailure",
+                });
             }
         },
     },
@@ -798,46 +800,55 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
             const supabase = createAdminClient();
             const finishedAt = new Date().toISOString();
             const errorMessage = `Transcription timed out after ${timeoutMinutes} minutes. Please try again.`;
+            const failures: { id: string; message: string }[] = [];
+            const updatedProjectIds = new Set<string>();
 
             for (const job of staleJobs) {
-                let currentPayload: Record<string, unknown> = {};
-                if (job.status === "processing") {
-                    const { data: payloadRow, error: payloadError } = await supabase
+                try {
+                    let currentPayload: Record<string, unknown> = {};
+                    if (job.status === "processing") {
+                        const { data: payloadRow, error: payloadError } = await supabase
+                            .from("jobs")
+                            .select("payload")
+                            .eq("id", job.id)
+                            .maybeSingle();
+                        if (payloadError) {
+                            throw new Error(`Failed to load payload for job ${job.id}: ${payloadError.message}`);
+                        }
+                        if (payloadRow?.payload && typeof payloadRow.payload === "object") {
+                            currentPayload = payloadRow.payload as Record<string, unknown>;
+                        }
+                    }
+
+                    const nextPayload = {
+                        ...currentPayload,
+                        error: errorMessage,
+                        error_type: "transcription_error",
+                        raw_error: "timeout",
+                    };
+
+                    const { error: jobError } = await supabase
                         .from("jobs")
-                        .select("payload")
+                        .update({
+                            status: "error",
+                            finished_at: finishedAt,
+                            payload: nextPayload,
+                        })
                         .eq("id", job.id)
-                        .maybeSingle();
-                    if (payloadError) {
-                        throw new Error(`Failed to load payload for job ${job.id}: ${payloadError.message}`);
+                        .in("status", ["queued", "processing"]);
+
+                    if (jobError) {
+                        throw new Error(`Failed to mark job ${job.id} as timed out: ${jobError.message}`);
                     }
-                    if (payloadRow?.payload && typeof payloadRow.payload === "object") {
-                        currentPayload = payloadRow.payload as Record<string, unknown>;
-                    }
-                }
 
-                const nextPayload = {
-                    ...currentPayload,
-                    error: errorMessage,
-                    error_type: "transcription_error",
-                    raw_error: "timeout",
-                };
-
-                const { error: jobError } = await supabase
-                    .from("jobs")
-                    .update({
-                        status: "error",
-                        finished_at: finishedAt,
-                        payload: nextPayload,
-                    })
-                    .eq("id", job.id)
-                    .in("status", ["queued", "processing"]);
-
-                if (jobError) {
-                    throw new Error(`Failed to mark job ${job.id} as timed out: ${jobError.message}`);
+                    updatedProjectIds.add(job.project_id);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    failures.push({ id: job.id, message });
                 }
             }
 
-            const projectIds = Array.from(new Set(staleJobs.map((job) => job.project_id)));
+            const projectIds = Array.from(updatedProjectIds);
             if (projectIds.length > 0) {
                 const { error: projectError } = await supabase
                     .from("projects")
@@ -848,6 +859,13 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                 if (projectError) {
                     throw new Error(`Failed to mark projects as timed out: ${projectError.message}`);
                 }
+            }
+
+            if (failures.length > 0) {
+                const summary = failures
+                    .map((failure) => `${failure.id}: ${failure.message}`)
+                    .join("; ");
+                throw new Error(`Failed to mark ${failures.length} job(s) as timed out: ${summary}`);
             }
         });
 
