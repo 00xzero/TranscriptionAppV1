@@ -89,12 +89,25 @@ export async function POST(
             console.error("Failed to check idempotency key:", lookupError);
             // Continue rather than fail - better to create duplicate than block user
         } else if (existingJob) {
-            console.log(`[start] Returning cached job ${existingJob.id} for idempotency key`);
-            return NextResponse.json({
-                message: "Transcription started",
-                jobId: existingJob.id,
-                cached: true,
-            });
+            if (["queued", "processing", "completed"].includes(existingJob.status)) {
+                console.log(`[start] Returning cached job ${existingJob.id} for idempotency key`);
+                return NextResponse.json({
+                    message: "Transcription started",
+                    jobId: existingJob.id,
+                    cached: true,
+                });
+            }
+
+            if (["error", "failed"].includes(existingJob.status)) {
+                return NextResponse.json(
+                    {
+                        error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
+                        jobId: existingJob.id,
+                        status: existingJob.status,
+                    },
+                    { status: 409 }
+                );
+            }
         }
     }
 
@@ -172,16 +185,29 @@ export async function POST(
         if (idempotencyKey) {
             const { data: existingJob } = await supabase
                 .from("jobs")
-                .select("id")
+                .select("id, status")
                 .eq("project_id", id)
                 .eq("idempotency_key", idempotencyKey)
                 .maybeSingle();
             if (existingJob) {
-                return NextResponse.json({
-                    message: "Transcription started",
-                    jobId: existingJob.id,
-                    cached: true,
-                });
+                if (["queued", "processing", "completed"].includes(existingJob.status)) {
+                    return NextResponse.json({
+                        message: "Transcription started",
+                        jobId: existingJob.id,
+                        cached: true,
+                    });
+                }
+
+                if (["error", "failed"].includes(existingJob.status)) {
+                    return NextResponse.json(
+                        {
+                            error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
+                            jobId: existingJob.id,
+                            status: existingJob.status,
+                        },
+                        { status: 409 }
+                    );
+                }
             }
         }
 

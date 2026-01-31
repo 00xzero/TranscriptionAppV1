@@ -133,6 +133,35 @@ describe('Start route idempotency', () => {
     })
   })
 
+  test('returns conflict when cached job is in error state', async () => {
+    projectSingleMock.mockResolvedValue({
+      data: { id: 'proj-err', source_object_key: 'source-err', status: 'error' },
+      error: null,
+    })
+
+    jobsMaybeSingleMock.mockResolvedValue({
+      data: { id: 'job-err', status: 'error' },
+      error: null,
+    })
+
+    const request = {
+      headers: new Headers({ 'x-idempotency-key': 'idem-error-state' }),
+    } as any
+
+    const res = await POST(
+      request,
+      { params: Promise.resolve({ id: 'proj-err' }) } as any
+    )
+
+    expect(res.status).toBe(409)
+    const json = await res.json()
+    expect(json).toEqual({
+      error: 'Previous transcription attempt failed. Please retry with a new idempotency key.',
+      jobId: 'job-err',
+      status: 'error',
+    })
+  })
+
   test('creates a new job when no cached job exists', async () => {
     projectSingleMock.mockResolvedValue({
       data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
