@@ -58,7 +58,7 @@ export default function ProjectsPage() {
 
     const inProgressIds = new Set(
       projects
-        .filter(p => p.status === 'queued' || p.status === 'processing')
+        .filter(p => p.status === 'queued' || p.status === 'processing' || p.status === 'error')
         .map(p => p.id)
     )
 
@@ -100,7 +100,22 @@ export default function ProjectsPage() {
       })
       if (!res.ok) {
         const text = await res.text()
-        throw new Error(`Failed to start project: ${text}`)
+        let parsed: { error?: string; status?: string } | null = null
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          parsed = null
+        }
+
+        if (res.status === 409 && parsed?.status && ['error', 'failed'].includes(parsed.status)) {
+          setIdempotencyKeys((prev) => {
+            const next = { ...prev }
+            delete next[id]
+            return next
+          })
+        }
+
+        throw new Error(`Failed to start project: ${parsed?.error || text}`)
       }
       setActionError(null)
       setProjectErrorLoadErrors(prev => {
