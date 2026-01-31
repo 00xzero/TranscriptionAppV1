@@ -24,6 +24,53 @@ const DEEPGRAM_CONCURRENCY = parseInt(
     10
 );
 
+type TranscriptionFailurePayload = {
+    error: string;
+    error_type: string;
+    raw_error: string;
+};
+
+async function writeTranscriptionFailureFallback({
+    projectId,
+    jobId,
+    payload,
+    context,
+}: {
+    projectId: string;
+    jobId?: string;
+    payload: TranscriptionFailurePayload;
+    context: string;
+}) {
+    try {
+        const supabase = createAdminClient();
+        const now = new Date().toISOString();
+
+        if (jobId) {
+            const { error: jobError } = await supabase
+                .from("jobs")
+                .update({
+                    status: "error",
+                    finished_at: now,
+                    payload,
+                })
+                .eq("id", jobId);
+            if (jobError) {
+                console.error(`[inngest] Failed to update job in ${context} fallback:`, jobError);
+            }
+        }
+
+        const { error: projectError } = await supabase
+            .from("projects")
+            .update({ status: "error" })
+            .eq("id", projectId);
+        if (projectError) {
+            console.error(`[inngest] Failed to update project in ${context} fallback:`, projectError);
+        }
+    } catch (dbError) {
+        console.error(`[inngest] ${context} fallback failed:`, dbError);
+    }
+}
+
 /**
  * Handle transcription request
  * Triggered when user starts a new transcription job.
@@ -53,15 +100,31 @@ export const handleTranscriptionRequested = inngest.createFunction(
             const classified = classifyError(errorMessage);
 
             // Emit transcription/failed to update job/project status
-            await inngest.send({
-                name: "transcription/failed",
-                data: {
+            try {
+                await inngest.send({
+                    name: "transcription/failed",
+                    data: {
+                        projectId,
+                        jobId,
+                        error: errorMessage,
+                        errorType: classified.type,
+                    },
+                });
+            } catch (sendError) {
+                console.error("[inngest] Failed to emit transcription/failed:", sendError);
+                // Fallback: write error directly so the UI can surface it
+                const payload = {
+                    error: classified.message,
+                    error_type: classified.type,
+                    raw_error: errorMessage.slice(0, 500),
+                };
+                await writeTranscriptionFailureFallback({
                     projectId,
                     jobId,
-                    error: errorMessage,
-                    errorType: classified.type,
-                },
-            });
+                    payload,
+                    context: "onFailure",
+                });
+            }
         },
     },
     { event: "transcription/requested" },
@@ -108,6 +171,20 @@ export const handleTranscriptionRequested = inngest.createFunction(
             }
 
             console.log(`[inngest] Job ${jobId} updated with request_id: ${result.requestId}`);
+        });
+
+        // Step 3: Update project to processing
+        await step.run("update-project-status", async () => {
+            const supabase = createAdminClient();
+            const { error } = await supabase
+                .from("projects")
+                .update({ status: "processing" })
+                .eq("id", projectId);
+
+            if (error) {
+                console.error("[inngest] Failed to update project:", error);
+                throw new Error(`Failed to update project: ${error.message}`);
+            }
         });
 
         return {
@@ -165,15 +242,31 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             }
 
             // Emit transcription/failed to update job/project status
-            await inngest.send({
-                name: "transcription/failed",
-                data: {
+            try {
+                await inngest.send({
+                    name: "transcription/failed",
+                    data: {
+                        projectId,
+                        jobId,
+                        error: errorMessage,
+                        errorType: "transcription_error",
+                    },
+                });
+            } catch (sendError) {
+                console.error("[inngest] Failed to emit transcription/failed:", sendError);
+                // Fallback: write error directly so the UI can surface it
+                const payload = {
+                    error: `Transcription failed: ${errorMessage.slice(0, 200)}`,
+                    error_type: "transcription_error",
+                    raw_error: errorMessage.slice(0, 500),
+                };
+                await writeTranscriptionFailureFallback({
                     projectId,
                     jobId,
-                    error: errorMessage,
-                    errorType: "transcription_error",
-                },
-            });
+                    payload,
+                    context: "onFailure",
+                });
+            }
         },
     },
     { event: "transcription/webhook" },
@@ -377,6 +470,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         });
 
         // Step 3: Run consolidation pipeline (if enabled)
+        // Wrapped in try-catch so consolidation failure doesn't fail the entire transcription
         const consolidationEnabled = process.env.CONSOLIDATION_ENABLED !== "false";
         const consolidationResult = await step.run("run-consolidation", async () => {
             if (!consolidationEnabled) {
@@ -385,10 +479,29 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                     chunkCount: 0,
                     chunkWordCount: 0,
                     algoVersion: "skipped",
+                    consolidationError: null,
                 };
             }
             console.log(`[inngest] Running consolidation for project: ${projectId}`);
-            return await runConsolidation(projectId);
+            try {
+                const result = await runConsolidation(projectId);
+                return {
+                    ...result,
+                    consolidationError: null,
+                };
+            } catch (consolidationError) {
+                // Log but don't throw - transcription segments still exist and are usable
+                const errorMessage = consolidationError instanceof Error
+                    ? consolidationError.message
+                    : String(consolidationError);
+                console.error(`[inngest] Consolidation failed for project ${projectId}:`, errorMessage);
+                return {
+                    chunkCount: 0,
+                    chunkWordCount: 0,
+                    algoVersion: "failed",
+                    consolidationError: errorMessage,
+                };
+            }
         });
 
         // Step 4: Trigger completion event
@@ -402,6 +515,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 chunkCount: consolidationResult.chunkCount,
                 chunkWordCount: consolidationResult.chunkWordCount,
                 algoVersion: consolidationResult.algoVersion,
+                consolidationError: consolidationResult.consolidationError,
             },
         });
         console.log(`[inngest] transcription/completed event sent successfully for project: ${projectId}`);
@@ -434,21 +548,48 @@ export const handleTranscriptionCompleted = inngest.createFunction(
     { id: "handle-transcription-completed", retries: 3 },
     { event: "transcription/completed" },
     async ({ event, step }) => {
-        const { projectId, jobId, duration } = event.data;
+        const { projectId, jobId, duration, consolidationError } = event.data;
 
         console.log(`[inngest] Transcription completed for project: ${projectId}`);
+        if (consolidationError) {
+            console.warn(`[inngest] Consolidation had an error (transcription still completed): ${consolidationError}`);
+        }
 
         await step.run("update-status", async () => {
             const supabase = createAdminClient();
             const now = new Date().toISOString();
 
+            // Build job update payload, include consolidation warning if applicable
+            const jobUpdate: Record<string, unknown> = {
+                status: "completed",
+                finished_at: now,
+            };
+            if (consolidationError) {
+                const { data: payloadRow, error: payloadError } = await supabase
+                    .from("jobs")
+                    .select("payload")
+                    .eq("id", jobId)
+                    .maybeSingle();
+
+                if (payloadError) {
+                    console.error("[inngest] Failed to load existing job payload:", payloadError);
+                } else {
+                    const existingPayload =
+                        payloadRow?.payload && typeof payloadRow.payload === "object"
+                            ? (payloadRow.payload as Record<string, unknown>)
+                            : {};
+
+                    jobUpdate.payload = {
+                        ...existingPayload,
+                        consolidation_warning: consolidationError,
+                    };
+                }
+            }
+
             // Update job status
             const { error: jobError } = await supabase
                 .from("jobs")
-                .update({
-                    status: "completed",
-                    finished_at: now,
-                })
+                .update(jobUpdate)
                 .eq("id", jobId);
 
             if (jobError) {
@@ -468,6 +609,12 @@ export const handleTranscriptionCompleted = inngest.createFunction(
                 console.error("[inngest] Failed to update project:", projectError);
             } else {
                 console.log(`[inngest] Project ${projectId} status updated to 'completed' in database`);
+            }
+
+            if (jobError || projectError) {
+                throw new Error(
+                    `Failed to update completion status: ${jobError?.message || "job ok"} / ${projectError?.message || "project ok"}`
+                );
             }
 
             console.log(`[inngest] Project ${projectId} marked as completed`);
@@ -516,7 +663,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     .from("jobs")
                     .select("id")
                     .eq("project_id", projectId)
-                    .eq("status", "processing")
+                    .in("status", ["processing", "queued"])
                     .order("created_at", { ascending: false })
                     .limit(1)
                     .maybeSingle();
@@ -528,6 +675,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
             }
 
             // Update job with error details (only if we have a jobId)
+            let jobUpdateError: { message: string } | null = null;
             if (jobId) {
                 const { error: jobError } = await supabase
                     .from("jobs")
@@ -544,6 +692,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
 
                 if (jobError) {
                     console.error("[inngest] Failed to update job:", jobError);
+                    jobUpdateError = jobError;
                 }
             } else {
                 console.error("[inngest] No job found to update for project:", projectId);
@@ -559,15 +708,171 @@ export const handleTranscriptionFailed = inngest.createFunction(
                 console.error("[inngest] Failed to update project:", projectError);
             }
 
+            if (jobUpdateError || projectError) {
+                throw new Error(
+                    `Failed to update error status: ${jobUpdateError?.message || "job ok"} / ${projectError?.message || "project ok"}`
+                );
+            }
+
             console.log(`[inngest] Project ${projectId} marked as error: ${finalErrorType}`);
         });
 
         return {
-            status: "failed",
+            status: "error",
             projectId,
             jobId: providedJobId,
             error,
             errorType,
         };
+    }
+);
+
+/**
+ * Detect and mark stuck transcription jobs.
+ * Runs on a schedule to fail jobs that have exceeded the timeout threshold.
+ */
+export const handleTranscriptionTimeouts = inngest.createFunction(
+    {
+        id: "handle-transcription-timeouts",
+        concurrency: {
+            limit: 1,
+            key: '"transcription-timeouts"',
+        },
+    },
+    { cron: "*/10 * * * *" },
+    async ({ step }) => {
+        const timeoutMinutes = parseInt(
+            process.env.TRANSCRIPTION_TIMEOUT_MINUTES || "45",
+            10
+        );
+        const timeoutMs = timeoutMinutes * 60 * 1000;
+        const now = Date.now();
+        const cutoffIso = new Date(now - timeoutMs).toISOString();
+
+        const staleJobs = await step.run("find-stale-jobs", async () => {
+            const supabase = createAdminClient();
+            const { data: processingJobs, error: processingError } = await supabase
+                .from("jobs")
+                .select("id, project_id, status, created_at, started_at")
+                .in("type", ["transcription", "transcribe"])
+                .eq("status", "processing")
+                .lt("started_at", cutoffIso);
+
+            if (processingError) {
+                throw new Error(`Failed to load processing jobs for timeout check: ${processingError.message}`);
+            }
+
+            const { data: processingNoStartJobs, error: processingNoStartError } = await supabase
+                .from("jobs")
+                .select("id, project_id, status, created_at, started_at")
+                .in("type", ["transcription", "transcribe"])
+                .eq("status", "processing")
+                .is("started_at", null)
+                .lt("created_at", cutoffIso);
+
+            if (processingNoStartError) {
+                throw new Error(`Failed to load processing jobs without start time: ${processingNoStartError.message}`);
+            }
+
+            const { data: queuedJobs, error: queuedError } = await supabase
+                .from("jobs")
+                .select("id, project_id, status, created_at, started_at")
+                .in("type", ["transcription", "transcribe"])
+                .eq("status", "queued")
+                .lt("created_at", cutoffIso);
+
+            if (queuedError) {
+                throw new Error(`Failed to load queued jobs for timeout check: ${queuedError.message}`);
+            }
+
+            return [
+                ...(processingJobs || []),
+                ...(processingNoStartJobs || []),
+                ...(queuedJobs || []),
+            ];
+        });
+
+        if (staleJobs.length === 0) {
+            return { timedOutJobs: 0, timeoutMinutes };
+        }
+
+        await step.run("mark-stale-jobs", async () => {
+            const supabase = createAdminClient();
+            const finishedAt = new Date().toISOString();
+            const errorMessage = `Transcription timed out after ${timeoutMinutes} minutes. Please try again.`;
+            const failures: { id: string; message: string }[] = [];
+            const updatedProjectIds = new Set<string>();
+
+            for (const job of staleJobs) {
+                try {
+                    let currentPayload: Record<string, unknown> = {};
+                    if (job.status === "processing") {
+                        const { data: payloadRow, error: payloadError } = await supabase
+                            .from("jobs")
+                            .select("payload")
+                            .eq("id", job.id)
+                            .maybeSingle();
+                        if (payloadError) {
+                            throw new Error(`Failed to load payload for job ${job.id}: ${payloadError.message}`);
+                        }
+                        if (payloadRow?.payload && typeof payloadRow.payload === "object") {
+                            currentPayload = payloadRow.payload as Record<string, unknown>;
+                        }
+                    }
+
+                    const nextPayload = {
+                        ...currentPayload,
+                        error: errorMessage,
+                        error_type: "transcription_error",
+                        raw_error: "timeout",
+                    };
+
+                    const { data: updatedJobs, error: jobError } = await supabase
+                        .from("jobs")
+                        .update({
+                            status: "error",
+                            finished_at: finishedAt,
+                            payload: nextPayload,
+                        })
+                        .eq("id", job.id)
+                        .in("status", ["queued", "processing"])
+                        .select("id");
+
+                    if (jobError) {
+                        throw new Error(`Failed to mark job ${job.id} as timed out: ${jobError.message}`);
+                    }
+                    if (!updatedJobs || updatedJobs.length === 0) {
+                        throw new Error(`Failed to mark job ${job.id} as timed out: no rows updated`);
+                    }
+
+                    updatedProjectIds.add(job.project_id);
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    failures.push({ id: job.id, message });
+                }
+            }
+
+            const projectIds = Array.from(updatedProjectIds);
+            if (projectIds.length > 0) {
+                const { error: projectError } = await supabase
+                    .from("projects")
+                    .update({ status: "error" })
+                    .in("id", projectIds)
+                    .in("status", ["queued", "processing"]);
+
+                if (projectError) {
+                    throw new Error(`Failed to mark projects as timed out: ${projectError.message}`);
+                }
+            }
+
+            if (failures.length > 0) {
+                const summary = failures
+                    .map((failure) => `${failure.id}: ${failure.message}`)
+                    .join("; ");
+                throw new Error(`Failed to mark ${failures.length} job(s) as timed out: ${summary}`);
+            }
+        });
+
+        return { timedOutJobs: staleJobs.length, timeoutMinutes };
     }
 );

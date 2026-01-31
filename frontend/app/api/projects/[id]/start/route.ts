@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import { getSignedMediaUrl } from "@/lib/supabase/storage";
+import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(
     request: NextRequest,
@@ -25,6 +26,34 @@ export async function POST(
 
     if (authError || !user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting: prevent abuse (10 transcriptions per hour per user)
+    const rateLimitMode =
+        process.env.RATE_LIMIT_MODE ||
+        (process.env.NODE_ENV === "production" ? "off" : "memory");
+    if (rateLimitMode !== "off") {
+        const rateResult = checkRateLimit(
+            `transcription:${user.id}`,
+            RATE_LIMITS.TRANSCRIPTION_START
+        );
+        if (!rateResult.allowed) {
+            const retryAfterSeconds = Math.ceil(rateResult.resetInMs / 1000);
+            return NextResponse.json(
+                {
+                    error: "Rate limit exceeded. Please try again later.",
+                    limit: rateResult.limit,
+                    current: rateResult.current,
+                    retryAfterSeconds,
+                },
+                {
+                    status: 429,
+                    headers: {
+                        "Retry-After": String(retryAfterSeconds),
+                    },
+                }
+            );
+        }
     }
 
     // Fetch project (RLS ensures ownership)
@@ -46,8 +75,44 @@ export async function POST(
         );
     }
 
-    // Check if project is already processing
-    if (project.status === "processing") {
+    // Idempotency: Check for duplicate requests using client-provided key
+    const idempotencyKey = request.headers.get("x-idempotency-key");
+    if (idempotencyKey) {
+        const { data: existingJob, error: lookupError } = await supabase
+            .from("jobs")
+            .select("id, status")
+            .eq("project_id", id)
+            .eq("idempotency_key", idempotencyKey)
+            .maybeSingle();
+
+        if (lookupError) {
+            console.error("Failed to check idempotency key:", lookupError);
+            // Continue rather than fail - better to create duplicate than block user
+        } else if (existingJob) {
+            if (["queued", "processing", "completed"].includes(existingJob.status)) {
+                console.log(`[start] Returning cached job ${existingJob.id} for idempotency key`);
+                return NextResponse.json({
+                    message: "Transcription started",
+                    jobId: existingJob.id,
+                    cached: true,
+                });
+            }
+
+            if (["error", "failed"].includes(existingJob.status)) {
+                return NextResponse.json(
+                    {
+                        error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
+                        jobId: existingJob.id,
+                        status: existingJob.status,
+                    },
+                    { status: 409 }
+                );
+            }
+        }
+    }
+
+    // Check if project is already queued or processing
+    if (project.status === "processing" || project.status === "queued") {
         return NextResponse.json(
             { error: "Transcription already in progress" },
             { status: 409 }
@@ -110,11 +175,42 @@ export async function POST(
             project_id: id,
             status: "queued",
             type: "transcription",
+            ...(idempotencyKey && { idempotency_key: idempotencyKey }),
         })
         .select()
         .single();
 
     if (jobError) {
+        // Handle race where another request already created this idempotent job
+        if (idempotencyKey) {
+            const { data: existingJob } = await supabase
+                .from("jobs")
+                .select("id, status")
+                .eq("project_id", id)
+                .eq("idempotency_key", idempotencyKey)
+                .maybeSingle();
+            if (existingJob) {
+                if (["queued", "processing", "completed"].includes(existingJob.status)) {
+                    return NextResponse.json({
+                        message: "Transcription started",
+                        jobId: existingJob.id,
+                        cached: true,
+                    });
+                }
+
+                if (["error", "failed"].includes(existingJob.status)) {
+                    return NextResponse.json(
+                        {
+                            error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
+                            jobId: existingJob.id,
+                            status: existingJob.status,
+                        },
+                        { status: 409 }
+                    );
+                }
+            }
+        }
+
         console.error("Failed to create job:", jobError);
         return NextResponse.json(
             { error: "Failed to create job" },
@@ -122,15 +218,31 @@ export async function POST(
         );
     }
 
-    // Update project status to processing
+    // Update project status to queued (processing starts after Deepgram accepts)
     const { error: updateError } = await supabase
         .from("projects")
-        .update({ status: "processing" })
+        .update({ status: "queued" })
         .eq("id", id);
 
     if (updateError) {
         console.error("Failed to update project status:", updateError);
-        // Don't fail - job was created, we can proceed
+        // Rollback: mark job as error so the UI can surface a message
+        const errorPayload = {
+            error: "Failed to queue transcription. Please try again.",
+            error_type: "transcription_error",
+            raw_error: updateError.message,
+        };
+        const { error: jobUpdateError } = await supabase
+            .from("jobs")
+            .update({ status: "error", payload: errorPayload })
+            .eq("id", job.id);
+        if (jobUpdateError) {
+            console.error("Failed to mark job as error after queue failure:", jobUpdateError);
+        }
+        return NextResponse.json(
+            { error: "Failed to queue transcription" },
+            { status: 500 }
+        );
     }
 
     // Trigger Inngest function for async processing
@@ -147,9 +259,28 @@ export async function POST(
         });
     } catch (sendError) {
         console.error("Failed to send Inngest event:", sendError);
-        // Rollback: Update project status back and mark job as failed
-        await supabase.from("projects").update({ status: "error" }).eq("id", id);
-        await supabase.from("jobs").update({ status: "failed" }).eq("id", job.id);
+        // Rollback: Update project status back and mark job as error
+        const errorMessage =
+            sendError instanceof Error ? sendError.message : String(sendError);
+        const errorPayload = {
+            error: "Failed to start transcription. Please try again.",
+            error_type: "transcription_error",
+            raw_error: errorMessage.slice(0, 500),
+        };
+        const { error: projectRollbackError } = await supabase
+            .from("projects")
+            .update({ status: "error" })
+            .eq("id", id);
+        if (projectRollbackError) {
+            console.error("Failed to rollback project status:", projectRollbackError);
+        }
+        const { error: jobRollbackError } = await supabase
+            .from("jobs")
+            .update({ status: "error", payload: errorPayload })
+            .eq("id", job.id);
+        if (jobRollbackError) {
+            console.error("Failed to rollback job status:", jobRollbackError);
+        }
         return NextResponse.json(
             { error: "Failed to start transcription" },
             { status: 500 }

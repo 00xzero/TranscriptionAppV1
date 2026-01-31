@@ -14,30 +14,21 @@ const updateEqMock = jest.fn(async (_column: string, _value: string) => ({ error
 const updateMock = jest.fn((_values: unknown) => ({
   eq: updateEqMock,
 }))
-const maybeSingleMock = jest.fn(async () => ({ data: null, error: null }))
+const maybeSingleMock = jest.fn()
+const selectChain = {
+  eq: jest.fn(() => selectChain),
+  in: jest.fn(() => selectChain),
+  order: jest.fn(() => selectChain),
+  limit: jest.fn(() => selectChain),
+  maybeSingle: maybeSingleMock,
+}
+const selectMock = jest.fn(() => selectChain)
 
 jest.mock('@/lib/supabase/admin', () => {
   return {
     createAdminClient: () => ({
       from: () => ({
-        select: () => ({
-          eq: () => ({
-            eq: () => ({
-              order: () => ({
-                limit: () => ({
-                  maybeSingle: maybeSingleMock,
-                }),
-              }),
-            }),
-            in: () => ({
-              order: () => ({
-                limit: () => ({
-                  maybeSingle: jest.fn(async () => ({ data: { id: 'job-1' }, error: null })),
-                }),
-              }),
-            }),
-          }),
-        }),
+        select: selectMock,
         update: updateMock,
       }),
     }),
@@ -47,10 +38,16 @@ jest.mock('@/lib/supabase/admin', () => {
 describe('Deepgram webhook route', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    maybeSingleMock.mockReset()
+    selectMock.mockClear()
     process.env.DEEPGRAM_API_KEY_IDENTIFIER = 'test-token'
   })
 
   test('persists payload and sends minimal Inngest event', async () => {
+    maybeSingleMock
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
+
     const payload = {
       metadata: {
         request_id: 'req-123',
@@ -107,5 +104,33 @@ describe('Deepgram webhook route', () => {
     expect(inngest.send).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
     expect(updateEqMock).not.toHaveBeenCalled()
+  })
+
+  test('marks job as error when project_id is missing', async () => {
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { id: 'job-1', project_id: 'proj-456' },
+      error: null,
+    })
+
+    const payload = {
+      metadata: {
+        request_id: 'req-123',
+        extra: {},
+      },
+      results: {
+        channels: [],
+      },
+    }
+
+    const request = {
+      headers: new Headers({ 'dg-token': 'test-token' }),
+      json: async () => payload,
+    } as any
+
+    const res = await POST(request)
+    expect(res.status).toBe(400)
+
+    expect(updateMock).toHaveBeenCalled()
+    expect(updateEqMock).toHaveBeenCalledWith('id', 'job-1')
   })
 })

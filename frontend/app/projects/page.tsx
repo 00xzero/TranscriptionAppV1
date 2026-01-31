@@ -9,9 +9,13 @@ import type { Project } from '../../lib/supabase/types'
 export default function ProjectsPage() {
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
+  // Cache idempotency keys per project - reused until request completes to prevent double-click issues
+  const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
+  const [projectErrorLoadErrors, setProjectErrorLoadErrors] = useState<Record<string, string>>({})
   const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
   const [termsLoadError, setTermsLoadError] = useState<Record<string, string>>({})
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Modal state
   const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
@@ -19,6 +23,11 @@ export default function ProjectsPage() {
   // Fetch error info for projects in error state
   const fetchProjectErrorInfo = useCallback(async (projectId: string) => {
     try {
+      setProjectErrorLoadErrors(prev => {
+        const next = { ...prev }
+        delete next[projectId]
+        return next
+      })
       const errorInfo = await fetchJobError(projectId)
       if (errorInfo) {
         setProjectErrors(prev => ({
@@ -28,6 +37,10 @@ export default function ProjectsPage() {
       }
     } catch (e) {
       console.error('Failed to fetch project error:', e)
+      setProjectErrorLoadErrors(prev => ({
+        ...prev,
+        [projectId]: 'Failed to load error details. Please retry.'
+      }))
     }
   }, [])
 
@@ -40,16 +53,76 @@ export default function ProjectsPage() {
     })
   }, [projects, projectErrors, fetchProjectErrorInfo])
 
-  const startProject = async (id: string) => {
+  useEffect(() => {
+    if (Object.keys(idempotencyKeys).length === 0) return
+
+    const inProgressIds = new Set(
+      projects
+        .filter(p => p.status === 'queued' || p.status === 'processing' || p.status === 'error')
+        .map(p => p.id)
+    )
+
+    if (inProgressIds.size === 0) return
+
+    setIdempotencyKeys(prev => {
+      let changed = false
+      const next = { ...prev }
+
+      Object.keys(prev).forEach(id => {
+        if (inProgressIds.has(id)) {
+          delete next[id]
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [projects, idempotencyKeys])
+
+  const startProject = useCallback(async (id: string) => {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
+
+    // Get or generate idempotency key - cached to prevent double-click from creating new keys
+    let idempotencyKey = idempotencyKeys[id]
+    if (!idempotencyKey) {
+      idempotencyKey = `${id}-${Date.now()}-${crypto.randomUUID()}`
+      setIdempotencyKeys((prev) => ({ ...prev, [id]: idempotencyKey }))
+    }
+
     try {
       // Use existing Next.js API route for starting transcription
-      const res = await fetch(`/api/projects/${id}/start`, { method: 'POST' })
+      const res = await fetch(`/api/projects/${id}/start`, {
+        method: 'POST',
+        headers: {
+          'x-idempotency-key': idempotencyKey,
+        },
+      })
       if (!res.ok) {
         const text = await res.text()
-        throw new Error(`Failed to start project: ${text}`)
+        let parsed: { error?: string; status?: string } | null = null
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          parsed = null
+        }
+
+        if (res.status === 409 && parsed?.status && ['error', 'failed'].includes(parsed.status)) {
+          setIdempotencyKeys((prev) => {
+            const next = { ...prev }
+            delete next[id]
+            return next
+          })
+        }
+
+        throw new Error(`Failed to start project: ${parsed?.error || text}`)
       }
+      setActionError(null)
+      setProjectErrorLoadErrors(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
       // Clear any previous error
       setProjectErrors(prev => {
         const next = { ...prev }
@@ -58,9 +131,15 @@ export default function ProjectsPage() {
       })
       // Refetch projects to get updated status
       refetch()
+      // Clear cached idempotency key only after confirmed success
+      setIdempotencyKeys((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
     } catch (e) {
       console.error(e)
-      alert(String(e))
+      setActionError(String(e))
     } finally {
       setStarting((prev) => {
         const next = { ...prev }
@@ -68,7 +147,7 @@ export default function ProjectsPage() {
         return next
       })
     }
-  }
+  }, [starting, idempotencyKeys, refetch])
 
   const handleDeleteProject = async (id: string) => {
     const ok = window.confirm(
@@ -77,9 +156,10 @@ export default function ProjectsPage() {
     if (!ok) return
     try {
       await deleteProjectAction(id)
+      setActionError(null)
     } catch (e) {
       console.error(e)
-      alert(String(e))
+      setActionError(String(e))
     }
   }
 
@@ -140,11 +220,25 @@ export default function ProjectsPage() {
           <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
         </div>
       </div>
+      {actionError && (
+        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{actionError}</span>
+            <button
+              className="text-xs font-medium text-red-700 hover:underline"
+              onClick={() => setActionError(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {isLoading && <div className="text-muted">Loading...</div>}
       {!isLoading && projects.length === 0 && <div className="text-muted">No projects yet.</div>}
       <ul className="space-y-2">
         {projects.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
+          const errorLoadError = projectErrorLoadErrors[p.id]
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
           const isLoadingTerms = !!loadingTerms[p.id]
           const termLoadError = termsLoadError[p.id]
@@ -191,14 +285,26 @@ export default function ProjectsPage() {
               </div>
 
               {/* Error display */}
-              {errorInfo && (
+              {(errorInfo || errorLoadError) && (
                 <div className="mt-3 p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                   <div className="flex items-start gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5">
                       <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
                     </svg>
                     <div className="flex-1">
-                      <p className="text-sm text-red-700 dark:text-red-300">{errorInfo.error}</p>
+                      {errorInfo ? (
+                        <p className="text-sm text-red-700 dark:text-red-300">{errorInfo.error}</p>
+                      ) : (
+                        <p className="text-sm text-red-700 dark:text-red-300">{errorLoadError}</p>
+                      )}
+                      {!errorInfo && (
+                        <button
+                          onClick={() => fetchProjectErrorInfo(p.id)}
+                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Retry loading error details
+                        </button>
+                      )}
                       {isKeytermError && (
                         <button
                           onClick={() => handleOpenEditModal(p)}

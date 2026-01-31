@@ -18,14 +18,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Explicit env var required when proxy is enabled
 const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET;
 
-// Export the secret so it can be used when generating proxy URLs (throws if missing)
-export function getProxySecret(): string {
-    if (!PROXY_SECRET) {
-        throw new Error("MEDIA_PROXY_SECRET is required when DEEPGRAM_USE_PROXY=true");
-    }
-    return PROXY_SECRET;
-}
-
 // Validate storage path format: userId/projectId/filename
 // This prevents path traversal and limits scope to valid media paths
 function isValidStoragePath(path: string): boolean {
