@@ -573,17 +573,17 @@ export const handleTranscriptionCompleted = inngest.createFunction(
 
                 if (payloadError) {
                     console.error("[inngest] Failed to load existing job payload:", payloadError);
+                } else {
+                    const existingPayload =
+                        payloadRow?.payload && typeof payloadRow.payload === "object"
+                            ? (payloadRow.payload as Record<string, unknown>)
+                            : {};
+
+                    jobUpdate.payload = {
+                        ...existingPayload,
+                        consolidation_warning: consolidationError,
+                    };
                 }
-
-                const existingPayload =
-                    payloadRow?.payload && typeof payloadRow.payload === "object"
-                        ? (payloadRow.payload as Record<string, unknown>)
-                        : {};
-
-                jobUpdate.payload = {
-                    ...existingPayload,
-                    consolidation_warning: consolidationError,
-                };
             }
 
             // Update job status
@@ -827,7 +827,7 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                         raw_error: "timeout",
                     };
 
-                    const { error: jobError } = await supabase
+                    const { data: updatedJobs, error: jobError } = await supabase
                         .from("jobs")
                         .update({
                             status: "error",
@@ -835,10 +835,14 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                             payload: nextPayload,
                         })
                         .eq("id", job.id)
-                        .in("status", ["queued", "processing"]);
+                        .in("status", ["queued", "processing"])
+                        .select("id");
 
                     if (jobError) {
                         throw new Error(`Failed to mark job ${job.id} as timed out: ${jobError.message}`);
+                    }
+                    if (!updatedJobs || updatedJobs.length === 0) {
+                        throw new Error(`Failed to mark job ${job.id} as timed out: no rows updated`);
                     }
 
                     updatedProjectIds.add(job.project_id);

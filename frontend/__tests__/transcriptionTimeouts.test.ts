@@ -34,7 +34,8 @@ const payloadSelectChain = {
   eq: payloadEqMock,
 }
 
-const jobUpdateInMock = jest.fn()
+const jobUpdateSelectMock = jest.fn()
+const jobUpdateInMock = jest.fn(() => ({ select: jobUpdateSelectMock }))
 const jobUpdateEqMock = jest.fn(() => ({ in: jobUpdateInMock }))
 
 const projectUpdateInStatusMock = jest.fn()
@@ -93,7 +94,7 @@ describe('Transcription timeouts', () => {
       error: { message: 'payload fetch failed' },
     })
 
-    jobUpdateInMock.mockResolvedValue({ error: null })
+    jobUpdateSelectMock.mockResolvedValue({ data: [{ id: 'job-2' }], error: null })
     projectUpdateInStatusMock.mockResolvedValue({ error: null })
 
     const handler = (handleTranscriptionTimeouts as any).fn
