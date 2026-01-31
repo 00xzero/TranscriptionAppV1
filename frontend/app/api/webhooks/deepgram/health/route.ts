@@ -78,7 +78,11 @@ export async function GET(request: NextRequest) {
     let status: HealthStatus["status"] = "healthy";
     if (!supabaseConnected) {
         status = "unhealthy";
-    } else if (!deepgramKeyConfigured || !callbackUrlConfigured) {
+    } else if (
+        !deepgramKeyConfigured ||
+        !callbackUrlConfigured ||
+        !inngestConfigured
+    ) {
         status = "degraded";
     }
 
