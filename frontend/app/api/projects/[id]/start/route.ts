@@ -75,14 +75,6 @@ export async function POST(
         );
     }
 
-    // Check if project is already queued or processing
-    if (project.status === "processing" || project.status === "queued") {
-        return NextResponse.json(
-            { error: "Transcription already in progress" },
-            { status: 409 }
-        );
-    }
-
     // Idempotency: Check for duplicate requests using client-provided key
     const idempotencyKey = request.headers.get("x-idempotency-key");
     if (idempotencyKey) {
@@ -104,6 +96,14 @@ export async function POST(
                 cached: true,
             });
         }
+    }
+
+    // Check if project is already queued or processing
+    if (project.status === "processing" || project.status === "queued") {
+        return NextResponse.json(
+            { error: "Transcription already in progress" },
+            { status: 409 }
+        );
     }
 
     // Get key terms for the project

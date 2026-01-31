@@ -53,6 +53,32 @@ export default function ProjectsPage() {
     })
   }, [projects, projectErrors, fetchProjectErrorInfo])
 
+  useEffect(() => {
+    if (Object.keys(idempotencyKeys).length === 0) return
+
+    const inProgressIds = new Set(
+      projects
+        .filter(p => p.status === 'queued' || p.status === 'processing')
+        .map(p => p.id)
+    )
+
+    if (inProgressIds.size === 0) return
+
+    setIdempotencyKeys(prev => {
+      let changed = false
+      const next = { ...prev }
+
+      Object.keys(prev).forEach(id => {
+        if (inProgressIds.has(id)) {
+          delete next[id]
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [projects, idempotencyKeys])
+
   const startProject = async (id: string) => {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
@@ -90,17 +116,17 @@ export default function ProjectsPage() {
       })
       // Refetch projects to get updated status
       refetch()
+      // Clear cached idempotency key only after confirmed success
+      setIdempotencyKeys((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
     } catch (e) {
       console.error(e)
       setActionError(String(e))
     } finally {
       setStarting((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        return next
-      })
-      // Clear cached idempotency key so next intentional click generates a fresh key
-      setIdempotencyKeys((prev) => {
         const next = { ...prev }
         delete next[id]
         return next
