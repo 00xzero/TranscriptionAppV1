@@ -1,23 +1,64 @@
 "use client"
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import WaveSurfer from 'wavesurfer.js'
-import { getApiBase, getAuthHeaders } from '../../../lib/api'
+import AudioPlayer, { AudioPlayerRef } from '../../../components/AudioPlayer'
+import {
+  fetchTranscriptData,
+  fetchChunks, // Keep for error recovery fallback if needed
+  fetchSpeakers,
+  fetchProjectById,
+  updateChunk,
+  updateSegment,
+  updateProject,
+  createSpeaker,
+  updateSpeaker,
+  deleteSpeaker,
+} from '../../../lib/supabase/queries'
+import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
 import SpeakerPopover from '../../../components/SpeakerPopover'
 import ExportModal from '../../../components/ExportModal'
+import { useAudioSessionRecovery } from '../../../hooks/useAudioSessionRecovery'
 
-type Word = { key: string; start_ms: number; end_ms: number; text: string }
-type Seg = { id: string; start_ms: number; end_ms: number; text: string; speaker_id?: string | null; words?: Word[]; is_edited?: boolean; is_filler?: boolean }
-type Speaker = { id: string; project_id: string; label: string; color?: string | null }
+type Word = EditorWord
+type Seg = Chunk & { words?: Word[] }
+type Speaker = SpeakerType
 type Match = { segId: string; index: number; length: number }
 type SegmentMatch = { index: number; length: number; matchIdx: number }
 
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
+const SEEK_LOCK_MS = 3000
+const SEEK_RESUME_TIMEOUT_MS = 1000
+const SEEK_TOLERANCE_MS = 250
+
+const computeWordsForSegment = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
+  const duration = Math.max(1, (seg.end_ms - seg.start_ms))
+  const tokens = String(seg.text || '').split(/(\s+)/).filter(Boolean)
+  const words: Word[] = []
+  let cursor = 0
+  const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i]
+    if (/^\s+$/.test(t)) {
+      if (words.length > 0) words[words.length - 1].text += t
+      continue
+    }
+    const start = seg.start_ms + cursor
+    const end = i === tokens.length - 1 ? seg.end_ms : Math.min(seg.end_ms, start + per)
+    cursor += per
+    words.push({ key: `${seg.id}:${i}`, start_ms: start, end_ms: end, text: t })
+  }
+  return words
+}
+
+const computeWordsForSegments = <T extends { id: string; start_ms: number; end_ms: number; text: string }>(
+  items: T[]
+): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
 
 export default function EditorPage({ params }: { params: { id: string } }) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const wavesurferRef = useRef<WaveSurfer | null>(null)
+  const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
+  const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -48,110 +89,139 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [titleSaveError, setTitleSaveError] = useState<string | null>(null)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   const isSavingTitleRef = useRef(false)
+  const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  // Ref to prevent timeupdate/audioprocess from overriding manual card clicks
+  const clickLockRef = useRef<number | null>(null)
+  const readyRef = useRef(false)
+  const pendingSeekRef = useRef<number | null>(null)
+  const seekTokenRef = useRef(0)
+  const seekTimeoutRef = useRef<number | null>(null)
+
+  const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
+    audioPlayerRef.current = player
+    setAudioElement(player?.getAudioElement?.() ?? null)
+  }, [])
+
+  // Session recovery: refresh audio URL when returning to tab after idle
+  useAudioSessionRecovery({
+    projectId: params.id,
+    audioSrc,
+    audioElement,
+    onUrlRefreshed: (newUrl) => {
+      setAudioSrc(newUrl)
+    },
+    onRecoveryError: (error) => {
+      console.warn('[Editor] Audio recovery failed:', error)
+    },
+  })
+
+  const seekToMs = useCallback((targetMs: number) => {
+    const player = audioPlayerRef.current
+    if (!player) return
+
+    if (!readyRef.current) {
+      pendingSeekRef.current = targetMs
+      return
+    }
+
+    // Set click lock to prevent sync overriding manual seeks
+    clickLockRef.current = Date.now() + SEEK_LOCK_MS
+
+    // Delegate to AudioPlayer's seekToMs
+    player.seekToMs(targetMs)
+  }, [])
 
 
+  // Helper to find and set active segment based on time in ms
+  const syncActiveSegment = useCallback((tMs: number) => {
+    // Guard: Don't update if segments aren't loaded yet
+    if (segmentsRef.current.length === 0) return
+
+    // Guard: Skip if click lock is active (prevents overriding manual clicks)
+    if (clickLockRef.current && Date.now() < clickLockRef.current) {
+      return
+    }
+
+    const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
+    let segId: string | undefined
+    for (const s of segmentsRef.current) {
+      if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
+        segId = s.id
+        break
+      }
+    }
+    // Only update if we found a segment (prevents clearing activeIds prematurely)
+    if (segId) {
+      setActiveIds({ segId, wordKey: undefined })
+    }
+  }, [])
+
+  // AudioPlayer callback handlers
+  const handleAudioReady = useCallback(() => {
+    readyRef.current = true
+    setReady(true)
+    setStatus('Ready')
+    const pendingSeekMs = pendingSeekRef.current
+    if (pendingSeekMs !== null) {
+      pendingSeekRef.current = null
+      seekToMs(pendingSeekMs)
+    }
+  }, [seekToMs])
+
+  const handleAudioError = useCallback((error: string) => {
+    setStatus(`Error: ${error}`)
+  }, [])
+
+  const handlePlayingChange = useCallback((isPlaying: boolean) => {
+    setPlaying(isPlaying)
+  }, [])
+
+  const handleTimeUpdate = useCallback((currentTime: number) => {
+    syncActiveSegment(Math.floor(currentTime * 1000))
+  }, [syncActiveSegment])
+
+  // Data loading effect - simpler now that AudioPlayer handles audio
   useEffect(() => {
     let cancelled = false
     const init = async () => {
       try {
-        const base = getApiBase()
-        const res = await fetch(`${base}/projects/${params.id}/media-url`, {
-          headers: getAuthHeaders(),
-        })
+        setStatus('Loading media...')
+        setReady(false)
+        readyRef.current = false
+
+        // Fetch the media URL
+        const res = await fetch(`/api/projects/${params.id}/media-url`)
         if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
         const j = await res.json()
         const url: string = j.url
 
-        if (!containerRef.current) return
-        // If an instance already exists (e.g., StrictMode remount), tear it down first
-        if (wavesurferRef.current) {
-          try { wavesurferRef.current.destroy() } catch { }
-          wavesurferRef.current = null
-        }
-        // Ensure the container is empty (StrictMode double-effect in dev may leave remnants)
-        try { containerRef.current.replaceChildren() } catch { containerRef.current.innerHTML = '' }
-        const ws = WaveSurfer.create({
-          container: containerRef.current,
-          waveColor: '#9CA3AF',
-          progressColor: '#2563EB',
-          cursorColor: '#111827',
-          height: 96,
-        })
-        wavesurferRef.current = ws
-        ws.on('ready', () => { if (cancelled) return; setReady(true); setStatus('Ready'); ws.setPlaybackRate(playbackRate) })
-        ws.on('error', (e: unknown) => { setStatus(`Error: ${String(e)}`) })
-        ws.on('play', () => setPlaying(true))
-        ws.on('pause', () => setPlaying(false))
-        await ws.load(url)
+        if (cancelled) return
+        setAudioSrc(url)
 
-        // Load chunks (consolidated segments)
-        const segRes = await fetch(`${base}/projects/${params.id}/chunks`, {
-          headers: getAuthHeaders(),
-        })
-        if (!cancelled && segRes.ok) {
-          const segs = await segRes.json()
+        // Load transcript data (chunks or segments)
+        const { items: segs, source: dataSource } = await fetchTranscriptData(params.id)
+        if (!cancelled) {
+          setSource(dataSource)
           // Derive approximate word timings if not provided
-          const withWords = (segs as any[]).map((s: Seg) => {
-            const duration = Math.max(1, (s.end_ms - s.start_ms))
-            const tokens = String(s.text || '').split(/(\s+)/).filter(Boolean)
-            const words: Word[] = []
-            let cursor = 0
-            const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-            for (let i = 0; i < tokens.length; i++) {
-              const t = tokens[i]
-              if (/^\s+$/.test(t)) {
-                // whitespace: attach to previous word visually
-                if (words.length > 0) words[words.length - 1].text += t
-                continue
-              }
-              const start = s.start_ms + cursor
-              const end = i === tokens.length - 1 ? s.end_ms : Math.min(s.end_ms, start + per)
-              cursor += per
-              words.push({ key: `${s.id}:${i}`, start_ms: start, end_ms: end, text: t })
-            }
-            return { ...s, words }
-          })
-          setSegments(withWords)
+          setSegments(computeWordsForSegments(segs) as Seg[])
         }
 
-        // Load speakers
+        // Load speakers from Supabase
         try {
-          const spRes = await fetch(`${base}/projects/${params.id}/speakers`, {
-            headers: getAuthHeaders(),
-          })
-          if (!cancelled && spRes.ok) {
-            const sps: Speaker[] = await spRes.json()
+          const sps = await fetchSpeakers(params.id)
+          if (!cancelled) {
             setSpeakers(sps)
           }
         } catch (_) { /* ignore */ }
 
-        // Load project metadata for title
+        // Load project metadata from Supabase
         try {
-          const projRes = await fetch(`${base}/projects/${params.id}`, {
-            headers: getAuthHeaders(),
-          })
-          if (!cancelled && projRes.ok) {
-            const projData = await projRes.json()
+          const projData = await fetchProjectById(params.id)
+          if (!cancelled && projData) {
             setProjectTitle(projData.title || null)
           }
         } catch (_) { /* ignore */ }
-
-        const onProcess = () => {
-          const tSec = ws.getCurrentTime() || 0
-          const tMs = Math.floor(tSec * 1000)
-          const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
-          let segId: string | undefined
-          for (const s of segmentsRef.current) {
-            if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
-              segId = s.id
-              break
-            }
-          }
-          setActiveIds({ segId, wordKey: undefined })
-        }
-
-        ws.on('audioprocess', onProcess)
 
       } catch (e: any) {
         console.error(e)
@@ -161,29 +231,25 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     init()
     return () => {
       cancelled = true
-      wavesurferRef.current?.destroy()
-      wavesurferRef.current = null
-      // Also clear the container in case destroy() didn't remove canvases
-      try { containerRef.current?.replaceChildren() } catch { if (containerRef.current) containerRef.current.innerHTML = '' }
+      if (seekTimeoutRef.current) {
+        window.clearTimeout(seekTimeoutRef.current)
+        seekTimeoutRef.current = null
+      }
+      readyRef.current = false
     }
   }, [params.id])
 
-  const togglePlay = () => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    ws.isPlaying() ? ws.pause() : ws.play()
-  }
+  const togglePlay = useCallback(() => {
+    const player = audioPlayerRef.current
+    if (!player) return
+    player.togglePlay()
+  }, [])
 
-  const seekRelative = (sec: number) => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    const dur = ws.getDuration() || 0
-    const cur = ws.getCurrentTime() || 0
-    let next = cur + sec
-    if (next < 0) next = 0
-    if (next > dur) next = dur
-    ws.setTime(next)
-  }
+  const seekRelative = useCallback((sec: number) => {
+    const player = audioPlayerRef.current
+    if (!player) return
+    player.seekRelative(sec)
+  }, [])
 
   // Keep a ref to latest segments to use inside WS callbacks
   const segmentsRef = useRef(segments)
@@ -274,46 +340,29 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [togglePlay, seekRelative])
 
   const onWordClick = (ms: number) => {
-    const ws = wavesurferRef.current
-    if (!ws) return
-    ws.setTime(ms / 1000)
+    seekToMs(ms)
   }
 
-  const onSegmentClick = (ms: number) => onWordClick(ms)
+  // Direct segment click - set activeIds immediately without time-based lookup
+  const onSegmentClick = (segId: string, ms: number) => {
+    setActiveIds({ segId, wordKey: undefined })
+    seekToMs(ms)
+  }
 
   const onRateChange = (r: number) => {
     setPlaybackRate(r)
-    const ws = wavesurferRef.current
-    if (ws) ws.setPlaybackRate(r)
-  }
-
-  // Debounced save of segment text
-  const recomputeWords = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
-    const duration = Math.max(1, (seg.end_ms - seg.start_ms))
-    const tokens = String(seg.text || '').split(/(\s+)/).filter(Boolean)
-    const words: Word[] = []
-    let cursor = 0
-    const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-    for (let i = 0; i < tokens.length; i++) {
-      const t = tokens[i]
-      if (/^\s+$/.test(t)) {
-        if (words.length > 0) words[words.length - 1].text += t
-        continue
-      }
-      const start = seg.start_ms + cursor
-      const end = i === tokens.length - 1 ? seg.end_ms : Math.min(seg.end_ms, start + per)
-      cursor += per
-      words.push({ key: `${seg.id}:${i}`, start_ms: start, end_ms: end, text: t })
-    }
-    return words
+    const player = audioPlayerRef.current
+    if (player) player.setPlaybackRate(r)
   }
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
+    if (source === 'segments') return
+
     // update UI immediately
-    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: recomputeWords({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
+    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: computeWordsForSegment({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
     setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saving' }))
 
     // clear existing timer
@@ -323,12 +372,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // debounce before saving
     const timerId = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${getApiBase()}/chunks/${segId}`, {
-          method: 'PATCH',
-          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: newText }),
-        })
-        if (!res.ok) throw new Error(String(res.status))
+        await updateChunk(segId, { text: newText })
         setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saved' }))
         // reset saved flag after a moment
         window.setTimeout(() => setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [segId]: 'idle' })), 1200)
@@ -338,7 +382,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       }
     }, SAVE_DEBOUNCE_MS)
     saveTimers.current[segId] = timerId
-  }, [])
+  }, [source])
 
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []
@@ -552,19 +596,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: speaker.id }),
-      })
-      if (!res.ok) throw new Error(`Failed to reassign speaker: ${res.status}`)
+      if (source === 'segments') {
+        await updateSegment(chunkId, { speaker_id: speaker.id })
+      } else {
+        await updateChunk(chunkId, { speaker_id: speaker.id })
+      }
     } catch (err) {
       console.error('Failed to reassign speaker:', err)
       // Revert on error - reload segments
-      const segRes = await fetch(`${getApiBase()}/projects/${params.id}/chunks`, { headers: getAuthHeaders() })
-      if (segRes.ok) setSegments(await segRes.json())
+      const { items: segs } = await fetchTranscriptData(params.id)
+      setSegments(computeWordsForSegments(segs) as Seg[])
     }
-  }, [speakerPopover, params.id])
+  }, [speakerPopover, params.id, source])
 
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
@@ -576,22 +619,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
     try {
       // Create new speaker
-      const createRes = await fetch(`${getApiBase()}/projects/${params.id}/speakers`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label }),
-      })
-      if (!createRes.ok) throw new Error(`Failed to create speaker: ${createRes.status}`)
-      const createdSpeaker: Speaker = await createRes.json()
+      const createdSpeaker = await createSpeaker(params.id, label)
       newSpeaker = createdSpeaker
 
-      // Reassign chunk to new speaker (do this BEFORE adding to state)
-      const patchRes = await fetch(`${getApiBase()}/chunks/${chunkId}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ speaker_id: createdSpeaker.id }),
-      })
-      if (!patchRes.ok) throw new Error(`Failed to reassign chunk: ${patchRes.status}`)
+      // Reassign chunk/segment to new speaker
+      if (source === 'segments') {
+        await updateSegment(chunkId, { speaker_id: createdSpeaker.id })
+      } else {
+        await updateChunk(chunkId, { speaker_id: createdSpeaker.id })
+      }
 
       // Both succeeded - now update state
       setSpeakers(prev => [...prev, createdSpeaker])
@@ -602,16 +638,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       // Rollback: if speaker was created but chunk patch failed, delete the orphan speaker
       if (newSpeaker) {
         try {
-          await fetch(`${getApiBase()}/speakers/${newSpeaker.id}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders(),
-          })
+          await deleteSpeaker(newSpeaker.id)
         } catch (cleanupErr) {
           console.error('Failed to cleanup orphan speaker:', cleanupErr)
         }
       }
     }
-  }, [speakerPopover, params.id])
+  }, [speakerPopover, params.id, source])
 
   const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
     // Optimistic update
@@ -619,12 +652,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel }),
-      })
-      if (!res.ok) throw new Error(`Failed to rename speaker: ${res.status}`)
+      await updateSpeaker(speaker.id, { label: newLabel })
     } catch (err) {
       console.error('Failed to rename speaker:', err)
       // Revert on error
@@ -648,12 +676,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setSpeakerPopover(null)
 
     try {
-      const res = await fetch(`${getApiBase()}/speakers/${speaker.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: newLabel }),
-      })
-      if (!res.ok) throw new Error(`Failed to untag speaker: ${res.status}`)
+      await updateSpeaker(speaker.id, { label: newLabel })
     } catch (err) {
       console.error('Failed to untag speaker:', err)
       // Revert on error
@@ -687,18 +710,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setTitleSaveError(null)
 
     try {
-      const base = getApiBase()
-      const res = await fetch(`${base}/projects/${params.id}`, {
-        method: 'PATCH',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newTitle }),
-      })
-      if (res.ok) {
-        setProjectTitle(newTitle)
-        setEditingTitle(false)
-      } else {
-        setTitleSaveError(`Failed to save title (${res.status})`)
-      }
+      await updateProject(params.id, { title: newTitle })
+      setProjectTitle(newTitle)
+      setEditingTitle(false)
     } catch (err) {
       console.error('Failed to save title:', err)
       setTitleSaveError('Failed to save title. Please try again.')
@@ -751,6 +765,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           <span className="text-sm text-red-500">{titleSaveError}</span>
         )}
       </div>
+
+      {source === 'segments' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-amber-800">Mix Mode (Raw Segments)</h3>
+            <p className="text-sm text-amber-700 mt-1">
+              Text editing is disabled because consolidation was skipped, but you can assign speakers.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-surface border border-base rounded p-4 space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
@@ -763,15 +792,19 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               placeholder="Search text"
             />
           </div>
-          <div className="flex flex-col">
-            <label className="text-xs text-muted uppercase tracking-wide">Replace</label>
-            <input
-              className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
-              value={replaceTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
-              placeholder="Replacement"
-            />
-          </div>
+
+          {source !== 'segments' && (
+            <div className="flex flex-col">
+              <label className="text-xs text-muted uppercase tracking-wide">Replace</label>
+              <input
+                className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
+                value={replaceTerm}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
+                placeholder="Replacement"
+              />
+            </div>
+          )}
+
           <label className="flex items-center gap-2 text-sm text-muted">
             <input type="checkbox" checked={caseSensitive} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaseSensitive(e.target.checked)} />
             Match case
@@ -796,16 +829,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
               {matchIndex + 1} / {totalMatches}
             </span>
           )}
-          <button
-            className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
-            onClick={handleReplace}
-            disabled={!canNavigate}
-          >Replace</button>
-          <button
-            className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
-            onClick={handleReplaceAll}
-            disabled={!canNavigate}
-          >Replace all</button>
+
+          {source !== 'segments' && (
+            <>
+              <button
+                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                onClick={handleReplace}
+                disabled={!canNavigate}
+              >Replace</button>
+              <button
+                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                onClick={handleReplaceAll}
+                disabled={!canNavigate}
+              >Replace all</button>
+            </>
+          )}
 
           {/* Export Button */}
           <div className="ml-auto">
@@ -820,28 +858,23 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 bg-surface border border-base rounded p-4 space-y-3">
-          <div ref={containerRef} className="wavesurfer" />
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50" disabled={!ready} onClick={togglePlay}>
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button className="px-3 py-1.5 rounded bg-surface-alt" onClick={() => seekRelative(-2)}>-2s</button>
-            <button className="px-3 py-1.5 rounded bg-surface-alt" onClick={() => seekRelative(2)}>+2s</button>
-            <div className="ml-2 flex items-center gap-1">
-              <label className="text-sm text-muted">Rate</label>
-              <select
-                className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                value={playbackRate}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onRateChange(parseFloat(e.target.value))}
-              >
-                {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
-                  <option key={r} value={r}>{r.toFixed(2)}x</option>
-                ))}
-              </select>
+        <div className="lg:col-span-7 bg-surface border border-base rounded p-4">
+          {audioSrc ? (
+            <AudioPlayer
+              ref={handleAudioPlayerRef}
+              src={audioSrc}
+              onReady={handleAudioReady}
+              onError={handleAudioError}
+              onPlayingChange={handlePlayingChange}
+              onTimeUpdate={handleTimeUpdate}
+              initialPlaybackRate={playbackRate}
+            />
+          ) : (
+            <div className="h-24 flex items-center justify-center text-muted">
+              Loading audio...
             </div>
-          </div>
-          <div className="text-sm text-muted">{status}</div>
+          )}
+          <div className="mt-2 text-sm text-muted">{status}</div>
         </div>
 
         <div className="lg:col-span-5 bg-surface border border-base rounded p-4 max-h-[70vh] relative flex flex-col">
@@ -875,7 +908,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       }
                     }}
                     className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
-                    onClick={() => onSegmentClick(s.start_ms)}
+                    onClick={() => onSegmentClick(s.id, s.start_ms)}
                   >
                     <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
                       {needHeader && (
@@ -904,14 +937,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                             {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
                             {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
                           </span>
-                          <button
-                            className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                              e.stopPropagation()
-                              setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                            }}
-                          >{editingId === s.id ? 'Close' : 'Edit'}</button>
+                          {source !== 'segments' && (
+                            <button
+                              className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                                e.stopPropagation()
+                                setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
+                                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
+                              }}
+                            >{editingId === s.id ? 'Close' : 'Edit'}</button>
+                          )}
                         </div>
                         {editingId === s.id ? (
                           <div className="text-sm">

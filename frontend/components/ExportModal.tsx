@@ -1,8 +1,7 @@
 "use client"
 import { useState } from 'react'
-import { getApiBase, getAuthHeaders } from '../lib/api'
 
-type ExportFormat = 'PDF' | 'DOCX' | 'VTT'
+type ExportFormat = 'DOCX' | 'VTT'
 
 interface ExportModalProps {
     projectId: string
@@ -21,25 +20,26 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
         setExportError(null)
 
         try {
-            const base = getApiBase()
-            const endpoint = `${base}/projects/${projectId}/export/${selectedFormat.toLowerCase()}`
+            // Use new Next.js API routes (session cookie handles auth)
+            const endpoint = `/api/projects/${projectId}/export/${selectedFormat.toLowerCase()}`
 
-            const response = await fetch(endpoint, {
-                headers: getAuthHeaders(),
-            })
+            const response = await fetch(endpoint)
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Please sign in to export')
+                }
                 throw new Error(`Export failed: ${response.status}`)
             }
 
             // Get the filename from Content-Disposition header or use default
             const contentDisposition = response.headers.get('Content-Disposition')
-            let filename = `${projectTitle || 'transcript'}_${selectedFormat}.${selectedFormat.toLowerCase()}`
+            let filename = `${projectTitle || 'transcript'}.${selectedFormat.toLowerCase()}`
 
             if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename=([^;]+)/)
+                const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/)
                 if (filenameMatch && filenameMatch[1]) {
-                    filename = filenameMatch[1].replace(/['"]/g, '')
+                    filename = filenameMatch[1]
                 }
             }
 
@@ -62,7 +62,11 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
 
         } catch (error) {
             console.error('Export failed:', error)
-            setExportError('Something went wrong while generating your export. Please try again.')
+            setExportError(
+                error instanceof Error
+                    ? error.message
+                    : 'Something went wrong while generating your export. Please try again.'
+            )
         } finally {
             setIsExporting(false)
         }
@@ -85,18 +89,22 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
                 <div className="space-y-3 mb-6">
                     <p className="text-sm text-muted mb-2">Select format:</p>
 
-                    <label className="flex items-center gap-3 p-3 border border-base rounded cursor-pointer hover:bg-surface-alt transition-colors">
+                    {/* PDF - Coming Soon */}
+                    <label className="flex items-center gap-3 p-3 border border-base rounded cursor-not-allowed opacity-60">
                         <input
                             type="radio"
                             name="format"
                             value="PDF"
-                            checked={selectedFormat === 'PDF'}
-                            onChange={(e) => setSelectedFormat(e.target.value as ExportFormat)}
-                            disabled={isExporting}
+                            disabled={true}
                             className="w-4 h-4"
                         />
-                        <div>
-                            <div className="font-medium">PDF</div>
+                        <div className="flex-1">
+                            <div className="font-medium flex items-center gap-2">
+                                PDF
+                                <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded">
+                                    Coming Soon
+                                </span>
+                            </div>
                             <div className="text-sm text-muted">Portable Document Format</div>
                         </div>
                     </label>

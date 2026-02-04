@@ -1,4 +1,18 @@
 /**
+ * @deprecated This file uses legacy FastAPI backend endpoints.
+ * For new code, use the Supabase hooks in `lib/supabase/hooks.ts`:
+ * - useProjectsRealtime() - replaces useProjects()
+ * - useProjectRealtime() - replaces useProject()
+ * - useChunksRealtime() - for editor chunk data
+ * - useSpeakersRealtime() - for speaker management
+ *
+ * This file is kept for backwards compatibility with tests and
+ * any remaining legacy code that hasn't been migrated yet.
+ *
+ * @see lib/supabase/hooks.ts for the new Supabase-based hooks
+ */
+
+/**
  * SWR configuration and custom hooks for API data fetching.
  * 
  * Provides:

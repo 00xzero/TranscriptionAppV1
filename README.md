@@ -6,23 +6,62 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js, SWR
-- **Backend:** FastAPI (Python 3.11), SQLAlchemy, Alembic
-- **Workers:** Celery + Redis
-- **Storage:** PostgreSQL + MinIO (S3-compatible)
-- **Media:** ffmpeg
+### Modern Stack (Current)
+- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js
+- **Backend:** Supabase (Postgres, Auth, Storage, Realtime)
+- **Background Jobs:** Inngest
 - **ML:** Deepgram Nova 3 (STT)
-- **Infra:** Docker Compose
+- **Deployment:** Vercel + Supabase Cloud + Inngest Cloud
+
+### Legacy Stack (Archived)
+- **Backend:** FastAPI (Python 3.11) -> Replaced by Next.js + Supabase
+- **Workers:** Celery + Redis -> Replaced by Inngest
+- **Storage:** MinIO -> Replaced by Supabase Storage
 
 ## Monorepo Layout
 
-- `frontend/` Next.js app (TBD)
-- `backend/` FastAPI service
-- `worker/` Celery worker service
-- `infra/` Docker Compose files and Nginx config
-- `shared/` Shared schemas/utilities (TBD)
+- `frontend/` - Next.js application, API routes, and Inngest functions
+- `backend/` - [LEGACY] FastAPI service (archived)
+- `worker/` - [LEGACY] Celery worker service (archived)
+- `infra/` - Local development configuration (Docker + Supabase CLI)
+- `.docs/` - Refactor documentation and architecture diagrams
 
-## Quickstart (Local Dev)
+## Quickstart: Docker Local Dev (Modern Stack)
+
+> **Prerequisites:** Docker Desktop, [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started), [ngrok](https://ngrok.com/download) (for transcription)
+
+1. Install prerequisites (macOS):
+   ```bash
+   brew install supabase/tap/supabase ngrok
+   ```
+
+2. Start everything with one command:
+   ```bash
+   cd infra && ./start-local.sh
+   ```
+
+3. Update `infra/.env.docker` with your keys:
+   - `DEEPGRAM_API_KEY`: Your Deepgram API key.
+   - `DEEPGRAM_CALLBACK_URL`: Set to the ngrok URL displayed in the terminal.
+
+4. Access the application:
+   | Service | URL |
+   |:---|:---|
+   | Frontend | http://localhost:3000 |
+   | Supabase Studio | http://localhost:54323 |
+   | Inngest Dev Server | http://localhost:8288 |
+   | ngrok Inspector | http://localhost:4040 |
+   | Inbucket (Email) | http://localhost:54324 |
+   | Supabase API | http://localhost:54321 |
+
+5. Stop services:
+   ```bash
+   cd infra && ./stop-local.sh
+   ```
+
+## Quickstart: Legacy Stack (Deprecated)
+
+> **Note:** This stack will be removed after Phase 11. Use the new Docker local dev stack above.
 
 1. Copy environment example and adjust values:
    ```bash
@@ -50,6 +89,7 @@ A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and
 
 6. Default authentication token for local dev: `devtoken`
 
+
 ## Environment Variables
 
 See `env.example` for the full list. Key vars:
@@ -68,6 +108,13 @@ See `env.example` for the full list. Key vars:
 ### Frontend
 - `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8000`)
 - `NEXT_PUBLIC_API_TOKEN` - API authentication token (default: `devtoken`)
+- `TRANSCRIPTION_TIMEOUT_MINUTES` - Marks queued/processing transcription jobs as `error` after this many minutes (default: `45`)
+- `RATE_LIMIT_MODE` - Rate limit mode for transcription start (`memory` or `off`). Defaults to `off` in production and `memory` in development.
+- `WEBHOOK_HEALTHCHECK_SECRET` - If set, required for `GET /api/webhooks/deepgram/health` via `x-health-token` header or `?token=`
+
+### Known Limitations
+
+- **Deepgram Webhook Payload:** The Vercel-hosted webhook has a hard 4.5 MB request body limit. Deepgram payloads for very long recordings (typically 3+ hours) may exceed this limit, causing `413 Payload Too Large` errors. For enterprise use cases requiring multi-hour transcription support, deploy the webhook function to AWS Lambda or Google Cloud Run.
 
 ## Development Notes
 
@@ -103,6 +150,10 @@ curl -H "Authorization: Bearer devtoken" http://localhost:8000/projects
 # Using X-API-Key header
 curl -H "X-API-Key: devtoken" http://localhost:8000/projects
 ```
+
+### Idempotency (Transcription Start)
+`POST /api/projects/:id/start` supports optional idempotency via `x-idempotency-key`.
+Provide a stable key to safely retry start requests without creating duplicate jobs.
 
 ## Features
 
