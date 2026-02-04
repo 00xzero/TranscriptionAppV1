@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-04] - Audio Player Robustness
+
+### Added
+- **Session Recovery**: Automatically recovers from expired audio URLs (403 Forbidden) without requiring a page refresh
+  - New `useAudioSessionRecovery` hook intercepts playback errors
+  - Fetches fresh signed URL from backend preserving playback position
+  - Seamlessly updates audio source in `AudioPlayer`
+  - Drastically improves user experience during long editing sessions
+
 ## [2026-01-30] - Production-Grade Pipeline Improvements
 
 ### Added
