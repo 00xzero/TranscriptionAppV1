@@ -17,6 +17,7 @@ import {
 import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
 import SpeakerPopover from '../../../components/SpeakerPopover'
 import ExportModal from '../../../components/ExportModal'
+import { useAudioSessionRecovery } from '../../../hooks/useAudioSessionRecovery'
 
 type Word = EditorWord
 type Seg = Chunk & { words?: Word[] }
@@ -56,6 +57,7 @@ const computeWordsForSegments = <T extends { id: string; start_ms: number; end_m
 
 export default function EditorPage({ params }: { params: { id: string } }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [ready, setReady] = useState(false)
@@ -95,6 +97,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const pendingSeekRef = useRef<number | null>(null)
   const seekTokenRef = useRef(0)
   const seekTimeoutRef = useRef<number | null>(null)
+
+  const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
+    audioPlayerRef.current = player
+    setAudioElement(player?.getAudioElement?.() ?? null)
+  }, [])
+
+  // Session recovery: refresh audio URL when returning to tab after idle
+  useAudioSessionRecovery({
+    projectId: params.id,
+    audioSrc,
+    audioElement,
+    onUrlRefreshed: (newUrl) => {
+      setAudioSrc(newUrl)
+    },
+    onRecoveryError: (error) => {
+      console.warn('[Editor] Audio recovery failed:', error)
+    },
+  })
 
   const seekToMs = useCallback((targetMs: number) => {
     const player = audioPlayerRef.current
@@ -841,7 +861,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         <div className="lg:col-span-7 bg-surface border border-base rounded p-4">
           {audioSrc ? (
             <AudioPlayer
-              ref={audioPlayerRef}
+              ref={handleAudioPlayerRef}
               src={audioSrc}
               onReady={handleAudioReady}
               onError={handleAudioError}

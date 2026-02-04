@@ -46,6 +46,8 @@ export interface AudioPlayerRef {
   getDuration: () => number
   isPlaying: () => boolean
   isReady: () => boolean
+  /** Get the underlying audio element for session recovery */
+  getAudioElement: () => HTMLAudioElement | null
 }
 
 const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
@@ -108,6 +110,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     getDuration: () => audioRef.current?.duration || 0,
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
+    getAudioElement: () => audioRef.current,
   }), [])
 
   // Audio event handlers
@@ -256,7 +259,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       >
         {/* Background track */}
         <div className="absolute inset-0 bg-gray-700 rounded" />
-        
+
         {/* Progress fill */}
         <div
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 to-blue-500 rounded-l transition-all duration-75"
