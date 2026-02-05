@@ -7,7 +7,7 @@
 1. **Open the prototype**: [Olivetti.html](../../Olivetti.html) — view in browser, try dark mode toggle
 2. **Read the design tokens**: [DESIGN_TOKENS.md](./DESIGN_TOKENS.md) — colors, fonts, components
 3. **Understand the plan**: [UIREFACTOR_PLAN.md](./UIREFACTOR_PLAN.md) — phases and scope
-4. **Check current status**: [PHASE_STATUS.md](./PHASE_STATUS.md) — what's done, what's next
+4. **Check current status**: [UIREFACTOR_PHASE_STATUS.md](./UIREFACTOR_PHASE_STATUS.md) — what's done, what's next
 
 ## What Is This Refactor?
 
@@ -81,7 +81,7 @@ frontend/
 | Color values | [DESIGN_TOKENS.md#color-palette](./DESIGN_TOKENS.md#color-palette) |
 | Component list | [DESIGN_TOKENS.md#component-inventory](./DESIGN_TOKENS.md#component-inventory) |
 | Testing checklist | [UIREFACTOR_PLAN.md#testing-checklist](./UIREFACTOR_PLAN.md#testing-checklist) |
-| Phase status | [PHASE_STATUS.md](./PHASE_STATUS.md) |
+| Phase status | [UIREFACTOR_PHASE_STATUS.md](./UIREFACTOR_PHASE_STATUS.md) |
 
 ## Common Questions
 
@@ -106,4 +106,4 @@ No. This is a pure UI refactor. All backend/API logic from the previous refactor
 - Review the [Olivetti.html](../../Olivetti.html) prototype for visual reference
 - Check [DESIGN_TOKENS.md](./DESIGN_TOKENS.md) for exact values
 - Search existing components for patterns
-- Ask about decisions in [PHASE_STATUS.md#key-decisions-log](./PHASE_STATUS.md#key-decisions-log)
+- Ask about decisions in [UIREFACTOR_PHASE_STATUS.md#key-decisions-log](./UIREFACTOR_PHASE_STATUS.md#key-decisions-log)

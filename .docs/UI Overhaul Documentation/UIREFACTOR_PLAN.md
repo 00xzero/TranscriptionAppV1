@@ -207,7 +207,7 @@
 
 ---
 
-## Decisions Made (Pre-Implementation)
+## Decisions Made (Phase 1)
 
 | Date | Decision | Reasoning |
 |:---|:---|:---|
@@ -225,11 +225,7 @@
 | 2026-02-04 | Collapsible sidebar | `w-16` (mobile/collapsed) ↔ `w-64` (desktop/expanded) |
 | 2026-02-04 | Collapsible waveform on scroll | Scroll > 50px triggers collapse, shows mini progress bar |
 | 2026-02-04 | Speaker color indicators | Vertical bar on transcript cards; 3 default colors + dynamic |
-| 2026-02-04 | `/upload` redirect strategy | TBD — silent redirect vs auto-open Capture modal |
-
-## Decisions Made (Phase 1)
-
-*To be filled during Phase 1.*
+| 2026-02-04 | `/upload` redirect strategy | Redirect to `/` and auto-open Capture modal |
 
 ## Decisions Made (Phase 2)
 

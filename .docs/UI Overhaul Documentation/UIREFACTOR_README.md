@@ -6,8 +6,8 @@
 
 | Document | Purpose | Read When |
 |:---|:---|:---|
-| [ONBOARDING.md](./ONBOARDING.md) | Quick start guide | First day |
-| [GLOSSARY.md](./GLOSSARY.md) | UI/Design term definitions | Reference |
+| [UIREFACTOR_ONBOARDING.md](./UIREFACTOR_ONBOARDING.md) | Quick start guide | First day |
+| [UIREFACTOR_GLOSSARY.md](./UIREFACTOR_GLOSSARY.md) | UI/Design term definitions | Reference |
 | [DESIGN_TOKENS.md](./DESIGN_TOKENS.md) | Colors, typography, components | Implementing any UI |
 
 ## For Project Tracking
@@ -15,7 +15,7 @@
 | Document | Purpose | Read When |
 |:---|:---|:---|
 | [UIREFACTOR_PLAN.md](./UIREFACTOR_PLAN.md) | Master UI refactor plan | Starting any phase |
-| [PHASE_STATUS.md](./PHASE_STATUS.md) | Current progress + handoffs | Picking up work |
+| [UIREFACTOR_PHASE_STATUS.md](./UIREFACTOR_PHASE_STATUS.md) | Current progress + handoffs | Picking up work |
 
 ## Reference Materials
 

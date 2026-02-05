@@ -143,16 +143,16 @@ None — Phase 1 complete.
 
 | Date | Phase | Decision | Reasoning |
 |:---|:---|:---|:---|
-| 2026-02-04 | Pre | Codename: Olivetti | Named after classic Italian typewriter brand, fits the "editorial" aesthetic |
-| 2026-02-04 | Pre | Sidebar + contextual header | Matches modern app patterns, better hierarchy than top-nav |
-| 2026-02-04 | Pre | Library as landing page | Users arrive at content first, not an action prompt |
-| 2026-02-04 | Pre | Capture as modal, not page | Reduces navigation friction, keeps context |
-| 2026-02-04 | Pre | `/upload` redirects to `/` and auto-opens Capture | Preserve deep links while enforcing modal-first flow |
-| 2026-02-04 | Pre | Migrate to Tailwind `dark` class | Standard approach, better tooling support than `data-theme` |
-| 2026-02-04 | Pre | Keep existing AudioPlayer logic | Immersive studio player is out of scope; restyle only |
-| 2026-02-04 | Pre | Language + Diarization disabled | Show as "Coming soon" placeholders in Capture modal |
-| 2026-02-04 | Pre | `trust-blue` consistent across themes | Single accent color for links/actions in both modes |
-| 2026-02-04 | Pre | `player-blue` for playback | Brighter blue (`#3B82F6`) specifically for audio controls |
+| 2026-02-04 | Phase 1 | Codename: Olivetti | Named after classic Italian typewriter brand, fits the "editorial" aesthetic |
+| 2026-02-04 | Phase 1 | Sidebar + contextual header | Matches modern app patterns, better hierarchy than top-nav |
+| 2026-02-04 | Phase 1 | Library as landing page | Users arrive at content first, not an action prompt |
+| 2026-02-04 | Phase 1 | Capture as modal, not page | Reduces navigation friction, keeps context |
+| 2026-02-04 | Phase 1 | `/upload` redirects to `/` and auto-opens Capture | Preserve deep links while enforcing modal-first flow |
+| 2026-02-04 | Phase 1 | Migrate to Tailwind `dark` class | Standard approach, better tooling support than `data-theme` |
+| 2026-02-04 | Phase 1 | Keep existing AudioPlayer logic | Immersive studio player is out of scope; restyle only |
+| 2026-02-04 | Phase 1 | Language + Diarization disabled | Show as "Coming soon" placeholders in Capture modal |
+| 2026-02-04 | Phase 1 | `trust-blue` consistent across themes | Single accent color for links/actions in both modes |
+| 2026-02-04 | Phase 1 | `player-blue` for playback | Brighter blue (`#3B82F6`) specifically for audio controls |
 | 2026-02-04 | Phase 1 | Find/Replace modal details | Match Case toggle; snippet-only results; clear highlights on close; selecting result closes modal |
 | 2026-02-04 | Phase 1 | Recent Projects placeholders | Sample cards: “The Sonic Archives” (Active), “Product Roadmap” (Filed), plus New Project Folder placeholder |
 
