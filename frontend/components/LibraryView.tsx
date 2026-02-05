@@ -94,7 +94,11 @@ export default function LibraryView() {
     const formatDuration = (seconds: number | null) => {
         if (seconds === null || seconds === undefined) return null
         const mins = Math.floor(seconds / 60)
-        if (mins < 1) return '0 mins'
+        if (mins < 1) {
+            const secs = Math.floor(seconds)
+            if (secs < 1) return '< 1 min'
+            return secs === 1 ? '1 sec' : `${secs} sec`
+        }
         if (mins < 60) return mins === 1 ? '1 min' : `${mins} mins`
         const hrs = Math.floor(mins / 60)
         const remainingMins = mins % 60
