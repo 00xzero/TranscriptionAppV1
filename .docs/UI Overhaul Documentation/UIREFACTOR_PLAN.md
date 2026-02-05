@@ -236,3 +236,12 @@
 | 2026-02-05 | Fonts via `next/font` variables | Enables consistent typography across the app |
 | 2026-02-05 | Preserve CSS variables | Keep `--bg`, `--text`, etc. while migrating theme trigger to `.dark` |
 | 2026-02-05 | Global texture + scrollbar | Implement paper noise, custom scrollbar, and opt-in transitions (`.theme-transition`) in `globals.css` |
+
+## Decisions Made (Phase 3)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-05 | Sidebar collapse behavior | Toggle `w-16`/`w-64`; persists to `localStorage` for user preference |
+| 2026-02-05 | `/import` route status | Keep accessible for backwards compatibility, remove from primary nav |
+| 2026-02-05 | `/upload` redirect | Redirect to `/` + modal to enforce new patterns while keeping links working |
+| 2026-02-05 | Sidebar-integrated controls | User/Theme controls moved into Sidebar structure for better hierarchy |

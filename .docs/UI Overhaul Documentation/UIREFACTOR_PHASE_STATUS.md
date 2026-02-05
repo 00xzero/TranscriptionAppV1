@@ -6,10 +6,10 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 2 - Design System Foundation |
-| **Status** | 🔄 In Progress |
+| **Phase** | 4 - Library View |
+| **Status** | ⏳ Not Started |
 | **Owner** | Hamza |
-| **Started** | 2026-02-05 |
+| **Started** | — |
 | **Target Completion** | TBD |
 
 ## Phase Progress
@@ -17,8 +17,8 @@
 | Phase | Name | Status | Completion Date |
 |:---|:---|:---|:---|
 | 1 | Spec Lock | ✅ Complete | 2026-02-04 |
-| 2 | Design System Foundation | 🔄 In Progress | — |
-| 3 | App Shell + Routing | ⏳ Not Started | — |
+| 2 | Design System Foundation | ✅ Complete | 2026-02-05 |
+| 3 | App Shell + Routing | ✅ Complete | 2026-02-05 |
 | 4 | Library View | ⏳ Not Started | — |
 | 5 | Capture Modal | ⏳ Not Started | — |
 | 6 | Editor Interim Alignment | ⏳ Not Started | — |
@@ -37,11 +37,10 @@
 None — Phase 1 complete.
 
 ### Phase 2 — Design System Foundation
-None — in progress (decisions logged below).
+None — Phase 2 complete.
 
 ### Phase 3 — App Shell + Routing
-- Confirm sidebar collapse behavior on desktop (toggle vs always expanded).
-- Confirm whether `/import` remains accessible via direct URL or should be blocked.
+None — Phase 3 complete.
 
 ### Phase 4 — Library View
 - Decide which project metadata to surface in “Recent Files”.
@@ -95,7 +94,54 @@ None — in progress (decisions logged below).
 
 ### Phase 2 → Phase 3
 
-*To be filled when Phase 2 completes.*
+**Key Deliverables Created:**
+- Tailwind tokens in `tailwind.config.ts` with Olivetti color palette
+- CSS variables in `globals.css` for theming
+- Paper noise texture via `bg-noise` utility class
+- Font setup via `next/font` (Inter, Newsreader, IBM Plex Mono)
+
+**Decisions Made:**
+- Theme switching uses Tailwind's `dark` class strategy
+- Noise texture applied via pseudo-element on body
+- Auth page restyled with Olivetti glassmorphism and typography
+
+**For Phase 3:**
+- Replace top-nav with sidebar + contextual header
+- Make Library the landing page at `/`
+- Redirect `/upload` to open Capture modal
+
+**Gotchas:**
+- CSS variable names use `--bg`, `--text` etc. for semantic layering
+- `content-layer` class ensures content appears above noise texture
+
+---
+
+### Phase 3 → Phase 4
+
+**Key Deliverables Created:**
+- `Sidebar.tsx`: Collapsible Olivetti sidebar with navigation, user section, theme toggle
+- `ContextualHeader.tsx`: View-aware header with search and Capture button
+- `CaptureModal.tsx`: Glassmorphism modal placeholder for file capture
+- `LibraryView.tsx`: Library landing page with greeting and project cards
+- `ModalContext.tsx`: Global context for modal state management
+- Updated `layout.tsx` to new sidebar shell structure
+- Updated `page.tsx` to render LibraryView
+- Updated `upload/page.tsx` to redirect with modal trigger
+
+**Decisions Made:**
+- Sidebar collapse: Toggle between `w-16` (collapsed) and `w-64` (expanded) on desktop
+- `/import` route: Remains accessible via direct URL for backwards compatibility, removed from nav
+- Sidebar collapse state persists to `localStorage`
+
+**For Phase 4:**
+- Implement full Library view with real project data
+- Add folder organization and "View All" functionality
+- Connect LibraryView to actual projects API
+
+**Gotchas:**
+- `/upload` redirect triggers auth middleware when not signed in (expected, Library requires auth)
+- Theme toggle is now integrated into sidebar, not a separate dropdown
+- `ThemeToggle.tsx` and `AuthStatus.tsx` are no longer used in layout (functionality moved into Sidebar)
 
 ---
 
@@ -158,6 +204,10 @@ None — in progress (decisions logged below).
 | 2026-02-05 | Phase 2 | CSS variables | Keep `--bg`, `--text`, etc., but update values and bind to `.dark` class |
 | 2026-02-05 | Phase 2 | Fonts via `next/font` | Use Inter/Newsreader/IBM Plex Mono with CSS variables for consistency |
 | 2026-02-05 | Phase 2 | Global texture + scrollbar | Add paper noise, custom scrollbar, and opt-in transitions (`.theme-transition`) in `globals.css` |
+| 2026-02-05 | Phase 3 | Sidebar collapse behavior | Toggle between `w-16` (collapsed) and `w-64` (expanded) on desktop; persists to `localStorage` |
+| 2026-02-05 | Phase 3 | `/import` route status | Deprecated from navigation but accessible via direct URL for backwards compatibility |
+| 2026-02-05 | Phase 3 | `/upload` redirect | Redirects to `/` and auto-opens Capture modal to enforce new flow while supporting legacy links |
+| 2026-02-05 | Phase 3 | `AuthStatus` & `ThemeToggle` | Integrated directly into Sidebar user/bottom sections; removed standalone components from layout |
 
 ---
 

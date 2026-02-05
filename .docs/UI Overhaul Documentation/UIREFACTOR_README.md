@@ -29,8 +29,8 @@
 *Update links as phases are completed:*
 
 - [x] Phase 1: Spec Lock
-- [ ] Phase 2: Design System Foundation
-- [ ] Phase 3: App Shell + Routing
+- [x] Phase 2: Design System Foundation
+- [x] Phase 3: App Shell + Routing
 - [ ] Phase 4: Library View
 - [ ] Phase 5: Capture Modal
 - [ ] Phase 6: Editor Interim Alignment
