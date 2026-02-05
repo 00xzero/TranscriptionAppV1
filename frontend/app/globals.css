@@ -2,28 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #__next {
+html,
+body,
+#__next {
   height: 100%;
 }
 
 :root {
-  --bg: #E4E1D9;            /* paper */
-  --text: #1D1E18;          /* ink */
-  --surface: #F2EFED;       /* elevated paper */
-  --surface-alt: #DFDCD4;   /* sidebar/panels */
-  --border: #D1CEC5;        /* primary border */
-  --accent: #4F638C;        /* trust-blue */
-  --muted: #6F6B63;         /* warm gray */
+  --bg: #E4E1D9;
+  /* paper */
+  --text: #1D1E18;
+  /* ink */
+  --surface: #F2EFED;
+  /* elevated paper */
+  --surface-alt: #DFDCD4;
+  /* sidebar/panels */
+  --border: #D1CEC5;
+  /* primary border */
+  --accent: #4F638C;
+  /* trust-blue */
+  --muted: #6F6B63;
+  /* warm gray */
 }
 
 .dark {
-  --bg: #0e0e0c;            /* night-bg */
-  --text: #E4E1D9;          /* paper text */
-  --surface: #1D1E18;       /* night-surface */
-  --surface-alt: #141414;   /* studio-dark */
-  --border: #333333;        /* night-border */
-  --accent: #4F638C;        /* trust-blue */
-  --muted: #B9B4AA;         /* muted paper */
+  --bg: #0e0e0c;
+  /* night-bg */
+  --text: #E4E1D9;
+  /* paper text */
+  --surface: #1D1E18;
+  /* night-surface */
+  --surface-alt: #141414;
+  /* studio-dark */
+  --border: #333333;
+  /* night-border */
+  --accent: #4F638C;
+  /* trust-blue */
+  --muted: #B9B4AA;
+  /* muted paper */
 }
 
 body {
@@ -33,18 +49,52 @@ body {
 }
 
 /* Themed utility helpers */
-.bg-surface { background-color: var(--surface); }
-.bg-surface-alt { background-color: var(--surface-alt); }
-.border-base { border-color: var(--border); }
-.text-muted { color: var(--muted); }
-.accent { color: var(--accent); }
-.bg-accent-soft { background-color: color-mix(in oklab, var(--accent) 15%, var(--surface)); }
+.bg-surface {
+  background-color: var(--surface);
+}
 
-.wavesurfer { position: relative; height: 96px; overflow: hidden; }
+.bg-surface-alt {
+  background-color: var(--surface-alt);
+}
+
+.border-base {
+  border-color: var(--border);
+}
+
+.text-muted {
+  color: var(--muted);
+}
+
+.accent {
+  color: var(--accent);
+}
+
+.bg-accent-soft {
+  background-color: color-mix(in oklab, var(--accent) 15%, var(--surface));
+}
+
+.wavesurfer {
+  position: relative;
+  height: 96px;
+  overflow: hidden;
+}
+
 /* Primary wave wrapper element in various builds */
-.wavesurfer wave, .wavesurfer .wave { position: relative; display: block; height: 100%; }
+.wavesurfer wave,
+.wavesurfer .wave {
+  position: relative;
+  display: block;
+  height: 100%;
+}
+
 /* Overlay canvases exactly on top of each other */
-.wavesurfer canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; display: block; }
+.wavesurfer canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
 
 /* Paper noise texture */
 .bg-noise {
@@ -121,10 +171,12 @@ input[type=range]::-webkit-slider-runnable-track {
 }
 
 /* Utilities */
-.text-balance { text-wrap: balance; }
+.text-balance {
+  text-wrap: balance;
+}
 
-/* Global theme transitions */
-body, nav, header, div, p, span, h1, h2, h3, h4, input, button {
-  transition-property: background-color, border-color, color;
-  transition-duration: 300ms;
+/* Theme transitions - apply .theme-transition to elements that need smooth theming */
+body,
+.theme-transition {
+  transition: background-color 300ms, border-color 300ms, color 300ms;
 }

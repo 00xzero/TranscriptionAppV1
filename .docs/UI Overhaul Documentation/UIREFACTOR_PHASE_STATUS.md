@@ -157,7 +157,7 @@ None — in progress (decisions logged below).
 | 2026-02-05 | Phase 2 | Dark mode persistence | Store `app-theme` in localStorage; map legacy `blue` to `dark` |
 | 2026-02-05 | Phase 2 | CSS variables | Keep `--bg`, `--text`, etc., but update values and bind to `.dark` class |
 | 2026-02-05 | Phase 2 | Fonts via `next/font` | Use Inter/Newsreader/IBM Plex Mono with CSS variables for consistency |
-| 2026-02-05 | Phase 2 | Global texture + scrollbar | Add paper noise, custom scrollbar, and base transitions in `globals.css` |
+| 2026-02-05 | Phase 2 | Global texture + scrollbar | Add paper noise, custom scrollbar, and opt-in transitions (`.theme-transition`) in `globals.css` |
 
 ---
 

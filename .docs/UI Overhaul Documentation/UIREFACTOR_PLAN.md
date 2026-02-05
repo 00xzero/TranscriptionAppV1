@@ -46,7 +46,7 @@
 - Install fonts: Newsreader, Inter, IBM Plex Mono.
 - Implement paper/ink palette, noise texture background, custom scrollbar.
 - Migrate theme from `data-theme` to Tailwind `dark` class.
-- Document animation/transition specs (300ms default, cubic-bezier easing for sidebar).
+- Document animation/transition specs (300ms default; opt-in with `.theme-transition`; cubic-bezier easing for sidebar).
 
 ### 3) App Shell + Routing
 - Replace root layout with Olivetti sidebar + contextual header.
@@ -158,7 +158,7 @@
 
 ### Navigation
 - [ ] `/` loads Library view.
-- [ ] `/upload` redirects to Library (or opens Capture modal).
+- [ ] `/upload` redirects to Library and auto-opens Capture modal.
 - [ ] Sidebar collapse/expand works on desktop.
 - [ ] Mobile sidebar shows icon-only view.
 
@@ -235,4 +235,4 @@
 | 2026-02-05 | Token names fixed in Tailwind | Use `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark` |
 | 2026-02-05 | Fonts via `next/font` variables | Enables consistent typography across the app |
 | 2026-02-05 | Preserve CSS variables | Keep `--bg`, `--text`, etc. while migrating theme trigger to `.dark` |
-| 2026-02-05 | Global texture + scrollbar | Implement paper noise, custom scrollbar, and base transitions in `globals.css` |
+| 2026-02-05 | Global texture + scrollbar | Implement paper noise, custom scrollbar, and opt-in transitions (`.theme-transition`) in `globals.css` |

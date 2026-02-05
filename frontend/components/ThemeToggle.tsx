@@ -7,15 +7,15 @@ export type AppTheme = typeof THEMES[number]
 function applyTheme(theme: AppTheme) {
   const root = document.documentElement
   root.classList.toggle('dark', theme === 'dark')
-  try { localStorage.setItem('app-theme', theme) } catch {}
+  try { localStorage.setItem('app-theme', theme) } catch { }
 }
 
 function detectInitialTheme(): AppTheme {
   try {
     const saved = localStorage.getItem('app-theme') as AppTheme | null
     if (saved && (THEMES as readonly string[]).includes(saved)) return saved
-    if (saved === 'dark' || saved === 'blue') return 'dark'
-  } catch {}
+    if (saved === 'blue') return 'dark'  // backward compat: map removed "blue" theme to "dark"
+  } catch { }
   if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark'
   }

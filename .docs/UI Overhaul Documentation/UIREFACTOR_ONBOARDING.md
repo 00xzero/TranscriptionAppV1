@@ -51,12 +51,11 @@ frontend/
 │   ├── upload/           # → Deprecated, redirect to modal
 │   ├── editor/[id]/      # → Restyled (Phase 6)
 │   └── auth/             # → Restyled (Phase 2)
+│   └── globals.css       # → Add Olivetti tokens (Phase 2)
 ├── components/
 │   ├── Sidebar.tsx       # → NEW (Phase 3)
 │   ├── CaptureModal.tsx  # → NEW (Phase 5)
 │   └── ...
-├── app/
-│   └── globals.css       # → Add Olivetti tokens (Phase 2)
 └── tailwind.config.ts    # → Add design tokens (Phase 2)
 ```
 

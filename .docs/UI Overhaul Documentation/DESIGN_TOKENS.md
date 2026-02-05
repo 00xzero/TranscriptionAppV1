@@ -138,10 +138,12 @@
 
 ## Animations & Transitions
 
-### Global Transition
+### Global Transition (Opt-In)
 ```css
-transition-property: background-color, border-color, color;
-transition-duration: 300ms;
+body,
+.theme-transition {
+  transition: background-color 300ms, border-color 300ms, color 300ms;
+}
 ```
 
 ### Sidebar Collapse
