@@ -11,6 +11,7 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { AuthChangeEvent } from '@supabase/supabase-js'
 
 // Create client at module scope to prevent subscription churn on re-renders
 const supabase = createClient()
@@ -30,8 +31,7 @@ export default function AuthPage() {
     checkSession()
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session) => {
-      console.log('Auth state change:', event, !!session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session) => {
       if (event === 'SIGNED_IN' && session) {
         router.push('/projects')
         router.refresh()
