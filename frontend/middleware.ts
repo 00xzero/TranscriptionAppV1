@@ -8,7 +8,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Routes that require authentication
-const PROTECTED_ROUTES = ['/projects', '/editor', '/upload', '/import']
+const PROTECTED_ROUTES = ['/', '/projects', '/editor', '/upload', '/import']
 
 // Routes that should redirect to /projects if already authenticated
 const AUTH_ROUTES = ['/auth']
@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
     // Redirect authenticated users away from auth routes
     if (isAuthRoute && user) {
         const url = request.nextUrl.clone()
-        url.pathname = '/projects'
+        url.pathname = '/'
         return NextResponse.redirect(url)
     }
 
