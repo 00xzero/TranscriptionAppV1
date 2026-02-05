@@ -1,20 +1,21 @@
 "use client"
 import React, { useEffect, useState } from 'react'
 
-const THEMES = ["light", "blue", "dark"] as const
+const THEMES = ["light", "dark"] as const
 export type AppTheme = typeof THEMES[number]
 
 function applyTheme(theme: AppTheme) {
   const root = document.documentElement
-  root.setAttribute('data-theme', theme)
-  try { localStorage.setItem('app-theme', theme) } catch {}
+  root.classList.toggle('dark', theme === 'dark')
+  try { localStorage.setItem('app-theme', theme) } catch { }
 }
 
 function detectInitialTheme(): AppTheme {
   try {
     const saved = localStorage.getItem('app-theme') as AppTheme | null
     if (saved && (THEMES as readonly string[]).includes(saved)) return saved
-  } catch {}
+    if (saved === 'blue') return 'dark'  // backward compat: map removed "blue" theme to "dark"
+  } catch { }
   if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark'
   }
@@ -41,7 +42,6 @@ export default function ThemeToggle() {
         title="Theme"
       >
         <option value="light">Light</option>
-        <option value="blue">Blue</option>
         <option value="dark">Dark</option>
       </select>
     </div>

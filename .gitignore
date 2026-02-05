@@ -43,3 +43,7 @@ Thumbs.db
 *.wmv
 *.flv
 *.webm
+
+# Unused files
+Olivetti.html
+
