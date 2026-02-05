@@ -96,7 +96,7 @@ export default function LibraryView() {
         const mins = Math.floor(seconds / 60)
         if (mins < 1) {
             const secs = Math.floor(seconds)
-            if (secs < 1) return '< 1 min'
+            if (secs < 1) return '< 1 sec'
             return secs === 1 ? '1 sec' : `${secs} sec`
         }
         if (mins < 60) return mins === 1 ? '1 min' : `${mins} mins`
