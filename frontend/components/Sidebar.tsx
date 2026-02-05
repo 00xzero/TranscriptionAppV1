@@ -101,12 +101,19 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const getUserInitials = (): string => {
         if (!user) return '?'
         const email = user.email || ''
-        const name = user.user_metadata?.full_name || email
+        const name = (user.user_metadata?.full_name || email || '?').trim()
+
+        if (!name) return '?'
+
         if (name.includes(' ')) {
-            const parts = name.split(' ')
-            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+            const parts = name.split(' ').filter((part: string) => part.length > 0)
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+            }
         }
-        return name.substring(0, 2).toUpperCase()
+
+        const initials = name.substring(0, 2).toUpperCase()
+        return initials.length > 0 ? initials : '?'
     }
 
     // Don't show sidebar on auth pages

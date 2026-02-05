@@ -126,12 +126,14 @@ export default function LibraryView() {
                         </div>
                     ) : (
                         projects.slice(0, 5).map((project) => (
-                            <Link
+                            <div
                                 key={project.id}
-                                href={project.status === 'complete' ? `/editor/${project.id}` : `/projects`}
-                                className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 cursor-pointer transition-colors group block"
+                                className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 transition-colors group"
                             >
-                                <div className="flex items-center gap-4">
+                                <Link
+                                    href={project.status === 'complete' ? `/editor/${project.id}` : `/projects`}
+                                    className="flex items-center gap-4 flex-1 cursor-pointer"
+                                >
                                     <div className="w-10 h-10 rounded bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 flex-shrink-0">
                                         <span className="font-mono text-lg">¶</span>
                                     </div>
@@ -143,16 +145,20 @@ export default function LibraryView() {
                                             {project.status === 'complete' ? 'Ready' : project.status}
                                         </p>
                                     </div>
-                                </div>
+                                </Link>
                                 <div className="flex items-center gap-4">
                                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
                                         {formatRelativeTime(project.updated_at)}
                                     </span>
-                                    <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors">
+                                    <button
+                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+                                        aria-label={`More options for ${project.title}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         <span className="mb-2">...</span>
                                     </button>
                                 </div>
-                            </Link>
+                            </div>
                         ))
                     )}
                 </div>

@@ -142,6 +142,9 @@ None — Phase 3 complete.
 - `/upload` redirect triggers auth middleware when not signed in (expected, Library requires auth)
 - Theme toggle is now integrated into sidebar, not a separate dropdown
 - `ThemeToggle.tsx` and `AuthStatus.tsx` are no longer used in layout (functionality moved into Sidebar)
+- **Code Style**: Enforced 2-space indentation for all new components (`Sidebar`, `CaptureModal`, `LibraryView`)
+- **Accessibility**: Library list items use sibling positioning for actions to avoid invalid HTML (button inside link)
+- **Robustness**: User initials generation now handles missing name/email gracefully
 
 ---
 

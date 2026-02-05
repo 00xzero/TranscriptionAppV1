@@ -245,3 +245,4 @@
 | 2026-02-05 | `/import` route status | Keep accessible for backwards compatibility, remove from primary nav |
 | 2026-02-05 | `/upload` redirect | Redirect to `/` + modal to enforce new patterns while keeping links working |
 | 2026-02-05 | Sidebar-integrated controls | User/Theme controls moved into Sidebar structure for better hierarchy |
+| 2026-02-05 | Code Style Standards | Enforced 2-space indentation and accessible list patterns (no buttons in links) |
