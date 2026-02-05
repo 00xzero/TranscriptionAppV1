@@ -7,9 +7,9 @@
 | Field | Value |
 |:---|:---|
 | **Phase** | 2 - Design System Foundation |
-| **Status** | ⏳ Not Started |
-| **Owner** | — |
-| **Started** | — |
+| **Status** | 🔄 In Progress |
+| **Owner** | Hamza |
+| **Started** | 2026-02-05 |
 | **Target Completion** | TBD |
 
 ## Phase Progress
@@ -17,7 +17,7 @@
 | Phase | Name | Status | Completion Date |
 |:---|:---|:---|:---|
 | 1 | Spec Lock | ✅ Complete | 2026-02-04 |
-| 2 | Design System Foundation | ⏳ Not Started | — |
+| 2 | Design System Foundation | 🔄 In Progress | — |
 | 3 | App Shell + Routing | ⏳ Not Started | — |
 | 4 | Library View | ⏳ Not Started | — |
 | 5 | Capture Modal | ⏳ Not Started | — |
@@ -37,9 +37,7 @@
 None — Phase 1 complete.
 
 ### Phase 2 — Design System Foundation
-- Confirm final token names in Tailwind config (e.g., `paper`, `ink`, `trust-blue`, `player-blue`).
-- Decide how to persist dark mode preference (localStorage key and default behavior).
-- Decide whether to keep any CSS variables after moving to Tailwind `dark` class.
+None — in progress (decisions logged below).
 
 ### Phase 3 — App Shell + Routing
 - Confirm sidebar collapse behavior on desktop (toggle vs always expanded).
@@ -155,6 +153,11 @@ None — Phase 1 complete.
 | 2026-02-04 | Phase 1 | `player-blue` for playback | Brighter blue (`#3B82F6`) specifically for audio controls |
 | 2026-02-04 | Phase 1 | Find/Replace modal details | Match Case toggle; snippet-only results; clear highlights on close; selecting result closes modal |
 | 2026-02-04 | Phase 1 | Recent Projects placeholders | Sample cards: “The Sonic Archives” (Active), “Product Roadmap” (Filed), plus New Project Folder placeholder |
+| 2026-02-05 | Phase 2 | Tailwind token names | Use `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark` |
+| 2026-02-05 | Phase 2 | Dark mode persistence | Store `app-theme` in localStorage; map legacy `blue` to `dark` |
+| 2026-02-05 | Phase 2 | CSS variables | Keep `--bg`, `--text`, etc., but update values and bind to `.dark` class |
+| 2026-02-05 | Phase 2 | Fonts via `next/font` | Use Inter/Newsreader/IBM Plex Mono with CSS variables for consistency |
+| 2026-02-05 | Phase 2 | Global texture + scrollbar | Add paper noise, custom scrollbar, and base transitions in `globals.css` |
 
 ---
 

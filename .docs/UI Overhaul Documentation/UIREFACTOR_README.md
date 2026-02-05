@@ -28,7 +28,7 @@
 
 *Update links as phases are completed:*
 
-- [ ] Phase 1: Spec Lock
+- [x] Phase 1: Spec Lock
 - [ ] Phase 2: Design System Foundation
 - [ ] Phase 3: App Shell + Routing
 - [ ] Phase 4: Library View

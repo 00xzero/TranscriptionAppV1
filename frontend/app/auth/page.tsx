@@ -84,36 +84,41 @@ export default function AuthPage() {
           align-items: center;
           justify-content: center;
           padding: 2rem;
-          background: var(--bg);
+          background: transparent;
         }
         
         .auth-card {
           width: 100%;
-          max-width: 400px;
+          max-width: 420px;
           padding: 2rem;
-          background: var(--surface);
-          border-radius: 12px;
+          background: color-mix(in oklab, var(--surface) 80%, transparent);
+          border-radius: 14px;
           border: 1px solid var(--border);
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.15);
+          backdrop-filter: blur(14px);
         }
         
         .auth-title {
-          font-size: 1.5rem;
+          font-size: 1.625rem;
           font-weight: 600;
           color: var(--text);
           text-align: center;
           margin-bottom: 0.5rem;
+          font-family: var(--font-serif);
+          font-style: italic;
+          letter-spacing: -0.01em;
         }
         
         .auth-subtitle {
           color: var(--muted);
           text-align: center;
           margin-bottom: 1.5rem;
+          font-size: 0.95rem;
         }
 
         /* Override Supabase Auth UI styles for better theme integration */
         .auth-card input {
-          background-color: var(--surface) !important;
+          background-color: color-mix(in oklab, var(--surface) 90%, transparent) !important;
           color: var(--text) !important;
           border-color: var(--border) !important;
         }

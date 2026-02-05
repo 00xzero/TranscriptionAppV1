@@ -229,4 +229,10 @@
 
 ## Decisions Made (Phase 2)
 
-*To be filled during Phase 2.*
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-05 | Tailwind `dark` class enabled | Aligns with Olivetti and simplifies theming |
+| 2026-02-05 | Token names fixed in Tailwind | Use `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark` |
+| 2026-02-05 | Fonts via `next/font` variables | Enables consistent typography across the app |
+| 2026-02-05 | Preserve CSS variables | Keep `--bg`, `--text`, etc. while migrating theme trigger to `.dark` |
+| 2026-02-05 | Global texture + scrollbar | Implement paper noise, custom scrollbar, and base transitions in `globals.css` |
