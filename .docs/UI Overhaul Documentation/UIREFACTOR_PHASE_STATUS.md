@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 4 - Library View |
+| **Phase** | 5 - Capture Modal |
 | **Status** | ⏳ Not Started |
 | **Owner** | Hamza |
 | **Started** | — |
@@ -19,7 +19,7 @@
 | 1 | Spec Lock | ✅ Complete | 2026-02-04 |
 | 2 | Design System Foundation | ✅ Complete | 2026-02-05 |
 | 3 | App Shell + Routing | ✅ Complete | 2026-02-05 |
-| 4 | Library View | ⏳ Not Started | — |
+| 4 | Library View | ✅ Complete | 2026-02-05 |
 | 5 | Capture Modal | ⏳ Not Started | — |
 | 6 | Editor Interim Alignment | ⏳ Not Started | — |
 | 7 | Modals | ⏳ Not Started | — |
@@ -43,9 +43,9 @@ None — Phase 2 complete.
 None — Phase 3 complete.
 
 ### Phase 4 — Library View
-- Decide which project metadata to surface in “Recent Files”.
-- Confirm empty states for no projects and no recent files.
-- Confirm “View All” behavior (link target or placeholder).
+- ✅ Project metadata in "Recent Files": title, duration, status, updated_at (speaker count deferred)
+- ✅ Empty state: "No projects yet. Click 'Capture' to start your first transcription."
+- ✅ "View All" links to `/projects` page
 
 ### Phase 5 — Capture Modal
 - Confirm file type/size messaging and copy tone.
@@ -148,15 +148,29 @@ None — Phase 3 complete.
 
 ---
 
-### Phase 3 → Phase 4
-
-*To be filled when Phase 3 completes.*
-
----
-
 ### Phase 4 → Phase 5
 
-*To be filled when Phase 4 completes.*
+**Key Deliverables Created:**
+- Enhanced `LibraryView.tsx` with real project data display
+- Duration formatting helper ("42 mins" / "1 hr 42 mins")
+- Status badges for processing/error projects
+- Ellipsis dropdown menu with delete action + confirmation dialog
+
+**Decisions Made:**
+- Duration format: "X mins" for <1 hour, "X hr Y mins" for ≥1 hour
+- Speaker count display: DEFERRED (requires additional database query per project)
+- Ellipsis menu actions: Delete only (more actions in future phase)
+- "View All" navigates to `/projects` page
+
+**For Phase 5:**
+- Implement full Capture modal with file upload, key terms, and form styling
+- Wire up existing upload logic to modal
+- Add Language + Diarization as disabled "Coming soon" fields
+
+**Gotchas:**
+- Projects with `null` duration show "Duration unknown"
+- Both `complete` and `completed` status values are handled for editor navigation
+- Delete uses optimistic update from `useProjectsRealtime` hook
 
 ---
 
@@ -211,6 +225,13 @@ None — Phase 3 complete.
 | 2026-02-05 | Phase 3 | `/import` route status | Deprecated from navigation but accessible via direct URL for backwards compatibility |
 | 2026-02-05 | Phase 3 | `/upload` redirect | Redirects to `/` and auto-opens Capture modal to enforce new flow while supporting legacy links |
 | 2026-02-05 | Phase 3 | `AuthStatus` & `ThemeToggle` | Integrated directly into Sidebar user/bottom sections; removed standalone components from layout |
+| 2026-02-05 | Phase 4 | Duration format: "X mins" / "X hr Y mins" | Human-readable, conversational style for project metadata |
+| 2026-02-05 | Phase 4 | Speaker count deferred | Requires additional DB query per project; not available in current schema query |
+| 2026-02-05 | Phase 4 | Ellipsis menu: Delete only | Keep UI simple; expand actions in future phase |
+| 2026-02-05 | Phase 4 | "View All" → `/projects` | Existing page is functional; avoids duplicate views |
+| 2026-02-05 | Phase 4 | Library requires authentication | Added `/` to protected routes; matches behavior of `/projects` |
+| 2026-02-05 | Phase 4 | Post-auth redirect to Library | After login, users land on `/` (Library) not `/projects` |
+| 2026-02-05 | Phase 4 | `isCompleted()` status helper | Normalize status check (`complete`/`completed`) in one place to avoid spreading inconsistency |
 
 ---
 

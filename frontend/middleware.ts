@@ -62,9 +62,9 @@ export async function middleware(request: NextRequest) {
     const path = request.nextUrl.pathname
 
     // Check if the path is protected
-    const isProtectedRoute = PROTECTED_ROUTES.some(route =>
-        path === route || path.startsWith(`${route}/`)
-    )
+    const isProtectedRoute =
+        path === '/' ||
+        PROTECTED_ROUTES.some(route => path === route || path.startsWith(`${route}/`))
 
     // Check if the path is an auth route
     const isAuthRoute = AUTH_ROUTES.some(route =>
@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
     // Redirect authenticated users away from auth routes
     if (isAuthRoute && user) {
         const url = request.nextUrl.clone()
-        url.pathname = '/projects'
+        url.pathname = '/'
         return NextResponse.redirect(url)
     }
 

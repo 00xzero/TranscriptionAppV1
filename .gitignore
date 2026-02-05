@@ -4,6 +4,7 @@ node_modules/
 .out/
 out/
 .turbo/
+*.tsbuildinfo
 
 # Python
 __pycache__/
@@ -46,4 +47,3 @@ Thumbs.db
 
 # Unused files
 Olivetti.html
-

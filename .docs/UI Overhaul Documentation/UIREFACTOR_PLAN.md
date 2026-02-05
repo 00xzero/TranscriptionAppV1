@@ -246,3 +246,15 @@
 | 2026-02-05 | `/upload` redirect | Redirect to `/` + modal to enforce new patterns while keeping links working |
 | 2026-02-05 | Sidebar-integrated controls | User/Theme controls moved into Sidebar structure for better hierarchy |
 | 2026-02-05 | Code Style Standards | Enforced 2-space indentation and accessible list patterns (no buttons in links) |
+
+## Decisions Made (Phase 4)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-05 | Duration format: "X mins" / "X hr Y mins" | Human-readable format matching conversational style |
+| 2026-02-05 | Speaker count deferred | Requires additional DB query per project; not available in current schema query |
+| 2026-02-05 | Ellipsis menu: Delete only | Keep UI simple; expand actions in future phase |
+| 2026-02-05 | "View All" links to `/projects` | Existing page is functional; avoids duplicate views |
+| 2026-02-05 | Library requires authentication | Added `/` to protected routes; matches behavior of `/projects` |
+| 2026-02-05 | Post-auth redirect to Library | After login, users land on `/` (Library) not `/projects` |
+| 2026-02-05 | `isCompleted()` status helper | Normalize status check (`complete`/`completed`) in one place to avoid spreading inconsistency |

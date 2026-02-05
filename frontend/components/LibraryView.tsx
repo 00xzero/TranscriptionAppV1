@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
@@ -8,7 +8,47 @@ import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {
     const [user, setUser] = useState<User | null>(null)
-    const { projects, isLoading } = useProjectsRealtime()
+    const { projects, isLoading, deleteProject } = useProjectsRealtime()
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+    const [deleteError, setDeleteError] = useState<string | null>(null)
+    const menuRef = useRef<HTMLDivElement>(null)
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        if (!openMenuId) return
+        const handlePointerDown = (e: PointerEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setOpenMenuId(null)
+            }
+        }
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setOpenMenuId(null)
+            }
+        }
+        document.addEventListener('pointerdown', handlePointerDown)
+        document.addEventListener('keydown', handleKeyDown)
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown)
+            document.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [openMenuId])
+
+    // Handle delete with confirmation
+    const handleDelete = async (id: string, title: string) => {
+        const ok = window.confirm(
+            `Delete "${title}"? This will permanently remove the project and all associated data. This action cannot be undone.`
+        )
+        if (!ok) return
+        setOpenMenuId(null)
+        setDeleteError(null)
+        try {
+            await deleteProject(id)
+        } catch (e) {
+            console.error('Failed to delete project:', e)
+            setDeleteError('Failed to delete project. Please try again.')
+        }
+    }
 
     // Fetch user for greeting
     useEffect(() => {
@@ -49,6 +89,41 @@ export default function LibraryView() {
         if (diffDays === 1) return 'Yesterday'
         return `${diffDays}d ago`
     }
+
+    // Format duration in seconds to human readable
+    const formatDuration = (seconds: number | null) => {
+        if (seconds === null || seconds === undefined) return null
+        const mins = Math.floor(seconds / 60)
+        if (mins < 1) {
+            const secs = Math.floor(seconds)
+            if (secs < 1) return '< 1 sec'
+            return secs === 1 ? '1 sec' : `${secs} sec`
+        }
+        if (mins < 60) return mins === 1 ? '1 min' : `${mins} mins`
+        const hrs = Math.floor(mins / 60)
+        const remainingMins = mins % 60
+        const hrsLabel = `${hrs} hr`
+        if (remainingMins === 0) return hrsLabel
+        const minsLabel = remainingMins === 1 ? '1 min' : `${remainingMins} mins`
+        return `${hrsLabel} ${minsLabel}`
+    }
+
+    // Get status badge info
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case 'queued':
+            case 'processing':
+                return { label: 'Processing', className: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' }
+            case 'error':
+                return { label: 'Error', className: 'text-ember-red bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' }
+            default:
+                return null
+        }
+    }
+
+    // Normalize status check for completed projects
+    // Backend may return 'complete' or 'completed' - this helper abstracts that inconsistency
+    const isCompleted = (status: string) => status === 'complete' || status === 'completed'
 
     return (
         <div className="p-6 md:p-10 space-y-10 scroll-smooth">
@@ -115,6 +190,21 @@ export default function LibraryView() {
                     </Link>
                 </div>
 
+                {deleteError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                        <div className="flex items-center justify-between gap-3">
+                            <span>{deleteError}</span>
+                            <button
+                                type="button"
+                                className="text-xs font-medium hover:underline"
+                                onClick={() => setDeleteError(null)}
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="bg-white dark:bg-night-surface rounded border border-[#D1CEC5] dark:border-night-border divide-y divide-[#D1CEC5] dark:divide-night-border">
                     {isLoading ? (
                         <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
@@ -125,41 +215,83 @@ export default function LibraryView() {
                             No projects yet. Click "Capture" to start your first transcription.
                         </div>
                     ) : (
-                        projects.slice(0, 5).map((project) => (
-                            <div
-                                key={project.id}
-                                className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 transition-colors group"
-                            >
-                                <Link
-                                    href={project.status === 'complete' ? `/editor/${project.id}` : `/projects`}
-                                    className="flex items-center gap-4 flex-1 cursor-pointer"
+                        projects.slice(0, 5).map((project) => {
+                            const statusBadge = getStatusBadge(project.status)
+                            const duration = formatDuration(project.duration_seconds)
+                            const isMenuOpen = openMenuId === project.id
+                            const menuId = `project-menu-${project.id}`
+
+                            return (
+                                <div
+                                    key={project.id}
+                                    className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 transition-colors group"
                                 >
-                                    <div className="w-10 h-10 rounded bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 flex-shrink-0">
-                                        <span className="font-mono text-lg">¶</span>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-sans text-sm font-medium text-ink dark:text-paper group-hover:text-trust-blue transition-colors">
-                                            {project.title}
-                                        </h4>
-                                        <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
-                                            {project.status === 'complete' ? 'Ready' : project.status}
-                                        </p>
-                                    </div>
-                                </Link>
-                                <div className="flex items-center gap-4">
-                                    <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
-                                        {formatRelativeTime(project.updated_at)}
-                                    </span>
-                                    <button
-                                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
-                                        aria-label={`More options for ${project.title}`}
-                                        onClick={(e) => e.stopPropagation()}
+                                    <Link
+                                        href={isCompleted(project.status) ? `/editor/${project.id}` : `/projects`}
+                                        className="flex items-center gap-4 flex-1 cursor-pointer"
                                     >
-                                        <span className="mb-2">...</span>
-                                    </button>
+                                        <div className="w-10 h-10 rounded bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 flex-shrink-0">
+                                            <span className="font-mono text-lg">¶</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-sans text-sm font-medium text-ink dark:text-paper group-hover:text-trust-blue transition-colors truncate">
+                                                    {project.title || 'Untitled'}
+                                                </h4>
+                                                {statusBadge && (
+                                                    <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded border ${statusBadge.className}`}>
+                                                        {statusBadge.label}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
+                                                {duration || 'Duration unknown'}
+                                            </p>
+                                        </div>
+                                    </Link>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
+                                            {formatRelativeTime(project.updated_at)}
+                                        </span>
+                                        <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
+                                            <button
+                                                type="button"
+                                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+                                                aria-label={`More options for ${project.title || 'Untitled'}`}
+                                                aria-haspopup="menu"
+                                                aria-expanded={isMenuOpen}
+                                                aria-controls={menuId}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setOpenMenuId(isMenuOpen ? null : project.id)
+                                                }}
+                                            >
+                                                <span className="mb-2">...</span>
+                                            </button>
+                                            {isMenuOpen && (
+                                                <div
+                                                    id={menuId}
+                                                    role="menu"
+                                                    className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-night-surface border border-[#D1CEC5] dark:border-night-border rounded-lg shadow-lg z-50 overflow-hidden"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        role="menuitem"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleDelete(project.id, project.title || 'Untitled')
+                                                        }}
+                                                        className="w-full px-3 py-2 text-left text-sm text-ember-red hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            )
+                        })
                     )}
                 </div>
             </section>
