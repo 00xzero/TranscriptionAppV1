@@ -1,23 +1,12 @@
 "use client"
 import Link from 'next/link'
-import { Suspense, useState, useCallback, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useCallback, useEffect } from 'react'
 import { useProjectsRealtime } from '../../lib/supabase/hooks'
 import { fetchJobError, fetchWatchlistTerms } from '../../lib/supabase/queries'
 import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
 import type { Project } from '../../lib/supabase/types'
 
 export default function ProjectsPage() {
-  return (
-    <Suspense fallback={<div className="text-muted">Loading...</div>}>
-      <ProjectsPageContent />
-    </Suspense>
-  )
-}
-
-function ProjectsPageContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per project - reused until request completes to prevent double-click issues
@@ -30,29 +19,6 @@ function ProjectsPageContent() {
 
   // Modal state
   const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
-  const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
-  const [captureProjectId, setCaptureProjectId] = useState<string | null>(null)
-
-  useEffect(() => {
-    setCaptureOutcome(searchParams.get('capture'))
-    setCaptureProjectId(searchParams.get('projectId'))
-  }, [searchParams])
-
-  const captureMessage = captureOutcome === 'saved_needs_retry'
-    ? 'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
-    : captureOutcome === 'saved_status_unknown'
-      ? 'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
-      : null
-
-  const dismissCaptureMessage = useCallback(() => {
-    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-    params.delete('capture')
-    params.delete('projectId')
-    const nextQuery = params.toString()
-    setCaptureOutcome(null)
-    setCaptureProjectId(null)
-    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
-  }, [router])
 
   // Fetch error info for projects in error state
   const fetchProjectErrorInfo = useCallback(async (projectId: string) => {
@@ -261,22 +227,6 @@ function ProjectsPageContent() {
             <button
               className="text-xs font-medium text-red-700 hover:underline"
               onClick={() => setActionError(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-      {captureMessage && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <div className="flex items-center justify-between gap-3">
-            <span>
-              {captureMessage}
-              {captureProjectId ? ` Project ID: ${captureProjectId}.` : ''}
-            </span>
-            <button
-              className="text-xs font-medium text-amber-800 hover:underline"
-              onClick={dismissCaptureMessage}
             >
               Dismiss
             </button>

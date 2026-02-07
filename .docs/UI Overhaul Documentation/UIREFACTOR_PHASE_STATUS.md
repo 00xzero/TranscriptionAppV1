@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 6 - Editor Interim Alignment |
+| **Phase** | 5 - Capture Modal |
 | **Status** | ⏳ Not Started |
 | **Owner** | Hamza |
 | **Started** | — |
@@ -20,8 +20,8 @@
 | 2 | Design System Foundation | ✅ Complete | 2026-02-05 |
 | 3 | App Shell + Routing | ✅ Complete | 2026-02-05 |
 | 4 | Library View | ✅ Complete | 2026-02-05 |
-| 5 | Capture Modal | ✅ Complete | 2026-02-06 |
-| 6 | Editor Interim Alignment | 🔄 In Progress | — |
+| 5 | Capture Modal | ⏳ Not Started | — |
+| 6 | Editor Interim Alignment | ⏳ Not Started | — |
 | 7 | Modals | ⏳ Not Started | — |
 | 8 | QA + Cleanup | ⏳ Not Started | — |
 
@@ -48,9 +48,9 @@ None — Phase 3 complete.
 - ✅ "View All" links to `/projects` page
 
 ### Phase 5 — Capture Modal
-- ✅ File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG (up to 1.5GB)"
-- ✅ Drag-and-drop: Implemented with visual feedback
-- ✅ Post-upload navigation: Stay on Library (modal closes, realtime updates show new project)
+- Confirm file type/size messaging and copy tone.
+- Confirm whether drag-and-drop is required in the first pass.
+- Confirm post-upload navigation (stay in Library or go to project/editor).
 
 ### Phase 6 — Editor Interim Alignment
 - Confirm which existing controls stay visible in the new layout.
@@ -176,45 +176,7 @@ None — Phase 3 complete.
 
 ### Phase 5 → Phase 6
 
-**Key Deliverables Created:**
-- Full `CaptureModal.tsx` with drag-and-drop, valid types (audio/video), and key terms.
-- `useCapture.ts` hook robustly handling:
-  - File upload to Supabase storage.
-  - Project creation + separate `source_object_key` update (fixes silent failure).
-  - Transcription initiation via Inngest.
-- MIME handling improvements:
-  - Inference from extension when `file.type` is empty.
-  - Normalization of aliases (e.g., `audio/x-m4a` → `audio/mp4`).
-- Auth Guard: Capture button and search hidden when not logged in.
-- UI Updates: removed MKV from supported list, updated Auth screen header.
-
-**Decisions Made:**
-- File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG (up to 1.5GB)"
-- Drag-and-drop: Yes, with visual hover feedback (border color change)
-- Post-upload: Modal closes, user stays on Library (realtime shows new project)
-- Title auto-fills from filename (without extension) if empty
-- Key terms: Comma/Enter to add, chips with X to remove, 100 term limit
-- Client-side mapping of browser-reported aliases to bucket-allowed canonical types (e.g., `audio/x-m4a` -> `audio/mp4`).
-- Fallback to extension-based MIME type if browser reports empty string (common for some video formats).
-- MKV Support Removed: explicitly removed `.mkv` support to avoid bucket validation errors (bucket has strict allowlist).
-- Inngest Requirement: Transcription start relies on Inngest events; local dev server must be running.
-
-**For Phase 6:**
-- Editor alignment with card-based layout.
-- Waveform placeholder or simplified player.
-- Transcript card active state styling.
-
-**Gotchas:**
-- Modal is accessible even when auth screen is shown (intentional for layout consistency)
-- `useCapture` returns project ID on success, null on failure
-- Supported file types checked by both MIME type and extension (fallback)
-- The `media` bucket has a **strict** MIME allowlist. Any new file types must be added to the bucket config *and* the client-side `useCapture.ts` validation/normalization.
-- Project is created *first*, file uploaded *second*, then project updated with `source_object_key` *third*. This multi-step process handles potential upload failures better but requires careful error handling.
-- **Robustness**: The capture flow now includes automatic rollback if the project is created but the file upload fails. If the file is uploaded but the project update fails, the user is notified.
-- **Suspense Requirement**: The `ProjectsPage` uses `useSearchParams` to show capture outcomes, requiring a `<Suspense>` boundary to prevent build errors in Next.js 14+.
-- **SSR/Hydration**: `ContextualHeader.tsx` creates Supabase client inside `useEffect` (not at module level) to avoid SSR issues and shared-singleton bugs.
-- **Drag State Reset**: `CaptureModal.tsx` resets `isDragging` state when modal closes to prevent stale dropzone highlight.
-- **AVI Support**: Added `video/x-msvideo` to `SUPPORTED_MIME_TYPES` and updated UI help text to include AVI for consistent file type messaging.
+*To be filled when Phase 5 completes.*
 
 ---
 
@@ -270,12 +232,6 @@ None — Phase 3 complete.
 | 2026-02-05 | Phase 4 | Library requires authentication | Added `/` to protected routes; matches behavior of `/projects` |
 | 2026-02-05 | Phase 4 | Post-auth redirect to Library | After login, users land on `/` (Library) not `/projects` |
 | 2026-02-05 | Phase 4 | `isCompleted()` status helper | Normalize status check (`complete`/`completed`) in one place to avoid spreading inconsistency |
-| 2026-02-06 | Phase 5 | Remove MKV support | Supabase bucket strictly forbids `video/x-matroska`; removed to prevent user confusion |
-| 2026-02-06 | Phase 5 | Client-side MIME normalization | Browsers report aliases (e.g. `audio/x-m4a`) that fail strict bucket checks; locally normalized to canonical types |
-| 2026-02-06 | Phase 5 | Upload flow logic split | Separate `source_object_key` update step ensures reliability over initial insert |
-| 2026-02-07 | Phase 5 | Granular Capture Outcomes | Distinguished 'started' vs 'saved_needs_retry' to guide users when Inngest/network fails but upload succeeded |
-| 2026-02-07 | Phase 5 | Automatic Rollback | If project creation succeeds but upload fails, the project is auto-deleted to prevent orphan records |
-| 2026-02-07 | Phase 5 | Suspense Boundary | `ProjectsPage` wrapped in Suspense to safely handle `useSearchParams` for capture outcome notification |
 
 ---
 

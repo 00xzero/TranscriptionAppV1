@@ -70,12 +70,12 @@ export function useAudioSessionRecovery({
       // Wait a tick for the new src to be applied, then restore position
       if (audio) {
         // Use loadeddata event to restore position after src change
-        const cleanup = () => {
+        function cleanup() {
           audio.removeEventListener('loadeddata', handleLoaded)
           audio.removeEventListener('error', handleErrorOrAbort)
           audio.removeEventListener('abort', handleErrorOrAbort)
         }
-        const handleLoaded = () => {
+        function handleLoaded() {
           audio.currentTime = savedPosition
           if (wasPlaying) {
             audio.play().catch(() => {
@@ -84,7 +84,7 @@ export function useAudioSessionRecovery({
           }
           cleanup()
         }
-        const handleErrorOrAbort = () => {
+        function handleErrorOrAbort() {
           cleanup()
         }
         audio.addEventListener('loadeddata', handleLoaded)

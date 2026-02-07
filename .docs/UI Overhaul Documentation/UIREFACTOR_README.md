@@ -32,7 +32,7 @@
 - [x] Phase 2: Design System Foundation
 - [x] Phase 3: App Shell + Routing
 - [x] Phase 4: Library View
-- [x] Phase 5: Capture Modal
+- [ ] Phase 5: Capture Modal
 - [ ] Phase 6: Editor Interim Alignment
 - [ ] Phase 7: Modals
 - [ ] Phase 8: QA + Cleanup

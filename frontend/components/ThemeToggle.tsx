@@ -12,8 +12,8 @@ function applyTheme(theme: AppTheme) {
 
 function detectInitialTheme(): AppTheme {
   try {
-    const saved = localStorage.getItem('app-theme')
-    if (saved && (THEMES as readonly string[]).includes(saved)) return saved as AppTheme
+    const saved = localStorage.getItem('app-theme') as AppTheme | null
+    if (saved && (THEMES as readonly string[]).includes(saved)) return saved
     if (saved === 'blue') return 'dark'  // backward compat: map removed "blue" theme to "dark"
   } catch { }
   if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
