@@ -244,15 +244,18 @@ export default function CaptureModal() {
             </span>
             <h3 className="font-sans font-medium text-sm">Capture</h3>
           </div>
-          <div
-            className={`flex items-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          <button
+            type="button"
+            className={`flex items-center gap-2 bg-transparent border-none p-0 ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             onClick={isUploading ? undefined : closeCaptureModal}
+            disabled={isUploading}
+            aria-label="Close modal"
           >
             <span className="text-[10px] font-mono opacity-40 border border-current px-1.5 py-0.5 rounded">ESC</span>
             <svg className="w-4 h-4 opacity-50 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </div>
+          </button>
         </div>
 
         {/* Scrollable Content */}
