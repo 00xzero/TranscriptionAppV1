@@ -45,7 +45,7 @@ function ProjectsPageContent() {
       : null
 
   const dismissCaptureMessage = useCallback(() => {
-    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+    const params = new URLSearchParams(searchParams.toString())
     params.delete('capture')
     params.delete('projectId')
     const nextQuery = params.toString()
