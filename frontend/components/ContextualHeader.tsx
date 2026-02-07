@@ -1,7 +1,9 @@
 "use client"
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useModal } from '@/lib/ModalContext'
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
     viewType?: 'library' | 'editor'
@@ -10,12 +12,55 @@ interface ContextualHeaderProps {
 
 export default function ContextualHeader({ viewType = 'library', projectTitle }: ContextualHeaderProps) {
     const { openCaptureModal } = useModal()
+    const [user, setUser] = useState<User | null>(null)
+
+    // Check authentication status
+    // Create Supabase client inside useEffect to avoid SSR/hydration issues
+    useEffect(() => {
+        // Only run on client
+        if (typeof window === 'undefined') return
+
+        const supabase = createClient()
+        let isMounted = true
+
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (isMounted) {
+                setUser(user)
+            }
+        }
+        getUser()
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (isMounted) {
+                setUser(session?.user ?? null)
+            }
+        })
+
+        return () => {
+            isMounted = false
+            subscription.unsubscribe()
+        }
+    }, [])
 
     return (
         <header className="h-16 border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-night-bg/80 backdrop-blur-sm flex items-center justify-between px-6 z-10 transition-colors duration-300">
-            {/* Left: View Title / Breadcrumbs */}
+            {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
             <div className="flex items-center gap-2">
-                {viewType === 'library' ? (
+                {!user ? (
+                    // Olivetti Logo - shown when not authenticated
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5">
+                            <div className="h-6 w-1 bg-ink dark:bg-paper rounded-full" />
+                            <div className="h-2 w-2 bg-ember-red rounded-sm" />
+                        </div>
+                        <span className="font-serif text-2xl italic text-ink dark:text-paper tracking-tight">
+                            olivetti
+                        </span>
+                    </div>
+                ) : viewType === 'library' ? (
                     <span className="font-serif text-xl italic text-ink dark:text-paper">Library</span>
                 ) : (
                     <div className="flex items-center gap-[5px]">
@@ -30,27 +75,29 @@ export default function ContextualHeader({ viewType = 'library', projectTitle }:
                 )}
             </div>
 
-            {/* Right: Search + Capture Button */}
-            <div className="flex items-center gap-6">
-                {/* Global Search - Desktop Only */}
-                <div className="relative hidden md:flex items-center gap-3 bg-white/50 dark:bg-white/5 border border-[#D1CEC5] dark:border-night-border rounded-lg px-3 py-1.5 focus-within:border-trust-blue/50 focus-within:bg-white dark:focus-within:bg-[#1A1A1A] transition-all group">
-                    <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 group-focus-within:text-trust-blue transition-colors">?</span>
-                    <input
-                        type="text"
-                        placeholder="Recall a decision..."
-                        className="bg-transparent border-none w-56 text-sm font-serif italic focus:outline-none focus:ring-0 placeholder-ink/30 dark:placeholder-paper/20 text-ink dark:text-paper"
-                    />
-                </div>
+            {/* Right: Search + Capture Button - Only show when authenticated */}
+            {user && (
+                <div className="flex items-center gap-6">
+                    {/* Global Search - Desktop Only */}
+                    <div className="relative hidden md:flex items-center gap-3 bg-white/50 dark:bg-white/5 border border-[#D1CEC5] dark:border-night-border rounded-lg px-3 py-1.5 focus-within:border-trust-blue/50 focus-within:bg-white dark:focus-within:bg-[#1A1A1A] transition-all group">
+                        <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 group-focus-within:text-trust-blue transition-colors">?</span>
+                        <input
+                            type="text"
+                            placeholder="Recall a decision..."
+                            className="bg-transparent border-none w-56 text-sm font-serif italic focus:outline-none focus:ring-0 placeholder-ink/30 dark:placeholder-paper/20 text-ink dark:text-paper"
+                        />
+                    </div>
 
-                {/* Capture Button */}
-                <button
-                    onClick={openCaptureModal}
-                    className="bg-ember-red text-white px-4 py-2 rounded shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
-                >
-                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                    <span className="hidden md:inline">Capture</span>
-                </button>
-            </div>
+                    {/* Capture Button */}
+                    <button
+                        onClick={openCaptureModal}
+                        className="bg-ember-red text-white px-4 py-2 rounded shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
+                    >
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                        <span className="hidden md:inline">Capture</span>
+                    </button>
+                </div>
+            )}
         </header>
     )
 }

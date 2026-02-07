@@ -63,11 +63,11 @@
 - Implement project card hover states (`hover:-translate-y-1`, `shadow-elevation`).
 
 ### 5) Capture Modal
-- Convert Upload flow to modal triggered from header "Capture" button.
-- Reuse existing upload + key terms logic.
-- Restyle to Olivetti Capture modal design (glassmorphism, form inputs).
-- Implement key terms chip input with Enter to add, comma separation.
-- Add Language + Diarization fields as disabled controls labeled "Coming soon".
+- [x] Convert Upload flow to modal triggered from header "Capture" button.
+- [x] Reuse existing upload + key terms logic.
+- [x] Restyle to Olivetti Capture modal design (glassmorphism, form inputs).
+- [x] Implement key terms chip input with Enter to add, comma separation.
+- [x] Add Language + Diarization fields as disabled controls labeled "Coming soon".
 
 ### 6) Editor Interim Alignment
 - Apply Olivetti typography/colors to current editor layout.
@@ -258,3 +258,14 @@
 | 2026-02-05 | Library requires authentication | Added `/` to protected routes; matches behavior of `/projects` |
 | 2026-02-05 | Post-auth redirect to Library | After login, users land on `/` (Library) not `/projects` |
 | 2026-02-05 | `isCompleted()` status helper | Normalize status check (`complete`/`completed`) in one place to avoid spreading inconsistency |
+
+## Decisions Made (Phase 5)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-06 | Remove MKV support | Supabase bucket strictly forbids `video/x-matroska`; removed to prevent user confusion |
+| 2026-02-06 | Client-side MIME normalization | Browsers report aliases (e.g. `audio/x-m4a`) that fail strict bucket checks; locally normalized to canonical types |
+| 2026-02-06 | Upload flow logic split | Separate `source_object_key` update step ensures reliability over initial insert |
+| 2026-02-07 | Granular Capture Outcomes | Distinguished 'started' vs 'saved_needs_retry' to guide users when Inngest/network fails but upload succeeded |
+| 2026-02-07 | Automatic Rollback | If project creation succeeds but upload fails, the project is auto-deleted to prevent orphan records |
+| 2026-02-07 | Suspense Boundary | `ProjectsPage` wrapped in Suspense to safely handle `useSearchParams` for capture outcome notification |
