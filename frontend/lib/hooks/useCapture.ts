@@ -17,7 +17,7 @@ const SUPPORTED_MIME_TYPES = [
     'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/wave',
     'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac',
     'audio/flac', 'audio/x-flac',
-    'video/mp4', 'video/quicktime', 'video/webm',
+    'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo',
     'audio/ogg', 'video/ogg'
 ]
 
@@ -164,7 +164,7 @@ function validateFile(file: File): string | null {
         return null
     }
 
-    return `Unsupported file type. Please upload MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, or OGG.`
+    return `Unsupported file type. Please upload MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, or AVI.`
 }
 
 /**

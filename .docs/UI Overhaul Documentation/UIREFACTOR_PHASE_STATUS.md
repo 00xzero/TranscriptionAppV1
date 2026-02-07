@@ -212,6 +212,9 @@ None — Phase 3 complete.
 - Project is created *first*, file uploaded *second*, then project updated with `source_object_key` *third*. This multi-step process handles potential upload failures better but requires careful error handling.
 - **Robustness**: The capture flow now includes automatic rollback if the project is created but the file upload fails. If the file is uploaded but the project update fails, the user is notified.
 - **Suspense Requirement**: The `ProjectsPage` uses `useSearchParams` to show capture outcomes, requiring a `<Suspense>` boundary to prevent build errors in Next.js 14+.
+- **SSR/Hydration**: `ContextualHeader.tsx` creates Supabase client inside `useEffect` (not at module level) to avoid SSR issues and shared-singleton bugs.
+- **Drag State Reset**: `CaptureModal.tsx` resets `isDragging` state when modal closes to prevent stale dropzone highlight.
+- **AVI Support**: Added `video/x-msvideo` to `SUPPORTED_MIME_TYPES` and updated UI help text to include AVI for consistent file type messaging.
 
 ---
 

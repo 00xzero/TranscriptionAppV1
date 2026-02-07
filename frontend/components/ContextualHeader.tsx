@@ -10,14 +10,17 @@ interface ContextualHeaderProps {
     projectTitle?: string
 }
 
-const supabase = createClient()
-
 export default function ContextualHeader({ viewType = 'library', projectTitle }: ContextualHeaderProps) {
     const { openCaptureModal } = useModal()
     const [user, setUser] = useState<User | null>(null)
 
     // Check authentication status
+    // Create Supabase client inside useEffect to avoid SSR/hydration issues
     useEffect(() => {
+        // Only run on client
+        if (typeof window === 'undefined') return
+
+        const supabase = createClient()
         let isMounted = true
 
         const getUser = async () => {

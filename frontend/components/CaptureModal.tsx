@@ -41,6 +41,7 @@ export default function CaptureModal() {
       setKeyTermInput('')
       setKeyTermsError(null)
       setFileError(null)
+      setIsDragging(false)
       resetError()
     }
   }, [isCaptureModalOpen, resetError])
@@ -261,7 +262,7 @@ export default function CaptureModal() {
           <div className="space-y-3">
             <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60">Select File</label>
             <p className="text-[10px] text-ink/40 dark:text-white/40 mb-2">
-              MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG (up to {maxFileSizeLabel})
+              MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, AVI (up to {maxFileSizeLabel})
             </p>
 
             {/* Hidden file input */}
