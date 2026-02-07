@@ -28,6 +28,7 @@ export default function CaptureModal() {
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
   const [keyTermInput, setKeyTermInput] = useState('')
+  const [keyTermsError, setKeyTermsError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
 
@@ -38,6 +39,7 @@ export default function CaptureModal() {
       setTitle('')
       setKeyTerms([])
       setKeyTermInput('')
+      setKeyTermsError(null)
       setFileError(null)
       resetError()
     }
@@ -143,16 +145,26 @@ export default function CaptureModal() {
     for (const t of keyTerms) {
       seen.set(t.toLowerCase(), t)
     }
+    let uniqueIncomingCount = 0
     for (const t of newTerms) {
       if (!seen.has(t.toLowerCase())) {
         seen.set(t.toLowerCase(), t)
+        uniqueIncomingCount += 1
       }
     }
 
     const allTerms = Array.from(seen.values())
     if (allTerms.length <= MAX_KEY_TERMS) {
       setKeyTerms(allTerms)
+      setKeyTermsError(null)
+      return
     }
+
+    setKeyTermsError(
+      uniqueIncomingCount > 0
+        ? `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
+        : `Could not add terms because that would exceed the ${MAX_KEY_TERMS}-term limit.`
+    )
   }, [keyTerms])
 
   const handleKeyTermKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -170,6 +182,7 @@ export default function CaptureModal() {
 
   const removeTerm = useCallback((index: number) => {
     setKeyTerms(prev => prev.filter((_, i) => i !== index))
+    setKeyTermsError(null)
   }, [])
 
   // Submit handler
@@ -395,6 +408,10 @@ export default function CaptureModal() {
               <p className="text-[10px] text-ink/40 dark:text-white/40">Add up to 100 terms. Separate with commas.</p>
               <p className="text-[10px] font-mono opacity-40">{keyTerms.length} / {MAX_KEY_TERMS} terms</p>
             </div>
+
+            {keyTermsError && (
+              <p className="text-xs text-ember-red">{keyTermsError}</p>
+            )}
 
             {/* Tags Container */}
             {keyTerms.length > 0 && (
