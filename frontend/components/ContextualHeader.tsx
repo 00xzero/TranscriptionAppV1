@@ -10,25 +10,36 @@ interface ContextualHeaderProps {
     projectTitle?: string
 }
 
+const supabase = createClient()
+
 export default function ContextualHeader({ viewType = 'library', projectTitle }: ContextualHeaderProps) {
     const { openCaptureModal } = useModal()
     const [user, setUser] = useState<User | null>(null)
 
     // Check authentication status
     useEffect(() => {
-        const supabase = createClient()
+        let isMounted = true
+
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
-            setUser(user)
+
+            if (isMounted) {
+                setUser(user)
+            }
         }
         getUser()
 
         // Listen for auth state changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null)
+            if (isMounted) {
+                setUser(session?.user ?? null)
+            }
         })
 
-        return () => subscription.unsubscribe()
+        return () => {
+            isMounted = false
+            subscription.unsubscribe()
+        }
     }, [])
 
     return (
@@ -87,4 +98,3 @@ export default function ContextualHeader({ viewType = 'library', projectTitle }:
         </header>
     )
 }
-

@@ -63,11 +63,11 @@
 - Implement project card hover states (`hover:-translate-y-1`, `shadow-elevation`).
 
 ### 5) Capture Modal
-- Convert Upload flow to modal triggered from header "Capture" button.
-- Reuse existing upload + key terms logic.
-- Restyle to Olivetti Capture modal design (glassmorphism, form inputs).
-- Implement key terms chip input with Enter to add, comma separation.
-- Add Language + Diarization fields as disabled controls labeled "Coming soon".
+- [x] Convert Upload flow to modal triggered from header "Capture" button.
+- [x] Reuse existing upload + key terms logic.
+- [x] Restyle to Olivetti Capture modal design (glassmorphism, form inputs).
+- [x] Implement key terms chip input with Enter to add, comma separation.
+- [x] Add Language + Diarization fields as disabled controls labeled "Coming soon".
 
 ### 6) Editor Interim Alignment
 - Apply Olivetti typography/colors to current editor layout.

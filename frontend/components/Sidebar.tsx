@@ -18,7 +18,7 @@ function applyTheme(theme: AppTheme) {
 
 function detectInitialTheme(): AppTheme {
     try {
-        const saved = localStorage.getItem('app-theme') as AppTheme | null
+        const saved = localStorage.getItem('app-theme')
         if (saved === 'light' || saved === 'dark') return saved
         if (saved === 'blue') return 'dark' // backward compat
     } catch { }

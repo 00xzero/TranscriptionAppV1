@@ -48,7 +48,7 @@ None — Phase 3 complete.
 - ✅ "View All" links to `/projects` page
 
 ### Phase 5 — Capture Modal
-- ✅ File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, MKV (up to 1.5GB)"
+- ✅ File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG (up to 1.5GB)"
 - ✅ Drag-and-drop: Implemented with visual feedback
 - ✅ Post-upload navigation: Stay on Library (modal closes, realtime updates show new project)
 
@@ -189,7 +189,7 @@ None — Phase 3 complete.
 - UI Updates: removed MKV from supported list, updated Auth screen header.
 
 **Decisions Made:**
-- File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, MKV (up to 1.5GB)"
+- File messaging: "MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG (up to 1.5GB)"
 - Drag-and-drop: Yes, with visual hover feedback (border color change)
 - Post-upload: Modal closes, user stays on Library (realtime shows new project)
 - Title auto-fills from filename (without extension) if empty
@@ -210,6 +210,8 @@ None — Phase 3 complete.
 - Supported file types checked by both MIME type and extension (fallback)
 - The `media` bucket has a **strict** MIME allowlist. Any new file types must be added to the bucket config *and* the client-side `useCapture.ts` validation/normalization.
 - Project is created *first*, file uploaded *second*, then project updated with `source_object_key` *third*. This multi-step process handles potential upload failures better but requires careful error handling.
+- **Robustness**: The capture flow now includes automatic rollback if the project is created but the file upload fails. If the file is uploaded but the project update fails, the user is notified.
+- **Suspense Requirement**: The `ProjectsPage` uses `useSearchParams` to show capture outcomes, requiring a `<Suspense>` boundary to prevent build errors in Next.js 14+.
 
 ---
 
@@ -268,6 +270,9 @@ None — Phase 3 complete.
 | 2026-02-06 | Phase 5 | Remove MKV support | Supabase bucket strictly forbids `video/x-matroska`; removed to prevent user confusion |
 | 2026-02-06 | Phase 5 | Client-side MIME normalization | Browsers report aliases (e.g. `audio/x-m4a`) that fail strict bucket checks; locally normalized to canonical types |
 | 2026-02-06 | Phase 5 | Upload flow logic split | Separate `source_object_key` update step ensures reliability over initial insert |
+| 2026-02-07 | Phase 5 | Granular Capture Outcomes | Distinguished 'started' vs 'saved_needs_retry' to guide users when Inngest/network fails but upload succeeded |
+| 2026-02-07 | Phase 5 | Automatic Rollback | If project creation succeeds but upload fails, the project is auto-deleted to prevent orphan records |
+| 2026-02-07 | Phase 5 | Suspense Boundary | `ProjectsPage` wrapped in Suspense to safely handle `useSearchParams` for capture outcome notification |
 
 ---
 
