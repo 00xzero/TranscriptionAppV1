@@ -26,6 +26,8 @@ type Seg = Chunk & { words?: Word[] }
 type Speaker = SpeakerType
 type Match = { segId: string; index: number; length: number }
 type SegmentMatch = { index: number; length: number; matchIdx: number }
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+type SaveStatusBySegment = Record<string, SaveStatus>
 
 const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 const SYNC_OFFSET_MS = 150
@@ -73,6 +75,73 @@ const formatDurationHHMMSS = (seconds: number | null): string => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+type SegmentHeaderRowProps = {
+  showSpeaker: boolean
+  speakerLabel: string
+  timestamp: string
+  saveStatus: SaveStatusBySegment
+  segmentId: string
+  segmentText: string
+  editingId: string | null
+  source: 'chunks' | 'segments'
+  onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+  setEditingId: React.Dispatch<React.SetStateAction<string | null>>
+  setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
+}
+
+function SegmentHeaderRow({
+  showSpeaker,
+  speakerLabel,
+  timestamp,
+  saveStatus,
+  segmentId,
+  segmentText,
+  editingId,
+  source,
+  onSpeakerClick,
+  setEditingId,
+  setEditingTexts,
+}: SegmentHeaderRowProps) {
+  return (
+    <div className="flex items-baseline gap-3 mb-2">
+      {showSpeaker && onSpeakerClick && (
+        <button
+          type="button"
+          className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/40"
+          onClick={onSpeakerClick}
+          aria-label={`Change speaker (${speakerLabel})`}
+          title="Click to change speaker"
+        >
+          {speakerLabel}
+        </button>
+      )}
+      <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
+      {/* Save status */}
+      <span className="text-[10px] font-mono">
+        {saveStatus[segmentId] === 'saving' && <span className="text-trust-blue">Saving…</span>}
+        {saveStatus[segmentId] === 'saved' && <span className="text-emerald-600">Saved</span>}
+        {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
+      </span>
+      {/* Edit pencil icon */}
+      {source !== 'segments' && (
+        <button
+          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+            e.stopPropagation()
+            setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
+            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
+          }}
+          title={editingId === segmentId ? 'Close editor' : 'Edit text'}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function EditorPage({ params }: { params: { id: string } }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
@@ -91,7 +160,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
-  const [saveStatus, setSaveStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
+  const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
   const saveTimers = useRef<Record<string, number>>({})
   const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -1015,72 +1084,22 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 />
 
                 <div className="flex-1 min-w-0">
-                  {needHeader && (
-                    <div className="flex items-baseline gap-3 mb-2">
-                      <button
-                        type="button"
-                        className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/40"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleAvatarClick(e, s.id, s.speaker_id ?? null)
-                        }}
-                        aria-label={`Change speaker (${speakerLabel})`}
-                        title="Click to change speaker"
-                      >
-                        {speakerLabel}
-                      </button>
-                      <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{msToTimestamp(s.start_ms)}</span>
-                      {/* Save status */}
-                      <span className="text-[10px] font-mono">
-                        {saveStatus[s.id] === 'saving' && <span className="text-trust-blue">Saving…</span>}
-                        {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
-                        {saveStatus[s.id] === 'error' && <span className="text-ember-red">Save failed</span>}
-                      </span>
-                      {/* Edit pencil icon */}
-                      {source !== 'segments' && (
-                        <button
-                          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === s.id ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                          }}
-                          title={editingId === s.id ? 'Close editor' : 'Edit text'}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {!needHeader && (
-                    <div className="flex items-baseline gap-3 mb-2">
-                      <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{msToTimestamp(s.start_ms)}</span>
-                      {/* Save status */}
-                      <span className="text-[10px] font-mono">
-                        {saveStatus[s.id] === 'saving' && <span className="text-trust-blue">Saving…</span>}
-                        {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
-                        {saveStatus[s.id] === 'error' && <span className="text-ember-red">Save failed</span>}
-                      </span>
-                      {/* Edit pencil icon */}
-                      {source !== 'segments' && (
-                        <button
-                          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === s.id ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
-                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                            e.stopPropagation()
-                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                          }}
-                          title={editingId === s.id ? 'Close editor' : 'Edit text'}
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <SegmentHeaderRow
+                    showSpeaker={needHeader}
+                    speakerLabel={speakerLabel}
+                    timestamp={msToTimestamp(s.start_ms)}
+                    saveStatus={saveStatus}
+                    segmentId={s.id}
+                    segmentText={s.text}
+                    editingId={editingId}
+                    source={source}
+                    onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      e.stopPropagation()
+                      handleAvatarClick(e, s.id, s.speaker_id ?? null)
+                    }}
+                    setEditingId={setEditingId}
+                    setEditingTexts={setEditingTexts}
+                  />
                   {editingId === s.id ? (
                     <div>
                       <textarea
