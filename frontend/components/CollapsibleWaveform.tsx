@@ -15,6 +15,8 @@ export default function CollapsibleWaveform({
   onExpandClick,
   children,
 }: CollapsibleWaveformProps) {
+  const clampedProgress = Math.min(100, Math.max(0, audioProgress))
+
   return (
     <div className="relative">
       {/* Mini progress bar — visible when collapsed */}
@@ -27,7 +29,7 @@ export default function CollapsibleWaveform({
         >
           <div
             className="h-full bg-trust-blue transition-all duration-150 group-hover:bg-trust-blue/90"
-            style={{ width: `${audioProgress}%` }}
+            style={{ width: `${clampedProgress}%` }}
           />
         </button>
       )}

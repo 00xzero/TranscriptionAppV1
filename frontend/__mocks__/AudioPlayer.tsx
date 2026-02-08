@@ -50,7 +50,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
         isPlaying: () => playing,
         isReady: () => readyRef.current,
         getAudioElement: () => audioRef.current,
-    }), [playing, currentTime, duration, onPlayingChange, onTimeUpdate, onSeeked])
+    }), [playing, currentTime, duration, playbackRate, onPlayingChange, onTimeUpdate, onSeeked])
 
     // Simulate ready event after mount
     useEffect(() => {
