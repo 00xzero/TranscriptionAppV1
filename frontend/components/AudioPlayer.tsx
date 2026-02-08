@@ -33,6 +33,8 @@ export interface AudioPlayerProps {
   initialPlaybackRate?: number
   /** Pre-rendered peaks for future waveform (Option B ready) */
   peaks?: number[]
+  /** Hide transport controls (when FloatingPlayerDeck is visible) */
+  hideControls?: boolean
 }
 
 export interface AudioPlayerRef {
@@ -59,6 +61,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   onSeeked,
   initialPlaybackRate = 1.0,
   peaks,
+  hideControls = false,
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const progressRef = useRef<HTMLDivElement | null>(null)
@@ -247,7 +250,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       {/* Progress bar container */}
       <div
         ref={progressRef}
-        className="relative h-12 bg-gray-800 rounded cursor-pointer select-none"
+        className="relative h-12 bg-ink/10 dark:bg-paper/10 rounded cursor-pointer select-none"
         onClick={handleProgressClick}
         onMouseDown={handleProgressMouseDown}
         role="slider"
@@ -258,17 +261,17 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
         tabIndex={0}
       >
         {/* Background track */}
-        <div className="absolute inset-0 bg-gray-700 rounded" />
+        <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded" />
 
         {/* Progress fill */}
         <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-600 to-blue-500 rounded-l transition-all duration-75"
+          className="absolute inset-y-0 left-0 bg-trust-blue rounded-l transition-all duration-75"
           style={{ width: `${progress}%` }}
         />
 
         {/* Scrubber handle */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg transition-all duration-75"
+          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-paper dark:bg-ink rounded-full shadow-lg transition-all duration-75"
           style={{ left: `calc(${progress}% - 6px)` }}
         />
 
@@ -281,59 +284,61 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       </div>
 
       {/* Time display */}
-      <div className="flex items-center justify-between text-sm text-gray-400">
+      <div className="flex items-center justify-between text-sm text-muted font-mono">
         <span>{formatTime(currentTime)}</span>
         <span>{formatTime(duration)}</span>
       </div>
 
-      {/* Controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          className="px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50 hover:bg-blue-700 transition-colors"
-          disabled={!ready}
-          onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
-        >
-          {playing ? 'Pause' : 'Play'}
-        </button>
-        <button
-          className="px-3 py-1.5 rounded bg-surface-alt hover:bg-gray-700 transition-colors"
-          onClick={() => {
-            if (audioRef.current) {
-              audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
-            }
-          }}
-        >
-          -2s
-        </button>
-        <button
-          className="px-3 py-1.5 rounded bg-surface-alt hover:bg-gray-700 transition-colors"
-          onClick={() => {
-            if (audioRef.current && duration) {
-              audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
-            }
-          }}
-        >
-          +2s
-        </button>
-        <div className="ml-2 flex items-center gap-1">
-          <label className="text-sm text-muted">Rate</label>
-          <select
-            className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            value={playbackRate}
-            onChange={(e) => {
-              const rate = parseFloat(e.target.value)
+      {/* Controls — hidden when FloatingPlayerDeck is active */}
+      {!hideControls && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="px-3 py-1.5 rounded bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
+            disabled={!ready}
+            onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
+          >
+            {playing ? 'Pause' : 'Play'}
+          </button>
+          <button
+            className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+            onClick={() => {
               if (audioRef.current) {
-                audioRef.current.playbackRate = rate
+                audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
               }
-              setPlaybackRateState(rate)
             }}
           >
-            {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
-              <option key={r} value={r}>{r.toFixed(2)}x</option>
-            ))}
-          </select>
+            -2s
+          </button>
+          <button
+            className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+            onClick={() => {
+              if (audioRef.current && duration) {
+                audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
+              }
+            }}
+          >
+            +2s
+          </button>
+          <div className="ml-2 flex items-center gap-1">
+            <label className="text-sm text-muted">Rate</label>
+            <select
+              className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
+              value={playbackRate}
+              onChange={(e) => {
+                const rate = parseFloat(e.target.value)
+                if (audioRef.current) {
+                  audioRef.current.playbackRate = rate
+                }
+                setPlaybackRateState(rate)
+              }}
+            >
+              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
+                <option key={r} value={r}>{r.toFixed(2)}x</option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 })

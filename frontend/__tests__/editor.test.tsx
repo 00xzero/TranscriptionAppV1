@@ -30,6 +30,12 @@ const mockFetch = () => {
 }
 
 describe('EditorPage - Find & Replace', () => {
+  const waitForEditorContent = async () => {
+    await screen.findByTestId('audio-player')
+    const segmentsRendered = await screen.findAllByTestId('segment-card')
+    expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
+  }
+
   beforeEach(() => {
     process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
     jest.clearAllMocks()
@@ -40,10 +46,8 @@ describe('EditorPage - Find & Replace', () => {
     const user = userEventLib.setup()
     render(<EditorPage params={{ id: 'p1' }} />)
 
-    // Wait for audio player to be ready and segments to load
-    await screen.findByText(/Ready/i)
-    const segmentsRendered = await screen.findAllByTestId('segment-card')
-    expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
+    // Wait for editor content to load
+    await waitForEditorContent()
 
     const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
     await user.type(findInput, 'world')
@@ -76,10 +80,8 @@ describe('EditorPage - Find & Replace', () => {
     const user = userEventLib.setup()
     render(<EditorPage params={{ id: 'p1' }} />)
 
-    // Wait for audio player to be ready
-    await screen.findByText(/Ready/i)
-    const segmentCards = await screen.findAllByTestId('segment-card')
-    expect(segmentCards.length).toBeGreaterThanOrEqual(2)
+    // Wait for editor content to load
+    await waitForEditorContent()
 
     const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
     await user.type(findInput, 'hello')
