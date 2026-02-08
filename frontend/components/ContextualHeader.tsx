@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { createClient } from '@/lib/supabase/client'
 import type { User } from '@supabase/supabase-js'
@@ -10,9 +11,14 @@ interface ContextualHeaderProps {
     projectTitle?: string
 }
 
-export default function ContextualHeader({ viewType = 'library', projectTitle }: ContextualHeaderProps) {
+export default function ContextualHeader({ viewType, projectTitle }: ContextualHeaderProps) {
     const { openCaptureModal } = useModal()
     const [user, setUser] = useState<User | null>(null)
+    const pathname = usePathname()
+
+    // Auto-detect editor mode from pathname if viewType not explicitly set
+    const isEditorRoute = pathname?.startsWith('/editor/')
+    const effectiveViewType = viewType ?? (isEditorRoute ? 'editor' : 'library')
 
     // Check authentication status
     // Create Supabase client inside useEffect to avoid SSR/hydration issues
@@ -46,7 +52,7 @@ export default function ContextualHeader({ viewType = 'library', projectTitle }:
     }, [])
 
     return (
-        <header className="h-16 border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-night-bg/80 backdrop-blur-sm flex items-center justify-between px-6 z-10 transition-colors duration-300">
+        <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-night-bg/80 backdrop-blur-sm flex items-center justify-between px-6 z-10 transition-colors duration-300">
             {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
             <div className="flex items-center gap-2">
                 {!user ? (
@@ -60,7 +66,7 @@ export default function ContextualHeader({ viewType = 'library', projectTitle }:
                             olivetti
                         </span>
                     </div>
-                ) : viewType === 'library' ? (
+                ) : effectiveViewType === 'library' ? (
                     <span className="font-serif text-xl italic text-ink dark:text-paper">Library</span>
                 ) : (
                     <div className="flex items-center gap-[5px]">
@@ -75,8 +81,8 @@ export default function ContextualHeader({ viewType = 'library', projectTitle }:
                 )}
             </div>
 
-            {/* Right: Search + Capture Button - Only show when authenticated */}
-            {user && (
+            {/* Right: Search + Capture Button - Only show when authenticated and not on editor route */}
+            {user && effectiveViewType !== 'editor' && (
                 <div className="flex items-center gap-6">
                     {/* Global Search - Desktop Only */}
                     <div className="relative hidden md:flex items-center gap-3 bg-white/50 dark:bg-white/5 border border-[#D1CEC5] dark:border-night-border rounded-lg px-3 py-1.5 focus-within:border-trust-blue/50 focus-within:bg-white dark:focus-within:bg-[#1A1A1A] transition-all group">

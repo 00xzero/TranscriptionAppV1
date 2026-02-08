@@ -269,3 +269,13 @@
 | 2026-02-07 | Granular Capture Outcomes | Distinguished 'started' vs 'saved_needs_retry' to guide users when Inngest/network fails but upload succeeded |
 | 2026-02-07 | Automatic Rollback | If project creation succeeds but upload fails, the project is auto-deleted to prevent orphan records |
 | 2026-02-07 | Suspense Boundary | `ProjectsPage` wrapped in Suspense to safely handle `useSearchParams` for capture outcome notification |
+
+## Decisions Made (Phase 6)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-07 | Header/sidebar alignment (`h-[56px]`) | Both components use same height for pixel-perfect divider alignment matching Olivetti prototype |
+| 2026-02-07 | Speaker color palette | First 3 colors match prototype exactly (trust-blue #4F638C, ember-red #C73E1D, yellow-600 #CA8A04), then brand-complementary extras |
+| 2026-02-07 | Timestamp format `HH:MM:SS` | Always show full zero-padded format for consistency with prototype |
+| 2026-02-07 | Metadata display format | Document header shows Date • Speakers • Duration with bullet separators |
+| 2026-02-07 | Transcript card layout | Inline timestamp with speaker name in header row, pencil icon for edit on hover |
