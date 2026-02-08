@@ -143,10 +143,10 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             {/* Logo Area */}
             <div
                 className={`
-          p-4 border-b border-[#D1CEC5] dark:border-night-border 
+          h-[56px] px-4 border-b border-[#D1CEC5] dark:border-night-border 
           flex items-center justify-between cursor-pointer
           transition-[padding] duration-300
-          ${isCollapsed ? 'md:px-3' : 'md:p-6'}
+          ${isCollapsed ? 'md:px-3' : 'md:px-6'}
         `}
             >
                 <div

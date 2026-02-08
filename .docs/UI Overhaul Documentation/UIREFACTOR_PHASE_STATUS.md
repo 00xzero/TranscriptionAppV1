@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 6 - Editor Interim Alignment |
+| **Phase** | 7 - Modals |
 | **Status** | ⏳ Not Started |
 | **Owner** | Hamza |
 | **Started** | — |
@@ -21,7 +21,7 @@
 | 3 | App Shell + Routing | ✅ Complete | 2026-02-05 |
 | 4 | Library View | ✅ Complete | 2026-02-05 |
 | 5 | Capture Modal | ✅ Complete | 2026-02-06 |
-| 6 | Editor Interim Alignment | 🔄 In Progress | — |
+| 6 | Editor Interim Alignment | ✅ Complete | 2026-02-07 |
 | 7 | Modals | ⏳ Not Started | — |
 | 8 | QA + Cleanup | ⏳ Not Started | — |
 
@@ -53,9 +53,9 @@ None — Phase 3 complete.
 - ✅ Post-upload navigation: Stay on Library (modal closes, realtime updates show new project)
 
 ### Phase 6 — Editor Interim Alignment
-- Confirm which existing controls stay visible in the new layout.
-- Confirm waveform placeholder behavior (static vs collapsible based on scroll).
-- Confirm transcript card active state styling.
+- ✅ Waveform placeholder: Collapsible on scroll > 50px, shows mini progress bar.
+- ✅ Transcript card active state: `bg-trust-blue/10 dark:bg-trust-blue/15`.
+- ✅ Existing controls: AudioPlayer controls hidden when FloatingPlayerDeck is visible.
 
 ### Phase 7 — Modals
 - Confirm Export modal formats and labels.
@@ -220,7 +220,34 @@ None — Phase 3 complete.
 
 ### Phase 6 → Phase 7
 
-*To be filled when Phase 6 completes.*
+**Key Deliverables Created:**
+- Enhanced `CollapsibleWaveform.tsx` with gradient fades on edges
+- Updated typography in editor document header (text-4xl md:text-5xl, tracking-tight)
+- Transcript card styling refinements (active state, hover states, inline timestamp with speaker)
+- Verified `FloatingPlayerDeck.tsx` matches Olivetti glassmorphism styling
+- Header/sidebar alignment: Both now use `h-[56px]` for pixel-perfect divider alignment
+- Speaker color palette aligned with Olivetti prototype (trust-blue, ember-red, yellow-600)
+- Timestamp format standardized to `HH:MM:SS` with full zero-padding
+- Document header metadata display: Date • Speakers • Duration format
+
+**Decisions Made:**
+- Title typography: `text-4xl md:text-5xl tracking-tight italic` (matches Olivetti)
+- Metadata separators: Bullet dots (•) instead of pipes (|) for cleaner look
+- Active card styling: `bg-trust-blue/10 dark:bg-trust-blue/15` for consistent theming
+- Waveform gradient fades: `from-paper dark:from-black to-transparent` on edges
+- Header height: `h-[56px]` (matches Olivetti prototype, aligns with sidebar divider)
+- Speaker colors: First 3 match prototype exactly (#4F638C, #C73E1D, #CA8A04), then brand-complementary
+- Timestamp format: Always `HH:MM:SS` with leading zeros (e.g., `00:04:03`)
+
+**For Phase 7:**
+- Implement Find/Replace modal (triggered by ⌘F)
+- Restyle Export modal to Olivetti design
+- Remove inline Find/Replace toolbar from editor (or keep as fallback)
+
+**Gotchas:**
+- Time rulers and playhead styling deferred to future enhancement
+- Volume control section in FloatingPlayerDeck deferred
+- Inline Find/Replace toolbar remains for now; modal version is Phase 7
 
 ---
 
@@ -276,6 +303,11 @@ None — Phase 3 complete.
 | 2026-02-07 | Phase 5 | Granular Capture Outcomes | Distinguished 'started' vs 'saved_needs_retry' to guide users when Inngest/network fails but upload succeeded |
 | 2026-02-07 | Phase 5 | Automatic Rollback | If project creation succeeds but upload fails, the project is auto-deleted to prevent orphan records |
 | 2026-02-07 | Phase 5 | Suspense Boundary | `ProjectsPage` wrapped in Suspense to safely handle `useSearchParams` for capture outcome notification |
+| 2026-02-07 | Phase 6 | Header/sidebar alignment | Both use `h-[56px]` for pixel-perfect divider alignment matching Olivetti prototype |
+| 2026-02-07 | Phase 6 | Speaker color palette | First 3 colors match prototype exactly (trust-blue, ember-red, yellow-600), then brand-complementary |
+| 2026-02-07 | Phase 6 | Timestamp format | Always `HH:MM:SS` with full zero-padding for consistency |
+| 2026-02-07 | Phase 6 | Metadata display | Document header shows Date • Speakers • Duration format |
+| 2026-02-07 | Phase 6 | Transcript card layout | Inline timestamp with speaker name, pencil icon for edit on hover |
 
 ---
 

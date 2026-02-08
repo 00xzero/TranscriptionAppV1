@@ -17,6 +17,8 @@ import {
 import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
 import SpeakerPopover from '../../../components/SpeakerPopover'
 import ExportModal from '../../../components/ExportModal'
+import CollapsibleWaveform from '../../../components/CollapsibleWaveform'
+import FloatingPlayerDeck from '../../../components/FloatingPlayerDeck'
 import { useAudioSessionRecovery } from '../../../hooks/useAudioSessionRecovery'
 
 type Word = EditorWord
@@ -55,6 +57,22 @@ const computeWordsForSegments = <T extends { id: string; start_ms: number; end_m
   items: T[]
 ): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
 
+// Format date as "Oct 24, 2023"
+const formatProjectDate = (dateStr: string | null): string => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()
+}
+
+// Format duration in seconds as "HH:MM:SS"
+const formatDurationHHMMSS = (seconds: number | null): string => {
+  if (seconds === null || seconds === undefined) return ''
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  const s = Math.floor(seconds % 60)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
+
 export default function EditorPage({ params }: { params: { id: string } }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
@@ -91,6 +109,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const isSavingTitleRef = useRef(false)
   const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [waveformCollapsed, setWaveformCollapsed] = useState(false)
+  const [audioProgress, setAudioProgress] = useState(0)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
+  const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
   // Ref to prevent timeupdate/audioprocess from overriding manual card clicks
   const clickLockRef = useRef<number | null>(null)
   const readyRef = useRef(false)
@@ -162,6 +186,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     readyRef.current = true
     setReady(true)
     setStatus('Ready')
+    const player = audioPlayerRef.current
+    const currentTime = player?.getCurrentTime?.() ?? 0
+    const dur = player?.getDuration?.() ?? 0
+    setAudioCurrentTime(currentTime)
+    setAudioDuration(dur)
+    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
     const pendingSeekMs = pendingSeekRef.current
     if (pendingSeekMs !== null) {
       pendingSeekRef.current = null
@@ -179,7 +209,23 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const handleTimeUpdate = useCallback((currentTime: number) => {
     syncActiveSegment(Math.floor(currentTime * 1000))
+    setAudioCurrentTime(currentTime)
+    const player = audioPlayerRef.current
+    const dur = player?.getDuration?.() || 0
+    setAudioDuration(dur)
+    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
   }, [syncActiveSegment])
+
+  // Collapse waveform when transcript scrolls past 50px
+  useEffect(() => {
+    const container = transcriptScrollRef.current
+    if (!container) return
+    const handleScroll = () => {
+      setWaveformCollapsed(container.scrollTop > 50)
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Data loading effect - simpler now that AudioPlayer handles audio
   useEffect(() => {
@@ -220,6 +266,8 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           const projData = await fetchProjectById(params.id)
           if (!cancelled && projData) {
             setProjectTitle(projData.title || null)
+            setProjectCreatedAt(projData.created_at)
+            setProjectDurationSecs(projData.duration_seconds)
           }
         } catch (_) { /* ignore */ }
 
@@ -428,9 +476,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [])
 
   const speakerColorPalette = useMemo(() => [
-    '#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6',
-    '#8B5CF6', '#F472B6', '#0EA5E9', '#84CC16', '#EC4899',
-    '#06B6D4', '#A855F7', '#22C55E', '#F97316', '#3B82F6'
+    // First 3 colors match Olivetti prototype exactly
+    '#4F638C', // trust-blue (Speaker 0)
+    '#C73E1D', // ember-red (Speaker 1)
+    '#CA8A04', // warm amber/yellow-600 (Speaker 2)
+    // Additional brand-complementary colors for more speakers
+    '#0D9488', // teal-600 - calm, professional
+    '#7C3AED', // violet-600 - creative, distinct
+    '#64748B', // slate-500 - neutral, readable
+    '#B45309', // amber-700 - warm, earthy
+    '#059669', // emerald-600 - fresh, natural
+    '#DB2777', // pink-600 - vibrant accent
+    '#2563EB', // blue-600 - classic, trustworthy
   ], [])
 
   const speakerColorMap = useMemo(() => {
@@ -737,55 +794,49 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [saveTitle])
 
 
+  const uniqueSpeakerCount = useMemo(() => {
+    const ids = new Set(segments.map(s => s.speaker_id).filter(Boolean))
+    return ids.size
+  }, [segments])
+  const showStatusInMetaRow = status !== 'Ready'
+  const isStatusError = status.startsWith('Error:')
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              className={`text-xl font-semibold border rounded px-2 py-1 bg-surface text-current min-w-[300px] ${titleSaveError ? 'border-red-500' : 'border-base'}`}
-              value={titleInput}
-              onChange={(e) => setTitleInput(e.target.value)}
-              onKeyDown={onTitleKeyDown}
-              onBlur={onTitleBlur}
-              placeholder="Project title"
-            />
-          ) : (
-            <h1
-              className="text-xl font-semibold cursor-pointer hover:text-emerald-600 transition-colors"
-              onClick={startEditingTitle}
-              title="Click to edit title"
-            >
-              {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}
-            </h1>
-          )}
-        </div>
-        {titleSaveError && (
-          <span className="text-sm text-red-500">{titleSaveError}</span>
-        )}
-      </div>
-
-      {source === 'segments' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-3">
-          <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-amber-800">Mix Mode (Raw Segments)</h3>
-            <p className="text-sm text-amber-700 mt-1">
-              Text editing is disabled because consolidation was skipped, but you can assign speakers.
-            </p>
+    <div className="flex flex-col h-full relative">
+      {/* Collapsible Waveform — at the top */}
+      <CollapsibleWaveform
+        collapsed={waveformCollapsed}
+        audioProgress={audioProgress}
+        onExpandClick={() => {
+          setWaveformCollapsed(false)
+          transcriptScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      >
+        {audioSrc ? (
+          <AudioPlayer
+            ref={handleAudioPlayerRef}
+            src={audioSrc}
+            onReady={handleAudioReady}
+            onError={handleAudioError}
+            onPlayingChange={handlePlayingChange}
+            onTimeUpdate={handleTimeUpdate}
+            initialPlaybackRate={playbackRate}
+            hideControls
+          />
+        ) : (
+          <div className="h-12 flex items-center justify-center text-muted">
+            Loading audio...
           </div>
-        </div>
-      )}
+        )}
+      </CollapsibleWaveform>
 
-      <div className="bg-surface border border-base rounded p-4 space-y-3">
+      {/* Find/Replace toolbar */}
+      <div className="border-b border-ink/10 dark:border-paper/10 bg-paper/50 dark:bg-night-bg/50 px-6 py-3 shrink-0">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col">
-            <label className="text-xs text-muted uppercase tracking-wide">Find</label>
+            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Find</label>
             <input
-              className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
+              className="border border-ink/10 dark:border-paper/10 rounded-md px-2 py-1 bg-surface text-current min-w-[200px] focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
               value={findInput}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFindInput(e.target.value)}
               onKeyDown={onFindKeyDown}
@@ -795,9 +846,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
           {source !== 'segments' && (
             <div className="flex flex-col">
-              <label className="text-xs text-muted uppercase tracking-wide">Replace</label>
+              <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Replace</label>
               <input
-                className="border border-base rounded px-2 py-1 bg-surface text-current min-w-[200px]"
+                className="border border-ink/10 dark:border-paper/10 rounded-md px-2 py-1 bg-surface text-current min-w-[200px] focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
                 value={replaceTerm}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
                 placeholder="Replacement"
@@ -810,17 +861,17 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             Match case
           </label>
           <button
-            className="px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
             onClick={applyFindTerm}
             disabled={!findInput.trim() && !findTerm.trim()}
           >Find</button>
           <button
-            className="px-3 py-1.5 rounded bg-surface-alt disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-surface-alt disabled:opacity-50"
             onClick={handleNext}
             disabled={!canNavigate}
           >Next</button>
           <button
-            className="px-3 py-1.5 rounded bg-surface-alt disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-surface-alt disabled:opacity-50"
             onClick={handlePrev}
             disabled={!canNavigate}
           >Prev</button>
@@ -833,12 +884,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           {source !== 'segments' && (
             <>
               <button
-                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
                 onClick={handleReplace}
                 disabled={!canNavigate}
               >Replace</button>
               <button
-                className="px-3 py-1.5 rounded bg-emerald-700 text-white disabled:opacity-50"
+                className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
                 onClick={handleReplaceAll}
                 disabled={!canNavigate}
               >Replace all</button>
@@ -848,7 +899,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           {/* Export Button */}
           <div className="ml-auto">
             <button
-              className="px-4 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              className="px-4 py-1.5 rounded-md bg-ink dark:bg-paper text-paper dark:text-ink hover:opacity-90 transition-opacity"
               onClick={() => setExportModalOpen(true)}
             >
               Export
@@ -857,193 +908,281 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           <span data-testid="match-summary" className="text-sm text-muted ml-auto">{matchSummary}</span>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-7 bg-surface border border-base rounded p-4">
-          {audioSrc ? (
-            <AudioPlayer
-              ref={handleAudioPlayerRef}
-              src={audioSrc}
-              onReady={handleAudioReady}
-              onError={handleAudioError}
-              onPlayingChange={handlePlayingChange}
-              onTimeUpdate={handleTimeUpdate}
-              initialPlaybackRate={playbackRate}
-            />
-          ) : (
-            <div className="h-24 flex items-center justify-center text-muted">
-              Loading audio...
-            </div>
-          )}
-          <div className="mt-2 text-sm text-muted">{status}</div>
+
+      {/* Mix mode warning */}
+      {source === 'segments' && (
+        <div className="mx-6 my-3 bg-warm-highlight/30 dark:bg-warm-highlight/10 border border-ink/10 dark:border-paper/10 rounded-lg p-3 flex items-start gap-3">
+          <svg className="w-5 h-5 text-ink/60 dark:text-paper/60 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-ink dark:text-paper">Mix Mode (Raw Segments)</h3>
+            <p className="text-sm text-muted mt-1">
+              Text editing is disabled because consolidation was skipped, but you can assign speakers.
+            </p>
+          </div>
         </div>
+      )}
 
-        <div className="lg:col-span-5 bg-surface border border-base rounded p-4 max-h-[70vh] relative flex flex-col">
-          <h2 className="font-medium mb-3 shrink-0">Transcript</h2>
-
-          {/* Scrollable transcript content */}
-          <div className="flex-1 overflow-auto space-y-3" ref={transcriptScrollRef}>
-            <div>
-              {segments.map((s: Seg, idx: number) => {
-                const isActive = activeIds.segId === s.id
-                const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
-                const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
-                let charCursor = 0
-                const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
-                const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
-                const isContinuation = !needHeader
-                const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
-                const speakerLabel = sp?.label || 'Unknown'
-                const avatarBg = colorForSpeaker(sp)
-                const initials = getInitials(speakerLabel)
-                return (
-                  <div
-                    key={s.id}
-                    data-testid="segment-card"
-                    ref={(node: HTMLDivElement | null) => {
-                      if (node) {
-                        segmentRefs.current[s.id] = node
-                        if (isActive) activeSegRef.current = node
-                      } else {
-                        delete segmentRefs.current[s.id]
-                      }
-                    }}
-                    className={`group rounded cursor-pointer ${isContinuation ? 'pt-1 pb-2 pl-2 pr-2' : 'p-2 mt-3'} ${isActive ? 'bg-accent-soft border border-base' : 'hover:bg-surface-alt'}`}
-                    onClick={() => onSegmentClick(s.id, s.start_ms)}
-                  >
-                    <div className={`flex items-start ${needHeader ? 'gap-3' : 'gap-3 ml-11'}`}>
-                      {needHeader && (
-                        <div className="shrink-0 pt-0.5">
-                          <button
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold text-white hover:ring-2 hover:ring-offset-1 hover:ring-accent transition-shadow"
-                            style={{ backgroundColor: avatarBg }}
-                            onClick={(e) => handleAvatarClick(e, s.id, s.speaker_id ?? null)}
-                            title="Click to change speaker"
-                          >
-                            {initials}
-                          </button>
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        {needHeader && (
-                          <div className="text-[11px] uppercase tracking-wide text-muted mb-1 flex items-center gap-2">
-                            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: avatarBg }} />
-                            <span>{speakerLabel}</span>
-                          </div>
-                        )}
-                        <div className="text-[11px] text-muted mb-1 flex items-center gap-2">
-                          <span>{msToTimestamp(s.start_ms)} — {msToTimestamp(s.end_ms)}</span>
-                          <span className="ml-auto text-[11px]">
-                            {saveStatus[s.id] === 'saving' && <span className="text-amber-600">Saving…</span>}
-                            {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
-                            {saveStatus[s.id] === 'error' && <span className="text-red-600">Save failed</span>}
-                          </span>
-                          {source !== 'segments' && (
-                            <button
-                              className={`text-xs px-2 py-0.5 rounded border border-base hover:bg-surface-alt transition-opacity ${editingId === s.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                                e.stopPropagation()
-                                setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
-                                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
-                              }}
-                            >{editingId === s.id ? 'Close' : 'Edit'}</button>
-                          )}
-                        </div>
-                        {editingId === s.id ? (
-                          <div className="text-sm">
-                            <textarea
-                              ref={(node: HTMLTextAreaElement | null) => {
-                                if (node) {
-                                  textAreaRefs.current[s.id] = node
-                                } else {
-                                  delete textAreaRefs.current[s.id]
-                                }
-                              }}
-                              className="w-full border border-base bg-surface rounded p-2 min-h-[100px] text-current"
-                              value={editingTexts[s.id] ?? s.text}
-                              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                                const value = e.target.value
-                                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
-                                scheduleSave(s.id, value)
-                              }}
-                              onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
-                            />
-                          </div>
-                        ) : (
-                          <div className="text-sm leading-7">
-                            {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
-                              const wordText = w.text
-                              const wordStart = charCursor
-                              const wordEnd = wordStart + wordText.length
-                              let content: React.ReactNode
-                              const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
-                              if (overlapping.length === 0) {
-                                content = <>{wordText}</>
-                              } else {
-                                let localPos = 0
-                                const pieces: React.ReactNode[] = []
-                                overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
-                                  const startIdx = Math.max(0, m.index - wordStart)
-                                  const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
-                                  if (startIdx > localPos) {
-                                    pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
-                                  }
-                                  const highlight = wordText.slice(startIdx, endIdx)
-                                  pieces.push(
-                                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-yellow-400 text-black' : 'bg-yellow-200 text-black'}`}>{highlight}</span>
-                                  )
-                                  localPos = endIdx
-                                })
-                                if (localPos < wordText.length) {
-                                  pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
-                                }
-                                content = <>{pieces}</>
-                              }
-                              charCursor = wordEnd
-                              return (
-                                <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+      {/* Scrollable Content Area — Document Header + Transcript */}
+      <div className="flex-1 overflow-auto pb-32" ref={transcriptScrollRef}>
+        {/* Document Header — scrolls with content */}
+        <div className="px-6 md:px-20 pt-10 pb-6">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              {editingTitle ? (
+                <input
+                  ref={titleInputRef}
+                  className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-[#EAEAEA] min-w-[300px] focus:outline-none ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
+                  value={titleInput}
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  onKeyDown={onTitleKeyDown}
+                  onBlur={onTitleBlur}
+                  placeholder="Project title"
+                />
+              ) : (
+                <h1
+                  className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors mb-4"
+                  onClick={startEditingTitle}
+                  title="Click to edit title"
+                >
+                  {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}
+                </h1>
+              )}
+            </div>
+            {titleSaveError && (
+              <span className="text-sm text-ember-red">{titleSaveError}</span>
+            )}
+            <div className="flex items-center gap-4 text-xs font-mono uppercase tracking-wider text-ink/50 dark:text-paper/40">
+              {showStatusInMetaRow ? (
+                <span className={isStatusError ? 'text-ember-red/90 dark:text-ember-red/90' : ''}>
+                  {status}
+                </span>
+              ) : (
+                <>
+                  {projectCreatedAt && (
+                    <>
+                      <span>{formatProjectDate(projectCreatedAt)}</span>
+                      <span>•</span>
+                    </>
+                  )}
+                  <span>{uniqueSpeakerCount} speaker{uniqueSpeakerCount !== 1 ? 's' : ''}</span>
+                  {projectDurationSecs !== null && (
+                    <>
+                      <span>•</span>
+                      <span>{formatDurationHHMMSS(projectDurationSecs)}</span>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
+          <div className="h-px w-full bg-ink/10 dark:bg-white/10 mt-8" />
+        </div>
 
-          {/* Floating sync button - shows when not in follow mode and not editing */}
-          {!isFollowMode && activeIds.segId && !speakerPopover && !editingId && (
-            <button
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-purple-600 text-white rounded-full shadow-lg flex items-center gap-2 hover:bg-purple-700 transition-colors"
-              onClick={() => {
-                isUserScrollingRef.current = false // Mark as programmatic scroll
-                setIsFollowMode(true) // Enable follow mode
-                activeSegRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-              }}
-            >
-              {syncDirection === 'up' ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-              )}
-              Sync to audio
-            </button>
-          )}
+        {/* Transcript cards */}
+        <div className="px-6 md:px-20 max-w-5xl mx-auto space-y-1">
+          {segments.map((s: Seg, idx: number) => {
+            const isActive = activeIds.segId === s.id
+            const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+            const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
+            let charCursor = 0
+            const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
+            const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
+            const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
+            const speakerLabel = sp?.label || 'Unknown'
+            const avatarBg = colorForSpeaker(sp)
+            const initials = getInitials(speakerLabel)
+            return (
+              <div
+                key={s.id}
+                data-testid="segment-card"
+                ref={(node: HTMLDivElement | null) => {
+                  if (node) {
+                    segmentRefs.current[s.id] = node
+                    if (isActive) activeSegRef.current = node
+                  } else {
+                    delete segmentRefs.current[s.id]
+                  }
+                }}
+                className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
+                onClick={() => onSegmentClick(s.id, s.start_ms)}
+              >
+                {/* Vertical color bar */}
+                <div
+                  className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-sm' : 'w-1 opacity-60'}`}
+                  style={{ backgroundColor: avatarBg }}
+                />
+
+                <div className="flex-1 min-w-0">
+                  {needHeader && (
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <button
+                        type="button"
+                        className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/40"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAvatarClick(e, s.id, s.speaker_id ?? null)
+                        }}
+                        aria-label={`Change speaker (${speakerLabel})`}
+                        title="Click to change speaker"
+                      >
+                        {speakerLabel}
+                      </button>
+                      <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{msToTimestamp(s.start_ms)}</span>
+                      {/* Save status */}
+                      <span className="text-[10px] font-mono">
+                        {saveStatus[s.id] === 'saving' && <span className="text-trust-blue">Saving…</span>}
+                        {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
+                        {saveStatus[s.id] === 'error' && <span className="text-ember-red">Save failed</span>}
+                      </span>
+                      {/* Edit pencil icon */}
+                      {source !== 'segments' && (
+                        <button
+                          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === s.id ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation()
+                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
+                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
+                          }}
+                          title={editingId === s.id ? 'Close editor' : 'Edit text'}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!needHeader && (
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{msToTimestamp(s.start_ms)}</span>
+                      {/* Save status */}
+                      <span className="text-[10px] font-mono">
+                        {saveStatus[s.id] === 'saving' && <span className="text-trust-blue">Saving…</span>}
+                        {saveStatus[s.id] === 'saved' && <span className="text-emerald-600">Saved</span>}
+                        {saveStatus[s.id] === 'error' && <span className="text-ember-red">Save failed</span>}
+                      </span>
+                      {/* Edit pencil icon */}
+                      {source !== 'segments' && (
+                        <button
+                          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === s.id ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                            e.stopPropagation()
+                            setEditingId((prev: string | null) => (prev === s.id ? null : s.id))
+                            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: s.text }))
+                          }}
+                          title={editingId === s.id ? 'Close editor' : 'Edit text'}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {editingId === s.id ? (
+                    <div>
+                      <textarea
+                        ref={(node: HTMLTextAreaElement | null) => {
+                          if (node) {
+                            textAreaRefs.current[s.id] = node
+                          } else {
+                            delete textAreaRefs.current[s.id]
+                          }
+                        }}
+                        className="w-full border border-ink/10 dark:border-paper/10 bg-surface rounded-md p-2 min-h-[100px] text-current text-base leading-relaxed"
+                        value={editingTexts[s.id] ?? s.text}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                          const value = e.target.value
+                          setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
+                          scheduleSave(s.id, value)
+                        }}
+                        onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-base md:text-lg leading-relaxed text-ink dark:text-paper">
+                      {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+                        const wordText = w.text
+                        const wordStart = charCursor
+                        const wordEnd = wordStart + wordText.length
+                        let content: React.ReactNode
+                        const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
+                        if (overlapping.length === 0) {
+                          content = <>{wordText}</>
+                        } else {
+                          let localPos = 0
+                          const pieces: React.ReactNode[] = []
+                          overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
+                            const startIdx = Math.max(0, m.index - wordStart)
+                            const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
+                            if (startIdx > localPos) {
+                              pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
+                            }
+                            const highlight = wordText.slice(startIdx, endIdx)
+                            pieces.push(
+                              <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-yellow-400 text-black' : 'bg-yellow-200 text-black'}`}>{highlight}</span>
+                            )
+                            localPos = endIdx
+                          })
+                          if (localPos < wordText.length) {
+                            pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                          }
+                          content = <>{pieces}</>
+                        }
+                        charCursor = wordEnd
+                        return (
+                          <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
+      {/* Floating sync button — glassmorphism style */}
+      {!isFollowMode && activeIds.segId && !speakerPopover && !editingId && (
+        <button
+          className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white/60 dark:bg-black/60 backdrop-blur-md text-ink dark:text-paper border border-ink/10 dark:border-paper/10 rounded-2xl shadow-float flex items-center gap-2 hover:bg-white/80 dark:hover:bg-black/80 transition-colors"
+          onClick={() => {
+            isUserScrollingRef.current = false
+            setIsFollowMode(true)
+            activeSegRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }}
+        >
+          {syncDirection === 'up' ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+          )}
+          Sync to audio
+        </button>
+      )}
+
+      {/* Floating Player Deck */}
+      <FloatingPlayerDeck
+        currentTime={audioCurrentTime}
+        duration={audioDuration}
+        playing={playing}
+        playbackRate={playbackRate}
+        onTogglePlay={togglePlay}
+        onSeekRelative={seekRelative}
+        onRateChange={onRateChange}
+      />
+
       {/* Export Modal */}
-      {
-        exportModalOpen && (
-          <ExportModal
-            projectId={params.id}
-            projectTitle={projectTitle}
-            onClose={() => setExportModalOpen(false)}
-          />
-        )
-      }
+      {exportModalOpen && (
+        <ExportModal
+          projectId={params.id}
+          projectTitle={projectTitle}
+          onClose={() => setExportModalOpen(false)}
+        />
+      )}
 
       {/* Speaker Popover */}
       {speakerPopover && (
@@ -1059,8 +1198,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           getColorForSpeaker={colorForSpeaker}
         />
       )}
-
-    </div >
+    </div>
   )
 }
 
@@ -1070,5 +1208,5 @@ function msToTimestamp(ms: number): string {
   const m = Math.floor(totalSec / 60) % 60
   const h = Math.floor(totalSec / 3600)
   const pad = (n: number) => n.toString().padStart(2, '0')
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
 }
