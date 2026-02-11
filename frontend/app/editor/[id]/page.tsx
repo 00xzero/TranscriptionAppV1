@@ -36,12 +36,15 @@ const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
 const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
+// Scripts with little/no case mapping support; used for whole-word boundary checks.
+const NON_CASED_WORD_CHAR_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u3040-\u30FF\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF]/
 const COMBINING_MARK_START = 0x0300
 const COMBINING_MARK_END = 0x036f
 
 const isUnicodeWordChar = (char: string) => {
   if (!char) return false
   if (ASCII_WORD_CHAR_REGEX.test(char)) return true
+  if (NON_CASED_WORD_CHAR_REGEX.test(char)) return true
 
   const code = char.charCodeAt(0)
   if (code >= COMBINING_MARK_START && code <= COMBINING_MARK_END) return true
