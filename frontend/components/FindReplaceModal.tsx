@@ -122,7 +122,9 @@ export default function FindReplaceModal({
 
   const segmentsById = useMemo(() => {
     const map = new Map<string, string>()
-    segments.forEach((seg) => map.set(seg.id, seg.text || ''))
+    for (const seg of segments) {
+      map.set(seg.id, seg.text || '')
+    }
     return map
   }, [segments])
 

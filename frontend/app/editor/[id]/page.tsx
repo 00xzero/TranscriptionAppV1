@@ -35,6 +35,9 @@ const SYNC_OFFSET_MS = 150
 const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
+const UNICODE_WORD_CHAR_REGEX = /[\p{L}\p{N}\p{M}_]/u
+
+const isUnicodeWordChar = (char: string) => UNICODE_WORD_CHAR_REGEX.test(char)
 
 const computeWordsForSegment = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
   const duration = Math.max(1, (seg.end_ms - seg.start_ms))
@@ -538,7 +541,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
     if (!needle.length) return []
     const found: Match[] = []
-    const wordBoundary = /\w/
     for (const seg of segments) {
       const text = editingTexts[seg.id] ?? seg.text ?? ''
       const haystack = caseSensitive ? text : text.toLowerCase()
@@ -549,7 +551,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         if (wholeWord) {
           const before = idx > 0 ? haystack[idx - 1] : ''
           const after = idx + needle.length < haystack.length ? haystack[idx + needle.length] : ''
-          if ((before && wordBoundary.test(before)) || (after && wordBoundary.test(after))) {
+          if ((before && isUnicodeWordChar(before)) || (after && isUnicodeWordChar(after))) {
             start = idx + Math.max(needle.length, 1)
             continue
           }

@@ -121,6 +121,29 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByPlaceholderText(/Replacement/i)).not.toBeInTheDocument()
   })
 
+  test('treats accented letters as word characters in whole-word mode', async () => {
+    const user = userEventLib.setup()
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 'u1', start_ms: 0, end_ms: 3000, text: 'mañana ana', project_id: 'p1', speaker_id: null },
+      ],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await screen.findByTestId('audio-player')
+    await screen.findByTestId('segment-card')
+    await openFindReplaceModalWithShortcut()
+
+    const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
+    await user.type(findInput, 'ana')
+    await waitForMatchSummary(/1 of 2 matches/i)
+
+    await user.click(screen.getByRole('button', { name: /Whole Word/i }))
+    await waitForMatchSummary(/1 of 1 matches/i)
+  })
+
   test('disables replace actions while search input is still debouncing', async () => {
     const user = userEventLib.setup()
     render(<EditorPage params={{ id: 'p1' }} />)
