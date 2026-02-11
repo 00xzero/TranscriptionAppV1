@@ -314,7 +314,7 @@
 | Date | Decision | Reasoning |
 |:---|:---|:---|
 | 2026-02-11 | Auth redirect to `/` (Library) | Aligns with Phase 4 decision; Library is the primary landing page |
-| 2026-02-11 | `prefers-reduced-motion` disables all animations | Global `transition: none !important` and `animation: none !important` for accessibility |
+| 2026-02-11 | `prefers-reduced-motion` reduces motion | Global `transition: none` for themed elements and near‑zero animation/transition durations for all elements |
 | 2026-02-11 | `⌘E` Export shortcut | Follows `⌘F` pattern; intercepted before input guard in editor keyboard handler |
 | 2026-02-11 | Supabase bucket MIME aliases | Expanded `allowed_mime_types` to include browser aliases as defense-in-depth alongside client normalization |
 | 2026-02-11 | Deprecated `/import` fully removed | Page file deleted + removed from `PROTECTED_ROUTES`; no longer accessible via direct URL |
