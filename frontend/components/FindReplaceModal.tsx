@@ -156,7 +156,7 @@ export default function FindReplaceModal({
       />
 
       {/* Panel */}
-      <div className="flex justify-center" style={{ paddingTop: '20vh' }}>
+      <div className="flex justify-center pt-[20vh]">
         <div
           ref={panelRef}
           className="relative w-[600px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"

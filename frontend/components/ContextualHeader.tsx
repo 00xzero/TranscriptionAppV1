@@ -97,6 +97,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
             className="group w-[30px] h-[30px] rounded-[6px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 flex items-center justify-center hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-sm transition-all active:scale-95"
             onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
             title="Export"
+            aria-label="Export"
           >
             <svg
               className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:text-trust-blue transition-all"

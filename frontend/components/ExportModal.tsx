@@ -119,7 +119,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
       />
 
       {/* Panel */}
-      <div className="flex justify-center" style={{ paddingTop: '20vh' }}>
+      <div className="flex justify-center pt-[20vh]">
         <div
           ref={panelRef}
           className="relative w-[480px] max-w-[90vw] bg-[#F2EFED]/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"

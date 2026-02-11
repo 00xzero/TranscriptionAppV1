@@ -242,6 +242,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     const openExp = () => {
       setEditingId(null)
       setFindReplaceOpen(false)
+      setSpeakerPopover(null)
       setExportModalOpen(true)
     }
     window.addEventListener('open-find-replace', openFindReplaceModal)
