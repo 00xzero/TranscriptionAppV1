@@ -7,10 +7,10 @@
 | Field | Value |
 |:---|:---|
 | **Phase** | 8 - QA + Cleanup |
-| **Status** | ⏳ Not Started |
+| **Status** | ✅ Complete |
 | **Owner** | Hamza |
-| **Started** | — |
-| **Target Completion** | TBD |
+| **Started** | 2026-02-11 |
+| **Completed** | 2026-02-11 |
 
 ## Phase Progress
 
@@ -23,7 +23,7 @@
 | 5 | Capture Modal | ✅ Complete | 2026-02-06 |
 | 6 | Editor Interim Alignment | ✅ Complete | 2026-02-07 |
 | 7 | Modals | ✅ Complete | 2026-02-08 |
-| 8 | QA + Cleanup | ⏳ Not Started | — |
+| 8 | QA + Cleanup | ✅ Complete | 2026-02-11 |
 
 **Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked | ⏸ Deferred
 
@@ -68,8 +68,14 @@ None — Phase 3 complete.
 - ✅ Comprehensive test suite: 12+ tests covering modal interactions, debounce, cross-modal exclusion, auto-exit
 
 ### Phase 8 — QA + Cleanup
-- Confirm final acceptance checklist scope.
-- Confirm whether screenshots are required for PRs in this phase.
+- ✅ Deprecated `/import` route fully removed (page + middleware)
+- ✅ Auth post-login redirect fixed: `/projects` → `/` (Library)
+- ✅ `prefers-reduced-motion` accessibility support added to `globals.css`
+- ✅ No stale `data-theme` references found
+- ✅ 111/111 automated tests pass
+- ✅ `⌘E` Export shortcut implemented in editor
+- ✅ M4A upload fix: added browser MIME aliases to Supabase bucket allowlist
+- ✅ Testing checklist items verified (automated + browser)
 
 ---
 
@@ -364,6 +370,34 @@ None — Phase 3 complete.
 | 2026-02-11 | Phase 7 | Debounce dirty state indicator | "Searching..." shown while input differs from committed term; replace disabled until committed |
 | 2026-02-11 | Phase 7 | Auto-exit edit mode on modal open | Opening Find/Replace or Export clears segment editing and speaker popover to prevent conflicts |
 | 2026-02-11 | Phase 7 | Comprehensive modal test suite | 12+ tests covering Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit |
+| 2026-02-11 | Phase 8 | Auth redirect to `/` (Library) | Aligns with Phase 4 decision; Library is the primary landing page |
+| 2026-02-11 | Phase 8 | `prefers-reduced-motion` disables all animations | Global `transition: none !important` and `animation: none !important` for accessibility |
+| 2026-02-11 | Phase 8 | `⌘E` Export shortcut | Follows `⌘F` pattern; intercepted before input guard in editor keyboard handler |
+| 2026-02-11 | Phase 8 | Supabase bucket MIME aliases | Expanded `allowed_mime_types` to include browser aliases as defense-in-depth alongside client normalization |
+| 2026-02-11 | Phase 8 | Deprecated `/import` fully removed | Page file deleted + removed from `PROTECTED_ROUTES`; no longer accessible via direct URL |
+
+---
+
+### Phase 8 → Post-Overhaul
+
+**Key Deliverables Created:**
+- Deprecated `/import` route removed (page file deleted + removed from `PROTECTED_ROUTES` in `middleware.ts`)
+- Auth post-login redirect fixed from `/projects` → `/` (Library) in `auth/page.tsx`
+- `prefers-reduced-motion` accessibility media query added to `globals.css`
+- `⌘E` / `Ctrl+E` keyboard shortcut for Export modal in editor `page.tsx`
+- M4A upload fix: expanded Supabase `media` bucket `allowed_mime_types` to include browser aliases (`audio/x-m4a`, `audio/m4a`, `audio/x-wav`, `audio/mp3`, `audio/x-flac`, `video/x-m4v`)
+- Added forward migration (`20260211000000_expand_bucket_mime_types.sql`) to apply aliases in existing environments
+
+**Decisions Made:**
+- Auth redirect target is `/` (Library), not `/projects`, aligning with Phase 4 decision
+- `prefers-reduced-motion` disables all `transition` and `animation` properties globally
+- Export shortcut `⌘E` follows same pattern as `⌘F` Find/Replace shortcut
+- Supabase bucket allowlist expanded to accept ALL browser-reported MIME aliases rather than relying solely on client-side normalization
+
+**Gotchas:**
+- Supabase storage validates MIME types against the bucket's `allowed_mime_types` ARRAY *independently* of the `contentType` header — both the client normalization AND the bucket allowlist must cover browser aliases
+- The frontend `getMimeType()` normalizer in `useCapture.ts` still normalizes aliases to canonical types, but the bucket now accepts both as defense-in-depth
+- Some testing checklist items (transcript card seeks audio, full auth flow) require manual verification with real credentials
 
 ---
 

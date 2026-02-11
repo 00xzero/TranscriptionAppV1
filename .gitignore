@@ -45,5 +45,8 @@ Thumbs.db
 *.flv
 *.webm
 
+# Supabase CLI local state (machine-specific)
+infra/supabase/.temp/
+
 # Unused files
 Olivetti.html
