@@ -33,8 +33,8 @@
 - [x] Phase 3: App Shell + Routing
 - [x] Phase 4: Library View
 - [x] Phase 5: Capture Modal
-- [ ] Phase 6: Editor Interim Alignment
-- [ ] Phase 7: Modals
+- [x] Phase 6: Editor Interim Alignment
+- [x] Phase 7: Modals
 - [ ] Phase 8: QA + Cleanup
 
 ## Related Documentation

@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 7 - Modals |
+| **Phase** | 8 - QA + Cleanup |
 | **Status** | ⏳ Not Started |
 | **Owner** | Hamza |
 | **Started** | — |
@@ -22,7 +22,7 @@
 | 4 | Library View | ✅ Complete | 2026-02-05 |
 | 5 | Capture Modal | ✅ Complete | 2026-02-06 |
 | 6 | Editor Interim Alignment | ✅ Complete | 2026-02-07 |
-| 7 | Modals | ⏳ Not Started | — |
+| 7 | Modals | ✅ Complete | 2026-02-08 |
 | 8 | QA + Cleanup | ⏳ Not Started | — |
 
 **Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked | ⏸ Deferred
@@ -58,9 +58,14 @@ None — Phase 3 complete.
 - ✅ Existing controls: AudioPlayer controls hidden when FloatingPlayerDeck is visible.
 
 ### Phase 7 — Modals
-- Confirm Export modal formats and labels.
-- Confirm Find/Replace highlight colors and selection outline.
-- Confirm whether modals should trap focus.
+- ✅ Export modal: DOCX + VTT active, PDF "COMING SOON", Olivetti glassmorphism styling
+- ✅ Find/Replace highlight: warm-highlight (light) / trust-blue (dark), ember-red outline on current match
+- ✅ Focus trap: Both modals trap focus via useFocusTrap hook
+- ✅ Two-step Enter: first Enter commits search term, second Enter selects result and closes modal
+- ✅ Debounce dirty state: "Searching..." indicator while input is uncommitted; replace controls disabled
+- ✅ Highlights persist on modal close; clear only when query is cleared or changed
+- ✅ Auto-exit: Opening Find/Replace or Export auto-closes segment edit mode and speaker popover
+- ✅ Comprehensive test suite: 12+ tests covering modal interactions, debounce, cross-modal exclusion, auto-exit
 
 ### Phase 8 — QA + Cleanup
 - Confirm final acceptance checklist scope.
@@ -253,7 +258,46 @@ None — Phase 3 complete.
 
 ### Phase 7 → Phase 8
 
-*To be filled when Phase 7 completes.*
+**Key Deliverables Created:**
+- `FindReplaceModal.tsx`: Olivetti glassmorphism Find/Replace modal with search, navigation, replace, and match context snippets
+- `useFocusTrap.ts`: Lightweight focus trap hook (no dependencies) for Tab/Shift+Tab trapping, focus save/restore
+- Restyled `ExportModal.tsx`: Olivetti glassmorphism with custom radio-card format selector, ESC/scroll lock
+- Updated `ContextualHeader.tsx`: Export icon button + Find & Replace button with `Cmd+F` badge on editor route; translucency matched to FloatingPlayerDeck (`bg-white/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md`)
+- Updated editor `page.tsx`: Inline toolbar removed, Cmd+F shortcut, FindReplaceModal wired, Olivetti highlight colors, two-step Enter logic, debounce dirty state with "Searching..." indicator, auto-exit edit mode / speaker popover on modal open
+- Updated `CollapsibleWaveform.tsx`: Eliminated gap between header divider and mini progress bar (`leading-none` + `block` button)
+- Updated `editor.test.tsx`: Comprehensive test suite (12+ tests) — Cmd+F shortcut, debounce behavior, two-step Enter, replace one + replace all, Export modal open/close/ESC, cross-modal exclusion (Cmd+F ignored while Export open), auto-exit edit mode, auto-close speaker popover
+
+**Decisions Made:**
+- Find/Replace is a pure presentational modal; all state/logic stays in editor page (~15 props)
+- Header→editor communication via CustomEvent (`open-find-replace`, `open-export`) to avoid ModalContext dependency
+- ModalContext unchanged — custom events are simpler and test-safe
+- Both modals use `z-[100]` (matches CaptureModal), no conflicts since they're on different routes
+- Focus trap intercepts Tab only; tests using `type()` and `click()` are unaffected
+- Highlight colors: `bg-warm-highlight text-ink` (light) / `bg-trust-blue text-white` (dark), current match has `outline-2 outline-ember-red`
+- Header translucency: Matched to FloatingPlayerDeck for visual consistency (`/45` opacity + `backdrop-blur-md`)
+- Mini player flush: `leading-none` on wrapper + `block` on button eliminates inline baseline gap
+- Two-step Enter: First Enter commits dirty search term; second Enter on committed term selects result and closes modal (stays open if 0 matches)
+- Highlights persist on modal close: Matches remain visible until query is cleared or changed
+- Replace row appears when query is active; replace buttons remain disabled until search is committed with matches
+- Auto-exit edit mode: Opening Find/Replace or Export auto-closes any active segment textarea and speaker popover
+
+**For Phase 8:**
+- Full QA pass across all routes
+- Cross-browser testing (Safari, Firefox, Chrome)
+- Responsive testing at mobile/tablet breakpoints
+- Accessibility audit (keyboard navigation, screen reader)
+
+**Gotchas:**
+- `Cmd+F` is intercepted BEFORE the `instanceof HTMLInputElement` guard so it works even when an input is focused
+- FindReplaceModal ESC handler closes the modal; the editor keyboard handler does not need ESC handling
+- Body scroll lock (`overflow: hidden`) is applied on modal open and restored on close
+- Tests open the modal via `fireEvent.keyDown(document, { key: 'f', metaKey: true })` before interacting with find/replace
+- CollapsibleWaveform mini bar uses `block` display to avoid default inline-block baseline spacing from `<button>`
+- Header was previously `bg-paper/80 backdrop-blur-sm`; updated to match FloatingPlayerDeck exactly for cohesive glassmorphism
+- `isFindDirty` (`findInput !== findTerm`) gates navigation and replace buttons to prevent stale-match operations during debounce
+- `matchSummary` shows "Searching..." while dirty, preventing user confusion during the 800ms debounce window
+- Opening Export while Find/Replace is open (or vice versa) is prevented — Cmd+F is ignored while Export modal is visible
+- Segment edit mode (`editingId`) is cleared on modal open to prevent hidden textarea edits conflicting with find/replace
 
 ---
 
@@ -279,7 +323,7 @@ None — Phase 3 complete.
 | 2026-02-04 | Phase 1 | Language + Diarization disabled | Show as "Coming soon" placeholders in Capture modal |
 | 2026-02-04 | Phase 1 | `trust-blue` consistent across themes | Single accent color for links/actions in both modes |
 | 2026-02-04 | Phase 1 | `player-blue` for playback | Brighter blue (`#3B82F6`) specifically for audio controls |
-| 2026-02-04 | Phase 1 | Find/Replace modal details | Match Case toggle; snippet-only results; clear highlights on close; selecting result closes modal |
+| 2026-02-04 | Phase 1 | Find/Replace modal details | Match Case toggle; snippet-only results; highlights persist until query is cleared or changed; selecting result closes modal |
 | 2026-02-04 | Phase 1 | Recent Projects placeholders | Sample cards: “The Sonic Archives” (Active), “Product Roadmap” (Filed), plus New Project Folder placeholder |
 | 2026-02-05 | Phase 2 | Tailwind token names | Use `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark` |
 | 2026-02-05 | Phase 2 | Dark mode persistence | Store `app-theme` in localStorage; map legacy `blue` to `dark` |
@@ -308,6 +352,18 @@ None — Phase 3 complete.
 | 2026-02-07 | Phase 6 | Timestamp format | Always `HH:MM:SS` with full zero-padding for consistency |
 | 2026-02-07 | Phase 6 | Metadata display | Document header shows Date • Speakers • Duration format |
 | 2026-02-07 | Phase 6 | Transcript card layout | Inline timestamp with speaker name, pencil icon for edit on hover |
+| 2026-02-08 | Phase 7 | Find/Replace as modal, not inline toolbar | Matches Olivetti glassmorphism design, triggered via Cmd+F or header button |
+| 2026-02-08 | Phase 7 | CustomEvent for header→editor communication | Avoids ModalContext dependency, keeps tests simple (no ModalProvider wrapper needed) |
+| 2026-02-08 | Phase 7 | Focus trap via custom hook | Lightweight, no external dependency, Tab/Shift+Tab trapping with focus save/restore |
+| 2026-02-08 | Phase 7 | Highlight colors: warm-highlight + ember-red outline | Olivetti tokens for match highlighting; current match outlined in ember-red for visibility |
+| 2026-02-11 | Phase 7 | Header translucency matches FloatingPlayerDeck | `bg-white/45 backdrop-blur-md` for cohesive glassmorphism across all chrome |
+| 2026-02-11 | Phase 7 | Mini player flush with header divider | `leading-none` + `block` button eliminates inline baseline gap in CollapsibleWaveform |
+| 2026-02-11 | Phase 7 | Highlight persistence on close | Closing Find/Replace keeps highlights; highlights clear when query is cleared or changed |
+| 2026-02-11 | Phase 7 | Replace row visibility | Replace controls appear when a search query is active (buttons remain match-gated) |
+| 2026-02-11 | Phase 7 | Two-step Enter behavior | First Enter commits dirty term; second Enter selects result and closes modal (stays open if 0 matches) |
+| 2026-02-11 | Phase 7 | Debounce dirty state indicator | "Searching..." shown while input differs from committed term; replace disabled until committed |
+| 2026-02-11 | Phase 7 | Auto-exit edit mode on modal open | Opening Find/Replace or Export clears segment editing and speaker popover to prevent conflicts |
+| 2026-02-11 | Phase 7 | Comprehensive modal test suite | 12+ tests covering Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit |
 
 ---
 
