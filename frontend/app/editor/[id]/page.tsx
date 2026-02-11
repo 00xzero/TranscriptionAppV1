@@ -35,9 +35,20 @@ const SYNC_OFFSET_MS = 150
 const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
-const UNICODE_WORD_CHAR_REGEX = /[\p{L}\p{N}\p{M}_]/u
+const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
+const COMBINING_MARK_START = 0x0300
+const COMBINING_MARK_END = 0x036f
 
-const isUnicodeWordChar = (char: string) => UNICODE_WORD_CHAR_REGEX.test(char)
+const isUnicodeWordChar = (char: string) => {
+  if (!char) return false
+  if (ASCII_WORD_CHAR_REGEX.test(char)) return true
+
+  const code = char.charCodeAt(0)
+  if (code >= COMBINING_MARK_START && code <= COMBINING_MARK_END) return true
+
+  // Unicode letters generally have different upper/lower-case transforms.
+  return char.toLowerCase() !== char.toUpperCase()
+}
 
 const computeWordsForSegment = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
   const duration = Math.max(1, (seg.end_ms - seg.start_ms))
