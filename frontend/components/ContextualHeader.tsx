@@ -52,7 +52,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
     }, [])
 
     return (
-        <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-night-bg/80 backdrop-blur-sm flex items-center justify-between px-6 z-10 transition-colors duration-300">
+        <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-white/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
             {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
             <div className="flex items-center gap-2">
                 {!user ? (
@@ -81,7 +81,43 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
                 )}
             </div>
 
-            {/* Right: Search + Capture Button - Only show when authenticated and not on editor route */}
+            {/* Right: Editor actions (Find/Replace + Export) */}
+            {user && effectiveViewType === 'editor' && (
+                <div className="flex items-center gap-2">
+                    {/* Export icon button */}
+                    <button
+                        className="group w-[30px] h-[30px] rounded-[6px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 flex items-center justify-center hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-sm transition-all active:scale-95"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
+                        title="Export"
+                    >
+                        <svg className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:text-trust-blue transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </button>
+
+                    {/* Find & Replace button */}
+                    <button
+                        className="group box-border w-[172px] h-[30px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 rounded-[6px] flex items-center justify-between px-[13px] hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-sm shadow-sm transition-all active:scale-95"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-find-replace'))}
+                        title="Find & Replace"
+                    >
+                        <div className="flex items-center gap-[8px]">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-50 group-hover:opacity-80 transition-opacity">
+                                <circle cx="5.5" cy="5.5" r="4.5" className="stroke-ink dark:stroke-paper" strokeWidth="1.2" />
+                                <path d="M9 9L12.5 12.5" className="stroke-ink dark:stroke-paper" strokeWidth="1.2" strokeLinecap="round" />
+                            </svg>
+                            <span className="font-sans text-[10px] leading-[16px] text-ink/50 dark:text-paper/50 whitespace-nowrap">
+                                Find & Replace
+                            </span>
+                        </div>
+                        <div className="bg-ink/5 dark:bg-white/5 rounded-[4px] h-[15px] px-[6px] flex items-center justify-center">
+                            <span className="font-sans text-[8.5px] text-ink/50 dark:text-paper/50 leading-[15px]">{'\u2318'}F</span>
+                        </div>
+                    </button>
+                </div>
+            )}
+
+            {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
             {user && effectiveViewType !== 'editor' && (
                 <div className="flex items-center gap-6">
                     {/* Global Search - Desktop Only */}

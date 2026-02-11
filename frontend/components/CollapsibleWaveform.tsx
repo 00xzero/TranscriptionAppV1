@@ -18,13 +18,13 @@ export default function CollapsibleWaveform({
   const clampedProgress = Math.min(100, Math.max(0, audioProgress))
 
   return (
-    <div className="relative">
+    <div className="relative leading-none">
       {/* Mini progress bar — visible when collapsed */}
       {collapsed && (
         <button
           type="button"
           onClick={onExpandClick}
-          className="w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors"
+          className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors"
           aria-label="Expand waveform"
         >
           <div

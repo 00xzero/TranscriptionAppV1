@@ -17,6 +17,7 @@ import {
 import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
 import SpeakerPopover from '../../../components/SpeakerPopover'
 import ExportModal from '../../../components/ExportModal'
+import FindReplaceModal from '../../../components/FindReplaceModal'
 import CollapsibleWaveform from '../../../components/CollapsibleWaveform'
 import FloatingPlayerDeck from '../../../components/FloatingPlayerDeck'
 import { useAudioSessionRecovery } from '../../../hooks/useAudioSessionRecovery'
@@ -169,6 +170,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [replaceTerm, setReplaceTerm] = useState('')
   const [matchIndex, setMatchIndex] = useState(0)
   const [caseSensitive, setCaseSensitive] = useState(false)
+  const [wholeWord, setWholeWord] = useState(false)
   const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorRect: DOMRect } | null>(null)
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState(false)
@@ -178,6 +180,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const isSavingTitleRef = useRef(false)
   const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [exportModalOpen, setExportModalOpen] = useState(false)
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false)
   const [waveformCollapsed, setWaveformCollapsed] = useState(false)
   const [audioProgress, setAudioProgress] = useState(0)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -190,6 +193,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const pendingSeekRef = useRef<number | null>(null)
   const seekTokenRef = useRef(0)
   const seekTimeoutRef = useRef<number | null>(null)
+
+  const openFindReplaceModal = useCallback(() => {
+    if (exportModalOpen) return
+    // Auto-exit transcript text edit mode when entering find/replace.
+    setEditingId(null)
+    setSpeakerPopover(null)
+    setFindReplaceOpen(true)
+  }, [exportModalOpen])
 
   const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
     audioPlayerRef.current = player
@@ -208,6 +219,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       console.warn('[Editor] Audio recovery failed:', error)
     },
   })
+
+  // Listen for header button custom events
+  useEffect(() => {
+    const openExp = () => {
+      setEditingId(null)
+      setFindReplaceOpen(false)
+      setExportModalOpen(true)
+    }
+    window.addEventListener('open-find-replace', openFindReplaceModal)
+    window.addEventListener('open-export', openExp)
+    return () => {
+      window.removeEventListener('open-find-replace', openFindReplaceModal)
+      window.removeEventListener('open-export', openExp)
+    }
+  }, [openFindReplaceModal])
 
   const seekToMs = useCallback((targetMs: number) => {
     const player = audioPlayerRef.current
@@ -448,6 +474,12 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+F opens Find/Replace — intercept before the input guard
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        openFindReplaceModal()
+        return
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
       if (e.key === ' ') { e.preventDefault(); togglePlay(); return }
       if (e.key.toLowerCase() === 'j') { seekRelative(-2); return }
@@ -457,7 +489,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, seekRelative])
+  }, [togglePlay, seekRelative, openFindReplaceModal])
 
   const onWordClick = (ms: number) => {
     seekToMs(ms)
@@ -506,6 +538,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
     if (!needle.length) return []
     const found: Match[] = []
+    const wordBoundary = /\w/
     for (const seg of segments) {
       const text = editingTexts[seg.id] ?? seg.text ?? ''
       const haystack = caseSensitive ? text : text.toLowerCase()
@@ -513,12 +546,20 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       while (true) {
         const idx = haystack.indexOf(needle, start)
         if (idx === -1) break
+        if (wholeWord) {
+          const before = idx > 0 ? haystack[idx - 1] : ''
+          const after = idx + needle.length < haystack.length ? haystack[idx + needle.length] : ''
+          if ((before && wordBoundary.test(before)) || (after && wordBoundary.test(after))) {
+            start = idx + Math.max(needle.length, 1)
+            continue
+          }
+        }
         found.push({ segId: seg.id, index: idx, length: needle.length })
         start = idx + Math.max(needle.length, 1)
       }
     }
     return found
-  }, [segments, editingTexts, findTerm, caseSensitive])
+  }, [segments, editingTexts, findTerm, caseSensitive, wholeWord])
 
   const matchesBySeg = useMemo(() => {
     const map = new Map<string, SegmentMatch[]>()
@@ -592,46 +633,18 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     setMatchIndex(0)
-  }, [findTerm, caseSensitive])
+  }, [findTerm, caseSensitive, wholeWord])
 
   useEffect(() => {
     if (!currentMatch) return
     const seg = segments.find((s: Seg) => s.id === currentMatch.segId)
     if (!seg) return
 
-    if (editingId !== seg.id) {
-      setEditingId(seg.id)
-      setEditingTexts((prev: Record<string, string>) => prev[seg.id] !== undefined ? prev : { ...prev, [seg.id]: seg.text })
-      return
-    }
-
-    if (editingTexts[seg.id] === undefined) {
-      setEditingTexts((prev: Record<string, string>) => ({ ...prev, [seg.id]: seg.text }))
-      return
-    }
-
-    const area = textAreaRefs.current[seg.id]
-    if (area) {
-      try {
-        area.focus()
-        if (typeof area.setSelectionRange === 'function') {
-          const start = Math.max(0, Math.min(currentMatch.index, (area.value ?? '').length))
-          const end = Math.max(start, Math.min(currentMatch.index + currentMatch.length, (area.value ?? '').length))
-          area.setSelectionRange(start, end)
-        }
-        if (typeof area.scrollIntoView === 'function') {
-          area.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      } catch (_) {
-        // ignore selection errors in non-browser envs
-      }
-    }
-
     const card = segmentRefs.current[seg.id]
     try {
       card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     } catch (_) { /* noop */ }
-  }, [currentMatch, segments, editingId, editingTexts])
+  }, [currentMatch, segments])
 
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
@@ -683,28 +696,39 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     Object.entries(updatedTexts).forEach(([segId, text]) => scheduleSave(segId, text))
   }, [totalMatches, matches, segments, editingTexts, replaceTerm, scheduleSave])
 
-  const applyFindTerm = useCallback(() => {
-    setFindTerm(findInput)
+  // Debounce findInput into findTerm after 800ms of inactivity
+  useEffect(() => {
+    if (!findInput.trim()) {
+      setFindTerm('')
+      return
+    }
+    const timer = setTimeout(() => {
+      setFindTerm(findInput)
+    }, 800)
+    return () => clearTimeout(timer)
   }, [findInput])
 
   const onFindKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
+    // First Enter on a new term commits it; second Enter selects current result.
     if (findInput !== findTerm) {
-      applyFindTerm()
+      setFindTerm(findInput)
       return
     }
-    if (e.shiftKey) {
-      handlePrev()
-    } else {
-      handleNext()
+    if (totalMatches > 0) {
+      setFindReplaceOpen(false)
     }
-  }, [findInput, findTerm, applyFindTerm, handlePrev, handleNext])
+  }, [findInput, findTerm, totalMatches])
 
   const hasMatches = totalMatches > 0
   const isFindDirty = findInput !== findTerm
   const canNavigate = hasMatches && !isFindDirty
-  const matchSummary = isFindDirty ? 'Press Search' : (totalMatches ? `${matchIndex + 1}/${totalMatches}` : '0 matches')
+  const matchSummary = isFindDirty
+    ? 'Searching...'
+    : totalMatches
+      ? `${matchIndex + 1} of ${totalMatches} matches`
+      : (findTerm ? '0 matches' : '')
 
   // Speaker popover handlers
   const handleAvatarClick = useCallback((e: React.MouseEvent, chunkId: string, speakerId: string | null) => {
@@ -899,84 +923,41 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         )}
       </CollapsibleWaveform>
 
-      {/* Find/Replace toolbar */}
-      <div className="border-b border-ink/10 dark:border-paper/10 bg-paper/50 dark:bg-night-bg/50 px-6 py-3 shrink-0">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col">
-            <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Find</label>
-            <input
-              className="border border-ink/10 dark:border-paper/10 rounded-md px-2 py-1 bg-surface text-current min-w-[200px] focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
-              value={findInput}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFindInput(e.target.value)}
-              onKeyDown={onFindKeyDown}
-              placeholder="Search text"
-            />
-          </div>
-
-          {source !== 'segments' && (
-            <div className="flex flex-col">
-              <label className="text-[10px] font-mono text-muted uppercase tracking-wider">Replace</label>
-              <input
-                className="border border-ink/10 dark:border-paper/10 rounded-md px-2 py-1 bg-surface text-current min-w-[200px] focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
-                value={replaceTerm}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setReplaceTerm(e.target.value)}
-                placeholder="Replacement"
-              />
-            </div>
-          )}
-
-          <label className="flex items-center gap-2 text-sm text-muted">
-            <input type="checkbox" checked={caseSensitive} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCaseSensitive(e.target.checked)} />
-            Match case
-          </label>
-          <button
-            className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
-            onClick={applyFindTerm}
-            disabled={!findInput.trim() && !findTerm.trim()}
-          >Find</button>
-          <button
-            className="px-3 py-1.5 rounded-md bg-surface-alt disabled:opacity-50"
-            onClick={handleNext}
-            disabled={!canNavigate}
-          >Next</button>
-          <button
-            className="px-3 py-1.5 rounded-md bg-surface-alt disabled:opacity-50"
-            onClick={handlePrev}
-            disabled={!canNavigate}
-          >Prev</button>
-          {canNavigate && (
-            <span className="text-sm text-muted">
-              {matchIndex + 1} / {totalMatches}
-            </span>
-          )}
-
-          {source !== 'segments' && (
-            <>
-              <button
-                className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
-                onClick={handleReplace}
-                disabled={!canNavigate}
-              >Replace</button>
-              <button
-                className="px-3 py-1.5 rounded-md bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
-                onClick={handleReplaceAll}
-                disabled={!canNavigate}
-              >Replace all</button>
-            </>
-          )}
-
-          {/* Export Button */}
-          <div className="ml-auto">
-            <button
-              className="px-4 py-1.5 rounded-md bg-ink dark:bg-paper text-paper dark:text-ink hover:opacity-90 transition-opacity"
-              onClick={() => setExportModalOpen(true)}
-            >
-              Export
-            </button>
-          </div>
-          <span data-testid="match-summary" className="text-sm text-muted ml-auto">{matchSummary}</span>
-        </div>
-      </div>
+      {/* Find/Replace Modal */}
+      <FindReplaceModal
+        open={findReplaceOpen}
+        onClose={() => setFindReplaceOpen(false)}
+        findInput={findInput}
+        setFindInput={setFindInput}
+        findTerm={findTerm}
+        replaceTerm={replaceTerm}
+        setReplaceTerm={setReplaceTerm}
+        caseSensitive={caseSensitive}
+        setCaseSensitive={setCaseSensitive}
+        wholeWord={wholeWord}
+        setWholeWord={setWholeWord}
+        onNext={handleNext}
+        onPrev={handlePrev}
+        onReplace={handleReplace}
+        onReplaceAll={handleReplaceAll}
+        onFindKeyDown={onFindKeyDown}
+        onClear={() => {
+          setFindInput('')
+          setFindTerm('')
+          setReplaceTerm('')
+          setMatchIndex(0)
+          setCaseSensitive(false)
+          setWholeWord(false)
+        }}
+        matchSummary={matchSummary}
+        canNavigate={canNavigate}
+        canReplace={source !== 'segments'}
+        hasMatches={hasMatches}
+        matches={matches}
+        segments={segments}
+        matchIndex={matchIndex}
+        onMatchClick={(idx: number) => setMatchIndex(idx)}
+      />
 
       {/* Mix mode warning */}
       {source === 'segments' && (
@@ -1141,7 +1122,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                             }
                             const highlight = wordText.slice(startIdx, endIdx)
                             pieces.push(
-                              <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-yellow-400 text-black' : 'bg-yellow-200 text-black'}`}>{highlight}</span>
+                              <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
                             )
                             localPos = endIdx
                           })

@@ -76,9 +76,17 @@
 - Style transcript cards with speaker color indicators.
 
 ### 7) Modals
-- Restyle Export modal to Olivetti (radio selection, format badges).
-- Implement Find/Replace modal per [specification](#findreplace-modal-specification).
-- Remove inline Find/Replace controls from editor toolbar.
+- [x] Restyle Export modal to Olivetti (radio selection, format badges).
+- [x] Implement Find/Replace modal per [specification](#findreplace-modal-specification).
+- [x] Remove inline Find/Replace controls from editor toolbar.
+- [x] Add Export icon + Find & Replace button to ContextualHeader on editor route.
+- [x] Match header translucency to FloatingPlayerDeck (`bg-white/45 backdrop-blur-md`).
+- [x] Fix mini player gap: CollapsibleWaveform flush with header divider.
+- [x] Two-step Enter: first Enter commits search term, second Enter selects result and closes modal.
+- [x] Debounce dirty state with "Searching..." indicator; replace controls disabled until committed.
+- [x] Highlights persist on modal close; clear when query is cleared or changed.
+- [x] Auto-exit segment edit mode and speaker popover when opening modals.
+- [x] Comprehensive test suite (12+ tests): modal interactions, debounce, cross-modal exclusion, auto-exit.
 
 ### 8) QA + Cleanup
 - Execute [Testing Checklist](#testing-checklist).
@@ -119,11 +127,11 @@
 - On input, switches to "Matches in Transcript" results list
 - Each result shows snippet text only (no timestamp/speaker)
 - Click result → scroll to match in transcript, close modal
-- Closing the modal clears all highlights
+- Closing the modal preserves highlights until the query is cleared or changed
 - Include “Match case” toggle (keeps existing behavior)
 
 ### Replace Behavior
-- Replace row appears when search has results
+- Replace row appears when a search query is active
 - **"ONE" button**: Replace first occurrence only
 - **"ALL" button**: Replace all occurrences, show count Toast
 
@@ -134,7 +142,7 @@
 ### Keyboard Navigation
 - `↑` `↓` — Navigate results list
 - `↵` (Enter) — Select current result
-- `ESC` — Close modal, clear highlights
+- `ESC` — Close modal
 
 ---
 
@@ -279,3 +287,19 @@
 | 2026-02-07 | Timestamp format `HH:MM:SS` | Always show full zero-padded format for consistency with prototype |
 | 2026-02-07 | Metadata display format | Document header shows Date • Speakers • Duration with bullet separators |
 | 2026-02-07 | Transcript card layout | Inline timestamp with speaker name in header row, pencil icon for edit on hover |
+
+## Decisions Made (Phase 7)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-08 | Find/Replace as modal, not inline toolbar | Matches Olivetti glassmorphism design, triggered via Cmd+F or header button |
+| 2026-02-08 | CustomEvent for header→editor communication | Avoids ModalContext dependency, keeps tests simple (no ModalProvider wrapper needed) |
+| 2026-02-08 | Focus trap via custom hook (`useFocusTrap`) | Lightweight, no external dependency, Tab/Shift+Tab trapping with focus save/restore |
+| 2026-02-08 | Highlight colors: warm-highlight + ember-red outline | Olivetti tokens for match highlighting; current match outlined in ember-red for visibility |
+| 2026-02-11 | Header translucency matches FloatingPlayerDeck | `bg-white/45 backdrop-blur-md` for cohesive glassmorphism across all chrome |
+| 2026-02-11 | Mini player flush with header divider | `leading-none` + `block` button eliminates inline baseline gap in CollapsibleWaveform |
+| 2026-02-11 | Two-step Enter behavior | First Enter commits dirty term; second Enter selects result and closes modal (stays open if 0 matches) |
+| 2026-02-11 | Debounce dirty state indicator | "Searching..." shown while input differs from committed term; replace disabled until committed |
+| 2026-02-11 | Highlight persistence on close | Highlights remain visible after modal close; clear only when query is cleared or changed |
+| 2026-02-11 | Auto-exit edit mode on modal open | Opening Find/Replace or Export clears segment editing and speaker popover to prevent conflicts |
+| 2026-02-11 | Comprehensive modal test suite | 12+ tests covering Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit |
