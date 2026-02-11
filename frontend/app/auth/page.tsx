@@ -24,7 +24,7 @@ export default function AuthPage() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        router.push('/projects')
+        router.push('/')
         router.refresh()
       }
     }
@@ -33,7 +33,7 @@ export default function AuthPage() {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session) => {
       if (event === 'SIGNED_IN' && session) {
-        router.push('/projects')
+        router.push('/')
         router.refresh()
       }
     })
@@ -73,7 +73,7 @@ export default function AuthPage() {
           providers={[]}
           view="sign_in"
           showLinks={true}
-          redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/projects`}
+          redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/`}
         />
       </div>
 

@@ -89,9 +89,14 @@
 - [x] Comprehensive test suite (12+ tests): modal interactions, debounce, cross-modal exclusion, auto-exit.
 
 ### 8) QA + Cleanup
-- Execute [Testing Checklist](#testing-checklist).
-- Remove deprecated Import entry points.
-- Manual flow verification: auth → library → capture → editor → export.
+- [x] Execute [Testing Checklist](#testing-checklist).
+- [x] Remove deprecated Import entry points.
+- [x] Add `prefers-reduced-motion` accessibility support.
+- [x] Fix auth post-login redirect to Library (`/`).
+- [x] Add `⌘E` Export keyboard shortcut.
+- [x] Fix M4A upload: expand Supabase bucket MIME allowlist.
+- [x] 111/111 automated tests pass.
+- [ ] Manual flow verification: auth → library → capture → editor → export (requires credentials).
 
 ---
 
@@ -303,3 +308,13 @@
 | 2026-02-11 | Highlight persistence on close | Highlights remain visible after modal close; clear only when query is cleared or changed |
 | 2026-02-11 | Auto-exit edit mode on modal open | Opening Find/Replace or Export clears segment editing and speaker popover to prevent conflicts |
 | 2026-02-11 | Comprehensive modal test suite | 12+ tests covering Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit |
+
+## Decisions Made (Phase 8)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-11 | Auth redirect to `/` (Library) | Aligns with Phase 4 decision; Library is the primary landing page |
+| 2026-02-11 | `prefers-reduced-motion` reduces motion | Global `transition: none` for themed elements and near‑zero animation/transition durations for all elements |
+| 2026-02-11 | `⌘E` Export shortcut | Follows `⌘F` pattern; intercepted before input guard in editor keyboard handler |
+| 2026-02-11 | Supabase bucket MIME aliases | Expanded `allowed_mime_types` to include browser aliases as defense-in-depth alongside client normalization |
+| 2026-02-11 | Deprecated `/import` fully removed | Page file deleted + removed from `PROTECTED_ROUTES`; no longer accessible via direct URL |

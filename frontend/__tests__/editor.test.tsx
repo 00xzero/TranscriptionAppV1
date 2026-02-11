@@ -320,6 +320,36 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(document.querySelector('[data-testid="segment-card"] textarea')).toBeNull()
   })
 
+  test('does not open Export or prevent default for Ctrl+Alt+E while typing', async () => {
+    const user = userEventLib.setup()
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+
+    const editButtons = screen.getAllByTitle(/Edit text/i)
+    await user.click(editButtons[0])
+    const textarea = await waitFor(() => {
+      const el = document.querySelector('[data-testid="segment-card"] textarea')
+      expect(el).not.toBeNull()
+      return el as HTMLTextAreaElement
+    })
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'e',
+      ctrlKey: true,
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    const preventDefaultSpy = jest.spyOn(event, 'preventDefault')
+
+    textarea.dispatchEvent(event)
+
+    expect(preventDefaultSpy).not.toHaveBeenCalled()
+    expect(event.defaultPrevented).toBe(false)
+    expect(screen.queryByText(/Export Transcript/i)).not.toBeInTheDocument()
+  })
+
   test('auto-exits segment edit mode when opening Find/Replace', async () => {
     const user = userEventLib.setup()
     render(<EditorPage params={{ id: 'p1' }} />)

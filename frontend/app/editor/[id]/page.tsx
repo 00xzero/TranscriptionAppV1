@@ -219,6 +219,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setFindReplaceOpen(true)
   }, [exportModalOpen])
 
+  const openExportModal = useCallback(() => {
+    if (findReplaceOpen) setFindReplaceOpen(false)
+    setEditingId(null)
+    setSpeakerPopover(null)
+    setExportModalOpen(true)
+  }, [findReplaceOpen])
+
   const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
     audioPlayerRef.current = player
     setAudioElement(player?.getAudioElement?.() ?? null)
@@ -239,19 +246,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   // Listen for header button custom events
   useEffect(() => {
-    const openExp = () => {
-      setEditingId(null)
-      setFindReplaceOpen(false)
-      setSpeakerPopover(null)
-      setExportModalOpen(true)
-    }
     window.addEventListener('open-find-replace', openFindReplaceModal)
-    window.addEventListener('open-export', openExp)
+    window.addEventListener('open-export', openExportModal)
     return () => {
       window.removeEventListener('open-find-replace', openFindReplaceModal)
-      window.removeEventListener('open-export', openExp)
+      window.removeEventListener('open-export', openExportModal)
     }
-  }, [openFindReplaceModal])
+  }, [openFindReplaceModal, openExportModal])
 
   const seekToMs = useCallback((targetMs: number) => {
     const player = audioPlayerRef.current
@@ -492,13 +493,28 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isEditableTarget =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      const isAltGraph =
+        e.getModifierState?.('AltGraph') ||
+        (e.ctrlKey && e.altKey && !e.metaKey)
+
       // Cmd/Ctrl+F opens Find/Replace — intercept before the input guard
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         openFindReplaceModal()
         return
       }
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement)?.isContentEditable) return
+      // Cmd/Ctrl+E opens Export modal
+      if (!isEditableTarget && !e.altKey && !isAltGraph && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        openExportModal()
+        return
+      }
+      if (isEditableTarget) return
       if (e.key === ' ') { e.preventDefault(); togglePlay(); return }
       if (e.key.toLowerCase() === 'j') { seekRelative(-2); return }
       if (e.key.toLowerCase() === 'l') { seekRelative(2); return }
@@ -507,7 +523,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, seekRelative, openFindReplaceModal])
+  }, [togglePlay, seekRelative, openFindReplaceModal, openExportModal])
 
   const onWordClick = (ms: number) => {
     seekToMs(ms)
