@@ -44,12 +44,12 @@ export default function AuthPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <div className="auth-logo">
-          <div className="auth-logo-icon">
-            <div className="auth-logo-bar"></div>
-            <div className="auth-logo-dot"></div>
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="h-6 w-1 bg-[var(--text)] rounded-full"></div>
+            <div className="h-2 w-2 bg-[#C73E1D] rounded-sm"></div>
           </div>
-          <h1 className="auth-title">olivetti</h1>
+          <h1 className="text-[1.625rem] font-normal text-[var(--text)] font-serif italic tracking-[-0.02em]">olivetti</h1>
         </div>
         <p className="auth-subtitle">Sign in to continue</p>
 
@@ -104,42 +104,7 @@ export default function AuthPage() {
           backdrop-filter: blur(14px);
         }
         
-        .auth-logo {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.75rem;
-          margin-bottom: 0.5rem;
-        }
 
-        .auth-logo-icon {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-        }
-
-        .auth-logo-bar {
-          height: 1.5rem;
-          width: 0.25rem;
-          background-color: var(--text);
-          border-radius: 9999px;
-        }
-
-        .auth-logo-dot {
-          height: 0.5rem;
-          width: 0.5rem;
-          background-color: #C73E1D;
-          border-radius: 0.125rem;
-        }
-
-        .auth-title {
-          font-size: 1.625rem;
-          font-weight: 400;
-          color: var(--text);
-          font-family: var(--font-serif);
-          font-style: italic;
-          letter-spacing: -0.02em;
-        }
         
         .auth-subtitle {
           color: var(--muted);

@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
         <ModalProvider>
           <Sidebar />
-          <main className="flex-1 relative overflow-hidden content-layer">
+          <main className="flex-1 relative overflow-hidden z-[1]">
             <div className="absolute top-0 left-0 right-0 z-40">
               <ContextualHeader />
             </div>

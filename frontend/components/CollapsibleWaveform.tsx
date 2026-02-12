@@ -92,7 +92,11 @@ export default function CollapsibleWaveform({
         break
       case 'Home':
         e.preventDefault()
-        onExpandClick()
+        if (onScrub) {
+          onScrub(0)
+        } else {
+          onExpandClick()
+        }
         break
       case 'End':
         if (!onScrub) break

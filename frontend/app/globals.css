@@ -115,11 +115,6 @@ html.dark .bg-noise::before,
   opacity: 0.05;
 }
 
-.content-layer {
-  position: relative;
-  z-index: 1;
-}
-
 /* Custom scrollbar ("Archive Rail") */
 ::-webkit-scrollbar {
   width: 6px;

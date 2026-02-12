@@ -178,7 +178,7 @@ describe('CollapsibleWaveform', () => {
     expect(onExpandClick).toHaveBeenCalledTimes(1)
   })
 
-  it('supports keyboard expand with Home even when onScrub is provided', () => {
+  it('supports keyboard scrub-to-start with Home when onScrub is provided', () => {
     const onScrub = jest.fn()
     const onExpandClick = jest.fn()
     render(
@@ -190,8 +190,8 @@ describe('CollapsibleWaveform', () => {
     )
     const slider = screen.getByRole('slider')
     fireEvent.keyDown(slider, { key: 'Home' })
-    expect(onExpandClick).toHaveBeenCalledTimes(1)
-    expect(onScrub).not.toHaveBeenCalled()
+    expect(onExpandClick).not.toHaveBeenCalled()
+    expect(onScrub).toHaveBeenCalledWith(0)
   })
 
   it('supports keyboard scrubbing with arrow/end keys', () => {

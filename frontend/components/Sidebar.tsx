@@ -133,7 +133,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     return (
         <nav
             className={`
-        group/sidebar content-layer flex flex-col justify-between flex-shrink-0 z-20
+        group/sidebar flex flex-col justify-between flex-shrink-0 z-20
         bg-[#DFDCD4] dark:bg-night-surface border-r border-[#D1CEC5] dark:border-night-border
         transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
         ${isCollapsed ? 'w-16' : 'w-16 md:w-64'}
