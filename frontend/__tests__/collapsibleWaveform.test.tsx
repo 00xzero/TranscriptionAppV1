@@ -86,6 +86,19 @@ describe('CollapsibleWaveform', () => {
     expect(onScrub).toHaveBeenCalledWith(1)
   })
 
+  it('returns safe default when scrubber width is zero', () => {
+    const onScrub = jest.fn()
+    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    const slider = screen.getByRole('slider')
+    mockBarRect(slider, 100, 0)
+
+    fireEvent.click(slider, { clientX: 150 })
+    act(() => {
+      jest.advanceTimersByTime(250)
+    })
+    expect(onScrub).toHaveBeenCalledWith(0)
+  })
+
   it('clamps fraction to 0-1 for out-of-bounds clicks', () => {
     const onScrub = jest.fn()
     render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
@@ -163,6 +176,20 @@ describe('CollapsibleWaveform', () => {
 
     fireEvent.click(slider)
     expect(onExpandClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores dblclick when onScrub is NOT provided', () => {
+    const onExpandClick = jest.fn()
+    render(
+      <CollapsibleWaveform
+        {...defaultProps}
+        onExpandClick={onExpandClick}
+      />
+    )
+    const slider = screen.getByRole('slider')
+
+    fireEvent.doubleClick(slider)
+    expect(onExpandClick).not.toHaveBeenCalled()
   })
 
   it('supports keyboard expand with Home when onScrub is NOT provided', () => {

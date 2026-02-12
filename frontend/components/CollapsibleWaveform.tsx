@@ -25,6 +25,7 @@ export default function CollapsibleWaveform({
   const [isDragging, setIsDragging] = useState(false)
 
   const clampFraction = useCallback((fraction: number) => {
+    if (!Number.isFinite(fraction)) return 0
     return Math.max(0, Math.min(1, fraction))
   }, [])
 
@@ -32,7 +33,10 @@ export default function CollapsibleWaveform({
     const bar = barRef.current
     if (!bar) return 0
     const rect = bar.getBoundingClientRect()
-    return clampFraction((clientX - rect.left) / rect.width)
+    const width = rect.width
+    if (!width || !Number.isFinite(width)) return 0
+    const fraction = (clientX - rect.left) / width
+    return clampFraction(fraction)
   }, [clampFraction])
 
   const clearPendingClick = useCallback(() => {
@@ -57,9 +61,10 @@ export default function CollapsibleWaveform({
   }, [onScrub, onExpandClick, fractionFromEvent, clearPendingClick])
 
   const handleDoubleClick = useCallback(() => {
+    if (!onScrub) return
     clearPendingClick()
     onExpandClick()
-  }, [onExpandClick, clearPendingClick])
+  }, [onScrub, onExpandClick, clearPendingClick])
 
   const handleMouseDown = useCallback(() => {
     if (!onScrub) return
@@ -73,7 +78,7 @@ export default function CollapsibleWaveform({
       case 'Spacebar':
         e.preventDefault()
         if (onScrub) {
-          onScrub(currentFraction)
+          onScrub(clampFraction(currentFraction))
         } else {
           onExpandClick()
         }
