@@ -254,7 +254,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
   }, [openFindReplaceModal, openExportModal])
 
-  const seekToMs = useCallback((targetMs: number) => {
+  const seekToMs = useCallback((targetMs: number, { skipLock = false }: { skipLock?: boolean } = {}) => {
     const player = audioPlayerRef.current
     if (!player) return
 
@@ -263,8 +263,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       return
     }
 
-    // Set click lock to prevent sync overriding manual seeks
-    clickLockRef.current = Date.now() + SEEK_LOCK_MS
+    if (!skipLock) {
+      // Set click lock to prevent sync overriding manual seeks (e.g. transcript card clicks)
+      clickLockRef.current = Date.now() + SEEK_LOCK_MS
+    } else {
+      // Clear any existing lock so transcript syncs immediately
+      clickLockRef.current = null
+    }
 
     // Delegate to AudioPlayer's seekToMs
     player.seekToMs(targetMs)
@@ -934,9 +939,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         collapsed={waveformCollapsed}
         audioProgress={audioProgress}
         onExpandClick={() => {
+          setIsFollowMode(false)
           setWaveformCollapsed(false)
           transcriptScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
         }}
+        onScrub={(fraction) => seekToMs(fraction * audioDuration * 1000, { skipLock: true })}
       >
         {audioSrc ? (
           <AudioPlayer
@@ -992,23 +999,28 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         onMatchClick={(idx: number) => setMatchIndex(idx)}
       />
 
-      {/* Mix mode warning */}
+      {/* Mix mode warning - collapse in sync with waveform */}
       {source === 'segments' && (
-        <div className="mx-6 my-3 bg-warm-highlight/30 dark:bg-warm-highlight/10 border border-ink/10 dark:border-paper/10 rounded-lg p-3 flex items-start gap-3">
-          <svg className="w-5 h-5 text-ink/60 dark:text-paper/60 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <div className="flex-1">
-            <h3 className="text-sm font-medium text-ink dark:text-paper">Mix Mode (Raw Segments)</h3>
-            <p className="text-sm text-muted mt-1">
-              Text editing is disabled because consolidation was skipped, but you can assign speakers.
-            </p>
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${waveformCollapsed ? 'max-h-0 opacity-0 my-0' : 'max-h-32 opacity-100 my-3'
+            }`}
+        >
+          <div className="mx-6 bg-warm-highlight/30 dark:bg-warm-highlight/10 border border-ink/10 dark:border-paper/10 rounded-lg p-3 flex items-start gap-3">
+            <svg className="w-5 h-5 text-ink/60 dark:text-paper/60 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-ink dark:text-paper">Mix Mode (Raw Segments)</h3>
+              <p className="text-sm text-muted mt-1">
+                Text editing is disabled because consolidation was skipped, but you can assign speakers.
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* Scrollable Content Area — Document Header + Transcript */}
-      <div className="flex-1 overflow-auto pb-32" ref={transcriptScrollRef}>
+      <div className={`flex-1 overflow-auto pb-32 ${waveformCollapsed ? 'pt-[56px]' : 'pt-0'}`} ref={transcriptScrollRef}>
         {/* Document Header — scrolls with content */}
         <div className="px-6 md:px-20 pt-10 pb-6">
           <div className="flex flex-col">
@@ -1135,7 +1147,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                       />
                     </div>
                   ) : (
-                    <div className="text-base md:text-lg leading-relaxed text-ink dark:text-paper">
+                    <div className="font-sans text-lg leading-relaxed text-ink/90 dark:text-paper/80">
                       {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
                         const wordText = w.text
                         const wordStart = charCursor

@@ -44,7 +44,13 @@ export default function AuthPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1 className="auth-title">Transcription App</h1>
+        <div className="flex items-center justify-center gap-3 mb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="h-6 w-1 bg-[var(--text)] rounded-full"></div>
+            <div className="h-2 w-2 bg-[var(--brand-red)] rounded-sm"></div>
+          </div>
+          <h1 className="text-[1.625rem] font-normal text-[var(--text)] font-serif italic tracking-[-0.02em]">olivetti</h1>
+        </div>
         <p className="auth-subtitle">Sign in to continue</p>
 
         <Auth
@@ -98,16 +104,7 @@ export default function AuthPage() {
           backdrop-filter: blur(14px);
         }
         
-        .auth-title {
-          font-size: 1.625rem;
-          font-weight: 600;
-          color: var(--text);
-          text-align: center;
-          margin-bottom: 0.5rem;
-          font-family: var(--font-serif);
-          font-style: italic;
-          letter-spacing: -0.01em;
-        }
+
         
         .auth-subtitle {
           color: var(--muted);

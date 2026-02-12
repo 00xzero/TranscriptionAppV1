@@ -21,6 +21,8 @@ body,
   /* primary border */
   --accent: #4F638C;
   /* trust-blue */
+  --brand-red: #C73E1D;
+  /* olivetti brand red */
   --muted: #6F6B63;
   /* warm gray */
 }
@@ -38,6 +40,8 @@ body,
   /* night-border */
   --accent: #4F638C;
   /* trust-blue */
+  --brand-red: #C73E1D;
+  /* olivetti brand red */
   --muted: #B9B4AA;
   /* muted paper */
 }
@@ -113,11 +117,6 @@ body {
 html.dark .bg-noise::before,
 .dark.bg-noise::before {
   opacity: 0.05;
-}
-
-.content-layer {
-  position: relative;
-  z-index: 1;
 }
 
 /* Custom scrollbar ("Archive Rail") */

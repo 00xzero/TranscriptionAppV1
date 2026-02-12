@@ -21,11 +21,10 @@ export default function UploadPage() {
 
   // Show minimal loading state during redirect
   return (
-    <div className="flex items-center justify-center h-[50vh]">
+    <div className="flex items-center justify-center h-[50vh] pt-[56px]">
       <div className="text-center text-ink/50 dark:text-paper/50">
         <p className="text-sm">Redirecting...</p>
       </div>
     </div>
   )
 }
-

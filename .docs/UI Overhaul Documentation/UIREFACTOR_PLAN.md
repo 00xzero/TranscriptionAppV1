@@ -98,6 +98,19 @@
 - [x] 111/111 automated tests pass.
 - [ ] Manual flow verification: auth → library → capture → editor → export (requires credentials).
 
+### Extra UI Tweaks
+- [x] Overlay header: `ContextualHeader` absolutely positioned (`z-40`) for content-under-header scroll pattern.
+- [x] Header background: Light mode `bg-paper/80` for better Olivetti token alignment.
+- [x] Health/Upload top padding: `pt-[80px]` / `pt-[56px]` to clear overlay header.
+- [x] Auth page brand mark: Bar + dot icon above title, font weight 400, letter-spacing `-0.02em`.
+- [x] LibraryView/Projects top padding (`pt-[80px]`) to clear overlay header.
+- [x] Editor layout: `pt-[56px]` for overlay header, negative-margin scroll trick, transcript text refinement.
+- [x] Interactive Waveform Scrubber: Click-to-seek, drag-to-scrub, and keyboard/ARIA slider controls.
+- [x] Waveform corrected: `z-50` (collapsed) / `z-30` (expanded) for correct stacking; increased `max-h-72`.
+- [x] Editor refined: `seekToMs` skipLock parameter, mix-mode warning sync collapse, follow-mode safety.
+- [x] CaptureModal diarization toggle: Default visual state changed to ON (ember-red).
+- [x] Body `antialiased` class for smoother font rendering globally.
+
 ---
 
 ## Component Inventory
@@ -318,3 +331,19 @@
 | 2026-02-11 | `⌘E` Export shortcut | Follows `⌘F` pattern; intercepted before input guard in editor keyboard handler |
 | 2026-02-11 | Supabase bucket MIME aliases | Expanded `allowed_mime_types` to include browser aliases as defense-in-depth alongside client normalization |
 | 2026-02-11 | Deprecated `/import` fully removed | Page file deleted + removed from `PROTECTED_ROUTES`; no longer accessible via direct URL |
+
+## Decisions Made (Extra UI Tweaks)
+
+| Date | Decision | Reasoning |
+|:---|:---|:---|
+| 2026-02-11 | Overlay header layout | `ContextualHeader` absolutely positioned (`z-40`) so content scrolls beneath translucent header |
+| 2026-02-11 | Header background change | Light mode `bg-paper/80` feels more integrated with the noise texture and paper theme than pure white |
+| 2026-02-11 | Interactive scrubbing | Waveform mini-bar should be functional as well as informative; supports single-click seek and drag-to-scrub |
+| 2026-02-11 | `seekToMs` skipLock | Scrubbing requires high-frequency seeks; bypasses the transcript-card click lock for immediate feedback |
+| 2026-02-11 | Mix-mode warning sync | Collapses in sync with the waveform to maximize vertical space for transcript reading |
+| 2026-02-11 | Auth brand mark | Bar + dot icon mirrors sidebar logo; serif italic title at weight 400 for editorial feel |
+| 2026-02-11 | Content top-padding | LibraryView/Projects use `pt-[80px]`, editor uses `pt-[56px]` with negative-margin scroll trick |
+| 2026-02-11 | Diarization toggle default ON | Visual state changed to ember-red (ON) since Deepgram pipeline enables diarization by default |
+| 2026-02-11 | Body `antialiased` | Tailwind `antialiased` class on `<body>` for smoother font rendering globally |
+| 2026-02-11 | Transcript text refinement | `font-sans text-lg` with `ink/90` / `paper/80` opacity for softer reading experience |
+| 2026-02-11 | Waveform stacking | `z-50` (collapsed) / `z-30` (expanded) ensures correct layering above content but below header |

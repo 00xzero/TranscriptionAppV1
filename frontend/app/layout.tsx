@@ -35,12 +35,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} bg-noise h-screen flex overflow-hidden`}>
+      <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
         <ModalProvider>
           <Sidebar />
-          <main className="flex-1 flex flex-col relative overflow-hidden content-layer">
-            <ContextualHeader />
-            <div className="flex-1 overflow-y-auto">
+          <main className="flex-1 relative overflow-hidden z-[1]">
+            <div className="absolute top-0 left-0 right-0 z-40">
+              <ContextualHeader />
+            </div>
+            <div className="h-full w-full overflow-y-auto">
               {children}
             </div>
           </main>
