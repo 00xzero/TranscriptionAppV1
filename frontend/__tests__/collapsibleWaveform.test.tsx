@@ -135,7 +135,12 @@ describe('CollapsibleWaveform', () => {
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 200)
 
-    fireEvent.doubleClick(slider)
+    fireEvent.click(slider, { clientX: 100, detail: 1 })
+    act(() => {
+      jest.advanceTimersByTime(50)
+    })
+    fireEvent.click(slider, { clientX: 102, detail: 2 })
+    fireEvent.doubleClick(slider, { clientX: 102, detail: 2 })
     act(() => {
       jest.advanceTimersByTime(300)
     })
