@@ -54,10 +54,20 @@ export default function LibraryView() {
   useEffect(() => {
     const supabase = createClient()
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (error) {
+          console.error('Failed to fetch user:', error)
+          setUser(null)
+          return
+        }
+        setUser(data.user ?? null)
+      } catch (error) {
+        console.error('Unexpected error fetching user:', error)
+        setUser(null)
+      }
     }
-    getUser()
+    void getUser()
   }, [])
 
   // Get greeting based on time of day

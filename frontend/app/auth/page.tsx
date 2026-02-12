@@ -47,7 +47,7 @@ export default function AuthPage() {
         <div className="flex items-center justify-center gap-3 mb-2">
           <div className="flex items-center gap-1.5">
             <div className="h-6 w-1 bg-[var(--text)] rounded-full"></div>
-            <div className="h-2 w-2 bg-[#C73E1D] rounded-sm"></div>
+            <div className="h-2 w-2 bg-[var(--brand-red)] rounded-sm"></div>
           </div>
           <h1 className="text-[1.625rem] font-normal text-[var(--text)] font-serif italic tracking-[-0.02em]">olivetti</h1>
         </div>
