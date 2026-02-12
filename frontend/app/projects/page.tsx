@@ -246,7 +246,7 @@ function ProjectsPageContent() {
     connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-[80px] px-6 md:px-10">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Projects</h1>
         <div className="flex items-center gap-2 text-xs text-muted">

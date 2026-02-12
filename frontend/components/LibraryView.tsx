@@ -126,7 +126,7 @@ export default function LibraryView() {
     const isCompleted = (status: string) => status === 'complete' || status === 'completed'
 
     return (
-        <div className="p-6 md:p-10 space-y-10 scroll-smooth">
+        <div className="pt-[80px] px-6 pb-6 md:pt-[80px] md:px-10 md:pb-10 space-y-10 scroll-smooth">
             <section>
                 <h2 className="font-serif text-3xl text-ink dark:text-paper mb-6">
                     {getGreeting()}, {getUserFirstName()}.

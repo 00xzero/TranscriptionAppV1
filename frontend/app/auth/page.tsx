@@ -44,7 +44,13 @@ export default function AuthPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h1 className="auth-title">Transcription App</h1>
+        <div className="auth-logo">
+          <div className="auth-logo-icon">
+            <div className="auth-logo-bar"></div>
+            <div className="auth-logo-dot"></div>
+          </div>
+          <h1 className="auth-title">olivetti</h1>
+        </div>
         <p className="auth-subtitle">Sign in to continue</p>
 
         <Auth
@@ -98,15 +104,41 @@ export default function AuthPage() {
           backdrop-filter: blur(14px);
         }
         
+        .auth-logo {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .auth-logo-icon {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+        }
+
+        .auth-logo-bar {
+          height: 1.5rem;
+          width: 0.25rem;
+          background-color: var(--text);
+          border-radius: 9999px;
+        }
+
+        .auth-logo-dot {
+          height: 0.5rem;
+          width: 0.5rem;
+          background-color: #C73E1D;
+          border-radius: 0.125rem;
+        }
+
         .auth-title {
           font-size: 1.625rem;
-          font-weight: 600;
+          font-weight: 400;
           color: var(--text);
-          text-align: center;
-          margin-bottom: 0.5rem;
           font-family: var(--font-serif);
           font-style: italic;
-          letter-spacing: -0.01em;
+          letter-spacing: -0.02em;
         }
         
         .auth-subtitle {

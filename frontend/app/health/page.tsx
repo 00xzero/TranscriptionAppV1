@@ -14,7 +14,7 @@ export default function HealthPage() {
   }, [])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-[80px] px-6 md:px-10">
       <h1 className="text-xl font-semibold">API Health</h1>
       <pre className="p-4 bg-surface border border-base rounded overflow-auto text-sm">{status}</pre>
     </div>

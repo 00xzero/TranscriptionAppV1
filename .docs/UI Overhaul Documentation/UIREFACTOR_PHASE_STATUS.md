@@ -6,7 +6,7 @@
 
 | Field | Value |
 |:---|:---|
-| **Phase** | 8 - QA + Cleanup |
+| **Phase** | Extra UI Tweaks |
 | **Status** | ✅ Complete |
 | **Owner** | Hamza |
 | **Started** | 2026-02-11 |
@@ -24,6 +24,7 @@
 | 6 | Editor Interim Alignment | ✅ Complete | 2026-02-07 |
 | 7 | Modals | ✅ Complete | 2026-02-08 |
 | 8 | QA + Cleanup | ✅ Complete | 2026-02-11 |
+| — | Extra UI Tweaks | ✅ Complete | 2026-02-11 |
 
 **Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete | ⚠️ Blocked | ⏸ Deferred
 
@@ -76,6 +77,21 @@ None — Phase 3 complete.
 - ✅ `⌘E` Export shortcut implemented in editor
 - ✅ M4A upload fix: added browser MIME aliases to Supabase bucket allowlist
 - ✅ Testing checklist items verified (automated + browser)
+
+### Extra UI Tweaks
+- ✅ Overlay header: `ContextualHeader` absolutely positioned (`z-40`) so content scrolls beneath it
+- ✅ Master layout antialiasing: Added `antialiased` class to `<body>` for smoother font rendering globally
+- ✅ Health/Upload page padding: Added `pt-[80px]` and `pt-[56px]` to clear the overlay header
+- ✅ Auth page logo: Added visual brand mark (bar + dot icon) above title; font-weight 400, letter-spacing `-0.02em`
+- ✅ Header background refinement: Light mode `ContextualHeader` changed to `bg-paper/80` for token consistency
+- ✅ Editor layout: Added `pt-[56px]` for overlay header, negative-margin scroll trick, refined transcript text
+- ✅ Interactive Waveform Scrubber: Mini progress bar in `CollapsibleWaveform` is now an interactive slider (single-click seek, drag-to-scrub, double-click expand)
+- ✅ Waveform z-index correction: Set to `z-50` (collapsed) / `z-30` (expanded) for correct layering
+- ✅ Waveform expanded space: Increased `max-h-72` and added internal `pt-[56px]` padding
+- ✅ Editor `seekToMs` skipLock: New option lets waveform scrubbing bypass the sync lock for immediate response
+- ✅ Mix-mode warning sync: Banner now collapses/expands in sync with the waveform
+- ✅ Follow-mode safety: Expanding the waveform now automatically disables "Follow Mode" to prevent jumpy scrolls
+- ✅ CaptureModal diarization toggle: Changed default visual state from OFF (grey) to ON (ember-red)
 
 ---
 
@@ -375,10 +391,21 @@ None — Phase 3 complete.
 | 2026-02-11 | Phase 8 | `⌘E` Export shortcut | Follows `⌘F` pattern; intercepted before input guard in editor keyboard handler |
 | 2026-02-11 | Phase 8 | Supabase bucket MIME aliases | Expanded `allowed_mime_types` to include browser aliases as defense-in-depth alongside client normalization |
 | 2026-02-11 | Phase 8 | Deprecated `/import` fully removed | Page file deleted + removed from `PROTECTED_ROUTES`; no longer accessible via direct URL |
+| 2026-02-11 | Extra UI Tweaks | Overlay header layout | `ContextualHeader` absolutely positioned (`z-40`) so content scrolls beneath translucent header |
+| 2026-02-11 | Extra UI Tweaks | Auth brand mark | Bar + dot icon added above title; weight reduced to 400, letter-spacing `-0.02em` |
+| 2026-02-11 | Extra UI Tweaks | Header background change | Light mode changed from `bg-white/45` to `bg-paper/80` for better Olivetti token alignment |
+| 2026-02-11 | Extra UI Tweaks | Content top-padding | LibraryView/Projects use `pt-[80px]`, health uses `pt-[80px]`, upload uses `pt-[56px]` |
+| 2026-02-11 | Extra UI Tweaks | Interactive scrubbing | `CollapsibleWaveform` mini-bar supports click-to-seek, drag-to-scrub, and full keyboard/ARIA controls |
+| 2026-02-11 | Extra UI Tweaks | `seekToMs` skipLock | New parameter allows high-frequency manual seeks (scrubbing) to bypass the transcript-sync click lock |
+| 2026-02-11 | Extra UI Tweaks | Diarization toggle default ON | Visual state changed to ember-red (ON) since pipeline enables diarization by default |
+| 2026-02-11 | Extra UI Tweaks | Body `antialiased` | Tailwind `antialiased` class on `<body>` for smoother font rendering globally |
+| 2026-02-11 | Extra UI Tweaks | Transcript text refinement | `font-sans text-lg` with `ink/90` / `paper/80` opacity for softer reading |
+| 2026-02-11 | Extra UI Tweaks | Mix-mode warning collapse | Banner `max-height` and `opacity` now transition in sync with the waveform collapse state |
+| 2026-02-11 | Extra UI Tweaks | Waveform `z-index` | Shifted to `z-50` (collapsed) / `z-30` (expanded) to ensure it stays above content but below header |
 
 ---
 
-### Phase 8 → Post-Overhaul
+### Phase 8 → Extra UI Tweaks
 
 **Key Deliverables Created:**
 - Deprecated `/import` route removed (page file deleted + removed from `PROTECTED_ROUTES` in `middleware.ts`)
@@ -398,6 +425,33 @@ None — Phase 3 complete.
 - Supabase storage validates MIME types against the bucket's `allowed_mime_types` ARRAY *independently* of the `contentType` header — both the client normalization AND the bucket allowlist must cover browser aliases
 - The frontend `getMimeType()` normalizer in `useCapture.ts` still normalizes aliases to canonical types, but the bucket now accepts both as defense-in-depth
 - Some testing checklist items (transcript card seeks audio, full auth flow) require manual verification with real credentials
+
+---
+
+### Extra UI Tweaks → Post-Overhaul
+
+**Key Deliverables Created:**
+- Overlay header layout: `ContextualHeader` now absolutely positioned with `z-40`, allowing content to scroll beneath the translucent header.
+- Interactive Scrubbing: `CollapsibleWaveform` mini-bar now functions as a full audio scrubber with click, drag, and keyboard navigation.
+- Auth page brand mark: Visual logo icon (bar + dot) added above title, font weight 400, letter-spacing `-0.02em`.
+- Content padding adjustments: `pt-[80px]` added to Library, Projects, and Health pages; `pt-[56px]` to Upload page and editor.
+- Editor refined: `seekToMs` skipLock parameter, mix-mode warning sync collapse, and automatic Follow Mode disable on expand.
+- Waveform corrected: `z-index` updated to `z-50/z-30`, max-height increased to `max-h-72`.
+- Body `antialiased` class for smoother font rendering globally.
+- Transcript text refinement: `font-sans text-lg` with reduced opacity (`text-ink/90 dark:text-paper/80`).
+
+**Decisions Made:**
+- Interactive Mini-Bar: Users should be able to seek without expanding the waveform; single-click seeks immediately, double-click expands context.
+- `skipLock` parameter: Waveform scrubbing shouldn't be gated by the transcript-seek click lock (designed to prevent jumps on card clicks).
+- Overlay header pattern: Header floats above content with glassmorphism backdrop (`bg-paper/80` or `bg-black/45`).
+- Mix-mode visibility: The raw segments warning takes up significant vertical space; it now collapses to keep the UI clean when the waveform is hidden.
+- Diarization toggle default: Show as ON (ember-red) since the Deepgram pipeline has diarization enabled by default.
+- Antialiased rendering: Applied globally via `antialiased` Tailwind class for consistent subpixel rendering.
+
+**Gotchas:**
+- Pages must manually add top padding (`pt-[56px]` or `pt-[80px]`) to clear the overlay header since it is absolutely positioned.
+- Editor uses a negative-margin trick (`-mt-[56px] pt-[56px]`) on the scroll container.
+- `CollapsibleWaveform` needs higher z-index (`z-50`) when collapsed to ensure scrubber interactions aren't intercepted by content below.
 
 ---
 

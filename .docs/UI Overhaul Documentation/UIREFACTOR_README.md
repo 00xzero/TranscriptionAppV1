@@ -36,6 +36,7 @@
 - [x] Phase 6: Editor Interim Alignment
 - [x] Phase 7: Modals
 - [x] Phase 8: QA + Cleanup
+- [x] Extra UI Tweaks
 
 ## Related Documentation
 

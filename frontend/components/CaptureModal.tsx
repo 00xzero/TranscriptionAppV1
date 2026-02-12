@@ -374,10 +374,10 @@ export default function CaptureModal() {
                 <p className="text-[10px] text-ink/40 dark:text-white/40">Automatically identify speakers</p>
               </div>
 
-              {/* Disabled Toggle */}
+              {/* Toggle - defaulted to ON */}
               <div className="relative inline-block w-10 mr-2 align-middle select-none opacity-50 cursor-not-allowed">
-                <div className="block overflow-hidden h-5 rounded-full bg-[#D1CEC5] dark:bg-[#333]">
-                  <div className="absolute block w-5 h-5 rounded-full bg-white border-4 border-paper dark:border-[#222] right-5" />
+                <div className="block overflow-hidden h-5 rounded-full bg-ember-red">
+                  <div className="absolute block w-5 h-5 rounded-full bg-white border-4 border-ember-red right-0" />
                 </div>
               </div>
             </div>
