@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A privacy-focused audio/video transcription web app powered by Deepgram Nova 3. Built with Next.js 14 (App Router), Supabase (auth, DB, storage, realtime), and Inngest (background jobs). Fully serverless, designed for Vercel deployment.
 
-The `backend/` and `worker/` directories are **legacy** (archived FastAPI/Celery code) — all active code is in `frontend/`.
+All active code is in `frontend/`.
 
 ## Commands
 
@@ -46,7 +46,7 @@ All clients use a configurable cookie name (`NEXT_PUBLIC_SUPABASE_COOKIE_NAME`) 
 
 ### Auth & Middleware
 
-`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/projects`, `/editor`, `/upload`, `/import`. Auth pages redirect to `/` if already logged in. Uses `getUser()` (not `getSession()`) for server-side JWT validation.
+`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/projects`, `/editor`. Auth pages redirect to `/` if already logged in. Uses `getUser()` (not `getSession()`) for server-side JWT validation.
 
 ### Transcription Pipeline
 
@@ -64,7 +64,6 @@ Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `chunks`, `chu
 
 ### Data Fetching
 
-- **SWR** (`swr`) for client-side data fetching with cache revalidation and 5s polling fallback
 - **Supabase Realtime** subscriptions for live updates (projects list, job status)
 - Data fetching hooks in `lib/supabase/hooks.ts`, query helpers in `lib/supabase/queries.ts`
 
@@ -74,7 +73,7 @@ The transcript editor (`app/editor/[id]/page.tsx`) features:
 - Inline text editing with 500ms debounced auto-save
 - Find & Replace with case sensitivity
 - Speaker management (reassign, rename, color-code)
-- Waveform playback via `wavesurfer.js` with transcript sync
+- Audio playback via native HTMLAudioElement with transcript sync
 - Export to DOCX or VTT (`lib/exports.ts`)
 - Session recovery: auto-refreshes expired Supabase Storage signed URLs on 403
 
@@ -89,24 +88,23 @@ The transcript editor (`app/editor/[id]/page.tsx`) features:
 | `GET/POST /api/projects/[id]/export/vtt` | Export VTT |
 | `POST /api/webhooks/deepgram` | Deepgram callback |
 | `GET /api/webhooks/deepgram/health` | Webhook health check |
-| `GET /api/media-proxy` | Proxy media with auth |
+| `GET /api/media-proxy` | Proxy media with auth (local dev only) |
 
 ### Design System
 
 Tailwind with custom theme tokens in `tailwind.config.ts`:
-- Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `night-*`, `studio-dark`
+- Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `night-surface`, `night-border`
 - Fonts: Inter (sans), Newsreader (serif), IBM Plex Mono (mono)
 - Dark mode via `class` strategy
 
 ### Testing
 
-Jest + React Testing Library. Tests in `frontend/__tests__/`. Mocks in `frontend/__mocks__/` (wavesurfer.js, AudioPlayer). Test files match `**/__tests__/**/*.test.(ts|tsx)`. Path alias `@/` mapped in `jest.config.js`.
+Jest + React Testing Library. Tests in `frontend/__tests__/`. Mocks in `frontend/__mocks__/` (AudioPlayer). Test files match `**/__tests__/**/*.test.(ts|tsx)`. Path alias `@/` mapped in `jest.config.js`.
 
 ## Key Conventions
 
 - TypeScript strict mode — no `any` without justification
 - Path alias: `@/*` maps to `frontend/*` (e.g., `@/lib/supabase/server`)
 - Rate limiting via in-memory sliding window (`lib/rate-limit.ts`), controlled by `RATE_LIMIT_MODE` env var
-- Structured logging with correlation IDs (`lib/logger.ts`)
 - Idempotency on transcription start via `x-idempotency-key` header
 - Modal state managed via React Context (`components/ModalContext.tsx`)

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-02-13] - Removed Route & Test Config Cleanup
+
+### Changed
+- **Docs:** Updated UI overhaul current-state docs to reflect that `/upload` has been removed and no longer redirects.
+- **Docs:** Updated onboarding guidance to direct users to launch Capture from Library/Projects.
+
+### Removed
+- **Jest config:** Removed stale `wavesurfer.js` `moduleNameMapper` entry from `frontend/jest.config.js` after dependency/mock cleanup.
+- **DLQ helper module:** Removed unused `frontend/lib/dead-letter-queue.ts`.  
+  - Current failure handling writes directly to `jobs`/`projects` status paths in Inngest fallbacks.
+  - `failed_events` table remains in schema for potential future observability hardening.
+
 ## [2026-02-04] - Audio Player Robustness
 
 ### Added
@@ -524,4 +536,3 @@ Alembic will automatically create the database schema on first startup.
   - Immediate visual feedback on term count/length
   - Easy pasting of lists from spreadsheets/docs
   - Clear explanations for failures
-

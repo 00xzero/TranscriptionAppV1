@@ -6,19 +6,6 @@ out/
 .turbo/
 *.tsbuildinfo
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-.python-version
-.venv/
-venv/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-
 # OS/IDE
 .DS_Store
 Thumbs.db

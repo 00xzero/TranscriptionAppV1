@@ -77,29 +77,6 @@ body {
   background-color: color-mix(in oklab, var(--accent) 15%, var(--surface));
 }
 
-.wavesurfer {
-  position: relative;
-  height: 96px;
-  overflow: hidden;
-}
-
-/* Primary wave wrapper element in various builds */
-.wavesurfer wave,
-.wavesurfer .wave {
-  position: relative;
-  display: block;
-  height: 100%;
-}
-
-/* Overlay canvases exactly on top of each other */
-.wavesurfer canvas {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
-}
-
 /* Paper noise texture */
 .bg-noise {
   position: relative;
@@ -169,21 +146,14 @@ input[type=range]::-webkit-slider-runnable-track {
   opacity: 0.3;
 }
 
-/* Utilities */
-.text-balance {
-  text-wrap: balance;
-}
-
-/* Theme transitions - apply .theme-transition to elements that need smooth theming */
-body,
-.theme-transition {
+/* Theme transitions */
+body {
   transition: background-color 300ms, border-color 300ms, color 300ms;
 }
 
 /* Accessibility: respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  body,
-  .theme-transition {
+  body {
     transition: none;
   }
 

@@ -17,7 +17,7 @@ A visual overhaul of the transcription app UI, codenamed **Olivetti**:
 |:---|:---|
 | Top navigation bar | Sidebar + contextual header |
 | `/projects` landing | `/` Library view |
-| `/upload` page | Capture modal |
+| `/upload` page | Removed route; use Capture modal from Library |
 | Basic styling | Premium glassmorphism, noise textures |
 | `data-theme` toggle | Tailwind `dark` class |
 
@@ -48,7 +48,6 @@ Labels/Code:    IBM Plex Mono
 frontend/
 ├── app/
 │   ├── page.tsx          # → Library view (Phase 4)
-│   ├── upload/           # → Deprecated, redirect to modal
 │   ├── editor/[id]/      # → Restyled (Phase 6)
 │   └── auth/             # → Restyled (Phase 2)
 │   └── globals.css       # → Add Olivetti tokens (Phase 2)
@@ -92,7 +91,7 @@ frontend/
 Toggle the theme button in sidebar (or use browser devtools to add `dark` class to `<html>`)
 
 ### What happened to the `/upload` page?
-It's being replaced by the Capture modal. The route will redirect to Library and open the modal.
+The route has been removed. Launch Capture from the header button in Library/Projects.
 
 ### Are we changing any backend logic?
 No. This is a pure UI refactor. All backend/API logic from the previous refactor remains unchanged.

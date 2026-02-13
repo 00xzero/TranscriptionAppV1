@@ -11,7 +11,6 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '^wavesurfer\\.js$': '<rootDir>/__mocks__/wavesurfer.js',
     '^\\.\\./\\.\\./\\.\\./components/AudioPlayer$': '<rootDir>/__mocks__/AudioPlayer.tsx',
   },
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
