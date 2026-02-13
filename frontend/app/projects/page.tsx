@@ -3,9 +3,7 @@ import Link from 'next/link'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsRealtime } from '../../lib/supabase/hooks'
-import { fetchJobError, fetchWatchlistTerms } from '../../lib/supabase/queries'
-import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
-import type { Project } from '../../lib/supabase/types'
+import { fetchJobError } from '../../lib/supabase/queries'
 
 export default function ProjectsPage() {
   return (
@@ -24,12 +22,7 @@ function ProjectsPageContent() {
   const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
   const [projectErrorLoadErrors, setProjectErrorLoadErrors] = useState<Record<string, string>>({})
-  const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
-  const [termsLoadError, setTermsLoadError] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
-
-  // Modal state
-  const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
   const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
   const [captureProjectId, setCaptureProjectId] = useState<string | null>(null)
 
@@ -197,48 +190,6 @@ function ProjectsPageContent() {
     }
   }
 
-  const handleOpenEditModal = async (project: Project) => {
-    if (loadingTerms[project.id]) return
-    setLoadingTerms(prev => ({ ...prev, [project.id]: true }))
-    setTermsLoadError(prev => {
-      const next = { ...prev }
-      delete next[project.id]
-      return next
-    })
-
-    try {
-      const terms = await fetchWatchlistTerms(project.id)
-      setEditingProject({ id: project.id, terms })
-    } catch (e) {
-      console.error('Failed to load key terms:', e)
-      setTermsLoadError(prev => ({ ...prev, [project.id]: 'Failed to load key terms. Please try again.' }))
-    } finally {
-      setLoadingTerms(prev => {
-        const next = { ...prev }
-        delete next[project.id]
-        return next
-      })
-    }
-  }
-
-  const handleKeyTermsSaved = (newTerms: string[]) => {
-    // Trigger project list refresh
-    refetch()
-    // Clear error since user fixed the terms
-    if (editingProject) {
-      setProjectErrors(prev => {
-        const next = { ...prev }
-        delete next[editingProject.id]
-        return next
-      })
-    }
-  }
-
-  const handleRetry = useCallback(async () => {
-    if (!editingProject) return
-    await startProject(editingProject.id)
-  }, [editingProject, startProject])
-
   const getErrorInfo = (projectId: string) => projectErrors[projectId]
 
   // Connection status indicator
@@ -290,8 +241,6 @@ function ProjectsPageContent() {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const errorLoadError = projectErrorLoadErrors[p.id]
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
-          const isLoadingTerms = !!loadingTerms[p.id]
-          const termLoadError = termsLoadError[p.id]
 
           return (
             <li key={p.id} className="bg-surface border border-base rounded p-3">
@@ -356,18 +305,9 @@ function ProjectsPageContent() {
                         </button>
                       )}
                       {isKeytermError && (
-                        <button
-                          onClick={() => handleOpenEditModal(p)}
-                          disabled={isLoadingTerms}
-                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
-                        >
-                          {isLoadingTerms ? 'Loading terms...' : 'Edit Key Terms'}
-                        </button>
-                      )}
-                      {termLoadError && (
-                        <div className="mt-1 text-xs text-red-700 dark:text-red-300">
-                          {termLoadError}
-                        </div>
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          Try adjusting key terms and re-uploading.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -378,17 +318,6 @@ function ProjectsPageContent() {
         })}
       </ul>
 
-      {/* Edit Key Terms Modal */}
-      {editingProject && (
-        <EditKeyTermsModal
-          projectId={editingProject.id}
-          currentTerms={editingProject.terms}
-          isOpen={true}
-          onClose={() => setEditingProject(null)}
-          onSaved={handleKeyTermsSaved}
-          onRetry={handleRetry}
-        />
-      )}
     </div>
   )
 }

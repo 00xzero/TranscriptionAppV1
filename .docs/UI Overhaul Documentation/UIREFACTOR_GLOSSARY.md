@@ -65,7 +65,7 @@ Quick reference for design and UI terms used in the Olivetti refactor.
 | Term | Definition |
 |:---|:---|
 | **`/`** | Library view (new home route) |
-| **`/upload`** | Deprecated route (redirects to Library + opens Capture) |
+| **`/upload`** | Removed route (no redirect). Open Capture from Library (`/`) |
 | **`/import`** | Deprecated route (removed from nav) |
 | **`/editor/[id]`** | Transcript editor (unchanged route) |
 | **`/auth`** | Authentication page (restyled) |
