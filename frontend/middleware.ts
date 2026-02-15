@@ -10,7 +10,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/projects', '/editor']
 
-// Routes that should redirect to /projects if already authenticated
+// Routes that should redirect to / if already authenticated
 const AUTH_ROUTES = ['/auth']
 
 // Routes that should be excluded from auth redirect logic (callbacks, etc)
