@@ -100,6 +100,7 @@
 ## Component Inventory
 
 ### App Shell
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Sidebar (collapsible) | To implement | `w-16` collapsed → `md:w-64` expanded |
@@ -107,6 +108,7 @@
 | Theme Toggle | To implement | Migrate from `data-theme` to Tailwind `dark` class |
 
 ### Library View
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Project Cards | To implement | Folder tab decoration, status badges |
@@ -114,6 +116,7 @@
 | "New Project" placeholder | To implement | Dashed border style |
 
 ### Capture Modal
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | File dropzone | To implement | Reuse existing upload logic |
@@ -121,6 +124,7 @@
 | Key Terms input | To implement | Comma-separated chips |
 
 ### Editor View
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Waveform visualizer | Placeholder | Collapsible on scroll |
@@ -129,11 +133,11 @@
 | Mini progress bar | To implement | Visible when waveform collapsed |
 
 ### Modals
+
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Export Modal | To implement | Radio selection, format options |
 | Find/Replace Modal | To implement | See spec below |
-
 ---
 
 ## Animations & Transitions
