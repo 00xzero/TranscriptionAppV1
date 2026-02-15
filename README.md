@@ -1,176 +1,149 @@
 # Lightweight Transcription Web App
 
-A privacy-friendly transcription tool powered by Deepgram Nova 3 (batch STT) and open components, with speaker diarization, vocabulary watchlist corrections, an inline transcript editor, and exports (DOCX, VTT).
+A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and Deepgram. It supports upload, async transcription, speaker diarization, inline transcript editing, watchlist corrections, and exports (DOCX, VTT).
 
-> **Recent Updates:** This codebase has undergone significant architectural improvements including unified database access, job lifecycle tracking, authentication enforcement, Alembic migrations, memory-efficient media handling, and smart data fetching, plus UAT UX improvements to prevent upload spam and clarify transcription actions. See [CHANGELOG.md](CHANGELOG.md) for details.
+## Current Stack
 
-## Tech Stack
+- Frontend + API routes: Next.js 14 (App Router), TypeScript, Tailwind
+- Data/Auth/Storage: Supabase (Postgres, Auth, Storage)
+- Background jobs: Inngest
+- Speech-to-text: Deepgram Nova 3
+- Local infrastructure: Supabase CLI + Docker Compose
 
-### Modern Stack (Current)
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, wavesurfer.js
-- **Backend:** Supabase (Postgres, Auth, Storage, Realtime)
-- **Background Jobs:** Inngest
-- **ML:** Deepgram Nova 3 (STT)
-- **Deployment:** Vercel + Supabase Cloud + Inngest Cloud
+## Repository Layout
 
-### Legacy Stack (Archived)
-- **Backend:** FastAPI (Python 3.11) -> Replaced by Next.js + Supabase
-- **Workers:** Celery + Redis -> Replaced by Inngest
-- **Storage:** MinIO -> Replaced by Supabase Storage
+- `frontend/`: Next.js app, API routes, Inngest functions, Jest tests
+- `infra/`: local stack scripts (`start-local.sh`, `stop-local.sh`), Supabase config, Docker Compose
+- `.docs/`: architecture and refactor docs
+- `backend/` and `worker/` are legacy/archived and not part of the active workflow
 
-## Monorepo Layout
+## Prerequisites
 
-- `frontend/` - Next.js application, API routes, and Inngest functions
-- `backend/` - [LEGACY] FastAPI service (archived)
-- `worker/` - [LEGACY] Celery worker service (archived)
-- `infra/` - Local development configuration (Docker + Supabase CLI)
-- `.docs/` - Refactor documentation and architecture diagrams
+- Node.js 18+
+- npm
+- Docker Desktop
+- Supabase CLI
+- ngrok (required for Deepgram webhook callbacks in local Docker)
 
-## Quickstart: Docker Local Dev (Modern Stack)
+## Local Development (Recommended)
 
-> **Prerequisites:** Docker Desktop, [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started), [ngrok](https://ngrok.com/download) (for transcription)
+Use the modern local stack (Supabase + Docker Compose):
 
-1. Install prerequisites (macOS):
-   ```bash
-   brew install supabase/tap/supabase ngrok
-   ```
+```bash
+cd infra
+./start-local.sh
+```
 
-2. Start everything with one command:
-   ```bash
-   cd infra && ./start-local.sh
-   ```
+What `start-local.sh` does:
+- Starts Supabase (`infra/supabase`)
+- Creates `infra/.env.docker` from `infra/.env.docker.example` if missing
+- Injects local Supabase keys into `infra/.env.docker`
+- Starts Inngest + frontend containers
+- Starts ngrok and prints the tunnel URL
 
-3. Update `infra/.env.docker` with your keys:
-   - `DEEPGRAM_API_KEY`: Your Deepgram API key.
-   - `DEEPGRAM_CALLBACK_URL`: Set to the ngrok URL displayed in the terminal.
+After first start, update `infra/.env.docker`:
+- `DEEPGRAM_API_KEY` (required for transcription)
+- `DEEPGRAM_API_KEY_IDENTIFIER` (used for webhook verification)
+- `DEEPGRAM_CALLBACK_URL` (set to `https://<your-ngrok-domain>/api/webhooks/deepgram`)
 
-4. Access the application:
-   | Service | URL |
-   |:---|:---|
-   | Frontend | http://localhost:3000 |
-   | Supabase Studio | http://localhost:54323 |
-   | Inngest Dev Server | http://localhost:8288 |
-   | ngrok Inspector | http://localhost:4040 |
-   | Inbucket (Email) | http://localhost:54324 |
-   | Supabase API | http://localhost:54321 |
+Restart frontend after env updates so changes are picked up:
 
-5. Stop services:
-   ```bash
-   cd infra && ./stop-local.sh
-   ```
+```bash
+cd infra
+docker compose -f docker-compose.dev.yml up -d --build frontend
+```
 
-## Quickstart: Legacy Stack (Deprecated)
+Service URLs:
 
-> **Note:** This stack will be removed after Phase 11. Use the new Docker local dev stack above.
+| Service | URL |
+|:--|:--|
+| Frontend | http://localhost:3000 |
+| Supabase API | http://localhost:54321 |
+| Supabase Studio | http://localhost:54323 |
+| Inbucket (local email) | http://localhost:54324 |
+| Inngest Dev Server | http://localhost:8288 |
+| ngrok Inspector | http://localhost:4040 |
 
-1. Copy environment example and adjust values:
-   ```bash
-   cp env.example .env
-   ```
+Stop everything:
 
-2. Set your Deepgram API key in `.env`:
-   ```bash
-   DEEPGRAM_API_KEY=your_api_key_here
-   ```
+```bash
+cd infra
+./stop-local.sh
+```
 
-3. Ensure Docker Desktop is installed and running (WSL2 on Windows).
+## Local Development (Without Docker)
 
-4. Start the stack (API, DB, Redis, MinIO, Worker, Frontend):
-   ```bash
-   cd infra
-   docker compose up --build
-   ```
+Run frontend and Inngest directly:
 
-5. Access the application:
-   - **Frontend:** http://localhost:3001
-   - **API:** http://localhost:8000
-   - **API Docs:** http://localhost:8000/docs
-   - **MinIO Console:** http://localhost:9001 (login: minioadmin/minioadmin)
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-6. Default authentication token for local dev: `devtoken`
+In another terminal:
 
+```bash
+cd frontend
+npm run inngest
+```
+
+Optional helper script from repo root:
+
+```bash
+./dev.sh start
+./dev.sh stop
+./dev.sh restart
+```
 
 ## Environment Variables
 
-See `env.example` for the full list. Key vars:
+Use these templates:
+- Docker local stack: `infra/.env.docker.example` -> `infra/.env.docker`
+- Non-Docker frontend local: `frontend/.env.example` -> `frontend/.env.local`
 
-### Backend
-- `DATABASE_URL` - Postgres connection string
-- `REDIS_URL` - Redis URL for Celery
-- `S3_ENDPOINT_URL` - MinIO/S3 endpoint (internal)
-- `S3_PUBLIC_BASE_URL` - Public S3 URL for Deepgram URL fetch
-- `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` - S3 credentials
-- `SECRET_KEY` - Application secret key
-- `SINGLE_USER_TOKEN` - API authentication token (default: `devtoken`)
-- `DEEPGRAM_API_KEY` - **Required** for transcription
-- `DEEPGRAM_MODEL` - STT model (default: `nova-3`)
+Commonly used vars:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DEEPGRAM_API_KEY`
+- `DEEPGRAM_API_KEY_IDENTIFIER`
+- `DEEPGRAM_CALLBACK_URL`
+- `NEXT_PUBLIC_APP_URL` (defaults to `http://localhost:3000` for local)
+- `DEEPGRAM_USE_PROXY` and `MEDIA_PROXY_SECRET` (recommended for local Docker callbacks)
+- `DEEPGRAM_CONCURRENCY_LIMIT`, `DEEPGRAM_MODEL`
+- `CONSOLIDATION_ENABLED`
+- `TRANSCRIPTION_TIMEOUT_MINUTES`
+- `RATE_LIMIT_MODE`
+- `WEBHOOK_HEALTHCHECK_SECRET`
 
-### Frontend
-- `NEXT_PUBLIC_API_URL` - Backend API URL (default: `http://localhost:8000`)
-- `NEXT_PUBLIC_API_TOKEN` - API authentication token (default: `devtoken`)
-- `TRANSCRIPTION_TIMEOUT_MINUTES` - Marks queued/processing transcription jobs as `error` after this many minutes (default: `45`)
-- `RATE_LIMIT_MODE` - Rate limit mode for transcription start (`memory` or `off`). Defaults to `off` in production and `memory` in development.
-- `WEBHOOK_HEALTHCHECK_SECRET` - If set, required for `GET /api/webhooks/deepgram/health` via `x-health-token` header or `?token=`
+## Testing
 
-### Known Limitations
+From `frontend/`:
 
-- **Deepgram Webhook Payload:** The Vercel-hosted webhook has a hard 4.5 MB request body limit. Deepgram payloads for very long recordings (typically 3+ hours) may exceed this limit, causing `413 Payload Too Large` errors. For enterprise use cases requiring multi-hour transcription support, deploy the webhook function to AWS Lambda or Google Cloud Run.
-
-## Development Notes
-
-### Architecture
-- **Unified ORM:** Worker and backend share SQLAlchemy models for consistency
-- **Job Tracking:** Full lifecycle tracking with `queued` → `processing` → `completed`/`error` states
-- **Authentication:** Token-based auth via `Authorization: Bearer <token>` or `X-API-Key: <token>`
-- **Migrations:** Alembic manages database schema evolution
-- **Smart Polling:** Frontend only polls when jobs are active
-- **Memory Efficient:** Deepgram fetches media directly from S3 (production) or falls back to byte upload (local dev)
-
-### Database Migrations
 ```bash
-# Check current migration version
-docker compose exec api alembic current
-
-# Generate new migration after model changes
-docker compose exec api alembic revision --autogenerate -m "Description"
-
-# Apply pending migrations
-docker compose exec api alembic upgrade head
-
-# Rollback one migration
-docker compose exec api alembic downgrade -1
+npm test
+npm run test:ci
 ```
 
-### API Authentication
-All `/projects/*` endpoints require authentication:
-```bash
-# Using Bearer token
-curl -H "Authorization: Bearer devtoken" http://localhost:8000/projects
+## Useful Commands
 
-# Using X-API-Key header
-curl -H "X-API-Key: devtoken" http://localhost:8000/projects
+Tail local Docker logs:
+
+```bash
+cd infra
+docker compose -f docker-compose.dev.yml logs -f
 ```
 
-### Idempotency (Transcription Start)
-`POST /api/projects/:id/start` supports optional idempotency via `x-idempotency-key`.
-Provide a stable key to safely retry start requests without creating duplicate jobs.
+Reset local Supabase DB:
 
-## Features
+```bash
+cd infra/supabase
+supabase db reset
+```
 
-### ✅ Implemented
-- **Transcription:** Deepgram Nova 3 with speaker diarization
-- **Editor:** Waveform visualization with inline transcript editing
-- **Exports:** DOCX and VTT format support
-- **Watchlist:** Vocabulary term boosting for improved accuracy
-- **Job Tracking:** Full observability with timing metrics
-- **Authentication:** Token-based API security
-- **Smart Polling:** Efficient frontend data fetching
+## Documentation
 
-### 🚧 Roadmap
-- Enhanced speaker identification
-- Real-time transcription support
-- Multi-user authentication with JWT
-- WebSocket support for live updates
-- Advanced export formats
-
-Refer to `PRD.md` for full requirements and `CHANGELOG.md` for recent improvements.
+- Product requirements: `PRD.md`
+- Change history: `CHANGELOG.md`
+- Refactor docs: `.docs/Refactor Documentation/REFACTOR_README.md`

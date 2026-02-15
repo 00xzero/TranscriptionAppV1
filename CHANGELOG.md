@@ -2,17 +2,106 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-02-13] - Removed Route & Test Config Cleanup
+## [2026-02-15] - V2 Design Overhaul (Olivetti)
+
+Complete UI overhaul of the transcription app, implementing the **Olivetti** design system across 8 phases plus extra polish. Also includes legacy code removal and doc updates.
+
+### Added — Design System Foundation (Phase 2)
+- **Tailwind token palette:** `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark`.
+- **Fonts via `next/font`:** Inter, Newsreader, IBM Plex Mono.
+- **Paper noise texture**, custom scrollbar, glassmorphism modals (`/45` to `/90` opacity + `backdrop-blur`).
+- **Theme migration** from `data-theme` to Tailwind `dark` class with `localStorage` persistence.
+
+### Added — App Shell + Routing (Phase 3)
+- **`Sidebar.tsx`**: Collapsible sidebar (`w-16` ↔ `w-64`), navigation, user section, integrated theme toggle.
+- **`ContextualHeader.tsx`**: View-aware header with search, Capture, Export, and Find & Replace buttons.
+- **`ModalContext.tsx`**: Global modal state context.
+- **Layout restructured** to sidebar + contextual header shell.
+- **`/` is now Library**; `/upload` redirects to Library and auto-opens Capture modal.
+
+### Added — Library View (Phase 4)
+- **`LibraryView.tsx`**: Real project data, duration formatting ("X mins" / "X hr Y mins"), status badges, delete with confirmation dialog.
+- **Library requires authentication**; post-login redirect changed to `/` (Library).
+
+### Added — Capture Modal (Phase 5)
+- **`CaptureModal.tsx`**: Drag-and-drop upload, file type validation, key-term chips, Language/Diarization "Coming soon" fields.
+- **`useCapture.ts` hook**: Upload → create project → set `source_object_key` → start transcription, with automatic rollback on failure.
+- **Client-side MIME normalization** for browser alias handling (e.g., `audio/x-m4a` → `audio/mp4`).
+- **Granular capture outcomes**: `started` vs `saved_needs_retry` states.
+
+### Added — Editor Alignment (Phase 6)
+- **`CollapsibleWaveform.tsx`**: Collapses on scroll >50px, interactive mini-bar scrubber (click-to-seek, drag-to-scrub, keyboard/ARIA).
+- **`FloatingPlayerDeck.tsx`**: Glassmorphism floating player deck.
+- **Speaker color palette**: trust-blue `#4F638C`, ember-red `#C73E1D`, yellow-600 `#CA8A04`, then brand-complementary.
+- **Transcript card layout**: Inline timestamp + speaker name in header row, pencil icon for edit on hover.
+- **Header/sidebar alignment**: Both use `h-[56px]` for pixel-perfect divider alignment.
+
+### Added — Modals (Phase 7)
+- **`FindReplaceModal.tsx`**: Glassmorphism modal with two-step Enter, debounce dirty state ("Searching..."), highlight persistence on close, cross-modal exclusion.
+- **`useFocusTrap.ts`**: Lightweight focus trap hook (Tab/Shift+Tab trapping, focus save/restore).
+- **`ExportModal.tsx` restyled**: Format cards (DOCX, VTT active; PDF "COMING SOON"), Olivetti glassmorphism.
+- **`⌘F` / `Ctrl+F`** opens Find/Replace; **`⌘E` / `Ctrl+E`** opens Export.
+- **Header→editor communication** via `CustomEvent` (`open-find-replace`, `open-export`).
+
+### Added — QA + Cleanup (Phase 8)
+- **`prefers-reduced-motion`** accessibility: disables all `transition` and `animation` globally.
+- **Supabase migration** `20260211000000_expand_bucket_mime_types.sql`: Browser MIME aliases added to bucket allowlist (M4A upload fix).
+- **`/import` fully removed**: Page file deleted + removed from `PROTECTED_ROUTES`.
+- **Auth redirect** fixed: `/projects` → `/` (Library).
+- **111/111 automated tests passing.**
+
+### Added — Extra UI Tweaks
+- **Overlay header**: `ContextualHeader` absolutely positioned (`z-40`) for content-under-header scroll pattern.
+- **Interactive waveform scrubbing**: `seekToMs` skipLock parameter for high-frequency manual seeks.
+- **Auth page brand mark**: Bar + dot icon above title, font-weight 400, letter-spacing `-0.02em`.
+- **Body `antialiased`** for smoother font rendering globally.
+- **Transcript text refinement**: `font-sans text-lg` with `ink/90` / `paper/80` opacity.
+- **Mix-mode warning** collapses/expands in sync with waveform.
+- **Waveform z-index**: `z-50` (collapsed) / `z-30` (expanded) for correct layering.
+- **CaptureModal diarization toggle** default changed to ON (ember-red).
+
+### Added — Tests
+- **`collapsibleWaveform.test.tsx`**: Component tests for scrubbing and collapse behavior.
+- **`exportModal.ui.test.tsx`**: UI interaction tests for Export modal.
+- **Updated `editor.test.tsx`**: 12+ new tests (Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit edit mode).
+
+### Added — Documentation
+- **UI overhaul documentation suite**: `UIREFACTOR_PLAN.md`, `UIREFACTOR_PHASE_STATUS.md`, `UIREFACTOR_README.md`, `UIREFACTOR_ONBOARDING.md`, `UIREFACTOR_GLOSSARY.md`, `DESIGN_TOKENS.md`.
+- **`Olivetti.html`**: Interactive design reference prototype.
+- **`CLAUDE.md`**: AI coding guidelines.
+- **`segment-split-feature.md`**, **`KEY_TERM_RETRY_GAP_ANALYSIS.md`**.
 
 ### Changed
-- **Docs:** Updated UI overhaul current-state docs to reflect that `/upload` has been removed and no longer redirects.
-- **Docs:** Updated onboarding guidance to direct users to launch Capture from Library/Projects.
+- **`editor/[id]/page.tsx`**: Major rewrite — contextual header integration, floating player, sidebar, waveform, Find/Replace and Export modal wiring.
+- **`auth/page.tsx`**: Olivetti-themed with glassmorphism and brand mark.
+- **`projects/page.tsx`**: Integrated `LibraryView` component with `Suspense` boundary.
+- **`layout.tsx`**: Sidebar-based shell replaces top-nav.
+- **`globals.css`**: Design system CSS variables, noise texture, component styles, theme transitions, `prefers-reduced-motion`.
+- **`tailwind.config.ts`**: Olivetti token palette, custom utilities.
+- **`AudioPlayer.tsx`**: Simplified API surface for deck integration.
+- **`middleware.ts`**: Auth routing refinements, `PROTECTED_ROUTES` updated.
+- **`PRD.md`**: Updated to reflect current Next.js + Supabase + Inngest stack.
+- **`README.md`**: Simplified to modern stack only; legacy references removed.
+- **`env.example`**: Cleaned up.
+- **`.gitignore`**: Updated patterns.
 
 ### Removed
-- **Jest config:** Removed stale `wavesurfer.js` `moduleNameMapper` entry from `frontend/jest.config.js` after dependency/mock cleanup.
-- **DLQ helper module:** Removed unused `frontend/lib/dead-letter-queue.ts`.  
-  - Current failure handling writes directly to `jobs`/`projects` status paths in Inngest fallbacks.
-  - `failed_events` table remains in schema for potential future observability hardening.
+- **Entire `backend/` directory**: FastAPI app, Alembic migrations, models, routers, services, tests (30+ files).
+- **Entire `worker/` directory**: Celery worker, Dockerfile, requirements.
+- **`infra/docker-compose.yml`**: Replaced by Supabase CLI local stack.
+- **Legacy frontend components**: `AuthStatus.tsx`, `ThemeToggle.tsx`, `EditKeyTermsModal.tsx`, `KeyTermsInput.tsx`.
+- **Legacy pages**: `/upload`, `/import`, `/health`.
+- **Legacy libs**: `logger.ts`, `dead-letter-queue.ts`, `swr.ts`, `api.ts`.
+- **Example files**: Large media binaries (MP4, DOCX, VTT).
+- **Misc**: `wavesurfer.js` mock, `tsconfig.tsbuildinfo`, `mammoth.d.ts`, Jest `moduleNameMapper` entry.
+
+### Fixed
+- **Editor sync**: Prevent aggressive audio sync on first play and during search.
+- **CollapsibleWaveform**: Defensive guards and clamped `audioProgress` to prevent invalid CSS widths.
+- **Find/Replace**: Unicode word-boundary support for non-cased scripts.
+- **Auth**: Root-route middleware conflict resolved; debug `console.log` removed.
+- **Duration**: Sub-second durations labeled "< 1 sec" instead of "< 1 min".
+- **Brand red**: Extracted to CSS variable for consistent theming.
 
 ## [2026-02-04] - Audio Player Robustness
 
