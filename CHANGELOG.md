@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 Complete UI overhaul of the transcription app, implementing the **Olivetti** design system across 8 phases plus extra polish. Also includes legacy code removal and doc updates.
 
+### Added — Spec Lock (Phase 1)
+- **Design system specification**: Confirmed Find/Replace modal behavior, placeholder approach for Recent Projects, and comprehensive design token documentation.
+- **Architectural decisions**: Sidebar + contextual header layout, Library as landing page, Capture as modal, Tailwind `dark` class migration.
+- **Component inventory**: Documented all UI components with phase assignments and implementation notes.
+- **Accessibility planning**: Focus management, keyboard shortcuts, ARIA labels, color contrast verification, reduced motion support.
+
 ### Added — Design System Foundation (Phase 2)
 - **Tailwind token palette:** `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark`.
 - **Fonts via `next/font`:** Inter, Newsreader, IBM Plex Mono.
