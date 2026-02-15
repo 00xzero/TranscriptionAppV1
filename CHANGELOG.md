@@ -91,7 +91,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **`infra/docker-compose.yml`**: Replaced by Supabase CLI local stack.
 - **Legacy frontend components**: `AuthStatus.tsx`, `ThemeToggle.tsx`, `EditKeyTermsModal.tsx`, `KeyTermsInput.tsx`.
 - **Legacy pages**: `/upload`, `/import`, `/health`.
-- **Legacy libs**: `logger.ts`, `dead-letter-queue.ts`, `swr.ts`, `api.ts`.
+- **Deprecated libs**: `logger.ts`, `dead-letter-queue.ts`, `swr.ts`, `api.ts`.
 - **Example files**: Large media binaries (MP4, DOCX, VTT).
 - **Misc**: `wavesurfer.js` mock, `tsconfig.tsbuildinfo`, `mammoth.d.ts`, Jest `moduleNameMapper` entry.
 
