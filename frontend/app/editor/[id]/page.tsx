@@ -181,6 +181,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
   const saveTimers = useRef<Record<string, number>>({})
+  const saveStatusResetTimers = useRef<Record<string, number>>({})
   const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [findInput, setFindInput] = useState('')
@@ -554,6 +555,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     if (player) player.setPlaybackRate(r)
   }
 
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimers.current).forEach((timerId) => window.clearTimeout(timerId))
+      Object.values(saveStatusResetTimers.current).forEach((timerId) => window.clearTimeout(timerId))
+      saveTimers.current = {}
+      saveStatusResetTimers.current = {}
+    }
+  }, [])
+
   const scheduleSave = useCallback((segId: string, newText: string) => {
     if (source === 'segments') return
 
@@ -564,14 +574,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     // clear existing timer
     const t = saveTimers.current[segId]
     if (t) { window.clearTimeout(t); delete saveTimers.current[segId] }
+    const resetT = saveStatusResetTimers.current[segId]
+    if (resetT) { window.clearTimeout(resetT); delete saveStatusResetTimers.current[segId] }
 
     // debounce before saving
     const timerId = window.setTimeout(async () => {
       try {
+        delete saveTimers.current[segId]
         await updateChunk(segId, { text: newText })
         setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'saved' }))
         // reset saved flag after a moment
-        window.setTimeout(() => setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [segId]: 'idle' })), 1200)
+        const savedResetTimerId = window.setTimeout(() => {
+          delete saveStatusResetTimers.current[segId]
+          setSaveStatus((p: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...p, [segId]: 'idle' }))
+        }, 1200)
+        saveStatusResetTimers.current[segId] = savedResetTimerId
       } catch (e) {
         console.error('save failed', e)
         setSaveStatus((prev: Record<string, 'idle' | 'saving' | 'saved' | 'error'>) => ({ ...prev, [segId]: 'error' }))

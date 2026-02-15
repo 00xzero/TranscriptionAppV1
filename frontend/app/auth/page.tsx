@@ -4,7 +4,7 @@
  * Auth page with Supabase pre-built Auth UI.
  * 
  * - Email/password sign in and sign up
- * - Redirects to /projects on successful auth
+ * - Redirects to / (Library) on successful auth
  */
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
