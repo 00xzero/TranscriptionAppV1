@@ -174,6 +174,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
   const [syncDirection, setSyncDirection] = useState<'up' | 'down'>('down')
   const [isFollowMode, setIsFollowMode] = useState(true)
+  const [hasUserScrolled, setHasUserScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -217,7 +218,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     setEditingId(null)
     setSpeakerPopover(null)
     setFindReplaceOpen(true)
-  }, [exportModalOpen])
+    // If reopening with existing search results, disengage follow mode
+    if (findTerm) {
+      setIsFollowMode(false)
+    }
+  }, [exportModalOpen, findTerm])
 
   const openExportModal = useCallback(() => {
     if (findReplaceOpen) setFindReplaceOpen(false)
@@ -426,11 +431,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (speakerPopover) return // Skip detection while popover is open
     const container = transcriptScrollRef.current
-    if (!container || !activeIds.segId) {
+    if (!container) {
       return
     }
 
     const checkSync = () => {
+      // Only check sync direction when we have an active segment
+      if (!activeIds.segId) return
       // Get activeEl fresh each time since it changes as audio plays
       const activeEl = activeSegRef.current
       if (!activeEl) {
@@ -448,6 +455,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     const handleUserScroll = () => {
       if (isUserScrollingRef.current) {
         setIsFollowMode(false)
+        setHasUserScrolled(true)
       }
       checkSync()
     }
@@ -671,6 +679,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     setMatchIndex(0)
+    // Stop syncing to audio when a search is executed
+    if (findTerm) {
+      setIsFollowMode(false)
+    }
   }, [findTerm, caseSensitive, wholeWord])
 
   useEffect(() => {
@@ -1191,13 +1203,19 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Floating sync button — glassmorphism style */}
-      {!isFollowMode && activeIds.segId && !speakerPopover && !editingId && (
+      {!isFollowMode && (activeIds.segId || hasUserScrolled) && !speakerPopover && !editingId && (
         <button
           className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white/60 dark:bg-black/60 backdrop-blur-md text-ink dark:text-paper border border-ink/10 dark:border-paper/10 rounded-2xl shadow-float flex items-center gap-2 hover:bg-white/80 dark:hover:bg-black/80 transition-colors"
           onClick={() => {
             isUserScrollingRef.current = false
             setIsFollowMode(true)
-            activeSegRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            setHasUserScrolled(false)
+            if (activeSegRef.current) {
+              activeSegRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            } else {
+              // No active segment yet (audio hasn't played) — scroll to top
+              transcriptScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+            }
           }}
         >
           {syncDirection === 'up' ? (
