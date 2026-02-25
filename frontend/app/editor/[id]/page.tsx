@@ -1068,6 +1068,15 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 <h1
                   className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors mb-4"
                   onClick={startEditingTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      startEditingTitle()
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label="Edit title"
                   title="Click to edit title"
                 >
                   {projectTitle || `Untitled (${params.id.slice(0, 8)}...)`}

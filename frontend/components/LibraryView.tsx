@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
 import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {
+  const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
   const { projects, isLoading, deleteProject } = useProjectsRealtime()
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -52,7 +53,6 @@ export default function LibraryView() {
 
   // Fetch user for greeting
   useEffect(() => {
-    const supabase = createClient()
     const getUser = async () => {
       try {
         const { data, error } = await supabase.auth.getUser()
@@ -68,7 +68,7 @@ export default function LibraryView() {
       }
     }
     void getUser()
-  }, [])
+  }, [supabase])
 
   // Get greeting based on time of day
   const getGreeting = () => {

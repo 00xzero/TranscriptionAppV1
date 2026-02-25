@@ -9,8 +9,8 @@ import { MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_DI
  * Matches Olivetti prototype and Deepgram supported formats.
  */
 const SUPPORTED_EXTENSIONS = [
-    'mp3', 'wav', 'm4a', 'aac', 'flac', // audio
-    'mp4', 'mov', 'webm', 'ogg', 'avi'  // video
+  'mp3', 'wav', 'm4a', 'aac', 'flac', // audio
+  'mp4', 'mov', 'webm', 'ogg', 'avi' // video
 ]
 
 const SUPPORTED_MIME_TYPES = [

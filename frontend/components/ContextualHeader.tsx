@@ -169,6 +169,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
             <input
               type="text"
               placeholder="Recall a decision..."
+              aria-label="Recall a decision..."
               className="bg-transparent border-none w-56 text-sm font-serif italic focus:outline-none focus:ring-0 placeholder-ink/30 dark:placeholder-paper/20 text-ink dark:text-paper"
             />
           </div>

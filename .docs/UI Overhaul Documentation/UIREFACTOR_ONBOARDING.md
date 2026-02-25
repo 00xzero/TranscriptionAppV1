@@ -24,14 +24,14 @@ A visual overhaul of the transcription app UI, codenamed **Olivetti**:
 ## Design System Overview
 
 ### Color Palette
-```
+```text
 Light Mode:     paper (#E4E1D9) + ink (#1D1E18)
 Dark Mode:      night-bg (#0e0e0c) + paper text
 Accents:        trust-blue (#4F638C), ember-red (#C73E1D)
 ```
 
 ### Typography
-```
+```text
 Headlines:      Newsreader (serif, italic)
 Body:           Inter (sans-serif)
 Labels/Code:    IBM Plex Mono
@@ -44,7 +44,7 @@ Labels/Code:    IBM Plex Mono
 
 ## Codebase Context
 
-```
+```text
 frontend/
 ├── app/
 │   ├── page.tsx          # → Library view (Phase 4)

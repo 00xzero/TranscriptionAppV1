@@ -97,6 +97,15 @@ export default function CaptureModal() {
     }
   }, [isUploading])
 
+  const handleDropzoneKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isUploading) return
+
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleDropzoneClick()
+    }
+  }, [isUploading, handleDropzoneClick])
+
   // File input change
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -283,9 +292,13 @@ export default function CaptureModal() {
             {/* Dropzone */}
             <div
               onClick={handleDropzoneClick}
+              onKeyDown={handleDropzoneKeyDown}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              tabIndex={0}
+              role="button"
+              aria-disabled={isUploading}
               className={`border-2 border-dashed rounded-lg h-40 flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer group ${isDragging
                 ? 'border-trust-blue bg-trust-blue/10'
                 : selectedFile
