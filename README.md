@@ -15,7 +15,7 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
 - `frontend/`: Next.js app, API routes, Inngest functions, Jest tests
 - `infra/`: local stack scripts (`start-local.sh`, `stop-local.sh`), Supabase config, Docker Compose
 - `.docs/`: architecture and refactor docs
-- `backend/` and `worker/` are legacy/archived and not part of the active workflow
+- Legacy backend/worker components were removed from the repo during the overhaul and are not part of the active workflow
 
 ## Prerequisites
 

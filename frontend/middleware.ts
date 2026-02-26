@@ -59,6 +59,19 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const redirectWithSupabaseResponse = (url: URL) => {
+    const redirectResponse = NextResponse.redirect(url)
+    // Only forward cookies from the Supabase response. Copying headers from
+    // NextResponse.next() can leak internal x-middleware control headers onto
+    // redirects and interfere with redirect handling.
+
+    for (const cookie of supabaseResponse.cookies.getAll()) {
+      redirectResponse.cookies.set(cookie)
+    }
+
+    return redirectResponse
+  }
+
   const path = request.nextUrl.pathname
 
   // Check if the path is protected
@@ -85,14 +98,14 @@ export async function middleware(request: NextRequest) {
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
-    return NextResponse.redirect(url)
+    return redirectWithSupabaseResponse(url)
   }
 
   // Redirect authenticated users away from auth routes
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
-    return NextResponse.redirect(url)
+    return redirectWithSupabaseResponse(url)
   }
 
   return supabaseResponse

@@ -14,6 +14,7 @@ import { useEffect, useRef, useCallback } from 'react'
 
 // URL is considered stale if older than 50 minutes (buffer before 60-min expiry)
 const URL_STALE_THRESHOLD_MS = 50 * 60 * 1000
+const RECOVERY_WAIT_TIMEOUT_MS = 5000
 
 interface UseAudioSessionRecoveryOptions {
   /** Project ID to fetch fresh URL for */
@@ -38,6 +39,12 @@ export function useAudioSessionRecovery({
   // Track when the current URL was fetched
   const urlFetchedAtRef = useRef<number>(Date.now())
   const isRecoveringRef = useRef(false)
+  const pendingRecoveryCleanupRef = useRef<(() => void) | null>(null)
+
+  const clearPendingRecoveryWait = useCallback(() => {
+    pendingRecoveryCleanupRef.current?.()
+    pendingRecoveryCleanupRef.current = null
+  }, [])
 
   // Update timestamp when audioSrc changes (new fetch)
   useEffect(() => {
@@ -45,6 +52,13 @@ export function useAudioSessionRecovery({
       urlFetchedAtRef.current = Date.now()
     }
   }, [audioSrc])
+
+  useEffect(() => {
+    return () => {
+      clearPendingRecoveryWait()
+      isRecoveringRef.current = false
+    }
+  }, [clearPendingRecoveryWait])
 
   const refreshAudioUrl = useCallback(async () => {
     if (isRecoveringRef.current) return
@@ -69,35 +83,65 @@ export function useAudioSessionRecovery({
 
       // Wait a tick for the new src to be applied, then restore position
       if (audio) {
-        // Use loadeddata event to restore position after src change
-        const cleanup = () => {
-          audio.removeEventListener('loadeddata', handleLoaded)
-          audio.removeEventListener('error', handleErrorOrAbort)
-          audio.removeEventListener('abort', handleErrorOrAbort)
+        const currentAudio = audio
+        clearPendingRecoveryWait()
+        let finished = false
+        let recoveryTimeoutId: number | null = null
+
+        const cleanupListeners = () => {
+          currentAudio.removeEventListener('loadeddata', handleLoaded)
+          currentAudio.removeEventListener('error', handleErrorOrAbort)
+          currentAudio.removeEventListener('abort', handleErrorOrAbort)
         }
+
+        const finishRecoveryWait = () => {
+          if (finished) return
+          finished = true
+          if (recoveryTimeoutId !== null) {
+            window.clearTimeout(recoveryTimeoutId)
+            recoveryTimeoutId = null
+          }
+          cleanupListeners()
+          if (pendingRecoveryCleanupRef.current === finishRecoveryWait) {
+            pendingRecoveryCleanupRef.current = null
+          }
+          isRecoveringRef.current = false
+        }
+
         const handleLoaded = () => {
-          audio.currentTime = savedPosition
+          currentAudio.currentTime = savedPosition
           if (wasPlaying) {
-            audio.play().catch(() => {
+            currentAudio.play().catch(() => {
               // Autoplay may be blocked, user can click play manually
             })
           }
-          cleanup()
+          finishRecoveryWait()
         }
+
         const handleErrorOrAbort = () => {
-          cleanup()
+          finishRecoveryWait()
         }
-        audio.addEventListener('loadeddata', handleLoaded)
-        audio.addEventListener('error', handleErrorOrAbort)
-        audio.addEventListener('abort', handleErrorOrAbort)
+
+        currentAudio.addEventListener('loadeddata', handleLoaded)
+        currentAudio.addEventListener('error', handleErrorOrAbort)
+        currentAudio.addEventListener('abort', handleErrorOrAbort)
+        pendingRecoveryCleanupRef.current = finishRecoveryWait
+        recoveryTimeoutId = window.setTimeout(() => {
+          if (finished) return
+          // Allow future recovery attempts if reload is slow, but keep the event
+          // listeners so a late `loadeddata` can still restore position/playback.
+          recoveryTimeoutId = null
+          isRecoveringRef.current = false
+        }, RECOVERY_WAIT_TIMEOUT_MS)
+      } else {
+        isRecoveringRef.current = false
       }
     } catch (err) {
       console.error('[useAudioSessionRecovery] Failed to refresh URL:', err)
       onRecoveryError?.(err instanceof Error ? err.message : 'Failed to refresh audio')
-    } finally {
       isRecoveringRef.current = false
     }
-  }, [projectId, audioElement, onUrlRefreshed, onRecoveryError])
+  }, [projectId, audioElement, onUrlRefreshed, onRecoveryError, clearPendingRecoveryWait])
 
   // Check if URL is stale
   const isUrlStale = useCallback(() => {

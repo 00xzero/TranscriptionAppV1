@@ -74,6 +74,11 @@ export default function CollapsibleWaveform({
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const currentFraction = clampedProgress / 100
     switch (e.key) {
+      case 'Enter':
+        if (onScrub) break
+        e.preventDefault()
+        onExpandClick()
+        break
       case ' ':
       case 'Spacebar':
         e.preventDefault()
@@ -145,13 +150,13 @@ export default function CollapsibleWaveform({
       {collapsed && (
         <div
           ref={barRef}
-          role="slider"
+          role={onScrub ? 'slider' : 'button'}
           tabIndex={0}
-          aria-label="Audio scrubber"
-          aria-orientation="horizontal"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(clampedProgress)}
+          aria-label={onScrub ? 'Audio scrubber' : 'Toggle waveform'}
+          aria-orientation={onScrub ? 'horizontal' : undefined}
+          aria-valuemin={onScrub ? 0 : undefined}
+          aria-valuemax={onScrub ? 100 : undefined}
+          aria-valuenow={onScrub ? Math.round(clampedProgress) : undefined}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
           onMouseDown={handleMouseDown}

@@ -507,11 +507,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
+      const target = e.target instanceof HTMLElement ? e.target : null
       const isEditableTarget =
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         target?.isContentEditable
+      const isInteractiveTarget = !!(e.target instanceof Element && e.target.closest(
+        'button, a[href], select, [role="button"], [role="link"], [role="menuitem"], [tabindex]:not([tabindex="-1"])'
+      ))
       const isAltGraph =
         e.getModifierState?.('AltGraph') ||
         (e.ctrlKey && e.altKey && !e.metaKey)
@@ -528,7 +531,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         openExportModal()
         return
       }
-      if (isEditableTarget) return
+      if (isEditableTarget || isInteractiveTarget) return
       if (e.key === ' ') { e.preventDefault(); togglePlay(); return }
       if (e.key.toLowerCase() === 'j') { seekRelative(-2); return }
       if (e.key.toLowerCase() === 'l') { seekRelative(2); return }

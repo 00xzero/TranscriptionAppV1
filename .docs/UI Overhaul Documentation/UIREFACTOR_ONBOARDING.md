@@ -94,7 +94,7 @@ Toggle the theme button in sidebar (or use browser devtools to add `dark` class 
 The route has been removed. Launch Capture from the header button in Library/Projects.
 
 ### Are we changing any backend logic?
-No. This is a pure UI refactor. All backend/API logic from the previous refactor remains unchanged.
+Primarily a UI refactor; also includes legacy backend/worker/infra cleanup while keeping backend/API behavior unchanged.
 
 ### Where is the existing refactor documentation?
 [.docs/Refactor Documentation/](../Refactor%20Documentation/) — contains backend architecture, glossary, and completed phase docs.

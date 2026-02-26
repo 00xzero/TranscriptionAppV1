@@ -212,6 +212,52 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     updateSeekFromEvent(e.clientX)
   }, [updateSeekFromEvent])
 
+  const seekToTime = useCallback((nextTime: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    const maxTime = Number.isFinite(duration) ? duration : 0
+    const clamped = Math.max(0, Math.min(nextTime, maxTime))
+    audio.currentTime = clamped
+    setCurrentTime(clamped)
+    onTimeUpdate?.(clamped)
+  }, [duration, onTimeUpdate])
+
+  const handleProgressKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const smallStep = 2
+    const largeStep = 10
+
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        e.preventDefault()
+        seekToTime(currentTime + smallStep)
+        break
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        e.preventDefault()
+        seekToTime(currentTime - smallStep)
+        break
+      case 'PageUp':
+        e.preventDefault()
+        seekToTime(currentTime + largeStep)
+        break
+      case 'PageDown':
+        e.preventDefault()
+        seekToTime(currentTime - largeStep)
+        break
+      case 'Home':
+        e.preventDefault()
+        seekToTime(0)
+        break
+      case 'End':
+        e.preventDefault()
+        seekToTime(duration)
+        break
+      default:
+        break
+    }
+  }, [currentTime, duration, seekToTime])
+
   useEffect(() => {
     if (!isDragging) return
 
@@ -259,6 +305,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
         aria-valuenow={currentTime}
         aria-label="Audio progress"
         tabIndex={0}
+        onKeyDown={handleProgressKeyDown}
       >
         {/* Background track */}
         <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded" />
@@ -293,6 +340,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       {!hideControls && (
         <div className="flex flex-wrap items-center gap-2">
           <button
+            type="button"
             className="px-3 py-1.5 rounded bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
             disabled={!ready}
             onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
@@ -300,6 +348,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
             {playing ? 'Pause' : 'Play'}
           </button>
           <button
+            type="button"
             className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
             onClick={() => {
               if (audioRef.current) {
@@ -310,6 +359,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
             -2s
           </button>
           <button
+            type="button"
             className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
             onClick={() => {
               if (audioRef.current && duration) {

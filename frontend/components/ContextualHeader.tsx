@@ -14,6 +14,7 @@ interface ContextualHeaderProps {
 export default function ContextualHeader({ viewType, projectTitle }: ContextualHeaderProps) {
   const { openCaptureModal } = useModal()
   const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
 
   // Auto-detect editor mode from pathname if viewType not explicitly set
@@ -23,22 +24,29 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
   // Check authentication status
   // Create Supabase client inside useEffect to avoid SSR/hydration issues
   useEffect(() => {
-    // Only run on client
-    if (typeof window === 'undefined') return
-
     const supabase = createClient()
     let isMounted = true
 
     const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-      if (isMounted) {
-        setUser(user)
+        if (isMounted) {
+          setUser(user)
+        }
+      } catch {
+        if (isMounted) {
+          setUser(null)
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
-    getUser()
+    void getUser()
 
     // Listen for auth state changes
     const {
@@ -46,6 +54,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (isMounted) {
         setUser(session?.user ?? null)
+        setIsLoading(false)
       }
     })
 
@@ -59,7 +68,9 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
     <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
       <div className="flex items-center gap-2">
-        {!user ? (
+        {isLoading ? (
+          <div className="h-6 w-28" aria-hidden="true" />
+        ) : !user ? (
           // Olivetti Logo - shown when not authenticated
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">

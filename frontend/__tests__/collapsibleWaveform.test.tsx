@@ -37,9 +37,9 @@ describe('CollapsibleWaveform', () => {
 
   it('renders mini progress bar when collapsed', () => {
     render(<CollapsibleWaveform {...defaultProps} />)
-    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
-    expect(slider).toBeInTheDocument()
-    expect(slider).toHaveAttribute('aria-valuenow', '40')
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
+    expect(button).toBeInTheDocument()
+    expect(button).not.toHaveAttribute('aria-valuenow')
   })
 
   it('does not render mini bar when expanded', () => {
@@ -177,9 +177,9 @@ describe('CollapsibleWaveform', () => {
         onExpandClick={onExpandClick}
       />
     )
-    const slider = screen.getByRole('slider')
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
 
-    fireEvent.click(slider)
+    fireEvent.click(button)
     expect(onExpandClick).toHaveBeenCalledTimes(1)
   })
 
@@ -191,9 +191,9 @@ describe('CollapsibleWaveform', () => {
         onExpandClick={onExpandClick}
       />
     )
-    const slider = screen.getByRole('slider')
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
 
-    fireEvent.doubleClick(slider)
+    fireEvent.doubleClick(button)
     expect(onExpandClick).not.toHaveBeenCalled()
   })
 
@@ -205,8 +205,21 @@ describe('CollapsibleWaveform', () => {
         onExpandClick={onExpandClick}
       />
     )
-    const slider = screen.getByRole('slider')
-    fireEvent.keyDown(slider, { key: 'Home' })
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
+    fireEvent.keyDown(button, { key: 'Home' })
+    expect(onExpandClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('supports keyboard expand with Enter when onScrub is NOT provided', () => {
+    const onExpandClick = jest.fn()
+    render(
+      <CollapsibleWaveform
+        {...defaultProps}
+        onExpandClick={onExpandClick}
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
+    fireEvent.keyDown(button, { key: 'Enter' })
     expect(onExpandClick).toHaveBeenCalledTimes(1)
   })
 
@@ -269,8 +282,8 @@ describe('CollapsibleWaveform', () => {
 
   it('renders progress bar at correct width', () => {
     render(<CollapsibleWaveform {...defaultProps} audioProgress={65} />)
-    const slider = screen.getByRole('slider')
-    const fill = slider.firstChild as HTMLElement
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
+    const fill = button.firstChild as HTMLElement
     expect(fill.style.width).toBe('65%')
   })
 })

@@ -18,18 +18,33 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
 
     const container = containerRef.current
     if (!container) return
+    let addedTemporaryTabIndex = false
+
+    const focusContainerFallback = () => {
+      if (!container.hasAttribute('tabindex')) {
+        container.setAttribute('tabindex', '-1')
+        addedTemporaryTabIndex = true
+      }
+      container.focus()
+    }
 
     // Focus first focusable element inside the container
     const focusables = container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
     if (focusables.length > 0) {
       focusables[0].focus()
+    } else {
+      focusContainerFallback()
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return
 
       const elements = container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-      if (elements.length === 0) return
+      if (elements.length === 0) {
+        e.preventDefault()
+        focusContainerFallback()
+        return
+      }
 
       const first = elements[0]
       const last = elements[elements.length - 1]
@@ -51,6 +66,9 @@ export function useFocusTrap(containerRef: RefObject<HTMLElement | null>, active
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
+      if (addedTemporaryTabIndex) {
+        container.removeAttribute('tabindex')
+      }
       // Restore previous focus
       previousFocusRef.current?.focus()
     }

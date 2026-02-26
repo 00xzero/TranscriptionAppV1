@@ -219,7 +219,12 @@ function ProjectsPageContent() {
         </div>
       )}
       {captureMessage && (
-        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
           <div className="flex items-center justify-between gap-3">
             <span>
               {captureMessage}

@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { useCapture, validateFile, MAX_FILE_SIZE_BYTES, SUPPORTED_EXTENSIONS } from '@/lib/hooks/useCapture'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const MAX_KEY_TERMS = 100
 
@@ -22,6 +23,8 @@ export default function CaptureModal() {
   const router = useRouter()
   const { upload, isUploading, error, progress, resetError } = useCapture()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(modalRef, isCaptureModalOpen)
 
   // Form state
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -244,7 +247,14 @@ export default function CaptureModal() {
       />
 
       {/* Modal Window */}
-      <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[500px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#141414]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl overflow-hidden flex flex-col text-ink dark:text-[#EAEAEA]">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="captureDialogTitle"
+        tabIndex={-1}
+        className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[500px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#141414]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl overflow-hidden flex flex-col text-ink dark:text-[#EAEAEA]"
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#D1CEC5] dark:border-white/10">
@@ -254,7 +264,7 @@ export default function CaptureModal() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
             </span>
-            <h3 className="font-sans font-medium text-sm">Capture</h3>
+            <h3 id="captureDialogTitle" className="font-sans font-medium text-sm">Capture</h3>
           </div>
           <button
             type="button"

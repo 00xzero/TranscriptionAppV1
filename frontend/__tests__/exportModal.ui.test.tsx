@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import ExportModal from '../components/ExportModal'
 
@@ -35,11 +35,11 @@ describe('ExportModal - Phase 7 UI regressions', () => {
   })
 
   test('exports using selected format endpoint and closes after success', async () => {
-    const user = userEventLib.setup()
+    jest.useFakeTimers()
+    const user = userEventLib.setup({ advanceTimers: jest.advanceTimersByTime })
     const onClose = jest.fn()
     const fetchMock = jest.fn().mockResolvedValue(makeExportResponse())
-    // @ts-ignore
-    global.fetch = fetchMock
+    ;(global as any).fetch = fetchMock
 
     render(<ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />)
 
@@ -52,13 +52,19 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(screen.getByText(/Download started successfully/i)).toBeInTheDocument()
     })
+
+    act(() => {
+      jest.advanceTimersByTime(1500)
+    })
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
   })
 
   test('traps focus, locks scroll, and closes on Escape', async () => {
     const user = userEventLib.setup()
     const onClose = jest.fn()
-    // @ts-ignore
-    global.fetch = jest.fn().mockResolvedValue(makeExportResponse())
+    ;(global as any).fetch = jest.fn().mockResolvedValue(makeExportResponse())
 
     const { unmount } = render(
       <ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />

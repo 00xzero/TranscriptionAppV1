@@ -144,13 +144,15 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       <div
         className={`
           h-[56px] px-4 border-b border-[#D1CEC5] dark:border-night-border 
-          flex items-center justify-between cursor-pointer
+          flex items-center justify-between
           transition-[padding] duration-300
           ${isCollapsed ? 'md:px-3' : 'md:px-6'}
         `}
       >
-        <div
-          className="flex items-center gap-3"
+        <button
+          type="button"
+          aria-label="Go to home"
+          className="flex items-center gap-3 text-left rounded bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/50"
           onClick={() => navigateTo('/')}
         >
           {/* Logo Icon */}
@@ -164,7 +166,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               olivetti
             </h1>
           )}
-        </div>
+        </button>
 
         {/* Collapse Toggle Button - Desktop Only */}
         <button

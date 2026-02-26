@@ -17,6 +17,17 @@
 -- aliases to canonical types as defense-in-depth.
 -- ============================================================================
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM storage.buckets
+        WHERE id = 'media'
+    ) THEN
+        RAISE EXCEPTION 'Expected storage.buckets row for id=% before expanding allowed_mime_types', 'media';
+    END IF;
+END $$;
+
 UPDATE storage.buckets AS b
 SET allowed_mime_types = (
     SELECT ARRAY(
@@ -31,4 +42,5 @@ SET allowed_mime_types = (
         ORDER BY mime_type
     )
 )
-WHERE b.id = 'media';
+WHERE b.id = 'media'
+  AND b.allowed_mime_types IS NOT NULL;
