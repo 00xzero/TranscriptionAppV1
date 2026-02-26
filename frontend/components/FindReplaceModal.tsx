@@ -308,8 +308,10 @@ export default function FindReplaceModal({
               >
                 Clear
               </button>
-              <kbd
+              <button
+                type="button"
                 onClick={onClose}
+                aria-label="Close find/replace (Esc)"
                 className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-mono cursor-pointer transition-colors ${
                   flashEsc
                     ? 'bg-ink/10 dark:bg-paper/10 border-ink/20 dark:border-paper/20 text-ink/60 dark:text-paper/50'
@@ -317,7 +319,7 @@ export default function FindReplaceModal({
                 }`}
               >
                 ESC
-              </kbd>
+              </button>
             </div>
           </div>
         </div>

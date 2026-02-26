@@ -263,7 +263,7 @@ export default function LibraryView() {
                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
                       {formatRelativeTime(project.updated_at)}
                     </span>
-                    <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
+                    <div className="relative" ref={menuRef}>
                       <button
                         type="button"
                         className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"

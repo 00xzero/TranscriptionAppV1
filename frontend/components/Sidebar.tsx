@@ -57,17 +57,36 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   // Fetch user
   useEffect(() => {
     const supabase = createClient()
+    let isMounted = true
+
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser()
+        if (error) {
+          console.error('Failed to fetch authenticated user in Sidebar:', error)
+          return
+        }
+
+        if (isMounted) {
+          setUser(user)
+        }
+      } catch (error) {
+        console.error('Unexpected error fetching authenticated user in Sidebar:', error)
+      }
     }
+
     getUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      if (isMounted) {
+        setUser(session?.user ?? null)
+      }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const toggleCollapsed = useCallback(() => {

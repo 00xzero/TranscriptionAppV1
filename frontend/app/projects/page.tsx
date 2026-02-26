@@ -45,7 +45,7 @@ function ProjectsPageContent() {
     setCaptureOutcome(null)
     setCaptureProjectId(null)
     router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
-  }, [router])
+  }, [router, searchParams])
 
   // Fetch error info for projects in error state
   const fetchProjectErrorInfo = useCallback(async (projectId: string) => {

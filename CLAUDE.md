@@ -23,11 +23,13 @@ npm run inngest      # Inngest dev server (background jobs)
 ```
 
 Run a single test file:
+
 ```bash
 npx jest __tests__/rate-limit.test.ts
 ```
 
 Local infrastructure (Supabase, Inngest, ngrok):
+
 ```bash
 cd infra && ./start-local.sh   # Start local services
 cd infra && ./stop-local.sh    # Stop local services
@@ -38,6 +40,7 @@ cd infra && ./stop-local.sh    # Stop local services
 ### Supabase Client Pattern
 
 Three separate Supabase client factories — use the correct one for the context:
+
 - `lib/supabase/client.ts` — browser-side (Client Components), uses `createBrowserClient`
 - `lib/supabase/server.ts` — server-side (RSC, API routes, Server Actions), uses `createServerClient` with cookie store
 - `lib/supabase/admin.ts` — service-role client for Inngest functions (bypasses RLS)
@@ -70,6 +73,7 @@ Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `chunks`, `chu
 ### Editor
 
 The transcript editor (`app/editor/[id]/page.tsx`) features:
+
 - Inline text editing with 500ms debounced auto-save
 - Find & Replace with case sensitivity
 - Speaker management (reassign, rename, color-code)
@@ -79,20 +83,21 @@ The transcript editor (`app/editor/[id]/page.tsx`) features:
 
 ### API Routes
 
-| Route | Purpose |
-|-------|---------|
-| `POST /api/projects` | Create project + upload media |
-| `POST /api/projects/[id]/start` | Start transcription (idempotency key required) |
-| `GET /api/projects/[id]/media-url` | Get signed media URL |
-| `GET/POST /api/projects/[id]/export/docx` | Export DOCX |
-| `GET/POST /api/projects/[id]/export/vtt` | Export VTT |
-| `POST /api/webhooks/deepgram` | Deepgram callback |
-| `GET /api/webhooks/deepgram/health` | Webhook health check |
-| `GET /api/media-proxy` | Proxy media with auth (local dev only) |
+| Route                                     | Purpose                                        |
+| ----------------------------------------- | ---------------------------------------------- |
+| `POST /api/projects`                      | Create project + upload media                  |
+| `POST /api/projects/[id]/start`           | Start transcription (idempotency key required) |
+| `GET /api/projects/[id]/media-url`        | Get signed media URL                           |
+| `GET/POST /api/projects/[id]/export/docx` | Export DOCX                                    |
+| `GET/POST /api/projects/[id]/export/vtt`  | Export VTT                                     |
+| `POST /api/webhooks/deepgram`             | Deepgram callback                              |
+| `GET /api/webhooks/deepgram/health`       | Webhook health check                           |
+| `GET /api/media-proxy`                    | Proxy media with auth (local dev only)         |
 
 ### Design System
 
 Tailwind with custom theme tokens in `tailwind.config.ts`:
+
 - Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `night-surface`, `night-border`
 - Fonts: Inter (sans), Newsreader (serif), IBM Plex Mono (mono)
 - Dark mode via `class` strategy
@@ -107,4 +112,4 @@ Jest + React Testing Library. Tests in `frontend/__tests__/`. Mocks in `frontend
 - Path alias: `@/*` maps to `frontend/*` (e.g., `@/lib/supabase/server`)
 - Rate limiting via in-memory sliding window (`lib/rate-limit.ts`), controlled by `RATE_LIMIT_MODE` env var
 - Idempotency on transcription start via `x-idempotency-key` header
-- Modal state managed via React Context (`components/ModalContext.tsx`)
+- Modal state managed via React Context (`lib/ModalContext.tsx`)
