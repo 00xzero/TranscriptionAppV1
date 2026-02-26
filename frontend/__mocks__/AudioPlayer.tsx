@@ -65,7 +65,11 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
             <audio ref={audioRef} />
             {!hideControls && (
                 <div data-testid="audio-controls">
-                    <button onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
+                    <button onClick={() => {
+                        const nextPlaying = !playing
+                        onPlayingChange?.(nextPlaying)
+                        setPlaying(nextPlaying)
+                    }}>{playing ? 'Pause' : 'Play'}</button>
                 </div>
             )}
             <div data-testid="audio-status">

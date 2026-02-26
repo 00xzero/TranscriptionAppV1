@@ -24,11 +24,28 @@ export async function middleware(request: NextRequest) {
   })
 
   // Use SUPABASE_URL for server-side (Docker), fallback to NEXT_PUBLIC for browser
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const missingEnvVars: string[] = []
+
+  if (!supabaseUrl) {
+    missingEnvVars.push('SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL')
+  }
+  if (!supabaseAnonKey) {
+    missingEnvVars.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+
+  if (missingEnvVars.length > 0) {
+    const message = `[middleware] Missing required Supabase environment variable(s): ${missingEnvVars.join(', ')}`
+    console.error(message)
+    throw new Error(message)
+  }
+  const validatedSupabaseUrl = supabaseUrl as string
+  const validatedSupabaseAnonKey = supabaseAnonKey as string
 
   const supabase = createServerClient(
-    supabaseUrl,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    validatedSupabaseUrl,
+    validatedSupabaseAnonKey,
     {
       cookies: {
         getAll() {

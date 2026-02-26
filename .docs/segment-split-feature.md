@@ -7,7 +7,7 @@ Deepgram sometimes attributes an interjection from one speaker to another speake
 1. User clicks the pencil icon to enter edit mode on a segment
 2. User places their cursor at the desired split point in the textarea
 3. A **scissors button** appears in the `SegmentHeaderRow` (next to the pencil icon, only visible while editing)
-4. User clicks the scissors button (or presses `Cmd+Shift+S`)
+4. User clicks the scissors button (or presses `Cmd+Shift+S` on macOS or `Ctrl+Shift+S` on Windows/Linux)
 5. The segment splits into two at the cursor's word boundary — both keep the original speaker
 6. User clicks the speaker label on either segment to reassign via the existing `SpeakerPopover`
 

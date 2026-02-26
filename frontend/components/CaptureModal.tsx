@@ -24,6 +24,7 @@ export default function CaptureModal() {
   const { upload, isUploading, error, progress, resetError } = useCapture()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
+  const originalOverflowRef = useRef<string | null>(null)
   useFocusTrap(modalRef, isCaptureModalOpen)
 
   // Form state
@@ -63,16 +64,22 @@ export default function CaptureModal() {
 
   // Prevent body scroll when modal is open
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow
-
     if (isCaptureModalOpen) {
+      if (originalOverflowRef.current === null) {
+        originalOverflowRef.current = document.body.style.overflow
+      }
       document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = prevOverflow
+      return () => {
+        if (originalOverflowRef.current !== null) {
+          document.body.style.overflow = originalOverflowRef.current
+          originalOverflowRef.current = null
+        }
+      }
     }
 
-    return () => {
-      document.body.style.overflow = prevOverflow
+    if (originalOverflowRef.current !== null) {
+      document.body.style.overflow = originalOverflowRef.current
+      originalOverflowRef.current = null
     }
   }, [isCaptureModalOpen])
 

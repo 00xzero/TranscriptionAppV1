@@ -18,9 +18,9 @@ export default function LibraryView() {
   useEffect(() => {
     if (!openMenuId) return
     const handlePointerDown = (e: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null)
-      }
+      const menuEl = menuRef.current
+      if (!menuEl) return
+      if (!menuEl.contains(e.target as Node)) setOpenMenuId(null)
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -89,6 +89,7 @@ export default function LibraryView() {
     const date = new Date(dateString)
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
+    if (diffMs < 0) return 'Just now'
     const diffMins = Math.floor(diffMs / 60000)
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
@@ -263,7 +264,7 @@ export default function LibraryView() {
                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
                       {formatRelativeTime(project.updated_at)}
                     </span>
-                    <div className="relative" ref={menuRef}>
+                    <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
                       <button
                         type="button"
                         className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"

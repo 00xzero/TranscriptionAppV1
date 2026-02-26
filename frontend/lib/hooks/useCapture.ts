@@ -87,7 +87,16 @@ function getMimeType(file: File): string {
 
     // Last resort fallback - this may still fail bucket validation
     console.warn(`[useCapture] Could not determine MIME type for: ${file.name}`)
-    return 'audio/mpeg'
+    const videoFallbackByExtension: Record<string, string> = {
+        'mp4': 'video/mp4',
+        'webm': 'video/webm',
+        'mov': 'video/quicktime',
+    }
+    const videoFallbackMime = videoFallbackByExtension[ext]
+    if (videoFallbackMime) {
+        return videoFallbackMime
+    }
+    return 'application/octet-stream'
 }
 
 const MAX_FILE_SIZE_BYTES = CONFIGURED_MAX_FILE_SIZE_BYTES
