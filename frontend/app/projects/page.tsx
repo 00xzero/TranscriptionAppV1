@@ -1,24 +1,51 @@
 "use client"
 import Link from 'next/link'
-import { useState, useCallback, useEffect } from 'react'
+import { Suspense, useState, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsRealtime } from '../../lib/supabase/hooks'
-import { fetchJobError, fetchWatchlistTerms } from '../../lib/supabase/queries'
-import { EditKeyTermsModal } from '../../components/EditKeyTermsModal'
-import type { Project } from '../../lib/supabase/types'
+import { fetchJobError } from '../../lib/supabase/queries'
 
 export default function ProjectsPage() {
+  return (
+    <Suspense fallback={<div className="text-muted">Loading...</div>}>
+      <ProjectsPageContent />
+    </Suspense>
+  )
+}
+
+function ProjectsPageContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per project - reused until request completes to prevent double-click issues
   const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
   const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
   const [projectErrorLoadErrors, setProjectErrorLoadErrors] = useState<Record<string, string>>({})
-  const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({})
-  const [termsLoadError, setTermsLoadError] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
+  const [captureProjectId, setCaptureProjectId] = useState<string | null>(null)
 
-  // Modal state
-  const [editingProject, setEditingProject] = useState<{ id: string; terms: string[] } | null>(null)
+  useEffect(() => {
+    setCaptureOutcome(searchParams.get('capture'))
+    setCaptureProjectId(searchParams.get('projectId'))
+  }, [searchParams])
+
+  const captureMessage = captureOutcome === 'saved_needs_retry'
+    ? 'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
+    : captureOutcome === 'saved_status_unknown'
+      ? 'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
+      : null
+
+  const dismissCaptureMessage = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('capture')
+    params.delete('projectId')
+    const nextQuery = params.toString()
+    setCaptureOutcome(null)
+    setCaptureProjectId(null)
+    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
+  }, [router, searchParams])
 
   // Fetch error info for projects in error state
   const fetchProjectErrorInfo = useCallback(async (projectId: string) => {
@@ -163,48 +190,6 @@ export default function ProjectsPage() {
     }
   }
 
-  const handleOpenEditModal = async (project: Project) => {
-    if (loadingTerms[project.id]) return
-    setLoadingTerms(prev => ({ ...prev, [project.id]: true }))
-    setTermsLoadError(prev => {
-      const next = { ...prev }
-      delete next[project.id]
-      return next
-    })
-
-    try {
-      const terms = await fetchWatchlistTerms(project.id)
-      setEditingProject({ id: project.id, terms })
-    } catch (e) {
-      console.error('Failed to load key terms:', e)
-      setTermsLoadError(prev => ({ ...prev, [project.id]: 'Failed to load key terms. Please try again.' }))
-    } finally {
-      setLoadingTerms(prev => {
-        const next = { ...prev }
-        delete next[project.id]
-        return next
-      })
-    }
-  }
-
-  const handleKeyTermsSaved = (newTerms: string[]) => {
-    // Trigger project list refresh
-    refetch()
-    // Clear error since user fixed the terms
-    if (editingProject) {
-      setProjectErrors(prev => {
-        const next = { ...prev }
-        delete next[editingProject.id]
-        return next
-      })
-    }
-  }
-
-  const handleRetry = useCallback(async () => {
-    if (!editingProject) return
-    await startProject(editingProject.id)
-  }, [editingProject, startProject])
-
   const getErrorInfo = (projectId: string) => projectErrors[projectId]
 
   // Connection status indicator
@@ -212,7 +197,7 @@ export default function ProjectsPage() {
     connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-[80px] px-6 md:px-10">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Projects</h1>
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -233,6 +218,27 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
+      {captureMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span>
+              {captureMessage}
+              {captureProjectId ? ` Project ID: ${captureProjectId}.` : ''}
+            </span>
+            <button
+              className="text-xs font-medium text-amber-800 hover:underline"
+              onClick={dismissCaptureMessage}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       {isLoading && <div className="text-muted">Loading...</div>}
       {!isLoading && projects.length === 0 && <div className="text-muted">No projects yet.</div>}
       <ul className="space-y-2">
@@ -240,8 +246,6 @@ export default function ProjectsPage() {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const errorLoadError = projectErrorLoadErrors[p.id]
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
-          const isLoadingTerms = !!loadingTerms[p.id]
-          const termLoadError = termsLoadError[p.id]
 
           return (
             <li key={p.id} className="bg-surface border border-base rounded p-3">
@@ -306,18 +310,9 @@ export default function ProjectsPage() {
                         </button>
                       )}
                       {isKeytermError && (
-                        <button
-                          onClick={() => handleOpenEditModal(p)}
-                          disabled={isLoadingTerms}
-                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
-                        >
-                          {isLoadingTerms ? 'Loading terms...' : 'Edit Key Terms'}
-                        </button>
-                      )}
-                      {termLoadError && (
-                        <div className="mt-1 text-xs text-red-700 dark:text-red-300">
-                          {termLoadError}
-                        </div>
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          Try adjusting key terms and re-uploading.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -328,17 +323,6 @@ export default function ProjectsPage() {
         })}
       </ul>
 
-      {/* Edit Key Terms Modal */}
-      {editingProject && (
-        <EditKeyTermsModal
-          projectId={editingProject.id}
-          currentTerms={editingProject.terms}
-          isOpen={true}
-          onClose={() => setEditingProject(null)}
-          onSaved={handleKeyTermsSaved}
-          onRetry={handleRetry}
-        />
-      )}
     </div>
   )
 }

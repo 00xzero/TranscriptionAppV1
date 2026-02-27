@@ -23,7 +23,8 @@ type SpeakerPopoverProps = {
   getColorForSpeaker?: (speaker?: Speaker) => string
 }
 
-const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#14B8A6', '#8B5CF6', '#F472B6', '#22C55E', '#EAB308', '#0EA5E9']
+// Colors aligned with Olivetti prototype: trust-blue, ember-red, yellow-600 first, then brand-complementary
+const COLORS = ['#4F638C', '#C73E1D', '#A16207', '#0D9488', '#7C3AED', '#64748B', '#B45309', '#059669', '#DB2777', '#2563EB']
 
 function getColorForSpeaker(speaker?: Speaker): string {
   if (speaker?.color) return speaker.color

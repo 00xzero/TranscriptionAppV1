@@ -4,19 +4,7 @@ node_modules/
 .out/
 out/
 .turbo/
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-.python-version
-.venv/
-venv/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
+*.tsbuildinfo
 
 # OS/IDE
 .DS_Store
@@ -43,3 +31,9 @@ Thumbs.db
 *.wmv
 *.flv
 *.webm
+
+# Supabase CLI local state (machine-specific)
+infra/supabase/.temp/
+
+# Unused files
+Olivetti.html

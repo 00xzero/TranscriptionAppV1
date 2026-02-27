@@ -1,21 +1,15 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
+import type { AudioPlayerProps, AudioPlayerRef } from '../components/AudioPlayer'
 
 /**
  * Mock AudioPlayer component for Jest tests.
  * Simulates the AudioPlayer behavior without actual audio playback.
  */
-const MockAudioPlayer = forwardRef(function MockAudioPlayer(
-    { src, onReady, onError, onPlayingChange, onTimeUpdate, initialPlaybackRate = 1.0 }: {
-        src: string
-        onReady?: () => void
-        onError?: (error: string) => void
-        onPlayingChange?: (playing: boolean) => void
-        onTimeUpdate?: (currentTime: number) => void
-        initialPlaybackRate?: number
-        peaks?: number[]
-    },
+const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function MockAudioPlayer(
+    { src, onReady, onPlayingChange, onTimeUpdate, onSeeked, initialPlaybackRate = 1.0, hideControls = false }: AudioPlayerProps,
     ref
 ) {
+    const audioRef = useRef<HTMLAudioElement | null>(null)
     const [playing, setPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration] = useState(60)
@@ -40,11 +34,13 @@ const MockAudioPlayer = forwardRef(function MockAudioPlayer(
             const newTime = Math.max(0, Math.min(ms / 1000, duration))
             setCurrentTime(newTime)
             onTimeUpdate?.(newTime)
+            onSeeked?.(newTime)
         },
         seekRelative: (seconds: number) => {
             const newTime = Math.max(0, Math.min(currentTime + seconds, duration))
             setCurrentTime(newTime)
             onTimeUpdate?.(newTime)
+            onSeeked?.(newTime)
         },
         setPlaybackRate: (rate: number) => {
             setPlaybackRate(rate)
@@ -53,7 +49,8 @@ const MockAudioPlayer = forwardRef(function MockAudioPlayer(
         getDuration: () => duration,
         isPlaying: () => playing,
         isReady: () => readyRef.current,
-    }), [playing, currentTime, duration, onPlayingChange, onTimeUpdate])
+        getAudioElement: () => audioRef.current,
+    }), [playing, currentTime, duration, playbackRate, onPlayingChange, onTimeUpdate, onSeeked])
 
     // Simulate ready event after mount
     useEffect(() => {
@@ -65,9 +62,16 @@ const MockAudioPlayer = forwardRef(function MockAudioPlayer(
 
     return (
         <div data-testid="audio-player" data-src={src}>
-            <div data-testid="audio-controls">
-                <button onClick={() => setPlaying(!playing)}>{playing ? 'Pause' : 'Play'}</button>
-            </div>
+            <audio ref={audioRef} />
+            {!hideControls && (
+                <div data-testid="audio-controls">
+                    <button onClick={() => {
+                        const nextPlaying = !playing
+                        onPlayingChange?.(nextPlaying)
+                        setPlaying(nextPlaying)
+                    }}>{playing ? 'Pause' : 'Play'}</button>
+                </div>
+            )}
             <div data-testid="audio-status">
                 Time: {currentTime.toFixed(1)}s / {duration}s | Rate: {playbackRate}x
             </div>

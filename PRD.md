@@ -2,248 +2,261 @@
 
 ## Product: Lightweight Transcription Web App
 
+### Document Status
+
+- Last updated: February 14, 2026
+- Stack status: Active (Next.js + Supabase + Inngest)
+- Scope: Current implementation plus near-term roadmap
+
 ---
 
 ## 1. Overview
 
-A web application that ingests audio/video files and generates high-quality transcripts using state-of-the-art speech-to-text APIs. The app will support **speaker diarization**, **custom vocabulary correction**, **export formats (DOCX, VTT)**, and an **inline transcript editor** with bulk edit capabilities.
+A web application that ingests audio/video files and generates timestamped transcripts using Deepgram async transcription. The app supports speaker diarization, key term boosting, inline editing, and export to DOCX and VTT.
 
 ### One-liner
 
-A privacy-friendly transcription tool powered by **Deepgram Nova 3**, with speaker detection, watchlist correction, editing, and easy export.
+A privacy-focused transcription tool powered by Deepgram Nova 3, with speaker detection, editing, and fast exports.
 
 ---
 
-## 2. Goals & Non-Goals
+## 2. Goals and Non-Goals
 
 ### Goals
 
-*   Multi-user support with secure data isolation (RLS).
-*   Provide accurate, timestamped transcription.
-*   Automatically detect and tag speakers.
-*   Support exports: DOCX and VTT.
-*   Enable custom vocabularies for domain-specific terms.
-*   Offer an inline editor with bulk edit capabilities.
+- Multi-user support with secure data isolation via Supabase Auth + RLS.
+- Accurate async transcription with speaker-aware output.
+- Fast edit loop for transcript cleanup (inline editing + bulk find/replace).
+- Export-ready outputs (DOCX and VTT) for publishing and downstream workflows.
+- Reliable job lifecycle with clear statuses and retry-safe start behavior.
 
-### Non-Goals
+### Non-Goals (v1)
 
-* No collaboration or real-time co-editing (v1).
-* No billing/subscription/paywall features (v1).
-* No fallback to self-hosted Whisper (cost controlled by sensible file cap).
+- Real-time collaborative editing.
+- Billing/subscription/paywall features.
+- Self-hosted model fallback (for example Whisper).
+- Advanced document workflows (templating, approvals, redlining).
 
 ---
 
-## 3. User Stories
+## 3. Primary User Stories
 
-* **As a researcher**, I want to upload a long interview and get an accurate transcript with speakers labeled, so I can analyze it quickly.
-* **As a video editor**, I want to export a .vtt file, so I can sync captions with my video.
-* **As a consultant**, I want to define terms like “PAS-X” so they’re always spelled correctly.
-* **As a user**, I want to correct multiple misrecognized words at once, so I don’t waste time editing line by line.
+- As a researcher, I can upload interviews and receive speaker-labeled transcripts quickly.
+- As a video editor, I can export VTT captions that align to media timing.
+- As a consultant, I can provide key terms so domain vocabulary is recognized correctly.
+- As an analyst, I can find and replace repeated errors across a long transcript in seconds.
 
 ---
 
 ## 4. Key Features
 
-### 4.1 Upload & Transcription
+### 4.1 Capture and Upload
 
-* Drag-and-drop audio/video files (.mp3, .wav, .m4a, .aac, .flac, .mp4, .mov, .mkv).
-* Automatic extraction of audio from video.
-*   Support files up to **1.5 GB** or **4 hours** (Capped at 50MB by default for Supabase Free plan; configurable up to 1.5GB+ via `NEXT_PUBLIC_MAX_FILE_SIZE_MB`).
-*   **Sensible cap enforced**: Validation on frontend and backend rejects files beyond the configured limit.
+- Capture modal supports drag/drop and file picker.
+- Supported formats: `mp3`, `wav`, `m4a`, `aac`, `flac`, `mp4`, `mov`, `webm`, `ogg`, `avi`.
+- Configurable upload cap via `NEXT_PUBLIC_MAX_FILE_SIZE_MB` (default 50MB, can be raised for paid plans).
+- User can set title and optional key terms at capture time.
+- Capture flow creates project first, uploads media to Supabase Storage, then starts transcription.
 
-### 4.2 Speech-to-Text
+Implementation notes:
+- Language selector UI exists but is currently disabled (coming soon).
+- Diarization toggle UI exists but is disabled; backend currently runs diarization by default.
 
-* **API: Deepgram Nova 3 (prerecorded transcription)**
+### 4.2 Transcription Pipeline
 
-  * Upload of recorded audio or video, or provide a pre-signed URL.
-  * Strong accuracy, supports async/batch transcription.
-  * Features include diarization, paragraphs/utterances, smart formatting, and keyword boosting (custom vocabulary).
-  * Cost: refer to vendor pricing page for the latest rates.
+- Deepgram async (`/listen` + callback webhook) with `nova-3`, smart formatting, utterances, diarization.
+- Job lifecycle: `queued -> processing -> completed|error`.
+- Project lifecycle tracks transcription state (`created`, `queued`, `processing`, `completed`, `error`).
+- Optional idempotent start via `x-idempotency-key` to prevent duplicate jobs.
+- Start-route rate limiting is supported (`RATE_LIMIT_MODE`).
+- Timeout watchdog marks stale jobs as `error` (default `TRANSCRIPTION_TIMEOUT_MINUTES=45`).
 
-### 4.3 Speaker Diarization
+### 4.3 Speaker Handling
 
-* Use Deepgram’s built-in **speaker diarization**.
-* Editable speaker labels in UI.
+- Deepgram speaker diarization enabled in transcription request.
+- Speaker labels shown in editor.
+- User can rename speakers globally, create new speaker labels, reassign segment/chunk speaker, and untag to default naming.
 
-### 4.4 Vocabulary Watchlist / Key Terms
+### 4.4 Transcript Editing
 
-* ✅ Users add key terms during upload (e.g., "PAS-X", "Val de Reuil").
-* ✅ Terms sent to Deepgram via `keyterm` parameter for improved recognition.
-* ✅ Limit: 100 terms, 64 chars each (within Deepgram's 500-token limit).
-* ✅ Edit & retry flow for failed transcriptions due to term errors.
-* ⏳ Post-processing watchlist correction in editor (planned).
+- Inline transcript editing with debounced autosave (500ms).
+- Word-level timing display in transcript cards.
+- Bulk Find/Replace supports:
+  - case-sensitive matching
+  - whole-word matching
+  - replace one and replace all
+  - match navigation and highlighted context snippets
+- "Sync to audio" affordance helps recover follow mode after user scroll.
 
-### 4.5 Transcript Editing
+Planned:
+- Segment split/merge.
+- Undo/redo history beyond browser-native behavior.
+- Regex-based find/replace.
 
-* ✅ Inline editor with debounced autosave (500ms).
-* ✅ Word-level timestamps displayed per segment.
-* ✅ **Bulk Find & Replace** with case-sensitivity toggle, match highlighting, and preview.
-* ✅ Replace single or replace all.
-* ✅ **Speaker reassignment UI**: click avatar to rename globally, create new speaker, or reassign segment.
-* ⏳ Segment split/merge (planned).
-* ⏳ Undo/redo history beyond browser native (planned).
-* ⏳ Regex support in find/replace (planned).
+### 4.5 Export
 
-### 4.6 Export Options
-
-* ⏳ **PDF**: (Coming Soon) Print-friendly format with metadata
-* ✅ **DOCX**: Structured by speaker turns with timestamps and metadata
-* ✅ **VTT**: WebVTT format with speaker voice tags and proper cue identifiers
-* ✅ **Filename format**: `{title}_{FORMAT}_{YYYY-MM-DD}.ext` for easy organization
-* ✅ **Export modal**: User-friendly interface with format selection and download feedback
-* ✅ **Metadata included**: Date of Transcription and Duration (when available)
+- DOCX export implemented through Next.js API route.
+- VTT export implemented through Next.js API route.
+- Export filename format: `{title}_{FORMAT}_{YYYY-MM-DD}.ext`.
+- DOCX includes transcript metadata (date and duration when available).
+- PDF option is visible in UI as "coming soon" and is not implemented yet.
 
 ---
 
-## 5. User Experience
+## 5. User Experience and App Surfaces
 
-### Pages
+### Main Surfaces
 
-1. **Upload**: upload file, choose options (language, diarization, watchlist terms).
-2. **Projects List**: list of processed/transcribing projects.
-3. **Editor**: waveform, transcript, speakers, find/replace, exports.
+1. Auth (`/auth`): Email/password sign-in and sign-up via Supabase Auth UI.
+2. Home/Library (`/`): Recent projects/files with status indicators.
+3. Projects (`/projects`): Project list, start transcription, view errors, delete project.
+4. Editor (`/editor/[id]`): Waveform, transcript editing, speaker tools, find/replace, export.
 
-### Editor Layout
+### Keyboard Shortcuts
 
-* **Left/Top**: waveform with playhead (wavesurfer.js).
-* **Center/Bottom**: transcript grouped by speaker turns with avatar, initials, and color.
-* **Toolbar**: find/replace panel with case sensitivity, playback controls, rate selector.
-* ✅ **Speaker popover**: click avatar to rename, reassign, or create new speaker.
-* ✅ **Export button**: opens modal for format selection (DOCX, VTT).
+Implemented:
+- `Space`: play/pause
+- `J` / `L`: seek -2s / +2s
+- `,` / `.`: seek -0.25s / +0.25s
+- `Cmd/Ctrl + F`: open Find/Replace
+- `Cmd/Ctrl + E`: open Export modal
+- Click segment/word: seek to timestamp
 
-### Playback Sync
-
-* ✅ **Sync to audio button**: Floating button appears when user scrolls away from active segment.
-* ✅ **Auto-follow mode**: Clicking sync re-enables automatic transcript scrolling with audio.
-* ✅ **Directional arrows**: Button shows ↑/↓ indicating direction to active segment.
-* ✅ **Smart detection**: Only user scroll (wheel/touch) breaks follow mode, not programmatic scroll.
-* ✅ **Edit/popover aware**: Button hidden during editing or when speaker popover is open.
-
-### Shortcuts (Implemented)
-
-* Space = play/pause.
-* J/L = seek ±2s.
-* ,/. = fine seek ±0.25s.
-* Click segment/word = seek to timestamp.
-* Scroll transcript = break follow mode, show sync button.
-
-### Shortcuts (Planned)
-
-* Ctrl/Cmd+F = find.
-* Ctrl/Cmd+H = replace.
-* Ctrl/Cmd+S = save.
+Planned:
+- `Cmd/Ctrl + H`: explicit replace shortcut
+- `Cmd/Ctrl + S`: explicit save shortcut
 
 ---
 
 ## 6. Architecture
 
-### Frontend
+### Frontend and API
 
-*   Framework: **Next.js 14 (App Router)**, TypeScript.
-*   Styling: Tailwind CSS.
-*   Audio player: **wavesurfer.js** (WebAudio backend).
-*   Data Fetching: **Supabase SDK** + **SWR** (polling fallback).
-*   Realtime: **Supabase Realtime** for project/job status updates.
+- Next.js 14 App Router with TypeScript.
+- Tailwind-based UI.
+- API routes in the same Next.js app for project creation/start/export/webhooks.
+- Client data layer uses Supabase SDK + realtime subscriptions with polling fallback.
 
-### Backend (Serverless)
+### Data/Auth/Storage
 
-*   Database: **Supabase Postgres** with Row Level Security (RLS).
-*   Auth: **Supabase Auth** (Email/Password, Magic Link).
-*   Storage: **Supabase Storage** (S3-compatible, signed URLs).
-*   Background Jobs: **Inngest** (event-driven functions).
-*   Transcription Pipeline: **Deepgram Async API** + Webhook handlers.
+- Supabase Postgres with RLS-enabled project-scoped access.
+- Supabase Auth (email/password flow in current UI).
+- Supabase Storage private `media` bucket with signed URL access.
 
-### Infrastructure
+### Async Processing
 
-*   Deployment: Vercel (Frontend/API), Supabase Cloud, Inngest Cloud.
-*   Local Dev: **Supabase CLI** + Docker Compose + **ngrok** (for webhooks).
+- Inngest functions orchestrate transcription lifecycle.
+- Deepgram webhook stores payload and emits processing events.
+- Optional local media proxy for Docker/ngrok callback compatibility.
 
----
+### Infra
 
-## 7. Data Model (simplified)
-
-* **Project**: metadata (title, status, source file, duration, user_id).
-* **Speaker**: label, color, linked to project.
-* **Segment**: raw transcript segments (from STT provider).
-* **Word**: raw word timings (linked to segments).
-* **Chunk**: consolidated segments for editing (idempotent generation).
-* **Chunk_word**: words mapped to consolidated chunks.
-* **Watchlist**: key terms and canonical forms for transcription boosting.
-* **Job**: background task records (queued, processing, completed, error).
+- Local: Supabase CLI + Docker Compose + ngrok.
+- Deployment target: Vercel (app/API), Supabase Cloud, Inngest Cloud.
 
 ---
 
-## 8. API Endpoints
+## 7. Data Model (Simplified)
 
-### Next.js API Routes (Server-side)
-* `POST /api/projects` → Create project and initiate storage upload.
-* `POST /api/projects/[id]/start` → Trigger Inngest transcription flow.
-* `GET /api/projects/[id]/media-url` → Generate signed URL for playback.
-* `POST /api/inngest` → Inngest function execution handler.
-* `POST /api/webhooks/deepgram` → Deepgram transcription callback handler.
-* `GET /api/projects/[id]/export/docx` → Native Node.js DOCX generation.
-* `GET /api/projects/[id]/export/vtt` → Native Node.js VTT generation.
-
-### Direct Supabase Access (Client-side)
-* `SELECT * FROM projects` → RLS-filtered project list.
-* `SELECT * FROM chunks` → Fetch transcript data with Realtime subscription.
-* `PATCH /projects` → Update project title or status.
-* `UPSERT /speakers` → Rename or create speakers.
+- `projects`: project metadata and user ownership.
+- `speakers`: speaker labels/colors per project.
+- `segments`: raw utterance-level transcript data.
+- `words`: word-level timings.
+- `chunks`: consolidated editable transcript units.
+- `chunk_words`: mapping between chunks and words.
+- `watchlist`: key terms for recognition boosting.
+- `jobs`: transcription job state and payload metadata.
+- `failed_events`: dead-letter/event failure records for operational debugging.
 
 ---
 
-## 9. Performance Targets
+## 8. API and Integration Contracts
 
-* 60-min file processed via Deepgram Nova 3 in **≤ 5 min** (async mode typically handles 1 hour in under 2 minutes).
-* Bulk replace applied in **< 1s** for 1-hour transcript.
-* Editor autosave: debounced updates (500ms) with optimistic UI.
+### Next.js API Routes
+
+- `POST /api/projects` - Create project and return storage path.
+- `POST /api/projects/[id]/start` - Queue transcription (supports idempotency key header).
+- `GET /api/projects/[id]/media-url` - Generate signed URL for playback.
+- `GET /api/projects/[id]/export/docx` - Generate DOCX export.
+- `GET /api/projects/[id]/export/vtt` - Generate VTT export.
+- `POST /api/inngest` - Inngest handler endpoint.
+- `POST /api/webhooks/deepgram` - Deepgram callback ingest + forwarding.
+- `GET /api/webhooks/deepgram/health` - Webhook/system health endpoint.
+- `GET /api/media-proxy` - Optional local callback media proxy.
+
+### Client-Side Supabase Access
+
+- Project list/status and editor data are fetched directly via Supabase SDK.
+- Realtime subscriptions are used where possible with timed polling fallback.
+- Optimistic updates are used for key editor interactions.
 
 ---
 
-## 10. Privacy & Security
+## 9. Performance, Reliability, and Operational Targets
 
-*   **Data Isolation**: Row Level Security (RLS) ensures users only access their own data.
-*   **Secure Storage**: Supabase Storage with owner-folder policies; signed URLs for Deepgram and playback.
-*   Media retention: 1-day retention policy (Policy stated; enforcement via automated cleanup task in progress).
-*   **Authentication**: Multi-user support via **Supabase Auth** (Email/Password).
-*   **Encryption**: HTTPS/TLS enforced for all transit; storage encrypted at rest.
+- Target user experience: 60-minute media should usually complete transcription in minutes, not tens of minutes.
+- UI responsiveness target: bulk replace operations complete fast enough for interactive use on long transcripts.
+- Duplicate start protection through idempotency key + DB unique index.
+- Stale job auto-fail via scheduled timeout checks.
+- Webhook authentication required via `dg-token` against `DEEPGRAM_API_KEY_IDENTIFIER`.
+- Known platform limitation: Vercel function body cap can reject very large Deepgram callbacks (roughly multi-hour recordings).
 
 ---
 
-## 11. Acceptance Criteria
+## 10. Security and Privacy
 
-### ✅ Completed
-* Multi-user authentication and secure data isolation.
-* Upload file → Deepgram (Nova 3) async transcript generation.
-* Realtime status updates with polling fallback.
-* TypeScript-based consolidation pipeline (v1.3-ts).
-* Key terms supported during upload for improved recognition.
-* Editor supports inline edits with autosave and Optimistic UI.
-* Editor supports bulk find & replace with case sensitivity.
-* Native Node.js exports for DOCX and VTT.
-* Waveform playback (WebAudio) with robust VBR sync.
-* Speaker avatars with color coding and global renaming.
-* Sync to audio button for user-controlled transcript following.
+- RLS enforces per-user data isolation for project-scoped tables.
+- Auth middleware protects app routes and redirects unauthenticated users.
+- Storage access is private; signed URLs are used for controlled media access.
+- Service-role operations are restricted to server-side paths (Inngest/webhooks/admin helpers).
+- Transport security is assumed via HTTPS in deployed environments.
 
-### ⏳ Planned
-* Post-transcription watchlist correction.
-* Segment split/merge.
-* Undo/redo history.
-* Regex in find/replace.
+Open operational policy item:
+- Media retention automation is not finalized in code as a hard-enforced policy.
+
+---
+
+## 11. Acceptance Criteria Snapshot
+
+### Completed
+
+- Multi-user auth and RLS-backed tenant isolation.
+- Upload -> create project -> store media -> start async transcription flow.
+- Deepgram async integration with webhook-based completion path.
+- Job lifecycle tracking with surfaced error states.
+- Realtime project updates with polling fallback.
+- Key term capture and forwarding to Deepgram `keyterm` parameters.
+- Inline transcript editing with debounced autosave.
+- Bulk find/replace with case and whole-word options.
+- Speaker rename/reassign/create interactions in editor.
+- DOCX and VTT export endpoints with downloadable files.
+- Idempotent transcription start support.
+- Start-route rate limiting and timeout-based stale job protection.
+
+### Planned
+
+- Language selection control in capture flow.
+- User-facing diarization settings control in capture flow.
+- Post-transcription watchlist correction pass.
+- Segment split/merge editing.
+- Undo/redo history.
+- Regex-enabled replace.
+- PDF export.
+- Explicit automated retention workflow and policy enforcement.
 
 ---
 
 ## 12. Stretch Features (Future)
 
-*   Automatic summarization.
-*   Entity highlighting (e.g., legal codes, product names).
-*   Real-time transcription for live calls (Deepgram real-time API).
-*   Advanced export formats (PDF, JSON).
+- AI-generated summaries.
+- Named entity highlighting.
+- Live transcription mode.
+- Additional export targets (for example JSON and subtitle variants).
 
 ---
 
 ## 13. Open Questions
 
-* None at this stage; Deepgram Nova 3 selected as the STT provider.
-* Retention set to 1 day.
-* Sensible cap on file size/duration replaces fallback self-hosted Whisper.
+- What retention window should be enforced by automation in production, and where should deletion jobs run?
+- Should long-recording webhook ingestion move to a higher body-limit runtime for production plans requiring multi-hour files?
+- Should language selection and diarization options be exposed in v1.1, or remain backend-managed defaults?
