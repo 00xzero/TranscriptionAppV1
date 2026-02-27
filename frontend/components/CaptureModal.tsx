@@ -69,17 +69,13 @@ export default function CaptureModal() {
         originalOverflowRef.current = document.body.style.overflow
       }
       document.body.style.overflow = 'hidden'
-      return () => {
-        if (originalOverflowRef.current !== null) {
-          document.body.style.overflow = originalOverflowRef.current
-          originalOverflowRef.current = null
-        }
-      }
     }
 
-    if (originalOverflowRef.current !== null) {
-      document.body.style.overflow = originalOverflowRef.current
-      originalOverflowRef.current = null
+    return () => {
+      if (originalOverflowRef.current !== null) {
+        document.body.style.overflow = originalOverflowRef.current
+        originalOverflowRef.current = null
+      }
     }
   }, [isCaptureModalOpen])
 
