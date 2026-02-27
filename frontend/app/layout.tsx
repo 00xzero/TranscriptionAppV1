@@ -28,7 +28,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Olivetti — Transcription App',
+  title: 'Olivetti',
   description: 'Lightweight transcription tool',
 }
 
