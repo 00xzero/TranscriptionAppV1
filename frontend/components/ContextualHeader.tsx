@@ -111,7 +111,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
             aria-label="Export"
           >
             <svg
-              className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 group-hover:text-trust-blue transition-all"
+              className="w-3.5 h-3.5 opacity-50 group-hover:opacity-80 transition-all"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -156,7 +156,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
                   strokeLinecap="round"
                 />
               </svg>
-              <span className="font-sans text-[10px] leading-[16px] text-ink/50 dark:text-paper/50 whitespace-nowrap">
+              <span className="font-sans text-[10px] leading-[16px] text-ink/50 dark:text-paper/50 group-hover:text-ink/80 dark:group-hover:text-paper/80 whitespace-nowrap transition-colors">
                 Find & Replace
               </span>
             </div>

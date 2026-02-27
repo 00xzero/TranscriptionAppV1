@@ -163,7 +163,7 @@ export default function FindReplaceModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
-          className="relative w-[600px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"
+          className="relative w-[600px] max-w-[90vw] bg-[#F2EFED]/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           <h2 id={titleId} className="sr-only">Find and Replace</h2>

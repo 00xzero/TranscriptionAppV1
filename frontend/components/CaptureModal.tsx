@@ -256,7 +256,7 @@ export default function CaptureModal() {
         aria-modal="true"
         aria-labelledby="captureDialogTitle"
         tabIndex={-1}
-        className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[500px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#141414]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl overflow-hidden flex flex-col text-ink dark:text-[#EAEAEA]"
+        className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[500px] max-w-[90vw] bg-[#F2EFED]/45 dark:bg-[#141414]/45 backdrop-blur-md border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl overflow-hidden flex flex-col text-ink dark:text-[#EAEAEA]"
       >
 
         {/* Header */}
