@@ -461,6 +461,7 @@ export default function CaptureModal() {
                     <span className="max-w-[150px] truncate">{term}</span>
                     <button
                       onClick={() => removeTerm(index)}
+                      aria-label={`Remove term ${index + 1}: ${term}`}
                       disabled={isUploading}
                       className="ml-0.5 hover:text-ember-red transition-colors disabled:opacity-50"
                     >

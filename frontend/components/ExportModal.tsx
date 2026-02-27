@@ -1,5 +1,5 @@
 "use client"
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 type ExportFormat = 'DOCX' | 'VTT'
@@ -15,6 +15,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
+  const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   const isExportingRef = useRef(isExporting)
@@ -27,6 +28,10 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
   useEffect(() => {
     isExportingRef.current = isExporting
   }, [isExporting])
+
+  useEffect(() => {
+    panelRef.current?.focus()
+  }, [])
 
   // ESC handler + body scroll lock
   useEffect(() => {
@@ -122,12 +127,16 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
       <div className="flex justify-center pt-[20vh]">
         <div
           ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
           className="relative w-[480px] max-w-[90vw] bg-[#F2EFED]/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <div className="px-6 pt-6 pb-4">
-            <h2 className="font-serif italic text-xl text-ink dark:text-paper">Export Transcript</h2>
+            <h2 id={titleId} className="font-serif italic text-xl text-ink dark:text-paper">Export Transcript</h2>
             <p className="text-[10px] text-ink/50 dark:text-white/50 font-mono mt-1">
               Select your preferred download format
             </p>

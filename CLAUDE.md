@@ -10,7 +10,7 @@ All active code is in `frontend/`.
 
 ## Commands
 
-All commands run from the `frontend/` directory:
+Run from `frontend/`:
 
 ```bash
 npm run dev          # Dev server at http://localhost:3000
@@ -27,6 +27,8 @@ Run a single test file:
 ```bash
 npx jest __tests__/rate-limit.test.ts
 ```
+
+Run from repository root:
 
 Local infrastructure (Supabase, Inngest, ngrok):
 

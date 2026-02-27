@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useRef, useEffect, useState, useMemo } from 'react'
+import React, { useRef, useEffect, useState, useMemo, useId } from 'react'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export interface FindReplaceModalProps {
@@ -70,6 +70,7 @@ export default function FindReplaceModal({
   matchIndex,
   onMatchClick,
 }: FindReplaceModalProps) {
+  const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const snippetRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const [flashUp, setFlashUp] = useState(false)
@@ -159,9 +160,13 @@ export default function FindReplaceModal({
       <div className="flex justify-center pt-[20vh]">
         <div
           ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
           className="relative w-[600px] max-w-[90vw] bg-[#F2EFED]/90 dark:bg-[#1A1A1A]/90 backdrop-blur-xl border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
+          <h2 id={titleId} className="sr-only">Find and Replace</h2>
           {/* Search row */}
           <div className="flex items-center gap-3 h-16 px-5 border-b border-[#D1CEC5]/60 dark:border-[#333]/60">
             {/* Search icon */}

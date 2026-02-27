@@ -19,7 +19,8 @@ export default function CollapsibleWaveform({
   onScrub,
   children,
 }: CollapsibleWaveformProps) {
-  const clampedProgress = Math.min(100, Math.max(0, audioProgress))
+  const normalizedProgress = Number.isFinite(audioProgress) ? audioProgress : 0
+  const clampedProgress = Math.min(100, Math.max(0, normalizedProgress))
   const barRef = useRef<HTMLDivElement | null>(null)
   const clickTimeoutRef = useRef<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)

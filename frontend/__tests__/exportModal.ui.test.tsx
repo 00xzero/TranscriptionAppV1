@@ -75,7 +75,10 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     const docxRadio = screen.getByRole('radio', { name: /Word \(\.docx\)/i })
     const cancelButton = screen.getByRole('button', { name: /Cancel/i })
     const exportButton = screen.getByRole('button', { name: /^Export$/i })
+    const dialog = screen.getByRole('dialog', { name: /Export Transcript/i })
 
+    expect(dialog).toHaveFocus()
+    await user.tab()
     expect(docxRadio).toHaveFocus()
     await user.tab()
     expect(cancelButton).toHaveFocus()

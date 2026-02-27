@@ -42,8 +42,11 @@ export default function AuthPage() {
   }, [router])
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
+    <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-8 bg-transparent">
+      <div
+        data-auth-panel
+        className="w-full max-w-[420px] p-8 rounded-[14px] border border-[var(--border)] [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-[14px]"
+      >
         <div className="flex items-center justify-center gap-3 mb-2">
           <div className="flex items-center gap-1.5">
             <div className="h-6 w-1 bg-[var(--text)] rounded-full"></div>
@@ -51,7 +54,7 @@ export default function AuthPage() {
           </div>
           <h1 className="text-[1.625rem] font-normal text-[var(--text)] font-serif italic tracking-[-0.02em]">olivetti</h1>
         </div>
-        <p className="auth-subtitle">Sign in to continue</p>
+        <p className="text-[0.95rem] text-[var(--muted)] text-center mb-6">Sign in to continue</p>
 
         <Auth
           supabaseClient={supabase}
@@ -84,60 +87,31 @@ export default function AuthPage() {
       </div>
 
       <style jsx global>{`
-        .auth-container {
-          min-height: calc(100vh - 60px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem;
-          background: transparent;
-        }
-        
-        .auth-card {
-          width: 100%;
-          max-width: 420px;
-          padding: 2rem;
-          background: color-mix(in oklab, var(--surface) 80%, transparent);
-          border-radius: 14px;
-          border: 1px solid var(--border);
-          box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.15);
-          backdrop-filter: blur(14px);
-        }
-        
-
-        
-        .auth-subtitle {
-          color: var(--muted);
-          text-align: center;
-          margin-bottom: 1.5rem;
-          font-size: 0.95rem;
-        }
-
         /* Override Supabase Auth UI styles for better theme integration */
-        .auth-card input {
+        [data-auth-panel] input {
           background-color: color-mix(in oklab, var(--surface) 90%, transparent) !important;
           color: var(--text) !important;
           border-color: var(--border) !important;
         }
         
-        .auth-card input::placeholder {
+        [data-auth-panel] input::placeholder {
           color: var(--muted) !important;
         }
         
-        .auth-card input:focus {
+        [data-auth-panel] input:focus {
           border-color: var(--accent) !important;
           box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent) !important;
         }
         
-        .auth-card label {
+        [data-auth-panel] label {
           color: var(--text) !important;
         }
         
-        .auth-card a {
+        [data-auth-panel] a {
           color: var(--accent) !important;
         }
         
-        .auth-card a:hover {
+        [data-auth-panel] a:hover {
           color: var(--text) !important;
         }
       `}</style>
