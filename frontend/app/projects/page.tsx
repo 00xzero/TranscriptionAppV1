@@ -2,8 +2,8 @@
 import Link from 'next/link'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useProjectsRealtime } from '../../lib/supabase/hooks'
-import { fetchJobError } from '../../lib/supabase/queries'
+import { useProjectsRealtime } from '@/lib/supabase/hooks'
+import { fetchJobError } from '@/lib/supabase/queries'
 
 export default function ProjectsPage() {
   return (
@@ -212,6 +212,7 @@ function ProjectsPageContent() {
             <button
               className="text-xs font-medium text-red-700 hover:underline"
               onClick={() => setActionError(null)}
+              title="Dismiss"
             >
               Dismiss
             </button>
@@ -233,6 +234,7 @@ function ProjectsPageContent() {
             <button
               className="text-xs font-medium text-amber-800 hover:underline"
               onClick={dismissCaptureMessage}
+              title="Dismiss"
             >
               Dismiss
             </button>
@@ -268,18 +270,18 @@ function ProjectsPageContent() {
                         className={className}
                         onClick={() => startProject(p.id)}
                         disabled={!canTranscribe}
-                        title="Transcribe audio"
+                        title={label}
                       >
                         {label}
                       </button>
                     )
                   })()}
-                  <Link href={`/editor/${p.id}`} className="accent hover:underline">Open</Link>
+                  <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="accent hover:underline">Open</Link>
                   <button
                     className="p-2 rounded bg-red-600 text-white hover:bg-red-700"
                     onClick={() => handleDeleteProject(p.id)}
-                    title="Delete project"
-                    aria-label="Delete project"
+                    title={`Delete ${p.title || p.id}`}
+                    aria-label={`Delete project ${p.title || p.id}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
                       <path fillRule="evenodd" d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.6l-1.095 13.14A3 3 0 0 1 14.07 22.5H9.93a3 3 0 0 1-2.985-3.36L5.85 6H5.25a.75.75 0 0 1 0-1.5H9V3.75Zm1.5.75h3V3.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4.5Zm-2.91 1.5h8.82l-1.08 12.96a1.5 1.5 0 0 1-1.485 1.29H9.93a1.5 1.5 0 0 1-1.485-1.29L7.59 6Z" clipRule="evenodd" />
@@ -305,6 +307,7 @@ function ProjectsPageContent() {
                         <button
                           onClick={() => fetchProjectErrorInfo(p.id)}
                           className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          title="Retry loading error details"
                         >
                           Retry loading error details
                         </button>

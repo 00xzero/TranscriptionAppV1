@@ -154,6 +154,7 @@ export default function CollapsibleWaveform({
           role={onScrub ? 'slider' : 'button'}
           tabIndex={0}
           aria-label={onScrub ? 'Audio scrubber' : 'Toggle waveform'}
+          title={onScrub ? 'Scrub audio (double-click to expand waveform)' : 'Expand waveform'}
           aria-orientation={onScrub ? 'horizontal' : undefined}
           aria-valuemin={onScrub ? 0 : undefined}
           aria-valuemax={onScrub ? 100 : undefined}

@@ -132,6 +132,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
               window.dispatchEvent(new CustomEvent('open-find-replace'))
             }
             title="Find & Replace"
+            aria-label="Open find and replace"
           >
             <div className="flex items-center gap-[8px]">
               <svg
@@ -188,6 +189,8 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
           {/* Capture Button */}
           <button
             onClick={openCaptureModal}
+            aria-label="Open capture modal"
+            title="Capture"
             className="bg-ember-red text-white px-4 py-2 rounded shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
           >
             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />

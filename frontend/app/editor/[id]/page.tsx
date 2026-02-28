@@ -1,7 +1,7 @@
 "use client"
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import AudioPlayer, { AudioPlayerRef } from '../../../components/AudioPlayer'
+import AudioPlayer, { AudioPlayerRef } from '@/components/AudioPlayer'
 import {
   fetchTranscriptData,
   fetchChunks, // Keep for error recovery fallback if needed
@@ -13,14 +13,14 @@ import {
   createSpeaker,
   updateSpeaker,
   deleteSpeaker,
-} from '../../../lib/supabase/queries'
-import type { Chunk, Speaker as SpeakerType, EditorWord } from '../../../lib/supabase/types'
-import SpeakerPopover from '../../../components/SpeakerPopover'
-import ExportModal from '../../../components/ExportModal'
-import FindReplaceModal from '../../../components/FindReplaceModal'
-import CollapsibleWaveform from '../../../components/CollapsibleWaveform'
-import FloatingPlayerDeck from '../../../components/FloatingPlayerDeck'
-import { useAudioSessionRecovery } from '../../../hooks/useAudioSessionRecovery'
+} from '@/lib/supabase/queries'
+import type { Chunk, Speaker as SpeakerType, EditorWord } from '@/lib/supabase/types'
+import SpeakerPopover from '@/components/SpeakerPopover'
+import ExportModal from '@/components/ExportModal'
+import FindReplaceModal from '@/components/FindReplaceModal'
+import CollapsibleWaveform from '@/components/CollapsibleWaveform'
+import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
+import { useAudioSessionRecovery } from '@/hooks/useAudioSessionRecovery'
 
 type Word = EditorWord
 type Seg = Chunk & { words?: Word[] }
@@ -143,6 +143,7 @@ function SegmentHeaderRow({
       {/* Edit pencil icon */}
       {source !== 'segments' && (
         <button
+          type="button"
           className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
@@ -150,6 +151,7 @@ function SegmentHeaderRow({
             setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
           }}
           title={editingId === segmentId ? 'Close editor' : 'Edit text'}
+          aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -1066,6 +1068,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                   onKeyDown={onTitleKeyDown}
                   onBlur={onTitleBlur}
                   placeholder="Project title"
+                  aria-label="Project title"
                 />
               ) : (
                 <h1
@@ -1143,6 +1146,16 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 }}
                 className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
                 onClick={() => onSegmentClick(s.id, s.start_ms)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSegmentClick(s.id, s.start_ms)
+                  }
+                }}
+                role="button"
+                tabIndex={editingId === s.id ? -1 : 0}
+                aria-label={`Jump playback to ${msToTimestamp(s.start_ms)} for ${speakerLabel}`}
               >
                 {/* Vertical color bar */}
                 <div
@@ -1185,6 +1198,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                           scheduleSave(s.id, value)
                         }}
                         onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
+                        aria-label={`Transcript text for ${speakerLabel} at ${msToTimestamp(s.start_ms)}`}
                       />
                     </div>
                   ) : (
@@ -1235,6 +1249,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       {!isFollowMode && (activeIds.segId || hasUserScrolled) && !speakerPopover && !editingId && (
         <button
           className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white/60 dark:bg-black/60 backdrop-blur-md text-ink dark:text-paper border border-ink/10 dark:border-paper/10 rounded-2xl shadow-float flex items-center gap-2 hover:bg-white/80 dark:hover:bg-black/80 transition-colors"
+          title="Sync transcript to current audio position"
           onClick={() => {
             isUserScrollingRef.current = false
             setIsFollowMode(true)

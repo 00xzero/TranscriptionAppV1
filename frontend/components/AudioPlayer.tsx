@@ -304,6 +304,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
         aria-valuemax={duration}
         aria-valuenow={currentTime}
         aria-label="Audio progress"
+        title="Audio progress"
         tabIndex={0}
         onKeyDown={handleProgressKeyDown}
       >
@@ -344,6 +345,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
             className="px-3 py-1.5 rounded bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
             disabled={!ready}
             onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
+            title={playing ? 'Pause' : 'Play'}
           >
             {playing ? 'Pause' : 'Play'}
           </button>
@@ -355,6 +357,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
                 audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
               }
             }}
+            title="Rewind 2 seconds"
           >
             -2s
           </button>
@@ -366,6 +369,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
                 audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
               }
             }}
+            title="Forward 2 seconds"
           >
             +2s
           </button>
@@ -374,6 +378,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
             <select
               className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
               value={playbackRate}
+              aria-label="Playback rate"
+              title="Playback rate"
               onChange={(e) => {
                 const rate = parseFloat(e.target.value)
                 if (audioRef.current) {

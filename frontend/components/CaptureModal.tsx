@@ -240,6 +240,10 @@ export default function CaptureModal() {
   const canSubmit = selectedFile && !isUploading && !fileError
   const displayError = fileError || error
   const maxFileSizeLabel = formatFileSize(MAX_FILE_SIZE_BYTES)
+  const fileInputId = 'capture-file-input'
+  const titleInputId = 'capture-title-input'
+  const languageSelectId = 'capture-language-select'
+  const keyTermsInputId = 'capture-key-terms-input'
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -275,6 +279,7 @@ export default function CaptureModal() {
             onClick={isUploading ? undefined : closeCaptureModal}
             disabled={isUploading}
             aria-label="Close modal"
+            title="Close (Esc)"
           >
             <span className="text-[10px] font-mono opacity-40 border border-current px-1.5 py-0.5 rounded">ESC</span>
             <svg className="w-4 h-4 opacity-50 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -288,17 +293,19 @@ export default function CaptureModal() {
 
           {/* Section 1: File Upload */}
           <div className="space-y-3">
-            <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60">Select File</label>
+            <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60" htmlFor={fileInputId}>Select File</label>
             <p className="text-[10px] text-ink/40 dark:text-white/40 mb-2">
               MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, AVI (up to {maxFileSizeLabel})
             </p>
 
             {/* Hidden file input */}
             <input
+              id={fileInputId}
               ref={fileInputRef}
               type="file"
               accept={SUPPORTED_EXTENSIONS.map(ext => `.${ext}`).join(',')}
               onChange={handleFileInputChange}
+              aria-label="Select an audio or video file for transcription"
               className="hidden"
             />
 
@@ -311,6 +318,8 @@ export default function CaptureModal() {
               onDrop={handleDrop}
               tabIndex={0}
               role="button"
+              aria-label={selectedFile ? `Change selected file. Current file: ${selectedFile.name}` : 'Choose an audio or video file'}
+              title={selectedFile ? `Change selected file (${selectedFile.name})` : 'Choose a file'}
               aria-disabled={isUploading}
               className={`border-2 border-dashed rounded-lg h-40 flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer group ${isDragging
                 ? 'border-trust-blue bg-trust-blue/10'
@@ -363,8 +372,9 @@ export default function CaptureModal() {
 
             {/* Title */}
             <div className="space-y-1">
-              <label className="text-xs font-medium opacity-80">Title</label>
+              <label className="text-xs font-medium opacity-80" htmlFor={titleInputId}>Title</label>
               <input
+                id={titleInputId}
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -376,11 +386,12 @@ export default function CaptureModal() {
 
             {/* Language - Coming Soon */}
             <div className="space-y-1">
-              <label className="text-xs font-medium opacity-80">
+              <label className="text-xs font-medium opacity-80" htmlFor={languageSelectId}>
                 Language <span className="text-[10px] font-mono opacity-50 ml-1">(coming soon)</span>
               </label>
               <div className="relative">
                 <select
+                  id={languageSelectId}
                   className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded px-3 py-2 text-sm transition-colors appearance-none cursor-not-allowed opacity-60"
                   disabled
                 >
@@ -414,21 +425,25 @@ export default function CaptureModal() {
 
           {/* Section 3: Key Terms */}
           <div className="space-y-3 pt-2 border-t border-[#D1CEC5] dark:border-white/10">
-            <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Key Terms (Optional)</label>
+            <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4" htmlFor={keyTermsInputId}>Key Terms (Optional)</label>
 
             <div className="flex gap-2">
               <input
+                id={keyTermsInputId}
                 type="text"
                 value={keyTermInput}
                 onChange={(e) => setKeyTermInput(e.target.value)}
                 onKeyDown={handleKeyTermKeyDown}
                 placeholder="e.g., PAS-X, Helsingborg, Move-X"
                 disabled={isUploading || keyTerms.length >= MAX_KEY_TERMS}
+                aria-label="Add key terms for transcription"
                 className="flex-1 bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded px-3 py-2 text-sm focus:outline-none focus:border-trust-blue focus:bg-white dark:focus:bg-[#222] transition-colors placeholder-ink/30 dark:placeholder-white/20 disabled:opacity-50"
               />
               <button
                 onClick={handleAddTermClick}
                 disabled={isUploading || !keyTermInput.trim() || keyTerms.length >= MAX_KEY_TERMS}
+                aria-label="Add key term"
+                title="Add key term"
                 className="px-3 border border-[#D1CEC5] dark:border-[#444] rounded bg-white/50 dark:bg-[#222]/50 hover:bg-ink/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
               >
                 <svg className="w-4 h-4 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -458,6 +473,7 @@ export default function CaptureModal() {
                     <button
                       onClick={() => removeTerm(index)}
                       aria-label={`Remove term ${index + 1}: ${term}`}
+                      title={`Remove term ${term}`}
                       disabled={isUploading}
                       className="ml-0.5 hover:text-ember-red transition-colors disabled:opacity-50"
                     >
@@ -482,6 +498,7 @@ export default function CaptureModal() {
             <button
               onClick={closeCaptureModal}
               disabled={isUploading}
+              title="Cancel capture"
               className="text-xs font-medium hover:text-ink/70 dark:hover:text-white/70 transition-colors disabled:opacity-50"
             >
               Cancel
@@ -489,6 +506,7 @@ export default function CaptureModal() {
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
+              title={canSubmit ? 'Begin transcription' : 'Select a file to continue'}
               className={`text-xs font-medium px-4 py-2 rounded shadow-sm transition-all active:scale-95 ${canSubmit
                 ? 'bg-[#4A2018] text-white/90 border border-[#5A2A20] hover:bg-[#5A2A20] hover:text-white'
                 : 'bg-[#4A2018]/50 text-white/50 border border-[#5A2A20]/50 cursor-not-allowed'

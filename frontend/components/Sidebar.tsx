@@ -171,6 +171,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         <button
           type="button"
           aria-label="Go to home"
+          title="Home"
           className="flex items-center gap-3 text-left rounded bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/50"
           onClick={() => navigateTo('/')}
         >
@@ -210,6 +211,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         {/* Library */}
         <button
           onClick={() => navigateTo('/')}
+          aria-label="Library"
+          title="Library"
           className={`
             w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all overflow-hidden whitespace-nowrap
             ${isCollapsed ? 'justify-center' : 'md:justify-start'}
@@ -227,6 +230,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
         {/* Drafts - Coming Soon */}
         <button
+          aria-label="Drafts (coming soon)"
+          title="Drafts (coming soon)"
           className={`
             w-full flex items-center gap-3 px-3 py-2.5 rounded-md 
             hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 
@@ -245,6 +250,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
         {/* Shared - Coming Soon */}
         <button
+          aria-label="Shared (coming soon)"
+          title="Shared (coming soon)"
           className={`
             w-full flex items-center gap-3 px-3 py-2.5 rounded-md 
             hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 
@@ -288,6 +295,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 </p>
                 <button
                   onClick={handleSignOut}
+                  title="Sign out"
                   className="text-[10px] text-ink/50 dark:text-paper/50 font-mono hover:text-ink dark:hover:text-paper transition-colors"
                 >
                   Sign out
@@ -300,6 +308,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
+          aria-label={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
           className={`
             w-full flex items-center gap-3 px-2 py-1.5 rounded 
             hover:bg-ink/5 dark:hover:bg-white/5 text-ink/60 dark:text-paper/60 

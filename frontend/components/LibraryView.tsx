@@ -146,7 +146,7 @@ export default function LibraryView() {
         {/* Recent Projects Section */}
         <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Projects</h3>
-          <Link href="/projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
+          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
           </Link>
         </div>
@@ -196,7 +196,7 @@ export default function LibraryView() {
       <section className="mt-8">
         <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Files</h3>
-          <Link href="/projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
+          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
           </Link>
         </div>
@@ -209,6 +209,7 @@ export default function LibraryView() {
                 type="button"
                 className="text-xs font-medium hover:underline"
                 onClick={() => setDeleteError(null)}
+                title="Dismiss"
               >
                 Dismiss
               </button>
@@ -239,6 +240,7 @@ export default function LibraryView() {
                 >
                   <Link
                     href={isCompleted(project.status) ? `/editor/${project.id}` : `/projects`}
+                    title={isCompleted(project.status) ? `Open ${project.title || 'Untitled'}` : `Open project list for ${project.title || 'Untitled'}`}
                     className="flex items-center gap-4 flex-1 cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 flex-shrink-0">
@@ -268,6 +270,7 @@ export default function LibraryView() {
                       <button
                         type="button"
                         className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+                        title={`More options for ${project.title || 'Untitled'}`}
                         aria-label={`More options for ${project.title || 'Untitled'}`}
                         aria-haspopup="menu"
                         aria-expanded={isMenuOpen}
@@ -288,6 +291,7 @@ export default function LibraryView() {
                           <button
                             type="button"
                             role="menuitem"
+                            title={`Delete ${project.title || 'Untitled'}`}
                             onClick={(e) => {
                               e.stopPropagation()
                               handleDelete(project.id, project.title || 'Untitled')

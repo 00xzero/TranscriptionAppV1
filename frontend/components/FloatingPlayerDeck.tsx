@@ -60,6 +60,7 @@ export default function FloatingPlayerDeck({
             onClick={() => onSeekRelative(-5)}
             className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
             aria-label="Rewind 5 seconds"
+            title="Rewind 5 seconds"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="19,20 9,12 19,4" />
@@ -73,6 +74,7 @@ export default function FloatingPlayerDeck({
             onClick={onTogglePlay}
             className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-sm"
             aria-label={playing ? 'Pause' : 'Play'}
+            title={playing ? 'Pause' : 'Play'}
           >
             {playing ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -92,6 +94,7 @@ export default function FloatingPlayerDeck({
             onClick={() => onSeekRelative(5)}
             className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
             aria-label="Forward 5 seconds"
+            title="Forward 5 seconds"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="5,4 15,12 5,20" />
@@ -106,6 +109,7 @@ export default function FloatingPlayerDeck({
           onClick={nextRate}
           className="font-mono text-xs px-2.5 py-1 rounded-lg bg-ink/5 dark:bg-paper/5 hover:bg-ink/10 dark:hover:bg-paper/10 text-ink dark:text-paper transition-colors min-w-[48px] text-center"
           aria-label="Change playback rate"
+          title="Change playback rate"
         >
           {formatRate(playbackRate)}x
         </button>

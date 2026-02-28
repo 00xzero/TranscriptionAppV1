@@ -179,10 +179,14 @@ export default function FindReplaceModal({
               onChange={(e) => setFindInput(e.target.value)}
               onKeyDown={onFindKeyDown}
               placeholder="Search text"
+              aria-label="Find text"
               autoFocus
             />
             <button
+              type="button"
               onClick={() => setCaseSensitive(!caseSensitive)}
+              aria-pressed={caseSensitive}
+              title={caseSensitive ? 'Disable match case' : 'Enable match case'}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono transition-colors select-none ${
                 caseSensitive
                   ? 'bg-trust-blue/15 text-trust-blue border border-trust-blue/30 dark:bg-trust-blue/20 dark:text-trust-blue dark:border-trust-blue/40'
@@ -193,7 +197,10 @@ export default function FindReplaceModal({
               Match Case
             </button>
             <button
+              type="button"
               onClick={() => setWholeWord(!wholeWord)}
+              aria-pressed={wholeWord}
+              title={wholeWord ? 'Disable whole word matching' : 'Enable whole word matching'}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono transition-colors select-none ${
                 wholeWord
                   ? 'bg-trust-blue/15 text-trust-blue border border-trust-blue/30 dark:bg-trust-blue/20 dark:text-trust-blue dark:border-trust-blue/40'
@@ -217,18 +224,23 @@ export default function FindReplaceModal({
                 value={replaceTerm}
                 onChange={(e) => setReplaceTerm(e.target.value)}
                 placeholder="Replacement"
+                aria-label="Replace with"
               />
               <button
+                type="button"
                 className="px-3 py-1.5 rounded-lg bg-trust-blue text-white text-sm font-medium disabled:opacity-40 hover:bg-trust-blue/90 transition-colors"
                 onClick={onReplace}
                 disabled={!canNavigate}
+                title="Replace current match"
               >
                 Replace
               </button>
               <button
+                type="button"
                 className="px-3 py-1.5 rounded-lg bg-trust-blue text-white text-sm font-medium disabled:opacity-40 hover:bg-trust-blue/90 transition-colors"
                 onClick={onReplaceAll}
                 disabled={!canNavigate}
+                title="Replace all matches"
               >
                 Replace all
               </button>
@@ -245,7 +257,9 @@ export default function FindReplaceModal({
                     return (
                       <button
                         key={s.idx}
+                        type="button"
                         ref={(el) => { snippetRefs.current[s.idx] = el }}
+                        title={s.isCurrent ? 'Current match' : 'Jump to this match'}
                         className={`w-full text-left px-3 py-2 rounded-lg text-sm font-mono leading-relaxed transition-colors ${s.isCurrent
                             ? 'bg-trust-blue/10 dark:bg-trust-blue/15 border border-trust-blue/30'
                             : 'hover:bg-ink/5 dark:hover:bg-paper/5 border border-transparent'
@@ -272,8 +286,11 @@ export default function FindReplaceModal({
             <div className="flex items-center gap-2">
               {/* Up arrow */}
               <button
+                type="button"
                 onClick={onPrev}
                 disabled={!canNavigate}
+                aria-label="Previous match"
+                title="Previous match"
                 className={`w-7 h-7 rounded-md border flex items-center justify-center disabled:opacity-30 transition-colors ${
                   flashUp
                     ? 'bg-ink/10 dark:bg-paper/10 border-ink/20 dark:border-paper/20 text-ink/80 dark:text-paper/70'
@@ -286,8 +303,11 @@ export default function FindReplaceModal({
               </button>
               {/* Down arrow */}
               <button
+                type="button"
                 onClick={onNext}
                 disabled={!canNavigate}
+                aria-label="Next match"
+                title="Next match"
                 className={`w-7 h-7 rounded-md border flex items-center justify-center disabled:opacity-30 transition-colors ${
                   flashDown
                     ? 'bg-ink/10 dark:bg-paper/10 border-ink/20 dark:border-paper/20 text-ink/80 dark:text-paper/70'
@@ -308,7 +328,9 @@ export default function FindReplaceModal({
             </div>
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={onClear}
+                title="Clear search"
                 className="text-[11px] font-mono text-ink/40 dark:text-paper/40 hover:text-ink dark:hover:text-paper transition-colors"
               >
                 Clear
@@ -317,6 +339,7 @@ export default function FindReplaceModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Close find/replace (Esc)"
+                title="Close (Esc)"
                 className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-mono cursor-pointer transition-colors ${
                   flashEsc
                     ? 'bg-ink/10 dark:bg-paper/10 border-ink/20 dark:border-paper/20 text-ink/60 dark:text-paper/50'

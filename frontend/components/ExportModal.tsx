@@ -153,6 +153,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
                 <label
                   key={fmt.value}
                   htmlFor={inputId}
+                  title={fmt.disabled ? `${fmt.label} (coming soon)` : `Export as ${fmt.label}`}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${isDisabled
                     ? 'opacity-50 cursor-not-allowed border-ink/5 dark:border-paper/5'
                     : isSelected
@@ -229,6 +230,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
             <button
               onClick={onClose}
               disabled={isExporting}
+              title="Cancel export"
               className="px-4 py-2 rounded-lg text-sm font-medium text-ink/60 dark:text-paper/50 hover:text-ink dark:hover:text-paper disabled:opacity-40 transition-colors"
             >
               Cancel
@@ -236,6 +238,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
             <button
               onClick={handleExport}
               disabled={isExporting || showSuccess}
+              title={isExporting ? 'Export in progress' : 'Export transcript'}
               className="px-5 py-2 rounded-lg bg-trust-blue text-white text-sm font-medium disabled:opacity-40 hover:bg-trust-blue/90 transition-colors"
             >
               {isExporting ? 'Exporting...' : 'Export'}
