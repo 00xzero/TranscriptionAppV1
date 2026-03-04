@@ -52,18 +52,32 @@ interface WordRow {
 async function fetchSegmentsWithWords(projectId: string): Promise<SegmentData[]> {
     const supabase = createAdminClient();
 
-    // Fetch segments ordered by start time
-    const { data: segments, error: segError } = await supabase
-        .from("segments")
-        .select("id, speaker_id, start_ms, end_ms, text")
-        .eq("project_id", projectId)
-        .order("start_ms", { ascending: true });
+    // Fetch segments ordered by start time, paginated to avoid PostgREST's
+    // default 1000-row limit which silently truncates large result sets.
+    const PAGE_SIZE = 1000;
+    const segments: SegmentRow[] = [];
+    let offset = 0;
 
-    if (segError) {
-        throw new Error(`Failed to fetch segments: ${segError.message}`);
+    while (true) {
+        const { data: page, error: segError } = await supabase
+            .from("segments")
+            .select("id, speaker_id, start_ms, end_ms, text")
+            .eq("project_id", projectId)
+            .order("start_ms", { ascending: true })
+            .order("id", { ascending: true }) // tie-breaker for deterministic pagination
+            .range(offset, offset + PAGE_SIZE - 1);
+
+        if (segError) {
+            throw new Error(`Failed to fetch segments: ${segError.message}`);
+        }
+
+        if (!page || page.length === 0) break;
+        segments.push(...(page as SegmentRow[]));
+        if (page.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
     }
 
-    if (!segments || segments.length === 0) {
+    if (segments.length === 0) {
         return [];
     }
 
@@ -71,23 +85,39 @@ async function fetchSegmentsWithWords(projectId: string): Promise<SegmentData[]>
     // (560 segments with UUID strings can exceed query limits)
     const segmentIds = segments.map((s: SegmentRow) => s.id);
     const batchSize = 50;
+    const WORD_PAGE_SIZE = 1000;
     const allWords: WordRow[] = [];
 
     console.log(`[consolidation] Fetching words for ${segmentIds.length} segments in batches of ${batchSize}`);
 
     for (let i = 0; i < segmentIds.length; i += batchSize) {
         const batch = segmentIds.slice(i, i + batchSize);
-        const { data: batchWords, error: batchError } = await supabase
-            .from("words")
-            .select("id, segment_id")
-            .in("segment_id", batch)
-            .order("order_index", { ascending: true });
+        let wordOffset = 0;
 
-        if (batchError) {
-            throw new Error(`Failed to fetch words batch ${Math.floor(i / batchSize) + 1}: ${batchError.message}`);
-        }
-        if (batchWords) {
-            allWords.push(...(batchWords as WordRow[]));
+        while (true) {
+            const { data: pageWords, error: pageError } = await supabase
+                .from("words")
+                .select("id, segment_id")
+                .in("segment_id", batch)
+                .order("order_index", { ascending: true })
+                .order("id", { ascending: true })  // tie-breaker for deterministic pagination
+                .range(wordOffset, wordOffset + WORD_PAGE_SIZE - 1);
+
+            if (pageError) {
+                throw new Error(
+                    `Failed to fetch words batch ${Math.floor(i / batchSize) + 1}: ${pageError.message}`
+                );
+            }
+            if (!pageWords || pageWords.length === 0) {
+                break;
+            }
+
+            allWords.push(...(pageWords as WordRow[]));
+
+            if (pageWords.length < WORD_PAGE_SIZE) {
+                break;
+            }
+            wordOffset += WORD_PAGE_SIZE;
         }
     }
 

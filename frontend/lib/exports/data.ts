@@ -7,6 +7,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Chunk, Speaker, Project } from '@/lib/supabase/types'
 import type { ExportChunk, SpeakersMap } from '@/lib/exports'
+import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {
     project: Project
@@ -22,6 +23,17 @@ export interface ExportError {
 export type ExportDataResult =
     | { success: true; data: ExportData }
     | { success: false; error: ExportError }
+
+/**
+ * Fetch all chunks for a project with pagination to avoid PostgREST's
+ * default 1000-row limit truncating long transcripts.
+ */
+async function fetchAllProjectChunks(
+    supabase: SupabaseClient,
+    projectId: string
+): Promise<Chunk[]> {
+    return paginateAllRows<Chunk>(supabase, 'chunks', projectId, 'start_ms')
+}
 
 /**
  * Fetch all data needed for transcript export.
@@ -61,14 +73,11 @@ export async function fetchExportData(
     }
 
     // Fetch chunks
-    const { data: chunks, error: chunksError } = await supabase
-        .from('chunks')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('start_ms', { ascending: true })
-
-    if (chunksError) {
-        console.error('Error fetching chunks:', chunksError)
+    let chunks: Chunk[] = []
+    try {
+        chunks = await fetchAllProjectChunks(supabase, projectId)
+    } catch (error) {
+        console.error('Error fetching chunks:', error)
         return {
             success: false,
             error: { error: 'Failed to fetch transcript data', status: 500 },
@@ -99,7 +108,7 @@ export async function fetchExportData(
     }
 
     // Convert chunks to export format
-    const exportChunks: ExportChunk[] = (chunks || []).map((chunk: Chunk) => ({
+    const exportChunks: ExportChunk[] = chunks.map((chunk: Chunk) => ({
         speaker_id: chunk.speaker_id,
         start_ms: chunk.start_ms,
         end_ms: chunk.end_ms,

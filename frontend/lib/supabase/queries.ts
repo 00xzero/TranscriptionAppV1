@@ -5,6 +5,7 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from './client'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Project,
     JobSummary,
@@ -154,34 +155,86 @@ export async function deleteProject(id: string): Promise<void> {
 // Chunks
 // ============================================================================
 
+const FETCH_ALL_ROWS_SUPPORTED_TABLES = new Set(['chunks', 'segments'])
+
+/**
+ * Fetch all rows from a table with pagination to avoid PostgREST's
+ * default 1000-row limit which silently truncates large result sets.
+ */
+export async function paginateAllRows<T>(
+    supabase: SupabaseClient,
+    table: string,
+    projectId: string,
+    orderColumn: string = 'start_ms'
+): Promise<T[]> {
+    const PAGE_SIZE = 1000
+    const allRows: T[] = []
+    let offset = 0
+
+    while (true) {
+        const { data: page, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('project_id', projectId)
+            .order(orderColumn, { ascending: true })
+            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
+            .range(offset, offset + PAGE_SIZE - 1)
+
+        if (error) throw error
+        if (!page || page.length === 0) break
+        allRows.push(...(page as T[]))
+        if (page.length < PAGE_SIZE) break
+        offset += PAGE_SIZE
+    }
+
+    return allRows
+}
+
+/**
+ * Fetch all rows from a table with pagination to avoid PostgREST's
+ * default 1000-row limit which silently truncates large result sets.
+ *
+ * Contract:
+ * - `orderColumn` must exist on the target table.
+ * - Default `orderColumn` is `start_ms`, used by `chunks` and `segments`.
+ * - This helper only supports `chunks`/`segments`; use `paginateAllRows`
+ *   directly for other tables with an explicit order column.
+ */
+async function fetchAllRows<T>(
+    table: string,
+    projectId: string,
+    orderColumn: string = 'start_ms'
+): Promise<T[]> {
+    const normalizedOrderColumn = orderColumn.trim()
+
+    if (!normalizedOrderColumn) {
+        throw new Error(
+            `[fetchAllRows] Invalid orderColumn for table "${table}": "${orderColumn}". orderColumn must be a non-empty column name.`
+        )
+    }
+
+    if (!FETCH_ALL_ROWS_SUPPORTED_TABLES.has(table)) {
+        throw new Error(
+            `[fetchAllRows] Unsupported table "${table}" for orderColumn "${normalizedOrderColumn}". Supported tables: chunks, segments.`
+        )
+    }
+
+    const supabase = createClient()
+    return paginateAllRows<T>(supabase, table, projectId, normalizedOrderColumn)
+}
+
 /**
  * Fetch all chunks for a project.
  */
 export async function fetchChunks(projectId: string): Promise<Chunk[]> {
-    const supabase = createClient()
-    const { data, error } = await supabase
-        .from('chunks')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('start_ms', { ascending: true })
-
-    if (error) throw error
-    return data || []
+    return fetchAllRows<Chunk>('chunks', projectId)
 }
 
 /**
  * Fetch all segments for a project (fallback when chunks unavailable).
  */
 export async function fetchSegments(projectId: string): Promise<Segment[]> {
-    const supabase = createClient()
-    const { data, error } = await supabase
-        .from('segments')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('start_ms', { ascending: true })
-
-    if (error) throw error
-    return data || []
+    return fetchAllRows<Segment>('segments', projectId)
 }
 
 /**
