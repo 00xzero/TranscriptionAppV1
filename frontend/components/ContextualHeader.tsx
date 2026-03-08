@@ -65,7 +65,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
   }, [])
 
   return (
-    <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/80 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
+    <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
       <div className="flex items-center gap-2">
         {isLoading ? (

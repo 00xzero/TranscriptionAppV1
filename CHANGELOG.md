@@ -2,23 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-05] - Transcript Virtualization
+
+### Added
+
+- **`react-virtuoso` integration:** Replaced static DOM rendering of transcript segments with a virtualized list for massive performance gains on long transcripts (1hr+).
+- **`customScrollParent` usage:** Kept the existing outer scroll container, preserving all existing scroll event listeners (waveform collapse, user scroll detection) without disruption.
+- **Smart scrolling for Follow Mode:** Follow-mode now uses `smooth` scroll when playback advances to a nearby segment, but snaps `instant`ly when the user scrubs far away to prevent dizzying scroll animations.
+
+### Changed
+
+- **Sync to Audio button:** Now uses Virtuoso's `scrollToIndex` instead of direct DOM `scrollIntoView`.
+- **Find/Replace navigation:** Jumping between search matches now uses `scrollToIndex` for instant navigation.
+- **Sync direction detection:** `rangeChanged` callback now detects if the active segment is above or below the viewport, updating the ↑/↓ arrow on the sync button.
+
+### Fixed
+
+- **Scroll Container re-renders:** Wrapped the `scrollParent` ref callback in `useCallback` to prevent React from unnecessarily re-creating the function (and triggering double re-renders of the virtualizer) on every audio playback tick.
+- **Stale Sync Direction:** Added a secondary effect to recompute the sync direction arrow when audio advances while the user isn't scrolling (since `rangeChanged` only fires on scroll).
+- **Test Environment:** Created a `__mocks__/react-virtuoso.tsx` mock for JSDOM to ensure all 14 editor tests continue to pass without a real DOM renderer.
+- **Smart Scroll Detection:** Added robust tracking for `SCROLL_INTENT_KEYS` (Arrows, Page Up/Down, Home, End) to reliably disable follow mode on keyboard scrolling, ignoring events within editable inputs.
+- **Programmatic Scroll Tracking:** Differentiated programmatic scrolls (like returning to top) from user scrolls via strict timeouts, preventing the app from accidentally disengaging follow mode.
+- **Dependencies:** Updated `baseline-browser-mapping` to resolve Next.js build warnings.
+
 ## [2026-02-15] - V2 Design Overhaul (Olivetti)
 
 Complete UI overhaul of the transcription app, implementing the **Olivetti** design system across 8 phases plus extra polish. Also includes legacy code removal and doc updates.
 
 ### Added — Spec Lock (Phase 1)
+
 - **Design system specification**: Confirmed Find/Replace modal behavior, placeholder approach for Recent Projects, and comprehensive design token documentation.
 - **Architectural decisions**: Sidebar + contextual header layout, Library as landing page, Capture as modal, Tailwind `dark` class migration.
 - **Component inventory**: Documented all UI components with phase assignments and implementation notes.
 - **Accessibility planning**: Focus management, keyboard shortcuts, ARIA labels, color contrast verification, reduced motion support.
 
 ### Added — Design System Foundation (Phase 2)
+
 - **Tailwind token palette:** `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `player-blue`, `night-*`, `studio-dark`.
 - **Fonts via `next/font`:** Inter, Newsreader, IBM Plex Mono.
 - **Paper noise texture**, custom scrollbar, glassmorphism modals (`/45` to `/90` opacity + `backdrop-blur`).
 - **Theme migration** from `data-theme` to Tailwind `dark` class with `localStorage` persistence.
 
 ### Added — App Shell + Routing (Phase 3)
+
 - **`Sidebar.tsx`**: Collapsible sidebar (`w-16` ↔ `w-64`), navigation, user section, integrated theme toggle.
 - **`ContextualHeader.tsx`**: View-aware header with search, Capture, Export, and Find & Replace buttons.
 - **`ModalContext.tsx`**: Global modal state context.
@@ -26,16 +52,19 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **`/` is now Library**; `/upload` redirects to Library and auto-opens Capture modal.
 
 ### Added — Library View (Phase 4)
+
 - **`LibraryView.tsx`**: Real project data, duration formatting ("X mins" / "X hr Y mins"), status badges, delete with confirmation dialog.
 - **Library requires authentication**; post-login redirect changed to `/` (Library).
 
 ### Added — Capture Modal (Phase 5)
+
 - **`CaptureModal.tsx`**: Drag-and-drop upload, file type validation, key-term chips, Language/Diarization "Coming soon" fields.
 - **`useCapture.ts` hook**: Upload → create project → set `source_object_key` → start transcription, with automatic rollback on failure.
 - **Client-side MIME normalization** for browser alias handling (e.g., `audio/x-m4a` → `audio/mp4`).
 - **Granular capture outcomes**: `started` vs `saved_needs_retry` states.
 
 ### Added — Editor Alignment (Phase 6)
+
 - **`CollapsibleWaveform.tsx`**: Collapses on scroll >50px, interactive mini-bar scrubber (click-to-seek, drag-to-scrub, keyboard/ARIA).
 - **`FloatingPlayerDeck.tsx`**: Glassmorphism floating player deck.
 - **Speaker color palette**: trust-blue `#4F638C`, ember-red `#C73E1D`, yellow-600 `#CA8A04`, then brand-complementary.
@@ -43,6 +72,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Header/sidebar alignment**: Both use `h-[56px]` for pixel-perfect divider alignment.
 
 ### Added — Modals (Phase 7)
+
 - **`FindReplaceModal.tsx`**: Glassmorphism modal with two-step Enter, debounce dirty state ("Searching..."), highlight persistence on close, cross-modal exclusion.
 - **`useFocusTrap.ts`**: Lightweight focus trap hook (Tab/Shift+Tab trapping, focus save/restore).
 - **`ExportModal.tsx` restyled**: Format cards (DOCX, VTT active; PDF "COMING SOON"), Olivetti glassmorphism.
@@ -50,6 +80,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Header→editor communication** via `CustomEvent` (`open-find-replace`, `open-export`).
 
 ### Added — QA + Cleanup (Phase 8)
+
 - **`prefers-reduced-motion`** accessibility: disables all `transition` and `animation` globally.
 - **Supabase migration** `20260211000000_expand_bucket_mime_types.sql`: Browser MIME aliases added to bucket allowlist (M4A upload fix).
 - **`/import` fully removed**: Page file deleted + removed from `PROTECTED_ROUTES`.
@@ -57,6 +88,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **111/111 automated tests passing.**
 
 ### Added — Extra UI Tweaks
+
 - **Overlay header**: `ContextualHeader` absolutely positioned (`z-40`) for content-under-header scroll pattern.
 - **Interactive waveform scrubbing**: `seekToMs` skipLock parameter for high-frequency manual seeks.
 - **Auth page brand mark**: Bar + dot icon above title, font-weight 400, letter-spacing `-0.02em`.
@@ -67,17 +99,20 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **CaptureModal diarization toggle** default changed to ON (ember-red).
 
 ### Added — Tests
+
 - **`collapsibleWaveform.test.tsx`**: Component tests for scrubbing and collapse behavior.
 - **`exportModal.ui.test.tsx`**: UI interaction tests for Export modal.
 - **Updated `editor.test.tsx`**: 12+ new tests (Find/Replace, Export, debounce, two-step Enter, cross-modal exclusion, auto-exit edit mode).
 
 ### Added — Documentation
+
 - **UI overhaul documentation suite**: `UIREFACTOR_PLAN.md`, `UIREFACTOR_PHASE_STATUS.md`, `UIREFACTOR_README.md`, `UIREFACTOR_ONBOARDING.md`, `UIREFACTOR_GLOSSARY.md`, `DESIGN_TOKENS.md`.
 - **`Olivetti.html`**: Interactive design reference prototype.
 - **`CLAUDE.md`**: AI coding guidelines.
 - **`segment-split-feature.md`**, **`KEY_TERM_RETRY_GAP_ANALYSIS.md`**.
 
 ### Changed
+
 - **`editor/[id]/page.tsx`**: Major rewrite — contextual header integration, floating player, sidebar, waveform, Find/Replace and Export modal wiring.
 - **`auth/page.tsx`**: Olivetti-themed with glassmorphism and brand mark.
 - **`projects/page.tsx`**: Integrated `LibraryView` component with `Suspense` boundary.
@@ -92,6 +127,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **`.gitignore`**: Updated patterns.
 
 ### Removed
+
 - **Entire `backend/` directory**: FastAPI app, Alembic migrations, models, routers, services, tests (30+ files).
 - **Entire `worker/` directory**: Celery worker, Dockerfile, requirements.
 - **`infra/docker-compose.yml`**: Replaced by Supabase CLI local stack.
@@ -102,6 +138,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Misc**: `wavesurfer.js` mock, `tsconfig.tsbuildinfo`, `mammoth.d.ts`, Jest `moduleNameMapper` entry.
 
 ### Fixed
+
 - **Editor sync**: Prevent aggressive audio sync on first play and during search.
 - **CollapsibleWaveform**: Defensive guards and clamped `audioProgress` to prevent invalid CSS widths.
 - **Find/Replace**: Unicode word-boundary support for non-cased scripts.
@@ -112,6 +149,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-02-04] - Audio Player Robustness
 
 ### Added
+
 - **Session Recovery**: Automatically recovers from expired audio URLs (403 Forbidden) without requiring a page refresh
   - New `useAudioSessionRecovery` hook intercepts playback errors
   - Fetches fresh signed URL from backend preserving playback position
@@ -121,6 +159,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-01-30] - Production-Grade Pipeline Improvements
 
 ### Added
+
 - **Idempotency Keys**: Prevents duplicate transcription jobs from client-side retries or double-clicks
   - Added `idempotency_key` column to jobs table with unique constraint
   - Start route checks for existing job with matching `x-idempotency-key` header before creating new one
@@ -151,6 +190,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
   - Hidden in production unless explicitly enabled
 
 ### Changed
+
 - **Consolidation Failure Handling**: Transcription completes even if consolidation fails
   - Wrapped consolidation step in try-catch
   - On failure, marks `algoVersion: 'failed'` with error message
@@ -169,32 +209,37 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
   - Open in development for easier local testing
 
 ### Fixed
+
 - **Media Proxy Export**: Removed invalid `getProxySecret` export from Next.js route file
 
 ### Testing
+
 - **Rate Limiting**: 10 unit tests covering all scenarios
 - **Logger**: 9 unit tests for all log levels and correlation IDs
 - **Rate Limit Context**: 5 additional transcription-specific tests
 - **Total**: 92 tests passing (71 existing + 21 new)
 
 ### Configuration
+
 - `RATE_LIMIT_MODE` - Rate limit mode (`memory` or `off`). Defaults to `off` in production, `memory` in development
 - `WEBHOOK_HEALTHCHECK_SECRET` - Optional secret for health endpoint auth
 
 ### Documentation
+
 - Created comprehensive walkthrough in `.docs/production_pipeline_improvements.md`
 
 ---
- [2026-01-27] - Webhook Robustness & Documentation
-
 
 ## [2026-01-27] - Webhook Robustness & Documentation
+
 ### Fixed
+
 - **Large Payload Handling**: Updated client-side job fetching to exclude the potentially large `payload` column (Deepgram JSON). This prevents multi-MB payloads from being sent to browsers during job polling or realtime updates.
 - **Error Display**: Implemented dedicated `fetchJobError` function to retrieve error details only when needed (for failed jobs), preserving error visibility without performance penalty.
 - **Type Safety**: Introduced `JobSummary` type to enforce payload exclusion in frontend components.
 
 ### Documentation
+
 - **Webhook Limitations**: Documented Vercel's 4.5 MB request body limit for the Deepgram webhook. Long recordings (3+ hours) may exceed this limit and require external hosting (e.g., AWS Lambda).
 - **Code Comments**: Added detailed warnings in webhook handler and Supabase queries about payload size implications.
 
@@ -203,6 +248,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-01-23] - Major Stack Refactor Completion
 
 ### Added
+
 - **Modern Tech Stack**: Migration to Next.js 14 (App Router), Supabase, and Inngest.
 - **Supabase Integration**: Unified Database (Postgres), Authentication, Storage, and Realtime updates.
 - **Inngest Background Jobs**: Event-driven architecture for transcription and consolidation pipelines.
@@ -212,12 +258,14 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **DOCX/VTT Exports**: Native Node.js implementation for transcript exports directly from the frontend.
 
 ### Changed
+
 - **Architecture**: Moved from a fragmented FastAPI/Celery/Redis/MinIO stack to a streamlined serverless-ready architecture.
 - **Realtime**: Replaced SWR polling with Supabase Realtime subscriptions and 5s polling fallback.
 - **Auth**: Switched from token-based headers to cookie-based Supabase Auth (SSR compatible).
 - **Legacy Components**: Marked `backend/` and `worker/` as legacy and archived.
 
 ### Benefits
+
 - **Simplified Operations**: Reduced infrastructure complexity with managed services.
 - **Improved DX**: Single language (TypeScript) across the entire stack.
 - **Better Reliability**: Idempotent job handling and robust error classification.
@@ -228,6 +276,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-01-12] - Transcript Export Feature
 
 ### Added
+
 - **Export button in editor toolbar**: Blue "Export" button positioned on the right side of the search/replace controls
 - **Export modal component**: Modal dialog for selecting export format (PDF, DOCX, VTT)
 - **PDF export support**: New export format generating print-friendly PDF documents
@@ -236,12 +285,14 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Proper filename generation**: All exports use format `{title}_{FORMAT}_{YYYY-MM-DD}.ext`
 
 ### Changed
+
 - **Export data source**: Switched from raw segments to consolidated chunks for all exports
 - **DOCX structure**: Now matches PRD requirements with centered title, metadata block, and speaker turns
 - **VTT format**: Now includes project-based cue IDs and proper speaker voice tags (`<v Speaker Name>`)
 - **Export endpoints**: Updated to pass transcription date and duration metadata
 
 ### Technical
+
 - **Backend**: Added `reportlab` dependency for PDF generation
 - **Backend**: New `generate_pdf()` function in `services/exports.py`
 - **Backend**: Updated `generate_docx()` and `generate_vtt()` with new parameters
@@ -252,6 +303,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Tests**: Comprehensive unit tests for all export functions (format_duration, DOCX, VTT, PDF)
 
 ### Benefits
+
 - Users can now export transcripts in three formats (PDF, DOCX, VTT)
 - All exports include proper metadata (Date of Transcription, Duration when available)
 - Filenames are consistent and include dates for easy organization
@@ -263,6 +315,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-01-12] - Sync to Audio Feature
 
 ### Added
+
 - **Floating "Sync to audio" button**: Replaces aggressive auto-follow checkbox with user-controlled sync
 - **Directional arrows**: Button shows ↑ or ↓ arrow indicating scroll direction to active segment
 - **Auto-follow mode**: After clicking sync, transcript automatically follows audio playback
@@ -271,16 +324,19 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Speaker popover awareness**: Button hidden when speaker popover is open
 
 ### Changed
+
 - **Removed "Follow playback" checkbox**: Replaced with more intuitive sync button UX
 - **Transcript container restructured**: Outer container now has `relative` positioning for proper button placement
 
 ### UI/UX
+
 - Button positioned at bottom center of transcript panel (not viewport)
 - Purple pill-style button with white text and SVG arrow icons
 - Smooth scroll animation when syncing to active segment
 - Button appears immediately when user scrolls, regardless of active segment visibility
 
 ### Technical
+
 - New state: `isFollowMode`, `isUserScrollingRef` for tracking follow behavior
 - Event listeners for `wheel`, `touchstart` plus debounced `scroll` fallback to detect user-initiated scrolling reliably across browsers
 - Auto-scroll effect triggered when `activeIds.segId` changes while in follow mode
@@ -291,6 +347,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2026-01-10] - Speaker Assignment Feature
 
 ### Added
+
 - **SpeakerPopover component**: New `frontend/components/SpeakerPopover.tsx` for speaker management
 - **Clickable speaker avatars**: Avatars in transcript segments are now interactive buttons
 - **Global speaker rename**: Click current speaker → inline edit → Enter to rename across all segments
@@ -301,6 +358,7 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 - **Keyboard support**: Escape closes popover, Enter submits rename/tag
 
 ### UI/UX
+
 - Popover positioned below clicked avatar with fixed positioning
 - Current speaker highlighted with "Click to rename" hint
 - Optimistic UI updates with error rollback
@@ -311,12 +369,14 @@ Complete UI overhaul of the transcription app, implementing the **Olivetti** des
 ## [2025-01-05] - Project Cleanup
 
 ### Removed
+
 - **Redundant files**: `create.json`, `projects.json`, `url.txt`, `pid.txt` (test output files)
 - **Root `package-lock.json`**: Empty duplicate (actual lockfile is in `/frontend`)
 - **`scripts/` directory**: Windows PowerShell test scripts (unused on macOS)
 - **`worker/Dockerfile`**: Obsolete Dockerfile (replaced by `Dockerfile.unified`)
 
 ### Notes
+
 - Removed 9 redundant files totaling ~15KB
 - No functional changes - only cleanup of unused/obsolete files
 - Empty `__init__.py` files preserved (required Python package markers)
@@ -345,12 +405,14 @@ This release includes significant architectural refactoring to improve code qual
 **Solution:** Worker now imports and uses the same SQLAlchemy models as the backend.
 
 ### Changes
+
 - **New:** `worker/Dockerfile.unified` - Builds worker with backend code included
 - **Modified:** `worker/app/worker.py` - Refactored to use SQLAlchemy ORM instead of raw SQL
 - **Modified:** `worker/requirements.txt` - Added `SQLAlchemy==2.0.30`
 - **Modified:** `infra/docker-compose.yml` - Updated worker build context
 
 ### Benefits
+
 - Single source of truth for database schema
 - Automatic timestamp handling via ORM
 - Migration-safe (Alembic changes apply to both services)
@@ -366,6 +428,7 @@ This release includes significant architectural refactoring to improve code qual
 **Solution:** Full job lifecycle tracking with status transitions and timing information.
 
 ### Changes
+
 - **Modified:** `backend/app/models.py` - Added `celery_task_id`, `started_at`, `finished_at` to Job model
 - **Modified:** `backend/app/schemas.py` - Extended `JobRead` with new fields
 - **Modified:** `backend/app/routers/projects.py` - Creates Job record when `/start` is called
@@ -374,6 +437,7 @@ This release includes significant architectural refactoring to improve code qual
 - **New:** `GET /projects/{id}/jobs` endpoint for querying job history
 
 ### Benefits
+
 - Complete audit trail for all transcription attempts
 - Timing metrics (`started_at`, `finished_at`) for performance monitoring
 - Link between Celery task_id and database Job record
@@ -389,16 +453,19 @@ This release includes significant architectural refactoring to improve code qual
 **Solution:** Token-based authentication via Bearer token or X-API-Key header.
 
 ### Changes
+
 - **New:** `backend/app/core/auth.py` - Authentication dependency with token validation
 - **Modified:** `backend/app/routers/projects.py` - Applied `require_auth` to all routes
 
 ### Benefits
+
 - All `/projects/*` endpoints now require authentication
 - Supports both `Authorization: Bearer <token>` and `X-API-Key: <token>` headers
 - `/health` endpoint remains open for load balancer checks
 - Returns proper 401 Unauthorized responses
 
 ### Usage
+
 ```bash
 # Bearer token (standard)
 curl -H "Authorization: Bearer devtoken" http://localhost:8000/projects
@@ -416,6 +483,7 @@ curl -H "X-API-Key: devtoken" http://localhost:8000/projects
 **Solution:** Proper migration management with Alembic.
 
 ### Changes
+
 - **New:** `backend/alembic.ini` - Alembic configuration
 - **New:** `backend/alembic/env.py` - Alembic environment with SQLAlchemy integration
 - **New:** `backend/alembic/script.py.mako` - Migration template
@@ -424,6 +492,7 @@ curl -H "X-API-Key: devtoken" http://localhost:8000/projects
 - **Modified:** `backend/Dockerfile` - Copy alembic files into container
 
 ### Benefits
+
 - Schema evolution support (add/remove columns, indexes, constraints)
 - Version tracking via `alembic_version` table
 - Rollback support for reverting schema changes
@@ -431,6 +500,7 @@ curl -H "X-API-Key: devtoken" http://localhost:8000/projects
 - Production-safe, reviewable schema changes
 
 ### Migration Commands
+
 ```bash
 # Check current revision
 docker compose exec api alembic current
@@ -454,16 +524,19 @@ docker compose exec api alembic downgrade -1
 **Solution:** Deepgram URL fetch - Deepgram downloads directly from S3.
 
 ### Changes
+
 - **Modified:** `worker/app/worker.py` - Added `_presign_get_url()`, `_can_use_url_fetch()` functions
 - **Modified:** `worker/app/worker.py` - `transcribe_project()` uses URL fetch when S3 is publicly accessible
 
 ### Benefits
+
 - **Zero memory pressure** on worker for large files
 - **Faster processing** - eliminates double transfer (S3→Worker→Deepgram becomes S3→Deepgram)
 - **Automatic fallback** - uses byte upload for local dev (when S3 is on localhost)
 - **Production-ready** - controlled via `S3_PUBLIC_BASE_URL` environment variable
 
 ### Behavior
+
 - **Local dev** (`S3_PUBLIC_BASE_URL=http://localhost:9000`): Uses byte upload fallback
 - **Production** (`S3_PUBLIC_BASE_URL=https://storage.example.com`): Uses URL fetch
 
@@ -476,11 +549,13 @@ docker compose exec api alembic downgrade -1
 **Solution:** SWR (stale-while-revalidate) for intelligent data fetching.
 
 ### Changes
+
 - **Modified:** `frontend/package.json` - Added `swr: 2.2.5`
 - **New:** `frontend/lib/swr.ts` - SWR configuration, fetchers, and custom hooks
 - **Modified:** `frontend/app/projects/page.tsx` - Refactored to use `useProjects()` hook
 
 ### Benefits
+
 - **Smart polling** - Only polls when projects are in `processing`/`queued` state
 - **Automatic caching** - Deduplicates requests, reduces network traffic
 - **Built-in auth** - All requests include authentication headers
@@ -489,21 +564,23 @@ docker compose exec api alembic downgrade -1
 - **Focus revalidation** - Auto-refresh when user returns to tab
 
 ### New Hooks
+
 ```typescript
 // Projects list with smart polling
-const { projects, isLoading, mutate } = useProjects()
+const { projects, isLoading, mutate } = useProjects();
 
 // Single project
-const { project, isLoading } = useProject(projectId)
+const { project, isLoading } = useProject(projectId);
 
 // Project jobs
-const { jobs, isLoading } = useProjectJobs(projectId)
+const { jobs, isLoading } = useProjectJobs(projectId);
 
 // Mutations
-const { startProject, deleteProject } = useProjectActions()
+const { startProject, deleteProject } = useProjectActions();
 ```
 
 ### Code Reduction
+
 - **Before:** 70+ lines with `useEffect`, manual polling, no caching
 - **After:** ~35 lines with declarative hooks
 
@@ -512,11 +589,13 @@ const { startProject, deleteProject } = useProjectActions()
 ## Database Schema Changes
 
 ### New Columns (Jobs Table)
+
 - `celery_task_id` VARCHAR(64) - Links to Celery async task
 - `started_at` TIMESTAMP - When job processing began
 - `finished_at` TIMESTAMP - When job completed/failed
 
 ### Migration
+
 For existing databases, the schema was updated via manual ALTER statements. For new deployments, Alembic migrations handle this automatically.
 
 ---
@@ -524,9 +603,11 @@ For existing databases, the schema was updated via manual ALTER statements. For 
 ## Configuration Changes
 
 ### New Environment Variables
+
 - `NEXT_PUBLIC_API_TOKEN` - Frontend API authentication token (defaults to `devtoken`)
 
 ### Updated Variables
+
 - `S3_PUBLIC_BASE_URL` - Now used to determine URL fetch vs byte upload strategy
 
 ---
@@ -534,11 +615,14 @@ For existing databases, the schema was updated via manual ALTER statements. For 
 ## Breaking Changes
 
 ### API Authentication
+
 All `/projects/*` endpoints now require authentication. Clients must include either:
+
 - `Authorization: Bearer <token>` header, or
 - `X-API-Key: <token>` header
 
 ### Frontend
+
 The frontend now requires `NEXT_PUBLIC_API_TOKEN` to be set (defaults to `devtoken` for local dev).
 
 ---
@@ -548,6 +632,7 @@ The frontend now requires `NEXT_PUBLIC_API_TOKEN` to be set (defaults to `devtok
 ### For Existing Deployments
 
 1. **Update database schema:**
+
    ```bash
    docker compose exec postgres psql -U app -d meeting -c "
    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS celery_task_id VARCHAR(64);
@@ -558,11 +643,13 @@ The frontend now requires `NEXT_PUBLIC_API_TOKEN` to be set (defaults to `devtok
    ```
 
 2. **Stamp database with initial migration:**
+
    ```bash
    docker compose exec api alembic stamp 001_initial
    ```
 
 3. **Rebuild containers:**
+
    ```bash
    docker compose build
    docker compose up -d
@@ -578,6 +665,7 @@ The frontend now requires `NEXT_PUBLIC_API_TOKEN` to be set (defaults to `devtok
 ### For New Deployments
 
 Simply run:
+
 ```bash
 docker compose up --build
 ```
@@ -610,6 +698,7 @@ Alembic will automatically create the database schema on first startup.
 **Solution:** Implemented key term support during upload, robust error handling for term limits, and a retry flow for correcting terms post-failure.
 
 ### Changes
+
 - **Database:** Reused `Watchlist` table with unique constraint on `(project_id, canonical)`
 - **API (New endpoints):**
   - `PATCH /projects/{id}/key-terms` - Update terms for existing project
@@ -625,6 +714,7 @@ Alembic will automatically create the database schema on first startup.
   - Error banner on projects page with direct "Edit Key Terms" action
 
 ### Benefits
+
 - **Higher Accuracy:** Domain-specific terms are correctly transcribed.
 - **Recoverability:** Users can fix term-limit errors without re-uploading large files.
 - **Better UX:**

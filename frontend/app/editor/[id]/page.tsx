@@ -1,6 +1,7 @@
 "use client"
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Virtuoso, VirtuosoHandle, ListRange } from 'react-virtuoso'
 import AudioPlayer, { AudioPlayerRef } from '@/components/AudioPlayer'
 import {
   fetchTranscriptData,
@@ -35,11 +36,13 @@ const SYNC_OFFSET_MS = 150
 const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
+const PROGRAMMATIC_SCROLL_RESET_MS = 250
 const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
 // Scripts with little/no case mapping support; used for whole-word boundary checks.
 const NON_CASED_WORD_CHAR_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u3040-\u30FF\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF]/
 const COMBINING_MARK_START = 0x0300
 const COMBINING_MARK_END = 0x036f
+const SCROLL_INTENT_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'])
 
 const isUnicodeWordChar = (char: string) => {
   if (!char) return false
@@ -172,12 +175,20 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [segments, setSegments] = useState<Seg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [playbackRate, setPlaybackRate] = useState(1.0)
-  const activeSegRef = useRef<HTMLDivElement | null>(null)
+  const virtuosoRef = useRef<VirtuosoHandle>(null)
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
+  const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
+  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null)
+  const scrollContainerRef = useCallback((el: HTMLDivElement | null) => {
+    transcriptScrollRef.current = el
+    setScrollParent(el)
+  }, [])
   const [syncDirection, setSyncDirection] = useState<'up' | 'down'>('down')
   const [isFollowMode, setIsFollowMode] = useState(true)
   const [hasUserScrolled, setHasUserScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
+  const isProgrammaticScrollRef = useRef(false)
+  const programmaticScrollResetTimerRef = useRef<number | null>(null)
   const [activeIds, setActiveIds] = useState<{ segId?: string; wordKey?: string }>({})
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
@@ -185,7 +196,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const saveTimers = useRef<Record<string, number>>({})
   const saveStatusResetTimers = useRef<Record<string, number>>({})
   const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
-  const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  // segmentRefs removed — Virtuoso handles scroll-to via index
   const [findInput, setFindInput] = useState('')
   const [findTerm, setFindTerm] = useState('')
   const [replaceTerm, setReplaceTerm] = useState('')
@@ -430,74 +441,132 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const segmentsRef = useRef(segments)
   useEffect(() => { segmentsRef.current = segments }, [segments])
 
-  // Detect if transcript is out of sync with audio playback
+  const markProgrammaticScroll = useCallback(() => {
+    isUserScrollingRef.current = false
+    isProgrammaticScrollRef.current = true
+    if (programmaticScrollResetTimerRef.current) {
+      window.clearTimeout(programmaticScrollResetTimerRef.current)
+    }
+    programmaticScrollResetTimerRef.current = window.setTimeout(() => {
+      isProgrammaticScrollRef.current = false
+      programmaticScrollResetTimerRef.current = null
+    }, PROGRAMMATIC_SCROLL_RESET_MS)
+  }, [])
+
+  const scrollTranscriptToTop = useCallback((behavior: ScrollBehavior) => {
+    markProgrammaticScroll()
+    transcriptScrollRef.current?.scrollTo({ top: 0, behavior })
+  }, [markProgrammaticScroll])
+
+  // Detect user-initiated scrolling to disable follow mode
   useEffect(() => {
-    if (speakerPopover) return // Skip detection while popover is open
+    if (speakerPopover) return
     const container = transcriptScrollRef.current
-    if (!container) {
-      return
-    }
+    if (!container) return
 
-    const checkSync = () => {
-      // Only check sync direction when we have an active segment
-      if (!activeIds.segId) return
-      // Get activeEl fresh each time since it changes as audio plays
-      const activeEl = activeSegRef.current
-      if (!activeEl) {
-        return
-      }
-
-      const containerRect = container.getBoundingClientRect()
-      const activeRect = activeEl.getBoundingClientRect()
-
-      // Determine direction: if active is above viewport, need to scroll up
-      setSyncDirection(activeRect.top < containerRect.top ? 'up' : 'down')
-    }
-
-    // Handle user scroll - disable follow mode when user scrolls manually
     const handleUserScroll = () => {
+      if (isProgrammaticScrollRef.current) return
       if (isUserScrollingRef.current) {
         setIsFollowMode(false)
         setHasUserScrolled(true)
       }
-      checkSync()
     }
 
-    // Detect user-initiated scroll vs programmatic scroll
     const handleWheel = () => { isUserScrollingRef.current = true }
     const handleTouchStart = () => { isUserScrollingRef.current = true }
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.target === container) {
+        isUserScrollingRef.current = true
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
+      if (!SCROLL_INTENT_KEYS.has(e.key)) return
+      const target = e.target instanceof HTMLElement ? e.target : null
+      const isEditableTarget =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      const isInteractiveTarget = !!(target && target.closest(
+        'button, a[href], select, [role="button"], [role="link"], [role="menuitem"], [tabindex]:not([tabindex="-1"])'
+      ))
+      if (isEditableTarget || isInteractiveTarget) return
+      isUserScrollingRef.current = true
+    }
     let scrollEndTimer: number | undefined
     const handleScrollEnd = () => {
       if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
-      scrollEndTimer = window.setTimeout(() => { isUserScrollingRef.current = false }, 100)
+      scrollEndTimer = window.setTimeout(() => {
+        isUserScrollingRef.current = false
+        isProgrammaticScrollRef.current = false
+      }, 100)
     }
 
-    checkSync()
     container.addEventListener('scroll', handleUserScroll)
     container.addEventListener('scroll', handleScrollEnd)
     container.addEventListener('wheel', handleWheel)
     container.addEventListener('touchstart', handleTouchStart)
-    // Also check periodically as audio plays and active segment changes
-    const interval = setInterval(checkSync, 300)
+    container.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
     return () => {
       container.removeEventListener('scroll', handleUserScroll)
       container.removeEventListener('scroll', handleScrollEnd)
       container.removeEventListener('wheel', handleWheel)
       container.removeEventListener('touchstart', handleTouchStart)
+      container.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
       if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
-      clearInterval(interval)
+      if (programmaticScrollResetTimerRef.current) {
+        window.clearTimeout(programmaticScrollResetTimerRef.current)
+        programmaticScrollResetTimerRef.current = null
+      }
+      isUserScrollingRef.current = false
+      isProgrammaticScrollRef.current = false
     }
-  }, [activeIds.segId, speakerPopover])
+  }, [speakerPopover])
+
+  // Update sync direction based on visible range from Virtuoso
+  const handleRangeChanged = useCallback((range: ListRange) => {
+    visibleRangeRef.current = range
+    if (!activeIds.segId) return
+    const activeIdx = segments.findIndex(s => s.id === activeIds.segId)
+    if (activeIdx < 0) return
+    if (activeIdx < range.startIndex) setSyncDirection('up')
+    else if (activeIdx > range.endIndex) setSyncDirection('down')
+  }, [segments, activeIds.segId])
+
+  // Recompute sync direction when active segment changes (e.g. playback advances while user isn't scrolling)
+  useEffect(() => {
+    if (!activeIds.segId) return
+    const activeIdx = segments.findIndex(s => s.id === activeIds.segId)
+    if (activeIdx < 0) return
+    const range = visibleRangeRef.current
+    if (activeIdx < range.startIndex) setSyncDirection('up')
+    else if (activeIdx > range.endIndex) setSyncDirection('down')
+  }, [activeIds.segId, segments])
+
+  // Scroll to a segment index — instant by default, smooth for follow-mode (only when nearby)
+  const scrollToSegmentIndex = useCallback((idx: number, { smooth = false }: { smooth?: boolean } = {}) => {
+    const range = visibleRangeRef.current
+    const buffer = 10
+    const isNearby = idx >= range.startIndex - buffer && idx <= range.endIndex + buffer
+    markProgrammaticScroll()
+    virtuosoRef.current?.scrollToIndex({
+      index: idx,
+      align: 'center',
+      behavior: smooth && isNearby ? 'smooth' : 'auto',
+    })
+  }, [markProgrammaticScroll])
 
   // Auto-scroll to active segment when in follow mode
   useEffect(() => {
     if (!isFollowMode || !activeIds.segId) return
-    const activeEl = activeSegRef.current
-    if (activeEl) {
-      isUserScrollingRef.current = false // Mark as programmatic scroll
-      activeEl.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const idx = segmentsRef.current.findIndex(s => s.id === activeIds.segId)
+    if (idx >= 0) {
+      isUserScrollingRef.current = false
+      scrollToSegmentIndex(idx, { smooth: true })
     }
-  }, [activeIds.segId, isFollowMode])
+  }, [activeIds.segId, isFollowMode, scrollToSegmentIndex])
 
   // Turn off follow mode when user starts editing
   useEffect(() => {
@@ -505,6 +574,13 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       setIsFollowMode(false)
     }
   }, [editingId])
+
+  // Turn off follow mode when the speaker popover opens
+  useEffect(() => {
+    if (speakerPopover) {
+      setIsFollowMode(false)
+    }
+  }, [speakerPopover])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -564,6 +640,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     return () => {
       Object.values(saveTimers.current).forEach((timerId) => window.clearTimeout(timerId))
       Object.values(saveStatusResetTimers.current).forEach((timerId) => window.clearTimeout(timerId))
+      if (programmaticScrollResetTimerRef.current) {
+        window.clearTimeout(programmaticScrollResetTimerRef.current)
+        programmaticScrollResetTimerRef.current = null
+      }
       saveTimers.current = {}
       saveStatusResetTimers.current = {}
     }
@@ -709,14 +789,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     if (!currentMatch) return
-    const seg = segments.find((s: Seg) => s.id === currentMatch.segId)
-    if (!seg) return
-
-    const card = segmentRefs.current[seg.id]
-    try {
-      card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    } catch (_) { /* noop */ }
-  }, [currentMatch, segments])
+    const idx = segments.findIndex((s: Seg) => s.id === currentMatch.segId)
+    if (idx >= 0) {
+      scrollToSegmentIndex(idx)
+    }
+  }, [currentMatch, segments, scrollToSegmentIndex])
 
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
@@ -975,7 +1052,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         onExpandClick={() => {
           setIsFollowMode(false)
           setWaveformCollapsed(false)
-          transcriptScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+          scrollTranscriptToTop('smooth')
         }}
         onScrub={(fraction) => seekToMs(fraction * audioDuration * 1000, { skipLock: true })}
       >
@@ -1054,7 +1131,10 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Scrollable Content Area — Document Header + Transcript */}
-      <div className={`flex-1 overflow-auto pb-32 ${waveformCollapsed ? 'pt-[56px]' : 'pt-0'}`} ref={transcriptScrollRef}>
+      <div
+        className={`flex-1 overflow-auto pb-32 ${waveformCollapsed ? 'pt-[56px]' : 'pt-0'}`}
+        ref={scrollContainerRef}
+      >
         {/* Document Header — scrolls with content */}
         <div className="px-6 md:px-20 pt-10 pb-6">
           <div className="flex flex-col">
@@ -1119,129 +1199,128 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           <div className="h-px w-full bg-ink/10 dark:bg-white/10 mt-8" />
         </div>
 
-        {/* Transcript cards */}
-        <div className="px-6 md:px-20 max-w-5xl mx-auto space-y-1">
-          {segments.map((s: Seg, idx: number) => {
-            const isActive = activeIds.segId === s.id
-            const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
-            const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
-            let charCursor = 0
-            const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
-            const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
-            const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
-            const speakerLabel = sp?.label || 'Unknown'
-            const avatarBg = colorForSpeaker(sp)
-            const initials = getInitials(speakerLabel)
-            return (
-              <div
-                key={s.id}
-                data-testid="segment-card"
-                ref={(node: HTMLDivElement | null) => {
-                  if (node) {
-                    segmentRefs.current[s.id] = node
-                    if (isActive) activeSegRef.current = node
-                  } else {
-                    delete segmentRefs.current[s.id]
-                  }
-                }}
-                className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
-                onClick={() => onSegmentClick(s.id, s.start_ms)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-                  if (e.target !== e.currentTarget) return
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    onSegmentClick(s.id, s.start_ms)
-                  }
-                }}
-                role="button"
-                tabIndex={editingId === s.id ? -1 : 0}
-                aria-label={`Jump playback to ${msToTimestamp(s.start_ms)} for ${speakerLabel}`}
-              >
-                {/* Vertical color bar */}
-                <div
-                  className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-sm' : 'w-1 opacity-60'}`}
-                  style={{ backgroundColor: avatarBg }}
-                />
-
-                <div className="flex-1 min-w-0">
-                  <SegmentHeaderRow
-                    showSpeaker={needHeader}
-                    speakerLabel={speakerLabel}
-                    timestamp={msToTimestamp(s.start_ms)}
-                    saveStatus={saveStatus}
-                    segmentId={s.id}
-                    segmentText={s.text}
-                    editingId={editingId}
-                    source={source}
-                    onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                      e.stopPropagation()
-                      handleAvatarClick(e, s.id, s.speaker_id ?? null)
+        {/* Virtualized Transcript cards */}
+        <div className="px-6 md:px-20 max-w-5xl mx-auto">
+          {scrollParent && (
+            <Virtuoso
+              ref={virtuosoRef}
+              customScrollParent={scrollParent}
+              data={segments}
+              overscan={1200}
+              rangeChanged={handleRangeChanged}
+              itemContent={(idx: number, s: Seg) => {
+                const isActive = activeIds.segId === s.id
+                const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+                const sortedMatches = matchesForSeg.slice().sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index)
+                let charCursor = 0
+                const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
+                const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
+                const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
+                const speakerLabel = sp?.label || 'Unknown'
+                const avatarBg = colorForSpeaker(sp)
+                return (
+                  <div
+                    data-testid="segment-card"
+                    className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
+                    onClick={() => onSegmentClick(s.id, s.start_ms)}
+                    onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+                      if (e.target !== e.currentTarget) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onSegmentClick(s.id, s.start_ms)
+                      }
                     }}
-                    setEditingId={setEditingId}
-                    setEditingTexts={setEditingTexts}
-                  />
-                  {editingId === s.id ? (
-                    <div>
-                      <textarea
-                        ref={(node: HTMLTextAreaElement | null) => {
-                          if (node) {
-                            textAreaRefs.current[s.id] = node
-                          } else {
-                            delete textAreaRefs.current[s.id]
-                          }
+                    role="button"
+                    tabIndex={editingId === s.id ? -1 : 0}
+                    aria-label={`Jump playback to ${msToTimestamp(s.start_ms)} for ${speakerLabel}`}
+                  >
+                    {/* Vertical color bar */}
+                    <div
+                      className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-sm' : 'w-1 opacity-60'}`}
+                      style={{ backgroundColor: avatarBg }}
+                    />
+
+                    <div className="flex-1 min-w-0">
+                      <SegmentHeaderRow
+                        showSpeaker={needHeader}
+                        speakerLabel={speakerLabel}
+                        timestamp={msToTimestamp(s.start_ms)}
+                        saveStatus={saveStatus}
+                        segmentId={s.id}
+                        segmentText={s.text}
+                        editingId={editingId}
+                        source={source}
+                        onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                          e.stopPropagation()
+                          handleAvatarClick(e, s.id, s.speaker_id ?? null)
                         }}
-                        className="w-full border border-ink/10 dark:border-paper/10 bg-surface rounded-md p-2 min-h-[100px] text-current text-base leading-relaxed"
-                        value={editingTexts[s.id] ?? s.text}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
-                          const value = e.target.value
-                          setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
-                          scheduleSave(s.id, value)
-                        }}
-                        onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
-                        aria-label={`Transcript text for ${speakerLabel} at ${msToTimestamp(s.start_ms)}`}
+                        setEditingId={setEditingId}
+                        setEditingTexts={setEditingTexts}
                       />
-                    </div>
-                  ) : (
-                    <div className="font-sans text-lg leading-relaxed text-ink/90 dark:text-paper/80">
-                      {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
-                        const wordText = w.text
-                        const wordStart = charCursor
-                        const wordEnd = wordStart + wordText.length
-                        let content: React.ReactNode
-                        const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
-                        if (overlapping.length === 0) {
-                          content = <>{wordText}</>
-                        } else {
-                          let localPos = 0
-                          const pieces: React.ReactNode[] = []
-                          overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
-                            const startIdx = Math.max(0, m.index - wordStart)
-                            const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
-                            if (startIdx > localPos) {
-                              pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
+                      {editingId === s.id ? (
+                        <div>
+                          <textarea
+                            ref={(node: HTMLTextAreaElement | null) => {
+                              if (node) {
+                                textAreaRefs.current[s.id] = node
+                              } else {
+                                delete textAreaRefs.current[s.id]
+                              }
+                            }}
+                            className="w-full border border-ink/10 dark:border-paper/10 bg-surface rounded-md p-2 min-h-[100px] text-current text-base leading-relaxed"
+                            value={editingTexts[s.id] ?? s.text}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                              const value = e.target.value
+                              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
+                              scheduleSave(s.id, value)
+                            }}
+                            onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
+                            aria-label={`Transcript text for ${speakerLabel} at ${msToTimestamp(s.start_ms)}`}
+                          />
+                        </div>
+                      ) : (
+                        <div className="font-sans text-lg leading-relaxed text-ink/90 dark:text-paper/80">
+                          {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+                            const wordText = w.text
+                            const wordStart = charCursor
+                            const wordEnd = wordStart + wordText.length
+                            let content: React.ReactNode
+                            const overlapping = sortedMatches.filter((m: SegmentMatch) => m.index < wordEnd && (m.index + m.length) > wordStart)
+                            if (overlapping.length === 0) {
+                              content = <>{wordText}</>
+                            } else {
+                              let localPos = 0
+                              const pieces: React.ReactNode[] = []
+                              overlapping.sort((a: SegmentMatch, b: SegmentMatch) => a.index - b.index).forEach((m: SegmentMatch, idx2: number) => {
+                                const startIdx = Math.max(0, m.index - wordStart)
+                                const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
+                                if (startIdx > localPos) {
+                                  pieces.push(<span key={`n-${m.matchIdx}-${idx2}-${startIdx}`}>{wordText.slice(localPos, startIdx)}</span>)
+                                }
+                                const highlight = wordText.slice(startIdx, endIdx)
+                                pieces.push(
+                                  <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
+                                )
+                                localPos = endIdx
+                              })
+                              if (localPos < wordText.length) {
+                                pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                              }
+                              content = <>{pieces}</>
                             }
-                            const highlight = wordText.slice(startIdx, endIdx)
-                            pieces.push(
-                              <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
+                            charCursor = wordEnd
+                            return (
+                              <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
                             )
-                            localPos = endIdx
-                          })
-                          if (localPos < wordText.length) {
-                            pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
-                          }
-                          content = <>{pieces}</>
-                        }
-                        charCursor = wordEnd
-                        return (
-                          <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
-                        )
-                      })}
+                          })}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+                  </div>
+                )
+              }}
+            />
+          )}
         </div>
       </div>
 
@@ -1254,11 +1333,14 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             isUserScrollingRef.current = false
             setIsFollowMode(true)
             setHasUserScrolled(false)
-            if (activeSegRef.current) {
-              activeSegRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            if (activeIds.segId) {
+              const idx = segments.findIndex(s => s.id === activeIds.segId)
+              if (idx >= 0) {
+                scrollToSegmentIndex(idx)
+              }
             } else {
               // No active segment yet (audio hasn't played) — scroll to top
-              transcriptScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+              scrollTranscriptToTop('auto')
             }
           }}
         >

@@ -12,6 +12,7 @@ const customJestConfig = {
     '^@/(.*)$': '<rootDir>/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^\\.\\./\\.\\./\\.\\./components/AudioPlayer$': '<rootDir>/__mocks__/AudioPlayer.tsx',
+    '^react-virtuoso$': '<rootDir>/__mocks__/react-virtuoso.tsx',
   },
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
 }
