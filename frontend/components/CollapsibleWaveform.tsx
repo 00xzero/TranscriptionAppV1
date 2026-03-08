@@ -7,6 +7,10 @@ interface CollapsibleWaveformProps {
   audioProgress: number
   onExpandClick: () => void
   onScrub?: (fraction: number) => void
+  /** Called when the user begins a drag-scrub gesture */
+  onScrubStart?: () => void
+  /** Called when the user releases a drag-scrub gesture */
+  onScrubEnd?: () => void
   children: React.ReactNode
 }
 
@@ -17,6 +21,8 @@ export default function CollapsibleWaveform({
   audioProgress,
   onExpandClick,
   onScrub,
+  onScrubStart,
+  onScrubEnd,
   children,
 }: CollapsibleWaveformProps) {
   const normalizedProgress = Number.isFinite(audioProgress) ? audioProgress : 0
@@ -70,7 +76,8 @@ export default function CollapsibleWaveform({
   const handleMouseDown = useCallback(() => {
     if (!onScrub) return
     setIsDragging(true)
-  }, [onScrub])
+    onScrubStart?.()
+  }, [onScrub, onScrubStart])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const currentFraction = clampedProgress / 100
@@ -128,6 +135,7 @@ export default function CollapsibleWaveform({
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      onScrubEnd?.()
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -137,7 +145,7 @@ export default function CollapsibleWaveform({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging, onScrub, fractionFromEvent])
+  }, [isDragging, onScrub, onScrubEnd, fractionFromEvent])
 
   useEffect(() => {
     return () => {

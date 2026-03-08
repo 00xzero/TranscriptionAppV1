@@ -73,6 +73,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   const [isDragging, setIsDragging] = useState(false)
   const readyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
+  const wasPlayingBeforeDragRef = useRef(false)
 
   // Expose imperative methods
   useImperativeHandle(ref, () => ({
@@ -208,6 +209,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   }, [updateSeekFromEvent])
 
   const handleProgressMouseDown = useCallback((e: React.MouseEvent) => {
+    const audio = audioRef.current
+    if (audio && !audio.paused) {
+      wasPlayingBeforeDragRef.current = true
+      audio.pause()
+    } else {
+      wasPlayingBeforeDragRef.current = false
+    }
     setIsDragging(true)
     updateSeekFromEvent(e.clientX)
   }, [updateSeekFromEvent])
@@ -267,6 +275,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      if (wasPlayingBeforeDragRef.current) {
+        wasPlayingBeforeDragRef.current = false
+        audioRef.current?.play()
+      }
     }
 
     window.addEventListener('mousemove', handleMouseMove)

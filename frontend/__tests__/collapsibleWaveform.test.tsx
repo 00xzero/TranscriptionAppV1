@@ -286,4 +286,53 @@ describe('CollapsibleWaveform', () => {
     const fill = button.firstChild as HTMLElement
     expect(fill.style.width).toBe('65%')
   })
+
+  it('calls onScrubStart on drag start and onScrubEnd on drag end', () => {
+    const onScrub = jest.fn()
+    const onScrubStart = jest.fn()
+    const onScrubEnd = jest.fn()
+    render(
+      <CollapsibleWaveform
+        {...defaultProps}
+        onScrub={onScrub}
+        onScrubStart={onScrubStart}
+        onScrubEnd={onScrubEnd}
+      />
+    )
+    const slider = screen.getByRole('slider')
+    mockBarRect(slider, 0, 400)
+
+    // Start drag
+    fireEvent.mouseDown(slider)
+    expect(onScrubStart).toHaveBeenCalledTimes(1)
+    expect(onScrubEnd).not.toHaveBeenCalled()
+
+    // Release
+    act(() => {
+      fireEvent.mouseUp(window)
+    })
+    expect(onScrubEnd).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onScrubStart/onScrubEnd when onScrub is not provided', () => {
+    const onScrubStart = jest.fn()
+    const onScrubEnd = jest.fn()
+    render(
+      <CollapsibleWaveform
+        {...defaultProps}
+        onScrubStart={onScrubStart}
+        onScrubEnd={onScrubEnd}
+      />
+    )
+    const button = screen.getByRole('button', { name: 'Toggle waveform' })
+
+    fireEvent.mouseDown(button)
+    expect(onScrubStart).not.toHaveBeenCalled()
+
+    act(() => {
+      fireEvent.mouseUp(window)
+    })
+    // onScrubEnd should not fire since drag never started (isDragging was never true)
+    expect(onScrubEnd).not.toHaveBeenCalled()
+  })
 })

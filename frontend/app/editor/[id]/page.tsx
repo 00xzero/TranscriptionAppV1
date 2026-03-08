@@ -167,6 +167,7 @@ function SegmentHeaderRow({
 
 export default function EditorPage({ params }: { params: { id: string } }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
+  const wasPlayingBeforeScrubRef = useRef(false)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
@@ -1055,6 +1056,21 @@ export default function EditorPage({ params }: { params: { id: string } }) {
           scrollTranscriptToTop('smooth')
         }}
         onScrub={(fraction) => seekToMs(fraction * audioDuration * 1000, { skipLock: true })}
+        onScrubStart={() => {
+          const player = audioPlayerRef.current
+          if (player && player.isPlaying()) {
+            wasPlayingBeforeScrubRef.current = true
+            player.pause()
+          } else {
+            wasPlayingBeforeScrubRef.current = false
+          }
+        }}
+        onScrubEnd={() => {
+          if (wasPlayingBeforeScrubRef.current) {
+            wasPlayingBeforeScrubRef.current = false
+            audioPlayerRef.current?.play()
+          }
+        }}
       >
         {audioSrc ? (
           <AudioPlayer
