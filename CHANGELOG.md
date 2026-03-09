@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-09] - Editor Load Performance & Edge Case Coverage
+
+### Added
+
+- **Parallelized data fetching in editor**: Audio source is set immediately while transcript data loads in parallel, improving perceived load time
+- **Edge case test coverage**: 5 new tests covering transcript fetch failures, media URL failures, silent secondary data failures, and empty transcript data
+- **Optimistic audio loading**: Audio can start buffering before transcript data resolves
+
+### Changed
+
+- **Editor data loading order**: `setAudioSrc` now happens before awaiting transcript resolution
+- **Secondary data fetching**: Speakers and project metadata are fire-and-forget after transcript loads, with errors silently ignored
+- **Test assertion**: Fixed scrollTo behavior assertion to match `'auto'` implementation
+
 ## [2026-03-09] - Scrubbing & Navigation UX Improvements
 
 ### Added

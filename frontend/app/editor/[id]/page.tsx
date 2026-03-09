@@ -394,40 +394,45 @@ export default function EditorPage({ params }: { params: { id: string } }) {
         setReady(false)
         readyRef.current = false
 
-        // Fetch the media URL
-        const res = await fetch(`/api/projects/${params.id}/media-url`)
-        if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
-        const j = await res.json()
-        const url: string = j.url
+        // Start transcript loading immediately, but keep audio startup independent.
+        const transcriptDataPromise = fetchTranscriptData(params.id).then(
+          (data) => ({ data, error: null as unknown }),
+          (error) => ({ data: null, error })
+        )
+
+        const mediaUrl = await fetch(`/api/projects/${params.id}/media-url`).then(async (res) => {
+          if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
+          const j = await res.json()
+          return j.url as string
+        })
 
         if (cancelled) return
-        setAudioSrc(url)
 
-        // Load transcript data (chunks or segments)
-        const { items: segs, source: dataSource } = await fetchTranscriptData(params.id)
-        if (!cancelled) {
-          setSource(dataSource)
-          // Derive approximate word timings if not provided
-          setSegments(computeWordsForSegments(segs) as Seg[])
-        }
+        setAudioSrc(mediaUrl)
 
-        // Load speakers from Supabase
-        try {
-          const sps = await fetchSpeakers(params.id)
-          if (!cancelled) {
-            setSpeakers(sps)
-          }
-        } catch (_) { /* ignore */ }
+        const transcriptResult = await transcriptDataPromise
+        if (transcriptResult.error) throw transcriptResult.error
+        if (cancelled || !transcriptResult.data) return
 
-        // Load project metadata from Supabase
-        try {
-          const projData = await fetchProjectById(params.id)
-          if (!cancelled && projData) {
-            setProjectTitle(projData.title || null)
-            setProjectCreatedAt(projData.created_at)
-            setProjectDurationSecs(projData.duration_seconds)
-          }
-        } catch (_) { /* ignore */ }
+        setSource(transcriptResult.data.source)
+        // Derive approximate word timings if not provided
+        setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
+
+        void fetchSpeakers(params.id)
+          .then((speakerData) => {
+            if (cancelled) return
+            setSpeakers(speakerData)
+          })
+          .catch(() => { /* ignore */ })
+
+        void fetchProjectById(params.id)
+          .then((projectData) => {
+            if (cancelled || !projectData) return
+            setProjectTitle(projectData.title || null)
+            setProjectCreatedAt(projectData.created_at)
+            setProjectDurationSecs(projectData.duration_seconds)
+          })
+          .catch(() => { /* ignore */ })
 
       } catch (e: any) {
         console.error(e)

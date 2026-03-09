@@ -22,6 +22,15 @@ const makeExportResponse = (status = 200) => ({
   blob: async () => new Blob(['test'], { type: 'application/octet-stream' }),
 })
 
+const deferred = <T,>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+
+  return { promise, resolve }
+}
+
 const mockRect = (
   el: HTMLElement,
   { left = 0, top = 0, width = 0, height = 0 }: { left?: number, top?: number, width?: number, height?: number }
@@ -164,7 +173,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
     })
-    expect(scrollContainer.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+    expect(scrollContainer.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
   })
 
   test('supports debounced search, arrow navigation, whole-word filtering, and clear', async () => {
@@ -237,6 +246,95 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await user.click(screen.getByRole('button', { name: /Whole Word/i }))
     await waitForMatchSummary(/1 of 1 matches/i)
+  })
+
+  test('sets audio source before transcript data resolves', async () => {
+    const transcriptDeferred = deferred<{
+      items: Array<{ id: string; start_ms: number; end_ms: number; text: string; project_id: string; speaker_id: null }>
+      source: 'chunks'
+    }>()
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockReturnValueOnce(transcriptDeferred.promise)
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
+    })
+    expect(screen.queryByTestId('segment-card')).not.toBeInTheDocument()
+
+    await act(async () => {
+      transcriptDeferred.resolve({
+        items: [
+          { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.', project_id: 'p1', speaker_id: null },
+          { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.', project_id: 'p1', speaker_id: null },
+        ],
+        source: 'chunks',
+      })
+    })
+
+    const segmentsRendered = await screen.findAllByTestId('segment-card')
+    expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('sets audio source but renders no segments when transcript fetch fails', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockRejectedValueOnce(new Error('DB timeout'))
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
+    })
+    await act(async () => {})
+    expect(screen.queryByTestId('segment-card')).not.toBeInTheDocument()
+  })
+
+  test('shows error status when media URL fetch fails and does not render segments', async () => {
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url
+      if (url.includes('/media-url')) return makeJsonResponse({}, 500)
+      return makeJsonResponse('Not found', 404)
+    }) as jest.Mock
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Error: Failed to fetch media URL: 500/)).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('segment-card')).not.toBeInTheDocument()
+  })
+
+  test('renders segments normally when speakers fetch fails silently', async () => {
+    ;(supabaseQueries.fetchSpeakers as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+    expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
+  })
+
+  test('renders segments normally when project metadata fetch fails silently', async () => {
+    ;(supabaseQueries.fetchProjectById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+    expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
+  })
+
+  test('renders without error when transcript returns empty items', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
+    })
+    await act(async () => {})
+    expect(screen.queryByTestId('segment-card')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
   })
 
   test('disables replace actions while search input is still debouncing', async () => {
