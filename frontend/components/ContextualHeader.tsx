@@ -20,6 +20,9 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
   // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
   const effectiveViewType = viewType ?? (isEditorRoute ? 'editor' : 'library')
+  const handleEditorTopReset = () => {
+    window.dispatchEvent(new CustomEvent('editor-scroll-to-top'))
+  }
 
   // Check authentication status
   // Create Supabase client inside useEffect to avoid SSR/hydration issues
@@ -93,9 +96,15 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
             <span className="font-sans text-[12px] leading-[20px] text-ink/50 dark:text-paper/50">
               /
             </span>
-            <span className="font-sans font-medium text-[12px] leading-[20px] text-ink dark:text-paper">
+            <button
+              type="button"
+              className="font-sans font-medium text-[12px] leading-[20px] text-ink dark:text-paper bg-transparent border-0 p-0 m-0"
+              onClick={handleEditorTopReset}
+              aria-label="Scroll to the top of the project"
+              title="Scroll to top"
+            >
               {projectTitle || 'Project'}
-            </span>
+            </button>
           </div>
         )}
       </div>

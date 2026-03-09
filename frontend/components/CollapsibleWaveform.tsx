@@ -5,25 +5,27 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 interface CollapsibleWaveformProps {
   collapsed: boolean
   audioProgress: number
-  onExpandClick: () => void
   onScrub?: (fraction: number) => void
+  /** Called when the user begins a drag-scrub gesture */
+  onScrubStart?: () => void
+  /** Called when the user releases a drag-scrub gesture */
+  onScrubEnd?: () => void
   children: React.ReactNode
 }
-
-const DOUBLE_CLICK_DELAY_MS = 220
 
 export default function CollapsibleWaveform({
   collapsed,
   audioProgress,
-  onExpandClick,
   onScrub,
+  onScrubStart,
+  onScrubEnd,
   children,
 }: CollapsibleWaveformProps) {
   const normalizedProgress = Number.isFinite(audioProgress) ? audioProgress : 0
   const clampedProgress = Math.min(100, Math.max(0, normalizedProgress))
   const barRef = useRef<HTMLDivElement | null>(null)
-  const clickTimeoutRef = useRef<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [dragFraction, setDragFraction] = useState<number | null>(null)
 
   const clampFraction = useCallback((fraction: number) => {
     if (!Number.isFinite(fraction)) return 0
@@ -40,54 +42,23 @@ export default function CollapsibleWaveform({
     return clampFraction(fraction)
   }, [clampFraction])
 
-  const clearPendingClick = useCallback(() => {
-    if (clickTimeoutRef.current !== null) {
-      window.clearTimeout(clickTimeoutRef.current)
-      clickTimeoutRef.current = null
-    }
-  }, [])
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (onScrub) {
-      if (e.detail > 1) return
-      clearPendingClick()
-      const clientX = e.clientX
-      clickTimeoutRef.current = window.setTimeout(() => {
-        onScrub(fractionFromEvent(clientX))
-        clickTimeoutRef.current = null
-      }, DOUBLE_CLICK_DELAY_MS)
-    } else {
-      onExpandClick()
-    }
-  }, [onScrub, onExpandClick, fractionFromEvent, clearPendingClick])
-
-  const handleDoubleClick = useCallback(() => {
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!onScrub) return
-    clearPendingClick()
-    onExpandClick()
-  }, [onScrub, onExpandClick, clearPendingClick])
-
-  const handleMouseDown = useCallback(() => {
-    if (!onScrub) return
+    const fraction = fractionFromEvent(e.clientX)
+    setDragFraction(fraction)
     setIsDragging(true)
-  }, [onScrub])
+    onScrubStart?.()
+    onScrub(fraction)
+  }, [fractionFromEvent, onScrub, onScrubStart])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const currentFraction = clampedProgress / 100
     switch (e.key) {
-      case 'Enter':
-        if (onScrub) break
-        e.preventDefault()
-        onExpandClick()
-        break
       case ' ':
       case 'Spacebar':
+        if (!onScrub) break
         e.preventDefault()
-        if (onScrub) {
-          onScrub(clampFraction(currentFraction))
-        } else {
-          onExpandClick()
-        }
+        onScrub(clampFraction(currentFraction))
         break
       case 'ArrowLeft':
       case 'ArrowDown':
@@ -102,12 +73,9 @@ export default function CollapsibleWaveform({
         onScrub(clampFraction(currentFraction + 0.05))
         break
       case 'Home':
+        if (!onScrub) break
         e.preventDefault()
-        if (onScrub) {
-          onScrub(0)
-        } else {
-          onExpandClick()
-        }
+        onScrub(0)
         break
       case 'End':
         if (!onScrub) break
@@ -117,17 +85,21 @@ export default function CollapsibleWaveform({
       default:
         break
     }
-  }, [clampedProgress, onScrub, onExpandClick, clampFraction])
+  }, [clampedProgress, onScrub, clampFraction])
 
   useEffect(() => {
     if (!isDragging) return
 
     const handleMouseMove = (e: MouseEvent) => {
-      onScrub?.(fractionFromEvent(e.clientX))
+      const fraction = fractionFromEvent(e.clientX)
+      setDragFraction(fraction)
+      onScrub?.(fraction)
     }
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      setDragFraction(null)
+      onScrubEnd?.()
     }
 
     window.addEventListener('mousemove', handleMouseMove)
@@ -137,13 +109,9 @@ export default function CollapsibleWaveform({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging, onScrub, fractionFromEvent])
+  }, [isDragging, onScrub, onScrubEnd, fractionFromEvent])
 
-  useEffect(() => {
-    return () => {
-      clearPendingClick()
-    }
-  }, [clearPendingClick])
+  const visibleProgress = dragFraction !== null ? dragFraction * 100 : clampedProgress
 
   return (
     <div className={`relative leading-none ${collapsed ? 'z-50' : 'z-30'}`}>
@@ -151,23 +119,21 @@ export default function CollapsibleWaveform({
       {collapsed && (
         <div
           ref={barRef}
-          role={onScrub ? 'slider' : 'button'}
+          role="slider"
           tabIndex={0}
-          aria-label={onScrub ? 'Audio scrubber' : 'Toggle waveform'}
-          title={onScrub ? 'Scrub audio (double-click to expand waveform)' : 'Expand waveform'}
-          aria-orientation={onScrub ? 'horizontal' : undefined}
-          aria-valuemin={onScrub ? 0 : undefined}
-          aria-valuemax={onScrub ? 100 : undefined}
-          aria-valuenow={onScrub ? Math.round(clampedProgress) : undefined}
-          onClick={handleClick}
-          onDoubleClick={handleDoubleClick}
+          aria-label="Audio scrubber"
+          title="Scrub audio"
+          aria-orientation="horizontal"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(visibleProgress)}
           onMouseDown={handleMouseDown}
           onKeyDown={handleKeyDown}
           className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
         >
           <div
-            className="h-full bg-trust-blue transition-all duration-150 group-hover:bg-trust-blue/90 pointer-events-none"
-            style={{ width: `${clampedProgress}%` }}
+            className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
+            style={{ width: `${visibleProgress}%` }}
           />
         </div>
       )}

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-09] - Scrubbing & Navigation UX Improvements
+
+### Added
+
+- **Scroll to Top Shortcut:** The project title in the header is now a clickable button that instantly scrolls the transcript back to the top.
+- **Pause-on-Scrub Behavior:** Audio playback now automatically pauses while scrubbing (via dragging the scrubber or the audio progress bar) and resumes when released, ensuring a smoother user experience.
+
+### Changed
+
+- **Immediate Scrubbing:** Removed the double-click delay on the waveform scrubber, making click-to-seek and drag-to-scrub interactions instantly responsive.
+- **Drag Visual Feedback:** Added real-time visual feedback to the scrubber bar while dragging, disabling CSS transitions temporarily to ensure the playhead perfectly tracks the mouse cursor.
+- **Simplified Waveform Interaction:** Removed the "double-click to expand" functionality from the bottom mini-waveform to prioritize reliable, instant scrubbing.
+
 ## [2026-03-05] - Transcript Virtualization
 
 ### Added
