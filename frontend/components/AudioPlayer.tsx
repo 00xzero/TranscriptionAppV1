@@ -41,6 +41,8 @@ export interface AudioPlayerProps {
   onDragEnd?: () => void
   /** Called with the immediate preview time while scrubbing */
   onScrubPreview?: (currentTime: number) => void
+  /** Called with the immediate preview fraction while scrubbing */
+  onScrubPreviewFraction?: (fraction: number) => void
 }
 
 export interface AudioPlayerRef {
@@ -49,6 +51,7 @@ export interface AudioPlayerRef {
   togglePlay: () => void
   seekToMs: (ms: number) => void
   beginScrub: () => void
+  scrubToFraction: (fraction: number) => void
   scrubToMs: (ms: number) => void
   endScrub: () => void
   seekRelative: (seconds: number) => void
@@ -74,6 +77,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   onDragStart,
   onDragEnd,
   onScrubPreview,
+  onScrubPreviewFraction,
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const progressRef = useRef<HTMLDivElement | null>(null)
@@ -89,6 +93,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   const isScrubbingRef = useRef(false)
   const rafRef = useRef<number | null>(null)
   const latestScrubTimeRef = useRef(0)
+  const pendingScrubFractionRef = useRef<number | null>(null)
+  const [previewFraction, setPreviewFraction] = useState<number | null>(null)
+
+  const clampFraction = useCallback((nextFraction: number) => {
+    if (!Number.isFinite(nextFraction)) return 0
+    return Math.max(0, Math.min(nextFraction, 1))
+  }, [])
 
   const cancelPendingScrubFrame = useCallback(() => {
     if (rafRef.current !== null) {
@@ -97,10 +108,24 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     }
   }, [])
 
-  const clampTime = useCallback((nextTime: number) => {
-    const maxTime = Number.isFinite(duration) ? duration : 0
+  const clampTime = useCallback((nextTime: number, maxDuration = duration) => {
+    const maxTime = Number.isFinite(maxDuration) ? maxDuration : 0
     return Math.max(0, Math.min(nextTime, maxTime))
   }, [duration])
+
+  const clearPendingScrubFraction = useCallback(() => {
+    pendingScrubFractionRef.current = null
+    setPreviewFraction(null)
+  }, [])
+
+  const queuePendingScrubFraction = useCallback((nextFraction: number) => {
+    const clamped = clampFraction(nextFraction)
+    pendingScrubFractionRef.current = clamped
+    pendingSeekRef.current = null
+    latestScrubTimeRef.current = 0
+    setPreviewFraction(clamped)
+    onScrubPreviewFraction?.(clamped)
+  }, [clampFraction, onScrubPreviewFraction])
 
   const flushScrubSeek = useCallback(() => {
     cancelPendingScrubFrame()
@@ -116,23 +141,41 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     isScrubbingRef.current = true
   }, [])
 
-  const scrubToTime = useCallback((nextTime: number) => {
+  const scrubToTime = useCallback((nextTime: number, maxDuration = duration) => {
     const audio = audioRef.current
     if (!audio) return
-    const clamped = clampTime(nextTime)
+    const clamped = clampTime(nextTime, maxDuration)
+    clearPendingScrubFraction()
     latestScrubTimeRef.current = clamped
     setCurrentTime(clamped)
+    if (maxDuration > 0) {
+      onScrubPreviewFraction?.(clamped / maxDuration)
+    }
     onScrubPreview?.(clamped)
     cancelPendingScrubFrame()
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
-      const latest = clampTime(latestScrubTimeRef.current)
+      const latest = clampTime(latestScrubTimeRef.current, maxDuration)
       latestScrubTimeRef.current = latest
       if (audioRef.current) {
         audioRef.current.currentTime = latest
       }
     })
-  }, [cancelPendingScrubFrame, clampTime, onScrubPreview])
+  }, [cancelPendingScrubFrame, clampTime, clearPendingScrubFraction, duration, onScrubPreview, onScrubPreviewFraction])
+
+  const scrubToFraction = useCallback((fraction: number, resolvedDuration?: number) => {
+    const audio = audioRef.current
+    const clampedFraction = clampFraction(fraction)
+    const nextDuration = resolvedDuration
+      ?? (audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration)
+
+    if (nextDuration > 0) {
+      scrubToTime(clampedFraction * nextDuration, nextDuration)
+      return
+    }
+
+    queuePendingScrubFraction(clampedFraction)
+  }, [clampFraction, duration, queuePendingScrubFraction, scrubToTime])
 
   const endScrub = useCallback(() => {
     flushScrubSeek()
@@ -163,6 +206,9 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       audio.currentTime = clampedSec
     },
     beginScrub,
+    scrubToFraction: (fraction: number) => {
+      scrubToFraction(fraction)
+    },
     scrubToMs: (ms: number) => {
       scrubToTime(ms / 1000)
     },
@@ -184,7 +230,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, scrubToTime])
+  }), [beginScrub, endScrub, scrubToFraction, scrubToTime])
 
   // Audio event handlers
   useEffect(() => {
@@ -193,6 +239,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     const handleLoadedMetadata = () => {
       setDuration(audio.duration)
+      const pendingFraction = pendingScrubFractionRef.current
+      if (pendingFraction !== null && audio.duration > 0) {
+        scrubToFraction(pendingFraction, audio.duration)
+      }
     }
 
     const handleCanPlayThrough = () => {
@@ -253,7 +303,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate])
+  }, [onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
 
   // Reset ready state when src changes
   useEffect(() => {
@@ -263,27 +313,35 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     setDuration(0)
     pendingSeekRef.current = null
     latestScrubTimeRef.current = 0
+    clearPendingScrubFraction()
     isScrubbingRef.current = false
     cancelPendingScrubFrame()
     setIsDragging(false)
     wasPlayingBeforeDragRef.current = false
-  }, [cancelPendingScrubFrame, src])
+  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
 
   useEffect(() => {
     return () => {
       cancelPendingScrubFrame()
+      clearPendingScrubFraction()
     }
-  }, [cancelPendingScrubFrame])
+  }, [cancelPendingScrubFrame, clearPendingScrubFraction])
+
+  const fractionFromClientX = useCallback((clientX: number) => {
+    const progressBar = progressRef.current
+    if (!progressBar) return 0
+
+    const rect = progressBar.getBoundingClientRect()
+    if (!rect.width || !Number.isFinite(rect.width)) return 0
+
+    return clampFraction((clientX - rect.left) / rect.width)
+  }, [clampFraction])
 
   // Progress bar click/drag handling
   const updateSeekFromEvent = useCallback((clientX: number) => {
-    const progressBar = progressRef.current
-    if (!progressBar || !duration) return
-
-    const rect = progressBar.getBoundingClientRect()
-    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    scrubToTime(percent * duration)
-  }, [duration, scrubToTime])
+    const fraction = fractionFromClientX(clientX)
+    scrubToFraction(fraction)
+  }, [fractionFromClientX, scrubToFraction])
 
   const handleProgressClick = useCallback((e: React.MouseEvent) => {
     updateSeekFromEvent(e.clientX)
@@ -382,7 +440,9 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  const progress = previewFraction !== null
+    ? previewFraction * 100
+    : duration > 0 ? (currentTime / duration) * 100 : 0
 
   return (
     <div className="space-y-3">

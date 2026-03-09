@@ -366,11 +366,19 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     syncActiveSegment(Math.floor(currentTime * 1000))
   }, [audioDuration, syncActiveSegment])
 
+  const handleScrubPreviewFraction = useCallback((fraction: number) => {
+    setAudioProgress(Math.max(0, Math.min(fraction, 1)) * 100)
+  }, [])
+
   // Collapse waveform when transcript scrolls past 50px
   useEffect(() => {
     const container = transcriptScrollRef.current
     if (!container) return
     const handleScroll = () => {
+      // Freeze collapse state while scrubbing — prevents the waveform from
+      // collapsing mid-drag on AudioPlayer (which hides its progress bar and
+      // causes erratic seek calculations + layout thrash).
+      if (isScrubbingRef.current) return
       setWaveformCollapsed(container.scrollTop > 50)
     }
     container.addEventListener('scroll', handleScroll, { passive: true })
@@ -722,11 +730,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const handleMiniScrub = useCallback((fraction: number) => {
     const player = audioPlayerRef.current
     if (!player) return
-    const targetMs = fraction * audioDuration * 1000
     if (isScrubbingRef.current) {
-      player.scrubToMs(targetMs)
+      player.scrubToFraction(fraction)
       return
     }
+    const targetMs = fraction * (player.getDuration() || audioDuration) * 1000
     seekToMs(targetMs, { skipLock: true })
   }, [audioDuration, seekToMs])
 
@@ -738,6 +746,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     }
     player.endScrub()
     isScrubbingRef.current = false
+    // Sync waveform collapse state now that the scrub is over
+    const container = transcriptScrollRef.current
+    if (container) {
+      setWaveformCollapsed(container.scrollTop > 50)
+    }
     const segId = syncTranscriptToPlayer() ?? activeIds.segId
     if (isFollowMode && segId) {
       ensureActiveSegmentVisible(segId)
@@ -755,6 +768,11 @@ export default function EditorPage({ params }: { params: { id: string } }) {
 
   const handlePlayerDragEnd = useCallback(() => {
     isScrubbingRef.current = false
+    // Sync waveform collapse state now that the drag is over
+    const container = transcriptScrollRef.current
+    if (container) {
+      setWaveformCollapsed(container.scrollTop > 50)
+    }
     const segId = syncTranscriptToPlayer() ?? activeIds.segId
     if (isFollowMode && segId) {
       ensureActiveSegmentVisible(segId)
@@ -1187,6 +1205,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             onPlayingChange={handlePlayingChange}
             onTimeUpdate={handleTimeUpdate}
             onScrubPreview={handleScrubPreview}
+            onScrubPreviewFraction={handleScrubPreviewFraction}
             onDragStart={handlePlayerDragStart}
             onDragEnd={handlePlayerDragEnd}
             initialPlaybackRate={playbackRate}

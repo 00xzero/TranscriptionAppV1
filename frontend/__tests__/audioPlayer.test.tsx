@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import AudioPlayer from '../components/AudioPlayer'
+import CollapsibleWaveform from '../components/CollapsibleWaveform'
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
   jest.spyOn(el, 'getBoundingClientRect').mockReturnValue({
@@ -18,12 +19,13 @@ function mockProgressRect(el: HTMLElement, left: number, width: number) {
 
 function setupAudioElement(audio: HTMLAudioElement, { duration = 120, paused = true }: { duration?: number, paused?: boolean } = {}) {
   let currentTime = 0
+  let durationValue = duration
   let pausedState = paused
   const playCalls: number[] = []
 
   Object.defineProperty(audio, 'duration', {
     configurable: true,
-    get: () => duration,
+    get: () => durationValue,
   })
 
   Object.defineProperty(audio, 'currentTime', {
@@ -61,6 +63,9 @@ function setupAudioElement(audio: HTMLAudioElement, { duration = 120, paused = t
     getCurrentTime: () => currentTime,
     setCurrentTime: (value: number) => {
       currentTime = value
+    },
+    setDuration: (value: number) => {
+      durationValue = value
     },
     playMock: audio.play as jest.Mock,
     pauseMock: audio.pause as jest.Mock,
@@ -129,6 +134,38 @@ describe('AudioPlayer', () => {
 
     return { slider, audio, ...audioState }
   }
+
+  const renderPlayer = ({
+    paused = true,
+    props = {},
+    ready = false,
+    duration = 120,
+  }: {
+    paused?: boolean
+    props?: Partial<React.ComponentProps<typeof AudioPlayer>>
+    ready?: boolean
+    duration?: number
+  } = {}) => {
+    render(<AudioPlayer src="test.mp3" hideControls {...props} />)
+
+    const slider = screen.getByRole('slider', { name: 'Audio progress' })
+    mockProgressRect(slider, 0, 200)
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration, paused })
+
+    if (ready) {
+      act(() => {
+        audio.dispatchEvent(new Event('loadedmetadata'))
+        audio.dispatchEvent(new Event('canplaythrough'))
+      })
+    }
+
+    return { slider, audio, ...audioState }
+  }
+
+  const getProgressFill = (slider: HTMLElement) => slider.children[1] as HTMLElement
+  const getMiniWaveformFill = (slider: HTMLElement) => slider.firstChild as HTMLElement
 
   it('calls onDragStart once and onDragEnd once for built-in drag scrubbing', () => {
     const onDragStart = jest.fn()
@@ -202,5 +239,136 @@ describe('AudioPlayer', () => {
 
     expect(slider).toHaveAttribute('aria-valuenow', '90')
     expect(screen.getByText('1:30')).toBeInTheDocument()
+  })
+
+  it('shows immediate progress preview when scrubbing before metadata loads', () => {
+    const { slider } = renderPlayer({ duration: 0 })
+
+    fireEvent.mouseDown(slider, { clientX: 100 })
+
+    expect(getProgressFill(slider).style.width).toBe('50%')
+    expect(screen.getAllByText('0:00')).toHaveLength(2)
+  })
+
+  it('resolves a pending scrub preview when metadata arrives', () => {
+    const onScrubPreview = jest.fn()
+    const { slider, audio, getCurrentTime, setDuration } = renderPlayer({ props: { onScrubPreview }, duration: 0 })
+
+    fireEvent.mouseDown(slider, { clientX: 100 })
+    expect(getProgressFill(slider).style.width).toBe('50%')
+
+    act(() => {
+      setDuration(120)
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    flushAnimationFrame()
+
+    expect(onScrubPreview).toHaveBeenLastCalledWith(60)
+    expect(getCurrentTime()).toBe(60)
+    expect(screen.getByText('1:00')).toBeInTheDocument()
+    expect(getProgressFill(slider).style.width).toBe('50%')
+  })
+
+  it('supports imperative fraction scrubs before metadata loads', () => {
+    const playerRef = React.createRef<React.ElementRef<typeof AudioPlayer>>()
+    render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
+
+    const slider = screen.getByRole('slider', { name: 'Audio progress' })
+    mockProgressRect(slider, 0, 200)
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration: 0, paused: true })
+
+    act(() => {
+      playerRef.current?.beginScrub()
+      playerRef.current?.scrubToFraction(0.75)
+    })
+
+    expect(getProgressFill(slider).style.width).toBe('75%')
+
+    act(() => {
+      audioState.setDuration(120)
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    flushAnimationFrame()
+
+    expect(audioState.getCurrentTime()).toBe(90)
+    expect(screen.getByText('1:30')).toBeInTheDocument()
+  })
+
+  it('lets a pre-ready scrub override an older queued imperative seek', () => {
+    const playerRef = React.createRef<React.ElementRef<typeof AudioPlayer>>()
+    render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
+
+    const slider = screen.getByRole('slider', { name: 'Audio progress' })
+    mockProgressRect(slider, 0, 200)
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration: 120, paused: true })
+
+    act(() => {
+      playerRef.current?.seekToMs(30_000)
+    })
+
+    fireEvent.mouseDown(slider, { clientX: 100 })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+    })
+
+    flushAnimationFrame()
+
+    expect(audioState.getCurrentTime()).toBe(60)
+    expect(screen.getByText('1:00')).toBeInTheDocument()
+  })
+
+  it('shows a pending preview for click seeks before metadata loads', () => {
+    const { slider } = renderPlayer({ duration: 0 })
+
+    fireEvent.click(slider, { clientX: 150 })
+
+    expect(getProgressFill(slider).style.width).toBe('75%')
+  })
+
+  it('keeps the collapsed waveform in sync when follow-mode collapse happens mid-drag', async () => {
+    function TransitionHarness() {
+      const [collapsed, setCollapsed] = React.useState(false)
+      const [audioProgress, setAudioProgress] = React.useState(0)
+
+      return (
+        <CollapsibleWaveform collapsed={collapsed} audioProgress={audioProgress}>
+          <AudioPlayer
+            src="test.mp3"
+            hideControls
+            onScrubPreviewFraction={(fraction) => {
+              setAudioProgress(fraction * 100)
+              setCollapsed(true)
+            }}
+          />
+        </CollapsibleWaveform>
+      )
+    }
+
+    render(<TransitionHarness />)
+
+    const playerSlider = screen.getByRole('slider', { name: 'Audio progress' })
+    mockProgressRect(playerSlider, 0, 200)
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    setupAudioElement(audio, { duration: 0, paused: true })
+
+    fireEvent.mouseDown(playerSlider, { clientX: 100 })
+
+    const miniSlider = await screen.findByRole('slider', { name: 'Audio scrubber' })
+    expect(getMiniWaveformFill(miniSlider).style.width).toBe('50%')
+
+    act(() => {
+      fireEvent.mouseMove(window, { clientX: 150 })
+    })
+
+    expect(getMiniWaveformFill(miniSlider).style.width).toBe('75%')
   })
 })
