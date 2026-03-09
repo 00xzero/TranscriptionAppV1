@@ -1,16 +1,26 @@
 import React from 'react'
 
+export const scrollToIndexMock = jest.fn()
+export const scrollToMock = jest.fn()
+export const rangeChangedMock = jest.fn()
+
 /**
  * Test mock for react-virtuoso. Renders all items directly without virtualization
  * so JSDOM tests can find segment-card elements.
  */
 export const Virtuoso = React.forwardRef(function VirtuosoMock(
-  { data, itemContent, ...rest }: any,
+  { data, itemContent, rangeChanged, ...rest }: any,
   ref: any
 ) {
+  React.useEffect(() => {
+    const defaultRange = { startIndex: 0, endIndex: Math.max(0, (data?.length ?? 1) - 1) }
+    rangeChangedMock(defaultRange)
+    rangeChanged?.(defaultRange)
+  }, [data, rangeChanged])
+
   React.useImperativeHandle(ref, () => ({
-    scrollToIndex: () => {},
-    scrollTo: () => {},
+    scrollToIndex: scrollToIndexMock,
+    scrollTo: scrollToMock,
   }))
 
   return (

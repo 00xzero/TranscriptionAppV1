@@ -37,6 +37,7 @@ const SEEK_LOCK_MS = 3000
 const SEEK_RESUME_TIMEOUT_MS = 1000
 const SEEK_TOLERANCE_MS = 250
 const PROGRAMMATIC_SCROLL_RESET_MS = 250
+const ACTIVE_CARD_VISIBILITY_MARGIN_PX = 24
 const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
 // Scripts with little/no case mapping support; used for whole-word boundary checks.
 const NON_CASED_WORD_CHAR_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u3040-\u30FF\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF]/
@@ -220,6 +221,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const [audioDuration, setAudioDuration] = useState(0)
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
+  const isScrubbingRef = useRef(false)
   // Ref to prevent timeupdate/audioprocess from overriding manual card clicks
   const clickLockRef = useRef<number | null>(null)
   const readyRef = useRef(false)
@@ -264,16 +266,6 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     },
   })
 
-  // Listen for header button custom events
-  useEffect(() => {
-    window.addEventListener('open-find-replace', openFindReplaceModal)
-    window.addEventListener('open-export', openExportModal)
-    return () => {
-      window.removeEventListener('open-find-replace', openFindReplaceModal)
-      window.removeEventListener('open-export', openExportModal)
-    }
-  }, [openFindReplaceModal, openExportModal])
-
   const seekToMs = useCallback((targetMs: number, { skipLock = false }: { skipLock?: boolean } = {}) => {
     const player = audioPlayerRef.current
     if (!player) return
@@ -296,29 +288,37 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [])
 
 
+  const findActiveSegmentId = useCallback((tMs: number) => {
+    if (segmentsRef.current.length === 0) return undefined
+    const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
+    for (const seg of segmentsRef.current) {
+      if (seg.start_ms > tAdj) break
+      if (tAdj <= seg.end_ms) return seg.id
+    }
+    return undefined
+  }, [])
+
   // Helper to find and set active segment based on time in ms
   const syncActiveSegment = useCallback((tMs: number) => {
     // Guard: Don't update if segments aren't loaded yet
-    if (segmentsRef.current.length === 0) return
+    if (segmentsRef.current.length === 0) return undefined
 
     // Guard: Skip if click lock is active (prevents overriding manual clicks)
     if (clickLockRef.current && Date.now() < clickLockRef.current) {
-      return
+      return undefined
     }
 
-    const tAdj = Math.max(0, tMs - SYNC_OFFSET_MS)
-    let segId: string | undefined
-    for (const s of segmentsRef.current) {
-      if (tAdj >= s.start_ms && tAdj <= s.end_ms) {
-        segId = s.id
-        break
-      }
-    }
+    const segId = findActiveSegmentId(tMs)
+
     // Only update if we found a segment (prevents clearing activeIds prematurely)
     if (segId) {
-      setActiveIds({ segId, wordKey: undefined })
+      setActiveIds((prev) => {
+        if (prev.segId === segId && prev.wordKey === undefined) return prev
+        return { segId, wordKey: undefined }
+      })
     }
-  }, [])
+    return segId
+  }, [findActiveSegmentId])
 
   // AudioPlayer callback handlers
   const handleAudioReady = useCallback(() => {
@@ -347,13 +347,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   }, [])
 
   const handleTimeUpdate = useCallback((currentTime: number) => {
-    syncActiveSegment(Math.floor(currentTime * 1000))
     setAudioCurrentTime(currentTime)
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || 0
     setAudioDuration(dur)
     setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+    if (!isScrubbingRef.current) {
+      syncActiveSegment(Math.floor(currentTime * 1000))
+    }
   }, [syncActiveSegment])
+
+  const handleScrubPreview = useCallback((currentTime: number) => {
+    const player = audioPlayerRef.current
+    const dur = player?.getDuration?.() || audioDuration
+    setAudioCurrentTime(currentTime)
+    setAudioDuration(dur)
+    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+    syncActiveSegment(Math.floor(currentTime * 1000))
+  }, [audioDuration, syncActiveSegment])
 
   // Collapse waveform when transcript scrolls past 50px
   useEffect(() => {
@@ -459,6 +470,24 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     transcriptScrollRef.current?.scrollTo({ top: 0, behavior })
   }, [markProgrammaticScroll])
 
+  const handleReturnToTop = useCallback(() => {
+    setIsFollowMode(false)
+    setWaveformCollapsed(false)
+    scrollTranscriptToTop('smooth')
+  }, [scrollTranscriptToTop])
+
+  // Listen for header button custom events
+  useEffect(() => {
+    window.addEventListener('open-find-replace', openFindReplaceModal)
+    window.addEventListener('open-export', openExportModal)
+    window.addEventListener('editor-scroll-to-top', handleReturnToTop)
+    return () => {
+      window.removeEventListener('open-find-replace', openFindReplaceModal)
+      window.removeEventListener('open-export', openExportModal)
+      window.removeEventListener('editor-scroll-to-top', handleReturnToTop)
+    }
+  }, [handleReturnToTop, openFindReplaceModal, openExportModal])
+
   // Detect user-initiated scrolling to disable follow mode
   useEffect(() => {
     if (speakerPopover) return
@@ -559,15 +588,44 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     })
   }, [markProgrammaticScroll])
 
+  const isActiveSegmentSafelyVisible = useCallback((segId: string) => {
+    const container = transcriptScrollRef.current
+    if (!container) return false
+    const card = container.querySelector<HTMLElement>(`[data-segment-id="${segId}"]`)
+    if (!card) return false
+
+    const containerRect = container.getBoundingClientRect()
+    const cardRect = card.getBoundingClientRect()
+    const topBound = containerRect.top + ACTIVE_CARD_VISIBILITY_MARGIN_PX
+    const bottomBound = containerRect.bottom - ACTIVE_CARD_VISIBILITY_MARGIN_PX
+
+    return cardRect.top >= topBound && cardRect.bottom <= bottomBound
+  }, [])
+
+  const ensureActiveSegmentVisible = useCallback((segId: string) => {
+    const idx = segmentsRef.current.findIndex((s) => s.id === segId)
+    if (idx < 0) return
+    if (isActiveSegmentSafelyVisible(segId)) return
+    isUserScrollingRef.current = false
+    scrollToSegmentIndex(idx, { smooth: false })
+  }, [isActiveSegmentSafelyVisible, scrollToSegmentIndex])
+
+  const centerActiveSegment = useCallback((segId: string) => {
+    const idx = segmentsRef.current.findIndex((s) => s.id === segId)
+    if (idx < 0) return
+    isUserScrollingRef.current = false
+    scrollToSegmentIndex(idx, { smooth: true })
+  }, [scrollToSegmentIndex])
+
   // Auto-scroll to active segment when in follow mode
   useEffect(() => {
     if (!isFollowMode || !activeIds.segId) return
-    const idx = segmentsRef.current.findIndex(s => s.id === activeIds.segId)
-    if (idx >= 0) {
-      isUserScrollingRef.current = false
-      scrollToSegmentIndex(idx, { smooth: true })
+    if (isScrubbingRef.current) {
+      ensureActiveSegmentVisible(activeIds.segId)
+      return
     }
-  }, [activeIds.segId, isFollowMode, scrollToSegmentIndex])
+    centerActiveSegment(activeIds.segId)
+  }, [activeIds.segId, centerActiveSegment, ensureActiveSegmentVisible, isFollowMode])
 
   // Turn off follow mode when user starts editing
   useEffect(() => {
@@ -636,6 +694,72 @@ export default function EditorPage({ params }: { params: { id: string } }) {
     const player = audioPlayerRef.current
     if (player) player.setPlaybackRate(r)
   }
+
+  const syncTranscriptToPlayer = useCallback(() => {
+    const player = audioPlayerRef.current
+    if (!player) return undefined
+    const currentTime = player.getCurrentTime()
+    const dur = player.getDuration()
+    setAudioCurrentTime(currentTime)
+    setAudioDuration(dur)
+    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+    return syncActiveSegment(Math.floor(currentTime * 1000))
+  }, [syncActiveSegment])
+
+  const handleMiniScrubStart = useCallback(() => {
+    isScrubbingRef.current = true
+    clickLockRef.current = null
+    const player = audioPlayerRef.current
+    if (player && player.isPlaying()) {
+      wasPlayingBeforeScrubRef.current = true
+      player.pause()
+    } else {
+      wasPlayingBeforeScrubRef.current = false
+    }
+    player?.beginScrub()
+  }, [])
+
+  const handleMiniScrub = useCallback((fraction: number) => {
+    const player = audioPlayerRef.current
+    if (!player) return
+    const targetMs = fraction * audioDuration * 1000
+    if (isScrubbingRef.current) {
+      player.scrubToMs(targetMs)
+      return
+    }
+    seekToMs(targetMs, { skipLock: true })
+  }, [audioDuration, seekToMs])
+
+  const handleMiniScrubEnd = useCallback(() => {
+    const player = audioPlayerRef.current
+    if (!player) {
+      isScrubbingRef.current = false
+      return
+    }
+    player.endScrub()
+    isScrubbingRef.current = false
+    const segId = syncTranscriptToPlayer() ?? activeIds.segId
+    if (isFollowMode && segId) {
+      ensureActiveSegmentVisible(segId)
+    }
+    if (wasPlayingBeforeScrubRef.current) {
+      wasPlayingBeforeScrubRef.current = false
+      player.play()
+    }
+  }, [activeIds.segId, ensureActiveSegmentVisible, isFollowMode, syncTranscriptToPlayer])
+
+  const handlePlayerDragStart = useCallback(() => {
+    isScrubbingRef.current = true
+    clickLockRef.current = null
+  }, [])
+
+  const handlePlayerDragEnd = useCallback(() => {
+    isScrubbingRef.current = false
+    const segId = syncTranscriptToPlayer() ?? activeIds.segId
+    if (isFollowMode && segId) {
+      ensureActiveSegmentVisible(segId)
+    }
+  }, [activeIds.segId, ensureActiveSegmentVisible, isFollowMode, syncTranscriptToPlayer])
 
   useEffect(() => {
     return () => {
@@ -1050,27 +1174,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
       <CollapsibleWaveform
         collapsed={waveformCollapsed}
         audioProgress={audioProgress}
-        onExpandClick={() => {
-          setIsFollowMode(false)
-          setWaveformCollapsed(false)
-          scrollTranscriptToTop('smooth')
-        }}
-        onScrub={(fraction) => seekToMs(fraction * audioDuration * 1000, { skipLock: true })}
-        onScrubStart={() => {
-          const player = audioPlayerRef.current
-          if (player && player.isPlaying()) {
-            wasPlayingBeforeScrubRef.current = true
-            player.pause()
-          } else {
-            wasPlayingBeforeScrubRef.current = false
-          }
-        }}
-        onScrubEnd={() => {
-          if (wasPlayingBeforeScrubRef.current) {
-            wasPlayingBeforeScrubRef.current = false
-            audioPlayerRef.current?.play()
-          }
-        }}
+        onScrub={handleMiniScrub}
+        onScrubStart={handleMiniScrubStart}
+        onScrubEnd={handleMiniScrubEnd}
       >
         {audioSrc ? (
           <AudioPlayer
@@ -1080,6 +1186,9 @@ export default function EditorPage({ params }: { params: { id: string } }) {
             onError={handleAudioError}
             onPlayingChange={handlePlayingChange}
             onTimeUpdate={handleTimeUpdate}
+            onScrubPreview={handleScrubPreview}
+            onDragStart={handlePlayerDragStart}
+            onDragEnd={handlePlayerDragEnd}
             initialPlaybackRate={playbackRate}
             hideControls
           />
@@ -1237,6 +1346,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
                 return (
                   <div
                     data-testid="segment-card"
+                    data-segment-id={s.id}
                     className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
                     onClick={() => onSegmentClick(s.id, s.start_ms)}
                     onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {

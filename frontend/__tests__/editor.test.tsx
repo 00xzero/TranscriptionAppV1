@@ -1,8 +1,9 @@
 import React from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import EditorPage from '../app/editor/[id]/page'
 import * as supabaseQueries from '../lib/supabase/queries'
+import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 
 const makeJsonResponse = (data: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
@@ -20,6 +21,23 @@ const makeExportResponse = (status = 200) => ({
   },
   blob: async () => new Blob(['test'], { type: 'application/octet-stream' }),
 })
+
+const mockRect = (
+  el: HTMLElement,
+  { left = 0, top = 0, width = 0, height = 0 }: { left?: number, top?: number, width?: number, height?: number }
+) => {
+  jest.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+    x: left,
+    y: top,
+    toJSON: () => { },
+  })
+}
 
 const mockFetch = () => {
   const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -50,6 +68,36 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
   }
 
+  const collapseWaveform = async () => {
+    const scrollContainer = document.querySelector('.overflow-auto') as HTMLElement
+    expect(scrollContainer).not.toBeNull()
+
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 80,
+    })
+
+    fireEvent.scroll(scrollContainer)
+
+    await waitFor(() => {
+      expect(screen.getByRole('slider', { name: 'Audio scrubber' })).toBeInTheDocument()
+    })
+  }
+
+  const expectActiveSegmentIndex = async (idx: number) => {
+    await waitFor(() => {
+      const cards = screen.getAllByTestId('segment-card')
+      cards.forEach((card, cardIdx) => {
+        if (cardIdx === idx) {
+          expect(card.className).toContain('bg-trust-blue/10')
+        } else {
+          expect(card.className).not.toContain('bg-trust-blue/10')
+        }
+      })
+    })
+  }
+
   const openFindReplaceModalWithShortcut = async () => {
     fireEvent.keyDown(document, { key: 'f', metaKey: true })
     await screen.findByPlaceholderText(/Search text/i)
@@ -70,6 +118,12 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
     mockFetch()
     jest.clearAllMocks()
+    scrollToIndexMock.mockClear()
+    rangeChangedMock.mockClear()
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
   })
 
   test('opens Find/Replace via Cmd+F and via custom event', async () => {
@@ -93,6 +147,24 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(screen.queryByPlaceholderText(/Search text/i)).not.toBeInTheDocument()
     })
+  })
+
+  test('reopens the waveform and scrolls to top via the header custom event', async () => {
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const scrollContainer = document.querySelector('.overflow-auto') as HTMLElement
+    expect(scrollContainer).not.toBeNull()
+    scrollContainer.scrollTo = jest.fn()
+
+    window.dispatchEvent(new CustomEvent('editor-scroll-to-top'))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
+    })
+    expect(scrollContainer.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
   })
 
   test('supports debounced search, arrow navigation, whole-word filtering, and clear', async () => {
@@ -381,5 +453,210 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await screen.findByPlaceholderText(/Search text/i)
 
     expect(screen.queryByText(/Suggested Speakers/i)).not.toBeInTheDocument()
+  })
+
+  test('scrub follow uses viewport visibility instead of visible range heuristics', async () => {
+    const user = userEventLib.setup()
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
+      ],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const cards = screen.getAllByTestId('segment-card')
+    const scrollContainer = cards[0].closest('.overflow-auto') as HTMLElement
+
+    jest.spyOn(scrollContainer, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 300,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => { },
+    })
+
+    jest.spyOn(cards[0], 'getBoundingClientRect').mockReturnValue({
+      top: 40,
+      bottom: 140,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 100,
+      x: 0,
+      y: 40,
+      toJSON: () => { },
+    })
+    jest.spyOn(cards[1], 'getBoundingClientRect').mockReturnValue({
+      top: -20,
+      bottom: 80,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 100,
+      x: 0,
+      y: -20,
+      toJSON: () => { },
+    })
+    jest.spyOn(cards[2], 'getBoundingClientRect').mockReturnValue({
+      top: 500,
+      bottom: 600,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 100,
+      x: 0,
+      y: 500,
+      toJSON: () => { },
+    })
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+    fireEvent.mouseDown(slider, { clientX: 1 })
+
+    await act(async () => {
+      fireEvent.mouseMove(window, { clientX: 10 })
+    })
+
+    expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({
+      index: 1,
+      behavior: 'auto',
+    }))
+
+    scrollToIndexMock.mockClear()
+
+    await act(async () => {
+      fireEvent.mouseMove(window, { clientX: 1 })
+    })
+
+    expect(scrollToIndexMock).not.toHaveBeenCalled()
+
+    fireEvent.mouseUp(window)
+  })
+
+  test('mini scrub clears transcript click lock before previewing a new segment', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
+      ],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const cards = screen.getAllByTestId('segment-card')
+    fireEvent.click(cards[2])
+    await expectActiveSegmentIndex(2)
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+    fireEvent.mouseDown(slider, { clientX: 3 })
+
+    await expectActiveSegmentIndex(0)
+
+    fireEvent.mouseUp(window)
+  })
+
+  test('scrub end performs a final follow correction even when the active segment does not change', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
+      ],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const cards = screen.getAllByTestId('segment-card')
+    const scrollContainer = cards[0].closest('.overflow-auto') as HTMLElement
+
+    jest.spyOn(scrollContainer, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      bottom: 300,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 300,
+      x: 0,
+      y: 0,
+      toJSON: () => { },
+    })
+
+    jest.spyOn(cards[0], 'getBoundingClientRect').mockReturnValue({
+      top: 40,
+      bottom: 140,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 100,
+      x: 0,
+      y: 40,
+      toJSON: () => { },
+    })
+    jest.spyOn(cards[1], 'getBoundingClientRect').mockReturnValue({
+      top: -10,
+      bottom: 90,
+      left: 0,
+      right: 300,
+      width: 300,
+      height: 100,
+      x: 0,
+      y: -10,
+      toJSON: () => { },
+    })
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+    fireEvent.mouseDown(slider, { clientX: 10 })
+    scrollToIndexMock.mockClear()
+
+    await act(async () => {
+      fireEvent.mouseUp(window)
+    })
+
+    expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({
+      index: 1,
+      behavior: 'auto',
+    }))
+  })
+
+  test('active segment lookup stays on the earliest overlapping segment', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 's1', start_ms: 0, end_ms: 10000, text: 'long', project_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 3000, text: 'short one', project_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 5000, text: 'short two', project_id: 'p1', speaker_id: null },
+      ],
+      source: 'chunks',
+    })
+
+    render(<EditorPage params={{ id: 'p1' }} />)
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+
+    fireEvent.mouseDown(slider, { clientX: 15 })
+
+    await expectActiveSegmentIndex(0)
+
+    fireEvent.mouseUp(window)
   })
 })

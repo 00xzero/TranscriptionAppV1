@@ -1,0 +1,63 @@
+import React from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEventLib from '@testing-library/user-event'
+import ContextualHeader from '../components/ContextualHeader'
+
+const usePathnameMock = jest.fn()
+const openCaptureModalMock = jest.fn()
+const getUserMock = jest.fn()
+
+jest.mock('next/navigation', () => ({
+  usePathname: () => usePathnameMock(),
+}))
+
+jest.mock('../lib/ModalContext', () => ({
+  useModal: () => ({
+    openCaptureModal: openCaptureModalMock,
+  }),
+}))
+
+jest.mock('../lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: getUserMock,
+      onAuthStateChange: () => ({
+        data: {
+          subscription: {
+            unsubscribe: jest.fn(),
+          },
+        },
+      }),
+    },
+  }),
+}))
+
+describe('ContextualHeader', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    usePathnameMock.mockReturnValue('/editor/p1')
+    getUserMock.mockResolvedValue({
+      data: {
+        user: { id: 'u1' },
+      },
+    })
+  })
+
+  test('dispatches editor-scroll-to-top when the project breadcrumb is activated', async () => {
+    const user = userEventLib.setup()
+    const dispatchSpy = jest.spyOn(window, 'dispatchEvent')
+
+    render(<ContextualHeader />)
+
+    const button = await waitFor(() =>
+      screen.getByRole('button', { name: /scroll to the top of the project/i })
+    )
+
+    await user.click(button)
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'editor-scroll-to-top',
+    }))
+    expect(button).toHaveTextContent('Project')
+  })
+})

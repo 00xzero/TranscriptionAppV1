@@ -6,7 +6,7 @@ import type { AudioPlayerProps, AudioPlayerRef } from '../components/AudioPlayer
  * Simulates the AudioPlayer behavior without actual audio playback.
  */
 const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function MockAudioPlayer(
-    { src, onReady, onPlayingChange, onTimeUpdate, onSeeked, initialPlaybackRate = 1.0, hideControls = false }: AudioPlayerProps,
+    { src, onReady, onPlayingChange, onTimeUpdate, onSeeked, onScrubPreview, initialPlaybackRate = 1.0, hideControls = false }: AudioPlayerProps,
     ref
 ) {
     const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -36,6 +36,16 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
             onTimeUpdate?.(newTime)
             onSeeked?.(newTime)
         },
+        beginScrub: () => { },
+        scrubToMs: (ms: number) => {
+            const newTime = Math.max(0, Math.min(ms / 1000, duration))
+            setCurrentTime(newTime)
+            onScrubPreview?.(newTime)
+        },
+        endScrub: () => {
+            onTimeUpdate?.(currentTime)
+            onSeeked?.(currentTime)
+        },
         seekRelative: (seconds: number) => {
             const newTime = Math.max(0, Math.min(currentTime + seconds, duration))
             setCurrentTime(newTime)
@@ -50,7 +60,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
         isPlaying: () => playing,
         isReady: () => readyRef.current,
         getAudioElement: () => audioRef.current,
-    }), [playing, currentTime, duration, playbackRate, onPlayingChange, onTimeUpdate, onSeeked])
+    }), [playing, currentTime, duration, onPlayingChange, onTimeUpdate, onSeeked, onScrubPreview])
 
     // Simulate ready event after mount
     useEffect(() => {
