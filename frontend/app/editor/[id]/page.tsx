@@ -481,7 +481,7 @@ export default function EditorPage({ params }: { params: { id: string } }) {
   const handleReturnToTop = useCallback(() => {
     setIsFollowMode(false)
     setWaveformCollapsed(false)
-    scrollTranscriptToTop('smooth')
+    scrollTranscriptToTop('auto')
   }, [scrollTranscriptToTop])
 
   // Listen for header button custom events
