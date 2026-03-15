@@ -22,15 +22,7 @@ npm run test:ci      # Jest single-threaded (CI)
 npm run inngest      # Inngest dev server (background jobs)
 ```
 
-Run a single test file:
-
-```bash
-npx jest __tests__/rate-limit.test.ts
-```
-
-Run from repository root:
-
-Local infrastructure (Supabase, Inngest, ngrok):
+Local infrastructure (Supabase, Inngest, ngrok) — run from repo root:
 
 ```bash
 cd infra && ./start-local.sh   # Start local services
@@ -43,15 +35,13 @@ cd infra && ./stop-local.sh    # Stop local services
 
 Three separate Supabase client factories — use the correct one for the context:
 
-- `lib/supabase/client.ts` — browser-side (Client Components), uses `createBrowserClient`
-- `lib/supabase/server.ts` — server-side (RSC, API routes, Server Actions), uses `createServerClient` with cookie store
+- `lib/supabase/client.ts` — browser-side (Client Components)
+- `lib/supabase/server.ts` — server-side (RSC, API routes, Server Actions)
 - `lib/supabase/admin.ts` — service-role client for Inngest functions (bypasses RLS)
-
-All clients use a configurable cookie name (`NEXT_PUBLIC_SUPABASE_COOKIE_NAME`) for Docker local dev compatibility where client and server URLs differ.
 
 ### Auth & Middleware
 
-`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/projects`, `/editor`. Auth pages redirect to `/` if already logged in. Uses `getUser()` (not `getSession()`) for server-side JWT validation.
+`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/projects`, `/editor`.
 
 ### Transcription Pipeline
 
@@ -61,27 +51,11 @@ All clients use a configurable cookie name (`NEXT_PUBLIC_SUPABASE_COOKIE_NAME`) 
 4. **Processing** → Inngest function stores segments/words, runs consolidation algorithm to group segments into speaker-labeled chunks
 5. **Complete** → Job status updated, project marked `complete`, UI updates via Supabase Realtime
 
-Inngest functions are defined in `lib/inngest/functions.ts` and served via `app/api/inngest/route.ts`.
+Inngest functions in `lib/inngest/functions.ts`, served via `app/api/inngest/route.ts`.
 
 ### Data Model
 
-Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `chunks`, `chunk_words`, `jobs`, `watchlist`. All protected by Row Level Security (user ownership). Migrations live in `infra/supabase/migrations/`.
-
-### Data Fetching
-
-- **Supabase Realtime** subscriptions for live updates (projects list, job status)
-- Data fetching hooks in `lib/supabase/hooks.ts`, query helpers in `lib/supabase/queries.ts`
-
-### Editor
-
-The transcript editor (`app/editor/[id]/page.tsx`) features:
-
-- Inline text editing with 500ms debounced auto-save
-- Find & Replace with case sensitivity
-- Speaker management (reassign, rename, color-code)
-- Audio playback via native HTMLAudioElement with transcript sync
-- Export to DOCX or VTT (`lib/exports.ts`)
-- Session recovery: auto-refreshes expired Supabase Storage signed URLs on 403
+Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `chunks`, `chunk_words`, `jobs`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
 
 ### API Routes
 
@@ -98,15 +72,11 @@ The transcript editor (`app/editor/[id]/page.tsx`) features:
 
 ### Design System
 
-Tailwind with custom theme tokens in `tailwind.config.ts`:
-
-- Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `night-surface`, `night-border`
-- Fonts: Inter (sans), Newsreader (serif), IBM Plex Mono (mono)
-- Dark mode via `class` strategy
+Tailwind with custom tokens in `tailwind.config.ts`. Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `night-surface`, `night-border`. Dark mode via `class` strategy.
 
 ### Testing
 
-Jest + React Testing Library. Tests in `frontend/__tests__/`. Mocks in `frontend/__mocks__/` (AudioPlayer). Test files match `**/__tests__/**/*.test.(ts|tsx)`. Path alias `@/` mapped in `jest.config.js`.
+Jest + React Testing Library. Tests in `frontend/__tests__/`, mocks in `frontend/__mocks__/`.
 
 ## Key Conventions
 
@@ -114,4 +84,3 @@ Jest + React Testing Library. Tests in `frontend/__tests__/`. Mocks in `frontend
 - Path alias: `@/*` maps to `frontend/*` (e.g., `@/lib/supabase/server`)
 - Rate limiting via in-memory sliding window (`lib/rate-limit.ts`), controlled by `RATE_LIMIT_MODE` env var
 - Idempotency on transcription start via `x-idempotency-key` header
-- Modal state managed via React Context (`lib/ModalContext.tsx`)

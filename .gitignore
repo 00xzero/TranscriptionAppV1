@@ -37,3 +37,7 @@ infra/supabase/.temp/
 
 # Unused files
 Olivetti.html
+
+# Agent files
+CLAUDE.md
+AGENTS.md
