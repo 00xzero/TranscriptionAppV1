@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-15] - Editor Decomposition Refactor
+
+### Added
+
+- **Editor route decomposition plan**: Added `.docs/EDITOR_DECOMPOSITION_PLAN.md` to capture the approved extraction strategy, boundaries, and test targets for the editor refactor.
+- **Editor orchestration layer**: Added `EditorScreen` as the client-side composition boundary for editor data loading, playback, transcript sync, search, speaker actions, and title editing.
+- **Editor-local modules**: Added route-local `types.ts` and `utils.ts` to hold shared editor types, timing/search constants, formatting helpers, and word-timing utilities.
+- **Focused editor hooks**: Added extracted hooks for data loading, playback, transcript sync, search, inline mutations, speaker assignment, keyboard shortcuts, title editing, and user-scroll detection.
+- **Focused editor components**: Added extracted editor-local components for the header, transcript list, transcript segment card, mix-mode banner, and sync-to-audio button.
+- **Hook-level regression coverage**: Added editor tests for playback fallback behavior, speaker assignment rollback, transcript mutations, transcript search, transcript sync, and shared editor utilities.
+
+### Changed
+
+- **Editor route wrapper**: `frontend/app/editor/[id]/page.tsx` is now a thin wrapper that renders `EditorScreen` instead of containing the full editor implementation inline.
+- **Editor architecture**: The previous monolithic editor page was split into route-local hooks and components without changing the editor’s public route or feature set.
+- **AudioPlayer test mapping**: Generalized the Jest `AudioPlayer` mapper to support extracted editor imports from multiple relative depths.
+- **Speaker rollback flow**: Speaker reassignment rollback now uses the shared `reloadTranscript()` helper from the data hook instead of duplicating transcript reload logic inside the speaker hook.
+
+### Fixed
+
+- **Follow-mode recentering after scrubbing**: Restored the previous active-segment fallback after mini-scrub and player drag end, so transcript follow mode still recenters correctly when playback lands in gaps between transcript segments.
+- **Decomposition cleanup**: Removed dead refs and dead cleanup code left behind in the extracted editor data hook.
+
 ## [2026-03-09] - Editor Load Performance & Edge Case Coverage
 
 ### Added
