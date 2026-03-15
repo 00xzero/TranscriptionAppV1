@@ -17,14 +17,44 @@ const {
   updateSpeaker,
 } = jest.requireMock('@/lib/supabase/queries')
 
+function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
+  return {
+    id: 'sp1',
+    label: 'Alice',
+    project_id: 'p1',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    color: null,
+    ...overrides,
+  }
+}
+
+function makeSegment(overrides: Partial<Seg> = {}): Seg {
+  return {
+    id: 's1',
+    project_id: 'p1',
+    speaker_id: 'sp1',
+    start_ms: 0,
+    end_ms: 5000,
+    text: 'Hello',
+    source_segment_ids: null,
+    is_edited: false,
+    is_filler: false,
+    algo_version: 'test',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
 const makeSpeakers = (): Speaker[] => [
-  { id: 'sp1', label: 'Alice', project_id: 'p1', created_at: '', color: null },
-  { id: 'sp2', label: 'Bob', project_id: 'p1', created_at: '', color: '#FF0000' },
+  makeSpeaker(),
+  makeSpeaker({ id: 'sp2', label: 'Bob', color: '#FF0000' }),
 ]
 
 const makeSegments = (): Seg[] => [
-  { id: 's1', start_ms: 0, end_ms: 5000, text: 'Hello', speaker_id: 'sp1' },
-  { id: 's2', start_ms: 5000, end_ms: 10000, text: 'World', speaker_id: 'sp2' },
+  makeSegment(),
+  makeSegment({ id: 's2', start_ms: 5000, end_ms: 10000, text: 'World', speaker_id: 'sp2' }),
 ]
 
 function setup(overrides?: Partial<Parameters<typeof useSpeakerAssignments>[0]>) {
@@ -190,7 +220,7 @@ describe('useSpeakerAssignments', () => {
 
   describe('handleCreateSpeaker', () => {
     it('creates speaker and assigns to segment', async () => {
-      const newSpeaker: Speaker = { id: 'sp3', label: 'Charlie', project_id: 'p1', created_at: '', color: null }
+      const newSpeaker: Speaker = makeSpeaker({ id: 'sp3', label: 'Charlie' })
       createSpeaker.mockResolvedValueOnce(newSpeaker)
 
       const { result, setSpeakers, setSegments } = setup()

@@ -5,10 +5,28 @@ import { SYNC_OFFSET_MS } from '../../app/editor/[id]/utils'
 
 jest.mock('react-virtuoso')
 
+function makeSegment(overrides: Partial<Seg> = {}): Seg {
+  return {
+    id: 's1',
+    project_id: 'p1',
+    speaker_id: 'sp1',
+    start_ms: 0,
+    end_ms: 5000,
+    text: 'First segment',
+    source_segment_ids: null,
+    is_edited: false,
+    is_filler: false,
+    algo_version: 'test',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
 const segments: Seg[] = [
-  { id: 's1', start_ms: 0, end_ms: 5000, text: 'First segment', speaker_id: 'sp1' },
-  { id: 's2', start_ms: 5000, end_ms: 10000, text: 'Second segment', speaker_id: 'sp1' },
-  { id: 's3', start_ms: 10000, end_ms: 15000, text: 'Third segment', speaker_id: 'sp2' },
+  makeSegment(),
+  makeSegment({ id: 's2', start_ms: 5000, end_ms: 10000, text: 'Second segment' }),
+  makeSegment({ id: 's3', speaker_id: 'sp2', start_ms: 10000, end_ms: 15000, text: 'Third segment' }),
 ]
 
 function setup(overrides?: Partial<Parameters<typeof useTranscriptSync>[0]>) {
