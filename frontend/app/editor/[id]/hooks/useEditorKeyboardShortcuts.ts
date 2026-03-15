@@ -9,9 +9,9 @@ export function useEditorKeyboardShortcuts({
 }: {
   togglePlay: () => void
   seekRelative: (sec: number) => void
-  openFindReplaceModal: () => void
-  openExportModal: () => void
-  handleReturnToTop: () => void
+  openFindReplaceModal: (event?: WindowEventMap['open-find-replace']) => void
+  openExportModal: (event?: WindowEventMap['open-export']) => void
+  handleReturnToTop: (event?: WindowEventMap['editor-scroll-to-top']) => void
 }) {
   // Keyboard shortcuts
   useEffect(() => {

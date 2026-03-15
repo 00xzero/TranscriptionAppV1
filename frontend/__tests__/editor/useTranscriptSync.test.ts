@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react'
 import { useTranscriptSync } from '../../app/editor/[id]/hooks/useTranscriptSync'
 import type { Seg } from '../../app/editor/[id]/types'
-import { SYNC_OFFSET_MS, SEEK_LOCK_MS } from '../../app/editor/[id]/utils'
+import { SYNC_OFFSET_MS } from '../../app/editor/[id]/utils'
 
 jest.mock('react-virtuoso')
 

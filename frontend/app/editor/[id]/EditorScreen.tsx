@@ -92,7 +92,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     editing.setEditingId(null)
     speakerHook.setSpeakerPopover(null)
     setExportModalOpen(true)
-  }, [search.setFindReplaceOpen, editing.setEditingId, speakerHook.setSpeakerPopover])
+  }, [search.setFindReplaceOpen, editing.setEditingId, speakerHook.setSpeakerPopover, setExportModalOpen])
 
   // 6. Keyboard shortcuts
   useEditorKeyboardShortcuts({

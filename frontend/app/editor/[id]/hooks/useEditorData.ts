@@ -18,10 +18,15 @@ export function useEditorData(projectId: string) {
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
 
   const reloadTranscript = async () => {
-    const { items: segs } = await fetchTranscriptData(projectId)
-    setSegments(computeWordsForSegments(segs) as Seg[])
-    const speakerData = await fetchSpeakers(projectId)
-    setSpeakers(speakerData)
+    try {
+      const { items: segs } = await fetchTranscriptData(projectId)
+      setSegments(computeWordsForSegments(segs) as Seg[])
+
+      const speakerData = await fetchSpeakers(projectId)
+      setSpeakers(speakerData)
+    } catch (error) {
+      console.error(`Failed to reload transcript for project ${projectId} while fetching transcript data or speakers:`, error)
+    }
   }
 
   useEffect(() => {

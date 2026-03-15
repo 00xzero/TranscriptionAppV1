@@ -111,6 +111,7 @@ export default function TranscriptSegmentCard({
   scheduleSave,
 }: TranscriptSegmentCardProps) {
   const sortedMatches = matchesForSeg.slice().sort((a, b) => a.index - b.index)
+  // Tracks the cumulative character offset used with sortedMatches/matchIndex while mapping content and onWordClick spans.
   let charCursor = 0
 
   return (
@@ -186,7 +187,7 @@ export default function TranscriptSegmentCard({
               } else {
                 let localPos = 0
                 const pieces: React.ReactNode[] = []
-                overlapping.sort((a, b) => a.index - b.index).forEach((m, idx2) => {
+                overlapping.forEach((m, idx2) => {
                   const startIdx = Math.max(0, m.index - wordStart)
                   const endIdx = Math.min(wordText.length, m.index + m.length - wordStart)
                   if (startIdx > localPos) {

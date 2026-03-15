@@ -42,7 +42,7 @@ export default function EditorHeader({
           {editingTitle ? (
             <input
               ref={titleInputRef}
-              className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-[#EAEAEA] min-w-[300px] focus:outline-none ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
+              className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-[#EAEAEA] min-w-[300px] focus:outline-none mb-4 ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
               value={titleInput}
               onChange={(e) => setTitleInput(e.target.value)}
               onKeyDown={onTitleKeyDown}
