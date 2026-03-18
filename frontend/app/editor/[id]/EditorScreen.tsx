@@ -106,7 +106,12 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     return ids.size
   }, [data.segments])
 
-  const syncButtonVisible = !sync.isFollowMode && (!!sync.activeIds.segId || sync.hasUserScrolled) && !speakerHook.speakerPopover && !editing.editingId
+  const syncButtonVisible =
+    sync.mode !== 'seeking' &&
+    !sync.isFollowMode &&
+    (!!sync.activeIds.segId || sync.hasUserScrolled) &&
+    !speakerHook.speakerPopover &&
+    !editing.editingId
 
 
   return (

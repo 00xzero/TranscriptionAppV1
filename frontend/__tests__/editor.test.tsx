@@ -621,6 +621,25 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.getByRole('button', { name: /sync to audio/i })).toBeInTheDocument()
   })
 
+  test('scrubbing while follow mode is active does not show the sync button', async () => {
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const cards = screen.getAllByTestId('segment-card')
+    fireEvent.click(cards[0])
+    await expectActiveSegmentIndex(0)
+
+    expect(screen.queryByRole('button', { name: /sync to audio/i })).not.toBeInTheDocument()
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+    fireEvent.mouseDown(slider, { clientX: 10 })
+
+    expect(screen.queryByRole('button', { name: /sync to audio/i })).not.toBeInTheDocument()
+  })
+
   test('scrub follow uses viewport visibility instead of visible range heuristics', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
