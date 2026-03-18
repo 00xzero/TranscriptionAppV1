@@ -7,36 +7,31 @@ export function useEditorPlayback({
   audioSrc,
   setAudioSrc,
   setStatus,
-  syncActiveSegment,
-  findActiveSegmentId,
-  activeIds,
-  setActiveIds,
-  isFollowMode,
-  ensureActiveSegmentVisible,
-  isScrubbingRef,
+  onAudioTick,
+  startSeek,
+  previewSeek,
+  commitSeek,
+  onWordSeek,
+  onSegmentSeek,
   setWaveformCollapsed,
   transcriptScrollRef,
-  setSeekLock,
-  clearSeekLock,
 }: {
   projectId: string
   audioSrc: string | null
   setAudioSrc: (src: string | null) => void
   setStatus: (status: string) => void
-  syncActiveSegment: (tMs: number) => string | undefined
-  findActiveSegmentId: (tMs: number) => string | undefined
-  activeIds: { segId?: string; wordKey?: string }
-  setActiveIds: React.Dispatch<React.SetStateAction<{ segId?: string; wordKey?: string }>>
-  isFollowMode: boolean
-  ensureActiveSegmentVisible: (segId: string) => void
-  isScrubbingRef: React.MutableRefObject<boolean>
+  onAudioTick: (tMs: number) => string | undefined
+  startSeek: () => void
+  previewSeek: (tMs: number) => string | undefined
+  commitSeek: (tMs: number, opts?: { lockSeek?: boolean }) => string | undefined
+  onWordSeek: () => void
+  onSegmentSeek: (segId: string) => void
   setWaveformCollapsed: (collapsed: boolean) => void
   transcriptScrollRef: React.MutableRefObject<HTMLDivElement | null>
-  setSeekLock: () => void
-  clearSeekLock: () => void
 }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const wasPlayingBeforeScrubRef = useRef(false)
+  const seekGestureActiveRef = useRef(false)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
@@ -59,20 +54,15 @@ export function useEditorPlayback({
     onRecoveryError: (error) => console.warn('[Editor] Audio recovery failed:', error),
   })
 
-  const seekToMs = useCallback((targetMs: number, { skipLock = false }: { skipLock?: boolean } = {}) => {
+  const seekToMs = useCallback((targetMs: number) => {
     const player = audioPlayerRef.current
     if (!player) return
     if (!readyRef.current) {
       pendingSeekRef.current = targetMs
       return
     }
-    if (!skipLock) {
-      setSeekLock()
-    } else {
-      clearSeekLock()
-    }
     player.seekToMs(targetMs)
-  }, [setSeekLock, clearSeekLock])
+  }, [])
 
   const handleAudioReady = useCallback(() => {
     readyRef.current = true
@@ -104,18 +94,16 @@ export function useEditorPlayback({
     const dur = player?.getDuration?.() || 0
     setAudioDuration(dur)
     setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
-    if (!isScrubbingRef.current) {
-      syncActiveSegment(Math.floor(currentTime * 1000))
-    }
-  }, [syncActiveSegment, isScrubbingRef])
+    onAudioTick(Math.floor(currentTime * 1000))
+  }, [onAudioTick])
   const handleScrubPreview = useCallback((currentTime: number) => {
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || audioDuration
     setAudioCurrentTime(currentTime)
     setAudioDuration(dur)
     setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
-    syncActiveSegment(Math.floor(currentTime * 1000))
-  }, [audioDuration, syncActiveSegment])
+    previewSeek(Math.floor(currentTime * 1000))
+  }, [audioDuration, previewSeek])
 
   const handleScrubPreviewFraction = useCallback((fraction: number) => {
     setAudioProgress(Math.max(0, Math.min(fraction, 1)) * 100)
@@ -140,87 +128,76 @@ export function useEditorPlayback({
   }, [])
 
   const onWordClick = useCallback((ms: number) => {
+    onWordSeek()
     seekToMs(ms)
-  }, [seekToMs])
+  }, [onWordSeek, seekToMs])
 
   const onSegmentClick = useCallback((segId: string, ms: number) => {
-    setActiveIds({ segId, wordKey: undefined })
+    onSegmentSeek(segId)
     seekToMs(ms)
-  }, [seekToMs, setActiveIds])
-
-  const syncTranscriptToPlayer = useCallback(() => {
-    const player = audioPlayerRef.current
-    if (!player) return undefined
-    const currentTime = player.getCurrentTime()
-    const dur = player.getDuration()
-    setAudioCurrentTime(currentTime)
-    setAudioDuration(dur)
-    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
-    return syncActiveSegment(Math.floor(currentTime * 1000))
-  }, [syncActiveSegment])
+  }, [onSegmentSeek, seekToMs])
 
   const handleMiniScrubStart = useCallback(() => {
-    isScrubbingRef.current = true
-    clearSeekLock()
     const player = audioPlayerRef.current
-    if (player && player.isPlaying()) {
+    if (!player) return
+    seekGestureActiveRef.current = true
+    startSeek()
+    if (player.isPlaying()) {
       wasPlayingBeforeScrubRef.current = true
       player.pause()
     } else {
       wasPlayingBeforeScrubRef.current = false
     }
-    player?.beginScrub()
-  }, [isScrubbingRef, clearSeekLock])
+    player.beginScrub()
+  }, [startSeek])
 
   const handleMiniScrub = useCallback((fraction: number) => {
     const player = audioPlayerRef.current
     if (!player) return
-    if (isScrubbingRef.current) {
+    if (seekGestureActiveRef.current) {
       player.scrubToFraction(fraction)
       return
     }
     const targetMs = fraction * (player.getDuration() || audioDuration) * 1000
-    seekToMs(targetMs, { skipLock: true })
-  }, [audioDuration, seekToMs, isScrubbingRef])
+    commitSeek(targetMs, { lockSeek: false })
+    seekToMs(targetMs)
+  }, [audioDuration, commitSeek, seekToMs])
 
   const handleMiniScrubEnd = useCallback(() => {
     const player = audioPlayerRef.current
     if (!player) {
-      isScrubbingRef.current = false
+      seekGestureActiveRef.current = false
       return
     }
     player.endScrub()
-    isScrubbingRef.current = false
+    const currentMs = Math.floor(player.getCurrentTime() * 1000)
+    seekGestureActiveRef.current = false
     const container = transcriptScrollRef.current
     if (container) {
       setWaveformCollapsed(container.scrollTop > 50)
     }
-    const segId = syncTranscriptToPlayer() ?? activeIds.segId
-    if (isFollowMode && segId) {
-      ensureActiveSegmentVisible(segId)
-    }
+    commitSeek(currentMs)
     if (wasPlayingBeforeScrubRef.current) {
       wasPlayingBeforeScrubRef.current = false
       player.play()
     }
-  }, [activeIds.segId, ensureActiveSegmentVisible, isFollowMode, syncTranscriptToPlayer, isScrubbingRef, transcriptScrollRef, setWaveformCollapsed])
+  }, [commitSeek, transcriptScrollRef, setWaveformCollapsed])
 
   const handlePlayerDragStart = useCallback(() => {
-    isScrubbingRef.current = true
-    clearSeekLock()
-  }, [isScrubbingRef, clearSeekLock])
+    seekGestureActiveRef.current = true
+    startSeek()
+  }, [startSeek])
 
   const handlePlayerDragEnd = useCallback(() => {
-    isScrubbingRef.current = false
+    seekGestureActiveRef.current = false
     const container = transcriptScrollRef.current
     if (container) {
       setWaveformCollapsed(container.scrollTop > 50)
     }
-    const segId = syncTranscriptToPlayer() ?? activeIds.segId
-    if (isFollowMode && segId) {
-      ensureActiveSegmentVisible(segId)
-    }
-  }, [activeIds.segId, ensureActiveSegmentVisible, isFollowMode, syncTranscriptToPlayer, isScrubbingRef, transcriptScrollRef, setWaveformCollapsed])
+    const player = audioPlayerRef.current
+    if (!player) return
+    commitSeek(Math.floor(player.getCurrentTime() * 1000))
+  }, [commitSeek, transcriptScrollRef, setWaveformCollapsed])
 
   return {
     handleAudioPlayerRef,

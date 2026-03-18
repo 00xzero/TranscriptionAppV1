@@ -13,7 +13,7 @@ const defaultParams = {
   scheduleSave: jest.fn(),
   setEditingId: jest.fn(),
   scrollToSegmentIndex: jest.fn(),
-  setIsFollowMode: jest.fn(),
+  suspendFollow: jest.fn(),
   setSpeakerPopover: jest.fn(),
   exportModalOpen: false,
 }
@@ -25,7 +25,7 @@ describe('useTranscriptSearch', () => {
     defaultParams.scheduleSave.mockClear()
     defaultParams.setEditingId.mockClear()
     defaultParams.scrollToSegmentIndex.mockClear()
-    defaultParams.setIsFollowMode.mockClear()
+    defaultParams.suspendFollow.mockClear()
     defaultParams.setSpeakerPopover.mockClear()
   })
 

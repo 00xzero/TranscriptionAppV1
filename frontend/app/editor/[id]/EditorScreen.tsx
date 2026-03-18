@@ -58,17 +58,14 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     audioSrc: data.audioSrc,
     setAudioSrc: data.setAudioSrc,
     setStatus: data.setStatus,
-    syncActiveSegment: sync.syncActiveSegment,
-    findActiveSegmentId: sync.findActiveSegmentId,
-    activeIds: sync.activeIds,
-    setActiveIds: sync.setActiveIds,
-    isFollowMode: sync.isFollowMode,
-    ensureActiveSegmentVisible: sync.ensureActiveSegmentVisible,
-    isScrubbingRef: sync.isScrubbingRef,
+    onAudioTick: sync.onAudioTick,
+    startSeek: sync.startSeek,
+    previewSeek: sync.previewSeek,
+    commitSeek: sync.commitSeek,
+    onWordSeek: sync.onWordSeek,
+    onSegmentSeek: sync.onSegmentSeek,
     setWaveformCollapsed: sync.setWaveformCollapsed,
     transcriptScrollRef: sync.transcriptScrollRef,
-    setSeekLock: sync.setSeekLock,
-    clearSeekLock: sync.clearSeekLock,
   })
 
   // 5. Search + Export modal
@@ -82,7 +79,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     scheduleSave: editing.scheduleSave,
     setEditingId: editing.setEditingId,
     scrollToSegmentIndex: sync.scrollToSegmentIndex,
-    setIsFollowMode: sync.setIsFollowMode,
+    suspendFollow: sync.suspendFollow,
     setSpeakerPopover: speakerHook.setSpeakerPopover,
     exportModalOpen,
   })

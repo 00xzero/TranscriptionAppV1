@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { useTranscriptSync } from '@/app/editor/[id]/hooks/useTranscriptSync'
 import type { Seg } from '@/app/editor/[id]/types'
-import { SYNC_OFFSET_MS } from '@/app/editor/[id]/utils'
 
 jest.mock('react-virtuoso')
 
@@ -76,12 +75,12 @@ describe('useTranscriptSync', () => {
     })
   })
 
-  describe('syncActiveSegment', () => {
+  describe('onAudioTick', () => {
     it('sets activeIds', () => {
       const { result } = setup()
 
       act(() => {
-        result.current.syncActiveSegment(2500)
+        result.current.onAudioTick(2500)
       })
 
       expect(result.current.activeIds.segId).toBe('s1')
@@ -92,18 +91,17 @@ describe('useTranscriptSync', () => {
 
       // Set an initial active segment so we can verify it doesn't change
       act(() => {
-        result.current.syncActiveSegment(2500)
+        result.current.onAudioTick(2500)
       })
       expect(result.current.activeIds.segId).toBe('s1')
 
-      // Activate the seek lock
       act(() => {
-        result.current.setSeekLock()
+        result.current.onSegmentSeek('s1', 2500)
       })
 
       // Attempt to sync to a different segment while locked
       act(() => {
-        result.current.syncActiveSegment(7500)
+        result.current.onAudioTick(7500)
       })
 
       // activeIds should still point at s1 because the lock blocked the update
@@ -146,6 +144,19 @@ describe('useTranscriptSync', () => {
       })
 
       expect(result.current.isFollowMode).toBe(true)
+    })
+  })
+
+  describe('blocking state', () => {
+    it('does not auto-resume follow mode when editing ends', () => {
+      const { result, rerender } = setup()
+
+      rerender({ segments, editingId: 's1', speakerPopover: null })
+      expect(result.current.isFollowMode).toBe(false)
+
+      rerender({ segments, editingId: null, speakerPopover: null })
+
+      expect(result.current.isFollowMode).toBe(false)
     })
   })
 })

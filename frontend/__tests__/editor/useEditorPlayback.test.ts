@@ -5,8 +5,6 @@ jest.mock('@/hooks/useAudioSessionRecovery', () => ({
   useAudioSessionRecovery: jest.fn(),
 }))
 
-type ActiveIds = { segId?: string; wordKey?: string }
-
 function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
   return {
     togglePlay: jest.fn(),
@@ -29,32 +27,30 @@ function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
 function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
   const setAudioSrc = jest.fn()
   const setStatus = jest.fn()
-  const syncActiveSegment = jest.fn(() => undefined)
-  const findActiveSegmentId = jest.fn(() => undefined)
-  const setActiveIds = jest.fn()
-  const ensureActiveSegmentVisible = jest.fn()
+  const onAudioTick = jest.fn(() => undefined)
+  const startSeek = jest.fn()
+  const previewSeek = jest.fn(() => undefined)
+  const commitSeek = jest.fn(() => undefined)
+  const onWordSeek = jest.fn()
+  const onSegmentSeek = jest.fn()
   const setWaveformCollapsed = jest.fn()
   const transcriptScrollRef = {
     current: { scrollTop: 80 } as HTMLDivElement | null,
   }
-  const isScrubbingRef = { current: false }
 
   const props = {
     projectId: 'p1',
     audioSrc: 'audio.mp3',
     setAudioSrc,
     setStatus,
-    syncActiveSegment,
-    findActiveSegmentId,
-    activeIds: { segId: 's1' } as ActiveIds,
-    setActiveIds,
-    isFollowMode: true,
-    ensureActiveSegmentVisible,
-    isScrubbingRef,
+    onAudioTick,
+    startSeek,
+    previewSeek,
+    commitSeek,
+    onWordSeek,
+    onSegmentSeek,
     setWaveformCollapsed,
     transcriptScrollRef,
-    setSeekLock: jest.fn(),
-    clearSeekLock: jest.fn(),
     ...overrides,
   }
 
@@ -65,41 +61,56 @@ function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
   return {
     ...hook,
     props,
-    syncActiveSegment,
-    ensureActiveSegmentVisible,
+    onAudioTick,
+    startSeek,
+    previewSeek,
+    commitSeek,
+    onWordSeek,
+    onSegmentSeek,
     setWaveformCollapsed,
   }
 }
 
 describe('useEditorPlayback', () => {
-  it('uses the current active segment as a fallback after mini scrub ends', () => {
-    const { result, ensureActiveSegmentVisible, syncActiveSegment, setWaveformCollapsed } = setup()
+  it('commits the current player position after mini scrub ends', () => {
+    const { result, commitSeek, setWaveformCollapsed } = setup()
     const player = createPlayer()
 
     act(() => {
       result.current.handleAudioPlayerRef(player as any)
+      result.current.handleMiniScrubStart()
       result.current.handleMiniScrubEnd()
     })
 
     expect(player.endScrub).toHaveBeenCalledTimes(1)
-    expect(syncActiveSegment).toHaveBeenCalledWith(12000)
-    expect(ensureActiveSegmentVisible).toHaveBeenCalledWith('s1')
+    expect(commitSeek).toHaveBeenCalledWith(12000)
     expect(setWaveformCollapsed).toHaveBeenCalledWith(true)
   })
 
-  it('uses the current active segment as a fallback after player drag ends', () => {
-    const { result, ensureActiveSegmentVisible, syncActiveSegment, setWaveformCollapsed } = setup({
-      activeIds: { segId: 's2' },
-    })
+  it('commits the current player position after player drag ends', () => {
+    const { result, commitSeek, setWaveformCollapsed, startSeek } = setup()
     const player = createPlayer()
 
     act(() => {
       result.current.handleAudioPlayerRef(player as any)
+      result.current.handlePlayerDragStart()
       result.current.handlePlayerDragEnd()
     })
 
-    expect(syncActiveSegment).toHaveBeenCalledWith(12000)
-    expect(ensureActiveSegmentVisible).toHaveBeenCalledWith('s2')
+    expect(startSeek).toHaveBeenCalledTimes(1)
+    expect(commitSeek).toHaveBeenCalledWith(12000)
     expect(setWaveformCollapsed).toHaveBeenCalledWith(true)
+  })
+
+  it('ignores mini scrub gestures before the player is ready', () => {
+    const { result, startSeek, commitSeek } = setup()
+
+    act(() => {
+      result.current.handleMiniScrubStart()
+      result.current.handleMiniScrubEnd()
+    })
+
+    expect(startSeek).not.toHaveBeenCalled()
+    expect(commitSeek).not.toHaveBeenCalled()
   })
 })
