@@ -83,7 +83,7 @@ export type TranscriptSegmentCardProps = {
   source: 'chunks' | 'segments'
   textAreaRefs: React.MutableRefObject<Record<string, HTMLTextAreaElement | null>>
   onSegmentClick: (segId: string, ms: number) => void
-  onWordClick: (ms: number) => void
+  onWordClick: (segId: string, ms: number) => void
   onSpeakerClick: (e: React.MouseEvent, chunkId: string, speakerId: string | null) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
@@ -206,7 +206,15 @@ export default function TranscriptSegmentCard({
               }
               charCursor = wordEnd
               return (
-                <span key={w.key} onClick={(e: React.MouseEvent<HTMLSpanElement>) => { e.stopPropagation(); onWordClick(w.start_ms) }}>{content}</span>
+                <span
+                  key={w.key}
+                  onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
+                    e.stopPropagation()
+                    onWordClick(s.id, w.start_ms)
+                  }}
+                >
+                  {content}
+                </span>
               )
             })}
           </div>

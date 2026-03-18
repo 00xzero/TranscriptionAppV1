@@ -553,6 +553,93 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByText(/Suggested Speakers/i)).not.toBeInTheDocument()
   })
 
+  test('persistent search does not steal edit-mode focus after follow is resumed', async () => {
+    const user = userEventLib.setup()
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+
+    const cards = screen.getAllByTestId('segment-card')
+    fireEvent.click(cards[0])
+    await expectActiveSegmentIndex(0)
+
+    await openFindReplaceModalWithShortcut()
+
+    const findInput = screen.getByPlaceholderText(/Search text/i)
+    await user.type(findInput, 'hell')
+    await waitForMatchSummary(/1 of 3 matches/i)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/Search text/i)).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /sync to audio/i }))
+    scrollToIndexMock.mockClear()
+
+    const editButtons = screen.getAllByTitle(/Edit text/i)
+    await user.click(editButtons[1])
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-testid="segment-card"] textarea')).not.toBeNull()
+    })
+    expect(scrollToIndexMock).not.toHaveBeenCalled()
+  })
+
+  test('search keeps the sync button visible after a manual scroll with no active segment', async () => {
+    const user = userEventLib.setup()
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+
+    const scrollContainer = document.querySelector('.overflow-auto') as HTMLElement
+    expect(scrollContainer).not.toBeNull()
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 120,
+    })
+
+    fireEvent.wheel(scrollContainer)
+    fireEvent.scroll(scrollContainer)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /sync to audio/i })).toBeInTheDocument()
+    })
+
+    await openFindReplaceModalWithShortcut()
+
+    const findInput = screen.getByPlaceholderText(/Search text/i)
+    await user.type(findInput, 'hello')
+    await waitForMatchSummary(/1 of 3 matches/i)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/Search text/i)).not.toBeInTheDocument()
+    })
+
+    expect(screen.getByRole('button', { name: /sync to audio/i })).toBeInTheDocument()
+  })
+
+  test('scrubbing while follow mode is active does not show the sync button', async () => {
+    render(<EditorPage params={{ id: 'p1' }} />)
+
+    await waitForEditorContent()
+    await collapseWaveform()
+
+    const cards = screen.getAllByTestId('segment-card')
+    fireEvent.click(cards[0])
+    await expectActiveSegmentIndex(0)
+
+    expect(screen.queryByRole('button', { name: /sync to audio/i })).not.toBeInTheDocument()
+
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+    mockRect(slider, { left: 0, width: 200, height: 6 })
+    fireEvent.mouseDown(slider, { clientX: 10 })
+
+    expect(screen.queryByRole('button', { name: /sync to audio/i })).not.toBeInTheDocument()
+  })
+
   test('scrub follow uses viewport visibility instead of visible range heuristics', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({

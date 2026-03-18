@@ -3,38 +3,56 @@ import { SCROLL_INTENT_KEYS } from '../utils'
 
 export function useUserScrollDetection({
   containerRef,
-  isUserScrollingRef,
-  isProgrammaticScrollRef,
-  programmaticScrollResetTimerRef,
-  setIsFollowMode,
-  setHasUserScrolled,
-  speakerPopover,
+  disabled = false,
+  isProgrammaticScrollActive,
+  onUserScroll,
 }: {
   containerRef: React.MutableRefObject<HTMLDivElement | null>
-  isUserScrollingRef: React.MutableRefObject<boolean>
-  isProgrammaticScrollRef: React.MutableRefObject<boolean>
-  programmaticScrollResetTimerRef: React.MutableRefObject<number | null>
-  setIsFollowMode: (v: boolean) => void
-  setHasUserScrolled: (v: boolean) => void
-  speakerPopover: unknown
+  disabled?: boolean
+  isProgrammaticScrollActive: () => boolean
+  onUserScroll: () => void
 }) {
   useEffect(() => {
-    if (speakerPopover) return
+    if (disabled) return
     const container = containerRef.current
     if (!container) return
 
-    const handleUserScroll = () => {
-      if (isProgrammaticScrollRef.current) return
-      if (isUserScrollingRef.current) {
-        setIsFollowMode(false)
-        setHasUserScrolled(true)
+    let userIntentPending = false
+    let intentResetTimer: number | undefined
+
+    const clearIntentResetTimer = () => {
+      if (intentResetTimer) {
+        window.clearTimeout(intentResetTimer)
+        intentResetTimer = undefined
       }
     }
 
-    const handleWheel = () => { isUserScrollingRef.current = true }
-    const handleTouchStart = () => { isUserScrollingRef.current = true }
+    const markIntent = ({ resetAfterMs = 150 }: { resetAfterMs?: number | null } = {}) => {
+      userIntentPending = true
+      clearIntentResetTimer()
+      if (resetAfterMs === null) return
+      intentResetTimer = window.setTimeout(() => {
+        userIntentPending = false
+        intentResetTimer = undefined
+      }, resetAfterMs)
+    }
+
+    const handleUserScroll = () => {
+      if (!userIntentPending) return
+      if (isProgrammaticScrollActive()) {
+        userIntentPending = false
+        clearIntentResetTimer()
+        return
+      }
+      userIntentPending = false
+      clearIntentResetTimer()
+      onUserScroll()
+    }
+
+    const handleWheel = () => { markIntent() }
+    const handleTouchStart = () => { markIntent({ resetAfterMs: null }) }
     const handlePointerDown = (e: PointerEvent) => {
-      if (e.target === container) isUserScrollingRef.current = true
+      if (e.target === container) markIntent()
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
@@ -48,37 +66,21 @@ export function useUserScrollDetection({
         'button, a[href], select, [role="button"], [role="link"], [role="menuitem"], [tabindex]:not([tabindex="-1"])'
       ))
       if (isEditableTarget || isInteractiveTarget) return
-      isUserScrollingRef.current = true
-    }
-    let scrollEndTimer: number | undefined
-    const handleScrollEnd = () => {
-      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
-      scrollEndTimer = window.setTimeout(() => {
-        isUserScrollingRef.current = false
-        isProgrammaticScrollRef.current = false
-      }, 100)
+      markIntent()
     }
 
     container.addEventListener('scroll', handleUserScroll)
-    container.addEventListener('scroll', handleScrollEnd)
     container.addEventListener('wheel', handleWheel)
     container.addEventListener('touchstart', handleTouchStart)
     container.addEventListener('pointerdown', handlePointerDown)
     window.addEventListener('keydown', handleKeyDown)
     return () => {
       container.removeEventListener('scroll', handleUserScroll)
-      container.removeEventListener('scroll', handleScrollEnd)
       container.removeEventListener('wheel', handleWheel)
       container.removeEventListener('touchstart', handleTouchStart)
       container.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
-      if (scrollEndTimer) window.clearTimeout(scrollEndTimer)
-      if (programmaticScrollResetTimerRef.current) {
-        window.clearTimeout(programmaticScrollResetTimerRef.current)
-        programmaticScrollResetTimerRef.current = null
-      }
-      isUserScrollingRef.current = false
-      isProgrammaticScrollRef.current = false
+      clearIntentResetTimer()
     }
-  }, [speakerPopover, containerRef, isUserScrollingRef, isProgrammaticScrollRef, programmaticScrollResetTimerRef, setIsFollowMode, setHasUserScrolled])
+  }, [disabled, containerRef, isProgrammaticScrollActive, onUserScroll])
 }

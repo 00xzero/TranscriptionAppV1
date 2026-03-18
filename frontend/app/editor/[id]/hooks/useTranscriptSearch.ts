@@ -10,7 +10,7 @@ export function useTranscriptSearch({
   scheduleSave,
   setEditingId,
   scrollToSegmentIndex,
-  setIsFollowMode,
+  suspendFollow,
   setSpeakerPopover,
   exportModalOpen,
 }: {
@@ -21,7 +21,7 @@ export function useTranscriptSearch({
   scheduleSave: (segId: string, newText: string) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   scrollToSegmentIndex: (idx: number, opts?: { smooth?: boolean }) => void
-  setIsFollowMode: (mode: boolean) => void
+  suspendFollow: (reason?: 'search' | 'ui') => void
   setSpeakerPopover: (val: null) => void
   exportModalOpen: boolean
 }) {
@@ -39,9 +39,9 @@ export function useTranscriptSearch({
     setSpeakerPopover(null)
     setFindReplaceOpen(true)
     if (findTerm) {
-      setIsFollowMode(false)
+      suspendFollow('search')
     }
-  }, [exportModalOpen, findTerm, setEditingId, setSpeakerPopover, setIsFollowMode])
+  }, [exportModalOpen, findTerm, setEditingId, setSpeakerPopover, suspendFollow])
 
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []
@@ -96,17 +96,18 @@ export function useTranscriptSearch({
   useEffect(() => {
     setMatchIndex(0)
     if (findTerm) {
-      setIsFollowMode(false)
+      suspendFollow('search')
     }
-  }, [findTerm, caseSensitive, wholeWord, setIsFollowMode])
+  }, [findTerm, caseSensitive, wholeWord, suspendFollow])
 
   useEffect(() => {
+    if (!findReplaceOpen) return
     if (!currentMatch) return
     const idx = segments.findIndex((s: Seg) => s.id === currentMatch.segId)
     if (idx >= 0) {
       scrollToSegmentIndex(idx)
     }
-  }, [currentMatch, segments, scrollToSegmentIndex])
+  }, [currentMatch, findReplaceOpen, segments, scrollToSegmentIndex])
 
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
