@@ -109,6 +109,29 @@ describe('useTranscriptSync', () => {
     })
   })
 
+  describe('onWordSeek', () => {
+    it('updates the active segment immediately and keeps it during seek lock', () => {
+      const { result } = setup()
+
+      act(() => {
+        result.current.onAudioTick(2500)
+      })
+      expect(result.current.activeIds.segId).toBe('s1')
+
+      act(() => {
+        result.current.onWordSeek('s3')
+      })
+
+      expect(result.current.activeIds.segId).toBe('s3')
+
+      act(() => {
+        result.current.onAudioTick(7500)
+      })
+
+      expect(result.current.activeIds.segId).toBe('s3')
+    })
+  })
+
   describe('isFollowMode', () => {
     it('defaults to true', () => {
       const { result } = setup()

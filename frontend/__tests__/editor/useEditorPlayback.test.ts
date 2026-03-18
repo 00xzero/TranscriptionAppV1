@@ -113,4 +113,18 @@ describe('useEditorPlayback', () => {
     expect(startSeek).not.toHaveBeenCalled()
     expect(commitSeek).not.toHaveBeenCalled()
   })
+
+  it('updates the active segment before seeking when a word is clicked', () => {
+    const { result, onWordSeek } = setup()
+    const player = createPlayer()
+
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleAudioReady()
+      result.current.onWordClick('s2', 7500)
+    })
+
+    expect(onWordSeek).toHaveBeenCalledWith('s2')
+    expect(player.seekToMs).toHaveBeenCalledWith(7500)
+  })
 })

@@ -187,7 +187,9 @@ export function useTranscriptSync({
     return segId ?? nextState.activeSegId
   }, [commitMachineSeek, findActiveSegmentId])
 
-  const onWordSeek = markWordSeek
+  const onWordSeek = useCallback((segId: string) => {
+    markWordSeek(segId)
+  }, [markWordSeek])
 
   const onSegmentSeek = markSegmentSeek
 

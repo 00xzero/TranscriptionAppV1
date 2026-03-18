@@ -24,7 +24,7 @@ export function useEditorPlayback({
   startSeek: () => void
   previewSeek: (tMs: number) => string | undefined
   commitSeek: (tMs: number, opts?: { lockSeek?: boolean }) => string | undefined
-  onWordSeek: () => void
+  onWordSeek: (segId: string) => void
   onSegmentSeek: (segId: string) => void
   setWaveformCollapsed: (collapsed: boolean) => void
   transcriptScrollRef: React.MutableRefObject<HTMLDivElement | null>
@@ -127,8 +127,8 @@ export function useEditorPlayback({
     if (player) player.setPlaybackRate(r)
   }, [])
 
-  const onWordClick = useCallback((ms: number) => {
-    onWordSeek()
+  const onWordClick = useCallback((segId: string, ms: number) => {
+    onWordSeek(segId)
     seekToMs(ms)
   }, [onWordSeek, seekToMs])
 

@@ -25,7 +25,7 @@ export type ScrollSyncEvent =
   | { type: 'SEEK_PREVIEW'; now: number; segId?: string }
   | { type: 'SEEK_COMMITTED'; now: number; segId?: string; lockSeekUntil?: number | null }
   | { type: 'SEGMENT_SEEK'; now: number; segId: string; lockSeekUntil: number }
-  | { type: 'WORD_SEEK'; now: number; lockSeekUntil: number }
+  | { type: 'WORD_SEEK'; now: number; segId: string; lockSeekUntil: number }
   | { type: 'FOLLOW_REQUESTED'; now: number }
   | { type: 'FOLLOW_SUSPENDED'; now: number; reason?: 'search' | 'ui' }
   | { type: 'EDIT_BLOCKED'; now: number }
@@ -158,14 +158,17 @@ export function transitionScrollSyncState(
       return { state: nextState, commands }
     }
 
-    case 'WORD_SEEK':
+    case 'WORD_SEEK': {
+      const nextState = {
+        ...state,
+        activeSegId: event.segId,
+        seekLockUntil: event.lockSeekUntil,
+      }
       return {
-        state: {
-          ...state,
-          seekLockUntil: event.lockSeekUntil,
-        },
+        state: nextState,
         commands,
       }
+    }
 
     case 'FOLLOW_REQUESTED': {
       const nextState: ScrollSyncState = {

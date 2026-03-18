@@ -90,11 +90,12 @@ export function useScrollSyncMachine({
       lockSeekUntil: opts?.lockSeek === false ? null : now + SEEK_LOCK_MS,
     })
   }, [send])
-  const onWordSeek = useCallback(() => {
+  const onWordSeek = useCallback((segId: string) => {
     const now = Date.now()
     return send({
       type: 'WORD_SEEK',
       now,
+      segId,
       lockSeekUntil: now + SEEK_LOCK_MS,
     })
   }, [send])
