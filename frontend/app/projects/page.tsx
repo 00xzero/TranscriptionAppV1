@@ -134,7 +134,7 @@ function ProjectsPageContent() {
           parsed = null
         }
 
-        if (res.status === 409 && parsed?.status && ['error', 'failed'].includes(parsed.status)) {
+        if (res.status === 409 && parsed?.status === 'error') {
           setIdempotencyKeys((prev) => {
             const next = { ...prev }
             delete next[id]

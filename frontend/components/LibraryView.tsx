@@ -132,9 +132,7 @@ export default function LibraryView() {
     }
   }
 
-  // Normalize status check for completed projects
-  // Backend may return 'complete' or 'completed' - this helper abstracts that inconsistency
-  const isCompleted = (status: string) => status === 'complete' || status === 'completed'
+  const isCompleted = (status: string) => status === 'completed'
 
   return (
     <div className="pt-[80px] px-6 pb-6 md:pt-[80px] md:px-10 md:pb-10 space-y-10 scroll-smooth">

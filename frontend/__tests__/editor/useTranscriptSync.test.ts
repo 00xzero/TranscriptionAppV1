@@ -96,7 +96,7 @@ describe('useTranscriptSync', () => {
       expect(result.current.activeIds.segId).toBe('s1')
 
       act(() => {
-        result.current.onSegmentSeek('s1', 2500)
+        result.current.onSegmentSeek('s1')
       })
 
       // Attempt to sync to a different segment while locked

@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { inngest } from "@/lib/inngest/client";
 import { getSignedMediaUrl } from "@/lib/supabase/storage";
 import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { forceJobError } from "@/lib/supabase/transition";
 
 export async function POST(
     request: NextRequest,
@@ -98,7 +99,7 @@ export async function POST(
                 });
             }
 
-            if (["error", "failed"].includes(existingJob.status)) {
+            if (existingJob.status === "error") {
                 return NextResponse.json(
                     {
                         error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
@@ -181,6 +182,24 @@ export async function POST(
         .single();
 
     if (jobError) {
+        // Handle unique index violation (one active transcription per project)
+        if (jobError.code === '23505' && jobError.message?.includes('idx_jobs_one_active_per_project')) {
+            const { data: activeJob } = await supabase
+                .from("jobs")
+                .select("id, status")
+                .eq("project_id", id)
+                .in("status", ["queued", "processing"])
+                .limit(1)
+                .maybeSingle();
+            if (activeJob) {
+                return NextResponse.json({
+                    message: "Transcription started",
+                    jobId: activeJob.id,
+                    cached: true,
+                });
+            }
+        }
+
         // Handle race where another request already created this idempotent job
         if (idempotencyKey) {
             const { data: existingJob } = await supabase
@@ -198,7 +217,7 @@ export async function POST(
                     });
                 }
 
-                if (["error", "failed"].includes(existingJob.status)) {
+                if (existingJob.status === "error") {
                     return NextResponse.json(
                         {
                             error: "Previous transcription attempt failed. Please retry with a new idempotency key.",
@@ -218,32 +237,7 @@ export async function POST(
         );
     }
 
-    // Update project status to queued (processing starts after Deepgram accepts)
-    const { error: updateError } = await supabase
-        .from("projects")
-        .update({ status: "queued" })
-        .eq("id", id);
-
-    if (updateError) {
-        console.error("Failed to update project status:", updateError);
-        // Rollback: mark job as error so the UI can surface a message
-        const errorPayload = {
-            error: "Failed to queue transcription. Please try again.",
-            error_type: "transcription_error",
-            raw_error: updateError.message,
-        };
-        const { error: jobUpdateError } = await supabase
-            .from("jobs")
-            .update({ status: "error", payload: errorPayload })
-            .eq("id", job.id);
-        if (jobUpdateError) {
-            console.error("Failed to mark job as error after queue failure:", jobUpdateError);
-        }
-        return NextResponse.json(
-            { error: "Failed to queue transcription" },
-            { status: 500 }
-        );
-    }
+    // Project status is derived by the DB trigger from job INSERT — no manual update needed
 
     // Trigger Inngest function for async processing
     try {
@@ -259,28 +253,21 @@ export async function POST(
         });
     } catch (sendError) {
         console.error("Failed to send Inngest event:", sendError);
-        // Rollback: Update project status back and mark job as error
         const errorMessage =
             sendError instanceof Error ? sendError.message : String(sendError);
-        const errorPayload = {
-            error: "Failed to start transcription. Please try again.",
-            error_type: "transcription_error",
-            raw_error: errorMessage.slice(0, 500),
-        };
-        const { error: projectRollbackError } = await supabase
-            .from("projects")
-            .update({ status: "error" })
-            .eq("id", id);
-        if (projectRollbackError) {
-            console.error("Failed to rollback project status:", projectRollbackError);
-        }
-        const { error: jobRollbackError } = await supabase
-            .from("jobs")
-            .update({ status: "error", payload: errorPayload })
-            .eq("id", job.id);
-        if (jobRollbackError) {
-            console.error("Failed to rollback job status:", jobRollbackError);
-        }
+        // Rollback: mark job as error (project status derived by trigger)
+        await forceJobError({
+            supabase,
+            jobId: job.id,
+            extraJobFields: {
+                payload: {
+                    error: "Failed to start transcription. Please try again.",
+                    error_type: "transcription_error",
+                    raw_error: errorMessage.slice(0, 500),
+                },
+            },
+            context: "startRoute/inngestSendFailed",
+        });
         return NextResponse.json(
             { error: "Failed to start transcription" },
             { status: 500 }

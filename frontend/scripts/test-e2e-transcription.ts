@@ -76,7 +76,7 @@ async function main() {
         .from("jobs")
         .insert({
             project_id: project.id,
-            type: "transcribe",
+            type: "transcription",
             status: "queued",
         })
         .select("id")
@@ -87,12 +87,7 @@ async function main() {
         process.exit(1);
     }
     console.log(`   Job ID: ${job.id}`);
-
-    // Update project status to processing
-    await supabase
-        .from("projects")
-        .update({ status: "processing" })
-        .eq("id", project.id);
+    // Project status derived by trigger from job INSERT — no manual update needed
 
     // Step 4: Trigger Inngest event
     console.log("\n4️⃣ Triggering Inngest transcription event...");

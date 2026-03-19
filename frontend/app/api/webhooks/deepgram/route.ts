@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { inngest } from "@/lib/inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { forceJobError } from "@/lib/supabase/transition";
 
 async function persistWebhookFailure(params: {
   projectId?: string | null;
@@ -64,19 +65,32 @@ async function persistWebhookFailure(params: {
     error_type: "transcription_error",
     raw_error: params.message.slice(0, 500),
   };
-  const now = new Date().toISOString();
 
   if (resolvedJobId) {
-    const { error: jobError } = await supabase
-      .from("jobs")
-      .update({ status: "error", finished_at: now, payload })
-      .eq("id", resolvedJobId);
-    if (jobError) {
-      console.error("[deepgram-webhook] Failed to update job error status:", jobError);
+    // forceJobError transitions job to error; project status derived by trigger
+    await forceJobError({
+      supabase,
+      jobId: resolvedJobId,
+      extraJobFields: {
+        finished_at: new Date().toISOString(),
+        payload,
+      },
+      context: "persistWebhookFailure",
+    });
+  } else if (resolvedProjectId) {
+    // No job found — record in failed_events for investigation
+    const { error: insertError } = await supabase
+      .from("failed_events")
+      .insert({
+        event_name: "deepgram/webhook_failure",
+        event_data: { projectId: resolvedProjectId, requestId: params.requestId },
+        error_message: params.message,
+        project_id: resolvedProjectId,
+      });
+    if (insertError) {
+      console.error("[deepgram-webhook] Failed to insert failed_event:", insertError);
     }
-  }
 
-  if (resolvedProjectId) {
     const { error: projectError } = await supabase
       .from("projects")
       .update({ status: "error" })
