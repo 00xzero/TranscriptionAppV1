@@ -77,35 +77,35 @@ async function main() {
     if (jobError) {
         console.warn("⚠️  Could not find job for project:", jobError.message);
     } else if (job) {
-        // Update job status
-        const { error: jobUpdateError } = await supabase
-            .from("jobs")
-            .update({
-                status: "completed",
+        // Transition job via RPC for audit consistency
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("transition_job_status", {
+            p_job_id: job.id,
+            p_to_status: "completed",
+            p_extra_fields: {
                 payload: { message: "Consolidation completed successfully" },
-                finished_at: new Date().toISOString()
-            })
-            .eq("id", job.id);
+                finished_at: new Date().toISOString(),
+            },
+            p_metadata: {},
+            p_context: "run-consolidation-script",
+        });
 
-        if (jobUpdateError) {
-            console.error("❌ Failed to update job status:", jobUpdateError.message);
+        if (rpcError) {
+            console.error("❌ Failed to transition job status:", rpcError.message);
             process.exit(1);
         }
-        console.log(`   Job ${job.id} marked as completed`);
+
+        const outcome = (rpcResult as { outcome?: string; error?: string } | null)?.outcome;
+        if (outcome !== "applied" && outcome !== "noop") {
+            const errorMessage = (rpcResult as { error?: string } | null)?.error || outcome || "unknown";
+            console.error("❌ Job transition was not applied:", errorMessage);
+            process.exit(1);
+        }
+
+        console.log(`   Job ${job.id} transition: ${outcome}`);
+        // Project status derived by trigger — no manual update needed
     }
 
-    // Update project status
-    const { error: projectUpdateError } = await supabase
-        .from("projects")
-        .update({ status: "completed" })
-        .eq("id", projectId);
-
-    if (projectUpdateError) {
-        console.error("❌ Failed to update project status:", projectUpdateError.message);
-        process.exit(1);
-    }
-
-    console.log("\n✅ Job and project status updated to completed");
+    console.log("\n✅ Job status updated (project status derived by trigger)");
 }
 
 main().catch((error) => {

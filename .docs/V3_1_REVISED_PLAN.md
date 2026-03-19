@@ -49,15 +49,17 @@
 
 ### Phase 1: Transcription State Machine
 
-**Why:** Status transitions currently happen in 3+ uncoordinated locations (start route, Inngest functions, webhook handler). Invalid transitions can silently corrupt state. This is the single highest-value architectural improvement with zero UI risk.
+**Why:** Status transitions currently happen across 5 uncoordinated code paths. `projects.status` and `jobs.status` are independently mutated columns that can desync — a project with a `completed` job but `processing` status is a valid database state, and that's a bug by design. This is the single highest-value architectural improvement with zero UI risk.
 
-**Current Problem:**
+**Current Problem — 5 mutation sites, no single source of truth:**
 
-- `app/api/projects/[id]/start/route.ts` sets project status to `processing` and job status to `queued`
-- `lib/inngest/functions.ts` transitions job to `processing`, `completed`, or `error`
-- `app/api/webhooks/deepgram/route.ts` can set job/project to `error` on failure
+- `app/api/projects/[id]/start/route.ts` — sets project status to `processing` and job status to `queued`
+- `lib/inngest/functions.ts` (`handleRequested`) — sets job to `processing`
+- `lib/inngest/functions.ts` (`handleWebhook`) — triggers completed event
+- `lib/inngest/functions.ts` (`handleCompleted`) — sets project + job to `completed`
+- `app/api/webhooks/deepgram/route.ts` — sets both to `error` on failure via `persistWebhookFailure()`
 - No validation that a transition is legal (e.g., nothing prevents `completed` → `queued`)
-- `projects.status` is mutated independently from job status in multiple code paths
+- `projects.status` is mutated independently from job status — desync is possible and undetected
 
 **Deliverables:**
 
@@ -68,11 +70,14 @@
                        failed → queued (retry)
    ```
 2. `transitionJob(jobId, toStatus, metadata?)` — Single function all code paths call. Validates the transition is legal, persists the new status, and writes a `job_events` audit record (see Phase 2). Throws on invalid transitions.
-3. `deriveProjectStatus(projectId)` — Computes project status from its jobs instead of independent mutation:
-   - Any job `processing` → project is `processing`
-   - Any job `queued` → project is `queued`
-   - Otherwise → status of newest terminal job (`completed` or `error`)
-4. Refactor start route, Inngest functions, and webhook handler to use `transitionJob()` exclusively.
+3. **`projects.status` becomes a derived value — never written directly.**
+   - `deriveProjectStatus(projectId)` computes project status from its jobs:
+     - Any job `processing` → project is `processing`
+     - Any job `queued` → project is `queued`
+     - Otherwise → status of newest terminal job (`completed` or `error`)
+   - **Database-level enforcement:** Create a Postgres trigger on `jobs` that automatically recomputes and writes `projects.status` after any job status change. This ensures consistency even if application code bypasses `transitionJob()`. The application-level `deriveProjectStatus()` function uses the same logic and can be called for reads, but the trigger is the authoritative write path.
+   - Alternative (evaluated but deferred): A Postgres view (`project_status_v`) would be the purest approach but requires changing every query that reads `projects.status` to join the view. The trigger approach preserves the existing column and read patterns while enforcing write correctness.
+4. Refactor all 5 mutation sites (start route, 3 Inngest handlers, webhook handler) to use `transitionJob()` exclusively. Remove all direct writes to `projects.status` from application code.
 
 **Tests:**
 
@@ -80,8 +85,10 @@
 - Every invalid transition throws (e.g., `completed` → `processing`)
 - Derived project status follows precedence rules across multiple jobs
 - Concurrent transition attempts don't corrupt state
+- Postgres trigger correctly updates `projects.status` when job status changes
+- No application code writes to `projects.status` directly (enforced by grep/lint)
 
-**Risk:** Low. Pure logic extraction, additive table (job_events). No UI changes.
+**Risk:** Low. Pure logic extraction, additive table (job_events), additive trigger. No UI changes.
 
 **Dependencies:** None.
 

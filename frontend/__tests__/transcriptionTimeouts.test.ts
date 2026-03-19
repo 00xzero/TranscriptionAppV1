@@ -1,5 +1,12 @@
 /** @jest-environment node */
 
+const transitionJobMock = jest.fn()
+
+jest.mock('@/lib/supabase/transition', () => ({
+  transitionJob: (...args: unknown[]) => transitionJobMock(...args),
+  forceJobError: jest.fn(),
+}))
+
 const fromMock = jest.fn()
 
 jest.mock('@/lib/supabase/admin', () => {
@@ -13,8 +20,6 @@ jest.mock('@/lib/supabase/admin', () => {
 import { handleTranscriptionTimeouts } from '@/lib/inngest/functions'
 
 const jobsSelectMock = jest.fn()
-const jobsUpdateMock = jest.fn()
-const projectsUpdateMock = jest.fn()
 
 const staleInMock = jest.fn()
 const staleEqMock = jest.fn()
@@ -34,13 +39,6 @@ const payloadSelectChain = {
   eq: payloadEqMock,
 }
 
-const jobUpdateSelectMock = jest.fn()
-const jobUpdateInMock = jest.fn(() => ({ select: jobUpdateSelectMock }))
-const jobUpdateEqMock = jest.fn(() => ({ in: jobUpdateInMock }))
-
-const projectUpdateInStatusMock = jest.fn()
-const projectUpdateInMock = jest.fn(() => ({ in: projectUpdateInStatusMock }))
-
 describe('Transcription timeouts', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -54,21 +52,15 @@ describe('Transcription timeouts', () => {
       return staleSelectChain
     })
 
-    jobsUpdateMock.mockImplementation(() => ({ eq: jobUpdateEqMock }))
-    projectsUpdateMock.mockImplementation(() => ({ in: projectUpdateInMock }))
-
     fromMock.mockImplementation((table: string) => {
       if (table === 'jobs') {
-        return { select: jobsSelectMock, update: jobsUpdateMock }
-      }
-      if (table === 'projects') {
-        return { update: projectsUpdateMock }
+        return { select: jobsSelectMock }
       }
       return {}
     })
   })
 
-  test('continues marking stale jobs and aggregates failures', async () => {
+  test('calls transitionJob per stale job with to: error', async () => {
     const job1 = {
       id: 'job-1',
       project_id: 'proj-1',
@@ -90,12 +82,82 @@ describe('Transcription timeouts', () => {
       .mockResolvedValueOnce({ data: [job2], error: null })
 
     payloadMaybeSingleMock.mockResolvedValueOnce({
+      data: { payload: { existing: true } },
+      error: null,
+    })
+
+    transitionJobMock.mockResolvedValue({ outcome: 'applied' })
+
+    const handler = (handleTranscriptionTimeouts as any).fn
+    const step = {
+      run: jest.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
+    }
+
+    await handler({ step })
+
+    expect(transitionJobMock).toHaveBeenCalledTimes(2)
+    expect(transitionJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-1',
+        to: 'error',
+        context: 'handleTranscriptionTimeouts',
+      })
+    )
+    expect(transitionJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-2',
+        to: 'error',
+        context: 'handleTranscriptionTimeouts',
+      })
+    )
+    expect(staleInMock).toHaveBeenCalledWith('type', ['transcription', 'transcribe'])
+  })
+
+  test('skips jobs that are already handled (noop/conflict)', async () => {
+    const job1 = {
+      id: 'job-1',
+      project_id: 'proj-1',
+      status: 'queued',
+      created_at: '2020-01-01T00:00:00.000Z',
+      started_at: null,
+    }
+
+    staleLtMock
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [job1], error: null })
+
+    transitionJobMock.mockResolvedValueOnce({ outcome: 'noop' })
+
+    const handler = (handleTranscriptionTimeouts as any).fn
+    const step = {
+      run: jest.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
+    }
+
+    // Should not throw — noop is handled gracefully
+    await handler({ step })
+
+    expect(transitionJobMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('aggregates failures from invalid transitions', async () => {
+    const job1 = {
+      id: 'job-1',
+      project_id: 'proj-1',
+      status: 'processing',
+      created_at: '2020-01-01T00:00:00.000Z',
+      started_at: '2020-01-01T00:00:00.000Z',
+    }
+
+    staleLtMock
+      .mockResolvedValueOnce({ data: [job1], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
+
+    payloadMaybeSingleMock.mockResolvedValueOnce({
       data: null,
       error: { message: 'payload fetch failed' },
     })
-
-    jobUpdateSelectMock.mockResolvedValue({ data: [{ id: 'job-2' }], error: null })
-    projectUpdateInStatusMock.mockResolvedValue({ error: null })
 
     const handler = (handleTranscriptionTimeouts as any).fn
     const step = {
@@ -112,9 +174,5 @@ describe('Transcription timeouts', () => {
     expect(caught).not.toBeNull()
     expect(caught?.message).toContain('job-1')
     expect(caught?.message).toContain('payload fetch failed')
-    expect(jobUpdateEqMock).toHaveBeenCalledTimes(1)
-    expect(jobUpdateEqMock).toHaveBeenCalledWith('id', 'job-2')
-    expect(projectUpdateInMock).toHaveBeenCalledWith('id', ['proj-2'])
-    expect(projectUpdateInStatusMock).toHaveBeenCalledWith('status', ['queued', 'processing'])
   })
 })

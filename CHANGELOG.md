@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-19] - Transcription State Machine Rollout
+
+### Added
+
+- **State machine core**: Added `frontend/lib/state-machine.ts` as the shared source of truth for valid job statuses, transition validation, terminal-state checks, and derived project status rules.
+- **Transition layer**: Added `frontend/lib/supabase/transition.ts` to centralize job status transitions through the `transition_job_status` RPC, including idempotent replay handling, conflict detection, and degraded-path `forceJobError()` support.
+- **Database enforcement**: Added a new state-machine migration set under `infra/supabase/migrations/` to normalize legacy status/type values, enforce valid status constraints, derive `projects.status` from transcription jobs via triggers, audit job transitions in `job_events`, reconcile `failed_events`, backfill project status, and allow authoritative late completion recovery.
+- **Regression coverage**: Added `frontend/__tests__/stateMachine.test.ts` and `frontend/__tests__/transitionJob.test.ts` plus expanded lifecycle tests for the start route, Deepgram webhook handling, Inngest completion/failure handlers, and timeout transitions.
+
+### Changed
+
+- **Derived project status model**: Transcription lifecycle code now treats `projects.status` as a database-derived value instead of manually mutating it from each application code path.
+- **Start route behavior**: `frontend/app/api/projects/[id]/start/route.ts` now relies on job insert triggers to queue a project, handles the one-active-job unique index explicitly, and falls back through `forceJobError()` if the Inngest dispatch fails after job creation.
+- **Inngest lifecycle transitions**: `frontend/lib/inngest/functions.ts` now moves jobs through `processing`, `completed`, and `error` via the transition layer, preserves payload metadata during timeout/completion updates, and leaves project status derivation to the database trigger.
+- **Webhook failure handling**: `frontend/app/api/webhooks/deepgram/route.ts` now routes job failures through `forceJobError()` and records unresolved webhook failures in `failed_events` when a project can be identified but no active job can be resolved.
+- **Status vocabulary cleanup**: Frontend status checks and Supabase types now use the canonical `queued` / `processing` / `completed` / `error` values only, removing legacy `failed` and `complete` handling from active code paths.
+- **Operational scripts**: `frontend/scripts/run-consolidation.ts` and `frontend/scripts/test-e2e-transcription.ts` were updated to use the canonical `transcription` job type and state-machine-friendly completion flow.
+
+### Fixed
+
+- **Late success recovery**: Completion handling now supports Deepgram success arriving before the request flow marks a job `processing`, or after a local timeout/error path pessimistically marked the job as failed.
+- **Project/job desynchronization risk**: Project state can no longer drift independently from job state across the start route, webhook path, timeout handler, and completion handler.
+- **Idempotent replay resilience**: Duplicate lifecycle events now resolve as benign no-ops where possible instead of overwriting terminal states or surfacing false failures.
+
 ## [2026-03-15] - Editor Decomposition Refactor
 
 ### Added

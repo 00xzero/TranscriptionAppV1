@@ -4,6 +4,8 @@
  * Generated from Supabase schema on 2026-01-17.
  */
 
+import type { JobStatus, ProjectStatus } from '@/lib/state-machine'
+
 export type Json =
     | string
     | number
@@ -20,7 +22,7 @@ export interface Project {
     id: string
     user_id: string
     title: string | null
-    status: string
+    status: ProjectStatus
     source_object_key: string | null
     duration_seconds: number | null
     created_at: string
@@ -31,8 +33,9 @@ export interface Job {
     id: string
     project_id: string
     inngest_event_id: string | null
+    idempotency_key: string | null
     type: string
-    status: string
+    status: JobStatus
     payload: Json | null
     created_at: string
     started_at: string | null
@@ -118,7 +121,6 @@ export interface ProjectInsert {
     id?: string
     user_id: string
     title?: string | null
-    status?: string
     source_object_key?: string | null
     duration_seconds?: number | null
     created_at?: string
@@ -145,7 +147,6 @@ export interface SpeakerUpdate {
 
 export interface ProjectUpdate {
     title?: string | null
-    status?: string
     duration_seconds?: number | null
 }
 

@@ -59,7 +59,7 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
  * The payload can be multi-MB for long transcriptions and should only be
  * accessed by backend/Inngest processing, not sent to browsers.
  */
-const JOB_SUMMARY_COLUMNS = 'id, project_id, inngest_event_id, type, status, created_at, started_at, finished_at, updated_at'
+const JOB_SUMMARY_COLUMNS = 'id, project_id, inngest_event_id, idempotency_key, type, status, created_at, started_at, finished_at, updated_at'
 
 /**
  * Fetch jobs for a project.
@@ -91,7 +91,7 @@ export async function fetchJobError(projectId: string): Promise<{
         .from('jobs')
         .select('payload')
         .eq('project_id', projectId)
-        .in('status', ['error', 'failed'])
+        .eq('status', 'error')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()

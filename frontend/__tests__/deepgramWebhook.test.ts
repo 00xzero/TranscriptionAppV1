@@ -1,6 +1,12 @@
 /** @jest-environment node */
 
+jest.mock('@/lib/supabase/transition', () => ({
+  transitionJob: jest.fn(),
+  forceJobError: jest.fn(async () => undefined),
+}))
+
 import { POST } from '../app/api/webhooks/deepgram/route'
+import { forceJobError } from '@/lib/supabase/transition'
 
 jest.mock('@/lib/inngest/client', () => {
   return {
@@ -14,8 +20,9 @@ const updateEqMock = jest.fn(async (_column: string, _value: string) => ({ error
 const updateMock = jest.fn((_values: unknown) => ({
   eq: updateEqMock,
 }))
+const insertMock = jest.fn(async () => ({ error: null }))
 const maybeSingleMock = jest.fn()
-const selectChain = {
+const selectChain: any = {
   eq: jest.fn(() => selectChain),
   in: jest.fn(() => selectChain),
   order: jest.fn(() => selectChain),
@@ -23,14 +30,20 @@ const selectChain = {
   maybeSingle: maybeSingleMock,
 }
 const selectMock = jest.fn(() => selectChain)
+const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobError>
 
 jest.mock('@/lib/supabase/admin', () => {
   return {
     createAdminClient: () => ({
-      from: () => ({
-        select: selectMock,
-        update: updateMock,
-      }),
+      from: (table: string) => {
+        if (table === 'failed_events') {
+          return { insert: insertMock }
+        }
+        return {
+          select: selectMock,
+          update: updateMock,
+        }
+      },
     }),
   }
 })
@@ -40,6 +53,8 @@ describe('Deepgram webhook route', () => {
     jest.clearAllMocks()
     maybeSingleMock.mockReset()
     selectMock.mockClear()
+    mockForceJobError.mockClear()
+    insertMock.mockClear()
     process.env.DEEPGRAM_API_KEY_IDENTIFIER = 'test-token'
   })
 
@@ -106,7 +121,7 @@ describe('Deepgram webhook route', () => {
     expect(updateEqMock).not.toHaveBeenCalled()
   })
 
-  test('marks job as error when project_id is missing', async () => {
+  test('calls forceJobError when project_id missing but job found via requestId', async () => {
     maybeSingleMock.mockResolvedValueOnce({
       data: { id: 'job-1', project_id: 'proj-456' },
       error: null,
@@ -130,7 +145,47 @@ describe('Deepgram webhook route', () => {
     const res = await POST(request)
     expect(res.status).toBe(400)
 
-    expect(updateMock).toHaveBeenCalled()
-    expect(updateEqMock).toHaveBeenCalledWith('id', 'job-1')
+    expect(mockForceJobError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-1',
+        context: 'persistWebhookFailure',
+      })
+    )
+  })
+
+  test('marks project as error and logs failed_event when project is known but no job is found', async () => {
+    maybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    })
+
+    const payload = {
+      metadata: {
+        extra: {
+          project_id: 'proj-456',
+        },
+      },
+      results: {
+        channels: [],
+      },
+    }
+
+    const request = {
+      headers: new Headers({ 'dg-token': 'test-token' }),
+      json: async () => payload,
+    } as any
+
+    const res = await POST(request)
+    expect(res.status).toBe(400)
+
+    expect(insertMock).toHaveBeenCalledWith({
+      event_name: 'deepgram/webhook_failure',
+      event_data: { projectId: 'proj-456', requestId: undefined },
+      error_message: 'Deepgram webhook missing project_id or request_id.',
+      project_id: 'proj-456',
+    })
+    expect(updateMock).toHaveBeenCalledWith({ status: 'error' })
+    expect(updateEqMock).toHaveBeenCalledWith('id', 'proj-456')
+    expect(mockForceJobError).not.toHaveBeenCalled()
   })
 })

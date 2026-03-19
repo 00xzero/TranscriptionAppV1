@@ -8,6 +8,7 @@
 import { inngest } from "./client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runConsolidation } from "@/lib/inngest/consolidation-service";
+import { transitionJob, forceJobError } from "@/lib/supabase/transition";
 import {
     startAsyncTranscription,
     getCallbackUrl,
@@ -43,28 +44,29 @@ async function writeTranscriptionFailureFallback({
 }) {
     try {
         const supabase = createAdminClient();
-        const now = new Date().toISOString();
 
         if (jobId) {
-            const { error: jobError } = await supabase
-                .from("jobs")
-                .update({
-                    status: "error",
-                    finished_at: now,
+            await forceJobError({
+                supabase,
+                jobId,
+                extraJobFields: {
+                    finished_at: new Date().toISOString(),
                     payload,
-                })
-                .eq("id", jobId);
-            if (jobError) {
-                console.error(`[inngest] Failed to update job in ${context} fallback:`, jobError);
-            }
-        }
+                },
+                context: `${context}/fallback`,
+            });
+            // Project status derived by trigger
+        } else {
+            console.error(`[inngest] ${context} fallback: no jobId, marking project ${projectId} as error directly`);
 
-        const { error: projectError } = await supabase
-            .from("projects")
-            .update({ status: "error" })
-            .eq("id", projectId);
-        if (projectError) {
-            console.error(`[inngest] Failed to update project in ${context} fallback:`, projectError);
+            const { error: projectError } = await supabase
+                .from("projects")
+                .update({ status: "error" })
+                .eq("id", projectId);
+
+            if (projectError) {
+                console.error(`[inngest] Failed to update project in ${context} fallback:`, projectError);
+            }
         }
     } catch (dbError) {
         console.error(`[inngest] ${context} fallback failed:`, dbError);
@@ -152,39 +154,31 @@ export const handleTranscriptionRequested = inngest.createFunction(
             return { requestId: response.requestId };
         });
 
-        // Step 2: Update job with request_id and status
+        // Step 2: Transition job to processing (project status derived by trigger)
         await step.run("update-job-status", async () => {
             const supabase = createAdminClient();
 
-            const { error } = await supabase
-                .from("jobs")
-                .update({
-                    status: "processing",
+            const { outcome, error: transitionError } = await transitionJob({
+                supabase,
+                jobId,
+                to: "processing",
+                extraJobFields: {
                     inngest_event_id: result.requestId,
                     started_at: new Date().toISOString(),
-                })
-                .eq("id", jobId);
+                },
+                context: "handleTranscriptionRequested",
+            });
 
-            if (error) {
-                console.error("[inngest] Failed to update job:", error);
-                throw new Error(`Failed to update job: ${error.message}`);
+            if (outcome === "noop") {
+                console.log(`[inngest] Job ${jobId} already processing (idempotent replay)`);
+                return;
+            }
+
+            if (outcome === "invalid" || outcome === "conflict") {
+                throw new Error(`Failed to transition job ${jobId} to processing: ${transitionError || outcome}`);
             }
 
             console.log(`[inngest] Job ${jobId} updated with request_id: ${result.requestId}`);
-        });
-
-        // Step 3: Update project to processing
-        await step.run("update-project-status", async () => {
-            const supabase = createAdminClient();
-            const { error } = await supabase
-                .from("projects")
-                .update({ status: "processing" })
-                .eq("id", projectId);
-
-            if (error) {
-                console.error("[inngest] Failed to update project:", error);
-                throw new Error(`Failed to update project: ${error.message}`);
-            }
         });
 
         return {
@@ -559,11 +553,8 @@ export const handleTranscriptionCompleted = inngest.createFunction(
             const supabase = createAdminClient();
             const now = new Date().toISOString();
 
-            // Build job update payload, include consolidation warning if applicable
-            const jobUpdate: Record<string, unknown> = {
-                status: "completed",
-                finished_at: now,
-            };
+            // Build extra fields for transition, include consolidation warning if applicable
+            const extraJobFields: Record<string, unknown> = { finished_at: now };
             if (consolidationError) {
                 const { data: payloadRow, error: payloadError } = await supabase
                     .from("jobs")
@@ -579,42 +570,40 @@ export const handleTranscriptionCompleted = inngest.createFunction(
                             ? (payloadRow.payload as Record<string, unknown>)
                             : {};
 
-                    jobUpdate.payload = {
+                    extraJobFields.payload = {
                         ...existingPayload,
                         consolidation_warning: consolidationError,
                     };
                 }
             }
 
-            // Update job status
-            const { error: jobError } = await supabase
-                .from("jobs")
-                .update(jobUpdate)
-                .eq("id", jobId);
+            // Transition job to completed (project status derived by trigger)
+            const { outcome, error: transitionError } = await transitionJob({
+                supabase,
+                jobId,
+                to: "completed",
+                extraJobFields,
+                metadata: { consolidationError: consolidationError || null },
+                context: "handleTranscriptionCompleted",
+            });
 
-            if (jobError) {
-                console.error("[inngest] Failed to update job:", jobError);
+            if (outcome === "noop") {
+                console.log(`[inngest] Job ${jobId} already completed (duplicate event, benign replay)`);
+            } else if (outcome === "invalid" || outcome === "conflict") {
+                throw new Error(
+                    `Failed to transition job ${jobId} to completed: ${transitionError || outcome}`
+                );
             }
 
-            // Update project status and duration
+            // Update project duration (metadata-only, no status)
             const { error: projectError } = await supabase
                 .from("projects")
-                .update({
-                    status: "completed",
-                    duration_seconds: duration,
-                })
+                .update({ duration_seconds: duration })
                 .eq("id", projectId);
 
             if (projectError) {
-                console.error("[inngest] Failed to update project:", projectError);
-            } else {
-                console.log(`[inngest] Project ${projectId} status updated to 'completed' in database`);
-            }
-
-            if (jobError || projectError) {
-                throw new Error(
-                    `Failed to update completion status: ${jobError?.message || "job ok"} / ${projectError?.message || "project ok"}`
-                );
+                console.error("[inngest] Failed to update project duration:", projectError);
+                throw new Error(`Failed to update project duration: ${projectError.message}`);
             }
 
             console.log(`[inngest] Project ${projectId} marked as completed`);
@@ -674,44 +663,44 @@ export const handleTranscriptionFailed = inngest.createFunction(
                 }
             }
 
-            // Update job with error details (only if we have a jobId)
-            let jobUpdateError: { message: string } | null = null;
+            // Transition job to error (project status derived by trigger)
             if (jobId) {
-                const { error: jobError } = await supabase
-                    .from("jobs")
-                    .update({
-                        status: "error",
+                const { outcome, error: transitionError } = await transitionJob({
+                    supabase,
+                    jobId,
+                    to: "error",
+                    extraJobFields: {
                         finished_at: now,
                         payload: {
                             error: finalMessage,
                             error_type: finalErrorType,
                             raw_error: errorString.slice(0, 500),
                         },
-                    })
-                    .eq("id", jobId);
+                    },
+                    metadata: { error_type: finalErrorType },
+                    context: "handleTranscriptionFailed",
+                });
 
-                if (jobError) {
-                    console.error("[inngest] Failed to update job:", jobError);
-                    jobUpdateError = jobError;
+                if (outcome === "noop") {
+                    console.log(`[inngest] Job ${jobId} already in error state (idempotent replay)`);
+                } else if (outcome === "invalid" || outcome === "conflict") {
+                    throw new Error(
+                        `Failed to transition job ${jobId} to error: ${transitionError || outcome}`
+                    );
                 }
             } else {
                 console.error("[inngest] No job found to update for project:", projectId);
-            }
 
-            // Update project status
-            const { error: projectError } = await supabase
-                .from("projects")
-                .update({ status: "error" })
-                .eq("id", projectId);
+                const { error: projectError } = await supabase
+                    .from("projects")
+                    .update({ status: "error" })
+                    .eq("id", projectId);
 
-            if (projectError) {
-                console.error("[inngest] Failed to update project:", projectError);
-            }
-
-            if (jobUpdateError || projectError) {
-                throw new Error(
-                    `Failed to update error status: ${jobUpdateError?.message || "job ok"} / ${projectError?.message || "project ok"}`
-                );
+                if (projectError) {
+                    throw new Error(
+                        `Failed to mark project ${projectId} as error without a job: ${projectError.message}`
+                    );
+                }
             }
 
             console.log(`[inngest] Project ${projectId} marked as error: ${finalErrorType}`);
@@ -801,7 +790,6 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
             const finishedAt = new Date().toISOString();
             const errorMessage = `Transcription timed out after ${timeoutMinutes} minutes. Please try again.`;
             const failures: { id: string; message: string }[] = [];
-            const updatedProjectIds = new Set<string>();
 
             for (const job of staleJobs) {
                 try {
@@ -827,41 +815,31 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                         raw_error: "timeout",
                     };
 
-                    const { data: updatedJobs, error: jobError } = await supabase
-                        .from("jobs")
-                        .update({
-                            status: "error",
+                    // Transition via RPC (project status derived by trigger)
+                    const { outcome, error: transitionError } = await transitionJob({
+                        supabase,
+                        jobId: job.id,
+                        to: "error",
+                        extraJobFields: {
                             finished_at: finishedAt,
                             payload: nextPayload,
-                        })
-                        .eq("id", job.id)
-                        .in("status", ["queued", "processing"])
-                        .select("id");
+                        },
+                        metadata: { timeout_minutes: timeoutMinutes },
+                        context: "handleTranscriptionTimeouts",
+                    });
 
-                    if (jobError) {
-                        throw new Error(`Failed to mark job ${job.id} as timed out: ${jobError.message}`);
-                    }
-                    if (!updatedJobs || updatedJobs.length === 0) {
-                        throw new Error(`Failed to mark job ${job.id} as timed out: no rows updated`);
+                    if (outcome === "noop" || outcome === "conflict") {
+                        // Job was already handled by another process
+                        console.log(`[inngest] Timeout: job ${job.id} already transitioned (${outcome}), skipping`);
+                        continue;
                     }
 
-                    updatedProjectIds.add(job.project_id);
+                    if (outcome === "invalid") {
+                        throw new Error(`Failed to timeout job ${job.id}: ${transitionError || "invalid transition"}`);
+                    }
                 } catch (error) {
                     const message = error instanceof Error ? error.message : String(error);
                     failures.push({ id: job.id, message });
-                }
-            }
-
-            const projectIds = Array.from(updatedProjectIds);
-            if (projectIds.length > 0) {
-                const { error: projectError } = await supabase
-                    .from("projects")
-                    .update({ status: "error" })
-                    .in("id", projectIds)
-                    .in("status", ["queued", "processing"]);
-
-                if (projectError) {
-                    throw new Error(`Failed to mark projects as timed out: ${projectError.message}`);
                 }
             }
 

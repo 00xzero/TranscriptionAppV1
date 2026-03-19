@@ -189,7 +189,8 @@ describe('Start route idempotency', () => {
       jobId: 'job-new',
     })
     expect(jobsInsertMock).toHaveBeenCalledTimes(1)
-    expect(jobsInsertMock.mock.calls[0][0]).toMatchObject({
+    const [insertPayload] = jobsInsertMock.mock.calls[0] as unknown as [Record<string, unknown>]
+    expect(insertPayload).toMatchObject({
       project_id: 'proj-1',
       status: 'queued',
       type: 'transcription',
@@ -239,7 +240,7 @@ describe('Start route idempotency', () => {
     expect(res.status).toBe(200)
     expect(jobsSelectMock).not.toHaveBeenCalled()
     expect(jobsInsertMock).toHaveBeenCalledTimes(1)
-    const insertPayload = jobsInsertMock.mock.calls[0][0]
+    const [insertPayload] = jobsInsertMock.mock.calls[0] as unknown as [Record<string, unknown>]
     expect(insertPayload).toMatchObject({
       project_id: 'proj-3',
       status: 'queued',
