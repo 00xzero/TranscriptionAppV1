@@ -34,7 +34,7 @@ export const handleTranscriptionFailed = inngest.createFunction(
             let jobId = providedJobId;
             if (!jobId) {
                 console.log("[inngest] No jobId provided, looking up by projectId");
-                const { data: job } = await supabase
+                const { data: job, error: lookupError } = await supabase
                     .from("jobs")
                     .select("id")
                     .eq("project_id", projectId)
@@ -42,6 +42,11 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     .order("created_at", { ascending: false })
                     .limit(1)
                     .maybeSingle();
+
+                if (lookupError) {
+                    console.error("[inngest] Failed to lookup job by projectId:", lookupError);
+                    throw new Error(`Job lookup failed for project ${projectId}: ${lookupError.message}`);
+                }
 
                 if (job) {
                     jobId = job.id;
