@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-20] - Inngest Functions Modularization
+
+### Refactored
+
+- **Inngest functions split**: Broke the 856-line monolithic `frontend/lib/inngest/functions.ts` into a `functions/` directory with one file per handler, a shared helper module, and a barrel `index.ts`. No consumer changes required — `@/lib/inngest/functions` resolves identically via TypeScript directory index resolution.
+  - `functions/_shared.ts` — `TranscriptionFailurePayload` type + `writeTranscriptionFailureFallback()` helper
+  - `functions/handle-transcription-requested.ts` — Deepgram async API call + job status update
+  - `functions/handle-transcription-webhook.ts` — Webhook parsing, segment/word storage, consolidation
+  - `functions/handle-transcription-completed.ts` — Job completion + project duration update
+  - `functions/handle-transcription-failed.ts` — Error classification + job/project error status
+  - `functions/handle-transcription-timeouts.ts` — Cron-based stale job detection and timeout marking
+  - `functions/index.ts` — Barrel re-exports for all 5 handlers
+
+### Fixed
+
+- **Fail-closed job lookup in failure handler**: `handle-transcription-failed.ts` now inspects the Supabase query error when looking up a job by project ID (fallback path when no `jobId` is provided). Previously the error was silently ignored, causing the handler to fall through to a project-only status update and leave the job stuck. Now throws on query error, triggering Inngest retry.
+
 ## [2026-03-19] - Transcription State Machine Rollout
 
 ### Added
