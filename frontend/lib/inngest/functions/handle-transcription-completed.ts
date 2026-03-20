@@ -1,0 +1,89 @@
+/**
+ * Handle transcription completed
+ * Triggered after successful processing.
+ * Updates job and project status.
+ */
+
+import { inngest } from "../client";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { transitionJob } from "@/lib/supabase/transition";
+
+export const handleTranscriptionCompleted = inngest.createFunction(
+    { id: "handle-transcription-completed", retries: 3 },
+    { event: "transcription/completed" },
+    async ({ event, step }) => {
+        const { projectId, jobId, duration, consolidationError } = event.data;
+
+        console.log(`[inngest] Transcription completed for project: ${projectId}`);
+        if (consolidationError) {
+            console.warn(`[inngest] Consolidation had an error (transcription still completed): ${consolidationError}`);
+        }
+
+        await step.run("update-status", async () => {
+            const supabase = createAdminClient();
+            const now = new Date().toISOString();
+
+            // Build extra fields for transition, include consolidation warning if applicable
+            const extraJobFields: Record<string, unknown> = { finished_at: now };
+            if (consolidationError) {
+                const { data: payloadRow, error: payloadError } = await supabase
+                    .from("jobs")
+                    .select("payload")
+                    .eq("id", jobId)
+                    .maybeSingle();
+
+                if (payloadError) {
+                    console.error("[inngest] Failed to load existing job payload:", payloadError);
+                } else {
+                    const existingPayload =
+                        payloadRow?.payload && typeof payloadRow.payload === "object"
+                            ? (payloadRow.payload as Record<string, unknown>)
+                            : {};
+
+                    extraJobFields.payload = {
+                        ...existingPayload,
+                        consolidation_warning: consolidationError,
+                    };
+                }
+            }
+
+            // Transition job to completed (project status derived by trigger)
+            const { outcome, error: transitionError } = await transitionJob({
+                supabase,
+                jobId,
+                to: "completed",
+                extraJobFields,
+                metadata: { consolidationError: consolidationError || null },
+                context: "handleTranscriptionCompleted",
+            });
+
+            if (outcome === "noop") {
+                console.log(`[inngest] Job ${jobId} already completed (duplicate event, benign replay)`);
+            } else if (outcome === "invalid" || outcome === "conflict") {
+                throw new Error(
+                    `Failed to transition job ${jobId} to completed: ${transitionError || outcome}`
+                );
+            }
+
+            // Update project duration (metadata-only, no status)
+            const { error: projectError } = await supabase
+                .from("projects")
+                .update({ duration_seconds: duration })
+                .eq("id", projectId);
+
+            if (projectError) {
+                console.error("[inngest] Failed to update project duration:", projectError);
+                throw new Error(`Failed to update project duration: ${projectError.message}`);
+            }
+
+            console.log(`[inngest] Project ${projectId} marked as completed`);
+        });
+
+        return {
+            status: "completed",
+            projectId,
+            jobId,
+            duration,
+        };
+    }
+);
