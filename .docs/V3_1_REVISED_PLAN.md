@@ -94,13 +94,13 @@
 
 ---
 
-### Phase 2: Additive Audit & Idempotency Tables
+### Phase 2: Job Events Audit Table
 
-**Why:** No audit trail for job state changes (overwritten, not appended). No idempotency guard on webhook delivery. These are two additive migrations with immediate operational value.
+**Why:** No audit trail for job state changes (overwritten, not appended). An additive migration with immediate operational value.
 
 **Deliverables:**
 
-#### 2a. `job_events` table
+#### `job_events` table
 
 ```sql
 create table job_events (
@@ -130,7 +130,24 @@ create policy "Users can view events for their jobs"
 - Enables derived metrics: queue latency, processing time, failure rate
 - Queryable via Supabase SQL or future dashboard
 
-#### 2b. `webhook_receipts` table
+**Tests:**
+
+- `job_events` rows are created on every state transition
+- Metrics queries return correct latency/duration values
+
+**Risk:** Low. Additive table, no schema changes to existing tables.
+
+**Dependencies:** Phase 1 (state machine writes to `job_events`).
+
+---
+
+### Phase 3: Webhook Idempotency
+
+**Why:** No idempotency guard on webhook delivery — Deepgram may retry callbacks and every retry is currently processed fully, creating duplicate segments. This phase creates the `webhook_receipts` table (previously scoped under Phase 2) and wires it into the webhook handler as a duplicate-delivery guard.
+
+**Deliverables:**
+
+#### a. `webhook_receipts` table
 
 ```sql
 create table webhook_receipts (
@@ -149,55 +166,37 @@ alter table webhook_receipts enable row level security;
 -- Written by webhook handler via admin client
 ```
 
-- Webhook handler checks `webhook_receipts` before processing; duplicate `request_id` → return `200 OK` (no-op)
-- Records whether signature verification passed (`verified` column)
-- Closes the re-delivery gap: Deepgram may retry callbacks, currently every retry is processed fully
+#### b. Idempotency guard in webhook handler
 
-**Tests:**
-
-- Duplicate webhook delivery produces no side effects
-- `job_events` rows are created on every state transition
-- Metrics queries return correct latency/duration values
-
-**Risk:** Low. Additive tables, no schema changes to existing tables.
-
-**Dependencies:** Phase 1 (state machine writes to `job_events`).
-
----
-
-### Phase 3: Webhook Hardening
-
-**Why:** The webhook handler currently uses `dg-token` header comparison (shared secret). It lacks HMAC signature verification, has no idempotency guard, and is vulnerable to Vercel's 4.5 MB body limit with no mitigation path.
-
-**Current State (259 lines in `app/api/webhooks/deepgram/route.ts`):**
-
-- ✅ Token-header verification (timing-safe comparison)
-- ✅ Payload persistence to `jobs.payload`
-- ✅ Async processing via Inngest event
-- ✅ Error handling with `persistWebhookFailure()`
-- ❌ No HMAC signature verification
-- ❌ No idempotency (redelivery processes fully)
-- ❌ No payload-size mitigation
-- ❌ Verbose console.log statements (23 log lines in the happy path)
-
-**Deliverables:**
-
-1. **Idempotency guard** — Check `webhook_receipts` for existing `request_id` before processing. Return `200 OK` for duplicates. Unique index on the request ID, on conflict, do nothing.
-2. **HMAC signature verification** — If Deepgram provides signed webhooks (check current API docs), validate HMAC before processing. Record result in `webhook_receipts.verified`. not important at the moment.
-3. **Ack-fast cleanup** — Return `200 OK` immediately after persisting raw payload + inserting receipt. Move all heavy work (parsing, segment creation, consolidation) to Inngest handler exclusively.
-4. **Logging cleanup** — Replace 23 `console.log` lines with structured, leveled logging. Debug-level for dev, info/error for production.
-5. **Payload-size intake guardrail** — At upload time, warn users about files likely to exceed the 4.5 MB callback limit (based on duration heuristic: >2.5 hours). This is a soft warning, not a hard block.
+- Check `webhook_receipts` for existing `request_id` before processing
+- Duplicate `request_id` → return `200 OK` (no-op)
+- On new receipt: insert row, then proceed with existing persist + Inngest emit flow
+- Unique constraint on `(provider, request_id)` ensures DB-level safety even under concurrent delivery
 
 **Tests:**
 
 - Duplicate webhook returns 200 with no DB side effects
-- Invalid signature returns 401
 - Valid webhook creates receipt + persists payload + emits Inngest event
-- Logging output is structured and appropriately leveled
+- Concurrent duplicate deliveries don't create duplicate segments
 
-**Risk:** Low-medium. Webhook handler changes require careful testing against real Deepgram callbacks.
+**Risk:** Low. Additive table + a small guard clause in the existing webhook handler.
 
-**Dependencies:** Phase 2 (`webhook_receipts` table).
+**Dependencies:** Phase 2 (`job_events` table should exist first so the pipeline is auditable).
+
+---
+
+### Phase 3.5 (Deferred): Webhook Hardening
+
+**Why deferred:** The items below are defense-in-depth measures that matter at scale but are not launch-blocking. The existing `dg-token` timing-safe comparison is adequate pre-launch, and the idempotency guard (Phase 3) closes the only user-facing bug risk.
+
+**Deferred items:**
+
+1. **HMAC signature verification** — Validate Deepgram HMAC before processing. Record result in `webhook_receipts.verified`. Depends on Deepgram plan/API support.
+2. **Ack-fast cleanup** — Return `200 OK` immediately after persisting raw payload + inserting receipt. Move all heavy work to Inngest handler exclusively.
+3. **Logging cleanup** — Replace 23 `console.log` lines with structured, leveled logging (debug for dev, info/error for production).
+4. **Payload-size intake guardrail** — At upload time, warn users about files likely to exceed Vercel's 4.5 MB callback limit (heuristic: >2.5 hour files). Soft warning, not a hard block.
+
+**Revisit when:** Production traffic patterns reveal webhook reliability issues, or Deepgram HMAC support is confirmed.
 
 ---
 
@@ -347,18 +346,19 @@ lib/inngest/
 
 ## Phasing Summary
 
-| Phase | Work                                     | Effort                  | Risk     | Dependencies                             |
-| :---- | :--------------------------------------- | :---------------------- | :------- | :--------------------------------------- |
-| **1** | Transcription state machine              | Small (2–3 days)        | Low      | None                                     |
-| **2** | `job_events` + `webhook_receipts` tables | Small (1–2 days)        | Low      | Phase 1                                  |
-| **3** | Webhook hardening                        | Small–Medium (2–3 days) | Low–Med  | Phase 2                                  |
-| **4** | Editor page decomposition                | Medium (4–5 days)       | Medium   | None (but benefits from stable pipeline) |
-| **5** | Inngest functions split                  | Small (1–2 days)        | Low      | Phase 1                                  |
-| **6** | Incremental typed contracts              | Ongoing                 | Very Low | None (applied alongside other phases)    |
+| Phase   | Work                                        | Effort            | Risk     | Dependencies                             |
+| :------ | :------------------------------------------ | :---------------- | :------- | :--------------------------------------- |
+| **1**   | Transcription state machine                 | Small (2–3 days)  | Low      | None                                     |
+| **2**   | `job_events` audit table                    | Small (1 day)     | Low      | Phase 1                                  |
+| **3**   | `webhook_receipts` + idempotency guard      | Small (1 day)     | Low      | Phase 2                                  |
+| **3.5** | Webhook hardening (HMAC, logging, ack-fast) | Deferred          | —        | Phase 3 (revisit post-launch)            |
+| **4**   | Editor page decomposition                   | Medium (4–5 days) | Medium   | None (but benefits from stable pipeline) |
+| **5**   | Inngest functions split                     | Small (1–2 days)  | Low      | Phase 1                                  |
+| **6**   | Incremental typed contracts                 | Ongoing           | Very Low | None (applied alongside other phases)    |
 
-**Total estimated effort:** ~12–15 working days for Phases 1–5, with Phase 6 as ongoing practice.
+**Total estimated effort:** ~10–12 working days for Phases 1–5 (excluding 3.5), with Phase 6 as ongoing practice.
 
-**Each phase is independently deployable.** No phase requires another to ship (except Phase 2 needs Phase 1's `transitionJob()` to write events, and Phase 3 needs Phase 2's `webhook_receipts` table).
+**Each phase is independently deployable.** Phase 2 needs Phase 1's `transitionJob()` to write events, and Phase 3 needs Phase 2 to exist first. Phase 3.5 is deferred until post-launch.
 
 ---
 
@@ -367,7 +367,6 @@ lib/inngest/
 - [ ] All job status transitions go through a single validated function
 - [ ] Every state change has an audit record in `job_events`
 - [ ] Duplicate webhook delivery is a no-op (verified via `webhook_receipts`)
-- [ ] Webhook handler is ≤ 80 lines of transport logic (validate → persist → ack → emit)
 - [ ] `editor/[id]/page.tsx` is ≤ 200 lines (orchestrator only)
 - [ ] `lib/inngest/functions.ts` is replaced by per-function files ≤ 300 lines each
 - [ ] All existing tests pass after every phase
@@ -377,6 +376,6 @@ lib/inngest/
 
 ## Open Questions
 
-1. **Deepgram HMAC support:** Does the current Deepgram plan/API version support signed webhook payloads (beyond the `dg-token` header)? If not, Phase 3 item 2 is skipped.
+1. **Deepgram HMAC support (Phase 3.5):** Does the current Deepgram plan/API version support signed webhook payloads (beyond the `dg-token` header)? Check post-launch before revisiting Phase 3.5.
 2. **Editor extraction order:** Should hooks be extracted top-down (data fetching first) or bottom-up (editing/speakers first)? Top-down is recommended since data hooks have the fewest internal dependencies.
 3. **V3 full data model — when to revisit:** Suggest revisiting the normalized schema when (a) transcript versioning becomes a user-facing feature request, or (b) the `chunks`/`chunk_words` dual layer causes a concrete bug or performance issue.
