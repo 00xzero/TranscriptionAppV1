@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-21] - Deepgram Webhook Idempotency
+
+### Added
+
+- **Webhook receipt tracking**: Added `infra/supabase/migrations/20260321000000_webhook_receipts.sql` to persist one receipt per Deepgram `request_id`, including attempt ownership, lease timing, processing status, and last-error metadata for webhook recovery.
+- **Replay-path regression coverage**: Expanded `frontend/__tests__/deepgramWebhook.test.ts` with receipt-aware tests covering completed duplicates, fresh in-flight duplicates, stale takeovers, lost takeover races, downstream failure cleanup, and finalize-failure behavior.
+
+### Changed
+
+- **Webhook route idempotency flow**: `frontend/app/api/webhooks/deepgram/route.ts` now claims a receipt before persisting the payload, returns `200` for already completed duplicates, returns `503` for active in-flight duplicates and lost takeover races, reclaims stale/failed receipts, and marks failures against the owning `attempt_id`.
+- **Replay guard in webhook handler**: `frontend/lib/inngest/functions/handle-transcription-webhook.ts` now checks the resolved job status before replaying a webhook event and skips transcript reprocessing when the job is already completed.
+
+### Fixed
+
+- **Duplicate callback handling**: Repeated Deepgram callbacks no longer re-enqueue the normal downstream flow once the webhook has already been durably accepted or is still being processed by another attempt.
+- **Partial-failure recovery**: The webhook path now leaves enough receipt state behind to retry safely after transient database errors, stale attempts, or route-level failures without silently losing ownership.
+
 ## [2026-03-20] - Inngest Functions Modularization
 
 ### Refactored

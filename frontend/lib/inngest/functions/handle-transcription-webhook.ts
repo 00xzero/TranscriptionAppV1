@@ -95,7 +95,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
 
             const { data, error } = await supabase
                 .from("jobs")
-                .select("id")
+                .select("id, status")
                 .eq("project_id", projectId)
                 .eq("inngest_event_id", requestId)
                 .order("created_at", { ascending: false })
@@ -109,6 +109,12 @@ export const handleTranscriptionWebhook = inngest.createFunction(
 
             return data;
         });
+
+        // Guard against late replays — job already completed means segments/chunks are final
+        if (job.status === "completed") {
+            console.log(`[inngest] Job ${job.id} already completed — skipping replay for project ${projectId}`);
+            return { status: "skipped", projectId, jobId: job.id };
+        }
 
         // Step 2: Parse and store transcription results
         const transcriptionResult = await step.run("store-transcription", async () => {
