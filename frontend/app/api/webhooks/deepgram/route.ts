@@ -24,6 +24,8 @@ import { timingSafeEqual, randomUUID } from "crypto";
 import { inngest } from "@/lib/inngest/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { forceJobError } from "@/lib/supabase/transition";
+import { z } from "zod";
+import { DeepgramWebhookPayloadSchema } from "@/lib/schemas/webhook";
 
 // Tell Vercel the maximum execution time — must match RECEIPT_LEASE_MS (Pro/Enterprise only)
 export const maxDuration = 300; // seconds
@@ -156,10 +158,22 @@ export async function POST(request: NextRequest) {
 
     console.log("[deepgram-webhook] Step 1 complete: Token validated successfully");
 
-    // Step 2: Parse JSON payload
+    // Step 2: Parse and validate JSON payload
     console.log("[deepgram-webhook] Step 2: Parsing JSON payload");
-    const payload = await request.json();
-    console.log("[deepgram-webhook] Step 2 complete: JSON parsed successfully");
+    const rawPayload = await request.json();
+    const payloadParsed = DeepgramWebhookPayloadSchema.safeParse(rawPayload);
+    if (!payloadParsed.success) {
+      // Best-effort: extract identifiers from the raw payload so persistWebhookFailure
+      // can fail the owning job immediately rather than waiting for the timeout sweeper.
+      // project_id must be a valid UUID before being passed to UUID-backed DB queries.
+      const partialRequestId = typeof rawPayload?.metadata?.request_id === 'string' ? rawPayload.metadata.request_id : undefined;
+      const partialProjectId = z.string().uuid().safeParse(rawPayload?.metadata?.extra?.project_id).data;
+      console.warn("[deepgram-webhook] Malformed payload structure:", payloadParsed.error.issues[0]?.message);
+      await persistWebhookFailure({ projectId: partialProjectId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
+      return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
+    }
+    const payload = payloadParsed.data;
+    console.log("[deepgram-webhook] Step 2 complete: JSON parsed and validated successfully");
 
     // Step 3: Extract metadata from payload
     // Deepgram returns request_id in metadata object and extra params in metadata.extra

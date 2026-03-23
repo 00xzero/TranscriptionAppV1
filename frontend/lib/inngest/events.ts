@@ -1,43 +1,28 @@
 /**
  * Inngest Event Type Definitions
- * 
- * Defines the event schema for the transcription lifecycle.
+ *
+ * Types are derived from Zod schemas in lib/schemas/events.ts.
  * Used for type-safe event handling in Inngest functions.
  */
 
+import type {
+    TranscriptionRequestedData,
+    TranscriptionWebhookData,
+    TranscriptionCompletedData,
+    TranscriptionFailedData,
+} from '@/lib/schemas/events'
+
 export type TranscriptionEvents = {
     "transcription/requested": {
-        data: {
-            projectId: string;
-            jobId: string;
-            userId: string;
-            mediaUrl: string;
-            keyTerms?: string[];
-        };
+        data: TranscriptionRequestedData;
     };
     "transcription/webhook": {
-        data: {
-            requestId: string;
-            projectId: string;
-        };
+        data: TranscriptionWebhookData;
     };
     "transcription/completed": {
-        data: {
-            projectId: string;
-            jobId: string;
-            duration: number;
-            chunkCount?: number;
-            chunkWordCount?: number;
-            algoVersion?: string;
-            consolidationError?: string | null;
-        };
+        data: TranscriptionCompletedData;
     };
     "transcription/failed": {
-        data: {
-            projectId: string;
-            jobId: string;
-            error: string;
-            errorType: "keyterm_error" | "transcription_error";
-        };
+        data: TranscriptionFailedData;
     };
 };

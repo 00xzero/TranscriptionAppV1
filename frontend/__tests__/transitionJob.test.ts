@@ -2,6 +2,8 @@
 
 import { transitionJob, forceJobError } from '@/lib/supabase/transition'
 
+const VALID_JOB_ID = '11111111-1111-1111-1111-111111111111'
+
 function createMockSupabase(rpcResult: unknown, reReadStatus?: string) {
   const singleMock = jest.fn(async () => ({
     data: reReadStatus ? { status: reReadStatus } : null,
@@ -32,14 +34,14 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'processing',
       context: 'test',
     })
 
     expect(result).toEqual({ outcome: 'applied', previousStatus: 'queued', error: undefined })
     expect(client.rpc).toHaveBeenCalledWith('transition_job_status', {
-      p_job_id: 'job-1',
+      p_job_id: VALID_JOB_ID,
       p_to_status: 'processing',
       p_extra_fields: {},
       p_metadata: {},
@@ -52,7 +54,7 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'completed',
     })
 
@@ -68,7 +70,7 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'queued',
     })
 
@@ -84,7 +86,7 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'completed',
     })
 
@@ -99,7 +101,7 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'completed',
     })
 
@@ -111,7 +113,7 @@ describe('transitionJob', () => {
 
     await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'completed',
       metadata: { chunkCount: 5 },
       context: 'handleTranscriptionCompleted',
@@ -119,7 +121,7 @@ describe('transitionJob', () => {
     })
 
     expect(client.rpc).toHaveBeenCalledWith('transition_job_status', {
-      p_job_id: 'job-1',
+      p_job_id: VALID_JOB_ID,
       p_to_status: 'completed',
       p_extra_fields: { finished_at: '2026-01-01T00:00:00Z' },
       p_metadata: { chunkCount: 5 },
@@ -135,11 +137,38 @@ describe('transitionJob', () => {
 
     const result = await transitionJob({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       to: 'processing',
     })
 
     expect(result).toEqual({ outcome: 'invalid', error: 'RPC failed' })
+  })
+
+  test('invalid to status returns { outcome: invalid } without throwing', async () => {
+    const client = { rpc: jest.fn(), from: jest.fn() } as any
+
+    const result = await transitionJob({
+      supabase: client,
+      jobId: VALID_JOB_ID,
+      to: 'bad_status' as any,
+    })
+
+    expect(result.outcome).toBe('invalid')
+    expect(client.rpc).not.toHaveBeenCalled()
+  })
+
+  test('malformed jobId (non-UUID) returns { outcome: invalid } without throwing', async () => {
+    const client = { rpc: jest.fn(), from: jest.fn() } as any
+
+    const result = await transitionJob({
+      supabase: client,
+      jobId: 'not-a-uuid',
+      to: 'processing',
+    })
+
+    expect(result.outcome).toBe('invalid')
+    expect(result.error).toContain('UUID')
+    expect(client.rpc).not.toHaveBeenCalled()
   })
 })
 
@@ -154,7 +183,7 @@ describe('forceJobError', () => {
 
     await forceJobError({
       supabase: client,
-      jobId: 'job-1',
+      jobId: VALID_JOB_ID,
       extraJobFields: { payload: { error: 'timeout' } },
       context: 'test',
     })
@@ -164,7 +193,7 @@ describe('forceJobError', () => {
     const [updateArg] = updateMock.mock.calls[0] as unknown as [Record<string, unknown>]
     expect(updateArg.status).toBe('error')
     expect(updateArg.payload).toEqual({ error: 'timeout' })
-    expect(eqMock).toHaveBeenCalledWith('id', 'job-1')
+    expect(eqMock).toHaveBeenCalledWith('id', VALID_JOB_ID)
     expect(inMock).toHaveBeenCalledWith('status', ['queued', 'processing'])
   })
 
@@ -181,7 +210,7 @@ describe('forceJobError', () => {
 
     // Should not throw
     await expect(
-      forceJobError({ supabase: client, jobId: 'job-1', context: 'test' })
+      forceJobError({ supabase: client, jobId: VALID_JOB_ID, context: 'test' })
     ).resolves.toBeUndefined()
   })
 
@@ -193,7 +222,7 @@ describe('forceJobError', () => {
       from: jest.fn(() => ({ update: updateMock })),
     } as any
 
-    await forceJobError({ supabase: client, jobId: 'job-1' })
+    await forceJobError({ supabase: client, jobId: VALID_JOB_ID })
 
     // Verify the IN clause excludes completed/error
     expect(inMock).toHaveBeenCalledWith('status', ['queued', 'processing'])

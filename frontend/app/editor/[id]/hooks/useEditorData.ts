@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { z } from 'zod'
 import {
   fetchTranscriptData,
   fetchSpeakers,
   fetchProjectById,
 } from '@/lib/supabase/queries'
+import { ChunkSchema, SegmentSchema } from '@/lib/schemas/db'
+import { EditorProjectSchema, EditorSpeakerSchema } from '@/lib/schemas/editor'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
 
@@ -54,12 +57,26 @@ export function useEditorData(projectId: string) {
         if (transcriptResult.error) throw transcriptResult.error
         if (cancelled || !transcriptResult.data) return
 
+        // Validate raw items before normalization
+        const rawItems = transcriptResult.data.items
+        const ItemsSchema = transcriptResult.data.source === 'chunks'
+          ? z.array(ChunkSchema)
+          : z.array(SegmentSchema)
+        const itemsParsed = ItemsSchema.safeParse(rawItems)
+        if (!itemsParsed.success) {
+          console.warn('[useEditorData] transcript schema mismatch', itemsParsed.error.issues)
+        }
+
         setSource(transcriptResult.data.source)
         setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
 
         void fetchSpeakers(projectId)
           .then((speakerData) => {
             if (cancelled) return
+            const speakersParsed = z.array(EditorSpeakerSchema).safeParse(speakerData)
+            if (!speakersParsed.success) {
+              console.warn('[useEditorData] speakers schema mismatch', speakersParsed.error.issues)
+            }
             setSpeakers(speakerData)
           })
           .catch(() => { /* ignore */ })
@@ -67,6 +84,10 @@ export function useEditorData(projectId: string) {
         void fetchProjectById(projectId)
           .then((projectData) => {
             if (cancelled || !projectData) return
+            const projectParsed = EditorProjectSchema.safeParse(projectData)
+            if (!projectParsed.success) {
+              console.warn('[useEditorData] project schema mismatch', projectParsed.error.issues)
+            }
             setProjectTitle(projectData.title || null)
             setProjectCreatedAt(projectData.created_at)
             setProjectDurationSecs(projectData.duration_seconds)

@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-23] - Zod Schema Layer
+
+### Added
+
+- **Central Zod schema directory**: Added `frontend/lib/schemas/` as the single source of truth for all runtime-validated types, replacing hand-written TypeScript interfaces scattered across the codebase.
+  - `schemas/db.ts` — Zod schemas + inferred types for all DB row/insert/update shapes (`Project`, `Job`, `Speaker`, `Segment`, `Chunk`, `Word`, `ChunkWord`, `WatchlistTerm`) and status enums (`JobStatusSchema`, `ProjectStatusSchema`).
+  - `schemas/webhook.ts` — Zod schemas for Deepgram wire types (`DeepgramWebhookPayloadSchema`, `DeepgramAsyncResponseSchema`, `DeepgramWordSchema`, `DeepgramUtteranceSchema`, `WebhookReceiptInsertSchema`).
+  - `schemas/events.ts` — Zod schemas for all four Inngest event payloads (`TranscriptionRequestedData`, `TranscriptionWebhookData`, `TranscriptionCompletedData`, `TranscriptionFailedData`).
+  - `schemas/state-machine.ts` — `TransitionJobInputSchema` for validating `transitionJob()` call-sites at runtime.
+  - `schemas/editor.ts` — `EditorWordSchema`, `EditorChunkSchema`, `EditorSegmentSchema`, `EditorProjectSchema`, `EditorSpeakerSchema` for the editor data pipeline.
+  - `schemas/api.ts` — `CreateProjectBodySchema` for the `POST /api/projects` request body.
+- **Schema-level tests**: Added `frontend/__tests__/schemas.test.ts` covering `CreateProjectBodySchema`, `DeepgramWebhookPayloadSchema`, `DeepgramAsyncResponseSchema`, `TransitionJobInputSchema`, and `JobStatusSchema`/`ProjectStatusSchema` enum validation.
+- **Project route unit tests**: Added `frontend/__tests__/createProject.test.ts` with request-level tests for the `POST /api/projects` handler (missing filename, empty filename, valid body, key-term passthrough).
+
+### Changed
+
+- **`frontend/lib/supabase/types.ts`**: Converted from a large hand-written type file to a thin re-export barrel. All types (`Project`, `Job`, `JobSummary`, `Speaker`, `Segment`, `Chunk`, etc.) now re-exported from `@/lib/schemas/db` and `@/lib/schemas/editor`. `Json` kept as a plain TypeScript type.
+- **`frontend/lib/state-machine.ts`**: `JobStatus` and `ProjectStatus` are now `z.infer<>` derivations from `JobStatusSchema`/`ProjectStatusSchema` instead of manually maintained string unions.
+- **`frontend/lib/supabase/transition.ts`**: `transitionJob()` now runs `TransitionJobInputSchema.safeParse()` at the entry point, returning `{ outcome: 'invalid' }` early on malformed input before touching the database.
+- **`frontend/lib/deepgram.ts`**: Removed all locally defined interfaces (`DeepgramResponse`, `DeepgramWord`, `DeepgramUtterance`, `DeepgramAsyncResponse`); now re-exports from `@/lib/schemas/webhook` as the single source of truth.
+- **`frontend/lib/inngest/events.ts`**: `TranscriptionEvents` data shapes now point to Zod-derived types from `@/lib/schemas/events` instead of inline object type literals.
+- **`frontend/app/api/projects/route.ts`**: Request body now validated with `CreateProjectBodySchema.safeParse()`, returning `400` with a structured error on invalid input.
+- **`frontend/app/api/webhooks/deepgram/route.ts`**: Webhook payload now validated with `DeepgramWebhookPayloadSchema.safeParse()`, returning `400` on structurally invalid payloads before any downstream processing.
+- **`frontend/app/editor/[id]/hooks/useEditorData.ts`**: Added non-blocking `safeParse` validation for transcript items (`ChunkSchema`/`SegmentSchema`), speakers (`EditorSpeakerSchema`), and project (`EditorProjectSchema`), logging schema mismatches as warnings without breaking the UI.
+- **`frontend/app/editor/[id]/types.ts`**: `Seg` type broadened from `Chunk & { words? }` to `(Chunk | Segment) & { words? }` to reflect that the editor can render both chunk and segment sources.
+- **`frontend/package.json`**: Added `zod` as a production dependency.
+
 ## [2026-03-21] - Deepgram Webhook Idempotency
 
 ### Added

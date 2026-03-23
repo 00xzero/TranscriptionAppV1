@@ -1,7 +1,7 @@
-import type { Chunk, Speaker as SpeakerType, EditorWord } from '@/lib/supabase/types'
+import type { Chunk, Segment, Speaker as SpeakerType, EditorWord } from '@/lib/supabase/types'
 
 export type Word = EditorWord
-export type Seg = Chunk & { words?: Word[] }
+export type Seg = (Chunk | Segment) & { words?: Word[] }
 export type Speaker = SpeakerType
 export type Match = { segId: string; index: number; length: number }
 export type SegmentMatch = { index: number; length: number; matchIdx: number }

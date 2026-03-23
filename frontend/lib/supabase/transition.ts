@@ -8,6 +8,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JobStatus } from "@/lib/state-machine";
+import { TransitionJobInputSchema } from "@/lib/schemas/state-machine";
 
 export interface TransitionJobResult {
   outcome: "applied" | "noop" | "conflict" | "invalid";
@@ -23,6 +24,17 @@ export async function transitionJob(opts: {
   metadata?: Record<string, unknown>;
   context?: string;
 }): Promise<TransitionJobResult> {
+  const parsed = TransitionJobInputSchema.safeParse({
+    jobId: opts.jobId,
+    to: opts.to,
+    extraJobFields: opts.extraJobFields,
+    metadata: opts.metadata,
+    context: opts.context,
+  })
+  if (!parsed.success) {
+    return { outcome: 'invalid' as const, error: parsed.error.issues[0].message }
+  }
+
   const { supabase, jobId, to, extraJobFields, metadata, context } = opts;
 
   const { data, error } = await supabase.rpc("transition_job_status", {
