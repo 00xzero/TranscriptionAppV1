@@ -296,34 +296,49 @@ lib/inngest/
 
 ---
 
-### Phase 6: Incremental Typed Contracts
+### Phase 6: Typed Contracts (Zod Schema)
 
-**Why:** Types are currently scattered across `lib/supabase/types.ts` (manual, dated Jan 17), `lib/inngest/events.ts` (plain TS types), and inline in route handlers. This is the pragmatic version of V3 §2 — applied incrementally to new/modified code rather than as a dedicated rewrite phase.
+**Why:** Types are currently scattered across `lib/supabase/types.ts` (manual, dated Jan 17), `lib/inngest/events.ts` (plain TS types), and inline in route handlers. Boundary validation is absent — malformed inputs reach business logic unchecked. Rather than adding schemas as a side-task of other phases, this phase implements all Zod contracts in one focused pass across the full codebase.
 
-**Approach:**
+**Scope — All schema boundaries:**
 
-- **Not** a big-bang creation of a `contracts/` directory
-- Instead, as each phase touches code, add Zod schemas at the boundary:
-  - Phase 1: Zod schema for state transition inputs
-  - Phase 3: Zod schema for webhook payload structure
-  - Phase 4: Zod schemas for editor data fetching responses
-- Migrate `lib/supabase/types.ts` to Zod-inferred types when it's next modified
-- New API routes validate input with `schema.parse()` instead of manual checks
+| Domain | Schema File | Validates |
+| :--- | :--- | :--- |
+| State machine | `lib/schemas/state-machine.ts` | `transitionJob()` inputs, status enum |
+| Webhook | `lib/schemas/webhook.ts` | Deepgram webhook payload, `webhook_receipts` insert |
+| Inngest events | `lib/schemas/events.ts` | All Inngest event payloads (replaces plain TS types in `events.ts`) |
+| API routes | `lib/schemas/api.ts` | Request bodies for `start`, `upload`, speaker rename, inline edit |
+| Editor data | `lib/schemas/editor.ts` | `useEditorData` responses — project, transcript, speakers, media URL |
+| Database types | `lib/schemas/db.ts` | Zod-inferred replacements for manual types in `lib/supabase/types.ts` |
 
 **Deliverables:**
 
-- `lib/schemas/` directory (created as needed, not upfront)
-- Each schema file co-located with the domain it validates
-- TypeScript types inferred from Zod schemas (single source of truth)
+1. `lib/schemas/` directory created upfront with all domain-scoped schema files
+2. All TypeScript types in `lib/supabase/types.ts` replaced with `z.infer<>` equivalents
+3. All API route handlers validate input with `schema.parse()` or `schema.safeParse()`
+4. Inngest event types inferred from Zod schemas (single source of truth)
+5. `transitionJob()` validates its inputs against a Zod status enum
+6. Webhook handler validates payload structure before processing
+7. Editor data hooks validate API responses at the boundary
+
+**Approach:**
+
+1. Audit all type boundaries in the codebase (API inputs, DB responses, Inngest events, webhook payloads)
+2. Create `lib/schemas/` with one file per domain
+3. Replace manual types in `lib/supabase/types.ts` with Zod-inferred equivalents
+4. Wire `schema.parse()` at each boundary; fix any type mismatches surfaced
+5. Update tests to cover schema rejection and acceptance
 
 **Tests:**
 
 - Each schema rejects malformed input
 - Each schema accepts valid input with correct type inference
+- API routes return `400` on invalid input (not `500`)
+- No unvalidated `any` types remain at public boundaries
 
-**Risk:** Very low. Incremental adoption, no existing code broken.
+**Risk:** Low. No logic changes — schemas surface existing type contracts. Any failures indicate bugs that already existed silently.
 
-**Dependencies:** None (applied alongside other phases).
+**Dependencies:** Best run after Phases 1, 3, and 5 are complete so schemas cover the final code shape. Can run concurrently with Phase 4.
 
 ---
 
@@ -354,9 +369,9 @@ lib/inngest/
 | **3.5** | Webhook hardening (HMAC, logging, ack-fast) | Deferred          | —        | Phase 3 (revisit post-launch)            |
 | **4**   | Editor page decomposition                   | Medium (4–5 days) | Medium   | None (but benefits from stable pipeline) |
 | **5**   | Inngest functions split                     | Small (1–2 days)  | Low      | Phase 1                                  |
-| **6**   | Incremental typed contracts                 | Ongoing           | Very Low | None (applied alongside other phases)    |
+| **6**   | Zod schema epic (all typed contracts)       | Small (2–3 days)  | Low      | Phases 1, 3, 5 complete (can run with 4) |
 
-**Total estimated effort:** ~10–12 working days for Phases 1–5 (excluding 3.5), with Phase 6 as ongoing practice.
+**Total estimated effort:** ~12–15 working days for Phases 1–6 (excluding 3.5).
 
 **Each phase is independently deployable.** Phase 2 needs Phase 1's `transitionJob()` to write events, and Phase 3 needs Phase 2 to exist first. Phase 3.5 is deferred until post-launch.
 

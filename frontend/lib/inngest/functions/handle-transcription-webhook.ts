@@ -12,10 +12,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { runConsolidation } from "@/lib/inngest/consolidation-service";
 import {
     getMajoritySpeaker,
-    DeepgramResponse,
     DeepgramWord,
     DeepgramUtterance,
 } from "@/lib/deepgram";
+import { DeepgramWebhookPayloadSchema } from "@/lib/schemas/webhook";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 export const handleTranscriptionWebhook = inngest.createFunction(
@@ -131,19 +131,19 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 throw new Error(`Failed to load job payload: ${jobRowError?.message}`);
             }
 
-            const jobPayload = (jobRow as { payload: any }).payload;
-            const response = jobPayload?.deepgram as DeepgramResponse | undefined;
-
-            if (!response) {
-                throw new Error("Deepgram payload missing from job payload");
+            const jobPayload = (jobRow as { payload: Record<string, unknown> | null }).payload;
+            const responseParsed = DeepgramWebhookPayloadSchema.safeParse(jobPayload?.deepgram);
+            if (!responseParsed.success) {
+                throw new Error(`Invalid Deepgram payload structure: ${responseParsed.error.issues[0]?.message}`);
             }
+            const response = responseParsed.data;
 
             // Parse Deepgram response
             // Utterances can be at results level or under alternatives (legacy worker handled both)
             const results = response.results || {};
             const channels = results.channels || [];
             const alt = channels[0]?.alternatives?.[0];
-            const utterances = results.utterances || (alt as { utterances?: DeepgramUtterance[] })?.utterances;
+            const utterances = results.utterances || alt?.utterances;
             const words = alt?.words || [];
 
             // Clear existing segments for idempotency

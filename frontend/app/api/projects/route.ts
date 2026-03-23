@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { CreateProjectBodySchema } from '@/lib/schemas/api'
 
 export async function POST(request: NextRequest) {
     try {
@@ -21,20 +22,15 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Parse request body
-        const body = await request.json()
-        const { title, filename, key_terms } = body as {
-            title?: string
-            filename: string
-            key_terms?: string[]
-        }
-
-        if (!filename) {
+        // Parse and validate request body
+        const parsed = CreateProjectBodySchema.safeParse(await request.json())
+        if (!parsed.success) {
             return NextResponse.json(
-                { error: 'filename is required' },
+                { error: parsed.error.issues[0].message },
                 { status: 400 }
             )
         }
+        const { title, filename, key_terms } = parsed.data
 
         // Create project
         const { data: project, error: projectError } = await supabase

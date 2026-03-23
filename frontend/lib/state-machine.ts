@@ -5,8 +5,11 @@
  * The single source of truth for valid states and transitions.
  */
 
-export type JobStatus = "queued" | "processing" | "completed" | "error";
-export type ProjectStatus = "created" | "queued" | "processing" | "completed" | "error";
+import { z } from 'zod'
+import { JobStatusSchema, ProjectStatusSchema } from '@/lib/schemas/db'
+
+export type JobStatus = z.infer<typeof JobStatusSchema>
+export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
 
 export type TransitionOutcome = "applied" | "noop" | "conflict" | "invalid";
 

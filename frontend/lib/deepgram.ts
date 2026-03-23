@@ -21,53 +21,14 @@ export interface DeepgramAsyncOptions {
     model?: string;
 }
 
-export interface DeepgramAsyncResponse {
-    request_id: string;
-}
-
-export interface DeepgramUtterance {
-    start: number;
-    end: number;
-    transcript: string;
-    words: DeepgramWord[];
-}
-
-export interface DeepgramWord {
-    word: string;
-    start: number;
-    end: number;
-    confidence: number;
-    speaker?: number;
-}
-
-export interface DeepgramAlternative {
-    transcript?: string;
-    words?: DeepgramWord[];
-}
-
-export interface DeepgramResponse {
-    request_id: string;
-    metadata?: {
-        request_id?: string;
-        transaction_key?: string;
-        sha256?: string;
-        created?: string;
-        duration?: number;
-        channels?: number;
-        models?: string[];
-        model_info?: Record<string, unknown>;
-        extra?: {
-            project_id?: string;
-            [key: string]: string | undefined;
-        };
-    };
-    results?: {
-        channels?: Array<{
-            alternatives?: DeepgramAlternative[];
-        }>;
-        utterances?: DeepgramUtterance[];
-    };
-}
+// Import and re-export from schema layer — single source of truth
+import type {
+    DeepgramAsyncResponse,
+    DeepgramWord,
+    DeepgramUtterance,
+    DeepgramWebhookPayload as DeepgramResponse,
+} from '@/lib/schemas/webhook'
+export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramResponse }
 
 /**
  * Get the callback URL for Deepgram webhooks.
