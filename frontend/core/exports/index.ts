@@ -46,7 +46,7 @@ export function formatDuration(seconds: number): string {
 
     const hours = Math.floor(seconds / 3600)
     const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
+    const secs = Math.floor(seconds % 60)
 
     const parts: string[] = []
     if (hours > 0) parts.push(`${hours}h`)
@@ -84,8 +84,9 @@ export function msToTimestamp(ms: number): string {
  * msToVttTimestamp(65000) // "00:01:05.000"
  */
 export function msToVttTimestamp(ms: number): string {
-    const totalSec = Math.floor(ms / 1000)
-    const millis = ms % 1000
+    const normalizedMs = Math.max(0, ms)
+    const totalSec = Math.floor(normalizedMs / 1000)
+    const millis = normalizedMs % 1000
     const s = totalSec % 60
     const m = Math.floor((totalSec / 60) % 60)
     const h = Math.floor(totalSec / 3600)

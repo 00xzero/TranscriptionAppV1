@@ -10,13 +10,18 @@ export async function createClient() {
     const cookieStore = await cookies()
 
     // Use SUPABASE_URL for server-side (Docker), fallback to NEXT_PUBLIC for browser
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl) throw new Error('Missing environment variable: SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL')
+
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseAnonKey) throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
+
     const cookieName =
         process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
 
     return createServerClient(
         supabaseUrl,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseAnonKey,
         {
             cookies: {
                 getAll() {
