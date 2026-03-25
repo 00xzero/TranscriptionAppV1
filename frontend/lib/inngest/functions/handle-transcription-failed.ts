@@ -4,10 +4,10 @@
  * Classifies error type and updates job/project status.
  */
 
-import { inngest } from "../client";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { transitionJob } from "@/lib/supabase/transition";
-import { classifyError } from "@/lib/deepgram";
+import { inngest } from "@/infra/inngest/client";
+import { createAdminClient } from "@/infra/supabase/admin";
+import { transitionJob } from "@/core/transcription/transition";
+import { classifyError } from "@/infra/deepgram";
 
 export const handleTranscriptionFailed = inngest.createFunction(
     { id: "handle-transcription-failed", retries: 1 },

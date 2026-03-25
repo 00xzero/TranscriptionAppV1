@@ -152,3 +152,12 @@ export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type ChunkUpdate = z.infer<typeof ChunkUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
+
+// Json — recursive union, no Zod schema needed (no validation boundary)
+export type Json =
+    | string
+    | number
+    | boolean
+    | null
+    | { [key: string]: Json | undefined }
+    | Json[]

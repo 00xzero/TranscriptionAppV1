@@ -5,7 +5,7 @@
  * when realtime subscription fails.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { createClient } from './client'
+import { createClient } from '@/infra/supabase/client'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'

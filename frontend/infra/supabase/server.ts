@@ -1,6 +1,6 @@
 /**
  * Supabase client for server-side (RSC, API Routes, Server Actions).
- * 
+ *
  * Uses @supabase/ssr with cookie handling for authentication.
  */
 import { createServerClient } from '@supabase/ssr'

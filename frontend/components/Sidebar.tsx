@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/infra/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
 // Storage key for sidebar collapsed state

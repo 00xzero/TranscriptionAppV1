@@ -18,7 +18,7 @@ import {
     updateSpeaker as updateSpeakerQuery,
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
-import type { Project, JobSummary, Chunk, Speaker, ChunkUpdate, SpeakerUpdate, ProjectUpdate } from './types'
+import type { Project, JobSummary, Chunk, Speaker, ChunkUpdate, SpeakerUpdate, ProjectUpdate } from '@/contracts/db'
 
 // ============================================================================
 // Projects Hook

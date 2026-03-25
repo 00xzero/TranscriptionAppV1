@@ -1,6 +1,6 @@
 /**
  * Supabase Storage utilities for media file handling.
- * 
+ *
  * Storage path convention: {user_id}/{project_id}/{filename}
  * Bucket: 'media' (private, 50MB default - configurable via NEXT_PUBLIC_MAX_FILE_SIZE_MB)
  */
@@ -80,7 +80,7 @@ export function getMediaPath(userId: string, projectId: string, filename: string
 
 /**
  * Upload a media file to Supabase Storage.
- * 
+ *
  * @param supabase - Supabase client instance
  * @param file - File to upload
  * @param userId - Current user's ID
@@ -125,7 +125,7 @@ export async function uploadProjectMedia(
 
 /**
  * Generate a signed download URL for media playback.
- * 
+ *
  * @param supabase - Supabase client instance
  * @param path - Storage path (from project.source_object_key)
  * @param expiresIn - URL validity in seconds (default: 3600 = 1 hour)
@@ -149,8 +149,53 @@ export async function getSignedMediaUrl(
 }
 
 /**
+ * Get a media URL suitable for Deepgram to fetch — applies proxy/rewrite env logic.
+ *
+ * Encapsulates deployment-specific transformations so core code stays env-agnostic:
+ * - DEEPGRAM_USE_PROXY=true → proxy through /api/media-proxy (local dev, single ngrok tunnel)
+ * - DEEPGRAM_STORAGE_URL set → base URL replacement (alternative local dev setup)
+ * - Neither → return the signed URL as-is
+ *
+ * @param supabase - Supabase client instance (server-side or admin)
+ * @param objectKey - Storage path (from project.source_object_key)
+ * @returns Ready-to-use URL string, or error on failure
+ */
+export async function getMediaUrlForDeepgram(
+    supabase: SupabaseClient,
+    objectKey: string
+): Promise<{ url: string; error: null } | { url: null; error: string }> {
+    const signedUrlResult = await getSignedMediaUrl(supabase, objectKey)
+    if (signedUrlResult.error || !signedUrlResult.url) {
+        return { url: null, error: signedUrlResult.error ?? 'Failed to generate signed URL' }
+    }
+
+    let mediaUrl = signedUrlResult.url
+
+    if (process.env.DEEPGRAM_USE_PROXY === 'true') {
+        const callbackBase =
+            process.env.DEEPGRAM_CALLBACK_URL?.replace('/api/webhooks/deepgram', '') ||
+            process.env.NEXT_PUBLIC_APP_URL ||
+            'http://localhost:3000'
+        const proxySecret = process.env.MEDIA_PROXY_SECRET
+        if (!proxySecret) {
+            return { url: null, error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET' }
+        }
+        mediaUrl = `${callbackBase}/api/media-proxy?path=${encodeURIComponent(objectKey)}&token=${encodeURIComponent(proxySecret)}`
+        console.log(`[storage] Using media proxy for Deepgram (path: ${objectKey})`)
+    } else if (process.env.DEEPGRAM_STORAGE_URL) {
+        const localStoragePrefix = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (localStoragePrefix && mediaUrl.includes(localStoragePrefix)) {
+            mediaUrl = mediaUrl.replace(localStoragePrefix, process.env.DEEPGRAM_STORAGE_URL)
+            console.log(`[storage] Replaced media URL base for Deepgram: ${process.env.DEEPGRAM_STORAGE_URL}`)
+        }
+    }
+
+    return { url: mediaUrl, error: null }
+}
+
+/**
  * Delete a media file from storage.
- * 
+ *
  * @param supabase - Supabase client instance
  * @param path - Storage path to delete
  * @returns Object with error on failure, null error on success

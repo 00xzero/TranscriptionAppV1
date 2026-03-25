@@ -3,13 +3,13 @@
 const getUserMock = jest.fn()
 const fromMock = jest.fn()
 
-jest.mock('@/lib/supabase/storage', () => {
+jest.mock('@/infra/supabase/storage', () => {
   return {
-    getSignedMediaUrl: jest.fn(),
+    getMediaUrlForDeepgram: jest.fn(),
   }
 })
 
-jest.mock('@/lib/supabase/server', () => {
+jest.mock('@/infra/supabase/server', () => {
   return {
     createClient: () => ({
       auth: {
@@ -20,7 +20,7 @@ jest.mock('@/lib/supabase/server', () => {
   }
 })
 
-jest.mock('@/lib/inngest/client', () => {
+jest.mock('@/infra/inngest/client', () => {
   return {
     inngest: {
       send: jest.fn(async () => undefined),
@@ -29,7 +29,7 @@ jest.mock('@/lib/inngest/client', () => {
 })
 
 import { POST } from '../app/api/projects/[id]/start/route'
-import { getSignedMediaUrl } from '@/lib/supabase/storage'
+import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 
 const projectSingleMock = jest.fn()
 const projectEqMock = jest.fn(() => ({ single: projectSingleMock }))
@@ -76,7 +76,7 @@ describe('Start route idempotency', () => {
     projectUpdateEqMock.mockResolvedValue({ error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: { id: 'job-new' }, error: null })
     watchlistEqMock.mockResolvedValue({ data: [], error: null })
-    ;(getSignedMediaUrl as jest.Mock).mockResolvedValue({
+    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
       url: 'https://example.com/media.mp3',
       error: null,
     })

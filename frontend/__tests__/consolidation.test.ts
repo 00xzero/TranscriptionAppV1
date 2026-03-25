@@ -21,7 +21,7 @@ import {
     DEFAULT_CONFIG,
     type SegmentData,
     type ConsolidationConfig,
-} from '../lib/consolidation';
+} from '../core/transcript/consolidation';
 
 // ============================================================================
 // Helper Functions

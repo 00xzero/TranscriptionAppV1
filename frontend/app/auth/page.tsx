@@ -8,7 +8,7 @@
  */
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/infra/supabase/client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthChangeEvent } from '@supabase/supabase-js'

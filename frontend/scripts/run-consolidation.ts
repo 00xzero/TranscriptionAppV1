@@ -55,7 +55,7 @@ async function main() {
     console.log(`   Current status: ${project.status}`);
 
     // Import consolidation service
-    const { runConsolidation } = await import("../lib/inngest/consolidation-service");
+    const { runConsolidation } = await import("../core/transcript/consolidation-service");
 
     // Run consolidation
     const result = await runConsolidation(projectId);

@@ -1,9 +1,9 @@
 /**
  * Rate Limiting Utility
- * 
+ *
  * Simple in-memory rate limiter with sliding window.
  * For production at scale, consider using Redis or Upstash.
- * 
+ *
  * This implementation is suitable for single-instance deployments
  * and provides protection against abuse without external dependencies.
  */
@@ -54,7 +54,7 @@ export interface RateLimitResult {
 
 /**
  * Check rate limit for a given key (e.g., userId, IP address)
- * 
+ *
  * @param key - Unique identifier for the rate limit bucket
  * @param config - Rate limit configuration
  * @returns Result indicating whether request is allowed

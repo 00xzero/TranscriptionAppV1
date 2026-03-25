@@ -5,8 +5,8 @@
  * and speaker map building for DOCX and VTT exports.
  */
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { Chunk, Speaker, Project } from '@/lib/supabase/types'
-import type { ExportChunk, SpeakersMap } from '@/lib/exports'
+import type { Chunk, Speaker, Project } from '@/contracts/db'
+import type { ExportChunk, SpeakersMap } from '@/core/exports'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {

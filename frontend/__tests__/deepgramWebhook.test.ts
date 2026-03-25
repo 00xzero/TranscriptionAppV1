@@ -1,14 +1,14 @@
 /** @jest-environment node */
 
-jest.mock('@/lib/supabase/transition', () => ({
+jest.mock('@/core/transcription/transition', () => ({
   transitionJob: jest.fn(),
   forceJobError: jest.fn(async () => undefined),
 }))
 
 import { POST } from '../app/api/webhooks/deepgram/route'
-import { forceJobError } from '@/lib/supabase/transition'
+import { forceJobError } from '@/core/transcription/transition'
 
-jest.mock('@/lib/inngest/client', () => {
+jest.mock('@/infra/inngest/client', () => {
   return {
     inngest: {
       send: jest.fn(async () => undefined),
@@ -52,7 +52,7 @@ const receiptSelectChain: any = {
 }
 const receiptSelectMock = jest.fn(() => receiptSelectChain)
 
-jest.mock('@/lib/supabase/admin', () => {
+jest.mock('@/infra/supabase/admin', () => {
   return {
     createAdminClient: () => ({
       from: (table: string) => {
@@ -140,7 +140,7 @@ describe('Deepgram webhook route', () => {
     expect(updateEqMock).toHaveBeenCalledTimes(1)
     expect(updateEqMock).toHaveBeenCalledWith('id', 'job-1')
 
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).toHaveBeenCalledTimes(1)
     expect((inngest.send as jest.Mock).mock.calls[0][0]).toEqual({
       name: 'transcription/webhook',
@@ -160,7 +160,7 @@ describe('Deepgram webhook route', () => {
     const res = await POST(request)
     expect(res.status).toBe(401)
 
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
     expect(updateEqMock).not.toHaveBeenCalled()
@@ -247,7 +247,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(200)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -262,7 +262,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -284,7 +284,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(200)
     expect(updateMock).toHaveBeenCalledTimes(1)
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).toHaveBeenCalledTimes(1)
   })
 
@@ -296,7 +296,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(500)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -317,7 +317,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(200)
     expect(updateMock).toHaveBeenCalledTimes(1) // job update
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).toHaveBeenCalledTimes(1)
   })
 
@@ -333,7 +333,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(500)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -352,7 +352,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -371,7 +371,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(200)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -410,7 +410,7 @@ describe('Deepgram webhook route', () => {
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 
@@ -425,9 +425,26 @@ describe('Deepgram webhook route', () => {
     const json = await res.json()
     expect(json.error).toBe('Invalid payload structure')
 
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
+  })
+
+  test('marks receipt failed when inngest.send throws after receipt claim', async () => {
+    const { inngest } = await import('@/infra/inngest/client')
+    ;(inngest.send as jest.Mock).mockRejectedValueOnce(new Error('Inngest timeout'))
+
+    receiptInsertMock.mockResolvedValueOnce({ error: null })
+    maybeSingleMock
+      .mockResolvedValueOnce({ data: null, error: null })              // exact job not found
+      .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })   // fallback job found
+
+    const res = await POST(makeRequest('req-inngest-fail', VALID_PROJECT_ID))
+
+    expect(res.status).toBe(500)
+    // Receipt must be marked failed so retries can take over immediately
+    const lastUpdateArg = receiptUpdateMock.mock.calls.at(-1)?.[0]
+    expect(lastUpdateArg).toMatchObject({ status: 'failed' })
   })
 
   test('returns 400 and uses extracted identifiers to fail job when schema fails but metadata is recoverable', async () => {
@@ -456,7 +473,7 @@ describe('Deepgram webhook route', () => {
       expect.objectContaining({ jobId: 'job-1', context: 'persistWebhookFailure' })
     )
 
-    const { inngest } = await import('@/lib/inngest/client')
+    const { inngest } = await import('@/infra/inngest/client')
     expect(inngest.send).not.toHaveBeenCalled()
   })
 })

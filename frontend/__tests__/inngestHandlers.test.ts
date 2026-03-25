@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-jest.mock('@/lib/supabase/transition', () => ({
+jest.mock('@/core/transcription/transition', () => ({
   transitionJob: jest.fn(async () => ({ outcome: 'applied', previousStatus: 'processing' })),
   forceJobError: jest.fn(async () => undefined),
 }))
@@ -31,7 +31,7 @@ const fromMock = jest.fn((table: string) => {
   return {}
 })
 
-jest.mock('@/lib/supabase/admin', () => {
+jest.mock('@/infra/supabase/admin', () => {
   return {
     createAdminClient: () => ({
       from: fromMock,
@@ -44,8 +44,8 @@ import {
   handleTranscriptionFailed,
   handleTranscriptionWebhook,
 } from '@/lib/inngest/functions'
-import { inngest } from '@/lib/inngest/client'
-import { forceJobError, transitionJob } from '@/lib/supabase/transition'
+import { inngest } from '@/infra/inngest/client'
+import { forceJobError, transitionJob } from '@/core/transcription/transition'
 
 const mockTransitionJob = transitionJob as jest.MockedFunction<typeof transitionJob>
 const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobError>

@@ -15,7 +15,7 @@ export const DeepgramUtteranceSchema = z.object({
   words: z.array(DeepgramWordSchema),
 })
 
-// For startAsyncTranscription() response (lib/deepgram.ts)
+// For startAsyncTranscription() response (infra/deepgram/index.ts)
 export const DeepgramAsyncResponseSchema = z.object({
   request_id: z.string(),
 })

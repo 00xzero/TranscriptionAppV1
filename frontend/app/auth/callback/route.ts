@@ -4,7 +4,7 @@
  * Handles the code exchange after OAuth or magic link authentication.
  * Supabase redirects here with an auth code that we exchange for a session.
  */
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/infra/supabase/server'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {

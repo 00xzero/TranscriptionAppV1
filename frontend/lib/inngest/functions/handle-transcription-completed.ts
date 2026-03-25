@@ -4,9 +4,9 @@
  * Updates job and project status.
  */
 
-import { inngest } from "../client";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { transitionJob } from "@/lib/supabase/transition";
+import { inngest } from "@/infra/inngest/client";
+import { createAdminClient } from "@/infra/supabase/admin";
+import { transitionJob } from "@/core/transcription/transition";
 
 export const handleTranscriptionCompleted = inngest.createFunction(
     { id: "handle-transcription-completed", retries: 3 },

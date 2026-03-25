@@ -7,14 +7,14 @@
  * so job/project status is updated and users see the error.
  */
 
-import { inngest } from "../client";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { transitionJob } from "@/lib/supabase/transition";
+import { inngest } from "@/infra/inngest/client";
+import { createAdminClient } from "@/infra/supabase/admin";
+import { transitionJob } from "@/core/transcription/transition";
 import {
     startAsyncTranscription,
     getCallbackUrl,
     classifyError,
-} from "@/lib/deepgram";
+} from "@/infra/deepgram";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 // Configurable concurrency limit for Deepgram API calls

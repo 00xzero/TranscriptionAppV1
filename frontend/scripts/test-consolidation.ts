@@ -215,7 +215,7 @@ async function main() {
 
     // Import and run the consolidation service
     // Since we're in a script, we need to load it dynamically
-    const { runConsolidation } = await import("../lib/inngest/consolidation-service");
+    const { runConsolidation } = await import("../core/transcript/consolidation-service");
 
     const result = await runConsolidation(project.id);
     console.log(`   Result: ${result.chunkCount} chunks, ${result.chunkWordCount} chunk_words`);

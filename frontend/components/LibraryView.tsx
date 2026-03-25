@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/infra/supabase/client'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
 import type { User } from '@supabase/supabase-js'
 

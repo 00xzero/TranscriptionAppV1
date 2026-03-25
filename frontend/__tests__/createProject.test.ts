@@ -3,7 +3,7 @@
 const getUserMock = jest.fn()
 const fromMock = jest.fn()
 
-jest.mock('@/lib/supabase/server', () => ({
+jest.mock('@/infra/supabase/server', () => ({
   createClient: jest.fn(async () => ({
     auth: { getUser: getUserMock },
     from: fromMock,

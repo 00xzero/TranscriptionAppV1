@@ -6,7 +6,7 @@
  */
 
 import { serve } from "inngest/next";
-import { inngest } from "@/lib/inngest/client";
+import { inngest } from "@/infra/inngest/client";
 import {
     handleTranscriptionRequested,
     handleTranscriptionWebhook,

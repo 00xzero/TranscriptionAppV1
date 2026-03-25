@@ -7,8 +7,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { JobStatus } from "@/lib/state-machine";
-import { TransitionJobInputSchema } from "@/lib/schemas/state-machine";
+import type { JobStatus } from "@/core/transcription/machine";
+import { TransitionJobInputSchema } from "@/contracts/state-machine";
 
 export interface TransitionJobResult {
   outcome: "applied" | "noop" | "conflict" | "invalid";

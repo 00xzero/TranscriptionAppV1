@@ -7,15 +7,15 @@
  * so the UI can surface the error to the user.
  */
 
-import { inngest } from "../client";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { runConsolidation } from "@/lib/inngest/consolidation-service";
+import { inngest } from "@/infra/inngest/client";
+import { createAdminClient } from "@/infra/supabase/admin";
+import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
     getMajoritySpeaker,
     DeepgramWord,
     DeepgramUtterance,
-} from "@/lib/deepgram";
-import { DeepgramWebhookPayloadSchema } from "@/lib/schemas/webhook";
+} from "@/infra/deepgram";
+import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 export const handleTranscriptionWebhook = inngest.createFunction(
