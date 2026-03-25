@@ -87,10 +87,13 @@ export async function startTranscription(opts: {
     }
 
     // Fetch key terms
-    const { data: keyTerms } = await supabase
+    const { data: keyTerms, error: keyTermsError } = await supabase
         .from('watchlist')
         .select('term')
         .eq('project_id', projectId)
+    if (keyTermsError) {
+        console.warn('[startTranscription] Failed to fetch key terms; proceeding without them:', keyTermsError.message)
+    }
 
     // Get media URL for Deepgram (handles proxy/rewrite env logic)
     const mediaUrlResult = await getMediaUrlForDeepgram(supabase, project.source_object_key)
