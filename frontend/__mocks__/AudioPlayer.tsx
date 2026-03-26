@@ -1,14 +1,22 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react'
+import React, { useImperativeHandle, useRef, useState, useEffect } from 'react'
 import type { AudioPlayerProps, AudioPlayerRef } from '../components/AudioPlayer'
 
 /**
  * Mock AudioPlayer component for Jest tests.
  * Simulates the AudioPlayer behavior without actual audio playback.
  */
-const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function MockAudioPlayer(
-  { src, onReady, onPlayingChange, onTimeUpdate, onSeeked, onScrubPreview, onScrubPreviewFraction, initialPlaybackRate = 1.0, hideControls = false }: AudioPlayerProps,
-  ref
-) {
+function MockAudioPlayer({
+  ref,
+  src,
+  onReady,
+  onPlayingChange,
+  onTimeUpdate,
+  onSeeked,
+  onScrubPreview,
+  onScrubPreviewFraction,
+  initialPlaybackRate = 1.0,
+  hideControls = false,
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -94,7 +102,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
       </div>
     </div>
   )
-})
+}
 
 export default MockAudioPlayer
 export type { AudioPlayerRef } from '../components/AudioPlayer'
