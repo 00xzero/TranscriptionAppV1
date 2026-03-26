@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-26] - Tech Stack Upgrade: Phase 2 — Jest 30
+
+Upgraded the test infrastructure from Jest 29 to Jest 30. Isolated to dev dependencies; no app code changes. All 25 suites / 288 tests remain green.
+
+### Changed
+
+- **`jest`** 29.7.0 → 30.3.0 (pinned exact)
+- **`jest-environment-jsdom`** 29.7.0 → 30.3.0 (pinned exact)
+- **`@types/jest`** 29.5.12 → 30.0.0 (pinned exact)
+- **`frontend/__tests__/exportModal.ui.test.tsx`** — replaced removed `jest.SpyInstance` type with `ReturnType<typeof jest.spyOn>`
+- **`frontend/__tests__/exports.test.ts`** — updated stale CLI flag comment `--testPathPattern` → `--testPathPatterns` (renamed in Jest 30)
+
+---
+
 ## [2026-03-26] - CaptureModal Decomposition
 
 Broke the 528-line monolithic `frontend/components/CaptureModal.tsx` into a folder-based component with focused sub-components, a shared constants/types module, and a dedicated form-state hook. No behavior changes; barrel export preserves all existing import paths.
