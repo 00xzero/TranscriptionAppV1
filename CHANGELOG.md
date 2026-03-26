@@ -2,7 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-03-25] - V3 Phase 1: Clear Boundaries Architecture
+## [2026-03-26] - CaptureModal Decomposition
+
+Broke the 528-line monolithic `frontend/components/CaptureModal.tsx` into a folder-based component with focused sub-components, a shared constants/types module, and a dedicated form-state hook. No behavior changes; barrel export preserves all existing import paths.
+
+### Added
+
+- **`frontend/components/CaptureModal/`** — New folder-based component structure:
+  - `CaptureModal.tsx` — Slim orchestration shell; composes sub-components and wires context/hooks.
+  - `FileDropZone.tsx` — Drag-and-drop file target with MIME validation and visual feedback.
+  - `CaptureDetails.tsx` — Language, diarization, and key-terms settings section.
+  - `CaptureFooter.tsx` — Submit / Cancel footer with upload-state button text logic.
+  - `KeyTermsInput.tsx` — Chip-based key-term input with add/remove controls and tag display.
+  - `useCaptureForm.ts` — Form state hook encapsulating file selection, key-term management, and upload orchestration.
+  - `shared.ts` — Shared constants and pure helpers (`MAX_KEY_TERMS`, `formatFileSize`).
+  - `index.ts` — Barrel re-export so `@/components/CaptureModal` resolves identically to before.
+
+### Removed
+
+- **`frontend/components/CaptureModal.tsx`** — Monolithic 528-line file deleted; superseded by the folder structure above.
+
+## [2026-03-25] - Clear Boundaries Architecture
 
 Restructured `frontend/` into three explicit architectural layers — `contracts/`, `infra/`, and `core/` — and extracted business logic from the three fat route handlers into dedicated application services. No behavior changes; TypeScript import resolution confirms full coverage.
 
