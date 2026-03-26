@@ -1,5 +1,3 @@
-"use client"
-
 interface CaptureFooterProps {
   isUploading: boolean
   canSubmit: boolean

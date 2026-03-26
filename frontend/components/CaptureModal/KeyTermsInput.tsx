@@ -1,5 +1,3 @@
-"use client"
-
 import { MAX_KEY_TERMS } from './shared'
 
 const keyTermsInputId = 'capture-key-terms-input'

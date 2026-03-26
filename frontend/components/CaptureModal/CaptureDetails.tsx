@@ -1,5 +1,3 @@
-"use client"
-
 const titleInputId = 'capture-title-input'
 const languageSelectId = 'capture-language-select'
 

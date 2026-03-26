@@ -15,7 +15,7 @@ Broke the 528-line monolithic `frontend/components/CaptureModal.tsx` into a fold
   - `CaptureFooter.tsx` — Submit / Cancel footer with upload-state button text logic.
   - `KeyTermsInput.tsx` — Chip-based key-term input with add/remove controls and tag display.
   - `useCaptureForm.ts` — Form state hook encapsulating file selection, key-term management, and upload orchestration.
-  - `shared.ts` — Shared constants and local types (`MAX_KEY_TERMS`, accepted MIME list, etc.).
+  - `shared.ts` — Shared constants and pure helpers (`MAX_KEY_TERMS`, `formatFileSize`).
   - `index.ts` — Barrel re-export so `@/components/CaptureModal` resolves identically to before.
 
 ### Removed
