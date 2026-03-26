@@ -51,7 +51,7 @@
 **Risk:** Very low — all within semver minor/patch, no breaking changes expected.
 
 ### What changes
-- `@supabase/supabase-js` 2.90.1 → 2.100.0
+- `@supabase/supabase-js` 2.90.1 → 2.100.1
 - `@supabase/ssr` 0.7.0 → 0.9.0
 - `@testing-library/jest-dom` 6.4.8 → 6.9.1
 - `@testing-library/user-event` 14.5.2 → 14.6.1
