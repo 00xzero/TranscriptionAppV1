@@ -17,7 +17,7 @@ const makeExportResponse = (status = 200) => ({
 describe('ExportModal - Phase 7 UI regressions', () => {
   const originalCreateObjectURL = window.URL.createObjectURL
   const originalRevokeObjectURL = window.URL.revokeObjectURL
-  let clickSpy: jest.SpyInstance
+  let clickSpy: ReturnType<typeof jest.spyOn>
 
   beforeEach(() => {
     jest.clearAllMocks()

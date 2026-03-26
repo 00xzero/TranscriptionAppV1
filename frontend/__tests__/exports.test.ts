@@ -2,7 +2,7 @@
  * Unit tests for export utilities.
  *
  * Tests ported from backend/tests/test_exports.py
- * Run with: npm test -- --testPathPattern=exports
+ * Run with: npm test -- --testPathPatterns=exports
  */
 import {
     formatDuration,
