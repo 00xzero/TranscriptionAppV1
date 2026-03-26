@@ -46,17 +46,15 @@ export async function POST(request: NextRequest) {
 
     if (!dgToken) {
       console.warn("[deepgram-webhook] No dg-token header received");
-      return NextResponse.json({ error: "Unauthorized - no token" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (dgToken.length !== expectedToken.length) {
-      console.warn(`[deepgram-webhook] Token length mismatch: received ${dgToken.length}, expected ${expectedToken.length}`);
-      return NextResponse.json({ error: "Unauthorized - length mismatch" }, { status: 401 });
-    }
-
-    if (!timingSafeEqual(Buffer.from(dgToken) as any, Buffer.from(expectedToken) as any)) {
-      console.warn("[deepgram-webhook] Token value mismatch");
-      return NextResponse.json({ error: "Unauthorized - invalid token" }, { status: 401 });
+    if (
+      dgToken.length !== expectedToken.length ||
+      !timingSafeEqual(Buffer.from(dgToken) as any, Buffer.from(expectedToken) as any)
+    ) {
+      console.warn("[deepgram-webhook] Token mismatch");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     console.log("[deepgram-webhook] Step 1 complete: Token validated");

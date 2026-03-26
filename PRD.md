@@ -4,7 +4,7 @@
 
 ### Document Status
 
-- Last updated: February 14, 2026
+- Last updated: March 26, 2026
 - Stack status: Active (Next.js + Supabase + Inngest)
 - Scope: Current implementation plus near-term roadmap
 
@@ -66,8 +66,10 @@ Implementation notes:
 
 - Deepgram async (`/listen` + callback webhook) with `nova-3`, smart formatting, utterances, diarization.
 - Job lifecycle: `queued -> processing -> completed|error`.
-- Project lifecycle tracks transcription state (`created`, `queued`, `processing`, `completed`, `error`).
+- Project lifecycle status is DB-derived from job state via triggers (not manually set per code path).
+- State machine enforces valid transitions; invalid inputs are rejected at the boundary.
 - Optional idempotent start via `x-idempotency-key` to prevent duplicate jobs.
+- Webhook receipt table (`webhook_receipts`) provides idempotent deduplication of Deepgram callbacks: completed duplicates return `200`, active in-flight duplicates return `503`, stale receipts are reclaimed.
 - Start-route rate limiting is supported (`RATE_LIMIT_MODE`).
 - Timeout watchdog marks stale jobs as `error` (default `TRANSCRIPTION_TIMEOUT_MINUTES=45`).
 
@@ -81,6 +83,7 @@ Implementation notes:
 
 - Inline transcript editing with debounced autosave (500ms).
 - Word-level timing display in transcript cards.
+- Transcript list rendered with `react-virtuoso` for smooth performance on long recordings (1hr+).
 - Bulk Find/Replace supports:
   - case-sensitive matching
   - whole-word matching
@@ -133,9 +136,16 @@ Planned:
 ### Frontend and API
 
 - Next.js 14 App Router with TypeScript.
-- Tailwind-based UI.
-- API routes in the same Next.js app for project creation/start/export/webhooks.
+- Tailwind-based UI (Olivetti design system).
+- API routes in the same Next.js app for project creation/start/export/webhooks. Route handlers are thin shells: auth → Zod parse → call `core/` service → return response.
 - Client data layer uses Supabase SDK + realtime subscriptions with polling fallback.
+
+### Layer Boundaries (`frontend/`)
+
+- `contracts/` — Single source of truth for all Zod schemas and inferred TypeScript types (DB shapes, API bodies, Inngest events, Deepgram webhook format, editor pipeline).
+- `core/` — Domain logic and application services: transcription state machine, project creation, consolidation, exports, rate limiting.
+- `infra/` — External service adapters: Supabase client factories (browser, server, admin), Deepgram client, Inngest client.
+- `lib/` — Cross-cutting utilities: Inngest function handlers, Supabase hooks/queries/realtime, ModalContext.
 
 ### Data/Auth/Storage
 
@@ -145,8 +155,8 @@ Planned:
 
 ### Async Processing
 
-- Inngest functions orchestrate transcription lifecycle.
-- Deepgram webhook stores payload and emits processing events.
+- Inngest functions orchestrate transcription lifecycle. Functions are modularized into a `functions/` directory (one file per handler).
+- Deepgram webhook uses receipt-based idempotency to prevent duplicate processing, then emits processing events.
 - Optional local media proxy for Docker/ngrok callback compatibility.
 
 ### Infra
@@ -158,14 +168,15 @@ Planned:
 
 ## 7. Data Model (Simplified)
 
-- `projects`: project metadata and user ownership.
+- `projects`: project metadata and user ownership. Status is derived from job state via DB triggers.
 - `speakers`: speaker labels/colors per project.
 - `segments`: raw utterance-level transcript data.
 - `words`: word-level timings.
 - `chunks`: consolidated editable transcript units.
 - `chunk_words`: mapping between chunks and words.
 - `watchlist`: key terms for recognition boosting.
-- `jobs`: transcription job state and payload metadata.
+- `jobs`: transcription job state and payload metadata. Transitions audited in `job_events`.
+- `webhook_receipts`: one receipt per Deepgram `request_id` for idempotent callback handling.
 - `failed_events`: dead-letter/event failure records for operational debugging.
 
 ---
@@ -195,9 +206,11 @@ Planned:
 ## 9. Performance, Reliability, and Operational Targets
 
 - Target user experience: 60-minute media should usually complete transcription in minutes, not tens of minutes.
-- UI responsiveness target: bulk replace operations complete fast enough for interactive use on long transcripts.
+- UI responsiveness target: bulk replace operations and transcript scrolling complete fast enough for interactive use on long transcripts (react-virtuoso handles 1hr+ recordings).
 - Duplicate start protection through idempotency key + DB unique index.
 - Stale job auto-fail via scheduled timeout checks.
+- State machine with DB-enforced transitions prevents job/project status desynchronization across the start route, webhook path, timeout handler, and completion handler.
+- Webhook receipt-based idempotency guards against duplicate Deepgram callbacks without reprocessing.
 - Webhook authentication required via `dg-token` against `DEEPGRAM_API_KEY_IDENTIFIER`.
 - Known platform limitation: Vercel function body cap can reject very large Deepgram callbacks (roughly multi-hour recordings).
 
@@ -232,6 +245,9 @@ Open operational policy item:
 - DOCX and VTT export endpoints with downloadable files.
 - Idempotent transcription start support.
 - Start-route rate limiting and timeout-based stale job protection.
+- State machine with DB-derived project status and idempotent replay handling.
+- Webhook receipt-based idempotency for Deepgram callback deduplication.
+- Transcript virtualization (react-virtuoso) for long-recording performance.
 
 ### Planned
 

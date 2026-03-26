@@ -13,6 +13,12 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
 ## Repository Layout
 
 - `frontend/`: Next.js app, API routes, Inngest functions, Jest tests
+  - `contracts/`: Zod schemas — single source of truth for all runtime-validated types
+  - `core/`: Domain logic and application services (transcription, projects, exports, rate limiting)
+  - `infra/`: External service adapters (Supabase client factories, Deepgram, Inngest)
+  - `lib/`: Cross-cutting utilities (Inngest function handlers, Supabase hooks/queries, ModalContext)
+  - `components/`: React UI components
+  - `app/`: Next.js App Router pages and API routes
 - `infra/`: local stack scripts (`start-local.sh`, `stop-local.sh`), Supabase config, Docker Compose
 - `.docs/`: architecture and refactor docs
 - Legacy backend/worker components were removed from the repo during the overhaul and are not part of the active workflow
