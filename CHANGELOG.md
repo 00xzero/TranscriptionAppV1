@@ -22,7 +22,7 @@ Broke the 528-line monolithic `frontend/components/CaptureModal.tsx` into a fold
 
 - **`frontend/components/CaptureModal.tsx`** — Monolithic 528-line file deleted; superseded by the folder structure above.
 
-## [2026-03-25] - V3 Phase 1: Clear Boundaries Architecture
+## [2026-03-25] - Clear Boundaries Architecture
 
 Restructured `frontend/` into three explicit architectural layers — `contracts/`, `infra/`, and `core/` — and extracted business logic from the three fat route handlers into dedicated application services. No behavior changes; TypeScript import resolution confirms full coverage.
 
