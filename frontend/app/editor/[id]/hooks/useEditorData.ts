@@ -5,8 +5,8 @@ import {
   fetchSpeakers,
   fetchProjectById,
 } from '@/lib/supabase/queries'
-import { ChunkSchema, SegmentSchema } from '@/lib/schemas/db'
-import { EditorProjectSchema, EditorSpeakerSchema } from '@/lib/schemas/editor'
+import { ChunkSchema, SegmentSchema } from '@/contracts/db'
+import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
 

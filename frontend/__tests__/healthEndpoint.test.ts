@@ -3,7 +3,7 @@
  * (Health endpoint tests moved to integration tests as they require Next.js runtime)
  */
 
-import { checkRateLimit, RATE_LIMITS, RateLimitConfig } from '../lib/rate-limit';
+import { checkRateLimit, RATE_LIMITS, RateLimitConfig } from '../core/limits/rate-limit';
 
 describe('Rate Limiting in Start Route', () => {
     const transcriptionConfig = RATE_LIMITS.TRANSCRIPTION_START;

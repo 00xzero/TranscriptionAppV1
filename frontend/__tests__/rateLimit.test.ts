@@ -2,7 +2,7 @@
  * Tests for Rate Limiting Utility
  */
 
-import { checkRateLimit, RateLimitConfig, RATE_LIMITS } from '../lib/rate-limit';
+import { checkRateLimit, RateLimitConfig, RATE_LIMITS } from '../core/limits/rate-limit';
 
 describe('Rate Limiting', () => {
     const testConfig: RateLimitConfig = {

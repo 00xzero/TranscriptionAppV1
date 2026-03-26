@@ -1,6 +1,6 @@
 /**
  * Deepgram Async Transcription Service
- * 
+ *
  * Handles async transcription requests with callback webhooks.
  * Ported from legacy worker/app/worker.py
  */
@@ -21,13 +21,13 @@ export interface DeepgramAsyncOptions {
     model?: string;
 }
 
-// Import and re-export from schema layer — single source of truth
+// Import and re-export from contracts layer — single source of truth
 import type {
     DeepgramAsyncResponse,
     DeepgramWord,
     DeepgramUtterance,
     DeepgramWebhookPayload as DeepgramResponse,
-} from '@/lib/schemas/webhook'
+} from '@/contracts/webhook'
 export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramResponse }
 
 /**
@@ -64,7 +64,7 @@ export function getDeepgramModel(): string {
 
 /**
  * Start an async transcription job with Deepgram.
- * 
+ *
  * @param options - Transcription options
  * @returns The request_id from Deepgram for tracking
  */

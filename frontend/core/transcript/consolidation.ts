@@ -1,9 +1,9 @@
 /**
  * Transcript Consolidation Algorithm
- * 
+ *
  * TypeScript port of backend/app/services/consolidation.py
  * Merges fragmented transcription segments into larger, readable chunks.
- * 
+ *
  * Key features:
  * - Time-gap and duration guardrails
  * - Speaker boundary enforcement
@@ -163,10 +163,10 @@ function createChunkFromSegment(segment: SegmentData): ChunkData {
 
 /**
  * Main consolidation algorithm.
- * 
+ *
  * Groups segments by speaker and merges adjacent segments into chunks
  * based on timing, duration, and sentence boundaries.
- * 
+ *
  * @param segments - List of segment data, should be pre-sorted by startMs
  * @param config - Consolidation parameters
  * @returns List of consolidated chunks

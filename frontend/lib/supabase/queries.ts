@@ -4,7 +4,7 @@
  * Provides typed functions for CRUD operations on projects, chunks, and speakers.
  * Uses the browser Supabase client for RLS-protected access.
  */
-import { createClient } from './client'
+import { createClient } from '@/infra/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Project,
@@ -16,7 +16,7 @@ import type {
     SpeakerInsert,
     ProjectUpdate,
     Segment,
-} from './types'
+} from '@/contracts/db'
 
 // ============================================================================
 // Projects

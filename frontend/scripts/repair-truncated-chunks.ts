@@ -4,7 +4,7 @@
  * Run with: npx tsx --env-file=.env.local scripts/repair-truncated-chunks.ts
  */
 
-import { runConsolidation } from "../lib/inngest/consolidation-service";
+import { runConsolidation } from "../core/transcript/consolidation-service";
 
 const AFFECTED_PROJECTS = [
     "ae2c74bf-80c4-4bf8-b597-6cbc7eb6b134", // KT Session - Make & WH Workshop

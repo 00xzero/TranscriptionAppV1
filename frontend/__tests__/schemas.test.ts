@@ -1,9 +1,9 @@
 /** @jest-environment node */
 
-import { CreateProjectBodySchema } from '@/lib/schemas/api'
-import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/lib/schemas/webhook'
-import { TransitionJobInputSchema } from '@/lib/schemas/state-machine'
-import { JobStatusSchema, ProjectStatusSchema } from '@/lib/schemas/db'
+import { CreateProjectBodySchema } from '@/contracts/api'
+import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/contracts/webhook'
+import { TransitionJobInputSchema } from '@/contracts/state-machine'
+import { JobStatusSchema, ProjectStatusSchema } from '@/contracts/db'
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111'
 

@@ -7,9 +7,9 @@
  * Requires authentication via Supabase session.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { generateDocx, normalizeFilename } from '@/lib/exports'
-import { fetchExportData } from '@/lib/exports/data'
+import { createClient } from '@/infra/supabase/server'
+import { generateDocx, normalizeFilename } from '@/core/exports'
+import { fetchExportData } from '@/core/exports/data'
 
 export const runtime = 'nodejs' // DOCX generation requires Node.js runtime
 

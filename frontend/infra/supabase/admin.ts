@@ -1,9 +1,9 @@
 /**
  * Supabase Admin Client
- * 
+ *
  * Uses service role key to bypass RLS policies.
  * Only use in server-side contexts (API routes, Inngest functions).
- * 
+ *
  * NEVER expose this client to the browser.
  */
 

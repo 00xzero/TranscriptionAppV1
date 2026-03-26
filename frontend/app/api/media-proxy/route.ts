@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/infra/supabase/admin";
 
 // Explicit env var required when proxy is enabled
 const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET;

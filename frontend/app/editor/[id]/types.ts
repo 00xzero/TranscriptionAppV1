@@ -1,4 +1,5 @@
-import type { Chunk, Segment, Speaker as SpeakerType, EditorWord } from '@/lib/supabase/types'
+import type { Chunk, Segment, Speaker as SpeakerType } from '@/contracts/db'
+import type { EditorWord } from '@/contracts/editor'
 
 export type Word = EditorWord
 export type Seg = (Chunk | Segment) & { words?: Word[] }

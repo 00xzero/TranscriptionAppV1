@@ -1,7 +1,7 @@
 /**
  * Inngest Event Type Definitions
  *
- * Types are derived from Zod schemas in lib/schemas/events.ts.
+ * Types are derived from Zod schemas in contracts/events.ts.
  * Used for type-safe event handling in Inngest functions.
  */
 
@@ -10,7 +10,7 @@ import type {
     TranscriptionWebhookData,
     TranscriptionCompletedData,
     TranscriptionFailedData,
-} from '@/lib/schemas/events'
+} from '@/contracts/events'
 
 export type TranscriptionEvents = {
     "transcription/requested": {

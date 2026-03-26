@@ -4,8 +4,8 @@ import {
   isJobStatus,
   isProjectStatus,
   isTerminalJobStatus,
-} from '@/lib/state-machine'
-import type { JobStatus } from '@/lib/state-machine'
+} from '@/core/transcription/machine'
+import type { JobStatus } from '@/core/transcription/machine'
 
 describe('state-machine', () => {
   describe('validateJobTransition', () => {

@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-25] - V3 Phase 1: Clear Boundaries Architecture
+
+Restructured `frontend/` into three explicit architectural layers — `contracts/`, `infra/`, and `core/` — and extracted business logic from the three fat route handlers into dedicated application services. No behavior changes; TypeScript import resolution confirms full coverage.
+
+### Added
+
+- **`frontend/contracts/`** — New Zod schema layer (rename of `lib/schemas/`). Single source of truth for all runtime-validated types and inferred TypeScript interfaces:
+  - `contracts/db.ts` — DB row/insert/update shapes + status enums (absorbs `lib/supabase/types.ts` DB row re-exports)
+  - `contracts/api.ts` — Request body schemas (`CreateProjectBodySchema`)
+  - `contracts/events.ts` — Inngest event payload schemas
+  - `contracts/webhook.ts` — Deepgram wire-format schemas
+  - `contracts/editor.ts` — Editor pipeline data schemas
+  - `contracts/state-machine.ts` — `TransitionJobInputSchema`
+- **`frontend/infra/`** — New true-adapter layer for external service wrappers:
+  - `infra/supabase/{admin,client,server,storage}.ts` — Supabase client factories
+  - `infra/deepgram/index.ts` — Deepgram API client
+  - `infra/inngest/client.ts` — Inngest client
+- **`frontend/core/`** — New domain logic + application service layer:
+  - `core/transcription/machine.ts` — State machine (moved from `lib/state-machine.ts`)
+  - `core/transcription/transition.ts` — Job transition application service (moved from `lib/supabase/transition.ts`)
+  - `core/transcription/start.ts` — Start-transcription application service (extracted from `POST /api/projects/[id]/start`)
+  - `core/transcription/webhook.ts` — Deepgram webhook handler service (extracted from `POST /api/webhooks/deepgram`)
+  - `core/transcript/consolidation.ts` — Consolidation algorithm (moved from `lib/consolidation.ts`)
+  - `core/transcript/consolidation-service.ts` — Consolidation orchestration (moved from `lib/inngest/consolidation-service.ts`)
+  - `core/exports/{index,data}.ts` — Export generation logic (moved from `lib/exports.ts` + `lib/exports/`)
+  - `core/limits/rate-limit.ts` — Rate limiter (moved from `lib/rate-limit.ts`)
+  - `core/projects/create.ts` — Create-project application service (extracted from `POST /api/projects`)
+- **`.docs/V3_PHASE1_CLEAR_BOUNDARIES_PLAN.md`** — Architecture plan documenting the layer boundaries, current → target file mapping, and enforcement rules.
+
+### Changed
+
+- **Route handlers thinned** — `POST /api/projects`, `POST /api/projects/[id]/start`, and `POST /api/webhooks/deepgram` are now thin shells: auth → Zod parse → call `core/` service → return response. No `from()` calls or business logic in routes.
+- **All consumers updated** — 65 files updated from `@/lib/schemas/` → `@/contracts/`, `@/lib/supabase/{admin,client,server,storage}` → `@/infra/supabase/`, `@/lib/deepgram` → `@/infra/deepgram`, `@/lib/inngest/client` → `@/infra/inngest/client`, and core module paths throughout tests, Inngest functions, components, and scripts.
+
+### Removed
+
+- **`frontend/lib/schemas/`** — All 6 files deleted; superseded by `contracts/`.
+- **`frontend/lib/supabase/types.ts`** — DB row re-exports merged into `contracts/db.ts`; file deleted.
+- **`frontend/lib/supabase/{admin,client,server,storage}.ts`** — Moved to `infra/supabase/`.
+- **`frontend/lib/deepgram.ts`** — Moved to `infra/deepgram/index.ts`.
+- **`frontend/lib/inngest/client.ts`** — Moved to `infra/inngest/client.ts`.
+- **`frontend/lib/inngest/consolidation-service.ts`** — Moved to `core/transcript/consolidation-service.ts`.
+- **`frontend/lib/state-machine.ts`** — Moved to `core/transcription/machine.ts`.
+- **`frontend/lib/supabase/transition.ts`** — Moved to `core/transcription/transition.ts`.
+- **`frontend/lib/consolidation.ts`** — Moved to `core/transcript/consolidation.ts`.
+- **`frontend/lib/exports.ts`** + **`frontend/lib/exports/`** — Moved to `core/exports/`.
+- **`frontend/lib/rate-limit.ts`** — Moved to `core/limits/rate-limit.ts`.
+
 ## [2026-03-23] - Zod Schema Layer
 
 ### Added

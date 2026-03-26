@@ -2,14 +2,14 @@
 
 const transitionJobMock = jest.fn()
 
-jest.mock('@/lib/supabase/transition', () => ({
+jest.mock('@/core/transcription/transition', () => ({
   transitionJob: (...args: unknown[]) => transitionJobMock(...args),
   forceJobError: jest.fn(),
 }))
 
 const fromMock = jest.fn()
 
-jest.mock('@/lib/supabase/admin', () => {
+jest.mock('@/infra/supabase/admin', () => {
   return {
     createAdminClient: () => ({
       from: fromMock,

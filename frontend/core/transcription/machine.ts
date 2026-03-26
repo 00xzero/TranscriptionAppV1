@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import { JobStatusSchema, ProjectStatusSchema } from '@/lib/schemas/db'
+import { JobStatusSchema, ProjectStatusSchema } from '@/contracts/db'
 
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>

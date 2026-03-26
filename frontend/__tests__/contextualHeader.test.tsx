@@ -17,7 +17,7 @@ jest.mock('../lib/ModalContext', () => ({
   }),
 }))
 
-jest.mock('../lib/supabase/client', () => ({
+jest.mock('../infra/supabase/client', () => ({
   createClient: () => ({
     auth: {
       getUser: getUserMock,

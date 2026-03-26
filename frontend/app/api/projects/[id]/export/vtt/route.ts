@@ -7,9 +7,9 @@
  * Requires authentication via Supabase session.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { generateVtt, normalizeFilename } from '@/lib/exports'
-import { fetchExportData } from '@/lib/exports/data'
+import { createClient } from '@/infra/supabase/server'
+import { generateVtt, normalizeFilename } from '@/core/exports'
+import { fetchExportData } from '@/core/exports/data'
 
 export async function GET(
     request: NextRequest,

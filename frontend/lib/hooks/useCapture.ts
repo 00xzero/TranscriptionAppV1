@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_DISPLAY } from '@/lib/supabase/storage'
+import { createClient } from '@/infra/supabase/client'
+import { MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_DISPLAY } from '@/infra/supabase/storage'
 
 /**
  * Supported file types for upload.

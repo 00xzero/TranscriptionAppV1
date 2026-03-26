@@ -1,6 +1,6 @@
 /**
  * Supabase client for browser-side (Client Components).
- * 
+ *
  * Uses @supabase/ssr for cookie-based authentication.
  */
 import { createBrowserClient } from '@supabase/ssr'

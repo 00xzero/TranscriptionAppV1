@@ -10,7 +10,7 @@ import {
     msToVttTimestamp,
     normalizeFilename,
     generateVtt,
-} from '../lib/exports'
+} from '../core/exports'
 
 describe('formatDuration', () => {
     it('formats hours, minutes, and seconds', () => {

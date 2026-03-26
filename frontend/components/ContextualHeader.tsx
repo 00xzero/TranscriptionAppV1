@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/infra/supabase/client'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {

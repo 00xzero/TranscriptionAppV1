@@ -1,19 +1,19 @@
 /**
  * Consolidation Service for Inngest
- * 
+ *
  * Bridges the consolidation algorithm with Supabase database operations.
  * Fetches segments/words, runs consolidation, saves chunks/chunk_words.
- * 
+ *
  * Used by handleTranscriptionWebhook after storing Deepgram results.
  */
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/infra/supabase/admin";
 import {
     consolidateAndProcess,
     SegmentData,
     ProcessedChunk,
     DEFAULT_CONFIG,
-} from "@/lib/consolidation";
+} from "@/core/transcript/consolidation";
 
 // ============================================================================
 // Types
@@ -45,7 +45,7 @@ interface WordRow {
 /**
  * Fetch segments with their word IDs for consolidation.
  * Uses batched fetching to avoid URL length limits with large segment counts.
- * 
+ *
  * @param projectId - Project UUID
  * @returns Array of SegmentData ready for consolidation
  */
@@ -150,7 +150,7 @@ async function fetchSegmentsWithWords(projectId: string): Promise<SegmentData[]>
 /**
  * Save processed chunks and their word mappings to Supabase.
  * Uses a transactional RPC function to ensure atomicity.
- * 
+ *
  * @param projectId - Project UUID
  * @param chunks - Processed chunks from consolidation
  * @returns Number of chunk_words inserted
@@ -198,10 +198,10 @@ async function saveChunks(
 
 /**
  * Run consolidation pipeline for a project.
- * 
+ *
  * Fetches segments and words, runs consolidation algorithm,
  * saves chunks and chunk_words to Supabase.
- * 
+ *
  * @param projectId - Project UUID
  * @returns Consolidation statistics
  */

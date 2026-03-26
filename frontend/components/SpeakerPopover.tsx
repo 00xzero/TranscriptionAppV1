@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import type { Speaker } from '../lib/supabase/types'
+import type { Speaker } from '@/contracts/db'
 
 type SpeakerPopoverProps = {
   /** All speakers in the project */

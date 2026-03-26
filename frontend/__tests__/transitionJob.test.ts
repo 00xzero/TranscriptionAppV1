@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { transitionJob, forceJobError } from '@/lib/supabase/transition'
+import { transitionJob, forceJobError } from '@/core/transcription/transition'
 
 const VALID_JOB_ID = '11111111-1111-1111-1111-111111111111'
 

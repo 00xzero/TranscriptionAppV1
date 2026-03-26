@@ -2,8 +2,8 @@
  * Shared helpers for Inngest function handlers.
  */
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { forceJobError } from "@/lib/supabase/transition";
+import { createAdminClient } from "@/infra/supabase/admin";
+import { forceJobError } from "@/core/transcription/transition";
 
 export type TranscriptionFailurePayload = {
     error: string;
