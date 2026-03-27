@@ -7,7 +7,7 @@ export function useUserScrollDetection({
   isProgrammaticScrollActive,
   onUserScroll,
 }: {
-  containerRef: React.MutableRefObject<HTMLDivElement | null>
+  containerRef: React.RefObject<HTMLDivElement | null>
   disabled?: boolean
   isProgrammaticScrollActive: () => boolean
   onUserScroll: () => void

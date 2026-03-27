@@ -20,19 +20,26 @@
     "docx": "^9.6.1",
     "inngest": "^3.49.1",
     "next": "14.2.5",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-virtuoso": "^4.18.3",
     "zod": "^3.25.0"
   },
+  "overrides": {
+    "@supabase/auth-ui-react": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/react": "14.3.1",
+    "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "14.6.1",
     "@types/jest": "30.0.0",
     "@types/node": "20.11.30",
-    "@types/react": "18.2.66",
-    "@types/react-dom": "18.2.22",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "10.4.27",
     "baseline-browser-mapping": "^2.10.0",
     "identity-obj-proxy": "3.0.0",

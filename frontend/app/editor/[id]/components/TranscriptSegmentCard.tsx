@@ -81,7 +81,7 @@ export type TranscriptSegmentCardProps = {
   editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
   source: 'chunks' | 'segments'
-  textAreaRefs: React.MutableRefObject<Record<string, HTMLTextAreaElement | null>>
+  textAreaRefs: React.RefObject<Record<string, HTMLTextAreaElement | null>>
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
   onSpeakerClick: (e: React.MouseEvent, chunkId: string, speakerId: string | null) => void

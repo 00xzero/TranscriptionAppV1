@@ -8,9 +8,8 @@ export const rangeChangedMock = jest.fn()
  * Test mock for react-virtuoso. Renders all items directly without virtualization
  * so JSDOM tests can find segment-card elements.
  */
-export const Virtuoso = React.forwardRef(function VirtuosoMock(
-  { data, itemContent, rangeChanged, ...rest }: any,
-  ref: any
+export function Virtuoso(
+  { ref, data, itemContent, rangeChanged, ...rest }: any
 ) {
   React.useEffect(() => {
     const defaultRange = { startIndex: 0, endIndex: Math.max(0, (data?.length ?? 1) - 1) }
@@ -30,7 +29,7 @@ export const Virtuoso = React.forwardRef(function VirtuosoMock(
       ))}
     </div>
   )
-})
+}
 
 export type VirtuosoHandle = {
   scrollToIndex: (args: any) => void

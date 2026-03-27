@@ -26,7 +26,7 @@ export default function EditorHeader({
   editingTitle: boolean
   titleInput: string
   setTitleInput: (v: string) => void
-  titleInputRef: React.MutableRefObject<HTMLInputElement | null>
+  titleInputRef: React.RefObject<HTMLInputElement | null>
   titleSaveError: string | null
   startEditingTitle: () => void
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void

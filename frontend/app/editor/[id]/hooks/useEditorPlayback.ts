@@ -27,7 +27,7 @@ export function useEditorPlayback({
   onWordSeek: (segId: string) => void
   onSegmentSeek: (segId: string) => void
   setWaveformCollapsed: (collapsed: boolean) => void
-  transcriptScrollRef: React.MutableRefObject<HTMLDivElement | null>
+  transcriptScrollRef: React.RefObject<HTMLDivElement | null>
 }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const wasPlayingBeforeScrubRef = useRef(false)

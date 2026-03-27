@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import AudioPlayer from '../components/AudioPlayer'
+import AudioPlayer, { AudioPlayerRef } from '../components/AudioPlayer'
 import CollapsibleWaveform from '../components/CollapsibleWaveform'
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
@@ -271,7 +271,7 @@ describe('AudioPlayer', () => {
   })
 
   it('supports imperative fraction scrubs before metadata loads', () => {
-    const playerRef = React.createRef<React.ElementRef<typeof AudioPlayer>>()
+    const playerRef = React.createRef<AudioPlayerRef>()
     render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
 
     const slider = screen.getByRole('slider', { name: 'Audio progress' })
@@ -298,8 +298,20 @@ describe('AudioPlayer', () => {
     expect(screen.getByText('1:30')).toBeInTheDocument()
   })
 
+  it('exposes the imperative player handle to callback refs used by the editor', () => {
+    const callbackRef = jest.fn()
+
+    render(<AudioPlayer ref={callbackRef} src="test.mp3" hideControls />)
+
+    const player = callbackRef.mock.calls.find(([value]) => value)?.[0] as AudioPlayerRef | undefined
+
+    expect(player).toBeDefined()
+    expect(typeof player?.togglePlay).toBe('function')
+    expect(typeof player?.getDuration).toBe('function')
+  })
+
   it('lets a pre-ready scrub override an older queued imperative seek', () => {
-    const playerRef = React.createRef<React.ElementRef<typeof AudioPlayer>>()
+    const playerRef = React.createRef<AudioPlayerRef>()
     render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
 
     const slider = screen.getByRole('slider', { name: 'Audio progress' })
