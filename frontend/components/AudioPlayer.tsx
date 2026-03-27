@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
+import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
 
 /**
  * Lightweight audio player component using native HTMLAudioElement.
@@ -17,8 +17,6 @@ import React, { useCallback, useEffect, useRef, useState, useImperativeHandle } 
  */
 
 export interface AudioPlayerProps {
-  /** Imperative handle ref (React 19 ref-as-prop) */
-  ref?: React.Ref<AudioPlayerRef>
   /** URL of the audio file */
   src: string
   /** Called when audio is ready to play */
@@ -66,8 +64,7 @@ export interface AudioPlayerRef {
   getAudioElement: () => HTMLAudioElement | null
 }
 
-function AudioPlayer({
-  ref,
+const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioPlayer({
   src,
   onReady,
   onError,
@@ -81,7 +78,7 @@ function AudioPlayer({
   onDragEnd,
   onScrubPreview,
   onScrubPreviewFraction,
-}: AudioPlayerProps) {
+}: AudioPlayerProps, ref) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const progressRef = useRef<HTMLDivElement | null>(null)
   const [ready, setReady] = useState(false)
@@ -556,6 +553,6 @@ function AudioPlayer({
       )}
     </div>
   )
-}
+})
 
 export default AudioPlayer

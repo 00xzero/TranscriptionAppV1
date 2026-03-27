@@ -298,6 +298,18 @@ describe('AudioPlayer', () => {
     expect(screen.getByText('1:30')).toBeInTheDocument()
   })
 
+  it('exposes the imperative player handle to callback refs used by the editor', () => {
+    const callbackRef = jest.fn()
+
+    render(<AudioPlayer ref={callbackRef} src="test.mp3" hideControls />)
+
+    const player = callbackRef.mock.calls.find(([value]) => value)?.[0] as AudioPlayerRef | undefined
+
+    expect(player).toBeDefined()
+    expect(typeof player?.togglePlay).toBe('function')
+    expect(typeof player?.getDuration).toBe('function')
+  })
+
   it('lets a pre-ready scrub override an older queued imperative seek', () => {
     const playerRef = React.createRef<AudioPlayerRef>()
     render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
