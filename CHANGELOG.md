@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-27] - Tech Stack Upgrade: Phase 3 — React 19
+
+Upgraded the React ecosystem from 18.3.1 to 19.2.4, migrated all ref patterns to React 19 conventions, and aligned test infrastructure. No behavior changes.
+
+### Changed
+
+- **`react`** 18.3.1 → ^19.2.4
+- **`react-dom`** 18.3.1 → ^19.2.4
+- **`@types/react`** 18.2.66 → ^19.2.14
+- **`@types/react-dom`** 18.2.22 → ^19.2.3
+- **`@testing-library/react`** 14.3.1 → ^16.3.2 (React 19-compatible)
+- **`@testing-library/dom`** ^10.4.1 added (now an explicit peer dep)
+- **`package.json` overrides`** — added to force `@supabase/auth-ui-react` to resolve React 19 peers
+- **`React.MutableRefObject` → `React.RefObject`** in `EditorHeader`, `TranscriptList`, `TranscriptSegmentCard`, `useEditorPlayback`, `useUserScrollDetection` — React 19 unifies both types
+- **`__mocks__/react-virtuoso.tsx`** — `Virtuoso` converted from `forwardRef` wrapper to plain function with `ref` as a prop (React 19 refs-as-props model)
+- **`frontend/components/AudioPlayer.tsx`** — converted from anonymous arrow function to named function inside `forwardRef`; removed now-redundant `displayName` assignment
+- **`__mocks__/AudioPlayer.tsx`** — aligned to named function form for React 19 consistency
+
+### Fixed
+
+- **AudioPlayer callback-ref wiring** — imperative `AudioPlayerRef` handle is now delivered correctly to callback refs (used by the editor playback hook) under React 19's updated `forwardRef` semantics
+
+### Tests
+
+- **`frontend/__tests__/audioPlayer.test.tsx`** — updated ref types from `React.ElementRef<typeof AudioPlayer>` to the exported `AudioPlayerRef` type; added "exposes the imperative player handle to callback refs used by the editor" regression test
+
+---
+
 ## [2026-03-26] - Tech Stack Upgrade: Phase 2 — Jest 30
 
 Upgraded the test infrastructure from Jest 29 to Jest 30. Isolated to dev dependencies; no app code changes. All 25 suites / 288 tests remain green.
