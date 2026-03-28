@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import EditorPage from '../app/editor/[id]/page'
+import EditorScreen from '../app/editor/[id]/EditorScreen'
 import * as supabaseQueries from '../lib/supabase/queries'
 import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 
@@ -137,7 +137,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('opens Find/Replace via Cmd+F and via custom event', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -159,7 +159,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('reopens the waveform and scrolls to top via the header custom event', async () => {
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await collapseWaveform()
@@ -178,7 +178,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('supports debounced search, arrow navigation, whole-word filtering, and clear', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -211,7 +211,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await screen.findByTestId('audio-player')
     await screen.findByTestId('segment-card')
@@ -234,7 +234,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await screen.findByTestId('audio-player')
     await screen.findByTestId('segment-card')
@@ -255,7 +255,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     }>()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockReturnValueOnce(transcriptDeferred.promise)
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
@@ -279,7 +279,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('sets audio source but renders no segments when transcript fetch fails', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockRejectedValueOnce(new Error('DB timeout'))
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
@@ -295,7 +295,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       return makeJsonResponse('Not found', 404)
     }) as jest.Mock
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitFor(() => {
       expect(screen.getByText(/Error: Failed to fetch media URL: 500/)).toBeInTheDocument()
@@ -306,7 +306,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('renders segments normally when speakers fetch fails silently', async () => {
     ;(supabaseQueries.fetchSpeakers as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
@@ -315,7 +315,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('renders segments normally when project metadata fetch fails silently', async () => {
     ;(supabaseQueries.fetchProjectById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
@@ -327,7 +327,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitFor(() => {
       expect(screen.getByTestId('audio-player')).toHaveAttribute('data-src', 'http://example.com/audio.mp3')
@@ -339,7 +339,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('disables replace actions while search input is still debouncing', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -371,7 +371,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('uses Enter to commit new term first, then close on result selection', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -394,7 +394,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('keeps Find/Replace open on Enter when committed term has no matches', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -413,7 +413,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('replaces one match and then replaces all remaining matches', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await openFindReplaceModalWithShortcut()
@@ -440,7 +440,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('opens Export modal via custom event and closes with Escape', async () => {
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -456,7 +456,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('ignores Cmd+F while Export modal is open', async () => {
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -474,7 +474,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('auto-exits segment edit mode when opening Export', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -492,7 +492,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('does not open Export or prevent default for Ctrl+Alt+E while typing', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -522,7 +522,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('auto-exits segment edit mode when opening Find/Replace', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -540,7 +540,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('auto-closes speaker popover when opening Find/Replace', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -555,7 +555,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('persistent search does not steal edit-mode focus after follow is resumed', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -588,7 +588,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('search keeps the sync button visible after a manual scroll with no active segment', async () => {
     const user = userEventLib.setup()
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
 
@@ -622,7 +622,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('scrubbing while follow mode is active does not show the sync button', async () => {
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
 
     await waitForEditorContent()
     await collapseWaveform()
@@ -651,7 +651,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
     await waitForEditorContent()
     await collapseWaveform()
 
@@ -738,7 +738,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
     await waitForEditorContent()
     await collapseWaveform()
 
@@ -764,7 +764,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
     await waitForEditorContent()
     await collapseWaveform()
 
@@ -831,7 +831,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       source: 'chunks',
     })
 
-    render(<EditorPage params={{ id: 'p1' }} />)
+    render(<EditorScreen projectId="p1" />)
     await waitForEditorContent()
     await collapseWaveform()
 

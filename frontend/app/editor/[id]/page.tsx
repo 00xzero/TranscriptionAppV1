@@ -1,5 +1,6 @@
 import EditorScreen from './EditorScreen'
 
-export default function EditorPage({ params }: { params: { id: string } }) {
-  return <EditorScreen key={params.id} projectId={params.id} />
+export default async function EditorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  return <EditorScreen key={id} projectId={id} />
 }
