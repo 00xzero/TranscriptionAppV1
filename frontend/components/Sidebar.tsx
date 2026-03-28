@@ -35,6 +35,7 @@ interface SidebarProps {
 export default function Sidebar({ className = '' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
   const [user, setUser] = useState<User | null>(null)
@@ -56,6 +57,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   // Fetch user
   useEffect(() => {
+    if (isAuthRoute) {
+      setUser(null)
+      return
+    }
+
     const supabase = createClient()
     let isMounted = true
 
@@ -87,7 +93,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [isAuthRoute])
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed(prev => {
@@ -136,7 +142,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   }
 
   // Don't show sidebar on auth pages
-  if (pathname?.startsWith('/auth')) {
+  if (isAuthRoute) {
     return null
   }
 

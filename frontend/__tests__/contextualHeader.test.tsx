@@ -60,4 +60,13 @@ describe('ContextualHeader', () => {
     }))
     expect(button).toHaveTextContent('Project')
   })
+
+  test('does not query Supabase auth on auth routes', async () => {
+    usePathnameMock.mockReturnValue('/auth')
+
+    render(<ContextualHeader />)
+
+    expect(await screen.findByText('olivetti')).toBeInTheDocument()
+    expect(getUserMock).not.toHaveBeenCalled()
+  })
 })
