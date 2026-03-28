@@ -33,6 +33,18 @@ describe('resolveSupabaseCookieName', () => {
     ).toBe('sb-svzeffnmlqbdnjzhcgyx-auth-token')
   })
 
+  test('reuses the legacy hosted Supabase cookie when only chunked cookies are present', () => {
+    expect(
+      resolveSupabaseCookieName({
+        supabaseUrl,
+        availableCookies: [
+          { name: 'sb-svzeffnmlqbdnjzhcgyx-auth-token.0' },
+          { name: 'sb-svzeffnmlqbdnjzhcgyx-auth-token.1' },
+        ],
+      })
+    ).toBe('sb-svzeffnmlqbdnjzhcgyx-auth-token')
+  })
+
   test('falls back to the stable local cookie for new sessions', () => {
     expect(
       resolveSupabaseCookieName({

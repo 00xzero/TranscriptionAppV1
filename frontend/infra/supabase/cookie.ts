@@ -2,6 +2,18 @@ type CookieLike = { name: string }
 
 const DEFAULT_LOCAL_COOKIE_NAME = 'sb-local-auth-token'
 
+function hasCookieWithNameOrChunks(cookieNames: Set<string>, cookieName: string) {
+  if (cookieNames.has(cookieName)) return true
+
+  for (const existingCookieName of cookieNames) {
+    if (existingCookieName.startsWith(`${cookieName}.`)) {
+      return true
+    }
+  }
+
+  return false
+}
+
 function getCloudProjectRef(supabaseUrl: string): string | null {
   try {
     const hostname = new URL(supabaseUrl).hostname
@@ -30,12 +42,15 @@ export function resolveSupabaseCookieName(opts: {
 
   const cookieNames = new Set(availableCookies.map((cookie) => cookie.name))
 
-  if (cookieNames.has(DEFAULT_LOCAL_COOKIE_NAME)) {
+  if (hasCookieWithNameOrChunks(cookieNames, DEFAULT_LOCAL_COOKIE_NAME)) {
     return DEFAULT_LOCAL_COOKIE_NAME
   }
 
   const legacyCookieName = getLegacyCookieName(supabaseUrl)
-  if (legacyCookieName && cookieNames.has(legacyCookieName)) {
+  if (
+    legacyCookieName &&
+    hasCookieWithNameOrChunks(cookieNames, legacyCookieName)
+  ) {
     return legacyCookieName
   }
 
@@ -77,4 +92,3 @@ export function getServerSupabaseCookieName(
     availableCookies,
   })
 }
-
