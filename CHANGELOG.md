@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-29] - Tech Stack Upgrade: Phase 4 — Next.js 16
+
+Upgraded Next.js from 14.2.5 to 16.2.1, migrated to the ESLint flat-config format, hardened Supabase auth cookie resolution for chunked cookies and legacy cloud cookie names, and fixed spurious auth session warnings on the `/auth` page. No behavior changes to transcription or editor features.
+
+### Added
+
+- **`frontend/infra/supabase/cookie.ts`** — New shared cookie-resolution module. Exports `resolveSupabaseCookieName`, `getBrowserSupabaseCookieName`, and `getServerSupabaseCookieName`. Handles three cases in priority order: explicit `NEXT_PUBLIC_SUPABASE_COOKIE_NAME` env override → local `sb-local-auth-token` (with chunked-fragment detection) → legacy cloud `sb-{projectRef}-auth-token`.
+- **`frontend/eslint.config.mjs`** — New ESLint flat config (Next.js 16 ships with ESLint 9 flat-config support; replaces the implicit `.eslintrc` approach).
+
+### Changed
+
+- **`next`** 14.2.5 → 16.2.1
+- **`eslint-config-next`** → ^16.2.1 (version-aligned to Next.js)
+- **`eslint`** ^9.39.4 added as a dev dependency (ESLint 9 flat-config era)
+- **`engines.node`** set to `>=20.9.0` in `package.json` (Next.js 16 minimum)
+- **`lint` script** `next lint` → `eslint .` (flat-config compatible invocation)
+- **`frontend/next.config.mjs`** — Added `allowedDevOrigins` (Next.js 16 dev-server cross-origin restriction); auto-includes the `DEEPGRAM_CALLBACK_URL` host when set so webhook callbacks are not blocked in local Docker.
+- **`frontend/middleware.ts` → `frontend/proxy.ts`** — Renamed file and exported function (`middleware` → `proxy`); integrated `getServerSupabaseCookieName()` for consistent cookie resolution across request, client, and server paths.
+- **`frontend/infra/supabase/client.ts`** — Replaced hardcoded `NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'` fallback with `getBrowserSupabaseCookieName()`.
+- **`frontend/infra/supabase/server.ts`** — Replaced hardcoded cookie-name fallback with `getServerSupabaseCookieName(supabaseUrl, cookieStore.getAll())`.
+- **`frontend/components/ContextualHeader.tsx`** — Skips Supabase session fetch on auth routes to avoid spurious session-resolution warnings; `useEffect` dependency updated to `[isAuthRoute]`.
+- **`frontend/components/Sidebar.tsx`** — Early-returns from the user-fetch `useEffect` when on an auth route; `useEffect` dependency updated to `[isAuthRoute]`.
+
+### Fixed
+
+- **Chunked auth cookies**: Long Supabase sessions split into browser cookie chunks (`sb-local-auth-token.0`, `.1`, …) are now detected correctly — auth is no longer lost after large sessions.
+- **Auth session warning on `/auth`**: `ContextualHeader` and `Sidebar` no longer attempt to resolve a Supabase session on the auth page, eliminating spurious console warnings on first load.
+
+### Tests
+
+- **`frontend/__tests__/supabaseCookie.test.ts`** — New test file covering `resolveSupabaseCookieName`: explicit override, local cookie present, legacy cloud cookie, chunked-cookie detection, and default fallback.
+- **`frontend/__tests__/contextualHeader.test.tsx`** — Added coverage for auth-route session-skip behavior.
+- **`frontend/__tests__/editor.test.tsx`** — Updated to align with Next.js 16 / auth-flow changes.
+
+---
+
 ## [2026-03-27] - Tech Stack Upgrade: Phase 3 — React 19
 
 Upgraded the React ecosystem from 18.3.1 to 19.2.4, migrated all ref patterns to React 19 conventions, and aligned test infrastructure. No behavior changes.

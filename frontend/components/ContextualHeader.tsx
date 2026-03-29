@@ -16,6 +16,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
+  const isAuthRoute = pathname?.startsWith('/auth') ?? false
 
   // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
@@ -27,6 +28,12 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
   // Check authentication status
   // Create Supabase client inside useEffect to avoid SSR/hydration issues
   useEffect(() => {
+    if (isAuthRoute) {
+      setUser(null)
+      setIsLoading(false)
+      return
+    }
+
     const supabase = createClient()
     let isMounted = true
 
@@ -65,7 +72,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
       isMounted = false
       subscription.unsubscribe()
     }
-  }, [])
+  }, [isAuthRoute])
 
   return (
     <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">

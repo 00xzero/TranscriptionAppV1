@@ -4,17 +4,18 @@
  * Uses @supabase/ssr for cookie-based authentication.
  */
 import { createBrowserClient } from '@supabase/ssr'
+import { getBrowserSupabaseCookieName } from './cookie'
 
 export function createClient() {
-    const cookieName =
-        process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const cookieName = getBrowserSupabaseCookieName(supabaseUrl)
 
     return createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        supabaseUrl,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookieOptions: {
-                // Use consistent cookie name for local dev (different URLs for client/server in Docker)
+                // Reuse legacy cookies when present, otherwise keep a stable local name.
                 name: cookieName,
             }
         }

@@ -1,11 +1,12 @@
 /**
- * Next.js Middleware for Supabase Auth.
- * 
+ * Next.js Proxy for Supabase Auth.
+ *
  * - Refreshes auth tokens on every request
  * - Redirects unauthenticated users to /auth for protected routes
  */
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getServerSupabaseCookieName } from '@/infra/supabase/cookie'
 
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/projects', '/editor']
@@ -15,10 +16,8 @@ const AUTH_ROUTES = ['/auth']
 
 // Routes that should be excluded from auth redirect logic (callbacks, etc)
 const CALLBACK_ROUTES = ['/auth/callback']
-const SUPABASE_COOKIE_NAME =
-  process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -36,12 +35,17 @@ export async function middleware(request: NextRequest) {
   }
 
   if (missingEnvVars.length > 0) {
-    const message = `[middleware] Missing required Supabase environment variable(s): ${missingEnvVars.join(', ')}`
+    const message = `[proxy] Missing required Supabase environment variable(s): ${missingEnvVars.join(', ')}`
     console.error(message)
     throw new Error(message)
   }
+
   const validatedSupabaseUrl = supabaseUrl as string
   const validatedSupabaseAnonKey = supabaseAnonKey as string
+  const supabaseCookieName = getServerSupabaseCookieName(
+    validatedSupabaseUrl,
+    request.cookies.getAll()
+  )
 
   const supabase = createServerClient(
     validatedSupabaseUrl,
@@ -64,8 +68,8 @@ export async function middleware(request: NextRequest) {
         },
       },
       cookieOptions: {
-        // Use consistent cookie name for local dev (different URLs for client/server in Docker)
-        name: SUPABASE_COOKIE_NAME,
+        // Reuse legacy cookies when present, otherwise keep a stable local name.
+        name: supabaseCookieName,
       }
     }
   )
@@ -78,9 +82,6 @@ export async function middleware(request: NextRequest) {
 
   const redirectWithSupabaseResponse = (url: URL) => {
     const redirectResponse = NextResponse.redirect(url)
-    // Only forward cookies from the Supabase response. Copying headers from
-    // NextResponse.next() can leak internal x-middleware control headers onto
-    // redirects and interfere with redirect handling.
 
     for (const cookie of supabaseResponse.cookies.getAll()) {
       redirectResponse.cookies.set(cookie)
@@ -91,34 +92,28 @@ export async function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname
 
-  // Check if the path is protected
   const isProtectedRoute =
     path === '/' ||
     PROTECTED_ROUTES.some(route => path === route || path.startsWith(`${route}/`))
 
-  // Check if the path is an auth route
   const isAuthRoute = AUTH_ROUTES.some(route =>
     path === route || path.startsWith(`${route}/`)
   )
 
-  // Check if the path is a callback route (skip redirect logic)
   const isCallbackRoute = CALLBACK_ROUTES.some(route =>
     path === route || path.startsWith(`${route}/`)
   )
 
-  // Skip redirect logic for callback routes
   if (isCallbackRoute) {
     return supabaseResponse
   }
 
-  // Redirect unauthenticated users away from protected routes
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     return redirectWithSupabaseResponse(url)
   }
 
-  // Redirect authenticated users away from auth routes
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
@@ -130,13 +125,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

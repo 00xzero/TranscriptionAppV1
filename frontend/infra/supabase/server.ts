@@ -5,6 +5,7 @@
  */
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { getServerSupabaseCookieName } from './cookie'
 
 export async function createClient() {
     const cookieStore = await cookies()
@@ -16,8 +17,10 @@ export async function createClient() {
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     if (!supabaseAnonKey) throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
-    const cookieName =
-        process.env.NEXT_PUBLIC_SUPABASE_COOKIE_NAME || 'sb-local-auth-token'
+    const cookieName = getServerSupabaseCookieName(
+        supabaseUrl,
+        cookieStore.getAll()
+    )
 
     return createServerClient(
         supabaseUrl,
@@ -39,7 +42,7 @@ export async function createClient() {
                 },
             },
             cookieOptions: {
-                // Use consistent cookie name for local dev (different URLs for client/server in Docker)
+                // Reuse legacy cookies when present, otherwise keep a stable local name.
                 name: cookieName,
             }
         }

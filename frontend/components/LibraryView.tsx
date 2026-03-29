@@ -222,7 +222,7 @@ export default function LibraryView() {
             </div>
           ) : projects.length === 0 ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              No projects yet. Click "Capture" to start your first transcription.
+              No projects yet. Click &ldquo;Capture&rdquo; to start your first transcription.
             </div>
           ) : (
             projects.slice(0, 5).map((project) => {
