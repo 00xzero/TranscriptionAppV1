@@ -16,8 +16,17 @@ jest.mock('@/infra/inngest/client', () => {
   }
 })
 
+type SupabaseError = { code?: string; message: string } | null
+type ReceiptTakeoverRow = { id: string }
+type ReceiptState =
+  | { status: 'completed' | 'processing' | 'failed'; attempt_id: string; claimed_at: string }
+  | { status: 'completed' | 'processing' | 'failed' }
+type ReceiptInsertResult = { error: SupabaseError }
+type ReceiptUpdateResult = { data: ReceiptTakeoverRow[] | null; error: SupabaseError }
+type ReceiptSingleResult = { data: ReceiptState | null; error: SupabaseError }
+
 const updateEqMock = jest.fn(async (_column: string, _value: string) => ({ error: null }))
-const updateMock = jest.fn((_values: unknown) => ({
+const updateMock = jest.fn((_values: Record<string, unknown>) => ({
   eq: updateEqMock,
 }))
 const insertMock = jest.fn(async () => ({ error: null }))
@@ -34,18 +43,26 @@ const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobEr
 
 // Thenable chain for receipt updates — supports .eq()/.neq()/.select() chaining;
 // the chain itself is awaitable and delegates to receiptUpdateTerminal
-const receiptUpdateTerminal = jest.fn(async () => ({ data: null, error: null }))
+const receiptUpdateTerminal = jest.fn(
+  async (): Promise<ReceiptUpdateResult> => ({ data: null, error: null })
+)
 const receiptUpdateChain: any = {
   eq:     jest.fn(() => receiptUpdateChain),
   neq:    jest.fn(() => receiptUpdateChain),
   select: jest.fn(() => receiptUpdateChain),
   then:   (resolve: any, reject: any) => receiptUpdateTerminal().then(resolve, reject),
 }
-const receiptUpdateMock = jest.fn(() => receiptUpdateChain)
+const receiptUpdateMock = jest.fn(
+  (_values: Record<string, unknown>) => receiptUpdateChain
+)
 
-const receiptInsertMock = jest.fn(async () => ({ error: null }))
+const receiptInsertMock = jest.fn(
+  async (): Promise<ReceiptInsertResult> => ({ error: null })
+)
 
-const receiptSingleMock = jest.fn()
+const receiptSingleMock = jest.fn(
+  async (): Promise<ReceiptSingleResult> => ({ data: null, error: null })
+)
 const receiptSelectChain: any = {
   eq:     jest.fn(() => receiptSelectChain),
   single: receiptSingleMock,
