@@ -3,14 +3,13 @@ type CookieLike = { name: string }
 const DEFAULT_LOCAL_COOKIE_NAME = 'sb-local-auth-token'
 
 function hasCookieWithNameOrChunks(
-  cookieNames: Iterable<string>,
+  cookieNames: Set<string>,
   cookieName: string,
 ) {
+  if (cookieNames.has(cookieName)) return true
+
   for (const existingCookieName of cookieNames) {
-    if (
-      existingCookieName === cookieName ||
-      existingCookieName.startsWith(`${cookieName}.`)
-    ) {
+    if (existingCookieName.startsWith(`${cookieName}.`)) {
       return true
     }
   }

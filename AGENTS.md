@@ -45,6 +45,9 @@ Use this to login to the app as a test user:
 email address: ui5nvlw97q@mkzaso.com
 password: 4qdGNrheWHR25Js
 
+## Known Issues
+- **TypeScript 6 / typescript-eslint mismatch (issue #54):** The project compiles with TypeScript 6.0.2, but `typescript-eslint@8.57.2` only supports `typescript <6.0.0`. npm nests a separate TS 5.9.3 for the ESLint toolchain. Lint passes but type-aware lint rules run against TS 5.9.3, not 6.0.2. Do not rely on lint alone to validate TS 6-specific features. Update `typescript-eslint` once a TS 6-compatible version ships.
+
 ## Coding Style & Naming Conventions
 - TypeScript/React: 2-space indentation, PascalCase components, and Tailwind CSS utilities for styling.
 - Python (legacy only): 4-space indentation, snake_case functions/variables, type hints in Pydantic models.
