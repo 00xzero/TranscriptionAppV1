@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-29] - Tech Stack Upgrade: Phase 5 — TypeScript 6 + ES2025 Baseline
+
+Upgraded TypeScript from 5.9.3 to 6.0.2 and modernized the compiler target from `es5` to `es2025`. Resolves the `Set` iteration build error introduced in Phase 4 and removes legacy ES5 workarounds. No runtime behavior changes.
+
+### Changed
+
+- **`typescript`** 5.9.3 → 6.0.2
+- **`@types/node`** 20.11.30 → 20.19.37
+- **`frontend/tsconfig.json`** — `target` changed from `es5` to `es2025`; removed redundant `baseUrl` option.
+- **`frontend/infra/supabase/cookie.ts`** — `hasCookieWithNameOrChunks` now accepts `Iterable<string>` instead of `Set<string>`; unified equality and prefix check into a single loop.
+- **`frontend/core/limits/rate-limit.ts`** — Replaced `Array.from()` ES5 workaround with direct `for...of` iteration on the Map.
+
+### Fixed
+
+- **Build failure from Phase 4**: `for...of` on a `Set` in `cookie.ts` no longer triggers TS2802 — the `es2025` target makes `Set` iteration native.
+
+### Tests
+
+- **`frontend/__tests__/deepgramWebhook.test.ts`** — Added explicit return types and parameter types to mock functions to satisfy TypeScript 6's stricter inference.
+- **`frontend/__tests__/editor/useTranscriptMutations.test.ts`** — Removed unused `makeSeg` helper and `Seg` import.
+
+---
+
 ## [2026-03-29] - Tech Stack Upgrade: Phase 4 — Next.js 16
 
 Upgraded Next.js from 14.2.5 to 16.2.1, migrated to the ESLint flat-config format, hardened Supabase auth cookie resolution for chunked cookies and legacy cloud cookie names, and fixed spurious auth session warnings on the `/auth` page. No behavior changes to transcription or editor features.

@@ -1,25 +1,10 @@
 import { renderHook, act } from '@testing-library/react'
 import { useTranscriptMutations } from '../../app/editor/[id]/hooks/useTranscriptMutations'
-import type { Seg } from '../../app/editor/[id]/types'
 
 const mockUpdateChunk = jest.fn().mockResolvedValue(undefined)
 jest.mock('@/lib/supabase/queries', () => ({
   updateChunk: (...args: unknown[]) => mockUpdateChunk(...args),
 }))
-
-function makeSeg(overrides: Partial<Seg> = {}): Seg {
-  return {
-    id: 'seg-1',
-    project_id: 'proj-1',
-    speaker_id: 'spk-1',
-    text: 'hello world',
-    start_ms: 0,
-    end_ms: 3000,
-    index: 0,
-    created_at: '2024-01-01T00:00:00Z',
-    ...overrides,
-  } as Seg
-}
 
 describe('useTranscriptMutations', () => {
   beforeEach(() => {

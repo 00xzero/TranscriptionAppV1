@@ -78,6 +78,10 @@ Tailwind with custom tokens in `tailwind.config.ts`. Colors: `paper`, `ink`, `wa
 
 Jest + React Testing Library. Tests in `frontend/__tests__/`, mocks in `frontend/__mocks__/`.
 
+## Known Issues
+
+- **TypeScript 6 / typescript-eslint mismatch (issue #54):** The project compiles with TypeScript 6.0.2, but `typescript-eslint@8.57.2` only supports `typescript <6.0.0`. npm resolves this by nesting a separate TS 5.9.3 for the ESLint toolchain. Lint passes but type-aware lint rules run against TS 5.9.3, not 6.0.2. Do not rely on lint alone to validate TS 6-specific features. Update `typescript-eslint` once a TS 6-compatible version ships.
+
 ## Key Conventions
 
 - TypeScript strict mode — no `any` without justification
