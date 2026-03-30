@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { UuidSchema } from './primitives'
 
 export const DeepgramWordSchema = z.object({
   word: z.string(),
@@ -31,7 +32,7 @@ export const DeepgramWebhookPayloadSchema = z.object({
     models: z.array(z.string()).optional(),
     // extra is validated structurally: project_id must be a UUID when present
     extra: z.object({
-      project_id: z.string().uuid().optional(),
+      project_id: UuidSchema.optional(),
     }).catchall(z.string().optional()).optional(),
   }).optional(),
   results: z.object({
@@ -50,9 +51,9 @@ export const DeepgramWebhookPayloadSchema = z.object({
 export const WebhookReceiptInsertSchema = z.object({
   provider: z.literal('deepgram'),
   request_id: z.string().min(1),
-  project_id: z.string().uuid().nullable().optional(),
+  project_id: UuidSchema.nullable().optional(),
   status: z.enum(['processing', 'completed', 'failed']).optional(),
-  attempt_id: z.string().uuid(),
+  attempt_id: UuidSchema,
   claimed_at: z.string(),
   processed_at: z.string().nullable().optional(),
   last_error: z.string().nullable().optional(),

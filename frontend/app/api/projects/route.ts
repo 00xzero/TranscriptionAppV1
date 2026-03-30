@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         const parsed = CreateProjectBodySchema.safeParse(await request.json())
         if (!parsed.success) {
             return NextResponse.json(
-                { error: parsed.error.issues[0].message },
+                { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
                 { status: 400 }
             )
         }

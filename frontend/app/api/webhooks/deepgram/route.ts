@@ -22,8 +22,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/infra/supabase/admin";
-import { z } from "zod";
 import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
+import { UuidSchema } from "@/contracts/primitives";
 import { handleDeepgramWebhook, persistWebhookFailure } from "@/core/transcription/webhook";
 
 // Tell Vercel the maximum execution time — must match RECEIPT_LEASE_MS (Pro/Enterprise only)
@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
 
     if (!payloadParsed.success) {
       const partialRequestId = typeof rawPayload?.metadata?.request_id === 'string' ? rawPayload.metadata.request_id : undefined;
-      const partialProjectId = z.string().uuid().safeParse(rawPayload?.metadata?.extra?.project_id).data;
-      console.warn("[deepgram-webhook] Malformed payload:", payloadParsed.error.issues[0]?.message);
+      const partialProjectId = UuidSchema.safeParse(rawPayload?.metadata?.extra?.project_id).data;
+      console.warn("[deepgram-webhook] Malformed payload:", payloadParsed.error.issues[0]?.message ?? "Invalid input");
       const supabase = createAdminClient();
       await persistWebhookFailure({ supabase, projectId: partialProjectId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });

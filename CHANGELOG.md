@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-30] - Tech Stack Upgrade: Phase 6 — Zod 4
+
+Upgraded Zod from 3.25.0 to 4.3.6 and adapted the schema layer to preserve the app's existing validation behavior under Zod 4. This branch introduces a shared UUID primitive to keep the project's legacy UUID-shape acceptance, updates `z.record()` usage for Zod 4 compatibility, and hardens first-error access at validation boundaries. No intended route-contract or domain-type changes.
+
+### Added
+
+- **`frontend/contracts/primitives.ts`** — New shared validation primitives module. Exports `UuidSchema` and `uuidString()` to preserve the project's existing UUID-shape validation semantics after Zod 4 tightened `z.string().uuid()`.
+
+### Changed
+
+- **`zod`** 3.25.0 → 4.3.6
+- **`frontend/contracts/db.ts`** — Replaced direct `z.string().uuid()` usage with the shared UUID primitive across DB row and mutation schemas so existing project/job/speaker/segment identifiers continue to validate as before.
+- **`frontend/contracts/webhook.ts`** — Switched webhook `project_id` and receipt `attempt_id` validation to the shared UUID primitive to keep Deepgram payload parsing behavior stable under Zod 4.
+- **`frontend/contracts/events.ts`** — Updated event payload schemas to use the shared UUID primitive for `projectId`, `jobId`, and `userId`.
+- **`frontend/contracts/state-machine.ts`** — Replaced `z.string().uuid('...')` with `uuidString('...')`; updated `z.record()` calls to the Zod 4-compatible two-argument form.
+- **`frontend/app/api/projects/route.ts`** — Validation failure response now safely falls back to `'Invalid input'` if Zod returns no first issue message.
+- **`frontend/app/api/webhooks/deepgram/route.ts`** — Partial `project_id` extraction now uses the shared UUID primitive; malformed-payload logging now safely falls back to `'Invalid input'`.
+- **`frontend/core/transcription/transition.ts`** — Invalid transition input now safely falls back to `'Invalid input'` when no first Zod issue message is present.
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** — Stored Deepgram payload validation errors now safely fall back to `'Invalid input'` in the thrown error message.
+- **`frontend/package-lock.json`** — Lockfile refreshed for Zod 4; `inngest` continues to resolve its own nested Zod 3 copy internally.
+
+### Tests
+
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm test -- --runInBand` (`26` suites / `295` tests passing)
+- **`frontend`** — `npm run build` remains blocked in this environment by `next/font` Google Fonts fetch failures, with no remaining code-level Zod or TypeScript errors
+
 ## [2026-03-30] - Tech Stack Upgrade: Phase 5 — Tailwind CSS 4
 
 Upgraded Tailwind CSS from 3.4.7 to 4.2.2 and migrated the frontend styling setup from the legacy JS config model to Tailwind v4's CSS-first theme system. This branch updates design-token wiring, PostCSS integration, and renamed utility classes across the app UI. No intended product behavior changes; this is a styling/tooling migration.
