@@ -134,7 +134,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const jobPayload = (jobRow as { payload: Record<string, unknown> | null }).payload;
             const responseParsed = DeepgramWebhookPayloadSchema.safeParse(jobPayload?.deepgram);
             if (!responseParsed.success) {
-                throw new Error(`Invalid Deepgram payload structure: ${responseParsed.error.issues[0]?.message}`);
+                throw new Error(`Invalid Deepgram payload structure: ${responseParsed.error.issues[0]?.message ?? 'Invalid input'}`);
             }
             const response = responseParsed.data;
 

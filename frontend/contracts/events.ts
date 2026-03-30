@@ -1,21 +1,22 @@
 import { z } from 'zod'
+import { UuidSchema } from './primitives'
 
 export const TranscriptionRequestedDataSchema = z.object({
-  projectId: z.string().uuid(),
-  jobId: z.string().uuid(),
-  userId: z.string().uuid(),
-  mediaUrl: z.string().url(),
+  projectId: UuidSchema,
+  jobId: UuidSchema,
+  userId: UuidSchema,
+  mediaUrl: z.url(),
   keyTerms: z.array(z.string()).optional(),
 })
 
 export const TranscriptionWebhookDataSchema = z.object({
   requestId: z.string(),
-  projectId: z.string().uuid(),
+  projectId: UuidSchema,
 })
 
 export const TranscriptionCompletedDataSchema = z.object({
-  projectId: z.string().uuid(),
-  jobId: z.string().uuid(),
+  projectId: UuidSchema,
+  jobId: UuidSchema,
   duration: z.number(),
   chunkCount: z.number().optional(),
   chunkWordCount: z.number().optional(),
@@ -24,8 +25,8 @@ export const TranscriptionCompletedDataSchema = z.object({
 })
 
 export const TranscriptionFailedDataSchema = z.object({
-  projectId: z.string().uuid(),
-  jobId: z.string().uuid(),
+  projectId: UuidSchema,
+  jobId: UuidSchema,
   error: z.string(),
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })

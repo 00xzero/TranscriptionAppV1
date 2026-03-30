@@ -32,7 +32,7 @@ export async function transitionJob(opts: {
     context: opts.context,
   })
   if (!parsed.success) {
-    return { outcome: 'invalid' as const, error: parsed.error.issues[0].message }
+    return { outcome: 'invalid' as const, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
   }
 
   const { supabase, jobId, to, extraJobFields, metadata, context } = opts;
