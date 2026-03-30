@@ -151,11 +151,11 @@ export default function LibraryView() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Sample Project Cards (Placeholder per Olivetti spec) */}
-          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-sm hover:shadow-elevation hover:-translate-y-1 transition-all duration-300">
+          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300">
             <div className="absolute -top-2.5 left-4 w-16 h-4 bg-warm-highlight dark:bg-[#3A3025] rounded-t-sm border-t border-l border-r border-[#D1CEC5] dark:border-night-border z-0" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-3">
-                <span className="font-mono text-[10px] text-trust-blue bg-trust-blue/5 dark:bg-trust-blue/10 px-1.5 py-0.5 rounded border border-trust-blue/10 dark:border-trust-blue/20">ACTIVE</span>
+                <span className="font-mono text-[10px] text-trust-blue bg-trust-blue/5 dark:bg-trust-blue/10 px-1.5 py-0.5 rounded-sm border border-trust-blue/10 dark:border-trust-blue/20">ACTIVE</span>
                 <span className="font-mono text-xs text-ink/40 dark:text-paper/40">2h ago</span>
               </div>
               <h3 className="font-serif text-xl italic text-ink dark:text-paper mb-1 group-hover:text-trust-blue transition-colors">The Sonic Archives</h3>
@@ -167,11 +167,11 @@ export default function LibraryView() {
           </div>
 
           {/* Second Sample Card */}
-          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-sm hover:shadow-elevation hover:-translate-y-1 transition-all duration-300 opacity-80 hover:opacity-100">
+          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300 opacity-80 hover:opacity-100">
             <div className="absolute -top-2.5 left-4 w-16 h-4 bg-[#D1CEC5] dark:bg-[#333] rounded-t-sm border-t border-l border-r border-[#D1CEC5] dark:border-night-border z-0" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-3">
-                <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 bg-ink/5 dark:bg-paper/10 px-1.5 py-0.5 rounded border border-ink/10 dark:border-paper/20">FILED</span>
+                <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 bg-ink/5 dark:bg-paper/10 px-1.5 py-0.5 rounded-sm border border-ink/10 dark:border-paper/20">FILED</span>
                 <span className="font-mono text-xs text-ink/40 dark:text-paper/40">Yesterday</span>
               </div>
               <h3 className="font-serif text-xl italic text-ink dark:text-paper mb-1">Product Roadmap</h3>
@@ -200,7 +200,7 @@ export default function LibraryView() {
         </div>
 
         {deleteError && (
-          <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+          <div className="mb-3 rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
             <div className="flex items-center justify-between gap-3">
               <span>{deleteError}</span>
               <button
@@ -215,7 +215,7 @@ export default function LibraryView() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-night-surface rounded border border-[#D1CEC5] dark:border-night-border divide-y divide-[#D1CEC5] dark:divide-night-border">
+        <div className="bg-white dark:bg-night-surface rounded-sm border border-[#D1CEC5] dark:border-night-border divide-y divide-[#D1CEC5] dark:divide-night-border">
           {isLoading ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
               Loading projects...
@@ -241,7 +241,7 @@ export default function LibraryView() {
                     title={isCompleted(project.status) ? `Open ${project.title || 'Untitled'}` : `Open project list for ${project.title || 'Untitled'}`}
                     className="flex items-center gap-4 flex-1 cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 flex-shrink-0">
+                    <div className="w-10 h-10 rounded-sm bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 shrink-0">
                       <span className="font-mono text-lg">¶</span>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -250,7 +250,7 @@ export default function LibraryView() {
                           {project.title || 'Untitled'}
                         </h4>
                         {statusBadge && (
-                          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded border ${statusBadge.className}`}>
+                          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${statusBadge.className}`}>
                             {statusBadge.label}
                           </span>
                         )}

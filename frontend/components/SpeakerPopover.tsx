@@ -245,7 +245,7 @@ export default function SpeakerPopover({
                 tabIndex={isEditing ? -1 : 0}
                 aria-label={isCurrentSp ? `Current speaker ${sp.label}. Activate to rename` : `Assign speaker ${sp.label}`}
                 title={isCurrentSp ? `Rename ${sp.label}` : `Assign ${sp.label}`}
-                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
+                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
                   }`}
                 onClick={() => !isEditing && handleSpeakerClick(sp)}
                 onKeyDown={e => {
@@ -267,7 +267,7 @@ export default function SpeakerPopover({
                 {isEditing ? (
                   <input
                     type="text"
-                    className="flex-1 px-2 py-1 text-sm border border-base rounded bg-surface"
+                    className="flex-1 px-2 py-1 text-sm border border-base rounded-sm bg-surface"
                     value={editValue}
                     onChange={e => setEditValue(e.target.value)}
                     onBlur={() => handleRenameSubmit(sp)}
@@ -282,7 +282,7 @@ export default function SpeakerPopover({
 
                 {/* Current indicator or edit hint */}
                 {isCurrentSp && !isEditing && (
-                  <span className="text-[10px] text-muted bg-surface-alt px-2 py-0.5 rounded">
+                  <span className="text-[10px] text-muted bg-surface-alt px-2 py-0.5 rounded-sm">
                     Click to rename
                   </span>
                 )}
@@ -298,7 +298,7 @@ export default function SpeakerPopover({
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 px-3 py-1.5 text-sm border border-base rounded bg-surface placeholder:text-muted"
+            className="flex-1 px-3 py-1.5 text-sm border border-base rounded-sm bg-surface placeholder:text-muted"
             placeholder="Type speaker's name here"
             value={searchValue}
             onChange={e => setSearchValue(e.target.value)}
@@ -307,7 +307,7 @@ export default function SpeakerPopover({
           />
           <button
             type="button"
-            className="px-3 py-1.5 text-sm font-medium rounded bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm font-medium rounded-sm bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={!searchValue.trim()}
             onClick={handleTagClick}
             title="Tag speaker"

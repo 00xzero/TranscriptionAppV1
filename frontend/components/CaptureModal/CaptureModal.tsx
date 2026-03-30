@@ -67,10 +67,10 @@ export default function CaptureModal() {
   if (!isCaptureModalOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-100">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-paper/20 dark:bg-black/60 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-paper/20 dark:bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={isUploading ? undefined : closeCaptureModal}
       />
 
@@ -101,7 +101,7 @@ export default function CaptureModal() {
             aria-label="Close modal"
             title="Close (Esc)"
           >
-            <span className="text-[10px] font-mono opacity-40 border border-current px-1.5 py-0.5 rounded">ESC</span>
+            <span className="text-[10px] font-mono opacity-40 border border-current px-1.5 py-0.5 rounded-sm">ESC</span>
             <svg className="w-4 h-4 opacity-50 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>

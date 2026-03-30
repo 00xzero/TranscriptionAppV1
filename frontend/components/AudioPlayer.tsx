@@ -452,7 +452,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       {/* Progress bar container */}
       <div
         ref={progressRef}
-        className="relative h-12 bg-ink/10 dark:bg-paper/10 rounded cursor-pointer select-none"
+        className="relative h-12 bg-ink/10 dark:bg-paper/10 rounded-sm cursor-pointer select-none"
         onClick={handleProgressClick}
         onMouseDown={handleProgressMouseDown}
         role="slider"
@@ -465,7 +465,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
         onKeyDown={handleProgressKeyDown}
       >
         {/* Background track */}
-        <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded" />
+        <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded-sm" />
 
         {/* Progress fill */}
         <div
@@ -481,7 +481,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
 
         {/* Optional: Future waveform visualization slot (Option B ready) */}
         {peaks && peaks.length > 0 && (
-          <div className="absolute inset-0 overflow-hidden rounded">
+          <div className="absolute inset-0 overflow-hidden rounded-sm">
             {/* Placeholder for waveform rendering with pre-computed peaks */}
           </div>
         )}
@@ -498,7 +498,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="px-3 py-1.5 rounded bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
+            className="px-3 py-1.5 rounded-sm bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
             disabled={!ready}
             onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
             title={playing ? 'Pause' : 'Play'}
@@ -507,7 +507,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           </button>
           <button
             type="button"
-            className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+            className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
             onClick={() => {
               if (audioRef.current) {
                 audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
@@ -519,7 +519,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           </button>
           <button
             type="button"
-            className="px-3 py-1.5 rounded bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+            className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
             onClick={() => {
               if (audioRef.current && duration) {
                 audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
@@ -532,7 +532,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           <div className="ml-2 flex items-center gap-1">
             <label className="text-sm text-muted">Rate</label>
             <select
-              className="border border-base rounded px-2 py-1 text-sm bg-surface text-current focus:outline-none focus:ring-2 focus:ring-trust-blue/30"
+              className="border border-base rounded-sm px-2 py-1 text-sm bg-surface text-current focus:outline-hidden focus:ring-2 focus:ring-trust-blue/30"
               value={playbackRate}
               aria-label="Playback rate"
               title="Playback rate"

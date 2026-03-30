@@ -116,10 +116,10 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
   ]
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-100">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-paper/20 dark:bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-paper/20 dark:bg-black/60 backdrop-blur-xs"
         onClick={() => { if (!isExporting) onClose() }}
       />
 
@@ -186,7 +186,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
                     <div className="font-medium text-sm text-ink dark:text-paper flex items-center gap-2">
                       {fmt.label}
                       {fmt.disabled && (
-                        <span className="text-[9px] font-mono bg-ink/10 dark:bg-white/10 px-1.5 py-0.5 h-[17.5px] inline-flex items-center rounded text-ink/60 dark:text-white/60">
+                        <span className="text-[9px] font-mono bg-ink/10 dark:bg-white/10 px-1.5 py-0.5 h-[17.5px] inline-flex items-center rounded-sm text-ink/60 dark:text-white/60">
                           COMING SOON
                         </span>
                       )}

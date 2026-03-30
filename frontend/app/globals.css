@@ -1,6 +1,43 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-paper: #E4E1D9;
+  --color-ink: #1D1E18;
+  --color-warm-highlight: #FFE8D1;
+  --color-trust-blue: #4F638C;
+  --color-ember-red: #C73E1D;
+  --color-night-surface: #1D1E18;
+  --color-night-border: #333333;
+
+  --shadow-elevation: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+  --shadow-float: 0 20px 50px -10px rgba(0, 0, 0, 0.3);
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), "Inter", sans-serif;
+  --font-serif: var(--font-newsreader), "Newsreader", serif;
+  --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 html,
 body {
@@ -48,7 +85,7 @@ body {
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans), Inter, sans-serif;
+  font-family: var(--font-inter), "Inter", sans-serif;
 }
 
 /* Themed utility helpers */

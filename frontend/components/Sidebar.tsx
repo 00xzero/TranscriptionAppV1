@@ -149,7 +149,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   // SSR placeholder
   if (!mounted) {
     return (
-      <nav className={`w-16 md:w-64 bg-[#DFDCD4] dark:bg-night-surface border-r border-[#D1CEC5] dark:border-night-border flex-shrink-0 ${className}`} />
+      <nav className={`w-16 md:w-64 bg-[#DFDCD4] dark:bg-night-surface border-r border-[#D1CEC5] dark:border-night-border shrink-0 ${className}`} />
     )
   }
 
@@ -158,7 +158,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   return (
     <nav
       className={`
-        group/sidebar flex flex-col justify-between flex-shrink-0 z-20
+        group/sidebar flex flex-col justify-between shrink-0 z-20
         bg-[#DFDCD4] dark:bg-night-surface border-r border-[#D1CEC5] dark:border-night-border
         transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]
         ${isCollapsed ? 'w-16' : 'w-16 md:w-64'}
@@ -178,13 +178,13 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           type="button"
           aria-label="Go to home"
           title="Home"
-          className="flex items-center gap-3 text-left rounded bg-transparent border-0 p-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+          className="flex items-center gap-3 text-left rounded-sm bg-transparent border-0 p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
           onClick={() => navigateTo('/')}
         >
           {/* Logo Icon */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <div className="h-6 w-1 bg-ink dark:bg-paper rounded-full" />
-            <div className="h-2 w-2 bg-ember-red rounded-sm" />
+            <div className="h-2 w-2 bg-ember-red rounded-xs" />
           </div>
           {/* Wordmark - hidden when collapsed */}
           {!isCollapsed && (
@@ -197,7 +197,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         {/* Collapse Toggle Button - Desktop Only */}
         <button
           onClick={toggleCollapsed}
-          className="hidden md:flex items-center justify-center w-6 h-6 rounded hover:bg-ink/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+          className="hidden md:flex items-center justify-center w-6 h-6 rounded-sm hover:bg-ink/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
           title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
@@ -223,12 +223,12 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all overflow-hidden whitespace-nowrap
             ${isCollapsed ? 'justify-center' : 'md:justify-start'}
             ${isLibraryActive
-              ? 'bg-white/50 dark:bg-white/5 shadow-sm border border-[#D1CEC5] dark:border-night-border text-ink dark:text-paper'
+              ? 'bg-white/50 dark:bg-white/5 shadow-xs border border-[#D1CEC5] dark:border-night-border text-ink dark:text-paper'
               : 'hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70'
             }
           `}
         >
-          <span className="font-mono text-lg opacity-60 group-hover:opacity-100 flex-shrink-0">❖</span>
+          <span className="font-mono text-lg opacity-60 group-hover:opacity-100 shrink-0">❖</span>
           {!isCollapsed && (
             <span className="hidden md:block font-medium text-sm transition-opacity duration-200">Library</span>
           )}
@@ -246,7 +246,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           `}
           disabled
         >
-          <span className="font-mono text-lg opacity-60 flex-shrink-0">¶</span>
+          <span className="font-mono text-lg opacity-60 shrink-0">¶</span>
           {!isCollapsed && (
             <span className="hidden md:block font-medium text-sm transition-opacity duration-200">
               Drafts <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
@@ -266,7 +266,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           `}
           disabled
         >
-          <span className="font-mono text-lg opacity-60 flex-shrink-0">@</span>
+          <span className="font-mono text-lg opacity-60 shrink-0">@</span>
           {!isCollapsed && (
             <span className="hidden md:block font-medium text-sm transition-opacity duration-200">
               Shared <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
@@ -290,7 +290,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             `}
           >
             {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-ink dark:bg-paper text-paper dark:text-ink flex items-center justify-center font-mono text-xs flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-ink dark:bg-paper text-paper dark:text-ink flex items-center justify-center font-mono text-xs shrink-0">
               {getUserInitials()}
             </div>
             {/* User Info - hidden when collapsed */}
@@ -323,7 +323,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           `}
           title={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
         >
-          <span className="font-mono text-xs flex-shrink-0">
+          <span className="font-mono text-xs shrink-0">
             {theme === 'light' ? '☾' : '☀'}
           </span>
           {!isCollapsed && (

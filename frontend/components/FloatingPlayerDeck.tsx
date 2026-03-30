@@ -72,7 +72,7 @@ export default function FloatingPlayerDeck({
           <button
             type="button"
             onClick={onTogglePlay}
-            className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-sm"
+            className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-xs"
             aria-label={playing ? 'Pause' : 'Play'}
             title={playing ? 'Pause' : 'Play'}
           >

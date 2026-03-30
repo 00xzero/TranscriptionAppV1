@@ -134,7 +134,7 @@ export default function FileDropZone({
             <div className="text-center">
               <p className="text-sm font-medium text-ink/80 dark:text-white/80">Drop recording here</p>
               <p className="text-xs text-ink/40 dark:text-white/40 my-1">or</p>
-              <span className="text-xs font-mono border border-[#D1CEC5] dark:border-[#444] px-2 py-1 rounded bg-paper dark:bg-[#222]">Browse Files</span>
+              <span className="text-xs font-mono border border-[#D1CEC5] dark:border-[#444] px-2 py-1 rounded-sm bg-paper dark:bg-[#222]">Browse Files</span>
             </div>
           </>
         )}
