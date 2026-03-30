@@ -26,7 +26,7 @@ export const TranscriptionCompletedDataSchema = z.object({
 
 export const TranscriptionFailedDataSchema = z.object({
   projectId: UuidSchema,
-  jobId: UuidSchema,
+  jobId: UuidSchema.optional(),
   error: z.string(),
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })

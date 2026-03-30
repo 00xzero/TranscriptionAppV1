@@ -7,7 +7,7 @@
  * so job/project status is updated and users see the error.
  */
 
-import { inngest } from "@/infra/inngest/client";
+import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
 import {
@@ -15,6 +15,7 @@ import {
     getCallbackUrl,
     classifyError,
 } from "@/infra/deepgram";
+import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 // Configurable concurrency limit for Deepgram API calls
@@ -26,6 +27,7 @@ const DEEPGRAM_CONCURRENCY = parseInt(
 export const handleTranscriptionRequested = inngest.createFunction(
     {
         id: "handle-transcription-requested",
+        triggers: [{ event: transcriptionRequestedTrigger }],
         concurrency: {
             scope: "account",
             key: '"deepgram"', // Shared queue for Deepgram API calls
@@ -45,7 +47,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
 
             // Emit transcription/failed to update job/project status
             try {
-                await inngest.send({
+                await sendInngestEvent({
                     name: "transcription/failed",
                     data: {
                         projectId,
@@ -71,7 +73,6 @@ export const handleTranscriptionRequested = inngest.createFunction(
             }
         },
     },
-    { event: "transcription/requested" },
     async ({ event, step }) => {
         const { projectId, jobId, userId, mediaUrl, keyTerms } = event.data;
 

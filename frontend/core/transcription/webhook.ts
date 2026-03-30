@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { DeepgramWebhookPayload } from '@/contracts/webhook'
-import { inngest } from '@/infra/inngest/client'
+import { sendInngestEvent } from '@/infra/inngest/client'
 import { forceJobError } from '@/core/transcription/transition'
 import { randomUUID } from 'crypto'
 
@@ -256,7 +256,7 @@ export async function handleDeepgramWebhook(opts: {
 
     // Forward to Inngest for durable processing
     try {
-        await inngest.send({
+        await sendInngestEvent({
             name: 'transcription/webhook',
             data: { requestId, projectId },
         })

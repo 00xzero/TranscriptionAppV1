@@ -13,7 +13,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:ci": "jest --runInBand",
-    "inngest": "npx -y inngest-cli@latest dev"
+    "inngest": "npx --ignore-scripts=false inngest-cli@latest dev -u http://127.0.0.1:3000/api/inngest --no-discovery"
   },
   "dependencies": {
     "@supabase/auth-ui-react": "0.4.7",
@@ -21,7 +21,7 @@
     "@supabase/ssr": "0.9.0",
     "@supabase/supabase-js": "2.100.1",
     "docx": "^9.6.1",
-    "inngest": "^3.49.1",
+    "inngest": "^4.1.0",
     "next": "16.2.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -35,6 +35,7 @@
     }
   },
   "devDependencies": {
+    "@inngest/test": "^1.0.0",
     "@tailwindcss/postcss": "4.2.2",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "6.9.1",

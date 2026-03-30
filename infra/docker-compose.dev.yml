@@ -10,7 +10,7 @@
 services:
   inngest:
     image: inngest/inngest:v0.27.0
-    command: 'inngest dev -u http://host.docker.internal:3000/api/inngest'
+    command: 'inngest dev -u http://host.docker.internal:3000/api/inngest --no-discovery'
     ports:
       - '8288:8288'
     environment:
@@ -38,7 +38,7 @@ services:
       - /app/.next
       # Override .env.local with Docker-specific env to use local Supabase
       - ./.env.docker:/app/.env.local:ro
-    command: sh -c "npm install && npm run dev"
+    command: npm run dev
     depends_on:
       - inngest
     extra_hosts:

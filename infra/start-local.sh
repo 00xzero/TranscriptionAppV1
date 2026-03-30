@@ -81,7 +81,7 @@ fi
 
 # Step 3: Start Docker services
 echo -e "\n${YELLOW}[3/4] Starting Inngest + Frontend...${NC}"
-docker compose -f docker-compose.dev.yml up --build -d
+docker compose -f docker-compose.dev.yml up --build --renew-anon-volumes -d
 
 # Step 4: Start ngrok for Deepgram (required for transcription in Docker)
 echo -e "\n${YELLOW}[4/4] Starting ngrok tunnel (for Deepgram)...${NC}"

@@ -1,5 +1,7 @@
 /** @jest-environment node */
 
+import { InngestTestEngine } from '@inngest/test'
+
 const transitionJobMock = jest.fn()
 
 jest.mock('@/core/transcription/transition', () => ({
@@ -38,6 +40,23 @@ const payloadEqMock = jest.fn(() => ({ maybeSingle: payloadMaybeSingleMock }))
 const payloadSelectChain = {
   eq: payloadEqMock,
 }
+
+function getErrorMessage(error: unknown): string {
+  if (!error) return ''
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  if (typeof error === 'object' && error !== null) {
+    if ('message' in error && typeof error.message === 'string') return error.message
+    if ('error' in error && typeof error.error === 'string') return error.error
+    return JSON.stringify(error)
+  }
+  return String(error)
+}
+
+const scheduledEvent = {
+  name: 'inngest/scheduled.timer',
+  data: { cron: '*/10 * * * *' },
+} as const
 
 describe('Transcription timeouts', () => {
   beforeEach(() => {
@@ -87,14 +106,15 @@ describe('Transcription timeouts', () => {
     })
 
     transitionJobMock.mockResolvedValue({ outcome: 'applied' })
+    const engine = new InngestTestEngine({ function: handleTranscriptionTimeouts })
 
-    const handler = (handleTranscriptionTimeouts as any).fn
-    const step = {
-      run: jest.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
-    }
+    const { result } = await engine.execute({ events: [scheduledEvent] })
 
-    await handler({ step })
-
+    expect(result).toEqual(
+      expect.objectContaining({
+        timedOutJobs: 2,
+      })
+    )
     expect(transitionJobMock).toHaveBeenCalledTimes(2)
     expect(transitionJobMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -128,14 +148,9 @@ describe('Transcription timeouts', () => {
       .mockResolvedValueOnce({ data: [job1], error: null })
 
     transitionJobMock.mockResolvedValueOnce({ outcome: 'noop' })
+    const engine = new InngestTestEngine({ function: handleTranscriptionTimeouts })
 
-    const handler = (handleTranscriptionTimeouts as any).fn
-    const step = {
-      run: jest.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
-    }
-
-    // Should not throw — noop is handled gracefully
-    await handler({ step })
+    await engine.execute({ events: [scheduledEvent] })
 
     expect(transitionJobMock).toHaveBeenCalledTimes(1)
   })
@@ -159,20 +174,11 @@ describe('Transcription timeouts', () => {
       error: { message: 'payload fetch failed' },
     })
 
-    const handler = (handleTranscriptionTimeouts as any).fn
-    const step = {
-      run: jest.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
-    }
+    const engine = new InngestTestEngine({ function: handleTranscriptionTimeouts })
+    const { error } = await engine.execute({ events: [scheduledEvent] })
 
-    let caught: Error | null = null
-    try {
-      await handler({ step })
-    } catch (error) {
-      caught = error as Error
-    }
-
-    expect(caught).not.toBeNull()
-    expect(caught?.message).toContain('job-1')
-    expect(caught?.message).toContain('payload fetch failed')
+    expect(error).not.toBeNull()
+    expect(getErrorMessage(error)).toContain('job-1')
+    expect(getErrorMessage(error)).toContain('payload fetch failed')
   })
 })
