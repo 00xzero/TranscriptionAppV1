@@ -149,10 +149,10 @@ export default function FindReplaceModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-100">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-paper/20 dark:bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-paper/20 dark:bg-black/40 backdrop-blur-xs"
         onClick={onClose}
       />
 
@@ -174,7 +174,7 @@ export default function FindReplaceModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
-              className="flex-1 bg-transparent border-none text-base font-serif italic text-ink dark:text-paper placeholder-ink/30 dark:placeholder-paper/30 focus:outline-none focus:ring-0"
+              className="flex-1 bg-transparent border-none text-base font-serif italic text-ink dark:text-paper placeholder:text-ink/30 dark:placeholder:text-paper/30 focus:outline-hidden focus:ring-0"
               value={findInput}
               onChange={(e) => setFindInput(e.target.value)}
               onKeyDown={onFindKeyDown}
@@ -220,7 +220,7 @@ export default function FindReplaceModal({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
               <input
-                className="flex-1 bg-transparent border-none text-base font-serif italic text-ink dark:text-paper placeholder-ink/30 dark:placeholder-paper/30 focus:outline-none focus:ring-0"
+                className="flex-1 bg-transparent border-none text-base font-serif italic text-ink dark:text-paper placeholder:text-ink/30 dark:placeholder:text-paper/30 focus:outline-hidden focus:ring-0"
                 value={replaceTerm}
                 onChange={(e) => setReplaceTerm(e.target.value)}
                 placeholder="Replacement"
@@ -271,7 +271,7 @@ export default function FindReplaceModal({
                         }}
                       >
                         <span className="text-ink/60 dark:text-paper/50">{s.before}</span>
-                        <span className="bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white px-0.5 rounded">{s.highlight}</span>
+                        <span className="bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white px-0.5 rounded-sm">{s.highlight}</span>
                         <span className="text-ink/60 dark:text-paper/50">{s.after}</span>
                       </button>
                     )

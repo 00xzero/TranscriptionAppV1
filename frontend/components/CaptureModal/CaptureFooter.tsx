@@ -34,7 +34,7 @@ export default function CaptureFooter({
           onClick={onSubmit}
           disabled={!canSubmit}
           title={canSubmit ? 'Begin transcription' : 'Select a file to continue'}
-          className={`text-xs font-medium px-4 py-2 rounded shadow-sm transition-all active:scale-95 ${canSubmit
+          className={`text-xs font-medium px-4 py-2 rounded shadow-xs transition-all active:scale-95 ${canSubmit
             ? 'bg-[#4A2018] text-white/90 border border-[#5A2A20] hover:bg-[#5A2A20] hover:text-white'
             : 'bg-[#4A2018]/50 text-white/50 border border-[#5A2A20]/50 cursor-not-allowed'
             }`}

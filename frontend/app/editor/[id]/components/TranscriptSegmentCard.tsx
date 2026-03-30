@@ -34,7 +34,7 @@ function SegmentHeaderRow({
       {showSpeaker && onSpeakerClick && (
         <button
           type="button"
-          className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/40"
+          className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40"
           onClick={onSpeakerClick}
           aria-label={`Change speaker (${speakerLabel})`}
           title="Click to change speaker"
@@ -132,7 +132,7 @@ export default function TranscriptSegmentCard({
       aria-label={`Jump playback to ${msToTimestamp(s.start_ms)} for ${speakerLabel}`}
     >
       <div
-        className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-sm' : 'w-1 opacity-60'}`}
+        className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-xs' : 'w-1 opacity-60'}`}
         style={{ backgroundColor: avatarBg }}
       />
 
@@ -195,7 +195,7 @@ export default function TranscriptSegmentCard({
                   }
                   const highlight = wordText.slice(startIdx, endIdx)
                   pieces.push(
-                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
+                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline-solid outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
                   )
                   localPos = endIdx
                 })

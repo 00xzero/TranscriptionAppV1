@@ -21,7 +21,7 @@ export default function CaptureDetails({ title, setTitle, isUploading }: Capture
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g., Client Interview - January 2026"
           disabled={isUploading}
-          className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded px-3 py-2 text-sm focus:outline-none focus:border-trust-blue focus:bg-white dark:focus:bg-[#222] transition-colors placeholder-ink/30 dark:placeholder-white/20 disabled:opacity-50"
+          className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-trust-blue focus:bg-white dark:focus:bg-[#222] transition-colors placeholder:text-ink/30 dark:placeholder:text-white/20 disabled:opacity-50"
         />
       </div>
 
@@ -32,7 +32,7 @@ export default function CaptureDetails({ title, setTitle, isUploading }: Capture
         <div className="relative">
           <select
             id={languageSelectId}
-            className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded px-3 py-2 text-sm transition-colors appearance-none cursor-not-allowed opacity-60"
+            className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded-sm px-3 py-2 text-sm transition-colors appearance-none cursor-not-allowed opacity-60"
             disabled
           >
             <option>English (US)</option>

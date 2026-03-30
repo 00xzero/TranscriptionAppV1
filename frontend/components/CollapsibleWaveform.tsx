@@ -145,8 +145,8 @@ export default function CollapsibleWaveform({
       >
         <div className="relative pt-[56px] bg-paper dark:bg-black border-b border-ink/10 dark:border-white/10">
           {/* Gradient fades on edges */}
-          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-paper dark:from-black to-transparent z-10 pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-paper dark:from-black to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 left-0 w-8 bg-linear-to-r from-paper dark:from-black to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-8 bg-linear-to-l from-paper dark:from-black to-transparent z-10 pointer-events-none" />
 
           {/* Waveform content */}
           <div className="px-6 py-4">

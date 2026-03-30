@@ -206,7 +206,7 @@ function ProjectsPageContent() {
         </div>
       </div>
       {actionError && (
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <div className="flex items-center justify-between gap-3">
             <span>{actionError}</span>
             <button
@@ -224,7 +224,7 @@ function ProjectsPageContent() {
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
         >
           <div className="flex items-center justify-between gap-3">
             <span>
@@ -250,7 +250,7 @@ function ProjectsPageContent() {
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
 
           return (
-            <li key={p.id} className="bg-surface border border-base rounded p-3">
+            <li key={p.id} className="bg-surface border border-base rounded-sm p-3">
               <div className="flex justify-between items-center">
                 <div>
                   <div className="font-medium">{p.title || p.id}</div>
@@ -263,8 +263,8 @@ function ProjectsPageContent() {
                     const canTranscribe = !isCompleted && !isTranscribing && ['created', 'error'].includes(p.status)
                     const label = isCompleted ? 'Transcribed' : isTranscribing ? 'Transcribing...' : 'Transcribe'
                     const className = isCompleted
-                      ? 'px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50'
-                      : 'px-3 py-1.5 rounded bg-emerald-600 text-white disabled:opacity-50'
+                      ? 'px-3 py-1.5 rounded-sm bg-blue-600 text-white disabled:opacity-50'
+                      : 'px-3 py-1.5 rounded-sm bg-emerald-600 text-white disabled:opacity-50'
                     return (
                       <button
                         className={className}
@@ -278,7 +278,7 @@ function ProjectsPageContent() {
                   })()}
                   <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="accent hover:underline">Open</Link>
                   <button
-                    className="p-2 rounded bg-red-600 text-white hover:bg-red-700"
+                    className="p-2 rounded-sm bg-red-600 text-white hover:bg-red-700"
                     onClick={() => handleDeleteProject(p.id)}
                     title={`Delete ${p.title || p.id}`}
                     aria-label={`Delete project ${p.title || p.id}`}
@@ -292,9 +292,9 @@ function ProjectsPageContent() {
 
               {/* Error display */}
               {(errorInfo || errorLoadError) && (
-                <div className="mt-3 p-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                <div className="mt-3 p-3 rounded-sm bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                   <div className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5">
                       <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
                     </svg>
                     <div className="flex-1">

@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-30] - Tech Stack Upgrade: Phase 5 — Tailwind CSS 4
+
+Upgraded Tailwind CSS from 3.4.7 to 4.2.2 and migrated the frontend styling setup from the legacy JS config model to Tailwind v4's CSS-first theme system. This branch updates design-token wiring, PostCSS integration, and renamed utility classes across the app UI. No intended product behavior changes; this is a styling/tooling migration.
+
+### Added
+
+- **`.docs/TAILWIND_V4_PHASE_5_UPGRADE_PLAN.md`** — Tailwind v4 migration plan documenting the upgrade steps, token migration targets, and post-upgrade verification checklist.
+- **`@tailwindcss/postcss`** 4.2.2 added as a dev dependency for the Tailwind v4 PostCSS pipeline.
+
+### Changed
+
+- **`tailwindcss`** 3.4.7 → 4.2.2
+- **`frontend/postcss.config.js`** — Replaced the legacy `tailwindcss` + `autoprefixer` plugin chain with the Tailwind v4 `@tailwindcss/postcss` plugin.
+- **`frontend/app/globals.css`** — Replaced `@tailwind base/components/utilities` with `@import "tailwindcss"`; moved color, shadow, and font tokens into `@theme`; added the `@custom-variant dark` declaration and a base-layer border-color compatibility shim for the Tailwind v4 default border-color change.
+- **`frontend/app/layout.tsx`** — Renamed Next font CSS variables to `--font-inter`, `--font-newsreader`, and `--font-ibm-plex-mono` to align with the new `@theme inline` token wiring.
+- **Frontend UI components** — Updated Tailwind utility usage across auth, projects, editor, capture modal, library, sidebar, player, export, find/replace, and speaker popover surfaces to Tailwind v4-compatible class names and value syntax (for example `shadow-xs`, `rounded-xs`, `backdrop-blur-xs`, `bg-linear-to-*`, and `*(--var)` custom-property utilities).
+
+### Removed
+
+- **`autoprefixer`** — Removed from frontend dev dependencies because Tailwind v4 now bundles prefixing in the new pipeline.
+- **`frontend/tailwind.config.ts`** — Deleted in favor of CSS-defined theme tokens in `frontend/app/globals.css`.
+
+### Tests
+
+- **`frontend`** — `npm run lint`
+
 ## [2026-03-29] - Tech Stack Upgrade: Phase 5 — TypeScript 6 + ES2025 Baseline
 
 Upgraded TypeScript from 5.9.3 to 6.0.2 and modernized the compiler target from `es5` to `es2025`. Resolves the `Set` iteration build error introduced in Phase 4 and removes legacy ES5 workarounds. No runtime behavior changes.

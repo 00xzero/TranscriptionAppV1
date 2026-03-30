@@ -85,7 +85,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <div className="h-6 w-1 bg-ink dark:bg-paper rounded-full" />
-              <div className="h-2 w-2 bg-ember-red rounded-sm" />
+              <div className="h-2 w-2 bg-ember-red rounded-xs" />
             </div>
             <span className="font-serif text-2xl italic text-ink dark:text-paper tracking-tight">
               olivetti
@@ -121,7 +121,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
         <div className="flex items-center gap-2">
           {/* Export icon button */}
           <button
-            className="group w-[30px] h-[30px] rounded-[6px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 flex items-center justify-center hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-sm transition-all active:scale-95"
+            className="group w-[30px] h-[30px] rounded-[6px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 flex items-center justify-center hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-xs transition-all active:scale-95"
             onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
             title="Export"
             aria-label="Export"
@@ -143,7 +143,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
 
           {/* Find & Replace button */}
           <button
-            className="group box-border w-[172px] h-[30px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 rounded-[6px] flex items-center justify-between px-[13px] hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-sm shadow-sm transition-all active:scale-95"
+            className="group box-border w-[172px] h-[30px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 rounded-[6px] flex items-center justify-between px-[13px] hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-xs shadow-xs transition-all active:scale-95"
             onClick={() =>
               window.dispatchEvent(new CustomEvent('open-find-replace'))
             }
@@ -198,7 +198,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
               type="text"
               placeholder="Recall a decision..."
               aria-label="Recall a decision..."
-              className="bg-transparent border-none w-56 text-sm font-serif italic focus:outline-none focus:ring-0 placeholder-ink/30 dark:placeholder-paper/20 text-ink dark:text-paper"
+              className="bg-transparent border-none w-56 text-sm font-serif italic focus:outline-hidden focus:ring-0 placeholder:text-ink/30 dark:placeholder:text-paper/20 text-ink dark:text-paper"
             />
           </div>
 
@@ -207,7 +207,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
             onClick={openCaptureModal}
             aria-label="Open capture modal"
             title="Capture"
-            className="bg-ember-red text-white px-4 py-2 rounded shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
+            className="bg-ember-red text-white px-4 py-2 rounded-sm shadow-xs hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
           >
             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
             <span className="hidden md:inline">Capture</span>

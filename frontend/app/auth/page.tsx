@@ -45,16 +45,16 @@ export default function AuthPage() {
     <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-8 bg-transparent">
       <div
         data-auth-panel
-        className="w-full max-w-[420px] p-8 rounded-[14px] border border-[var(--border)] [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-[14px]"
+        className="w-full max-w-[420px] p-8 rounded-[14px] border border-(--border) [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-[14px]"
       >
         <div className="flex items-center justify-center gap-3 mb-2">
           <div className="flex items-center gap-1.5">
-            <div className="h-6 w-1 bg-[var(--text)] rounded-full"></div>
-            <div className="h-2 w-2 bg-[var(--brand-red)] rounded-sm"></div>
+            <div className="h-6 w-1 bg-(--text) rounded-full"></div>
+            <div className="h-2 w-2 bg-(--brand-red) rounded-xs"></div>
           </div>
-          <h1 className="text-[1.625rem] font-normal text-[var(--text)] font-serif italic tracking-[-0.02em]">olivetti</h1>
+          <h1 className="text-[1.625rem] font-normal text-(--text) font-serif italic tracking-[-0.02em]">olivetti</h1>
         </div>
-        <p className="text-[0.95rem] text-[var(--muted)] text-center mb-6">Sign in to continue</p>
+        <p className="text-[0.95rem] text-(--muted) text-center mb-6">Sign in to continue</p>
 
         <Auth
           supabaseClient={supabase}

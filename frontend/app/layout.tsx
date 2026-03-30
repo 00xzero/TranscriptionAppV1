@@ -8,7 +8,7 @@ import CaptureModal from '../components/CaptureModal'
 
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-inter',
   display: 'swap',
 })
 
@@ -16,14 +16,14 @@ const newsreader = Newsreader({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   style: ['normal', 'italic'],
-  variable: '--font-serif',
+  variable: '--font-newsreader',
   display: 'swap',
 })
 
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
-  variable: '--font-mono',
+  variable: '--font-ibm-plex-mono',
   display: 'swap',
 })
 
