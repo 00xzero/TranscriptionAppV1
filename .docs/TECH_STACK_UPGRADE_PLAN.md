@@ -129,15 +129,22 @@ Still open from the old Phase 8:
 
 ### What changes
 
-- `inngest` 3.49.1 -> 4.1.0
+- Declared dependency: `inngest` `^3.49.1` -> `^4.1.0`
+- Current installed baseline resolves to `3.52.7`, so `frontend/package-lock.json` will change too
 
 ### Real file paths to audit
 
+- `frontend/package.json`
+- `frontend/package-lock.json`
 - `frontend/infra/inngest/client.ts`
 - `frontend/lib/inngest/events.ts`
+- `frontend/contracts/events.ts`
 - `frontend/lib/inngest/functions/` (all files)
 - `frontend/app/api/inngest/route.ts`
 - `frontend/__tests__/inngestHandlers.test.ts`
+- `frontend/__tests__/transcriptionTimeouts.test.ts`
+- `README.md`
+- `frontend/.env.example`
 
 ### Expected work
 
@@ -150,16 +157,33 @@ npm install inngest@4.1.0
 
 2. Fix the client typing first:
 - Revisit `new EventSchemas().fromRecord<TranscriptionEvents>()` in `frontend/infra/inngest/client.ts`
-- Confirm the v4 event typing model still matches the current `TranscriptionEvents` definition in `frontend/lib/inngest/events.ts`
+- Replace the v3 event typing model with a v4-compatible event definition approach
+- Decide explicitly whether preserving typed `inngest.send()` is part of this phase or deferred as a follow-up tradeoff
 
 3. Fix function definitions next:
 - Audit every `inngest.createFunction(...)` call in `frontend/lib/inngest/functions/`
-- Re-check `step.run()`, `step.sleep()`, and `step.waitForEvent()` signatures
-- Keep existing event names unchanged unless the SDK forces a rename
+- Move triggers into the config object (`triggers`) and collapse each call from 3 args to 2
+- Keep existing event names unchanged
 
-4. Re-check the Next route integration:
+4. Fix the failure-event contract before enabling trigger-level schema validation:
+- The current webhook failure path can emit `transcription/failed` with `jobId = ""`
+- If `eventType(..., { schema })` is used for `transcription/failed`, that payload will fail UUID validation
+- Adjust the `transcription/failed` contract and send sites so unknown job IDs are represented intentionally, not as an empty string
+
+5. Re-check the Next route integration:
 - Verify `serve(...)` usage in `frontend/app/api/inngest/route.ts`
 - Confirm GET/POST/PUT exports remain correct under the new SDK
+
+6. Update local-dev guidance:
+- Inngest v4 defaults the SDK to cloud mode unless `INNGEST_DEV=1` or `isDev: true` is set
+- Docker local dev is already configured
+- Non-Docker local dev docs/templates must call out `INNGEST_DEV=1`
+
+### What does not need a planned refactor
+
+- `step.run()`, `step.sendEvent()`, `inngest.send()`, `serve()`, retries, and `onFailure` behavior should remain usable
+- `frontend/app/api/inngest/route.ts` is expected to stay structurally the same
+- The tests that reach into `.fn` and `.onFailureFn` may continue to pass, but these internals are not part of the public API and must be treated as validation watch items, not guaranteed no-change surfaces
 
 ### Validation
 
@@ -174,11 +198,14 @@ npm run build
 
 Then do local workflow verification:
 
-1. Run `npm run inngest`
-2. Run `cd infra && ./start-local.sh`
-3. Trigger a transcription end-to-end
-4. Confirm the Inngest dev dashboard shows no handler errors
-5. Confirm the Deepgram webhook -> job update -> transcript completion pipeline still finishes
+1. Ensure `frontend/.env.local` contains `INNGEST_DEV=1`
+2. Run `npm run inngest`
+3. Run `cd infra && ./start-local.sh`
+4. Run the frontend locally
+5. Trigger a transcription end-to-end
+6. Confirm the Inngest dev dashboard shows no handler errors
+7. Confirm the Deepgram webhook -> job update -> transcript completion pipeline still finishes
+8. Confirm the webhook failure path still reaches project/job error handling when no job ID can be resolved
 
 ### Done when
 
@@ -186,6 +213,9 @@ Then do local workflow verification:
 - `npx tsc --noEmit` passes
 - `npm test -- --runInBand` passes
 - `npm run build` is code-clean
+- `frontend/package-lock.json` matches the upgraded dependency tree
+- Non-Docker local dev docs/templates clearly mention `INNGEST_DEV=1`
+- The `transcription/failed` event contract is compatible with every current send path
 - End-to-end transcription succeeds locally
 
 ---
