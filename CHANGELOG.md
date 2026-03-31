@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-31] - Tech Stack Upgrade: Final Closure
+
+Closed out the remaining tech-stack upgrade items by finishing the `@types/node` follow-up, making the local transcription verification script repeatable and Deepgram-ready, and updating the upgrade-status docs to reflect the verified final state.
+
+### Changed
+
+- **`@types/node`** 20.19.37 → 25.5.0
+- **`frontend/package-lock.json`** — Lockfile refreshed for the Node type-definition upgrade.
+- **`frontend/scripts/test-e2e-transcription.ts`** — The script now accepts a project id from CLI arg first, then `TEST_PROJECT_ID`, then the historical sample id fallback; it also uses `getMediaUrlForDeepgram()` so local Docker verification exercises the same publicly routable media URL path as the app.
+- **`infra/start-local.sh`** — ngrok startup now uses a detached `nohup` launch and writes the current `DEEPGRAM_CALLBACK_URL` back into `infra/.env.docker` so local Docker verification stays aligned with the active tunnel.
+- **`.docs/TECH_STACK_UPGRADE_PLAN.md`** — Rewritten from a “remaining work” snapshot into a final-status document: Inngest 4 and `@types/node` are marked complete, the completion checklist is closed, and the build acceptance rule now treats restricted-environment Google Fonts fetch failures as a documented external caveat rather than an app-code regression.
+
+### Tests
+
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm test -- --runInBand` (`26` suites / `295` tests passing)
+- **`frontend`** — `npm test -- --runInBand __tests__/deepgramWebhook.test.ts __tests__/inngestHandlers.test.ts` (`2` suites / `25` tests passing)
+- **`frontend`** — `npm run build` remains blocked in this environment only by `next/font` Google Fonts fetch failures (`Inter`, `Newsreader`, `IBM Plex Mono`), with no new code-level build errors introduced by the final closure work
+- **`frontend` / `infra`** — `./start-local.sh` plus `npx tsx --env-file=../infra/.env.docker scripts/test-e2e-transcription.ts 72d98ea6-f082-44d7-b4d3-ad4082f30292` completed successfully, producing `278` segments, `146` chunks, `5537` chunk words, and `13` speakers in `scripts/test-output-72d98ea6-f082-44d7-b4d3-ad4082f30292.json`
+
 ## [2026-03-31] - Tech Stack Upgrade: Phase 7 — Inngest 4
 
 Upgraded the frontend Inngest integration from the v3 SDK line to Inngest 4.1.0, migrated function registration to the v4 trigger model, and tightened the failure-event contract so webhook and request failure paths still reach job or project error handling when no job ID can be resolved. This phase also refreshes local-development guidance so non-Docker work explicitly runs Inngest in dev mode.

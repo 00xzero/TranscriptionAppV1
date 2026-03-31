@@ -13,6 +13,22 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+upsert_env_var() {
+    local file="$1"
+    local key="$2"
+    local value="$3"
+
+    if grep -q "^${key}=" "$file"; then
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|^${key}=.*|${key}=${value}|g" "$file"
+        else
+            sed -i "s|^${key}=.*|${key}=${value}|g" "$file"
+        fi
+    else
+        echo "${key}=${value}" >> "$file"
+    fi
+}
+
 echo -e "${YELLOW}🚀 Starting Local Development Stack${NC}"
 echo "================================================"
 
@@ -79,36 +95,42 @@ if [ -f ".env.docker" ]; then
     fi
 fi
 
-# Step 3: Start Docker services
-echo -e "\n${YELLOW}[3/4] Starting Inngest + Frontend...${NC}"
-docker compose -f docker-compose.dev.yml up --build --renew-anon-volumes -d
-
-# Step 4: Start ngrok for Deepgram (required for transcription in Docker)
-echo -e "\n${YELLOW}[4/4] Starting ngrok tunnel (for Deepgram)...${NC}"
+# Step 3: Start ngrok for Deepgram (required for transcription in Docker)
+echo -e "\n${YELLOW}[3/4] Starting ngrok tunnel (for Deepgram)...${NC}"
 if command -v ngrok &> /dev/null; then
     # Kill any existing ngrok processes
     pkill -f ngrok 2>/dev/null || true
     sleep 1
     
-    # Start ngrok in background
-    ngrok http 3000 > /dev/null 2>&1 &
+    # Start ngrok detached so the tunnel survives after this script exits
+    nohup ngrok http 3000 </dev/null >/tmp/transcription-app-ngrok.log 2>&1 &
     NGROK_PID=$!
+    disown "$NGROK_PID" 2>/dev/null || true
     sleep 3
     
     # Get the ngrok URL
     NGROK_URL=$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null | grep -o '"public_url":"https://[^"]*"' | head -1 | cut -d'"' -f4)
     
     if [ -n "$NGROK_URL" ]; then
+        CALLBACK_URL="${NGROK_URL}/api/webhooks/deepgram"
+        if [ -f ".env.docker" ]; then
+            upsert_env_var ".env.docker" "DEEPGRAM_CALLBACK_URL" "$CALLBACK_URL"
+        fi
         echo -e "${GREEN}ngrok tunnel active: ${NGROK_URL}${NC}"
-        echo -e "${YELLOW}⚠️  Update .env.docker with:${NC}"
-        echo -e "   DEEPGRAM_CALLBACK_URL=${NGROK_URL}/api/webhooks/deepgram"
+        echo -e "${GREEN}Updated .env.docker with:${NC}"
+        echo -e "   DEEPGRAM_CALLBACK_URL=${CALLBACK_URL}"
     else
         echo -e "${YELLOW}⚠️  ngrok started but URL not detected. Check: http://localhost:4040${NC}"
+        echo -e "   Logs: /tmp/transcription-app-ngrok.log"
     fi
 else
     echo -e "${YELLOW}⚠️  ngrok not found. Install with: brew install ngrok${NC}"
     echo "   Transcription will not work without ngrok tunnel."
 fi
+
+# Step 4: Start Docker services after the callback URL is written
+echo -e "\n${YELLOW}[4/4] Starting Inngest + Frontend...${NC}"
+docker compose -f docker-compose.dev.yml up --build --renew-anon-volumes -d
 
 # Wait for services to be ready
 echo -e "\n${YELLOW}Waiting for services to start...${NC}"
