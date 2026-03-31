@@ -6,7 +6,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { inngest } from '@/infra/inngest/client'
+import { sendInngestEvent } from '@/infra/inngest/client'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
@@ -155,7 +155,7 @@ export async function startTranscription(opts: {
 
     // Send Inngest event
     try {
-        await inngest.send({
+        await sendInngestEvent({
             name: 'transcription/requested',
             data: {
                 projectId,

@@ -9,9 +9,11 @@ import { POST } from '../app/api/webhooks/deepgram/route'
 import { forceJobError } from '@/core/transcription/transition'
 
 jest.mock('@/infra/inngest/client', () => {
+  const sendInngestEvent = jest.fn(async () => undefined)
   return {
+    sendInngestEvent,
     inngest: {
-      send: jest.fn(async () => undefined),
+      send: sendInngestEvent,
     },
   }
 })
@@ -157,9 +159,9 @@ describe('Deepgram webhook route', () => {
     expect(updateEqMock).toHaveBeenCalledTimes(1)
     expect(updateEqMock).toHaveBeenCalledWith('id', 'job-1')
 
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).toHaveBeenCalledTimes(1)
-    expect((inngest.send as jest.Mock).mock.calls[0][0]).toEqual({
+    const { sendInngestEvent } = await import('@/infra/inngest/client')
+    expect(sendInngestEvent).toHaveBeenCalledTimes(1)
+    expect((sendInngestEvent as jest.Mock).mock.calls[0][0]).toEqual({
       name: 'transcription/webhook',
       data: {
         requestId: 'req-123',
@@ -177,8 +179,8 @@ describe('Deepgram webhook route', () => {
     const res = await POST(request)
     expect(res.status).toBe(401)
 
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
+    const { sendInngestEvent } = await import('@/infra/inngest/client')
+    expect(sendInngestEvent).not.toHaveBeenCalled()
     expect(updateMock).not.toHaveBeenCalled()
     expect(updateEqMock).not.toHaveBeenCalled()
   })

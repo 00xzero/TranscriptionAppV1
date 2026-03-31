@@ -18,6 +18,10 @@ const AUTH_ROUTES = ['/auth']
 const CALLBACK_ROUTES = ['/auth/callback']
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === '/api/inngest') {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })

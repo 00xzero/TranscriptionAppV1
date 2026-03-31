@@ -8,10 +8,14 @@ import { inngest } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
 import { classifyError } from "@/infra/deepgram";
+import { transcriptionFailedTrigger } from "@/lib/inngest/events";
 
 export const handleTranscriptionFailed = inngest.createFunction(
-    { id: "handle-transcription-failed", retries: 1 },
-    { event: "transcription/failed" },
+    {
+        id: "handle-transcription-failed",
+        triggers: [{ event: transcriptionFailedTrigger }],
+        retries: 1,
+    },
     async ({ event, step }) => {
         const { projectId, jobId: providedJobId, error, errorType } = event.data;
 

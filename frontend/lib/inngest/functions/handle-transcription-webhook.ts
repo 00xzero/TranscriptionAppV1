@@ -7,7 +7,7 @@
  * so the UI can surface the error to the user.
  */
 
-import { inngest } from "@/infra/inngest/client";
+import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
@@ -16,11 +16,13 @@ import {
     DeepgramUtterance,
 } from "@/infra/deepgram";
 import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
+import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
         id: "handle-transcription-webhook",
+        triggers: [{ event: transcriptionWebhookTrigger }],
         retries: 3,
         // Limit to 1 concurrent execution per project to prevent
         // interleaving of consolidation (which deletes and re-inserts chunks)
@@ -38,7 +40,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             console.error(`[inngest] Webhook handler failed for project ${projectId}:`, errorMessage);
 
             // Look up the job by requestId to get the real jobId
-            let jobId = "";
+            let jobId: string | undefined;
             try {
                 const supabase = createAdminClient();
                 const { data: job } = await supabase
@@ -57,11 +59,11 @@ export const handleTranscriptionWebhook = inngest.createFunction(
 
             // Emit transcription/failed to update job/project status
             try {
-                await inngest.send({
+                await sendInngestEvent({
                     name: "transcription/failed",
                     data: {
                         projectId,
-                        jobId,
+                        ...(jobId ? { jobId } : {}),
                         error: errorMessage,
                         errorType: "transcription_error",
                     },
@@ -83,7 +85,6 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             }
         },
     },
-    { event: "transcription/webhook" },
     async ({ event, step }) => {
         const { requestId, projectId } = event.data;
 

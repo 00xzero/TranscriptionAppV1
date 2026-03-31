@@ -5,12 +5,35 @@
  * Used for type-safe event handling in Inngest functions.
  */
 
+import { eventType } from 'inngest'
 import type {
     TranscriptionRequestedData,
     TranscriptionWebhookData,
     TranscriptionCompletedData,
     TranscriptionFailedData,
 } from '@/contracts/events'
+import {
+    TranscriptionRequestedDataSchema,
+    TranscriptionWebhookDataSchema,
+    TranscriptionCompletedDataSchema,
+    TranscriptionFailedDataSchema,
+} from '@/contracts/events'
+
+export const transcriptionRequestedTrigger = eventType("transcription/requested", {
+    schema: TranscriptionRequestedDataSchema,
+})
+
+export const transcriptionWebhookTrigger = eventType("transcription/webhook", {
+    schema: TranscriptionWebhookDataSchema,
+})
+
+export const transcriptionCompletedTrigger = eventType("transcription/completed", {
+    schema: TranscriptionCompletedDataSchema,
+})
+
+export const transcriptionFailedTrigger = eventType("transcription/failed", {
+    schema: TranscriptionFailedDataSchema,
+})
 
 export type TranscriptionEvents = {
     "transcription/requested": {

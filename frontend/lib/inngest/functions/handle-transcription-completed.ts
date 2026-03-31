@@ -7,10 +7,14 @@
 import { inngest } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
+import { transcriptionCompletedTrigger } from "@/lib/inngest/events";
 
 export const handleTranscriptionCompleted = inngest.createFunction(
-    { id: "handle-transcription-completed", retries: 3 },
-    { event: "transcription/completed" },
+    {
+        id: "handle-transcription-completed",
+        triggers: [{ event: transcriptionCompletedTrigger }],
+        retries: 3,
+    },
     async ({ event, step }) => {
         const { projectId, jobId, duration, consolidationError } = event.data;
 

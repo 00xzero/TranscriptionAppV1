@@ -87,6 +87,8 @@ npm install
 npm run dev
 ```
 
+Make sure `frontend/.env.local` includes `INNGEST_DEV=1`. Inngest v4 defaults to cloud mode unless dev mode is explicitly enabled for local work.
+
 In another terminal:
 
 ```bash
@@ -109,6 +111,7 @@ Use these templates:
 - Non-Docker frontend local: `frontend/.env.example` -> `frontend/.env.local`
 
 Commonly used vars:
+- `INNGEST_DEV=1` for non-Docker local development with Inngest v4
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`

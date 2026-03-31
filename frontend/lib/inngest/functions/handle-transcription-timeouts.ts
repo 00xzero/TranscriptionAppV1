@@ -3,6 +3,7 @@
  * Runs on a schedule to fail jobs that have exceeded the timeout threshold.
  */
 
+import { cron } from "inngest";
 import { inngest } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
@@ -10,12 +11,12 @@ import { transitionJob } from "@/core/transcription/transition";
 export const handleTranscriptionTimeouts = inngest.createFunction(
     {
         id: "handle-transcription-timeouts",
+        triggers: [cron("*/10 * * * *")],
         concurrency: {
             limit: 1,
             key: '"transcription-timeouts"',
         },
     },
-    { cron: "*/10 * * * *" },
     async ({ step }) => {
         const timeoutMinutes = parseInt(
             process.env.TRANSCRIPTION_TIMEOUT_MINUTES || "45",

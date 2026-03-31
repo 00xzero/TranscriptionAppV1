@@ -21,9 +21,11 @@ jest.mock('@/infra/supabase/server', () => {
 })
 
 jest.mock('@/infra/inngest/client', () => {
+  const sendInngestEvent = jest.fn(async () => undefined)
   return {
+    sendInngestEvent,
     inngest: {
-      send: jest.fn(async () => undefined),
+      send: sendInngestEvent,
     },
   }
 })

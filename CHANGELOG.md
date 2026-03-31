@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-03-31] - Tech Stack Upgrade: Phase 7 — Inngest 4
+
+Upgraded the frontend Inngest integration from the v3 SDK line to Inngest 4.1.0, migrated function registration to the v4 trigger model, and tightened the failure-event contract so webhook and request failure paths still reach job or project error handling when no job ID can be resolved. This phase also refreshes local-development guidance so non-Docker work explicitly runs Inngest in dev mode.
+
+### Added
+
+- **`.docs/INNGEST_V4_PHASE_7_IMPLEMENTATION_PLAN.md`** — Implementation plan for the Inngest v4 migration, including trigger-model decisions, validation steps, and watch items.
+- **`frontend/.env.example`** — New frontend local env template with `INNGEST_DEV=1` and Inngest key placeholders for non-Docker development.
+- **`@inngest/test`** 1.0.0 added as a frontend dev dependency for v4-oriented function tests.
+- **`frontend/.dockerignore`** — New Docker ignore file to keep local build contexts smaller and avoid copying local-only artifacts into the frontend image context.
+
+### Changed
+
+- **`inngest`** ^3.49.1 → ^4.1.0
+- **`frontend/package-lock.json`** — Lockfile refreshed for the Inngest 4 dependency graph and new test helper package.
+- **`frontend/infra/inngest/client.ts`** — Removed the v3 `EventSchemas().fromRecord(...)` client setup; added explicit dev-mode configuration and a typed `sendInngestEvent()` helper for app send sites.
+- **`frontend/lib/inngest/events.ts`** — Reworked event definitions around v4 `eventType(...)` helpers with schema-backed trigger exports.
+- **`frontend/contracts/events.ts`** — Updated `TranscriptionFailedDataSchema` so `jobId` can be omitted when webhook failure handling cannot resolve a job, matching real runtime behavior.
+- **`frontend/lib/inngest/functions/*`** — Migrated all transcription handlers to the v4 `createFunction({ triggers }, handler)` shape while preserving retries, concurrency, and failure fallback behavior.
+- **`frontend/core/transcription/start.ts`** and **`frontend/core/transcription/webhook.ts`** — Updated event send sites to use the new helper.
+- **`frontend/__tests__/inngestHandlers.test.ts`** and **`frontend/__tests__/transcriptionTimeouts.test.ts`** — Reworked handler tests to use `InngestTestEngine` instead of reaching into function internals.
+- **`frontend/__tests__/deepgramWebhook.test.ts`** and **`frontend/__tests__/startRouteIdempotency.test.ts`** — Updated mocks to follow the new `sendInngestEvent()` helper export.
+- **`frontend/proxy.ts`** — Bypasses auth proxy handling for `/api/inngest` so dev-server sync and execution traffic is not redirected.
+- **`frontend/package.json`** and **`infra/docker-compose.dev.yml`** — Updated local Inngest dev commands to use the current CLI invocation and explicit `--no-discovery` URL-based registration.
+- **`infra/start-local.sh`**, **`README.md`**, and **`.gitignore`** — Refreshed local-dev docs and templates so `frontend/.env.example` is tracked and non-Docker development clearly documents `INNGEST_DEV=1`.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand __tests__/inngestHandlers.test.ts __tests__/transcriptionTimeouts.test.ts __tests__/deepgramWebhook.test.ts __tests__/startRouteIdempotency.test.ts`
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm run build` remains blocked in this environment by `next/font` Google Fonts fetch failures, with no remaining code-level Inngest migration errors observed before the external fetch step
+
 ## [2026-03-30] - Tech Stack Upgrade: Phase 6 — Zod 4
 
 Upgraded Zod from 3.25.0 to 4.3.6 and adapted the schema layer to preserve the app's existing validation behavior under Zod 4. This branch introduces a shared UUID primitive to keep the project's legacy UUID-shape acceptance, updates `z.record()` usage for Zod 4 compatibility, and hardens first-error access at validation boundaries. No intended route-contract or domain-type changes.
