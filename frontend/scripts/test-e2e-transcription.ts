@@ -1,7 +1,7 @@
 /**
  * End-to-End Transcription Test
  * 
- * Run with: npx tsx --env-file=.env.local scripts/test-e2e-transcription.ts
+ * Run with: npx tsx --env-file=../infra/.env.docker scripts/test-e2e-transcription.ts <project-id>
  * 
  * This script:
  * 1. Uses an existing project with an audio file
@@ -13,10 +13,12 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
+import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const inngestEventKey = process.env.INNGEST_EVENT_KEY || "";
+const DEFAULT_TEST_PROJECT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
+const testProjectId = process.argv[2] || process.env.TEST_PROJECT_ID || DEFAULT_TEST_PROJECT_ID;
 
 if (!supabaseUrl || !serviceRoleKey) {
     console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -27,19 +29,16 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// Use a specific project ID (one with shorter audio for faster testing)
-// Change this to test different files
-const TEST_PROJECT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
-
 async function main() {
     console.log("🎤 End-to-End Transcription Test\n");
+    console.log(`Using project: ${testProjectId}`);
 
     // Step 1: Get project details
     console.log("1️⃣ Fetching project details...");
     const { data: project, error: projectError } = await supabase
         .from("projects")
         .select("id, title, status, source_object_key, user_id")
-        .eq("id", TEST_PROJECT_ID)
+        .eq("id", testProjectId)
         .single();
 
     if (projectError || !project) {
@@ -56,19 +55,17 @@ async function main() {
         process.exit(1);
     }
 
-    // Step 2: Generate signed URL
-    console.log("\n2️⃣ Generating signed URL for Deepgram...");
-    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from("media")
-        .createSignedUrl(project.source_object_key, 3600); // 1 hour expiry
+    // Step 2: Generate a Deepgram-ready media URL
+    console.log("\n2️⃣ Generating media URL for Deepgram...");
+    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, project.source_object_key);
 
-    if (signedUrlError || !signedUrlData) {
-        console.error("Failed to generate signed URL:", signedUrlError);
+    if (mediaUrlResult.error || !mediaUrlResult.url) {
+        console.error("Failed to generate media URL:", mediaUrlResult.error);
         process.exit(1);
     }
 
-    const mediaUrl = signedUrlData.signedUrl;
-    console.log(`   Signed URL generated (expires in 1 hour)`);
+    const mediaUrl = mediaUrlResult.url;
+    console.log("   Media URL generated");
 
     // Step 3: Create job record
     console.log("\n3️⃣ Creating job record...");
