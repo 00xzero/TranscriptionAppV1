@@ -17,6 +17,20 @@ const {
   updateSpeaker,
 } = jest.requireMock('@/lib/supabase/queries')
 
+const makeAnchorMeasurable = () => ({
+  getBoundingClientRect: () => ({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 30,
+    top: 0,
+    right: 100,
+    bottom: 30,
+    left: 0,
+    toJSON: () => ({}),
+  } as DOMRect),
+})
+
 function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
   return {
     id: 'sp1',
@@ -120,7 +134,7 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
         })
       })
 
@@ -141,7 +155,7 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
         })
       })
 
@@ -163,7 +177,7 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
         })
       })
 
@@ -229,7 +243,7 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: null,
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
         })
       })
 
@@ -241,6 +255,44 @@ describe('useSpeakerAssignments', () => {
       expect(setSpeakers).toHaveBeenCalled()
       expect(setSegments).toHaveBeenCalled()
       expect(updateChunk).toHaveBeenCalledWith('s1', { speaker_id: 'sp3' })
+    })
+  })
+
+  describe('anchorRef', () => {
+    it('exposes the current measurable for virtual popover anchoring', () => {
+      const { result } = setup()
+      const anchorMeasurable = makeAnchorMeasurable()
+
+      act(() => {
+        result.current.setSpeakerPopover({
+          chunkId: 's1',
+          speakerId: 'sp1',
+          anchorMeasurable,
+        })
+      })
+
+      expect(result.current.anchorRef.current).toBe(anchorMeasurable)
+    })
+
+    it('keeps the last measurable after the popover is cleared', async () => {
+      const { result } = setup()
+      const anchorMeasurable = makeAnchorMeasurable()
+
+      act(() => {
+        result.current.setSpeakerPopover({
+          chunkId: 's1',
+          speakerId: 'sp1',
+          anchorMeasurable,
+        })
+      })
+
+      await act(async () => {})
+
+      act(() => {
+        result.current.setSpeakerPopover(null)
+      })
+
+      expect(result.current.anchorRef.current).toBe(anchorMeasurable)
     })
   })
 })

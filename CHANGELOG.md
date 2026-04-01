@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-02] - Radix Overlay Migration
+
+Migrated the remaining hand-rolled overlay surfaces to the shared Radix wrappers by moving the Library view overflow menu to `DropdownMenu` and the editor speaker-assignment surface to an editor-level `Popover` anchored with Radix virtual positioning. This phase preserves the existing delete-confirmation UX, keeps the speaker popover non-modal, and removes the last manual positioning and outside-dismiss logic from the speaker overlay shell.
+
+### Added
+
+- **`frontend/components/SpeakerPopoverContent.tsx`** — New content-only speaker assignment surface that keeps the existing search, assign, create, rename, and untag workflows while delegating overlay positioning and dismissal to the shared Radix popover wrapper.
+- **`frontend/__tests__/libraryView.ui.test.tsx`** — New focused regression coverage for the Library view Radix dropdown behavior, including Escape dismissal, confirmed delete, and canceled delete preserving the open menu state.
+
+### Changed
+
+- **`frontend/components/LibraryView.tsx`** — Replaced the custom three-dot menu, manual outside-click/Escape listeners, and hand-rolled menu markup with a controlled Radix `DropdownMenu` while preserving the existing “cancel confirm keeps menu open” behavior.
+- **`frontend/app/editor/[id]/hooks/useSpeakerAssignments.ts`** — Replaced raw `anchorRect` state with a stable `Measurable` virtual anchor, added a persistent `anchorRef` for Radix positioning, and fixed close behavior so the popover exit animation does not flash in the top-left corner after dismissal.
+- **`frontend/app/editor/[id]/EditorScreen.tsx`** — Replaced the conditional inline speaker overlay render with an always-mounted controlled Radix `Popover`, including virtual anchoring, Radix-managed dismissal, and a named dialog surface for the speaker assignment UI.
+- **`frontend/__tests__/editor/useSpeakerAssignments.test.ts`** — Updated hook fixtures from `anchorRect` to `anchorMeasurable` and added regression coverage for the stable virtual anchor ref used by the Radix popover.
+- **`frontend/__tests__/editor.test.tsx`** — Added editor integration coverage for speaker popover focus-on-open and Escape dismissal, alongside the existing Find/Replace auto-close regression.
+
+### Removed
+
+- **`frontend/components/SpeakerPopover.tsx`** — Deleted after the speaker assignment overlay shell moved to `Popover` in `EditorScreen` and the remaining UI was extracted into `SpeakerPopoverContent`.
+
+### Tests
+
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with the repo’s existing pre-existing warnings; no new lint errors introduced by the overlay migration)
+- **`frontend`** — `npm test -- --runInBand` (`29` suites / `307` tests passing)
+
 ## [2026-04-01] - Radix Dialog Migration
 
 Migrated the app's three hand-rolled modal surfaces to the shared Radix Dialog wrapper, finished the Export modal's format-picker move to the shared Radix Radio Group wrapper, and removed the legacy focus-trap hook. This phase keeps the existing product behavior intact while deleting duplicated accessibility and scroll-management code from the modal shells.

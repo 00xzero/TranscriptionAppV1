@@ -1,25 +1,15 @@
 "use client"
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Speaker } from '@/contracts/db'
 
-type SpeakerPopoverProps = {
-  /** All speakers in the project */
+type SpeakerPopoverContentProps = {
   speakers: Speaker[]
-  /** The speaker currently assigned to this segment (if any) */
   currentSpeaker?: Speaker
-  /** Position to render the popover */
-  anchorRect: DOMRect | null
-  /** Called when user selects an existing speaker (reassign segment) */
   onSelectSpeaker: (speaker: Speaker) => void
-  /** Called when user creates a new speaker (create + reassign) */
   onCreateSpeaker: (label: string) => void
-  /** Called when user renames current speaker (global rename) */
   onRenameSpeaker: (speaker: Speaker, newLabel: string) => void
-  /** Called when user untags (resets speaker label to default) */
   onUntag: (speaker: Speaker) => void
-  /** Called when popover should close */
-  onClose: () => void
-  /** Optional color getter for consistent colors with parent */
   getColorForSpeaker?: (speaker?: Speaker) => string
 }
 
@@ -43,123 +33,48 @@ function getInitials(name: string): string {
   return (first + second || 'U').toUpperCase()
 }
 
-export default function SpeakerPopover({
+export default function SpeakerPopoverContent({
   speakers,
   currentSpeaker,
-  anchorRect,
   onSelectSpeaker,
   onCreateSpeaker,
   onRenameSpeaker,
   onUntag,
-  onClose,
   getColorForSpeaker: getColorForSpeakerProp,
-}: SpeakerPopoverProps) {
-  // Use provided color function or fallback to local hash-based one
+}: SpeakerPopoverContentProps) {
   const getSpeakerColor = getColorForSpeakerProp || getColorForSpeaker
   const [searchValue, setSearchValue] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Filter speakers based on search
   const filteredSpeakers = useMemo(() => {
     if (!searchValue.trim()) return speakers
     const needle = searchValue.toLowerCase()
     return speakers.filter(sp => sp.label.toLowerCase().includes(needle))
   }, [speakers, searchValue])
 
-  // Check if search value matches an existing speaker exactly
   const exactMatch = useMemo(() => {
     const needle = searchValue.trim().toLowerCase()
     return speakers.find(sp => sp.label.toLowerCase() === needle)
   }, [speakers, searchValue])
 
-  // Check if current speaker has a custom name (not "Speaker X" format)
   const isCurrentSpeakerNamed = useMemo(() => {
     if (!currentSpeaker) return false
     return !/^Speaker\s+\d+$/i.test(currentSpeaker.label)
   }, [currentSpeaker])
 
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [onClose])
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
-
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
-
-  // Calculate position with viewport boundary detection
-  const [position, setPosition] = useState<{ top: number; left: number; flipUp: boolean }>({ top: 0, left: 0, flipUp: false })
-
-  useEffect(() => {
-    if (!anchorRect) return
-
-    const POPOVER_HEIGHT = 320 // Approximate max height of popover
-    const GAP = 8
-    const viewportHeight = window.innerHeight
-    const viewportWidth = window.innerWidth
-
-    // Check if there's enough space below
-    const spaceBelow = viewportHeight - anchorRect.bottom - GAP
-    const spaceAbove = anchorRect.top - GAP
-    const flipUp = spaceBelow < POPOVER_HEIGHT && spaceAbove > spaceBelow
-
-    // Calculate top position
-    let top: number
-    if (flipUp) {
-      top = anchorRect.top - GAP - Math.min(POPOVER_HEIGHT, spaceAbove)
-    } else {
-      top = anchorRect.bottom + GAP
-    }
-
-    // Ensure left doesn't go off-screen (popover is 288px wide)
-    let left = anchorRect.left
-    if (left + 288 > viewportWidth) {
-      left = viewportWidth - 288 - 16
-    }
-    if (left < 16) left = 16
-
-    setPosition({ top, left, flipUp })
-  }, [anchorRect])
-
-  const style: React.CSSProperties = useMemo(() => {
-    if (!anchorRect) return { display: 'none' }
-    return {
-      position: 'fixed',
-      top: position.top,
-      left: position.left,
-      zIndex: 1000,
-      maxHeight: position.flipUp ? `${anchorRect.top - 16}px` : `${window.innerHeight - anchorRect.bottom - 16}px`,
-    }
-  }, [anchorRect, position])
 
   const handleTagClick = () => {
     const trimmed = searchValue.trim()
     if (!trimmed) return
 
     if (exactMatch) {
-      // Select existing speaker (reassign)
       onSelectSpeaker(exactMatch)
     } else {
-      // Create new speaker
       onCreateSpeaker(trimmed)
     }
     setSearchValue('')
@@ -174,11 +89,9 @@ export default function SpeakerPopover({
 
   const handleSpeakerClick = (speaker: Speaker) => {
     if (speaker.id === currentSpeaker?.id) {
-      // Clicking current speaker - start editing to rename
       setEditingId(speaker.id)
       setEditValue(speaker.label)
     } else {
-      // Clicking different speaker - reassign
       onSelectSpeaker(speaker)
     }
   }
@@ -208,24 +121,14 @@ export default function SpeakerPopover({
     }
   }
 
-  if (!anchorRect) return null
-
   return (
-    <div
-      ref={popoverRef}
-      style={style}
-      role="dialog"
-      aria-label="Speaker assignment"
-      className="bg-surface border border-base rounded-lg shadow-lg w-72 overflow-hidden flex flex-col"
-    >
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-base bg-surface-alt shrink-0">
+    <div className="flex max-h-[var(--radix-popover-content-available-height)] min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-base bg-surface-alt px-3 py-2 shrink-0">
         <span className="text-xs font-medium text-muted uppercase tracking-wide">
           Suggested Speakers
         </span>
       </div>
 
-      {/* Speaker list */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {filteredSpeakers.length === 0 ? (
           <div className="px-3 py-4 text-sm text-muted text-center">
@@ -255,7 +158,6 @@ export default function SpeakerPopover({
                   }
                 }}
               >
-                {/* Avatar */}
                 <div
                   className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
                   style={{ backgroundColor: color }}
@@ -263,7 +165,6 @@ export default function SpeakerPopover({
                   {initials}
                 </div>
 
-                {/* Name or edit input */}
                 {isEditing ? (
                   <input
                     type="text"
@@ -280,7 +181,6 @@ export default function SpeakerPopover({
                   <span className="flex-1 text-sm truncate">{sp.label}</span>
                 )}
 
-                {/* Current indicator or edit hint */}
                 {isCurrentSp && !isEditing && (
                   <span className="text-[10px] text-muted bg-surface-alt px-2 py-0.5 rounded-sm">
                     Click to rename
@@ -292,7 +192,6 @@ export default function SpeakerPopover({
         )}
       </div>
 
-      {/* Input section */}
       <div className="border-t border-base p-3 space-y-2 shrink-0">
         <div className="flex gap-2">
           <input
@@ -316,7 +215,6 @@ export default function SpeakerPopover({
           </button>
         </div>
 
-        {/* Untag option for named speakers */}
         {currentSpeaker && isCurrentSpeakerNamed && (
           <button
             type="button"

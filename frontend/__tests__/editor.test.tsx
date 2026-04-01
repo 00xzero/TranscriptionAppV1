@@ -577,6 +577,28 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByText(/Suggested Speakers/i)).not.toBeInTheDocument()
   })
 
+  test('focuses the speaker search input on open and closes on Escape', async () => {
+    const user = userEventLib.setup()
+    render(<EditorScreen projectId="p1" />)
+
+    await waitForEditorContent()
+
+    await user.click(screen.getByTitle(/Click to change speaker/i))
+
+    const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
+    const searchInput = screen.getByRole('textbox', { name: /Search speakers or type a new speaker name/i })
+
+    expect(popover).toBeInTheDocument()
+    await waitFor(() => {
+      expect(searchInput).toHaveFocus()
+    })
+
+    fireEvent.keyDown(popover, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Speaker assignment/i })).not.toBeInTheDocument()
+    })
+  })
+
   test('persistent search does not steal edit-mode focus after follow is resumed', async () => {
     const user = userEventLib.setup()
     render(<EditorScreen projectId="p1" />)

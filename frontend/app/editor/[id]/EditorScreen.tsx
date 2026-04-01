@@ -1,11 +1,12 @@
 "use client"
 import React, { useCallback, useMemo, useState } from 'react'
 import AudioPlayer from '@/components/AudioPlayer'
-import SpeakerPopover from '@/components/SpeakerPopover'
+import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
 import CollapsibleWaveform from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import TranscriptList from './components/TranscriptList'
 import MixModeBanner from './components/MixModeBanner'
 import SyncToAudioButton from './components/SyncToAudioButton'
@@ -105,6 +106,11 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     const ids = new Set(data.segments.map(s => s.speaker_id).filter(Boolean))
     return ids.size
   }, [data.segments])
+
+  const currentSpeaker = useMemo(() => {
+    const speakerId = speakerHook.speakerPopover?.speakerId
+    return speakerId ? data.speakers.find(s => s.id === speakerId) : undefined
+  }, [data.speakers, speakerHook.speakerPopover])
 
   const syncButtonVisible =
     sync.mode !== 'seeking' &&
@@ -244,19 +250,34 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
         />
       )}
 
-      {speakerHook.speakerPopover && (
-        <SpeakerPopover
-          speakers={data.speakers}
-          currentSpeaker={speakerHook.speakerPopover.speakerId ? data.speakers.find(s => s.id === speakerHook.speakerPopover!.speakerId) : undefined}
-          anchorRect={speakerHook.speakerPopover.anchorRect}
-          onSelectSpeaker={speakerHook.handleSelectSpeaker}
-          onCreateSpeaker={speakerHook.handleCreateSpeaker}
-          onRenameSpeaker={speakerHook.handleRenameSpeaker}
-          onUntag={speakerHook.handleUntag}
-          onClose={() => speakerHook.setSpeakerPopover(null)}
-          getColorForSpeaker={speakerHook.colorForSpeaker}
-        />
-      )}
+      <Popover
+        open={!!speakerHook.speakerPopover}
+        onOpenChange={(open) => {
+          if (!open) speakerHook.setSpeakerPopover(null)
+        }}
+      >
+        <PopoverAnchor virtualRef={speakerHook.anchorRef} />
+        <PopoverContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="w-72 p-0"
+          aria-label="Speaker assignment"
+          // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
+          // own search input on mount (SpeakerPopoverContent.tsx useEffect)
+          onOpenAutoFocus={(event) => event.preventDefault()}
+        >
+          <SpeakerPopoverContent
+            speakers={data.speakers}
+            currentSpeaker={currentSpeaker}
+            onSelectSpeaker={speakerHook.handleSelectSpeaker}
+            onCreateSpeaker={speakerHook.handleCreateSpeaker}
+            onRenameSpeaker={speakerHook.handleRenameSpeaker}
+            onUntag={speakerHook.handleUntag}
+            getColorForSpeaker={speakerHook.colorForSpeaker}
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }

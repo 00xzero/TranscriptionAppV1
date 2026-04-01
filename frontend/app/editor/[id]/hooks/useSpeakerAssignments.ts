@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   updateChunk,
   updateSegment,
@@ -7,6 +7,23 @@ import {
   deleteSpeaker,
 } from '@/lib/supabase/queries'
 import type { Seg, Speaker } from '../types'
+
+type Measurable = {
+  getBoundingClientRect(): DOMRect
+}
+
+function createStableMeasurable(el: HTMLElement): Measurable {
+  let lastRect = el.getBoundingClientRect()
+
+  return {
+    getBoundingClientRect() {
+      if (el.isConnected) {
+        lastRect = el.getBoundingClientRect()
+      }
+      return lastRect
+    },
+  }
+}
 
 export function useSpeakerAssignments({
   projectId,
@@ -25,7 +42,7 @@ export function useSpeakerAssignments({
   source: 'chunks' | 'segments'
   reloadTranscript: () => Promise<void>
 }) {
-  const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorRect: DOMRect } | null>(null)
+  const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorMeasurable: Measurable } | null>(null)
 
   const speakersMap = useMemo(() => {
     const m = new Map<string, Speaker>()
@@ -59,9 +76,22 @@ export function useSpeakerAssignments({
 
   const handleAvatarClick = useCallback((e: React.MouseEvent, chunkId: string, speakerId: string | null) => {
     e.stopPropagation()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setSpeakerPopover({ chunkId, speakerId, anchorRect: rect })
+    const el = e.currentTarget as HTMLElement
+    const anchorMeasurable = createStableMeasurable(el)
+    setSpeakerPopover({ chunkId, speakerId, anchorMeasurable })
   }, [])
+
+  const fallbackAnchor = useMemo<Measurable>(() => ({
+    getBoundingClientRect: () => new DOMRect(),
+  }), [])
+
+  const anchorRef = useRef<Measurable>(fallbackAnchor)
+
+  useEffect(() => {
+    if (speakerPopover?.anchorMeasurable) {
+      anchorRef.current = speakerPopover.anchorMeasurable
+    }
+  }, [speakerPopover])
 
   const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
     if (!speakerPopover) return
@@ -149,6 +179,7 @@ export function useSpeakerAssignments({
 
   return {
     speakerPopover, setSpeakerPopover,
+    anchorRef,
     speakersMap,
     speakerColorPalette,
     speakerColorMap,
