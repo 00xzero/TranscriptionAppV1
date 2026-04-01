@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-01] - Radix UI Foundation
+
+Added the Phase 1 Radix UI foundation layer for the frontend by introducing shared wrapper primitives under `frontend/components/ui/`, a shared Tailwind class merge helper, and baseline animation keyframes for Radix-driven entrance and exit states. This branch is intentionally additive: the new UI primitives are available for follow-up migrations, but no existing feature surfaces have been switched over yet.
+
+### Added
+
+- **`frontend/components/ui/dialog.tsx`** — New Radix Dialog wrapper exports `Dialog`, `DialogTrigger`, `DialogPortal`, `DialogContent`, `DialogTitle`, `DialogDescription`, and `DialogClose` with Olivetti-styled defaults and an internally managed overlay.
+- **`frontend/components/ui/popover.tsx`** — New Radix Popover wrapper exports `Popover`, `PopoverTrigger`, `PopoverAnchor`, `PopoverPortal`, and `PopoverContent` with default spacing, collision padding, and themed surface styling.
+- **`frontend/components/ui/dropdown-menu.tsx`** — New Radix Dropdown Menu wrapper exports `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`, and `DropdownMenuSeparator`.
+- **`frontend/components/ui/select.tsx`** — New Radix Select wrapper exports `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, and `SelectSeparator`, including a custom chevron icon and checkmark indicator.
+- **`frontend/components/ui/radio-group.tsx`** — New Radix Radio Group wrapper exports `RadioGroup` and `RadioGroupItem` with default grid layout and themed focus styling.
+- **`frontend/components/ui/switch.tsx`** — New Radix Switch wrapper export with themed checked and unchecked states.
+- **`frontend/components/ui/toggle.tsx`** — New Radix Toggle wrapper export with shared pressed, hover, and focus styles.
+- **`frontend/components/ui/label.tsx`** — New Radix Label wrapper export aligned to the app’s typography and disabled-state patterns.
+- **`frontend/components/ui/separator.tsx`** — New Radix Separator wrapper export supporting horizontal and vertical layouts.
+- **`frontend/components/ui/tooltip.tsx`** — New Radix Tooltip wrapper exports `TooltipProvider`, `Tooltip`, `TooltipTrigger`, and `TooltipContent`.
+- **`frontend/lib/utils.ts`** — New shared `cn()` helper built from `clsx` and `tailwind-merge` for class composition across wrapper components.
+
+### Changed
+
+- **`frontend/package.json`** — Added Radix UI primitive packages plus `clsx` and `tailwind-merge`; the frontend Node engine floor is now intentionally `>=24.0.0`.
+- **`frontend/package-lock.json`** — Lockfile refreshed for the new Radix, Floating UI, `clsx`, and `tailwind-merge` dependency graph.
+- **`frontend/app/globals.css`** — Added shared `fadeIn`, `fadeOut`, `scaleIn`, `slideDown`, and `slideUp` keyframes for Radix wrapper animations.
+- **`.docs/RADIX_UI_MIGRATION_PLAN.md`** — Expanded the Phase 1 plan with the exact wrapper surface, `cn()` utility, animation-keyframe setup, verification expectations, and the current migration guidance for existing modal/popover consumers.
+
+### Tests
+
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with the repo’s existing pre-existing warnings; no new wrapper-specific lint failures introduced)
+- **`frontend`** — `npm test -- --runInBand` (`26` suites / `295` tests passing)
+- **`frontend`** — `npm run build` remains blocked in this environment by `next/font` Google Fonts fetch failures (`Inter`, `Newsreader`, `IBM Plex Mono`), with no new code-level build errors observed before the external fetch step
+
 ## [2026-03-31] - Tech Stack Upgrade: Final Closure
 
 Closed out the remaining tech-stack upgrade items by finishing the `@types/node` follow-up, making the local transcription verification script repeatable and Deepgram-ready, and updating the upgrade-status docs to reflect the verified final state.
