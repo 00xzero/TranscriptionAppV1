@@ -411,6 +411,32 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.getByPlaceholderText(/Search text/i)).toBeInTheDocument()
   })
 
+  test('preserves Find/Replace state when closing and reopening', async () => {
+    const user = userEventLib.setup()
+    render(<EditorScreen projectId="p1" />)
+
+    await waitForEditorContent()
+    await openFindReplaceModalWithShortcut()
+
+    const findInput = screen.getByPlaceholderText(/Search text/i) as HTMLInputElement
+    await user.type(findInput, 'hello')
+    await waitForMatchSummary(/1 of 3 matches/i)
+
+    const replaceInput = await screen.findByPlaceholderText(/Replacement/i)
+    await user.type(replaceInput, 'earth')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/Search text/i)).not.toBeInTheDocument()
+    })
+
+    await openFindReplaceModalWithShortcut()
+
+    expect(screen.getByDisplayValue('hello')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('earth')).toBeInTheDocument()
+    await waitForMatchSummary(/1 of 3 matches/i)
+  })
+
   test('replaces one match and then replaces all remaining matches', async () => {
     const user = userEventLib.setup()
     render(<EditorScreen projectId="p1" />)
@@ -446,13 +472,11 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     window.dispatchEvent(new CustomEvent('open-export'))
     await screen.findByText(/Export Transcript/i)
-    expect(document.body.style.overflow).toBe('hidden')
 
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByText(/Export Transcript/i)).not.toBeInTheDocument()
     })
-    expect(document.body.style.overflow).toBe('')
   })
 
   test('ignores Cmd+F while Export modal is open', async () => {

@@ -1,6 +1,9 @@
 "use client"
-import { useState, useRef, useEffect, useId } from 'react'
-import { useFocusTrap } from '@/hooks/useFocusTrap'
+
+import { useLayoutEffect, useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
 type ExportFormat = 'DOCX' | 'VTT'
 
@@ -11,46 +14,20 @@ interface ExportModalProps {
 }
 
 export default function ExportModal({ projectId, projectTitle, onClose }: ExportModalProps) {
+  const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('DOCX')
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
-  const titleId = useId()
-  const panelRef = useRef<HTMLDivElement>(null)
-  const onCloseRef = useRef(onClose)
-  const isExportingRef = useRef(isExporting)
-  useFocusTrap(panelRef, true)
 
-  useEffect(() => {
-    onCloseRef.current = onClose
-  }, [onClose])
+  useLayoutEffect(() => {
+    captureFocus()
+  }, [captureFocus])
 
-  useEffect(() => {
-    isExportingRef.current = isExporting
-  }, [isExporting])
-
-  useEffect(() => {
-    panelRef.current?.focus()
-  }, [])
-
-  // ESC handler + body scroll lock
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isExportingRef.current) {
-        e.preventDefault()
-        onCloseRef.current()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-
-    return () => {
-      document.body.style.overflow = prev
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [])
+  const handleClose = () => {
+    onClose()
+    restoreFocus()
+  }
 
   const handleExport = async () => {
     setIsExporting(true)
@@ -94,9 +71,8 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
       // Show success and close after brief delay
       setShowSuccess(true)
       setTimeout(() => {
-        onCloseRef.current()
+        handleClose()
       }, 1500)
-
     } catch (error) {
       console.error('Export failed:', error)
       setExportError(
@@ -116,136 +92,127 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
   ]
 
   return (
-    <div className="fixed inset-0 z-100">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-paper/20 dark:bg-black/60 backdrop-blur-xs"
-        onClick={() => { if (!isExporting) onClose() }}
-      />
+    <Dialog
+      open={true}
+      onOpenChange={(open) => {
+        if (!open && !isExporting) {
+          handleClose()
+        }
+      }}
+    >
+      <DialogContent
+        className="w-[480px] overflow-hidden p-0"
+        aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+        }}
+        onEscapeKeyDown={(event) => {
+          if (isExporting) {
+            event.preventDefault()
+          }
+        }}
+        onPointerDownOutside={(event) => {
+          if (isExporting) {
+            event.preventDefault()
+          }
+        }}
+      >
+        <div className="px-6 pt-6 pb-4">
+          <DialogTitle>Export Transcript</DialogTitle>
+          <p className="mt-1 text-[10px] font-mono text-ink/50 dark:text-white/50">
+            Select your preferred download format
+          </p>
+        </div>
 
-      {/* Panel */}
-      <div className="flex justify-center pt-[20vh]">
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          tabIndex={-1}
-          className="relative w-[480px] max-w-[90vw] bg-[#F2EFED]/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md border border-[#D1CEC5] dark:border-[#333] rounded-xl shadow-2xl"
-          onClick={(e) => e.stopPropagation()}
+        <RadioGroup
+          value={selectedFormat}
+          onValueChange={(value) => setSelectedFormat(value as ExportFormat)}
+          className="space-y-2 px-6 pb-5"
         >
-          {/* Header */}
-          <div className="px-6 pt-6 pb-4">
-            <h2 id={titleId} className="font-serif italic text-xl text-ink dark:text-paper">Export Transcript</h2>
-            <p className="text-[10px] text-ink/50 dark:text-white/50 font-mono mt-1">
-              Select your preferred download format
-            </p>
-          </div>
+          {formats.map((fmt) => {
+            const isSelected = !fmt.disabled && selectedFormat === fmt.value
+            const isDisabled = fmt.disabled || isExporting
 
-          {/* Format Selection */}
-          <div className="px-6 pb-5 space-y-2">
-            {formats.map((fmt) => {
-              const isSelected = !fmt.disabled && selectedFormat === fmt.value
-              const isDisabled = fmt.disabled || isExporting
-              const inputId = `export-format-${fmt.value.toLowerCase()}`
-
-              return (
-                <label
-                  key={fmt.value}
-                  htmlFor={inputId}
-                  title={fmt.disabled ? `${fmt.label} (coming soon)` : `Export as ${fmt.label}`}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${isDisabled
-                    ? 'opacity-50 cursor-not-allowed border-ink/5 dark:border-paper/5'
-                    : isSelected
-                      ? 'border-trust-blue bg-trust-blue/10 dark:bg-trust-blue/20 cursor-pointer'
-                      : 'border-ink/10 dark:border-paper/10 hover:bg-ink/5 dark:hover:bg-paper/5 cursor-pointer'
-                    }`}
-                >
-                  <input
-                    id={inputId}
-                    type="radio"
-                    name="export-format"
-                    className="sr-only"
-                    checked={isSelected}
-                    disabled={isDisabled}
-                    onChange={() => {
-                      if (!isDisabled && !fmt.disabled) {
-                        setSelectedFormat(fmt.value as ExportFormat)
-                      }
-                    }}
-                    aria-label={fmt.label}
-                  />
-                  {/* Custom radio circle */}
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-trust-blue' : 'border-ink/20 dark:border-paper/20'
-                    }`}>
-                    {isSelected && (
-                      <div className="w-2 h-2 rounded-full bg-trust-blue" />
+            return (
+              <div
+                key={fmt.value}
+                title={fmt.disabled ? `${fmt.label} (coming soon)` : `Export as ${fmt.label}`}
+                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${isDisabled
+                  ? 'cursor-not-allowed border-ink/5 opacity-50 dark:border-paper/5'
+                  : isSelected
+                    ? 'cursor-pointer border-trust-blue bg-trust-blue/10 dark:bg-trust-blue/20'
+                    : 'cursor-pointer border-ink/10 hover:bg-ink/5 dark:border-paper/10 dark:hover:bg-paper/5'
+                  }`}
+                onClick={() => {
+                  if (!isDisabled && !fmt.disabled) {
+                    setSelectedFormat(fmt.value as ExportFormat)
+                  }
+                }}
+              >
+                <RadioGroupItem
+                  value={fmt.value}
+                  disabled={isDisabled}
+                  aria-label={fmt.label}
+                  className="shrink-0"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-ink dark:text-paper">
+                    {fmt.label}
+                    {fmt.disabled && (
+                      <span className="inline-flex h-[17.5px] items-center rounded-sm bg-ink/10 px-1.5 py-0.5 text-[9px] font-mono text-ink/60 dark:bg-white/10 dark:text-white/60">
+                        COMING SOON
+                      </span>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-sm text-ink dark:text-paper flex items-center gap-2">
-                      {fmt.label}
-                      {fmt.disabled && (
-                        <span className="text-[9px] font-mono bg-ink/10 dark:bg-white/10 px-1.5 py-0.5 h-[17.5px] inline-flex items-center rounded-sm text-ink/60 dark:text-white/60">
-                          COMING SOON
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-ink/50 dark:text-paper/40">{fmt.description}</div>
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-
-          {/* Status Messages */}
-          <div className="px-6">
-            {/* Loading */}
-            {isExporting && (
-              <div className="mb-4 p-3 bg-trust-blue/5 dark:bg-trust-blue/10 border border-trust-blue/20 rounded-lg text-sm flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-trust-blue shrink-0" />
-                <span className="text-ink/80 dark:text-paper/70 font-mono text-xs">
-                  Preparing your export...
-                </span>
+                  <div className="text-xs text-ink/50 dark:text-paper/40">{fmt.description}</div>
+                </div>
               </div>
-            )}
+            )
+          })}
+        </RadioGroup>
 
-            {/* Success */}
-            {showSuccess && (
-              <div className="mb-4 p-3 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-sm text-emerald-700 dark:text-emerald-300 font-mono text-xs">
-                Download started successfully.
-              </div>
-            )}
+        <div className="px-6">
+          {isExporting && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg border border-trust-blue/20 bg-trust-blue/5 p-3 text-sm dark:bg-trust-blue/10">
+              <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-trust-blue" />
+              <span className="font-mono text-xs text-ink/80 dark:text-paper/70">
+                Preparing your export...
+              </span>
+            </div>
+          )}
 
-            {/* Error */}
-            {exportError && (
-              <div className="mb-4 p-3 bg-ember-red/5 dark:bg-ember-red/10 border border-ember-red/20 rounded-lg text-sm text-ember-red dark:text-ember-red/80 font-mono text-xs">
-                {exportError}
-              </div>
-            )}
-          </div>
+          {showSuccess && (
+            <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 font-mono text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+              Download started successfully.
+            </div>
+          )}
 
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 bg-ink/5 dark:bg-white/5 border-t border-[#D1CEC5] dark:border-white/10">
-            <button
-              onClick={onClose}
-              disabled={isExporting}
-              title="Cancel export"
-              className="px-4 py-2 rounded-lg text-sm font-medium text-ink/60 dark:text-paper/50 hover:text-ink dark:hover:text-paper disabled:opacity-40 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={isExporting || showSuccess}
-              title={isExporting ? 'Export in progress' : 'Export transcript'}
-              className="px-5 py-2 rounded-lg bg-trust-blue text-white text-sm font-medium disabled:opacity-40 hover:bg-trust-blue/90 transition-colors"
-            >
-              {isExporting ? 'Exporting...' : 'Export'}
-            </button>
-          </div>
+          {exportError && (
+            <div className="mb-4 rounded-lg border border-ember-red/20 bg-ember-red/5 p-3 font-mono text-xs text-ember-red dark:bg-ember-red/10 dark:text-ember-red/80">
+              {exportError}
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-[#D1CEC5] bg-ink/5 px-6 py-4 dark:border-white/10 dark:bg-white/5">
+          <button
+            onClick={handleClose}
+            disabled={isExporting}
+            title="Cancel export"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={isExporting || showSuccess}
+            title={isExporting ? 'Export in progress' : 'Export transcript'}
+            className="rounded-lg bg-trust-blue px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-trust-blue/90 disabled:opacity-40"
+          >
+            {isExporting ? 'Exporting...' : 'Export'}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
