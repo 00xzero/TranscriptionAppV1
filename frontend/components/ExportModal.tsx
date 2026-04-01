@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
 type ExportFormat = 'DOCX' | 'VTT'
 
@@ -13,31 +14,15 @@ interface ExportModalProps {
 }
 
 export default function ExportModal({ projectId, projectTitle, onClose }: ExportModalProps) {
-  const previousFocusRef = useRef<HTMLElement | null>(null)
-  const wasOpenRef = useRef(false)
+  const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('DOCX')
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  if (!wasOpenRef.current && typeof document !== 'undefined') {
-    const activeElement = document.activeElement
-    previousFocusRef.current =
-      activeElement instanceof HTMLElement && activeElement !== document.body
-        ? activeElement
-        : null
-  }
-
-  useEffect(() => {
-    wasOpenRef.current = true
-  }, [])
-
-  const restoreFocus = () => {
-    const previousFocus = previousFocusRef.current
-    if (previousFocus?.isConnected) {
-      window.setTimeout(() => previousFocus.focus(), 0)
-    }
-  }
+  useLayoutEffect(() => {
+    captureFocus()
+  }, [captureFocus])
 
   const handleClose = () => {
     onClose()

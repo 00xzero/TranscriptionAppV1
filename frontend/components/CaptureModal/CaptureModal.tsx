@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import { useModal } from '@/lib/ModalContext'
 import { useCaptureForm } from './useCaptureForm'
 import FileDropZone from './FileDropZone'
@@ -11,17 +12,27 @@ import CaptureFooter from './CaptureFooter'
 
 export default function CaptureModal() {
   const { isCaptureModalOpen, closeCaptureModal } = useModal()
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
+  const restoreOnExternalCloseRef = useRef(true)
 
-  const restoreFocus = () => {
-    const previousFocus = previousFocusRef.current
-    if (previousFocus?.isConnected) {
-      window.setTimeout(() => previousFocus.focus(), 0)
+  useLayoutEffect(() => {
+    if (isCaptureModalOpen && !wasOpenRef.current) {
+      restoreOnExternalCloseRef.current = true
+      captureFocus()
     }
-  }
+  }, [isCaptureModalOpen, captureFocus])
+
+  useEffect(() => {
+    if (!isCaptureModalOpen && wasOpenRef.current && restoreOnExternalCloseRef.current) {
+      restoreFocus()
+    }
+
+    wasOpenRef.current = isCaptureModalOpen
+  }, [isCaptureModalOpen, restoreFocus])
 
   const handleClose = () => {
+    restoreOnExternalCloseRef.current = false
     closeCaptureModal()
     restoreFocus()
   }
@@ -45,18 +56,6 @@ export default function CaptureModal() {
     maxFileSizeLabel,
     buttonText,
   } = useCaptureForm({ isCaptureModalOpen, closeCaptureModal: handleClose })
-
-  if (isCaptureModalOpen && !wasOpenRef.current && typeof document !== 'undefined') {
-    const activeElement = document.activeElement
-    previousFocusRef.current =
-      activeElement instanceof HTMLElement && activeElement !== document.body
-        ? activeElement
-        : null
-  }
-
-  useEffect(() => {
-    wasOpenRef.current = isCaptureModalOpen
-  }, [isCaptureModalOpen])
 
   return (
     <Dialog

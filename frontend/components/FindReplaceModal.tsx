@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
 export interface FindReplaceModalProps {
   open: boolean
@@ -66,20 +67,20 @@ export default function FindReplaceModal({
   matchIndex,
   onMatchClick,
 }: FindReplaceModalProps) {
-  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
+  const restoreOnExternalCloseRef = useRef(true)
   const snippetRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const [flashUp, setFlashUp] = useState(false)
   const [flashDown, setFlashDown] = useState(false)
   const [flashEsc, setFlashEsc] = useState(false)
 
-  if (open && !wasOpenRef.current && typeof document !== 'undefined') {
-    const activeElement = document.activeElement
-    previousFocusRef.current =
-      activeElement instanceof HTMLElement && activeElement !== document.body
-        ? activeElement
-        : null
-  }
+  useLayoutEffect(() => {
+    if (open && !wasOpenRef.current) {
+      restoreOnExternalCloseRef.current = true
+      captureFocus()
+    }
+  }, [open, captureFocus])
 
   useEffect(() => {
     const el = snippetRefs.current[matchIndex]
@@ -88,22 +89,16 @@ export default function FindReplaceModal({
     }
   }, [matchIndex, open])
 
-  const restoreFocus = () => {
-    const previousFocus = previousFocusRef.current
-    if (previousFocus?.isConnected) {
-      window.setTimeout(() => previousFocus.focus(), 0)
-    }
-  }
-
   useEffect(() => {
-    if (!open && wasOpenRef.current) {
+    if (!open && wasOpenRef.current && restoreOnExternalCloseRef.current) {
       restoreFocus()
     }
 
     wasOpenRef.current = open
-  }, [open])
+  }, [open, restoreFocus])
 
   const handleClose = () => {
+    restoreOnExternalCloseRef.current = false
     onClose()
     restoreFocus()
   }

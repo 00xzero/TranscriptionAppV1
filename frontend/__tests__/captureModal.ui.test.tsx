@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import CaptureModal from '../components/CaptureModal'
 
@@ -56,7 +56,7 @@ describe('CaptureModal', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
 
-    const overlay = document.querySelector('.backdrop-blur-xs')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
     expect(overlay).not.toBeNull()
 
     await user.click(overlay as Element)
@@ -71,11 +71,47 @@ describe('CaptureModal', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' })
 
-    const overlay = document.querySelector('.backdrop-blur-xs')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
     expect(overlay).not.toBeNull()
 
     await user.click(overlay as Element)
 
     expect(mockCloseCaptureModal).not.toHaveBeenCalled()
+  })
+
+  test('restores focus to the opener after closing', () => {
+    jest.useFakeTimers()
+    mockModalState.isCaptureModalOpen = false
+
+    function Harness() {
+      return (
+        <>
+          <button type="button">Open capture</button>
+          <CaptureModal />
+        </>
+      )
+    }
+
+    const { rerender } = render(<Harness />)
+
+    const openButton = screen.getByRole('button', { name: /open capture/i })
+    openButton.focus()
+    expect(openButton).toHaveFocus()
+
+    mockModalState.isCaptureModalOpen = true
+    rerender(<Harness />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
+
+    mockModalState.isCaptureModalOpen = false
+    rerender(<Harness />)
+
+    act(() => {
+      jest.runOnlyPendingTimers()
+    })
+
+    expect(openButton).toHaveFocus()
+    jest.useRealTimers()
   })
 })

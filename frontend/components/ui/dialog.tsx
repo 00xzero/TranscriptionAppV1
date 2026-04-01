@@ -19,6 +19,7 @@ const DialogContent = React.forwardRef<
 >(({ className, children, overlayClassName, ...props }, ref) => (
   <DialogPortal>
     <DialogPrimitive.Overlay
+      data-slot="dialog-overlay"
       className={cn(
         'fixed inset-0 z-100 bg-paper/20 backdrop-blur-xs dark:bg-black/60',
         'data-[state=closed]:animate-[fadeOut_150ms_ease-in] data-[state=open]:animate-[fadeIn_150ms_ease-out]',
