@@ -103,6 +103,9 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
       <DialogContent
         className="w-[480px] overflow-hidden p-0"
         aria-describedby={undefined}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+        }}
         onEscapeKeyDown={(event) => {
           if (isExporting) {
             event.preventDefault()
