@@ -43,7 +43,7 @@ describe('ExportModal - Phase 7 UI regressions', () => {
 
     render(<ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />)
 
-    await user.click(screen.getByText(/^VTT$/i))
+    await user.click(screen.getByRole('radio', { name: /^VTT$/i }))
     await user.click(screen.getByRole('button', { name: /^Export$/i }))
 
     await waitFor(() => {
@@ -61,7 +61,7 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     })
   })
 
-  test('traps focus, locks scroll, and closes on Escape', async () => {
+  test('traps focus and closes on Escape', async () => {
     const user = userEventLib.setup()
     const onClose = jest.fn()
     ;(global as any).fetch = jest.fn().mockResolvedValue(makeExportResponse())
@@ -70,15 +70,14 @@ describe('ExportModal - Phase 7 UI regressions', () => {
       <ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />
     )
 
-    expect(document.body.style.overflow).toBe('hidden')
-
     const docxRadio = screen.getByRole('radio', { name: /Word \(\.docx\)/i })
     const cancelButton = screen.getByRole('button', { name: /Cancel/i })
     const exportButton = screen.getByRole('button', { name: /^Export$/i })
-    const dialog = screen.getByRole('dialog', { name: /Export Transcript/i })
+    screen.getByRole('dialog', { name: /Export Transcript/i })
 
-    expect(dialog).toHaveFocus()
-    await user.tab()
+    await waitFor(() => {
+      expect(docxRadio).toHaveFocus()
+    })
     expect(docxRadio).toHaveFocus()
     await user.tab()
     expect(cancelButton).toHaveFocus()
@@ -91,6 +90,5 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
 
     unmount()
-    expect(document.body.style.overflow).toBe('')
   })
 })

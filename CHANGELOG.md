@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-01] - Radix Dialog Migration
+
+Migrated the app's three hand-rolled modal surfaces to the shared Radix Dialog wrapper, finished the Export modal's format-picker move to the shared Radix Radio Group wrapper, and removed the legacy focus-trap hook. This phase keeps the existing product behavior intact while deleting duplicated accessibility and scroll-management code from the modal shells.
+
+### Added
+
+- **`frontend/__tests__/findReplaceModal.ui.test.tsx`** — New focused regression coverage for the delayed ESC-close behavior in `FindReplaceModal`.
+- **`frontend/__tests__/captureModal.ui.test.tsx`** — New focused interaction coverage for `CaptureModal` accessibility, idle dismissal, and upload-blocked dismissal behavior.
+
+### Changed
+
+- **`frontend/components/ExportModal.tsx`** — Replaced the custom dialog shell, focus trap, manual ESC handling, manual body scroll lock, and native radio controls with the shared `Dialog`, `DialogContent`, `DialogTitle`, `RadioGroup`, and `RadioGroupItem` wrappers. The modal still blocks dismissal while exporting and preserves the existing card-style format UI.
+- **`frontend/components/FindReplaceModal.tsx`** — Replaced the custom dialog shell, focus trap, backdrop, and scroll lock with the shared Radix dialog wrapper while preserving the existing search-state-on-close behavior, match-navigation shortcuts, delayed ESC close flash, and the lighter `dark:bg-black/40` overlay treatment.
+- **`frontend/components/CaptureModal/CaptureModal.tsx`** — Replaced the custom dialog shell, focus trap, manual ESC handling, and manual scroll lock with the shared Radix dialog wrapper while preserving the modal's higher screen position, existing child composition, and upload-in-progress dismissal guards.
+- **`frontend/__tests__/exportModal.ui.test.tsx`** — Updated modal assertions to follow Radix focus behavior and removed checks tied to the deleted body `overflow` scroll-lock implementation.
+- **`frontend/__tests__/editor.test.tsx`** — Removed Export modal scroll-lock assertions and added a regression test that verifies Find/Replace state is preserved when the dialog closes and reopens.
+
+### Removed
+
+- **`frontend/hooks/useFocusTrap.ts`** — Deleted after the last three modal consumers migrated to Radix-managed focus trapping.
+
+### Tests
+
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with the repo's existing pre-existing warnings; no new warnings introduced by the dialog migration)
+- **`frontend`** — `npm test` (`28` suites / `299` tests passing)
+- **`frontend`** — `npm run build` remains blocked in this environment only by `next/font` Google Fonts fetch failures (`Inter`, `Newsreader`, `IBM Plex Mono`), with no new code-level build errors introduced by the modal migration
+
 ## [2026-04-01] - Radix UI Foundation
 
 Added the Phase 1 Radix UI foundation layer for the frontend by introducing shared wrapper primitives under `frontend/components/ui/`, a shared Tailwind class merge helper, and baseline animation keyframes for Radix-driven entrance and exit states. This branch is intentionally additive: the new UI primitives are available for follow-up migrations, but no existing feature surfaces have been switched over yet.
