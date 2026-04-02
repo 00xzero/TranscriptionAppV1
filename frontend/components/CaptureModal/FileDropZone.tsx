@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef } from 'react'
+import { Label } from '@/components/ui/label'
 import { SUPPORTED_EXTENSIONS } from '@/lib/hooks/useCapture'
 import { formatFileSize } from './shared'
 
@@ -75,7 +76,7 @@ export default function FileDropZone({
 
   return (
     <div className="space-y-3">
-      <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60" htmlFor={fileInputId}>Select File</label>
+      <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60" htmlFor={fileInputId}>Select File</Label>
       <p className="text-[10px] text-ink/40 dark:text-white/40 mb-2">
         MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, AVI (up to {maxFileSizeLabel})
       </p>

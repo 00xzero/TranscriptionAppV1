@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-02] - Radix Control Cleanup
+
+Finished another small pass on the Radix migration by replacing a few remaining native labels and toggle/select controls in the editor and capture flows with the shared UI primitives. This keeps the existing behavior while making these surfaces visually and semantically consistent with the new Radix wrapper layer introduced earlier in the migration.
+
+### Changed
+
+- **`frontend/components/AudioPlayer.tsx`** — Replaced the native playback-rate `<select>` and adjacent text label with the shared `Select` and `Label` primitives while preserving the existing playback-rate update behavior.
+- **`frontend/components/FindReplaceModal.tsx`** — Replaced the Match Case and Whole Word toggle buttons with the shared `Toggle` primitive so the find/replace controls use the same pressed-state semantics and styling system as the rest of the Radix migration.
+- **`frontend/components/CaptureModal/CaptureDetails.tsx`** — Replaced the title label, disabled language select, and speaker-diarization preview control with the shared `Label`, `Select`, and `Switch` primitives while keeping the “coming soon” fields disabled.
+- **`frontend/components/CaptureModal/FileDropZone.tsx`** — Replaced the file picker label with the shared `Label` primitive.
+- **`frontend/components/CaptureModal/KeyTermsInput.tsx`** — Replaced the key-terms input label with the shared `Label` primitive.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand __tests__/findReplaceModal.ui.test.tsx __tests__/audioPlayer.test.tsx` (`2` suites / `15` tests passing)
+- **`frontend`** — `npm test -- --runInBand __tests__/editor.test.tsx -t "treats accented letters as word characters in whole-word mode|treats Arabic letters as word characters in whole-word mode"` (`1` suite / `2` tests passing)
+- **`frontend`** — `npm test -- --runInBand __tests__/captureModal.ui.test.tsx` (`1` suite / `3` tests passing)
+
 ## [2026-04-02] - Radix Overlay Migration
 
 Migrated the remaining hand-rolled overlay surfaces to the shared Radix wrappers by moving the Library view overflow menu to `DropdownMenu` and the editor speaker-assignment surface to an editor-level `Popover` anchored with Radix virtual positioning. This phase preserves the existing delete-confirmation UX, keeps the speaker popover non-modal, and removes the last manual positioning and outside-dismiss logic from the speaker overlay shell.

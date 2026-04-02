@@ -2,6 +2,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Toggle } from '@/components/ui/toggle'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
 export interface FindReplaceModalProps {
@@ -187,32 +188,30 @@ export default function FindReplaceModal({
             aria-label="Find text"
             autoFocus
           />
-          <button
-            type="button"
-            onClick={() => setCaseSensitive(!caseSensitive)}
-            aria-pressed={caseSensitive}
-            title={caseSensitive ? 'Disable match case' : 'Enable match case'}
-            className={`select-none rounded-md border px-2.5 py-1 text-[11px] font-mono transition-colors ${caseSensitive
+          <Toggle
+            pressed={caseSensitive}
+            onPressedChange={setCaseSensitive}
+            aria-label="Match case"
+            className={`select-none rounded-md border px-2.5 py-1 h-auto text-[11px] font-mono transition-colors ${caseSensitive
               ? 'border-trust-blue/30 bg-trust-blue/15 text-trust-blue dark:border-trust-blue/40 dark:bg-trust-blue/20 dark:text-trust-blue'
               : 'border-ink/10 text-ink/40 hover:bg-ink/5 dark:border-paper/10 dark:text-paper/40 dark:hover:bg-paper/5'
               }`}
           >
             <span className="mr-1.5 font-serif text-xs italic">Aa</span>
             Match Case
-          </button>
-          <button
-            type="button"
-            onClick={() => setWholeWord(!wholeWord)}
-            aria-pressed={wholeWord}
-            title={wholeWord ? 'Disable whole word matching' : 'Enable whole word matching'}
-            className={`select-none rounded-md border px-2.5 py-1 text-[11px] font-mono transition-colors ${wholeWord
+          </Toggle>
+          <Toggle
+            pressed={wholeWord}
+            onPressedChange={setWholeWord}
+            aria-label="Whole word"
+            className={`select-none rounded-md border px-2.5 py-1 h-auto text-[11px] font-mono transition-colors ${wholeWord
               ? 'border-trust-blue/30 bg-trust-blue/15 text-trust-blue dark:border-trust-blue/40 dark:bg-trust-blue/20 dark:text-trust-blue'
               : 'border-ink/10 text-ink/40 hover:bg-ink/5 dark:border-paper/10 dark:text-paper/40 dark:hover:bg-paper/5'
               }`}
           >
             <span className="mr-1.5 text-xs font-bold">W</span>
             Whole Word
-          </button>
+          </Toggle>
         </div>
 
         {canReplace && findTerm && (

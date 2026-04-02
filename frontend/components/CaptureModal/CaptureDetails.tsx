@@ -1,5 +1,8 @@
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+
 const titleInputId = 'capture-title-input'
-const languageSelectId = 'capture-language-select'
 
 interface CaptureDetailsProps {
   title: string
@@ -10,10 +13,10 @@ interface CaptureDetailsProps {
 export default function CaptureDetails({ title, setTitle, isUploading }: CaptureDetailsProps) {
   return (
     <div className="space-y-4 pt-2 border-t border-[#D1CEC5] dark:border-white/10">
-      <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Project Details</label>
+      <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Project Details</p>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium opacity-80" htmlFor={titleInputId}>Title</label>
+        <Label className="text-xs font-medium opacity-80" htmlFor={titleInputId}>Title</Label>
         <input
           id={titleInputId}
           type="text"
@@ -26,23 +29,17 @@ export default function CaptureDetails({ title, setTitle, isUploading }: Capture
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium opacity-80" htmlFor={languageSelectId}>
+        <Label className="text-xs font-medium opacity-80">
           Language <span className="text-[10px] font-mono opacity-50 ml-1">(coming soon)</span>
-        </label>
-        <div className="relative">
-          <select
-            id={languageSelectId}
-            className="w-full bg-white/50 dark:bg-[#222]/50 border border-[#D1CEC5] dark:border-[#444] rounded-sm px-3 py-2 text-sm transition-colors appearance-none cursor-not-allowed opacity-60"
-            disabled
-          >
-            <option>English (US)</option>
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        </Label>
+        <Select disabled>
+          <SelectTrigger aria-label="Language" className="w-full bg-white/50 dark:bg-[#222]/50 border-[#D1CEC5] dark:border-[#444] rounded-sm px-3 py-2 text-sm cursor-not-allowed opacity-60">
+            <SelectValue placeholder="English (US)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="en-us">English (US)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex items-center justify-between pt-2">
@@ -52,11 +49,7 @@ export default function CaptureDetails({ title, setTitle, isUploading }: Capture
           </p>
           <p className="text-[10px] text-ink/40 dark:text-white/40">Automatically identify speakers</p>
         </div>
-        <div className="relative inline-block w-10 mr-2 align-middle select-none opacity-50 cursor-not-allowed">
-          <div className="block overflow-hidden h-5 rounded-full bg-ember-red">
-            <div className="absolute block w-5 h-5 rounded-full bg-white border-4 border-ember-red right-0" />
-          </div>
-        </div>
+        <Switch disabled checked aria-label="Speaker diarization" className="data-[state=checked]:bg-ember-red" />
       </div>
     </div>
   )
