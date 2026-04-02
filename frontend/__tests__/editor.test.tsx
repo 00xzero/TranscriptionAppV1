@@ -583,7 +583,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    await user.click(screen.getByTitle(/Click to change speaker/i))
+    const trigger = screen.getByTitle(/Click to change speaker/i)
+    await user.click(trigger)
 
     const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
     const searchInput = screen.getByRole('textbox', { name: /Search speakers or type a new speaker name/i })
@@ -596,6 +597,9 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     fireEvent.keyDown(popover, { key: 'Escape' })
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /Speaker assignment/i })).not.toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(trigger).toHaveFocus()
     })
   })
 

@@ -11,7 +11,7 @@ export function useTranscriptSearch({
   setEditingId,
   scrollToSegmentIndex,
   suspendFollow,
-  setSpeakerPopover,
+  closeSpeakerPopover,
   exportModalOpen,
 }: {
   segments: Seg[]
@@ -22,7 +22,7 @@ export function useTranscriptSearch({
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   scrollToSegmentIndex: (idx: number, opts?: { smooth?: boolean }) => void
   suspendFollow: (reason?: 'search' | 'ui') => void
-  setSpeakerPopover: (val: null) => void
+  closeSpeakerPopover: (reason?: 'dismiss' | 'outside' | 'selection' | 'external') => void
   exportModalOpen: boolean
 }) {
   const [findInput, setFindInput] = useState('')
@@ -36,12 +36,12 @@ export function useTranscriptSearch({
   const openFindReplaceModal = useCallback(() => {
     if (exportModalOpen) return
     setEditingId(null)
-    setSpeakerPopover(null)
+    closeSpeakerPopover('external')
     setFindReplaceOpen(true)
     if (findTerm) {
       suspendFollow('search')
     }
-  }, [exportModalOpen, findTerm, setEditingId, setSpeakerPopover, suspendFollow])
+  }, [closeSpeakerPopover, exportModalOpen, findTerm, setEditingId, suspendFollow])
 
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []

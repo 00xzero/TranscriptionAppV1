@@ -253,7 +253,7 @@ export default function LibraryView() {
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
                           title={`More options for ${project.title || 'Untitled'}`}
                           aria-label={`More options for ${project.title || 'Untitled'}`}
                           onClick={(e) => e.stopPropagation()}
@@ -263,7 +263,7 @@ export default function LibraryView() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          className="text-ember-red focus:text-ember-red focus:bg-red-50 dark:focus:bg-red-900/20"
+                          className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
                           onSelect={(event) => {
                             event.preventDefault()
                             void handleDelete(project.id, project.title || 'Untitled')

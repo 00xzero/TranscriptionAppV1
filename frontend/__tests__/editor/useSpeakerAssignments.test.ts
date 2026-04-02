@@ -31,6 +31,22 @@ const makeAnchorMeasurable = () => ({
   } as DOMRect),
 })
 
+const makeTriggerElement = () => {
+  const button = document.createElement('button')
+  jest.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+    x: 24,
+    y: 48,
+    width: 88,
+    height: 32,
+    top: 48,
+    right: 112,
+    bottom: 80,
+    left: 24,
+    toJSON: () => ({}),
+  } as DOMRect)
+  return button
+}
+
 function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
   return {
     id: 'sp1',
@@ -135,6 +151,7 @@ describe('useSpeakerAssignments', () => {
           chunkId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -156,6 +173,7 @@ describe('useSpeakerAssignments', () => {
           chunkId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -244,6 +262,7 @@ describe('useSpeakerAssignments', () => {
           chunkId: 's1',
           speakerId: null,
           anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -259,15 +278,37 @@ describe('useSpeakerAssignments', () => {
   })
 
   describe('anchorRef', () => {
+    it('updates the virtual anchor immediately when the avatar is clicked', () => {
+      const { result } = setup()
+      const triggerElement = makeTriggerElement()
+
+      act(() => {
+        result.current.handleAvatarClick(
+          {
+            stopPropagation: jest.fn(),
+            currentTarget: triggerElement,
+          } as unknown as React.MouseEvent,
+          's1',
+          'sp1'
+        )
+      })
+
+      expect(result.current.anchorRef.current.getBoundingClientRect().width).toBe(88)
+      expect(result.current.speakerPopover?.triggerElement).toBe(triggerElement)
+      expect(result.current.lastTriggerElementRef.current).toBe(triggerElement)
+    })
+
     it('exposes the current measurable for virtual popover anchoring', () => {
       const { result } = setup()
       const anchorMeasurable = makeAnchorMeasurable()
+      const triggerElement = makeTriggerElement()
 
       act(() => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
+          triggerElement,
         })
       })
 
@@ -277,12 +318,14 @@ describe('useSpeakerAssignments', () => {
     it('keeps the last measurable after the popover is cleared', async () => {
       const { result } = setup()
       const anchorMeasurable = makeAnchorMeasurable()
+      const triggerElement = makeTriggerElement()
 
       act(() => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
+          triggerElement,
         })
       })
 

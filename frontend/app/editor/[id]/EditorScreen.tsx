@@ -1,5 +1,5 @@
 "use client"
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
@@ -81,16 +81,16 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     setEditingId: editing.setEditingId,
     scrollToSegmentIndex: sync.scrollToSegmentIndex,
     suspendFollow: sync.suspendFollow,
-    setSpeakerPopover: speakerHook.setSpeakerPopover,
+    closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
   })
 
   const openExportModal = useCallback(() => {
     search.setFindReplaceOpen(false)
     editing.setEditingId(null)
-    speakerHook.setSpeakerPopover(null)
+    speakerHook.closeSpeakerPopover('external')
     setExportModalOpen(true)
-  }, [search.setFindReplaceOpen, editing.setEditingId, speakerHook.setSpeakerPopover, setExportModalOpen])
+  }, [search.setFindReplaceOpen, editing.setEditingId, speakerHook.closeSpeakerPopover, setExportModalOpen])
 
   // 6. Keyboard shortcuts
   useEditorKeyboardShortcuts({
@@ -118,6 +118,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     (!!sync.activeIds.segId || sync.hasUserScrolled) &&
     !speakerHook.speakerPopover &&
     !editing.editingId
+  const didInteractOutsidePopoverRef = useRef(false)
 
 
   return (
@@ -253,7 +254,11 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
       <Popover
         open={!!speakerHook.speakerPopover}
         onOpenChange={(open) => {
-          if (!open) speakerHook.setSpeakerPopover(null)
+          if (!open) {
+            const reason = didInteractOutsidePopoverRef.current ? 'outside' : 'dismiss'
+            didInteractOutsidePopoverRef.current = false
+            speakerHook.closeSpeakerPopover(reason)
+          }
         }}
       >
         <PopoverAnchor virtualRef={speakerHook.anchorRef} />
@@ -266,6 +271,24 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
           // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
           // own search input on mount (SpeakerPopoverContent.tsx useEffect)
           onOpenAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={() => {
+            didInteractOutsidePopoverRef.current = true
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+
+            const shouldRestoreFocus =
+              speakerHook.closeReasonRef.current !== 'outside' &&
+              speakerHook.closeReasonRef.current !== 'external'
+            const triggerElement = speakerHook.lastTriggerElementRef.current
+
+            if (shouldRestoreFocus && triggerElement?.isConnected) {
+              window.setTimeout(() => triggerElement.focus(), 0)
+            }
+
+            didInteractOutsidePopoverRef.current = false
+            speakerHook.closeReasonRef.current = null
+          }}
         >
           <SpeakerPopoverContent
             speakers={data.speakers}

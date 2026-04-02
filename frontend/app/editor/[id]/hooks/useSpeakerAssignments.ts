@@ -12,6 +12,15 @@ type Measurable = {
   getBoundingClientRect(): DOMRect
 }
 
+export type SpeakerPopoverCloseReason = 'dismiss' | 'outside' | 'selection' | 'external'
+
+type SpeakerPopoverState = {
+  chunkId: string
+  speakerId: string | null
+  anchorMeasurable: Measurable
+  triggerElement: HTMLElement | null
+}
+
 function createStableMeasurable(el: HTMLElement): Measurable {
   let lastRect = el.getBoundingClientRect()
 
@@ -42,7 +51,9 @@ export function useSpeakerAssignments({
   source: 'chunks' | 'segments'
   reloadTranscript: () => Promise<void>
 }) {
-  const [speakerPopover, setSpeakerPopover] = useState<{ chunkId: string; speakerId: string | null; anchorMeasurable: Measurable } | null>(null)
+  const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
+  const lastTriggerElementRef = useRef<HTMLElement | null>(null)
+  const closeReasonRef = useRef<SpeakerPopoverCloseReason | null>(null)
 
   const speakersMap = useMemo(() => {
     const m = new Map<string, Speaker>()
@@ -78,7 +89,10 @@ export function useSpeakerAssignments({
     e.stopPropagation()
     const el = e.currentTarget as HTMLElement
     const anchorMeasurable = createStableMeasurable(el)
-    setSpeakerPopover({ chunkId, speakerId, anchorMeasurable })
+    anchorRef.current = anchorMeasurable
+    lastTriggerElementRef.current = el
+    closeReasonRef.current = null
+    setSpeakerPopover({ chunkId, speakerId, anchorMeasurable, triggerElement: el })
   }, [])
 
   const fallbackAnchor = useMemo<Measurable>(() => ({
@@ -91,14 +105,22 @@ export function useSpeakerAssignments({
     if (speakerPopover?.anchorMeasurable) {
       anchorRef.current = speakerPopover.anchorMeasurable
     }
+    if (speakerPopover?.triggerElement) {
+      lastTriggerElementRef.current = speakerPopover.triggerElement
+    }
   }, [speakerPopover])
+
+  const closeSpeakerPopover = useCallback((reason: SpeakerPopoverCloseReason = 'dismiss') => {
+    closeReasonRef.current = reason
+    setSpeakerPopover(null)
+  }, [])
 
   const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
     if (!speakerPopover) return
     const { chunkId } = speakerPopover
 
     setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: speaker.id } : s))
-    setSpeakerPopover(null)
+    closeSpeakerPopover('selection')
 
     try {
       if (source === 'segments') {
@@ -110,13 +132,13 @@ export function useSpeakerAssignments({
       console.error('Failed to reassign speaker:', err)
       await reloadTranscript()
     }
-  }, [speakerPopover, reloadTranscript, source, setSegments])
+  }, [closeSpeakerPopover, speakerPopover, reloadTranscript, source, setSegments])
 
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
     const { chunkId } = speakerPopover
 
-    setSpeakerPopover(null)
+    closeSpeakerPopover('selection')
 
     let newSpeaker: Speaker | null = null
 
@@ -142,11 +164,11 @@ export function useSpeakerAssignments({
         }
       }
     }
-  }, [speakerPopover, projectId, source, setSpeakers, setSegments])
+  }, [closeSpeakerPopover, speakerPopover, projectId, source, setSpeakers, setSegments])
 
   const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    setSpeakerPopover(null)
+    closeSpeakerPopover('selection')
 
     try {
       await updateSpeaker(speaker.id, { label: newLabel })
@@ -154,7 +176,7 @@ export function useSpeakerAssignments({
       console.error('Failed to rename speaker:', err)
       setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
     }
-  }, [setSpeakers])
+  }, [closeSpeakerPopover, setSpeakers])
 
   const handleUntag = useCallback(async (speaker: Speaker) => {
     const existingNumbers = speakers
@@ -167,7 +189,7 @@ export function useSpeakerAssignments({
     const newLabel = `Speaker ${nextNumber}`
 
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    setSpeakerPopover(null)
+    closeSpeakerPopover('selection')
 
     try {
       await updateSpeaker(speaker.id, { label: newLabel })
@@ -175,10 +197,13 @@ export function useSpeakerAssignments({
       console.error('Failed to untag speaker:', err)
       setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
     }
-  }, [speakers, setSpeakers])
+  }, [closeSpeakerPopover, speakers, setSpeakers])
 
   return {
     speakerPopover, setSpeakerPopover,
+    closeSpeakerPopover,
+    closeReasonRef,
+    lastTriggerElementRef,
     anchorRef,
     speakersMap,
     speakerColorPalette,
