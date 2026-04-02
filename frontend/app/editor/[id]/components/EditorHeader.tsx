@@ -1,4 +1,5 @@
 import React from 'react'
+import { Separator } from '@/components/ui/separator'
 import { formatProjectDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
@@ -96,7 +97,7 @@ export default function EditorHeader({
           )}
         </div>
       </div>
-      <div className="h-px w-full bg-ink/10 dark:bg-white/10 mt-8" />
+      <Separator decorative={false} className="mt-8 bg-ink/10 dark:bg-white/10" />
     </div>
   )
 }

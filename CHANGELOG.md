@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-02] - Tooltip Polish And Header Cleanup
+
+Finished a small UI consistency pass by wiring the shared Radix tooltip provider into the app shell, replacing a handful of remaining native `title` tooltips in the library, projects, header, and floating player surfaces, and swapping one ad-hoc divider plus one global range reset for the shared primitives and current slider implementations already used by the editor. This keeps behavior intact while making the controls rely on the same wrapper layer introduced in the Radix migration.
+
+### Changed
+
+- **`frontend/app/layout.tsx`** — Wrapped the app shell in the shared `TooltipProvider` so tooltip-backed controls work consistently across the routed UI.
+- **`frontend/components/ContextualHeader.tsx`** — Replaced native `title` attributes on the project breadcrumb, Export, Find & Replace, and Capture controls with the shared Radix tooltip wrapper.
+- **`frontend/components/FloatingPlayerDeck.tsx`** — Replaced native `title` attributes on transport and playback-rate controls with the shared Radix tooltip wrapper.
+- **`frontend/components/LibraryView.tsx`** — Added a Radix tooltip to the overflow-menu trigger while preserving the existing controlled `DropdownMenu` delete flow.
+- **`frontend/app/projects/page.tsx`** — Added a Radix tooltip to the delete-project icon button in the projects list.
+- **`frontend/app/editor/[id]/components/EditorHeader.tsx`** — Replaced the custom horizontal rule with the shared `Separator` primitive.
+- **`frontend/app/globals.css`** — Removed the old global `input[type=range]` reset now that the active player and scrubber UIs use custom controls instead of native range inputs.
+- **`frontend/__tests__/contextualHeader.test.tsx`**, **`frontend/__tests__/editor.test.tsx`**, and **`frontend/__tests__/libraryView.ui.test.tsx`** — Wrapped renders in `TooltipProvider` so the updated tooltip-backed controls continue to be exercised in tests.
+- **`frontend/__tests__/editor/useSpeakerAssignments.test.ts`** and **`frontend/__tests__/editor/useTranscriptSearch.test.ts`** — Updated hook fixtures to match the current speaker-popover and search hook interfaces used by the editor.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand __tests__/contextualHeader.test.tsx __tests__/editor.test.tsx __tests__/libraryView.ui.test.tsx __tests__/editor/useSpeakerAssignments.test.ts __tests__/editor/useTranscriptSearch.test.ts` (`5` suites / `55` tests passing)
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint -- --quiet`
+- **`frontend`** — `npm run build` remains blocked in this environment only by `next/font` Google Fonts fetch failures (`Inter`, `Newsreader`, `IBM Plex Mono`), with no new code-level build errors observed before the external fetch step
+
 ## [2026-04-02] - Radix Control Cleanup
 
 Finished another small pass on the Radix migration by replacing a few remaining native labels and toggle/select controls in the editor and capture flows with the shared UI primitives. This keeps the existing behavior while making these surfaces visually and semantically consistent with the new Radix wrapper layer introduced earlier in the migration.

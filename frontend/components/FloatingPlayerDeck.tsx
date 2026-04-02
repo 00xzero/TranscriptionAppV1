@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface FloatingPlayerDeckProps {
   currentTime: number
@@ -55,64 +56,80 @@ export default function FloatingPlayerDeck({
         {/* Center: Transport controls */}
         <div className="flex items-center gap-3">
           {/* Rewind -5s */}
-          <button
-            type="button"
-            onClick={() => onSeekRelative(-5)}
-            className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
-            aria-label="Rewind 5 seconds"
-            title="Rewind 5 seconds"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="19,20 9,12 19,4" />
-              <line x1="5" y1="19" x2="5" y2="5" />
-            </svg>
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onSeekRelative(-5)}
+                className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
+                aria-label="Rewind 5 seconds"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="19,20 9,12 19,4" />
+                  <line x1="5" y1="19" x2="5" y2="5" />
+                </svg>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Rewind 5 seconds</TooltipContent>
+          </Tooltip>
 
           {/* Play / Pause */}
-          <button
-            type="button"
-            onClick={onTogglePlay}
-            className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-xs"
-            aria-label={playing ? 'Pause' : 'Play'}
-            title={playing ? 'Pause' : 'Play'}
-          >
-            {playing ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="8,5 20,12 8,19" />
-              </svg>
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onTogglePlay}
+                className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-xs"
+                aria-label={playing ? 'Pause' : 'Play'}
+              >
+                {playing ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="8,5 20,12 8,19" />
+                  </svg>
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{playing ? 'Pause' : 'Play'}</TooltipContent>
+          </Tooltip>
 
           {/* Forward +5s */}
-          <button
-            type="button"
-            onClick={() => onSeekRelative(5)}
-            className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
-            aria-label="Forward 5 seconds"
-            title="Forward 5 seconds"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="5,4 15,12 5,20" />
-              <line x1="19" y1="5" x2="19" y2="19" />
-            </svg>
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onSeekRelative(5)}
+                className="p-1.5 rounded-full hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors text-ink dark:text-paper"
+                aria-label="Forward 5 seconds"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5,4 15,12 5,20" />
+                  <line x1="19" y1="5" x2="19" y2="19" />
+                </svg>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Forward 5 seconds</TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Right: Playback rate */}
-        <button
-          type="button"
-          onClick={nextRate}
-          className="font-mono text-xs px-2.5 py-1 rounded-lg bg-ink/5 dark:bg-paper/5 hover:bg-ink/10 dark:hover:bg-paper/10 text-ink dark:text-paper transition-colors min-w-[48px] text-center"
-          aria-label="Change playback rate"
-          title="Change playback rate"
-        >
-          {formatRate(playbackRate)}x
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={nextRate}
+              className="font-mono text-xs px-2.5 py-1 rounded-lg bg-ink/5 dark:bg-paper/5 hover:bg-ink/10 dark:hover:bg-paper/10 text-ink dark:text-paper transition-colors min-w-[60px] text-center"
+              aria-label="Change playback rate"
+            >
+              {formatRate(playbackRate)}x
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Change playback rate</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )

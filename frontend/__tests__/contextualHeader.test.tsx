@@ -2,6 +2,7 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import ContextualHeader from '../components/ContextualHeader'
+import { TooltipProvider } from '../components/ui/tooltip'
 
 const usePathnameMock = jest.fn()
 const openCaptureModalMock = jest.fn()
@@ -33,6 +34,13 @@ jest.mock('../infra/supabase/client', () => ({
 }))
 
 describe('ContextualHeader', () => {
+  const renderHeader = () =>
+    render(
+      <TooltipProvider delayDuration={0}>
+        <ContextualHeader />
+      </TooltipProvider>
+    )
+
   beforeEach(() => {
     jest.clearAllMocks()
     usePathnameMock.mockReturnValue('/editor/p1')
@@ -47,7 +55,7 @@ describe('ContextualHeader', () => {
     const user = userEventLib.setup()
     const dispatchSpy = jest.spyOn(window, 'dispatchEvent')
 
-    render(<ContextualHeader />)
+    renderHeader()
 
     const button = await waitFor(() =>
       screen.getByRole('button', { name: /scroll to the top of the project/i })
@@ -64,7 +72,7 @@ describe('ContextualHeader', () => {
   test('does not query Supabase auth on auth routes', async () => {
     usePathnameMock.mockReturnValue('/auth')
 
-    render(<ContextualHeader />)
+    renderHeader()
 
     expect(await screen.findByText('olivetti')).toBeInTheDocument()
     expect(getUserMock).not.toHaveBeenCalled()

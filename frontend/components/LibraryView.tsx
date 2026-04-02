@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {
@@ -250,17 +251,21 @@ export default function LibraryView() {
                       open={openMenuId === project.id}
                       onOpenChange={(open) => setOpenMenuId(open ? project.id : null)}
                     >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
-                          title={`More options for ${project.title || 'Untitled'}`}
-                          aria-label={`More options for ${project.title || 'Untitled'}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span className="mb-2">...</span>
-                        </button>
-                      </DropdownMenuTrigger>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
+                              aria-label={`More options for ${project.title || 'Untitled'}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="mb-2">...</span>
+                            </button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>More options</TooltipContent>
+                      </Tooltip>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"

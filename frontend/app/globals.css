@@ -158,30 +158,6 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: #444;
 }
 
-/* Range input reset (volume/scrubber) */
-input[type=range] {
-  -webkit-appearance: none;
-  background: transparent;
-}
-
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 12px;
-  width: 12px;
-  border-radius: 50%;
-  background: currentcolor;
-  cursor: pointer;
-  margin-top: -5px;
-}
-
-input[type=range]::-webkit-slider-runnable-track {
-  width: 100%;
-  height: 2px;
-  cursor: pointer;
-  background: currentcolor;
-  opacity: 0.3;
-}
-
 /* Theme transitions */
 body {
   transition: background-color 300ms, border-color 300ms, color 300ms;
