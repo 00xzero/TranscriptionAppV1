@@ -1,3 +1,4 @@
+import { Label } from '@/components/ui/label'
 import { MAX_KEY_TERMS } from './shared'
 
 const keyTermsInputId = 'capture-key-terms-input'
@@ -25,7 +26,7 @@ export default function KeyTermsInput({
 }: KeyTermsInputProps) {
   return (
     <div className="space-y-3 pt-2 border-t border-[#D1CEC5] dark:border-white/10">
-      <label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4" htmlFor={keyTermsInputId}>Key Terms (Optional)</label>
+      <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4" htmlFor={keyTermsInputId}>Key Terms (Optional)</Label>
 
       <div className="flex gap-2">
         <input

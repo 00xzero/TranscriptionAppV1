@@ -1,6 +1,8 @@
 'use client'
 
 import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 
 /**
  * Lightweight audio player component using native HTMLAudioElement.
@@ -530,24 +532,26 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
             +2s
           </button>
           <div className="ml-2 flex items-center gap-1">
-            <label className="text-sm text-muted">Rate</label>
-            <select
-              className="border border-base rounded-sm px-2 py-1 text-sm bg-surface text-current focus:outline-hidden focus:ring-2 focus:ring-trust-blue/30"
-              value={playbackRate}
-              aria-label="Playback rate"
-              title="Playback rate"
-              onChange={(e) => {
-                const rate = parseFloat(e.target.value)
+            <Label className="text-sm text-muted">Rate</Label>
+            <Select
+              value={String(playbackRate)}
+              onValueChange={(v) => {
+                const rate = parseFloat(v)
                 if (audioRef.current) {
                   audioRef.current.playbackRate = rate
                 }
                 setPlaybackRateState(rate)
               }}
             >
-              {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
-                <option key={r} value={r}>{r.toFixed(2)}x</option>
-              ))}
-            </select>
+              <SelectTrigger className="h-auto w-auto border border-base rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
+                  <SelectItem key={r} value={String(r)}>{r.toFixed(2)}x</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}
