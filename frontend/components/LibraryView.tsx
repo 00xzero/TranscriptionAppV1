@@ -1,9 +1,15 @@
 "use client"
 
-import React, { useEffect, useMemo, useState, useRef } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/infra/supabase/client'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {
@@ -12,28 +18,6 @@ export default function LibraryView() {
   const { projects, isLoading, deleteProject } = useProjectsRealtime()
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!openMenuId) return
-    const handlePointerDown = (e: PointerEvent) => {
-      const menuEl = menuRef.current
-      if (!menuEl) return
-      if (!menuEl.contains(e.target as Node)) setOpenMenuId(null)
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpenMenuId(null)
-      }
-    }
-    document.addEventListener('pointerdown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [openMenuId])
 
   // Handle delete with confirmation
   const handleDelete = async (id: string, title: string) => {
@@ -228,8 +212,6 @@ export default function LibraryView() {
             projects.slice(0, 5).map((project) => {
               const statusBadge = getStatusBadge(project.status)
               const duration = formatDuration(project.duration_seconds)
-              const isMenuOpen = openMenuId === project.id
-              const menuId = `project-menu-${project.id}`
 
               return (
                 <div
@@ -264,43 +246,33 @@ export default function LibraryView() {
                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
                       {formatRelativeTime(project.updated_at)}
                     </span>
-                    <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
-                      <button
-                        type="button"
-                        className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
-                        title={`More options for ${project.title || 'Untitled'}`}
-                        aria-label={`More options for ${project.title || 'Untitled'}`}
-                        aria-haspopup="menu"
-                        aria-expanded={isMenuOpen}
-                        aria-controls={menuId}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setOpenMenuId(isMenuOpen ? null : project.id)
-                        }}
-                      >
-                        <span className="mb-2">...</span>
-                      </button>
-                      {isMenuOpen && (
-                        <div
-                          id={menuId}
-                          role="menu"
-                          className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-night-surface border border-[#D1CEC5] dark:border-night-border rounded-lg shadow-lg z-50 overflow-hidden"
+                    <DropdownMenu
+                      open={openMenuId === project.id}
+                      onOpenChange={(open) => setOpenMenuId(open ? project.id : null)}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
+                          title={`More options for ${project.title || 'Untitled'}`}
+                          aria-label={`More options for ${project.title || 'Untitled'}`}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            role="menuitem"
-                            title={`Delete ${project.title || 'Untitled'}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDelete(project.id, project.title || 'Untitled')
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-ember-red hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                          <span className="mb-2">...</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
+                          onSelect={(event) => {
+                            event.preventDefault()
+                            void handleDelete(project.id, project.title || 'Untitled')
+                          }}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               )

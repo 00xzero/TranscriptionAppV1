@@ -17,6 +17,36 @@ const {
   updateSpeaker,
 } = jest.requireMock('@/lib/supabase/queries')
 
+const makeAnchorMeasurable = () => ({
+  getBoundingClientRect: () => ({
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 30,
+    top: 0,
+    right: 100,
+    bottom: 30,
+    left: 0,
+    toJSON: () => ({}),
+  } as DOMRect),
+})
+
+const makeTriggerElement = () => {
+  const button = document.createElement('button')
+  jest.spyOn(button, 'getBoundingClientRect').mockReturnValue({
+    x: 24,
+    y: 48,
+    width: 88,
+    height: 32,
+    top: 48,
+    right: 112,
+    bottom: 80,
+    left: 24,
+    toJSON: () => ({}),
+  } as DOMRect)
+  return button
+}
+
 function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
   return {
     id: 'sp1',
@@ -120,7 +150,8 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -141,7 +172,8 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -163,7 +195,7 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: 'sp1',
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
         })
       })
 
@@ -229,7 +261,8 @@ describe('useSpeakerAssignments', () => {
         result.current.setSpeakerPopover({
           chunkId: 's1',
           speakerId: null,
-          anchorRect: { x: 0, y: 0, width: 100, height: 30, top: 0, right: 100, bottom: 30, left: 0, toJSON: () => ({}) } as DOMRect,
+          anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
@@ -241,6 +274,68 @@ describe('useSpeakerAssignments', () => {
       expect(setSpeakers).toHaveBeenCalled()
       expect(setSegments).toHaveBeenCalled()
       expect(updateChunk).toHaveBeenCalledWith('s1', { speaker_id: 'sp3' })
+    })
+  })
+
+  describe('anchorRef', () => {
+    it('updates the virtual anchor immediately when the avatar is clicked', () => {
+      const { result } = setup()
+      const triggerElement = makeTriggerElement()
+
+      act(() => {
+        result.current.handleAvatarClick(
+          {
+            stopPropagation: jest.fn(),
+            currentTarget: triggerElement,
+          } as unknown as React.MouseEvent,
+          's1',
+          'sp1'
+        )
+      })
+
+      expect(result.current.anchorRef.current.getBoundingClientRect().width).toBe(88)
+      expect(result.current.speakerPopover?.triggerElement).toBe(triggerElement)
+      expect(result.current.lastTriggerElementRef.current).toBe(triggerElement)
+    })
+
+    it('exposes the current measurable for virtual popover anchoring', () => {
+      const { result } = setup()
+      const anchorMeasurable = makeAnchorMeasurable()
+      const triggerElement = makeTriggerElement()
+
+      act(() => {
+        result.current.setSpeakerPopover({
+          chunkId: 's1',
+          speakerId: 'sp1',
+          anchorMeasurable,
+          triggerElement,
+        })
+      })
+
+      expect(result.current.anchorRef.current).toBe(anchorMeasurable)
+    })
+
+    it('keeps the last measurable after the popover is cleared', async () => {
+      const { result } = setup()
+      const anchorMeasurable = makeAnchorMeasurable()
+      const triggerElement = makeTriggerElement()
+
+      act(() => {
+        result.current.setSpeakerPopover({
+          chunkId: 's1',
+          speakerId: 'sp1',
+          anchorMeasurable,
+          triggerElement,
+        })
+      })
+
+      await act(async () => {})
+
+      act(() => {
+        result.current.setSpeakerPopover(null)
+      })
+
+      expect(result.current.anchorRef.current).toBe(anchorMeasurable)
     })
   })
 })
