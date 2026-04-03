@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
-        <TooltipProvider delayDuration={300}>
+        <TooltipProvider delayDuration={700}>
           <ModalProvider>
             <Sidebar />
             <main className="flex-1 relative overflow-hidden z-[1]">

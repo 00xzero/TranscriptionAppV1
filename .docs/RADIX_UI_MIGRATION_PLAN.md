@@ -2,6 +2,16 @@
 
 > Migrate hand-rolled UI primitives to Radix UI for consistent accessibility, reduced boilerplate, and design-system alignment. All Radix wrappers are styled with Olivetti design tokens. Unique domain components (AudioPlayer, CollapsibleWaveform, FloatingPlayerDeck, TranscriptList, TranscriptSegmentCard, FileDropZone) remain hand-rolled.
 
+## Current Status
+
+This migration is complete as implemented.
+
+- The Radix wrapper layer, dialog migrations, dropdown migration, form primitive migrations, separators, and tooltip provider shipped successfully.
+- The speaker popover shipped with a screen-level Radix `Popover` plus virtual anchoring instead of colocating `PopoverTrigger` ownership in each transcript row.
+- That deviation is intentional: the transcript editor uses `react-virtuoso`, so keeping popover ownership above the virtualized row layer is more robust than attaching full trigger/content ownership to each item.
+- Remaining native `title` attributes are acceptable where a styled Radix tooltip does not materially improve the experience.
+- Verification status at completion: typecheck and tests pass, UAT passed, and production build passes in a normal connected environment. Lint may still report broader non-blocking React warnings outside the scope of this migration.
+
 ---
 
 ## Quick Reference
@@ -324,39 +334,26 @@ Commit message: `refactor(ui): migrate modals to Radix Dialog, remove useFocusTr
 
 ### 3B: Migrate SpeakerPopover + Editor Integration
 
-**File:** `frontend/components/SpeakerPopover.tsx`
+**Files:** `frontend/components/SpeakerPopoverContent.tsx`, `frontend/app/editor/[id]/EditorScreen.tsx`, `frontend/app/editor/[id]/hooks/useSpeakerAssignments.ts`
 
-**Current pattern to replace:**
-- Manual DOMRect-based positioning (`anchorRect.top`, `anchorRect.bottom`, viewport flip logic) → Radix Popover auto-positioning with collision detection
-- Manual click-outside listener (`document.addEventListener('mousedown', ...)`) → Radix `onPointerDownOutside`
-- Fixed positioning with calculated `top`/`left` → Radix handles portal + positioning
-- `role="dialog"` → Radix Popover provides appropriate role
+**Final implementation note:** This phase shipped with a screen-level Radix `Popover` anchored via `virtualRef`, not with colocated `PopoverTrigger` ownership inside each `TranscriptSegmentCard`.
 
-**Migration steps:**
-1. The parent component currently passes `anchorRect: DOMRect | null` to SpeakerPopover. This needs to change. The parent should instead wrap the speaker button in `<PopoverTrigger>` and let Radix handle anchoring.
-2. Restructure: the parent component (TranscriptSegmentCard or editor page) should use:
-   ```tsx
-   <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-     <PopoverTrigger asChild>
-       <button>{/* speaker button */}</button>
-     </PopoverTrigger>
-     <PopoverContent side="bottom" align="start" sideOffset={8}>
-       <SpeakerPopoverContent {...props} />
-     </PopoverContent>
-   </Popover>
-   ```
-3. Refactor SpeakerPopover into a "content-only" component (rename to `SpeakerPopoverContent` or keep name but remove positioning/portal logic)
-4. Remove: `anchorRect` prop, viewport flip calculation, click-outside useEffect, fixed positioning styles, `useRef` for popoverRef (used only for click-outside)
-5. Keep: speaker list rendering, search input, inline rename, tag/untag logic, keyboard navigation within the popover
-6. Set `collisionPadding={8}` on `PopoverContent` to match current viewport safety margin
-7. Radix Popover auto-flips when there isn't enough space — this replaces the manual `flipUp` logic
+**Why this was the better fit:**
+- The transcript list is virtualized with `react-virtuoso`
+- Keeping popover ownership above the row layer avoids coupling popup lifecycle to item mount/unmount behavior
+- Radix still handles portal rendering, collision detection, dismissal, and keyboard interactions
 
-**Breaking change:** The `anchorRect` prop is removed. This is not a local component swap. The parent/consumer layer must adopt the `<Popover>` + `<PopoverTrigger>` pattern and update editor state accordingly. Check and update these files together:
-- `frontend/app/editor/[id]/hooks/useSpeakerAssignments.ts` — remove `anchorRect` from state, store only the logical open target
-- `frontend/app/editor/[id]/EditorScreen.tsx` — stop rendering a globally-positioned popover and instead colocate trigger/content ownership
-- `frontend/app/editor/[id]/components/TranscriptSegmentCard.tsx` — the speaker button becomes the `PopoverTrigger`
+**Implemented migration:**
+1. Refactor the old speaker popover into content-only UI as `SpeakerPopoverContent`
+2. Move Radix `Popover` ownership to `EditorScreen`
+3. Use a virtual anchor backed by `useSpeakerAssignments.ts` so the popover can attach to the clicked speaker button without requiring row-level `PopoverTrigger` ownership
+4. Replace manual positioning, click-outside listeners, and viewport flip logic with Radix Popover positioning and dismissal hooks
+5. Preserve the existing speaker workflows: search, assign, create, inline rename, untag, focus management, and keyboard navigation
+6. Keep explicit close-reason and focus-restore handling in editor state so dismissal and external-close flows behave correctly in the editor shell
 
-**Test impact:** Existing hook coverage in `frontend/__tests__/editor/useSpeakerAssignments.test.ts` will need updates because the popover state shape changes. Add focused UI coverage for opening the popover from a transcript segment and selecting or renaming a speaker.
+**State shape:** The original `anchorRect` approach is gone, but the final state still stores a measurable trigger target for virtual anchoring and focus restoration. This is an intentional architecture choice, not unfinished work.
+
+**Test impact:** Existing hook coverage was updated around the measurable anchor model, and editor UI coverage verifies open, escape-to-close, and focus restoration behavior.
 
 ### 3.3 Verification
 
@@ -514,10 +511,10 @@ Commit message: `refactor(ui): migrate form primitives to Radix (Switch, Select,
    </Tooltip>
    ```
 3. Keep `aria-label` on buttons (tooltips are visual, aria-label is for screen readers)
-4. Remove `title` attributes (Radix Tooltip replaces them)
+4. Replace native `title` attributes where a Radix tooltip materially improves the experience
 5. Prioritize icon-only buttons first — these benefit most from styled tooltips
 
-**Scope control:** Only migrate buttons that currently have `title` attributes. Don't add tooltips to elements that don't have them today.
+**Scope control:** Migrate high-value controls first. It is acceptable to leave native `title` attributes in place where a styled tooltip does not add enough UX value to justify extra wrapper markup.
 
 ### 5.3 Dead Code Cleanup
 
@@ -539,7 +536,7 @@ Commit message: `refactor(ui): migrate form primitives to Radix (Switch, Select,
   - Editor: find/replace → match case toggle → replace
   - Editor: export modal → format selection → export
   - Audio: play/pause, rate change, seek
-  - Tooltips visible on hover for icon buttons
+  - Tooltips visible on hover for migrated high-value controls
   - Dark mode: every component renders correctly
   - Keyboard-only navigation through all flows
 

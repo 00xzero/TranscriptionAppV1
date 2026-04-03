@@ -11,18 +11,25 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 const TooltipContent = React.forwardRef<
   React.ElementRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 6, ...props }, ref) => (
+>(({ className, sideOffset = 5, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-100 overflow-hidden rounded-md border border-base bg-[var(--surface)] px-3 py-1.5 text-xs font-mono text-[var(--text)] shadow-elevation',
+        'z-100 overflow-visible rounded-md bg-[var(--surface)] px-3 py-1.5 text-xs font-mono text-[var(--text)] shadow-elevation drop-shadow-[0_0_0.5px_var(--border)]',
         'data-[state=closed]:animate-[fadeOut_120ms_ease-in] data-[state=delayed-open]:animate-[fadeIn_150ms_ease-out]',
         className
       )}
       {...props}
-    />
+    >
+      {props.children}
+      <TooltipPrimitive.Arrow
+        className="fill-[var(--surface)]"
+        width={11}
+        height={5}
+      />
+    </TooltipPrimitive.Content>
   </TooltipPrimitive.Portal>
 ))
 TooltipContent.displayName = TooltipPrimitive.Content.displayName

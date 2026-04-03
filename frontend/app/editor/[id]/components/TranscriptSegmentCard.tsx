@@ -1,4 +1,5 @@
 import React from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { Word, Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 import { msToTimestamp } from '../utils'
 
@@ -32,15 +33,19 @@ function SegmentHeaderRow({
   return (
     <div className="flex items-baseline gap-3 mb-2">
       {showSpeaker && onSpeakerClick && (
-        <button
-          type="button"
-          className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40"
-          onClick={onSpeakerClick}
-          aria-label={`Change speaker (${speakerLabel})`}
-          title="Click to change speaker"
-        >
-          {speakerLabel}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40"
+              onClick={onSpeakerClick}
+              aria-label={`Change speaker (${speakerLabel})`}
+            >
+              {speakerLabel}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Click to change speaker</TooltipContent>
+        </Tooltip>
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
       <span className="text-[10px] font-mono">
@@ -49,21 +54,25 @@ function SegmentHeaderRow({
         {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
       </span>
       {source !== 'segments' && (
-        <button
-          type="button"
-          className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
-          onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-            e.stopPropagation()
-            setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
-            setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
-          }}
-          title={editingId === segmentId ? 'Close editor' : 'Edit text'}
-          aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-          </svg>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                e.stopPropagation()
+                setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
+                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
+              }}
+              aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{editingId === segmentId ? 'Close editor' : 'Edit text'}</TooltipContent>
+        </Tooltip>
       )}
     </div>
   )

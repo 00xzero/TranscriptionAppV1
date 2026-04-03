@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/infra/supabase/client'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
 
 // Storage key for sidebar collapsed state
@@ -174,65 +175,77 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           ${isCollapsed ? 'md:px-3' : 'md:px-6'}
         `}
       >
-        <button
-          type="button"
-          aria-label="Go to home"
-          title="Home"
-          className="flex items-center gap-3 text-left rounded-sm bg-transparent border-0 p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
-          onClick={() => navigateTo('/')}
-        >
-          {/* Logo Icon */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="h-6 w-1 bg-ink dark:bg-paper rounded-full" />
-            <div className="h-2 w-2 bg-ember-red rounded-xs" />
-          </div>
-          {/* Wordmark - hidden when collapsed */}
-          {!isCollapsed && (
-            <h1 className="font-serif text-2xl italic text-ink dark:text-paper hidden md:block tracking-tight whitespace-nowrap overflow-hidden transition-all duration-200">
-              olivetti
-            </h1>
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Go to home"
+              className="flex items-center gap-3 text-left rounded-sm bg-transparent border-0 p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+              onClick={() => navigateTo('/')}
+            >
+              {/* Logo Icon */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className="h-6 w-1 bg-ink dark:bg-paper rounded-full" />
+                <div className="h-2 w-2 bg-ember-red rounded-xs" />
+              </div>
+              {/* Wordmark - hidden when collapsed */}
+              {!isCollapsed && (
+                <h1 className="font-serif text-2xl italic text-ink dark:text-paper hidden md:block tracking-tight whitespace-nowrap overflow-hidden transition-all duration-200">
+                  olivetti
+                </h1>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Home</TooltipContent>
+        </Tooltip>
 
         {/* Collapse Toggle Button - Desktop Only */}
-        <button
-          onClick={toggleCollapsed}
-          className="hidden md:flex items-center justify-center w-6 h-6 rounded-sm hover:bg-ink/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          <svg
-            className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-          </svg>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleCollapsed}
+              className="hidden md:flex items-center justify-center w-6 h-6 rounded-sm hover:bg-ink/5 dark:hover:bg-white/10 text-ink/40 dark:text-paper/40 transition-colors"
+              aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            >
+              <svg
+                className={`w-4 h-4 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Primary Nav */}
       <div className={`flex-1 py-6 space-y-1 px-2 ${isCollapsed ? '' : 'md:px-4'}`}>
         {/* Library */}
-        <button
-          onClick={() => navigateTo('/')}
-          aria-label="Library"
-          title="Library"
-          className={`
-            w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all overflow-hidden whitespace-nowrap
-            ${isCollapsed ? 'justify-center' : 'md:justify-start'}
-            ${isLibraryActive
-              ? 'bg-white/50 dark:bg-white/5 shadow-xs border border-[#D1CEC5] dark:border-night-border text-ink dark:text-paper'
-              : 'hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70'
-            }
-          `}
-        >
-          <span className="font-mono text-lg opacity-60 group-hover:opacity-100 shrink-0">❖</span>
-          {!isCollapsed && (
-            <span className="hidden md:block font-medium text-sm transition-opacity duration-200">Library</span>
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => navigateTo('/')}
+              aria-label="Library"
+              className={`
+                w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all overflow-hidden whitespace-nowrap
+                ${isCollapsed ? 'justify-center' : 'md:justify-start'}
+                ${isLibraryActive
+                  ? 'bg-white/50 dark:bg-white/5 shadow-xs border border-[#D1CEC5] dark:border-night-border text-ink dark:text-paper'
+                  : 'hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70'
+                }
+              `}
+            >
+              <span className="font-mono text-lg opacity-60 group-hover:opacity-100 shrink-0">❖</span>
+              {!isCollapsed && (
+                <span className="hidden md:block font-medium text-sm transition-opacity duration-200">Library</span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Library</TooltipContent>
+        </Tooltip>
 
         {/* Drafts - Coming Soon */}
         <button
@@ -312,26 +325,30 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         )}
 
         {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          aria-label={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-          className={`
-            w-full flex items-center gap-3 px-2 py-1.5 rounded 
-            hover:bg-ink/5 dark:hover:bg-white/5 text-ink/60 dark:text-paper/60 
-            transition-colors overflow-hidden whitespace-nowrap
-            ${isCollapsed ? 'justify-center mt-4' : 'justify-center md:justify-start'}
-          `}
-          title={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-        >
-          <span className="font-mono text-xs shrink-0">
-            {theme === 'light' ? '☾' : '☀'}
-          </span>
-          {!isCollapsed && (
-            <span className="hidden md:block text-[10px] font-mono uppercase tracking-wide transition-opacity duration-200">
-              {theme === 'light' ? 'Night Mode' : 'Day Mode'}
-            </span>
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
+              className={`
+                w-full flex items-center gap-3 px-2 py-1.5 rounded 
+                hover:bg-ink/5 dark:hover:bg-white/5 text-ink/60 dark:text-paper/60 
+                transition-colors overflow-hidden whitespace-nowrap
+                ${isCollapsed ? 'justify-center mt-4' : 'justify-center md:justify-start'}
+              `}
+            >
+              <span className="font-mono text-xs shrink-0">
+                {theme === 'light' ? '☾' : '☀'}
+              </span>
+              {!isCollapsed && (
+                <span className="hidden md:block text-[10px] font-mono uppercase tracking-wide transition-opacity duration-200">
+                  {theme === 'light' ? 'Night Mode' : 'Day Mode'}
+                </span>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}</TooltipContent>
+        </Tooltip>
       </div>
     </nav>
   )

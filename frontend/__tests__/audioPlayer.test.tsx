@@ -2,6 +2,7 @@ import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import AudioPlayer, { AudioPlayerRef } from '../components/AudioPlayer'
 import CollapsibleWaveform from '../components/CollapsibleWaveform'
+import { TooltipProvider } from '../components/ui/tooltip'
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
   jest.spyOn(el, 'getBoundingClientRect').mockReturnValue({
@@ -364,7 +365,11 @@ describe('AudioPlayer', () => {
       )
     }
 
-    render(<TransitionHarness />)
+    render(
+      <TooltipProvider delayDuration={0}>
+        <TransitionHarness />
+      </TooltipProvider>
+    )
 
     const playerSlider = screen.getByRole('slider', { name: 'Audio progress' })
     mockProgressRect(playerSlider, 0, 200)

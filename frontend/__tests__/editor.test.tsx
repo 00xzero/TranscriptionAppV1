@@ -510,7 +510,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    const editButtons = screen.getAllByTitle(/Edit text/i)
+    const editButtons = screen.getAllByRole('button', { name: /Edit transcript text/i })
     await user.click(editButtons[0])
     await waitFor(() => {
       expect(document.querySelector('[data-testid="segment-card"] textarea')).not.toBeNull()
@@ -528,7 +528,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    const editButtons = screen.getAllByTitle(/Edit text/i)
+    const editButtons = screen.getAllByRole('button', { name: /Edit transcript text/i })
     await user.click(editButtons[0])
     const textarea = await waitFor(() => {
       const el = document.querySelector('[data-testid="segment-card"] textarea')
@@ -558,7 +558,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    const editButtons = screen.getAllByTitle(/Edit text/i)
+    const editButtons = screen.getAllByRole('button', { name: /Edit transcript text/i })
     await user.click(editButtons[0])
     await waitFor(() => {
       expect(document.querySelector('[data-testid="segment-card"] textarea')).not.toBeNull()
@@ -576,7 +576,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    await user.click(screen.getByTitle(/Click to change speaker/i))
+    await user.click(screen.getByRole('button', { name: /Change speaker/i }))
     await screen.findByText(/Suggested Speakers/i)
 
     fireEvent.keyDown(document, { key: 'f', metaKey: true })
@@ -591,7 +591,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    const trigger = screen.getByTitle(/Click to change speaker/i)
+    const trigger = screen.getByRole('button', { name: /Change speaker/i })
     await user.click(trigger)
 
     const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
@@ -635,7 +635,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await user.click(screen.getByRole('button', { name: /sync to audio/i }))
     scrollToIndexMock.mockClear()
 
-    const editButtons = screen.getAllByTitle(/Edit text/i)
+    const editButtons = screen.getAllByRole('button', { name: /Edit transcript text/i })
     await user.click(editButtons[1])
 
     await waitFor(() => {

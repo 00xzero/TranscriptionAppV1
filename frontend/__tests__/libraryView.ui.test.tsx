@@ -102,7 +102,7 @@ describe('LibraryView', () => {
     confirmSpy.mockRestore()
   })
 
-  test('does not delete and keeps the menu open when delete is canceled', async () => {
+  test('does not delete and closes the menu when delete is canceled', async () => {
     const user = userEventLib.setup()
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
 
@@ -113,7 +113,9 @@ describe('LibraryView', () => {
     await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
 
     expect(mockDeleteProject).not.toHaveBeenCalled()
-    expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
+    })
 
     confirmSpy.mockRestore()
   })
