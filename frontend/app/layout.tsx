@@ -5,6 +5,7 @@ import { ModalProvider } from '../lib/ModalContext'
 import Sidebar from '../components/Sidebar'
 import ContextualHeader from '../components/ContextualHeader'
 import CaptureModal from '../components/CaptureModal'
+import { TooltipProvider } from '../components/ui/tooltip'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -36,18 +37,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
-        <ModalProvider>
-          <Sidebar />
-          <main className="flex-1 relative overflow-hidden z-[1]">
-            <div className="absolute top-0 left-0 right-0 z-40">
-              <ContextualHeader />
-            </div>
-            <div className="h-full w-full overflow-y-auto">
-              {children}
-            </div>
-          </main>
-          <CaptureModal />
-        </ModalProvider>
+        <TooltipProvider delayDuration={700}>
+          <ModalProvider>
+            <Sidebar />
+            <main className="flex-1 relative overflow-hidden z-[1]">
+              <div className="absolute top-0 left-0 right-0 z-40">
+                <ContextualHeader />
+              </div>
+              <div className="h-full w-full overflow-y-auto">
+                {children}
+              </div>
+            </main>
+            <CaptureModal />
+          </ModalProvider>
+        </TooltipProvider>
       </body>
     </html>
   )

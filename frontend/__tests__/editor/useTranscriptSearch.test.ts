@@ -15,6 +15,7 @@ const defaultParams = {
   scrollToSegmentIndex: jest.fn(),
   suspendFollow: jest.fn(),
   setSpeakerPopover: jest.fn(),
+  closeSpeakerPopover: jest.fn(),
   exportModalOpen: false,
 }
 
@@ -27,6 +28,7 @@ describe('useTranscriptSearch', () => {
     defaultParams.scrollToSegmentIndex.mockClear()
     defaultParams.suspendFollow.mockClear()
     defaultParams.setSpeakerPopover.mockClear()
+    defaultParams.closeSpeakerPopover.mockClear()
   })
 
   afterEach(() => {

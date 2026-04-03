@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
 import type { Project } from '../contracts/db'
+import { TooltipProvider } from '../components/ui/tooltip'
 
 const mockGetUser = jest.fn()
 const mockDeleteProject = jest.fn()
@@ -46,6 +47,13 @@ jest.mock('next/link', () => {
 })
 
 describe('LibraryView', () => {
+  const renderLibraryView = () =>
+    render(
+      <TooltipProvider delayDuration={0}>
+        <LibraryView />
+      </TooltipProvider>
+    )
+
   beforeEach(() => {
     jest.clearAllMocks()
     mockGetUser.mockResolvedValue({
@@ -62,7 +70,7 @@ describe('LibraryView', () => {
 
   test('opens dropdown on trigger click and closes on Escape', async () => {
     const user = userEventLib.setup()
-    render(<LibraryView />)
+    renderLibraryView()
 
     await screen.findByText('Project Alpha')
 
@@ -80,7 +88,7 @@ describe('LibraryView', () => {
     const user = userEventLib.setup()
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
 
-    render(<LibraryView />)
+    renderLibraryView()
     await screen.findByText('Project Alpha')
 
     await user.click(screen.getByRole('button', { name: /More options for Project Alpha/i }))
@@ -94,18 +102,20 @@ describe('LibraryView', () => {
     confirmSpy.mockRestore()
   })
 
-  test('does not delete and keeps the menu open when delete is canceled', async () => {
+  test('does not delete and closes the menu when delete is canceled', async () => {
     const user = userEventLib.setup()
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
 
-    render(<LibraryView />)
+    renderLibraryView()
     await screen.findByText('Project Alpha')
 
     await user.click(screen.getByRole('button', { name: /More options for Project Alpha/i }))
     await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
 
     expect(mockDeleteProject).not.toHaveBeenCalled()
-    expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
+    })
 
     confirmSpy.mockRestore()
   })

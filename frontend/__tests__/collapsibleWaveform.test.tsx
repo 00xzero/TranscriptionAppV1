@@ -1,6 +1,7 @@
 import React from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import CollapsibleWaveform from '../components/CollapsibleWaveform'
+import { TooltipProvider } from '../components/ui/tooltip'
 
 // Helper to mock getBoundingClientRect on the scrubber bar
 function mockBarRect(el: HTMLElement, left: number, width: number) {
@@ -24,6 +25,13 @@ describe('CollapsibleWaveform', () => {
     children: <div data-testid="waveform-content">Audio Player</div>,
   }
 
+  const renderWaveform = (props: Partial<React.ComponentProps<typeof CollapsibleWaveform>> = {}) =>
+    render(
+      <TooltipProvider delayDuration={0}>
+        <CollapsibleWaveform {...defaultProps} {...props} />
+      </TooltipProvider>
+    )
+
   beforeEach(() => {
     jest.clearAllMocks()
     jest.useFakeTimers()
@@ -35,20 +43,20 @@ describe('CollapsibleWaveform', () => {
   })
 
   it('renders mini progress bar when collapsed', () => {
-    render(<CollapsibleWaveform {...defaultProps} />)
+    renderWaveform()
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     expect(slider).toBeInTheDocument()
     expect(slider).toHaveAttribute('aria-valuenow', '40')
   })
 
   it('does not render mini bar when expanded', () => {
-    render(<CollapsibleWaveform {...defaultProps} collapsed={false} />)
+    renderWaveform({ collapsed: false })
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
   })
 
   it('calls onScrub with correct fraction on mouse down at 50%', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 200)
 
@@ -58,7 +66,7 @@ describe('CollapsibleWaveform', () => {
 
   it('calls onScrub with 0 on mouse down at left edge', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 400)
 
@@ -68,7 +76,7 @@ describe('CollapsibleWaveform', () => {
 
   it('calls onScrub with 1 on mouse down at right edge', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 300)
 
@@ -78,7 +86,7 @@ describe('CollapsibleWaveform', () => {
 
   it('returns safe default when scrubber width is zero', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 0)
 
@@ -88,7 +96,7 @@ describe('CollapsibleWaveform', () => {
 
   it('clamps fraction to 0-1 for out-of-bounds drags', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 200)
 
@@ -103,7 +111,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports keyboard scrub-to-start with Home when onScrub is provided', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     fireEvent.keyDown(slider, { key: 'Home' })
     expect(onScrub).toHaveBeenCalledWith(0)
@@ -111,7 +119,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports keyboard scrubbing with arrow/end keys', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} audioProgress={40} onScrub={onScrub} />)
+    renderWaveform({ audioProgress: 40, onScrub })
     const slider = screen.getByRole('slider')
 
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
@@ -123,7 +131,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports drag-to-scrub via mousedown + mousemove + mouseup', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} onScrub={onScrub} />)
+    renderWaveform({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -152,7 +160,7 @@ describe('CollapsibleWaveform', () => {
 
   it('renders local drag preview during scrubbing and resets to prop progress on release', () => {
     const onScrub = jest.fn()
-    render(<CollapsibleWaveform {...defaultProps} audioProgress={40} onScrub={onScrub} />)
+    renderWaveform({ audioProgress: 40, onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -175,7 +183,7 @@ describe('CollapsibleWaveform', () => {
   })
 
   it('renders progress bar at correct width', () => {
-    render(<CollapsibleWaveform {...defaultProps} audioProgress={65} />)
+    renderWaveform({ audioProgress: 65 })
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     const fill = slider.firstChild as HTMLElement
     expect(fill.style.width).toBe('65%')
@@ -185,14 +193,7 @@ describe('CollapsibleWaveform', () => {
     const onScrub = jest.fn()
     const onScrubStart = jest.fn()
     const onScrubEnd = jest.fn()
-    render(
-      <CollapsibleWaveform
-        {...defaultProps}
-        onScrub={onScrub}
-        onScrubStart={onScrubStart}
-        onScrubEnd={onScrubEnd}
-      />
-    )
+    renderWaveform({ onScrub, onScrubStart, onScrubEnd })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -211,13 +212,7 @@ describe('CollapsibleWaveform', () => {
   it('does not call onScrubStart/onScrubEnd when onScrub is not provided', () => {
     const onScrubStart = jest.fn()
     const onScrubEnd = jest.fn()
-    render(
-      <CollapsibleWaveform
-        {...defaultProps}
-        onScrubStart={onScrubStart}
-        onScrubEnd={onScrubEnd}
-      />
-    )
+    renderWaveform({ onScrubStart, onScrubEnd })
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
 
     fireEvent.mouseDown(slider)

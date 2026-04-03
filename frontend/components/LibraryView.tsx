@@ -10,13 +10,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
   const { projects, isLoading, deleteProject } = useProjectsRealtime()
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Handle delete with confirmation
@@ -25,7 +25,6 @@ export default function LibraryView() {
       `Delete "${title}"? This will permanently remove the project and all associated data. This action cannot be undone.`
     )
     if (!ok) return
-    setOpenMenuId(null)
     setDeleteError(null)
     try {
       await deleteProject(id)
@@ -246,26 +245,25 @@ export default function LibraryView() {
                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
                       {formatRelativeTime(project.updated_at)}
                     </span>
-                    <DropdownMenu
-                      open={openMenuId === project.id}
-                      onOpenChange={(open) => setOpenMenuId(open ? project.id : null)}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
-                          title={`More options for ${project.title || 'Untitled'}`}
-                          aria-label={`More options for ${project.title || 'Untitled'}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span className="mb-2">...</span>
-                        </button>
-                      </DropdownMenuTrigger>
+                    <DropdownMenu>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
+                              aria-label={`More options for ${project.title || 'Untitled'}`}
+                            >
+                              <span className="mb-2">...</span>
+                            </button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>More options</TooltipContent>
+                      </Tooltip>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
-                          onSelect={(event) => {
-                            event.preventDefault()
+                          onSelect={() => {
                             void handleDelete(project.id, project.title || 'Untitled')
                           }}
                         >

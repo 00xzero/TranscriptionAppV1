@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface CollapsibleWaveformProps {
   collapsed: boolean
@@ -117,25 +118,29 @@ export default function CollapsibleWaveform({
     <div className={`relative leading-none ${collapsed ? 'z-50' : 'z-30'}`}>
       {/* Mini progress bar — visible when collapsed */}
       {collapsed && (
-        <div
-          ref={barRef}
-          role="slider"
-          tabIndex={0}
-          aria-label="Audio scrubber"
-          title="Scrub audio"
-          aria-orientation="horizontal"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(visibleProgress)}
-          onMouseDown={handleMouseDown}
-          onKeyDown={handleKeyDown}
-          className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
-        >
-          <div
-            className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
-            style={{ width: `${visibleProgress}%` }}
-          />
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              ref={barRef}
+              role="slider"
+              tabIndex={0}
+              aria-label="Audio scrubber"
+              aria-orientation="horizontal"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(visibleProgress)}
+              onMouseDown={handleMouseDown}
+              onKeyDown={handleKeyDown}
+              className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
+            >
+              <div
+                className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
+                style={{ width: `${visibleProgress}%` }}
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>Scrub audio</TooltipContent>
+        </Tooltip>
       )}
 
       {/* Expandable waveform container */}

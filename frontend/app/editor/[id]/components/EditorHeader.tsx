@@ -1,4 +1,6 @@
 import React from 'react'
+import { Separator } from '@/components/ui/separator'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatProjectDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
@@ -51,22 +53,26 @@ export default function EditorHeader({
               aria-label="Project title"
             />
           ) : (
-            <h1
-              className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors mb-4"
-              onClick={startEditingTitle}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  startEditingTitle()
-                }
-              }}
-              tabIndex={0}
-              role="button"
-              aria-label="Edit title"
-              title="Click to edit title"
-            >
-              {projectTitle || `Untitled (${projectId.slice(0, 8)}...)`}
-            </h1>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h1
+                  className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors mb-4"
+                  onClick={startEditingTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      startEditingTitle()
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label="Edit title"
+                >
+                  {projectTitle || `Untitled (${projectId.slice(0, 8)}...)`}
+                </h1>
+              </TooltipTrigger>
+              <TooltipContent>Click to edit title</TooltipContent>
+            </Tooltip>
           )}
         </div>
         {titleSaveError && (
@@ -96,7 +102,7 @@ export default function EditorHeader({
           )}
         </div>
       </div>
-      <div className="h-px w-full bg-ink/10 dark:bg-white/10 mt-8" />
+      <Separator decorative={false} className="mt-8 bg-ink/10 dark:bg-white/10" />
     </div>
   )
 }

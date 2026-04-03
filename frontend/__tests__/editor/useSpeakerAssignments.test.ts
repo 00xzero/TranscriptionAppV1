@@ -196,6 +196,7 @@ describe('useSpeakerAssignments', () => {
           chunkId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
+          triggerElement: makeTriggerElement(),
         })
       })
 
