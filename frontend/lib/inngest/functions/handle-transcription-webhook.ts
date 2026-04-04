@@ -11,9 +11,7 @@ import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
-    getMajoritySpeaker,
     DeepgramWord,
-    DeepgramUtterance,
 } from "@/infra/deepgram";
 import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
@@ -139,12 +137,10 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             }
             const response = responseParsed.data;
 
-            // Parse Deepgram response
-            // Utterances can be at results level or under alternatives (legacy worker handled both)
+            // Parse Deepgram response — use channel words for word-level speaker grouping
             const results = response.results || {};
             const channels = results.channels || [];
             const alt = channels[0]?.alternatives?.[0];
-            const utterances = results.utterances || alt?.utterances;
             const words = alt?.words || [];
 
             // Clear existing segments for idempotency
@@ -240,44 +236,56 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 }
             }
 
-            // Process utterances (preferred) or words
-            if (utterances && utterances.length > 0) {
-                for (const utt of utterances as DeepgramUtterance[]) {
-                    const startMs = Math.round(utt.start * 1000);
-                    const endMs = Math.round(utt.end * 1000);
+            // Group channel words into contiguous speaker runs.
+            // Each run of words from the same speaker becomes one segment,
+            // giving accurate per-word speaker attribution.
+            if (words.length > 0) {
+                const hasSpeakerInfo = words.some(w => typeof w.speaker === "number");
+
+                if (hasSpeakerInfo) {
+                    // Build speaker runs: split only on numeric speaker transitions.
+                    // Words without a speaker number inherit the previous speaker
+                    // (defensive — Deepgram labels every word when diarize=true).
+                    const runs: DeepgramWord[][] = [];
+                    let currentRun: DeepgramWord[] = [words[0]];
+                    let lastSpeaker = words[0].speaker;
+
+                    for (let i = 1; i < words.length; i++) {
+                        const speaker = words[i].speaker;
+                        if (typeof speaker === "number" && speaker !== lastSpeaker) {
+                            runs.push(currentRun);
+                            currentRun = [words[i]];
+                            lastSpeaker = speaker;
+                        } else {
+                            currentRun.push(words[i]);
+                        }
+                    }
+                    runs.push(currentRun);
+
+                    for (const run of runs) {
+                        const startMs = Math.round(run[0].start * 1000);
+                        const endMs = Math.round(run[run.length - 1].end * 1000);
+                        maxEndMs = Math.max(maxEndMs, endMs);
+
+                        // Build text from punctuated_word (formatted) with fallback to word (raw)
+                        const text = run.map(w => w.punctuated_word ?? w.word).join(" ");
+
+                        let speakerId: string | null = null;
+                        if (typeof run[0].speaker === "number") {
+                            speakerId = await getOrCreateSpeaker(run[0].speaker);
+                        }
+
+                        await insertSegment(speakerId, startMs, endMs, text, run);
+                    }
+                } else {
+                    // No diarization info — single segment covering all words
+                    const startMs = Math.round(words[0].start * 1000);
+                    const endMs = Math.round(words[words.length - 1].end * 1000);
                     maxEndMs = Math.max(maxEndMs, endMs);
 
-                    // Determine majority speaker
-                    const speakerNum = getMajoritySpeaker(utt.words || []);
-                    let speakerId: string | null = null;
-
-                    if (typeof speakerNum === "number") {
-                        speakerId = await getOrCreateSpeaker(speakerNum);
-                    }
-
-                    await insertSegment(
-                        speakerId,
-                        startMs,
-                        endMs,
-                        utt.transcript || "",
-                        utt.words || []
-                    );
+                    const text = words.map(w => w.punctuated_word ?? w.word).join(" ");
+                    await insertSegment(null, startMs, endMs, text, words);
                 }
-            } else if (words.length > 0) {
-                // Fallback: single segment covering all words
-                const startMs = Math.round(words[0].start * 1000);
-                const endMs = Math.round(words[words.length - 1].end * 1000);
-                maxEndMs = Math.max(maxEndMs, endMs);
-
-                const speakerNum = getMajoritySpeaker(words);
-                let speakerId: string | null = null;
-
-                if (typeof speakerNum === "number") {
-                    speakerId = await getOrCreateSpeaker(speakerNum);
-                }
-
-                const transcript = alt?.transcript || "";
-                await insertSegment(speakerId, startMs, endMs, transcript, words);
             } else {
                 // No words returned; create empty segment
                 await insertSegment(null, 0, 0, alt?.transcript || "", []);

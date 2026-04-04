@@ -7,6 +7,8 @@ export const DeepgramWordSchema = z.object({
   end: z.number(),
   confidence: z.number(),
   speaker: z.number().optional(),
+  speaker_confidence: z.number().optional(),
+  punctuated_word: z.string().optional(),
 })
 
 export const DeepgramUtteranceSchema = z.object({
@@ -14,6 +16,20 @@ export const DeepgramUtteranceSchema = z.object({
   end: z.number(),
   transcript: z.string(),
   words: z.array(DeepgramWordSchema),
+})
+
+export const DeepgramSentenceSchema = z.object({
+  text: z.string(),
+  start: z.number(),
+  end: z.number(),
+})
+
+export const DeepgramParagraphSchema = z.object({
+  sentences: z.array(DeepgramSentenceSchema),
+  speaker: z.number(),
+  num_words: z.number(),
+  start: z.number(),
+  end: z.number(),
 })
 
 // For startAsyncTranscription() response (infra/deepgram/index.ts)
@@ -40,7 +56,11 @@ export const DeepgramWebhookPayloadSchema = z.object({
       alternatives: z.array(z.object({
         transcript: z.string().optional(),
         words: z.array(DeepgramWordSchema).optional(),
-        utterances: z.array(DeepgramUtteranceSchema).optional(), // legacy position
+        utterances: z.array(DeepgramUtteranceSchema).optional(), // legacy — earmarked for deprecation
+        paragraphs: z.object({
+          transcript: z.string().optional(),
+          paragraphs: z.array(DeepgramParagraphSchema),
+        }).optional(),
       })).optional(),
     })).optional(),
     utterances: z.array(DeepgramUtteranceSchema).optional(), // standard position
@@ -65,3 +85,5 @@ export type DeepgramAsyncResponse = z.infer<typeof DeepgramAsyncResponseSchema>
 export type DeepgramWebhookPayload = z.infer<typeof DeepgramWebhookPayloadSchema>
 export type DeepgramWord = z.infer<typeof DeepgramWordSchema>
 export type DeepgramUtterance = z.infer<typeof DeepgramUtteranceSchema>
+export type DeepgramSentence = z.infer<typeof DeepgramSentenceSchema>
+export type DeepgramParagraph = z.infer<typeof DeepgramParagraphSchema>
