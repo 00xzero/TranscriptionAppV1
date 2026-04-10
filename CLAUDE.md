@@ -28,6 +28,10 @@ Local infrastructure (Supabase, Inngest, ngrok) — run from repo root:
 cd infra && ./start-local.sh   # Start local services
 cd infra && ./stop-local.sh    # Stop local services
 ```
+# App test Authentication (login)
+Use this to login to the app as a test user:
+email address: ui5nvlw97q@mkzaso.com
+password: 4qdGNrheWHR25Js
 
 ## Architecture
 
