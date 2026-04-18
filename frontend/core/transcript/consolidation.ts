@@ -11,6 +11,13 @@
  * - Sentence boundary awareness
  */
 
+import {
+    getWordCount,
+    isFiller,
+    isSentenceBoundary,
+    normalizeText,
+} from "@/core/transcript/text-utils";
+
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -65,11 +72,6 @@ export interface ChunkData {
     wordIds: string[];
 }
 
-// Computed properties as helper functions
-export function getWordCount(text: string): number {
-    return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
 export function getChunkText(chunk: ChunkData): string {
     return chunk.texts.join(" ");
 }
@@ -85,53 +87,6 @@ export function getChunkDurationMs(chunk: ChunkData): number {
 // ============================================================================
 // Core Algorithm Helpers
 // ============================================================================
-
-/**
- * Check if text ends at a natural sentence boundary.
- */
-export function isSentenceBoundary(text: string): boolean {
-    const stripped = text.trimEnd();
-    return /[.?!"]$/.test(stripped);
-}
-
-/**
- * Check if text matches a filler pattern.
- */
-export function isFiller(text: string, patterns: string[]): boolean {
-    const normalized = text.trim().toLowerCase();
-
-    // Exact match for short fillers
-    if (patterns.includes(normalized)) {
-        return true;
-    }
-
-    // Check without trailing period
-    for (const pattern of patterns) {
-        if (normalized === pattern.replace(/\.$/, "")) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/**
- * Concatenate texts with proper spacing and punctuation.
- */
-export function normalizeText(texts: string[]): string {
-    let combined = texts
-        .map(t => t.trim())
-        .filter(Boolean)
-        .join(" ");
-
-    // Fix double/multiple spaces
-    combined = combined.replace(/\s+/g, " ");
-
-    // Ensure space after sentence-ending punctuation if followed by letter
-    combined = combined.replace(/([.!?])([A-Za-z])/g, "$1 $2");
-
-    return combined.trim();
-}
 
 // ============================================================================
 // Core Consolidation Algorithm
@@ -289,3 +244,10 @@ export function consolidateAndProcess(
     const rawChunks = consolidateSegments(segments, config);
     return processChunks(rawChunks, config);
 }
+
+export {
+    getWordCount,
+    isFiller,
+    isSentenceBoundary,
+    normalizeText,
+};

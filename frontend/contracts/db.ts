@@ -72,6 +72,11 @@ export const WordSchema = z.object({
   text: z.string(),
   confidence: z.number().nullable(),
   order_index: z.number().int(),
+  speaker: z.number().int().nullable().optional(),
+  speaker_confidence: z.number().nullable().optional(),
+  punctuated_text: z.string().nullable().optional(),
+  paragraph_index: z.number().int().nullable().optional(),
+  sentence_end: z.boolean().optional(),
   created_at: z.string(),
   updated_at: z.string(),
 })
@@ -83,6 +88,9 @@ export const SegmentSchema = z.object({
   start_ms: z.number().int(),
   end_ms: z.number().int(),
   text: z.string(),
+  is_edited: z.boolean(),
+  is_filler: z.boolean(),
+  algo_version: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
 })

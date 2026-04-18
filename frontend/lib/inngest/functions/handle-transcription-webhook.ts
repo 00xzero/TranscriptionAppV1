@@ -11,8 +11,11 @@ import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
-    DeepgramWord,
-} from "@/infra/deepgram";
+    DEFAULT_SEGMENT_BUILDER_CONFIG,
+    NormalizedWord,
+    buildSegments,
+    normalizeWords,
+} from "@/core/transcript/segment-builder";
 import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
 import { writeTranscriptionFailureFallback } from "./_shared";
@@ -193,7 +196,9 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 startMs: number,
                 endMs: number,
                 text: string,
-                segmentWords: DeepgramWord[]
+                segmentWords: NormalizedWord[],
+                isFiller: boolean,
+                algoVersion: string
             ): Promise<void> {
                 const { data: segment, error: segError } = await supabase
                     .from("segments")
@@ -203,6 +208,8 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                         start_ms: startMs,
                         end_ms: endMs,
                         text,
+                        is_filler: isFiller,
+                        algo_version: algoVersion,
                     })
                     .select("id")
                     .single();
@@ -217,11 +224,16 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 if (segmentWords.length > 0) {
                     const wordRows = segmentWords.map((w, idx) => ({
                         segment_id: segment.id,
-                        start_ms: Math.round(w.start * 1000),
-                        end_ms: Math.round(w.end * 1000),
-                        text: w.word,
+                        start_ms: w.startMs,
+                        end_ms: w.endMs,
+                        text: w.text,
                         confidence: w.confidence,
                         order_index: idx,
+                        speaker: w.speaker,
+                        speaker_confidence: w.speakerConfidence,
+                        punctuated_text: w.punctuatedText,
+                        paragraph_index: w.paragraphIndex,
+                        sentence_end: w.sentenceEnd,
                     }));
 
                     const { error: wordError } = await supabase
@@ -236,59 +248,42 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 }
             }
 
-            // Group channel words into contiguous speaker runs.
-            // Each run of words from the same speaker becomes one segment,
-            // giving accurate per-word speaker attribution.
             if (words.length > 0) {
-                const hasSpeakerInfo = words.some(w => typeof w.speaker === "number");
+                const normalizedWords = normalizeWords(words, alt?.paragraphs ?? null);
+                const builtSegments = buildSegments(
+                    normalizedWords,
+                    DEFAULT_SEGMENT_BUILDER_CONFIG
+                );
 
-                if (hasSpeakerInfo) {
-                    // Build speaker runs: split only on numeric speaker transitions.
-                    // Words without a speaker number inherit the previous speaker
-                    // (defensive — Deepgram labels every word when diarize=true).
-                    const runs: DeepgramWord[][] = [];
-                    let currentRun: DeepgramWord[] = [words[0]];
-                    let lastSpeaker = words[0].speaker;
+                for (const segment of builtSegments) {
+                    maxEndMs = Math.max(maxEndMs, segment.endMs);
 
-                    for (let i = 1; i < words.length; i++) {
-                        const speaker = words[i].speaker;
-                        if (typeof speaker === "number" && speaker !== lastSpeaker) {
-                            runs.push(currentRun);
-                            currentRun = [words[i]];
-                            lastSpeaker = speaker;
-                        } else {
-                            currentRun.push(words[i]);
-                        }
+                    let speakerId: string | null = null;
+                    if (typeof segment.speakerNum === "number") {
+                        speakerId = await getOrCreateSpeaker(segment.speakerNum);
                     }
-                    runs.push(currentRun);
 
-                    for (const run of runs) {
-                        const startMs = Math.round(run[0].start * 1000);
-                        const endMs = Math.round(run[run.length - 1].end * 1000);
-                        maxEndMs = Math.max(maxEndMs, endMs);
-
-                        // Build text from punctuated_word (formatted) with fallback to word (raw)
-                        const text = run.map(w => w.punctuated_word ?? w.word).join(" ");
-
-                        let speakerId: string | null = null;
-                        if (typeof run[0].speaker === "number") {
-                            speakerId = await getOrCreateSpeaker(run[0].speaker);
-                        }
-
-                        await insertSegment(speakerId, startMs, endMs, text, run);
-                    }
-                } else {
-                    // No diarization info — single segment covering all words
-                    const startMs = Math.round(words[0].start * 1000);
-                    const endMs = Math.round(words[words.length - 1].end * 1000);
-                    maxEndMs = Math.max(maxEndMs, endMs);
-
-                    const text = words.map(w => w.punctuated_word ?? w.word).join(" ");
-                    await insertSegment(null, startMs, endMs, text, words);
+                    await insertSegment(
+                        speakerId,
+                        segment.startMs,
+                        segment.endMs,
+                        segment.text,
+                        segment.words,
+                        segment.isFiller,
+                        segment.algoVersion
+                    );
                 }
             } else {
                 // No words returned; create empty segment
-                await insertSegment(null, 0, 0, alt?.transcript || "", []);
+                await insertSegment(
+                    null,
+                    0,
+                    0,
+                    alt?.transcript || "",
+                    [],
+                    false,
+                    DEFAULT_SEGMENT_BUILDER_CONFIG.algoVersion
+                );
             }
 
             return {
