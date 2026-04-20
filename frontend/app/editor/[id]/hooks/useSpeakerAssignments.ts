@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  updateChunk,
   updateSegment,
   createSpeaker,
   updateSpeaker,
@@ -38,17 +37,13 @@ export function useSpeakerAssignments({
   projectId,
   speakers,
   setSpeakers,
-  segments,
   setSegments,
-  source,
   reloadTranscript,
 }: {
   projectId: string
   speakers: Speaker[]
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
-  segments: Seg[]
   setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
-  source: 'chunks' | 'segments'
   reloadTranscript: () => Promise<void>
 }) {
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
@@ -123,16 +118,12 @@ export function useSpeakerAssignments({
     closeSpeakerPopover('selection')
 
     try {
-      if (source === 'segments') {
-        await updateSegment(chunkId, { speaker_id: speaker.id })
-      } else {
-        await updateChunk(chunkId, { speaker_id: speaker.id })
-      }
+      await updateSegment(chunkId, { speaker_id: speaker.id })
     } catch (err) {
       console.error('Failed to reassign speaker:', err)
       await reloadTranscript()
     }
-  }, [closeSpeakerPopover, speakerPopover, reloadTranscript, source, setSegments])
+  }, [closeSpeakerPopover, speakerPopover, reloadTranscript, setSegments])
 
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
@@ -146,11 +137,7 @@ export function useSpeakerAssignments({
       const createdSpeaker = await createSpeaker(projectId, label)
       newSpeaker = createdSpeaker
 
-      if (source === 'segments') {
-        await updateSegment(chunkId, { speaker_id: createdSpeaker.id })
-      } else {
-        await updateChunk(chunkId, { speaker_id: createdSpeaker.id })
-      }
+      await updateSegment(chunkId, { speaker_id: createdSpeaker.id })
 
       setSpeakers(prev => [...prev, createdSpeaker])
       setSegments(prev => prev.map(s => s.id === chunkId ? { ...s, speaker_id: createdSpeaker.id } : s))
@@ -164,7 +151,7 @@ export function useSpeakerAssignments({
         }
       }
     }
-  }, [closeSpeakerPopover, speakerPopover, projectId, source, setSpeakers, setSegments])
+  }, [closeSpeakerPopover, speakerPopover, projectId, setSpeakers, setSegments])
 
   const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))

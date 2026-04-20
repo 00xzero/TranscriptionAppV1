@@ -16,7 +16,6 @@ export type TranscriptListProps = {
   editingId: string | null
   editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
-  source: 'chunks' | 'segments'
   textAreaRefs: React.RefObject<Record<string, HTMLTextAreaElement | null>>
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
@@ -39,7 +38,6 @@ export default function TranscriptList({
   editingId,
   editingTexts,
   saveStatus,
-  source,
   textAreaRefs,
   onSegmentClick,
   onWordClick,
@@ -74,7 +72,6 @@ export default function TranscriptList({
               editingId={editingId}
               editingTexts={editingTexts}
               saveStatus={saveStatus}
-              source={source}
               textAreaRefs={textAreaRefs}
               onSegmentClick={onSegmentClick}
               onWordClick={onWordClick}

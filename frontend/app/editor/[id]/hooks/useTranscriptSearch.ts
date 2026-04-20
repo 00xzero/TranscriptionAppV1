@@ -4,7 +4,6 @@ import { isUnicodeWordChar } from '../utils'
 
 export function useTranscriptSearch({
   segments,
-  source,
   editingTexts,
   setEditingTexts,
   scheduleSave,
@@ -15,7 +14,6 @@ export function useTranscriptSearch({
   exportModalOpen,
 }: {
   segments: Seg[]
-  source: 'chunks' | 'segments'
   editingTexts: Record<string, string>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void

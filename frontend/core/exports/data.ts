@@ -1,11 +1,11 @@
 /**
  * Shared data-fetching logic for export routes.
  *
- * Centralizes authentication, project/chunks/speakers fetching,
+ * Centralizes authentication, project/segments/speakers fetching,
  * and speaker map building for DOCX and VTT exports.
  */
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { Chunk, Speaker, Project } from '@/contracts/db'
+import type { Segment, Project } from '@/contracts/db'
 import type { ExportChunk, SpeakersMap } from '@/core/exports'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
@@ -25,20 +25,20 @@ export type ExportDataResult =
     | { success: false; error: ExportError }
 
 /**
- * Fetch all chunks for a project with pagination to avoid PostgREST's
+ * Fetch all segments for a project with pagination to avoid PostgREST's
  * default 1000-row limit truncating long transcripts.
  */
-async function fetchAllProjectChunks(
+async function fetchAllProjectSegments(
     supabase: SupabaseClient,
     projectId: string
-): Promise<Chunk[]> {
-    return paginateAllRows<Chunk>(supabase, 'chunks', projectId, 'start_ms')
+): Promise<Segment[]> {
+    return paginateAllRows<Segment>(supabase, 'segments', projectId, 'start_ms')
 }
 
 /**
  * Fetch all data needed for transcript export.
  *
- * Handles authentication check, project lookup, chunks, and speakers.
+ * Handles authentication check, project lookup, segments, and speakers.
  * Returns structured data or error response details.
  */
 export async function fetchExportData(
@@ -72,12 +72,12 @@ export async function fetchExportData(
         }
     }
 
-    // Fetch chunks
-    let chunks: Chunk[] = []
+    // Fetch segments
+    let segments: Segment[] = []
     try {
-        chunks = await fetchAllProjectChunks(supabase, projectId)
+        segments = await fetchAllProjectSegments(supabase, projectId)
     } catch (error) {
-        console.error('Error fetching chunks:', error)
+        console.error('Error fetching segments:', error)
         return {
             success: false,
             error: { error: 'Failed to fetch transcript data', status: 500 },
@@ -107,12 +107,12 @@ export async function fetchExportData(
         }
     }
 
-    // Convert chunks to export format
-    const exportChunks: ExportChunk[] = chunks.map((chunk: Chunk) => ({
-        speaker_id: chunk.speaker_id,
-        start_ms: chunk.start_ms,
-        end_ms: chunk.end_ms,
-        text: chunk.text,
+    // Convert segments to export format
+    const exportChunks: ExportChunk[] = segments.map((segment: Segment) => ({
+        speaker_id: segment.speaker_id,
+        start_ms: segment.start_ms,
+        end_ms: segment.end_ms,
+        text: segment.text,
     }))
 
     return {

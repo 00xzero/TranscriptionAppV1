@@ -3,7 +3,7 @@
  *
  * GET /api/projects/[id]/export/docx
  *
- * Generates a DOCX file from the project's transcript chunks and speakers.
+ * Generates a DOCX file from the project's transcript segments and speakers.
  * Requires authentication via Supabase session.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -20,7 +20,7 @@ export async function GET(
     const { id: projectId } = await params
     const supabase = await createClient()
 
-    // Fetch export data (handles auth, project, chunks, speakers)
+    // Fetch export data (handles auth, project, segments, speakers)
     const result = await fetchExportData(supabase, projectId)
 
     if (!result.success) {

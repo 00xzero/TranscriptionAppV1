@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { updateChunk } from '@/lib/supabase/queries'
+import { updateSegment } from '@/lib/supabase/queries'
 import type { Seg, SaveStatusBySegment } from '../types'
 import { SAVE_DEBOUNCE_MS, computeWordsForSegment } from '../utils'
 
 export function useTranscriptMutations({
-  source,
   setSegments,
 }: {
-  source: 'chunks' | 'segments'
   setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -27,8 +25,6 @@ export function useTranscriptMutations({
   }, [])
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
-    if (source === 'segments') return
-
     // update UI immediately
     setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: computeWordsForSegment({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
     setSaveStatus((prev) => ({ ...prev, [segId]: 'saving' }))
@@ -43,7 +39,7 @@ export function useTranscriptMutations({
     const timerId = window.setTimeout(async () => {
       try {
         delete saveTimers.current[segId]
-        await updateChunk(segId, { text: newText })
+        await updateSegment(segId, { text: newText })
         setSaveStatus((prev) => ({ ...prev, [segId]: 'saved' }))
         const savedResetTimerId = window.setTimeout(() => {
           delete saveStatusResetTimers.current[segId]
@@ -56,7 +52,7 @@ export function useTranscriptMutations({
       }
     }, SAVE_DEBOUNCE_MS)
     saveTimers.current[segId] = timerId
-  }, [source, setSegments])
+  }, [setSegments])
 
   return {
     editingId, setEditingId,

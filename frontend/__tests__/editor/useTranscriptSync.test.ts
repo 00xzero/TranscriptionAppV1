@@ -12,7 +12,6 @@ function makeSegment(overrides: Partial<Seg> = {}): Seg {
     start_ms: 0,
     end_ms: 5000,
     text: 'First segment',
-    source_segment_ids: null,
     is_edited: false,
     is_filler: false,
     algo_version: 'test',
@@ -61,16 +60,8 @@ describe('useTranscriptSync', () => {
     it('applies SYNC_OFFSET_MS', () => {
       const { result } = setup()
 
-      // SYNC_OFFSET_MS is 150ms. The hook subtracts it: tAdj = tMs - 150.
-      // At 5150ms: adjusted = 5150 - 150 = 5000. s1.end_ms is 5000 and the
-      // check is tAdj <= seg.end_ms, so s1 still matches (boundary inclusive).
       expect(result.current.findActiveSegmentId(5150)).toBe('s1')
-
-      // At 5151ms: adjusted = 5151 - 150 = 5001, which exceeds s1.end_ms.
-      // s2.start_ms is 5000 and 5001 <= s2.end_ms (10000), so s2 matches.
       expect(result.current.findActiveSegmentId(5151)).toBe('s2')
-
-      // At 4999ms: adjusted = 4999 - 150 = 4849, which is within s1 (0..5000)
       expect(result.current.findActiveSegmentId(4999)).toBe('s1')
     })
   })
@@ -89,7 +80,6 @@ describe('useTranscriptSync', () => {
     it('skips update during seek lock', () => {
       const { result } = setup()
 
-      // Set an initial active segment so we can verify it doesn't change
       act(() => {
         result.current.onAudioTick(2500)
       })
@@ -99,12 +89,10 @@ describe('useTranscriptSync', () => {
         result.current.onSegmentSeek('s1')
       })
 
-      // Attempt to sync to a different segment while locked
       act(() => {
         result.current.onAudioTick(7500)
       })
 
-      // activeIds should still point at s1 because the lock blocked the update
       expect(result.current.activeIds.segId).toBe('s1')
     })
   })
@@ -155,11 +143,9 @@ describe('useTranscriptSync', () => {
     it('re-enables follow mode', () => {
       const { result, rerender } = setup()
 
-      // Disable follow mode by providing an editingId
       rerender({ segments, editingId: 's1', speakerPopover: null })
       expect(result.current.isFollowMode).toBe(false)
 
-      // Clear the editing state so the effect doesn't immediately re-disable
       rerender({ segments, editingId: null, speakerPopover: null })
 
       act(() => {

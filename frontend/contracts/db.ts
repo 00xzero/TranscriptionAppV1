@@ -139,6 +139,12 @@ export const ChunkUpdateSchema = z.object({
   is_edited: z.boolean().optional(),
 })
 
+export const SegmentUpdateSchema = z.object({
+  text: z.string().optional(),
+  speaker_id: UuidSchema.nullable().optional(),
+  is_edited: z.boolean().optional(),
+})
+
 export const SpeakerUpdateSchema = z.object({
   label: z.string().optional(),
   color: z.string().nullable().optional(),
@@ -160,6 +166,7 @@ export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type ChunkUpdate = z.infer<typeof ChunkUpdateSchema>
+export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)
