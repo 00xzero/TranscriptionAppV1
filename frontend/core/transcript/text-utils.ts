@@ -1,6 +1,12 @@
 /**
- * Shared transcript text helpers used by ingestion and consolidation.
+ * Shared transcript text helpers used by transcript ingestion and processing.
  */
+
+export const DEFAULT_FILLER_PATTERNS: string[] = [
+    "k.", "okay.", "ok.", "yeah.", "yes.", "no.", "mm.", "mhmm.",
+    "uh.", "um.", "hmm.", "right.", "sure.", "so.", "well.",
+    "yep.", "nope.", "oh.", "ah.", "alright.",
+];
 
 /**
  * Check if text ends at a natural sentence boundary.

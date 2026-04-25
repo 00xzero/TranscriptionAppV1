@@ -50,8 +50,6 @@ jest.mock('./lib/supabase/queries', () => ({
   }),
   fetchSpeakers: jest.fn().mockResolvedValue([]),
   fetchProjectById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Project', status: 'created' }),
-  fetchChunks: jest.fn().mockResolvedValue([]),
   fetchSegments: jest.fn().mockResolvedValue([]),
-  updateChunk: jest.fn().mockResolvedValue({}),
   updateSegment: jest.fn().mockResolvedValue({}),
 }))

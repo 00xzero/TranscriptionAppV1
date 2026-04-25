@@ -52,14 +52,14 @@ Three separate Supabase client factories — use the correct one for the context
 1. **Upload** → `POST /api/projects` creates project + uploads media to Supabase Storage
 2. **Start** → `POST /api/projects/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
 3. **Webhook** → `POST /api/webhooks/deepgram` receives results, triggers Inngest `transcription/webhook`
-4. **Processing** → Inngest function stores segments/words, runs consolidation algorithm to group segments into speaker-labeled chunks
+4. **Processing** → Inngest function stores canonical segments/words and assigns speaker-linked segments directly from the webhook payload
 5. **Complete** → Job status updated, project marked `complete`, UI updates via Supabase Realtime
 
 Inngest functions in `lib/inngest/functions.ts`, served via `app/api/inngest/route.ts`.
 
 ### Data Model
 
-Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `chunks`, `chunk_words`, `jobs`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
+Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `jobs`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
 
 ### API Routes
 

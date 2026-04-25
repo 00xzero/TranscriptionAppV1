@@ -115,7 +115,7 @@ describe('transitionJob', () => {
       supabase: client,
       jobId: VALID_JOB_ID,
       to: 'completed',
-      metadata: { chunkCount: 5 },
+      metadata: { segmentCount: 5 },
       context: 'handleTranscriptionCompleted',
       extraJobFields: { finished_at: '2026-01-01T00:00:00Z' },
     })
@@ -124,7 +124,7 @@ describe('transitionJob', () => {
       p_job_id: VALID_JOB_ID,
       p_to_status: 'completed',
       p_extra_fields: { finished_at: '2026-01-01T00:00:00Z' },
-      p_metadata: { chunkCount: 5 },
+      p_metadata: { segmentCount: 5 },
       p_context: 'handleTranscriptionCompleted',
     })
   })

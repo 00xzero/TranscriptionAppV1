@@ -88,7 +88,7 @@ export type TranscriptSegmentCardProps = {
   textAreaRefs: React.RefObject<Record<string, HTMLTextAreaElement | null>>
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
-  onSpeakerClick: (e: React.MouseEvent, chunkId: string, speakerId: string | null) => void
+  onSpeakerClick: (e: React.MouseEvent, segmentId: string, speakerId: string | null) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void

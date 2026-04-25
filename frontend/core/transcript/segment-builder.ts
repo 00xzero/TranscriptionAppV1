@@ -1,6 +1,6 @@
 import type { DeepgramWord } from "@/contracts/webhook";
-import { DEFAULT_CONFIG } from "@/core/transcript/consolidation";
 import {
+    DEFAULT_FILLER_PATTERNS,
     getWordCount,
     isFiller,
     isSentenceBoundary,
@@ -69,7 +69,7 @@ export const DEFAULT_SEGMENT_BUILDER_CONFIG: SegmentBuilderConfig = {
     maxWordOverrun: 40,
     maxDurationOverrunMs: 10000,
     minAbsorbWords: 3,
-    fillerPatterns: [...DEFAULT_CONFIG.fillerPatterns],
+    fillerPatterns: [...DEFAULT_FILLER_PATTERNS],
     algoVersion: "v2.0-segments",
 };
 

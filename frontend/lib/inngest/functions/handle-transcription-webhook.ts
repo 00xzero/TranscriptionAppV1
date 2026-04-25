@@ -9,7 +9,6 @@
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
-import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
     DEFAULT_SEGMENT_BUILDER_CONFIG,
     NormalizedWord,
@@ -25,8 +24,8 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         id: "handle-transcription-webhook",
         triggers: [{ event: transcriptionWebhookTrigger }],
         retries: 3,
-        // Limit to 1 concurrent execution per project to prevent
-        // interleaving of consolidation (which deletes and re-inserts chunks)
+        // Limit to 1 concurrent execution per project so replayed or duplicate
+        // webhook deliveries cannot interleave segment rewrites.
         concurrency: {
             limit: 1,
             key: "event.data.projectId",
@@ -112,7 +111,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             return data;
         });
 
-        // Guard against late replays — job already completed means segments/chunks are final
+        // Guard against late replays — job already completed means segments are final
         if (job.status === "completed") {
             console.log(`[inngest] Job ${job.id} already completed — skipping replay for project ${projectId}`);
             return { status: "skipped", projectId, jobId: job.id };
@@ -293,53 +292,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             };
         });
 
-        // Step 3: Run consolidation pipeline (if enabled)
-        // Wrapped in try-catch so consolidation failure doesn't fail the entire transcription
-        const consolidationEnabled = process.env.CONSOLIDATION_ENABLED !== "false";
-        const consolidationResult = await step.run("run-consolidation", async () => {
-            if (!consolidationEnabled) {
-                console.log(`[inngest] Consolidation DISABLED for project: ${projectId} (CONSOLIDATION_ENABLED=false)`);
-                return {
-                    chunkCount: 0,
-                    chunkWordCount: 0,
-                    algoVersion: "skipped",
-                    consolidationError: null,
-                };
-            }
-            console.log(`[inngest] Running consolidation for project: ${projectId}`);
-            try {
-                const result = await runConsolidation(projectId);
-                return {
-                    ...result,
-                    consolidationError: null,
-                };
-            } catch (consolidationError) {
-                // Log but don't throw - transcription segments still exist and are usable
-                const errorMessage = consolidationError instanceof Error
-                    ? consolidationError.message
-                    : String(consolidationError);
-                console.error(`[inngest] Consolidation failed for project ${projectId}:`, errorMessage);
-                return {
-                    chunkCount: 0,
-                    chunkWordCount: 0,
-                    algoVersion: "failed",
-                    consolidationError: errorMessage,
-                };
-            }
-        });
-
-        // Step 4: Trigger completion event
-        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}, consolidation: ${consolidationEnabled ? 'enabled' : 'disabled'}`);
+        // Step 3: Trigger completion event
+        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}`);
         await step.sendEvent("trigger-completed", {
             name: "transcription/completed",
             data: {
                 projectId,
                 jobId: job.id,
                 duration: Math.floor(transcriptionResult.durationMs / 1000),
-                chunkCount: consolidationResult.chunkCount,
-                chunkWordCount: consolidationResult.chunkWordCount,
-                algoVersion: consolidationResult.algoVersion,
-                consolidationError: consolidationResult.consolidationError,
             },
         });
         console.log(`[inngest] transcription/completed event sent successfully for project: ${projectId}`);
@@ -348,17 +308,11 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
             `${transcriptionResult.wordCount} words, ${transcriptionResult.durationMs}ms duration`
         );
-        console.log(
-            `[inngest] Consolidation complete: ${consolidationResult.chunkCount} chunks, ` +
-            `${consolidationResult.chunkWordCount} chunk_words (${consolidationResult.algoVersion})`
-        );
-
         return {
             status: "stored",
             projectId,
             jobId: job.id,
             ...transcriptionResult,
-            ...consolidationResult,
         };
     }
 );

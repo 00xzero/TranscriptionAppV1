@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-04-20] - Segments-Only Migration Phase 3
+
+Removed the legacy chunk/consolidation layer so transcription, editing, and helper tooling all operate directly on canonical segments. The webhook pipeline no longer writes `chunks` or `chunk_words`, the frontend no longer ships chunk-facing contracts or query helpers, and Supabase now has a dedicated migration to drop the obsolete chunk tables and RPC.
+
+### Changed
+
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** and **`frontend/lib/inngest/functions/handle-transcription-completed.ts`** — Removed the consolidation step and simplified the `transcription/completed` event payload to segment-only completion metadata.
+- **`frontend/core/transcript/segment-builder.ts`** and **`frontend/core/transcript/text-utils.ts`** — Moved shared filler-pattern defaults into transcript text utils so segment building no longer depends on the deleted consolidation module.
+- **`frontend/lib/supabase/queries.ts`**, **`frontend/lib/supabase/hooks.ts`**, and **`frontend/contracts/db.ts`** — Deleted chunk query helpers, hooks, and DB schemas/types now that segments are the only live transcript unit.
+- **`frontend/scripts/test-e2e-transcription.ts`** and **`frontend/scripts/view-results.ts`** — Reworked manual inspection scripts to report segment/word/speaker output instead of chunk-era summaries.
+- **`infra/supabase/seed.sql`** and **`infra/supabase/migrations/20260420000000_drop_chunks_and_consolidation.sql`** — Removed chunk seed data and added the schema cleanup migration that drops `chunks`, `chunk_words`, and `save_consolidated_chunks`.
+
 ## [2026-04-02] - Tooltip Polish And Header Cleanup
 
 Finished a small UI consistency pass by wiring the shared Radix tooltip provider into the app shell, replacing a handful of remaining native `title` tooltips in the library, projects, header, and floating player surfaces, and swapping one ad-hoc divider plus one global range reset for the shared primitives and current slider implementations already used by the editor. This keeps behavior intact while making the controls rely on the same wrapper layer introduced in the Radix migration.

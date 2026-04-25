@@ -47,21 +47,6 @@ export const SpeakerSchema = z.object({
   updated_at: z.string(),
 })
 
-export const ChunkSchema = z.object({
-  id: UuidSchema,
-  project_id: UuidSchema,
-  speaker_id: UuidSchema.nullable(),
-  start_ms: z.number().int(),
-  end_ms: z.number().int(),
-  text: z.string(),
-  source_segment_ids: z.array(UuidSchema).nullable(),
-  is_edited: z.boolean(),
-  is_filler: z.boolean(),
-  algo_version: z.string(),
-  created_at: z.string(),
-  updated_at: z.string(),
-})
-
 // === Secondary schemas (type derivation only — not used for runtime validation) ===
 // Note: migration has order_index + updated_at; no speaker_label (stale types.ts had it wrong)
 export const WordSchema = z.object({
@@ -95,14 +80,6 @@ export const SegmentSchema = z.object({
   updated_at: z.string(),
 })
 
-export const ChunkWordSchema = z.object({
-  id: UuidSchema,
-  chunk_id: UuidSchema,
-  word_id: UuidSchema,
-  order_index: z.number().int(),
-  created_at: z.string(),
-})
-
 export const WatchlistTermSchema = z.object({
   id: UuidSchema,
   project_id: UuidSchema,
@@ -133,12 +110,6 @@ export const SpeakerInsertSchema = z.object({
   color: z.string().nullish(),
 })
 
-export const ChunkUpdateSchema = z.object({
-  text: z.string().optional(),
-  speaker_id: UuidSchema.nullable().optional(),
-  is_edited: z.boolean().optional(),
-})
-
 export const SegmentUpdateSchema = z.object({
   text: z.string().optional(),
   speaker_id: UuidSchema.nullable().optional(),
@@ -157,15 +128,12 @@ export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>
 export type Speaker = z.infer<typeof SpeakerSchema>
-export type Chunk = z.infer<typeof ChunkSchema>
 export type Word = z.infer<typeof WordSchema>
 export type Segment = z.infer<typeof SegmentSchema>
-export type ChunkWord = z.infer<typeof ChunkWordSchema>
 export type WatchlistTerm = z.infer<typeof WatchlistTermSchema>
 export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
-export type ChunkUpdate = z.infer<typeof ChunkUpdateSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
 

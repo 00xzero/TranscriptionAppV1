@@ -1,15 +1,9 @@
 import type { DeepgramWord } from "@/contracts/webhook";
 import {
-    DEFAULT_CONFIG,
-    consolidateSegments,
-    type SegmentData,
-} from "@/core/transcript/consolidation";
-import {
     DEFAULT_SEGMENT_BUILDER_CONFIG,
     buildSegments,
     normalizeWords,
 } from "@/core/transcript/segment-builder";
-import { normalizeText } from "@/core/transcript/text-utils";
 
 function createRawWord({
     text,
@@ -35,44 +29,6 @@ function createRawWord({
         ...(speaker !== undefined ? { speaker } : {}),
         ...(speakerConfidence !== undefined ? { speaker_confidence: speakerConfidence } : {}),
     };
-}
-
-function currentStyleSpeakerRuns(words: DeepgramWord[]): SegmentData[] {
-    if (words.length === 0) {
-        return [];
-    }
-
-    const hasSpeakerInfo = words.some((word) => typeof word.speaker === "number");
-    const runs: DeepgramWord[][] = [];
-
-    if (!hasSpeakerInfo) {
-        runs.push(words);
-    } else {
-        let currentRun: DeepgramWord[] = [words[0]];
-        let lastSpeaker = words[0].speaker;
-
-        for (let index = 1; index < words.length; index++) {
-            const speaker = words[index].speaker;
-            if (typeof speaker === "number" && speaker !== lastSpeaker) {
-                runs.push(currentRun);
-                currentRun = [words[index]];
-                lastSpeaker = speaker;
-            } else {
-                currentRun.push(words[index]);
-            }
-        }
-
-        runs.push(currentRun);
-    }
-
-    return runs.map((run, index) => ({
-        id: `run-${index}`,
-        speakerId: typeof run[0].speaker === "number" ? `speaker-${run[0].speaker}` : null,
-        startMs: Math.round(run[0].start * 1000),
-        endMs: Math.round(run[run.length - 1].end * 1000),
-        text: run.map((word) => word.punctuated_word ?? word.word).join(" "),
-        wordIds: [],
-    }));
 }
 
 describe("normalizeWords", () => {
@@ -413,30 +369,6 @@ describe("buildSegments", () => {
 
         const segments = buildSegments(normalizeWords(words, null));
         expect(segments[0].isFiller).toBe(true);
-    });
-
-    it("matches the current no-paragraph behavior on speaker-driven breaks", () => {
-        const words = [
-            createRawWord({ text: "Hello", punctuatedText: "Hello.", startMs: 0, endMs: 200, speaker: 0 }),
-            createRawWord({ text: "again", punctuatedText: "again.", startMs: 250, endMs: 450, speaker: 0 }),
-            createRawWord({ text: "next", punctuatedText: "next.", startMs: 500, endMs: 700, speaker: 1 }),
-            createRawWord({ text: "speaker", punctuatedText: "speaker.", startMs: 750, endMs: 950, speaker: 1 }),
-        ];
-
-        const builtSegments = buildSegments(normalizeWords(words, null)).map((segment) => ({
-            startMs: segment.startMs,
-            endMs: segment.endMs,
-            text: segment.text,
-        }));
-
-        const consolidated = consolidateSegments(currentStyleSpeakerRuns(words), DEFAULT_CONFIG)
-            .map((chunk) => ({
-                startMs: chunk.startMs,
-                endMs: chunk.endMs,
-                text: normalizeText(chunk.texts),
-            }));
-
-        expect(builtSegments).toEqual(consolidated);
     });
 
     it("respects custom config overrides", () => {

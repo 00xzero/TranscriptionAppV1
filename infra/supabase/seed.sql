@@ -22,8 +22,6 @@ DECLARE
     speaker_2_id UUID := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
     segment_1_id UUID := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     segment_2_id UUID := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
-    chunk_1_id UUID := 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
-    chunk_2_id UUID := 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 BEGIN
     -- Get the first user from auth.users (assumes test user exists)
     SELECT id INTO test_user_id FROM auth.users LIMIT 1;
@@ -58,12 +56,6 @@ BEGIN
     INSERT INTO segments (id, project_id, speaker_id, start_ms, end_ms, text) VALUES
         (segment_1_id, project_1_id, speaker_1_id, 0, 5000, 'Welcome to the show. Today we have a special guest.'),
         (segment_2_id, project_1_id, speaker_2_id, 5500, 10000, 'Thank you for having me. It is great to be here.')
-    ON CONFLICT (id) DO NOTHING;
-
-    -- Chunks for Project 1 (consolidated segments)
-    INSERT INTO chunks (id, project_id, speaker_id, start_ms, end_ms, text, source_segment_ids, algo_version) VALUES
-        (chunk_1_id, project_1_id, speaker_1_id, 0, 5000, 'Welcome to the show. Today we have a special guest.', ARRAY[segment_1_id], 'v1.3-ts'),
-        (chunk_2_id, project_1_id, speaker_2_id, 5500, 10000, 'Thank you for having me. It is great to be here.', ARRAY[segment_2_id], 'v1.3-ts')
     ON CONFLICT (id) DO NOTHING;
 
     -- Watchlist for Project 1

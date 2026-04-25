@@ -270,15 +270,6 @@ describe('Inngest handlers', () => {
           id: 'store-transcription',
           handler: () => ({ segmentCount: 1, wordCount: 2, durationMs: 1000 }),
         },
-        {
-          id: 'run-consolidation',
-          handler: () => ({
-            chunkCount: 0,
-            chunkWordCount: 0,
-            algoVersion: 'skipped',
-            consolidationError: null,
-          }),
-        },
       ],
     })
 
@@ -341,15 +332,6 @@ describe('Inngest handlers', () => {
         {
           id: 'find-job',
           handler: () => ({ id: jobId, status: 'processing' }),
-        },
-        {
-          id: 'run-consolidation',
-          handler: () => ({
-            chunkCount: 3,
-            chunkWordCount: 6,
-            algoVersion: 'v1.3-ts',
-            consolidationError: null,
-          }),
         },
         {
           id: 'trigger-completed',
@@ -426,15 +408,6 @@ describe('Inngest handlers', () => {
           handler: () => ({ id: jobId, status: 'processing' }),
         },
         {
-          id: 'run-consolidation',
-          handler: () => ({
-            chunkCount: 1,
-            chunkWordCount: 0,
-            algoVersion: 'v1.3-ts',
-            consolidationError: null,
-          }),
-        },
-        {
           id: 'trigger-completed',
           handler: () => undefined,
         },
@@ -498,15 +471,6 @@ describe('Inngest handlers', () => {
         {
           id: 'find-job',
           handler: () => ({ id: jobId, status: 'processing' }),
-        },
-        {
-          id: 'run-consolidation',
-          handler: () => ({
-            chunkCount: 2,
-            chunkWordCount: 4,
-            algoVersion: 'v1.3-ts',
-            consolidationError: null,
-          }),
         },
         {
           id: 'trigger-completed',

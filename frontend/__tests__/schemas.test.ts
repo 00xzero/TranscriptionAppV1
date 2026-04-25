@@ -100,7 +100,7 @@ describe('TransitionJobInputSchema', () => {
       jobId: VALID_UUID,
       to: 'completed',
       extraJobFields: { finished_at: '2026-01-01T00:00:00Z' },
-      metadata: { chunkCount: 5 },
+      metadata: { segmentCount: 5 },
       context: 'test',
     })
     expect(result.success).toBe(true)

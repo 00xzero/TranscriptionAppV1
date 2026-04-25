@@ -137,7 +137,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -161,7 +161,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -227,7 +227,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: null,
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -273,7 +273,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
           triggerElement,
@@ -290,7 +290,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
           triggerElement,
