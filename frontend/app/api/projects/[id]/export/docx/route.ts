@@ -30,12 +30,12 @@ export async function GET(
         )
     }
 
-    const { project, exportChunks, speakersMap } = result.data
+    const { project, exportSegments, speakersMap } = result.data
 
     // Generate DOCX
     const docxBuffer = await generateDocx({
         projectTitle: project.title || 'Transcript',
-        chunks: exportChunks,
+        segments: exportSegments,
         speakersMap,
         transcriptionDate: new Date(project.created_at),
         durationSeconds: project.duration_seconds,

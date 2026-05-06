@@ -106,7 +106,7 @@ describe('normalizeFilename', () => {
 })
 
 describe('generateVtt', () => {
-    const sampleChunks = [
+    const sampleSegments = [
         {
             speaker_id: 's1',
             start_ms: 4205,
@@ -128,7 +128,7 @@ describe('generateVtt', () => {
 
     it('returns a string', () => {
         const result = generateVtt({
-            chunks: sampleChunks,
+            segments: sampleSegments,
             speakersMap: sampleSpeakers,
             projectId: 'test-project',
         })
@@ -137,7 +137,7 @@ describe('generateVtt', () => {
 
     it('starts with WEBVTT header', () => {
         const result = generateVtt({
-            chunks: sampleChunks,
+            segments: sampleSegments,
             speakersMap: sampleSpeakers,
             projectId: 'test-project',
         })
@@ -146,7 +146,7 @@ describe('generateVtt', () => {
 
     it('contains speaker voice tags', () => {
         const result = generateVtt({
-            chunks: sampleChunks,
+            segments: sampleSegments,
             speakersMap: sampleSpeakers,
             projectId: 'test-project',
         })
@@ -156,7 +156,7 @@ describe('generateVtt', () => {
 
     it('contains cue identifiers', () => {
         const result = generateVtt({
-            chunks: sampleChunks,
+            segments: sampleSegments,
             speakersMap: sampleSpeakers,
             projectId: 'test-project',
         })
@@ -166,16 +166,16 @@ describe('generateVtt', () => {
 
     it('contains properly formatted timestamps', () => {
         const result = generateVtt({
-            chunks: sampleChunks,
+            segments: sampleSegments,
             speakersMap: sampleSpeakers,
             projectId: 'test-project',
         })
         expect(result).toContain('00:00:04.205 --> 00:00:10.243')
     })
 
-    it('handles empty chunks array', () => {
+    it('handles empty segments array', () => {
         const result = generateVtt({
-            chunks: [],
+            segments: [],
             speakersMap: {},
             projectId: 'test-project',
         })

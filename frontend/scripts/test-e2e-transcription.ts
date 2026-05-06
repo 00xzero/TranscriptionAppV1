@@ -235,9 +235,11 @@ async function main() {
     console.log("\n📝 First 3 Segments:\n");
     for (const segment of (results.segments || []).slice(0, 3)) {
         const duration = ((segment.endMs - segment.startMs) / 1000).toFixed(1);
+        const text = segment.text ?? "";
+        const displayText = text || "<missing>";
         console.log(`[${formatTime(segment.startMs)} - ${formatTime(segment.endMs)}] (${duration}s)`);
         console.log(`Speaker: ${segment.speakerLabel}`);
-        console.log(`Text: "${segment.text.substring(0, 200)}${segment.text.length > 200 ? '...' : ''}"`);
+        console.log(`Text: "${displayText.substring(0, 200)}${displayText.length > 200 ? '...' : ''}"`);
         console.log(`Filler: ${segment.isFiller}, Algo: ${segment.algoVersion}`);
         console.log("");
     }

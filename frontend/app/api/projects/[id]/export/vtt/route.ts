@@ -28,11 +28,11 @@ export async function GET(
         )
     }
 
-    const { project, exportChunks, speakersMap } = result.data
+    const { project, exportSegments, speakersMap } = result.data
 
     // Generate VTT
     const vttContent = generateVtt({
-        chunks: exportChunks,
+        segments: exportSegments,
         speakersMap,
         projectId,
     })

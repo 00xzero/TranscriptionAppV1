@@ -30,7 +30,7 @@ describe('fetchExportData', () => {
     consoleErrorSpy.mockRestore()
   })
 
-  it('reads from segments, preserves order, and maps to export chunks', async () => {
+  it('reads from segments, preserves order, and maps to export segments', async () => {
     const project = {
       id: 'p1',
       title: 'Transcript',
@@ -76,7 +76,7 @@ describe('fetchExportData', () => {
     expect(from).not.toHaveBeenCalledWith('chunks')
     expect(mockPaginateAllRows).toHaveBeenCalledWith(supabase, 'segments', 'p1', 'start_ms')
 
-    expect(result.data.exportChunks).toEqual([
+    expect(result.data.exportSegments).toEqual([
       { speaker_id: 'sp2', start_ms: 1000, end_ms: 2000, text: 'Second' },
       { speaker_id: 'sp1', start_ms: 3000, end_ms: 4000, text: 'Third' },
     ])

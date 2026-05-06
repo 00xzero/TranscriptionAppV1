@@ -6,12 +6,12 @@
  */
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Segment, Project } from '@/contracts/db'
-import type { ExportChunk, SpeakersMap } from '@/core/exports'
+import type { ExportSegment, SpeakersMap } from '@/core/exports'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {
     project: Project
-    exportChunks: ExportChunk[]
+    exportSegments: ExportSegment[]
     speakersMap: SpeakersMap
 }
 
@@ -107,8 +107,8 @@ export async function fetchExportData(
         }
     }
 
-    // Convert segments to export format
-    const exportChunks: ExportChunk[] = segments.map((segment: Segment) => ({
+    // Convert DB segments to the lean export view model.
+    const exportSegments: ExportSegment[] = segments.map((segment: Segment) => ({
         speaker_id: segment.speaker_id,
         start_ms: segment.start_ms,
         end_ms: segment.end_ms,
@@ -119,7 +119,7 @@ export async function fetchExportData(
         success: true,
         data: {
             project: project as Project,
-            exportChunks,
+            exportSegments,
             speakersMap,
         },
     }

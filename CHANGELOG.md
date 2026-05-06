@@ -2,17 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-04-20] - Segments-Only Migration Phase 3
+## [2026-04-20] - Segments-Only Migration
 
-Removed the legacy chunk/consolidation layer so transcription, editing, and helper tooling all operate directly on canonical segments. The webhook pipeline no longer writes `chunks` or `chunk_words`, the frontend no longer ships chunk-facing contracts or query helpers, and Supabase now has a dedicated migration to drop the obsolete chunk tables and RPC.
+Moved the transcription pipeline from chunk-backed transcript editing to canonical segment-backed editing. New transcriptions now request Deepgram paragraph metadata instead of utterances, build readable speaker-homogeneous segments from word-level diarization, persist enriched word metadata for future rebuild/debugging, and use those same segments for editor rendering, editing, speaker assignment, search/replace, and exports. The legacy chunk/consolidation layer has been removed from runtime code and schema cleanup is now covered by a Supabase migration.
+
+### Added
+
+- **`.docs/segments-only-migration-plan.md`** — Documented the phased migration from `chunks` to canonical `segments`, including builder invariants, rollout strategy, and deletion criteria.
+- **`.docs/paragraphs-payload-example.json`** and **`.docs/utterances-payload-example.json`** — Added Deepgram payload examples used to compare paragraph-first and utterance-era response shapes during the migration.
+- **`frontend/core/transcript/segment-builder.ts`** and **`frontend/core/transcript/text-utils.ts`** — Added a shared, versioned canonical segment builder that normalizes Deepgram words, paragraph hints, sentence-end hints, speaker labels, filler detection, silence gaps, and soft readability boundaries.
+- **`infra/supabase/migrations/20260413000000_enrich_segments_words.sql`** — Added segment metadata columns (`is_edited`, `is_filler`, `algo_version`) and normalized word metadata (`speaker`, `speaker_confidence`, `punctuated_text`, `paragraph_index`, `sentence_end`).
+- **`frontend/__tests__/segment-builder.test.ts`** — Added coverage for paragraph boundaries, speaker changes, partial/missing paragraph metadata, sentence-boundary preference, silence gaps, duration overrun behavior, filler marking, and speaker-homogeneous output.
+- **`frontend/__tests__/exports/fetchExportData.test.ts`** — Added export-loader regression coverage proving exports read from `segments`, preserve order, handle auth/data errors, and do not regress to the old `chunks` table.
 
 ### Changed
 
-- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** and **`frontend/lib/inngest/functions/handle-transcription-completed.ts`** — Removed the consolidation step and simplified the `transcription/completed` event payload to segment-only completion metadata.
-- **`frontend/core/transcript/segment-builder.ts`** and **`frontend/core/transcript/text-utils.ts`** — Moved shared filler-pattern defaults into transcript text utils so segment building no longer depends on the deleted consolidation module.
-- **`frontend/lib/supabase/queries.ts`**, **`frontend/lib/supabase/hooks.ts`**, and **`frontend/contracts/db.ts`** — Deleted chunk query helpers, hooks, and DB schemas/types now that segments are the only live transcript unit.
+- **`frontend/infra/deepgram/index.ts`** and **`frontend/contracts/webhook.ts`** — Switched Deepgram requests from `utterances=true` to `paragraphs=true`, expanded webhook schemas for paragraph/sentence metadata, and kept legacy utterance fields parseable only for compatibility.
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** — Reworked webhook ingestion to use channel-level words as speaker truth, build canonical segments at ingestion time, persist enriched word rows, and stop relying on utterance majority-speaker assignment.
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`**, **`frontend/lib/inngest/functions/handle-transcription-completed.ts`**, and **`frontend/contracts/events.ts`** — Removed the consolidation step and simplified `transcription/completed` payloads to segment-only completion metadata.
+- **`frontend/lib/supabase/queries.ts`**, **`frontend/lib/supabase/hooks.ts`**, **`frontend/lib/supabase/realtime.ts`**, **`frontend/contracts/db.ts`**, and **`frontend/contracts/editor.ts`** — Made `segments` the only live transcript row model, including segment text updates that mark `is_edited`, segment speaker reassignment, and segment-only realtime/query helpers.
+- **`frontend/app/editor/[id]/*`** — Removed chunk/segment source-selection logic and the raw-segment “Mix Mode” banner so transcript rendering, inline editing, find/replace, playback sync, and speaker assignment all operate on canonical segments.
+- **`frontend/core/exports/data.ts`**, **`frontend/core/exports/index.ts`**, and **`frontend/app/api/projects/[id]/export/*/route.ts`** — Updated DOCX/VTT export loading to read from `segments` and renamed the export view model from chunk terminology to segment terminology.
 - **`frontend/scripts/test-e2e-transcription.ts`** and **`frontend/scripts/view-results.ts`** — Reworked manual inspection scripts to report segment/word/speaker output instead of chunk-era summaries.
+- **`CLAUDE.md`**, **`PRD.md`**, **`README.md`**, and **`frontend/.env.example`** — Updated architecture and configuration docs to describe canonical segments and remove obsolete consolidation configuration.
+
+### Removed
+
+- **`frontend/core/transcript/consolidation.ts`**, **`frontend/core/transcript/consolidation-service.ts`**, **`frontend/__tests__/consolidation.test.ts`**, and consolidation scripts — Deleted the chunk consolidation implementation, tests, repair tooling, and manual consolidation runners.
+- **`frontend/app/editor/[id]/components/MixModeBanner.tsx`** — Removed the degraded raw-segment editing banner now that segments are the normal editable transcript unit.
+- **`frontend/contracts/db.ts`** and related frontend query/hooks/tests — Removed `Chunk`, `ChunkWord`, chunk update schemas, chunk query helpers, and chunk-facing editor/export fixtures.
 - **`infra/supabase/seed.sql`** and **`infra/supabase/migrations/20260420000000_drop_chunks_and_consolidation.sql`** — Removed chunk seed data and added the schema cleanup migration that drops `chunks`, `chunk_words`, and `save_consolidated_chunks`.
+
+### Migration Notes
+
+- **Existing projects** — Pre-existing `segments` rows are raw Deepgram segments, not canonical-builder output. After this lands, the editor will surface those rows as-is. Any old project whose transcript still matters should be retranscribed so it gets canonical segments and enriched word metadata; otherwise readability and editing parity with new projects is not guaranteed.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand` (`30` suites / `301` tests passing)
+- **`frontend`** — `npm test -- --runTestsByPath __tests__/exports.test.ts __tests__/exports/fetchExportData.test.ts` (`2` suites / `31` tests passing)
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with existing warnings and no lint errors)
 
 ## [2026-04-02] - Tooltip Polish And Header Cleanup
 
