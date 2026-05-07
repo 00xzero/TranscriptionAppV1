@@ -140,11 +140,45 @@ export async function updateProject(
     return data
 }
 
+function isMissingStorageObjectError(error: { message?: string; statusCode?: string | number; status?: string | number }) {
+    const message = error.message?.toLowerCase() ?? ''
+    return (
+        error.statusCode === 404 ||
+        error.status === 404 ||
+        message.includes('not found') ||
+        message.includes('no such key') ||
+        message.includes('nosuchkey')
+    )
+}
+
 /**
  * Delete a project.
  */
 export async function deleteProject(id: string): Promise<void> {
     const supabase = createClient()
+    const { data: project, error: fetchError } = await supabase
+        .from('projects')
+        .select('source_object_key')
+        .eq('id', id)
+        .single()
+
+    if (fetchError) throw fetchError
+
+    if (project.source_object_key) {
+        const { error: storageError } = await supabase.storage
+            .from('media')
+            .remove([project.source_object_key])
+
+        if (storageError && !isMissingStorageObjectError(storageError)) throw storageError
+
+        if (storageError) {
+            console.warn(
+                `[deleteProject] Storage object already missing: ${project.source_object_key}`,
+                storageError.message
+            )
+        }
+    }
+
     const { error } = await supabase.from('projects').delete().eq('id', id)
 
     if (error) throw error
