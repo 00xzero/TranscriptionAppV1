@@ -16,48 +16,21 @@ export const handleTranscriptionCompleted = inngest.createFunction(
         retries: 3,
     },
     async ({ event, step }) => {
-        const { projectId, jobId, duration, consolidationError } = event.data;
+        const { projectId, jobId, duration } = event.data;
 
         console.log(`[inngest] Transcription completed for project: ${projectId}`);
-        if (consolidationError) {
-            console.warn(`[inngest] Consolidation had an error (transcription still completed): ${consolidationError}`);
-        }
 
         await step.run("update-status", async () => {
             const supabase = createAdminClient();
             const now = new Date().toISOString();
-
-            // Build extra fields for transition, include consolidation warning if applicable
-            const extraJobFields: Record<string, unknown> = { finished_at: now };
-            if (consolidationError) {
-                const { data: payloadRow, error: payloadError } = await supabase
-                    .from("jobs")
-                    .select("payload")
-                    .eq("id", jobId)
-                    .maybeSingle();
-
-                if (payloadError) {
-                    console.error("[inngest] Failed to load existing job payload:", payloadError);
-                } else {
-                    const existingPayload =
-                        payloadRow?.payload && typeof payloadRow.payload === "object"
-                            ? (payloadRow.payload as Record<string, unknown>)
-                            : {};
-
-                    extraJobFields.payload = {
-                        ...existingPayload,
-                        consolidation_warning: consolidationError,
-                    };
-                }
-            }
 
             // Transition job to completed (project status derived by trigger)
             const { outcome, error: transitionError } = await transitionJob({
                 supabase,
                 jobId,
                 to: "completed",
-                extraJobFields,
-                metadata: { consolidationError: consolidationError || null },
+                extraJobFields: { finished_at: now },
+                metadata: {},
                 context: "handleTranscriptionCompleted",
             });
 

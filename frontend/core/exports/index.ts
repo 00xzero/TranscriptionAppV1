@@ -15,7 +15,7 @@ import {
 // Types
 // ============================================================================
 
-export interface ExportChunk {
+export interface ExportSegment {
     speaker_id: string | null
     start_ms: number
     end_ms: number
@@ -112,7 +112,7 @@ export function normalizeFilename(name: string): string {
 // ============================================================================
 
 export interface GenerateVttParams {
-    chunks: ExportChunk[]
+    segments: ExportSegment[]
     speakersMap: SpeakersMap
     projectId: string
 }
@@ -126,25 +126,25 @@ function escapeVttText(text: string): string {
 }
 
 /**
- * Generate a WebVTT file from transcript chunks.
+ * Generate a WebVTT file from transcript segments.
  *
  * @returns VTT content as string
  */
 export function generateVtt({
-    chunks,
+    segments,
     speakersMap,
     projectId,
 }: GenerateVttParams): string {
     const lines: string[] = ['WEBVTT', '']
 
-    chunks.forEach((chunk, idx) => {
+    segments.forEach((segment, idx) => {
         const rawLabel =
-            speakersMap[chunk.speaker_id ?? '']?.label ?? 'Speaker'
+            speakersMap[segment.speaker_id ?? '']?.label ?? 'Speaker'
         const speakerLabel = escapeVttText(rawLabel)
-        const text = escapeVttText(chunk.text)
+        const text = escapeVttText(segment.text)
 
-        const startVtt = msToVttTimestamp(chunk.start_ms)
-        const endVtt = msToVttTimestamp(chunk.end_ms)
+        const startVtt = msToVttTimestamp(segment.start_ms)
+        const endVtt = msToVttTimestamp(segment.end_ms)
 
         // Cue identifier format: {project_id}/{index}
         const cueId = `${projectId}/${idx}`
@@ -164,20 +164,20 @@ export function generateVtt({
 
 export interface GenerateDocxParams {
     projectTitle: string
-    chunks: ExportChunk[]
+    segments: ExportSegment[]
     speakersMap: SpeakersMap
     transcriptionDate: Date
     durationSeconds?: number | null
 }
 
 /**
- * Generate a DOCX file from transcript chunks.
+ * Generate a DOCX file from transcript segments.
  *
  * @returns Promise resolving to Buffer of DOCX file
  */
 export async function generateDocx({
     projectTitle,
-    chunks,
+    segments,
     speakersMap,
     transcriptionDate,
     durationSeconds,
@@ -237,14 +237,14 @@ export async function generateDocx({
     // Spacer
     children.push(new Paragraph({ children: [] }))
 
-    // Transcript body - group chunks by speaker turns
+    // Transcript body - group segments by speaker turns
     // Use stable key to ensure null speakers get a header on first occurrence
     let currentSpeakerKey: string | null = null
 
-    for (const chunk of chunks) {
-        const speakerKey = chunk.speaker_id ?? '__null__'
+    for (const segment of segments) {
+        const speakerKey = segment.speaker_id ?? '__null__'
         const speakerLabel =
-            speakersMap[chunk.speaker_id ?? '']?.label ?? 'Unknown Speaker'
+            speakersMap[segment.speaker_id ?? '']?.label ?? 'Unknown Speaker'
 
         // Check if we need a new speaker label
         if (speakerKey !== currentSpeakerKey) {
@@ -264,7 +264,7 @@ export async function generateDocx({
         }
 
         // Timestamp and text
-        const timestampStr = msToTimestamp(chunk.start_ms)
+        const timestampStr = msToTimestamp(segment.start_ms)
         children.push(
             new Paragraph({
                 children: [
@@ -280,7 +280,7 @@ export async function generateDocx({
             new Paragraph({
                 children: [
                     new TextRun({
-                        text: chunk.text,
+                        text: segment.text,
                         size: 22, // 11pt
                     }),
                 ],

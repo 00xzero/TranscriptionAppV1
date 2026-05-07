@@ -8,7 +8,6 @@ import CollapsibleWaveform from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import TranscriptList from './components/TranscriptList'
-import MixModeBanner from './components/MixModeBanner'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
 import { useEditorData } from './hooks/useEditorData'
@@ -26,7 +25,6 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
 
   // 2. Mutation hooks
   const editing = useTranscriptMutations({
-    source: data.source,
     setSegments: data.setSegments,
   })
 
@@ -34,9 +32,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     projectId,
     speakers: data.speakers,
     setSpeakers: data.setSpeakers,
-    segments: data.segments,
     setSegments: data.setSegments,
-    source: data.source,
     reloadTranscript: data.reloadTranscript,
   })
 
@@ -74,7 +70,6 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
 
   const search = useTranscriptSearch({
     segments: data.segments,
-    source: data.source,
     editingTexts: editing.editingTexts,
     setEditingTexts: editing.setEditingTexts,
     scheduleSave: editing.scheduleSave,
@@ -172,15 +167,13 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
         onClear={search.clearSearch}
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
-        canReplace={data.source !== 'segments'}
+        canReplace={true}
         hasMatches={search.hasMatches}
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}
         onMatchClick={(idx: number) => search.setMatchIndex(idx)}
       />
-
-      <MixModeBanner visible={data.source === 'segments'} collapsed={sync.waveformCollapsed} />
 
       <div
         className={`flex-1 overflow-auto pb-32 ${sync.waveformCollapsed ? 'pt-[56px]' : 'pt-0'}`}
@@ -216,7 +209,6 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
           editingId={editing.editingId}
           editingTexts={editing.editingTexts}
           saveStatus={editing.saveStatus}
-          source={data.source}
           textAreaRefs={editing.textAreaRefs}
           onSegmentClick={playback.onSegmentClick}
           onWordClick={playback.onWordClick}

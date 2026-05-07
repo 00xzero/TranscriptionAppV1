@@ -5,7 +5,7 @@ import {
   fetchSpeakers,
   fetchProjectById,
 } from '@/lib/supabase/queries'
-import { ChunkSchema, SegmentSchema } from '@/contracts/db'
+import { SegmentSchema } from '@/contracts/db'
 import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
@@ -15,7 +15,6 @@ export function useEditorData(projectId: string) {
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [source, setSource] = useState<'chunks' | 'segments'>('chunks')
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
@@ -59,15 +58,12 @@ export function useEditorData(projectId: string) {
 
         // Validate raw items before normalization
         const rawItems = transcriptResult.data.items
-        const ItemsSchema = transcriptResult.data.source === 'chunks'
-          ? z.array(ChunkSchema)
-          : z.array(SegmentSchema)
+        const ItemsSchema = z.array(SegmentSchema)
         const itemsParsed = ItemsSchema.safeParse(rawItems)
         if (!itemsParsed.success) {
           console.warn('[useEditorData] transcript schema mismatch', itemsParsed.error.issues)
         }
 
-        setSource(transcriptResult.data.source)
         setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
 
         void fetchSpeakers(projectId)
@@ -110,7 +106,6 @@ export function useEditorData(projectId: string) {
     status, setStatus,
     segments, setSegments,
     speakers, setSpeakers,
-    source,
     projectTitle, setProjectTitle,
     projectCreatedAt,
     projectDurationSecs,

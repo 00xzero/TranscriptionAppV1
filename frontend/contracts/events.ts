@@ -18,10 +18,6 @@ export const TranscriptionCompletedDataSchema = z.object({
   projectId: UuidSchema,
   jobId: UuidSchema,
   duration: z.number(),
-  chunkCount: z.number().optional(),
-  chunkWordCount: z.number().optional(),
-  algoVersion: z.string().optional(),
-  consolidationError: z.string().nullable().optional(),
 })
 
 export const TranscriptionFailedDataSchema = z.object({

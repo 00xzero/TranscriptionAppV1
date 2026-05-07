@@ -9,16 +9,14 @@ import {
     fetchProjects,
     fetchProjectById,
     fetchProjectJobs,
-    fetchChunks,
     fetchSpeakers,
     deleteProject as deleteProjectQuery,
     updateProject as updateProjectQuery,
-    updateChunk as updateChunkQuery,
     createSpeaker as createSpeakerQuery,
     updateSpeaker as updateSpeakerQuery,
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
-import type { Project, JobSummary, Chunk, Speaker, ChunkUpdate, SpeakerUpdate, ProjectUpdate } from '@/contracts/db'
+import type { Project, JobSummary, Speaker, SpeakerUpdate, ProjectUpdate } from '@/contracts/db'
 
 // ============================================================================
 // Projects Hook
@@ -157,53 +155,6 @@ export function useProjectJobsRealtime(projectId: string | null) {
         isLoading,
         error,
         refetch,
-    }
-}
-
-// ============================================================================
-// Chunks Hook (for Editor)
-// ============================================================================
-
-/**
- * Hook for fetching and managing chunks.
- */
-export function useChunksRealtime(projectId: string | null) {
-    const fetchFn = useCallback(async () => {
-        if (!projectId) return []
-        return fetchChunks(projectId)
-    }, [projectId])
-
-    const { data, isLoading, error, mutate } = useSupabaseRealtime<Chunk>(
-        'chunks',
-        fetchFn,
-        { enablePollingFallback: true }
-    )
-
-    // Action: Update chunk with optimistic update
-    const updateChunk = useCallback(
-        async (id: string, updates: ChunkUpdate) => {
-            const previous = data
-            // Optimistic update
-            mutate(
-                data.map((c) => (c.id === id ? { ...c, ...updates, is_edited: true } : c))
-            )
-
-            try {
-                await updateChunkQuery(id, updates)
-            } catch (err) {
-                mutate(previous)
-                throw err
-            }
-        },
-        [data, mutate]
-    )
-
-    return {
-        chunks: data,
-        isLoading,
-        error,
-        updateChunk,
-        mutate,
     }
 }
 

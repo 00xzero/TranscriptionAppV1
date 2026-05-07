@@ -3,7 +3,6 @@ import { useSpeakerAssignments } from '../../app/editor/[id]/hooks/useSpeakerAss
 import type { Seg, Speaker } from '../../app/editor/[id]/types'
 
 jest.mock('@/lib/supabase/queries', () => ({
-  updateChunk: jest.fn().mockResolvedValue(undefined),
   updateSegment: jest.fn().mockResolvedValue(undefined),
   createSpeaker: jest.fn(),
   updateSpeaker: jest.fn().mockResolvedValue(undefined),
@@ -11,7 +10,6 @@ jest.mock('@/lib/supabase/queries', () => ({
 }))
 
 const {
-  updateChunk,
   updateSegment,
   createSpeaker,
   updateSpeaker,
@@ -67,7 +65,6 @@ function makeSegment(overrides: Partial<Seg> = {}): Seg {
     start_ms: 0,
     end_ms: 5000,
     text: 'Hello',
-    source_segment_ids: null,
     is_edited: false,
     is_filler: false,
     algo_version: 'test',
@@ -82,11 +79,6 @@ const makeSpeakers = (): Speaker[] => [
   makeSpeaker({ id: 'sp2', label: 'Bob', color: '#FF0000' }),
 ]
 
-const makeSegments = (): Seg[] => [
-  makeSegment(),
-  makeSegment({ id: 's2', start_ms: 5000, end_ms: 10000, text: 'World', speaker_id: 'sp2' }),
-]
-
 function setup(overrides?: Partial<Parameters<typeof useSpeakerAssignments>[0]>) {
   const setSpeakers = jest.fn()
   const setSegments = jest.fn()
@@ -96,9 +88,7 @@ function setup(overrides?: Partial<Parameters<typeof useSpeakerAssignments>[0]>)
     projectId: 'p1',
     speakers: makeSpeakers(),
     setSpeakers,
-    segments: makeSegments(),
     setSegments,
-    source: 'chunks' as const,
     reloadTranscript,
     ...overrides,
   }
@@ -132,7 +122,7 @@ describe('useSpeakerAssignments', () => {
       const { result } = setup()
       const alice = makeSpeakers()[0]
       const color = result.current.colorForSpeaker(alice)
-      expect(color).toBe('#4F638C') // first palette color
+      expect(color).toBe('#4F638C')
     })
 
     it('returns fallback gray for undefined speaker', () => {
@@ -145,32 +135,9 @@ describe('useSpeakerAssignments', () => {
     it('optimistically updates segments', async () => {
       const { result, setSegments } = setup()
 
-      // Simulate opening popover
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
-          speakerId: 'sp1',
-          anchorMeasurable: makeAnchorMeasurable(),
-          triggerElement: makeTriggerElement(),
-        })
-      })
-
-      const newSpeaker = makeSpeakers()[1] // Bob
-      await act(async () => {
-        await result.current.handleSelectSpeaker(newSpeaker)
-      })
-
-      expect(setSegments).toHaveBeenCalled()
-      expect(updateChunk).toHaveBeenCalledWith('s1', { speaker_id: 'sp2' })
-      expect(result.current.speakerPopover).toBeNull()
-    })
-
-    it('uses updateSegment when source is segments', async () => {
-      const { result } = setup({ source: 'segments' })
-
-      act(() => {
-        result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -182,18 +149,19 @@ describe('useSpeakerAssignments', () => {
         await result.current.handleSelectSpeaker(newSpeaker)
       })
 
+      expect(setSegments).toHaveBeenCalled()
       expect(updateSegment).toHaveBeenCalledWith('s1', { speaker_id: 'sp2' })
-      expect(updateChunk).not.toHaveBeenCalled()
+      expect(result.current.speakerPopover).toBeNull()
     })
 
     it('rolls back on API failure', async () => {
-      updateChunk.mockRejectedValueOnce(new Error('fail'))
+      updateSegment.mockRejectedValueOnce(new Error('fail'))
 
       const { result, setSegments, reloadTranscript } = setup()
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -232,7 +200,6 @@ describe('useSpeakerAssignments', () => {
         await result.current.handleRenameSpeaker(speaker, 'Charlie')
       })
 
-      // Called twice: optimistic rename + revert
       expect(setSpeakers).toHaveBeenCalledTimes(2)
     })
   })
@@ -260,7 +227,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: null,
           anchorMeasurable: makeAnchorMeasurable(),
           triggerElement: makeTriggerElement(),
@@ -274,7 +241,7 @@ describe('useSpeakerAssignments', () => {
       expect(createSpeaker).toHaveBeenCalledWith('p1', 'Charlie')
       expect(setSpeakers).toHaveBeenCalled()
       expect(setSegments).toHaveBeenCalled()
-      expect(updateChunk).toHaveBeenCalledWith('s1', { speaker_id: 'sp3' })
+      expect(updateSegment).toHaveBeenCalledWith('s1', { speaker_id: 'sp3' })
     })
   })
 
@@ -306,7 +273,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
           triggerElement,
@@ -323,7 +290,7 @@ describe('useSpeakerAssignments', () => {
 
       act(() => {
         result.current.setSpeakerPopover({
-          chunkId: 's1',
+          segmentId: 's1',
           speakerId: 'sp1',
           anchorMeasurable,
           triggerElement,

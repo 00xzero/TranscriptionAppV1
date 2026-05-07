@@ -39,25 +39,17 @@ async function main() {
     console.log(`\nSpeakers: ${speakers?.length || 0}`);
     speakers?.forEach(s => console.log(`  - ${s.label}`));
 
-    // Get chunks
-    const { data: chunks } = await supabase
-        .from("chunks")
-        .select("id, speaker_id, start_ms, end_ms, text, is_filler, source_segment_ids, algo_version")
-        .eq("project_id", PROJECT_ID)
-        .order("start_ms");
-
-    console.log(`\nChunks: ${chunks?.length || 0}`);
-
-    // Get stats
+    // Get segments
     const { data: segments, error: segmentsError } = await supabase
         .from("segments")
-        .select("id")
+        .select("id, speaker_id, start_ms, end_ms, text, is_filler, algo_version")
         .eq("project_id", PROJECT_ID);
     if (segmentsError) {
         throw segmentsError;
     }
 
     const segmentCount = segments?.length || 0;
+    console.log(`\nSegments: ${segmentCount}`);
     let wordCount = 0;
 
     if (segments && segments.length > 0) {
@@ -73,8 +65,6 @@ async function main() {
             wordCount += count || 0;
         }
     }
-
-    console.log(`Segments: ${segmentCount}`);
     console.log(`Words: ${wordCount}`);
 
     // Save results
@@ -82,19 +72,17 @@ async function main() {
         project: project,
         stats: {
             segmentCount,
-            chunkCount: chunks?.length || 0,
             wordCount,
             speakerCount: speakers?.length || 0,
-            consolidationRatio: chunks?.length && segmentCount ? (chunks.length / segmentCount * 100).toFixed(1) + "%" : "N/A",
         },
         speakers: speakers,
-        chunks: chunks?.map(chunk => ({
-            startTime: formatTime(chunk.start_ms),
-            endTime: formatTime(chunk.end_ms),
-            speaker: speakers?.find(s => s.id === chunk.speaker_id)?.label || "Unknown",
-            text: chunk.text,
-            isFiller: chunk.is_filler,
-            sourceSegments: chunk.source_segment_ids?.length || 0,
+        segments: segments?.map(segment => ({
+            startTime: formatTime(segment.start_ms),
+            endTime: formatTime(segment.end_ms),
+            speaker: speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown",
+            text: segment.text,
+            isFiller: segment.is_filler,
+            algoVersion: segment.algo_version,
         })),
     };
 
@@ -102,17 +90,18 @@ async function main() {
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
     console.log(`\n💾 Full results saved to: ${outputPath}`);
 
-    // Print first 10 chunks
+    // Print first 10 segments
     console.log("\n" + "=".repeat(80));
-    console.log("📝 FIRST 10 CHUNKS:");
+    console.log("📝 FIRST 10 SEGMENTS:");
     console.log("=".repeat(80));
 
-    for (const chunk of (chunks || []).slice(0, 10)) {
-        const speaker = speakers?.find(s => s.id === chunk.speaker_id)?.label || "Unknown";
-        const duration = ((chunk.end_ms - chunk.start_ms) / 1000).toFixed(1);
-        console.log(`\n[${formatTime(chunk.start_ms)} - ${formatTime(chunk.end_ms)}] (${duration}s) - ${speaker}`);
-        console.log(`"${chunk.text}"`);
-        if (chunk.is_filler) {
+    for (const segment of (segments || []).slice(0, 10)) {
+        const speaker = speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown";
+        const duration = ((segment.end_ms - segment.start_ms) / 1000).toFixed(1);
+        console.log(`\n[${formatTime(segment.start_ms)} - ${formatTime(segment.end_ms)}] (${duration}s) - ${speaker}`);
+        console.log(`"${segment.text}"`);
+        console.log(`  [algo=${segment.algo_version}]`);
+        if (segment.is_filler) {
             console.log("  [FILLER]");
         }
     }

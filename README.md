@@ -121,7 +121,6 @@ Commonly used vars:
 - `NEXT_PUBLIC_APP_URL` (defaults to `http://localhost:3000` for local)
 - `DEEPGRAM_USE_PROXY` and `MEDIA_PROXY_SECRET` (recommended for local Docker callbacks)
 - `DEEPGRAM_CONCURRENCY_LIMIT`, `DEEPGRAM_MODEL`
-- `CONSOLIDATION_ENABLED`
 - `TRANSCRIPTION_TIMEOUT_MINUTES`
 - `RATE_LIMIT_MODE`
 - `WEBHOOK_HEALTHCHECK_SECRET`

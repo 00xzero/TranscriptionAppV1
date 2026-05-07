@@ -26,9 +26,11 @@ import type {
     DeepgramAsyncResponse,
     DeepgramWord,
     DeepgramUtterance,
+    DeepgramParagraph,
+    DeepgramSentence,
     DeepgramWebhookPayload as DeepgramResponse,
 } from '@/contracts/webhook'
-export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramResponse }
+export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramParagraph, DeepgramSentence, DeepgramResponse }
 
 /**
  * Get the callback URL for Deepgram webhooks.
@@ -87,7 +89,7 @@ export async function startAsyncTranscription(
     params.append("model", model || getDeepgramModel());
     params.append("smart_format", "true");
     params.append("diarize", "true");
-    params.append("utterances", "true");
+    params.append("paragraphs", "true");
     params.append("callback", callbackUrl);
 
     // Pass project ID via extra parameter (returned in metadata.extra in callback)

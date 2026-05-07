@@ -143,7 +143,7 @@ Planned:
 ### Layer Boundaries (`frontend/`)
 
 - `contracts/` — Single source of truth for all Zod schemas and inferred TypeScript types (DB shapes, API bodies, Inngest events, Deepgram webhook format, editor pipeline).
-- `core/` — Domain logic and application services: transcription state machine, project creation, consolidation, exports, rate limiting.
+- `core/` — Domain logic and application services: transcription state machine, project creation, segment building, exports, rate limiting.
 - `infra/` — External service adapters: Supabase client factories (browser, server, admin), Deepgram client, Inngest client.
 - `lib/` — Cross-cutting utilities: Inngest function handlers, Supabase hooks/queries/realtime, ModalContext.
 
@@ -170,10 +170,8 @@ Planned:
 
 - `projects`: project metadata and user ownership. Status is derived from job state via DB triggers.
 - `speakers`: speaker labels/colors per project.
-- `segments`: raw utterance-level transcript data.
-- `words`: word-level timings.
-- `chunks`: consolidated editable transcript units.
-- `chunk_words`: mapping between chunks and words.
+- `segments`: canonical editable transcript units derived during ingestion.
+- `words`: word-level timings linked to segments.
 - `watchlist`: key terms for recognition boosting.
 - `jobs`: transcription job state and payload metadata. Transitions audited in `job_events`.
 - `webhook_receipts`: one receipt per Deepgram `request_id` for idempotent callback handling.

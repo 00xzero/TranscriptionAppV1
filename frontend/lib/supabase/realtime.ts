@@ -10,7 +10,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'
 
-type TableName = 'projects' | 'jobs' | 'chunks' | 'speakers'
+type TableName = 'projects' | 'jobs' | 'speakers'
 
 interface UseRealtimeOptions<T> {
     /** Initial data to display while loading */

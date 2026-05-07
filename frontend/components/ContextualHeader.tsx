@@ -221,7 +221,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
               <button
                 onClick={openCaptureModal}
                 aria-label="Open capture modal"
-                className="bg-ember-red text-white px-4 py-2 rounded-sm shadow-xs hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
+                className="cursor-pointer bg-ember-red text-white px-4 py-2 rounded-sm shadow-xs hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
               >
                 <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                 <span className="hidden md:inline">Capture</span>

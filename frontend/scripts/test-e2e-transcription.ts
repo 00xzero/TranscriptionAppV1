@@ -159,7 +159,7 @@ async function main() {
     // Get segments
     const { data: segments } = await supabase
         .from("segments")
-        .select("id, speaker_id, start_ms, end_ms, text")
+        .select("id, speaker_id, start_ms, end_ms, text, is_filler, algo_version")
         .eq("project_id", project.id)
         .order("start_ms");
 
@@ -177,28 +177,6 @@ async function main() {
     }
 
     console.log(`   Words: ${wordCount || 0}`);
-
-    // Get chunks
-    const { data: chunks } = await supabase
-        .from("chunks")
-        .select("id, speaker_id, start_ms, end_ms, text, is_filler, source_segment_ids, algo_version")
-        .eq("project_id", project.id)
-        .order("start_ms");
-
-    console.log(`   Chunks: ${chunks?.length || 0}`);
-
-    // Get chunk_words count
-    let chunkWordCount = 0;
-    const chunkIds = chunks?.map(c => c.id) || [];
-    if (chunkIds.length > 0) {
-        const { count } = await supabase
-            .from("chunk_words")
-            .select("id", { count: "exact" })
-            .in("chunk_id", chunkIds);
-        chunkWordCount = count || 0;
-    }
-
-    console.log(`   Chunk Words: ${chunkWordCount || 0}`);
 
     // Get speakers
     const { data: speakers } = await supabase
@@ -219,21 +197,18 @@ async function main() {
         stats: {
             segmentCount: segments?.length || 0,
             wordCount: wordCount || 0,
-            chunkCount: chunks?.length || 0,
-            chunkWordCount: chunkWordCount || 0,
             speakerCount: speakers?.length || 0,
         },
         speakers: speakers,
-        chunks: chunks?.map(chunk => ({
-            id: chunk.id,
-            speakerId: chunk.speaker_id,
-            speakerLabel: speakers?.find(s => s.id === chunk.speaker_id)?.label || "Unknown",
-            startMs: chunk.start_ms,
-            endMs: chunk.end_ms,
-            text: chunk.text,
-            isFiller: chunk.is_filler,
-            sourceSegmentCount: chunk.source_segment_ids?.length || 0,
-            algoVersion: chunk.algo_version,
+        segments: segments?.map(segment => ({
+            id: segment.id,
+            speakerId: segment.speaker_id,
+            speakerLabel: speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown",
+            startMs: segment.start_ms,
+            endMs: segment.end_ms,
+            text: segment.text,
+            isFiller: segment.is_filler,
+            algoVersion: segment.algo_version,
         })),
         // Include first few and last few segments for verification
         segmentSamples: {
@@ -253,18 +228,19 @@ async function main() {
     console.log(`Project: ${project.title}`);
     console.log(`Segments: ${results.stats.segmentCount}`);
     console.log(`Words: ${results.stats.wordCount}`);
-    console.log(`Chunks: ${results.stats.chunkCount} (consolidated from ${results.stats.segmentCount} segments)`);
     console.log(`Speakers: ${results.stats.speakerCount}`);
     console.log("=".repeat(60));
 
-    // Print first 3 chunks
-    console.log("\n📝 First 3 Chunks:\n");
-    for (const chunk of (results.chunks || []).slice(0, 3)) {
-        const duration = ((chunk.endMs - chunk.startMs) / 1000).toFixed(1);
-        console.log(`[${formatTime(chunk.startMs)} - ${formatTime(chunk.endMs)}] (${duration}s)`);
-        console.log(`Speaker: ${chunk.speakerLabel}`);
-        console.log(`Text: "${chunk.text.substring(0, 200)}${chunk.text.length > 200 ? '...' : ''}"`);
-        console.log(`Filler: ${chunk.isFiller}, Source Segments: ${chunk.sourceSegmentCount}`);
+    // Print first 3 segments
+    console.log("\n📝 First 3 Segments:\n");
+    for (const segment of (results.segments || []).slice(0, 3)) {
+        const duration = ((segment.endMs - segment.startMs) / 1000).toFixed(1);
+        const text = segment.text ?? "";
+        const displayText = text || "<missing>";
+        console.log(`[${formatTime(segment.startMs)} - ${formatTime(segment.endMs)}] (${duration}s)`);
+        console.log(`Speaker: ${segment.speakerLabel}`);
+        console.log(`Text: "${displayText.substring(0, 200)}${displayText.length > 200 ? '...' : ''}"`);
+        console.log(`Filler: ${segment.isFiller}, Algo: ${segment.algoVersion}`);
         console.log("");
     }
 

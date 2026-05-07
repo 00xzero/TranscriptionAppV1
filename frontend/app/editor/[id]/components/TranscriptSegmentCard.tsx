@@ -11,7 +11,6 @@ type SegmentHeaderRowProps = {
   segmentId: string
   segmentText: string
   editingId: string | null
-  source: 'chunks' | 'segments'
   onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
@@ -25,7 +24,6 @@ function SegmentHeaderRow({
   segmentId,
   segmentText,
   editingId,
-  source,
   onSpeakerClick,
   setEditingId,
   setEditingTexts,
@@ -53,27 +51,25 @@ function SegmentHeaderRow({
         {saveStatus[segmentId] === 'saved' && <span className="text-emerald-600">Saved</span>}
         {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
       </span>
-      {source !== 'segments' && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
-              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                e.stopPropagation()
-                setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
-                setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
-              }}
-              aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{editingId === segmentId ? 'Close editor' : 'Edit text'}</TooltipContent>
-        </Tooltip>
-      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+            onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+              e.stopPropagation()
+              setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
+              setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
+            }}
+            aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{editingId === segmentId ? 'Close editor' : 'Edit text'}</TooltipContent>
+      </Tooltip>
     </div>
   )
 }
@@ -89,11 +85,10 @@ export type TranscriptSegmentCardProps = {
   editingId: string | null
   editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
-  source: 'chunks' | 'segments'
   textAreaRefs: React.RefObject<Record<string, HTMLTextAreaElement | null>>
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
-  onSpeakerClick: (e: React.MouseEvent, chunkId: string, speakerId: string | null) => void
+  onSpeakerClick: (e: React.MouseEvent, segmentId: string, speakerId: string | null) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
@@ -110,7 +105,6 @@ export default function TranscriptSegmentCard({
   editingId,
   editingTexts,
   saveStatus,
-  source,
   textAreaRefs,
   onSegmentClick,
   onWordClick,
@@ -154,7 +148,6 @@ export default function TranscriptSegmentCard({
           segmentId={s.id}
           segmentText={s.text}
           editingId={editingId}
-          source={source}
           onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             onSpeakerClick(e, s.id, s.speaker_id ?? null)

@@ -7,7 +7,6 @@ const defaultParams = {
     { id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello world', speaker_id: 'sp1', words: [{ key: 's1:0', start_ms: 0, end_ms: 500, text: 'Hello ' }, { key: 's1:1', start_ms: 500, end_ms: 1000, text: 'world' }] },
     { id: 's2', start_ms: 1000, end_ms: 2000, text: 'Hello again', speaker_id: 'sp1', words: [{ key: 's2:0', start_ms: 1000, end_ms: 1500, text: 'Hello ' }, { key: 's2:1', start_ms: 1500, end_ms: 2000, text: 'again' }] },
   ] as Seg[],
-  source: 'chunks' as const,
   editingTexts: {},
   setEditingTexts: jest.fn(),
   scheduleSave: jest.fn(),
@@ -42,7 +41,6 @@ describe('useTranscriptSearch', () => {
       result.current.setFindInput('Hello')
     })
 
-    // Advance past the 800ms debounce
     act(() => {
       jest.advanceTimersByTime(800)
     })
@@ -61,11 +59,9 @@ describe('useTranscriptSearch', () => {
       result.current.setFindInput('Hello')
     })
 
-    // Before debounce fires, findTerm should still be empty
     expect(result.current.findTerm).toBe('')
     expect(result.current.isFindDirty).toBe(true)
 
-    // Advance past the 800ms debounce
     act(() => {
       jest.advanceTimersByTime(800)
     })
@@ -77,12 +73,10 @@ describe('useTranscriptSearch', () => {
   it('case-sensitive search', () => {
     const { result } = renderHook(() => useTranscriptSearch({ ...defaultParams }))
 
-    // Enable case sensitivity
     act(() => {
       result.current.setCaseSensitive(true)
     })
 
-    // Search for lowercase "hello" — text has uppercase "Hello"
     act(() => {
       result.current.setFindInput('hello')
     })
@@ -99,12 +93,10 @@ describe('useTranscriptSearch', () => {
   it('whole word search', () => {
     const { result } = renderHook(() => useTranscriptSearch({ ...defaultParams }))
 
-    // Enable whole word matching
     act(() => {
       result.current.setWholeWord(true)
     })
 
-    // Search for "Hell" — a partial word, should not match
     act(() => {
       result.current.setFindInput('Hell')
     })
@@ -116,7 +108,6 @@ describe('useTranscriptSearch', () => {
     expect(result.current.findTerm).toBe('Hell')
     expect(result.current.totalMatches).toBe(0)
 
-    // Now search for "Hello" — a whole word, should match both segments
     act(() => {
       result.current.setFindInput('Hello')
     })
@@ -140,31 +131,26 @@ describe('useTranscriptSearch', () => {
       jest.advanceTimersByTime(800)
     })
 
-    // matchIndex starts at 0 (reset by the findTerm effect)
     expect(result.current.matchIndex).toBe(0)
 
-    // handleNext should go to match index 1
     act(() => {
       result.current.handleNext()
     })
 
     expect(result.current.matchIndex).toBe(1)
 
-    // handlePrev should go back to match index 0
     act(() => {
       result.current.handlePrev()
     })
 
     expect(result.current.matchIndex).toBe(0)
 
-    // handlePrev should wrap around to the last match
     act(() => {
       result.current.handlePrev()
     })
 
     expect(result.current.matchIndex).toBe(1)
 
-    // handleNext should wrap around to the first match
     act(() => {
       result.current.handleNext()
     })

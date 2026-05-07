@@ -1,7 +1,7 @@
 /**
  * Supabase query helpers for frontend data operations.
  *
- * Provides typed functions for CRUD operations on projects, chunks, and speakers.
+ * Provides typed functions for CRUD operations on projects, transcript rows, and speakers.
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
@@ -9,9 +9,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Project,
     JobSummary,
-    Chunk,
     Speaker,
-    ChunkUpdate,
+    SegmentUpdate,
     SpeakerUpdate,
     SpeakerInsert,
     ProjectUpdate,
@@ -152,10 +151,10 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 // ============================================================================
-// Chunks
+// Transcript Rows
 // ============================================================================
 
-const FETCH_ALL_ROWS_SUPPORTED_TABLES = new Set(['chunks', 'segments'])
+const FETCH_ALL_ROWS_SUPPORTED_TABLES = new Set(['segments'])
 
 /**
  * Fetch all rows from a table with pagination to avoid PostgREST's
@@ -196,8 +195,8 @@ export async function paginateAllRows<T>(
  *
  * Contract:
  * - `orderColumn` must exist on the target table.
- * - Default `orderColumn` is `start_ms`, used by `chunks` and `segments`.
- * - This helper only supports `chunks`/`segments`; use `paginateAllRows`
+ * - Default `orderColumn` is `start_ms`, used by transcript segments.
+ * - This helper only supports `segments`; use `paginateAllRows`
  *   directly for other tables with an explicit order column.
  */
 async function fetchAllRows<T>(
@@ -215,7 +214,7 @@ async function fetchAllRows<T>(
 
     if (!FETCH_ALL_ROWS_SUPPORTED_TABLES.has(table)) {
         throw new Error(
-            `[fetchAllRows] Unsupported table "${table}" for orderColumn "${normalizedOrderColumn}". Supported tables: chunks, segments.`
+            `[fetchAllRows] Unsupported table "${table}" for orderColumn "${normalizedOrderColumn}". Supported tables: segments.`
         )
     }
 
@@ -224,14 +223,7 @@ async function fetchAllRows<T>(
 }
 
 /**
- * Fetch all chunks for a project.
- */
-export async function fetchChunks(projectId: string): Promise<Chunk[]> {
-    return fetchAllRows<Chunk>('chunks', projectId)
-}
-
-/**
- * Fetch all segments for a project (fallback when chunks unavailable).
+ * Fetch all segments for a project.
  */
 export async function fetchSegments(projectId: string): Promise<Segment[]> {
     return fetchAllRows<Segment>('segments', projectId)
@@ -239,54 +231,30 @@ export async function fetchSegments(projectId: string): Promise<Segment[]> {
 
 /**
  * Fetch transcript data for editor display.
- * Prefers chunks if available, falls back to segments.
  * Returns normalized data structure compatible with editor.
  */
 export async function fetchTranscriptData(projectId: string): Promise<{
-    items: Chunk[] | Segment[]
-    source: 'chunks' | 'segments'
+    items: Segment[]
 }> {
-    // Try chunks first
-    const chunks = await fetchChunks(projectId)
-    if (chunks.length > 0) {
-        return { items: chunks, source: 'chunks' }
-    }
-
-    // Fall back to segments
     const segments = await fetchSegments(projectId)
-    return { items: segments, source: 'segments' }
+    return { items: segments }
 }
 
 /**
- * Update a chunk (text, speaker, etc).
- */
-export async function updateChunk(
-    id: string,
-    updates: ChunkUpdate
-): Promise<Chunk> {
-    const supabase = createClient()
-    const { data, error } = await supabase
-        .from('chunks')
-        .update({ ...updates, is_edited: true })
-        .eq('id', id)
-        .select()
-        .single()
-
-    if (error) throw error
-    return data
-}
-
-/**
- * Update a segment (speaker only usually).
+ * Update a segment (text, speaker, etc).
  */
 export async function updateSegment(
     id: string,
-    updates: { speaker_id?: string | null }
+    updates: SegmentUpdate
 ): Promise<Segment> {
+    const payload = updates.text !== undefined
+        ? { ...updates, is_edited: true }
+        : updates
+
     const supabase = createClient()
     const { data, error } = await supabase
         .from('segments')
-        .update(updates)
+        .update(payload)
         .eq('id', id)
         .select()
         .single()

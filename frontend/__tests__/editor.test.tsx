@@ -216,7 +216,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       items: [
         { id: 'u1', start_ms: 0, end_ms: 3000, text: 'mañana ana', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -239,7 +238,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       items: [
         { id: 'u1', start_ms: 0, end_ms: 3000, text: 'مرحبا حب', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -259,7 +257,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('sets audio source before transcript data resolves', async () => {
     const transcriptDeferred = deferred<{
       items: Array<{ id: string; start_ms: number; end_ms: number; text: string; project_id: string; speaker_id: null }>
-      source: 'chunks'
     }>()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockReturnValueOnce(transcriptDeferred.promise)
 
@@ -276,7 +273,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
           { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.', project_id: 'p1', speaker_id: null },
           { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.', project_id: 'p1', speaker_id: null },
         ],
-        source: 'chunks',
       })
     })
 
@@ -332,7 +328,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('renders without error when transcript returns empty items', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -370,7 +365,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await user.click(replaceBtn)
     await user.click(replaceAllBtn)
-    expect(supabaseQueries.updateChunk).not.toHaveBeenCalled()
+    expect(supabaseQueries.updateSegment).not.toHaveBeenCalled()
 
     await waitForMatchSummary(/0 matches/i)
     expect(replaceBtn).toBeDisabled()
@@ -461,7 +456,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await user.click(screen.getByRole('button', { name: /^Replace$/i }))
     await waitFor(() => {
-      expect(supabaseQueries.updateChunk).toHaveBeenCalledTimes(1)
+      expect(supabaseQueries.updateSegment).toHaveBeenCalledTimes(1)
     }, { timeout: 1500 })
     await waitForMatchSummary(/of 2 matches/i)
 
@@ -469,7 +464,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await user.click(replaceAllBtn)
 
     await waitFor(() => {
-      expect(supabaseQueries.updateChunk).toHaveBeenCalledTimes(3)
+      expect(supabaseQueries.updateSegment).toHaveBeenCalledTimes(3)
     }, { timeout: 1500 })
   })
 
@@ -706,7 +701,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
         { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
         { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -793,7 +787,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
         { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
         { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -819,7 +812,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
         { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
         { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()
@@ -886,7 +878,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
         { id: 's2', start_ms: 2000, end_ms: 3000, text: 'short one', project_id: 'p1', speaker_id: null },
         { id: 's3', start_ms: 4000, end_ms: 5000, text: 'short two', project_id: 'p1', speaker_id: null },
       ],
-      source: 'chunks',
     })
 
     renderEditorScreen()

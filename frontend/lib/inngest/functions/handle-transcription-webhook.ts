@@ -9,12 +9,12 @@
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
-import { runConsolidation } from "@/core/transcript/consolidation-service";
 import {
-    getMajoritySpeaker,
-    DeepgramWord,
-    DeepgramUtterance,
-} from "@/infra/deepgram";
+    DEFAULT_SEGMENT_BUILDER_CONFIG,
+    NormalizedWord,
+    buildSegments,
+    normalizeWords,
+} from "@/core/transcript/segment-builder";
 import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
 import { writeTranscriptionFailureFallback } from "./_shared";
@@ -24,8 +24,8 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         id: "handle-transcription-webhook",
         triggers: [{ event: transcriptionWebhookTrigger }],
         retries: 3,
-        // Limit to 1 concurrent execution per project to prevent
-        // interleaving of consolidation (which deletes and re-inserts chunks)
+        // Limit to 1 concurrent execution per project so replayed or duplicate
+        // webhook deliveries cannot interleave segment rewrites.
         concurrency: {
             limit: 1,
             key: "event.data.projectId",
@@ -111,7 +111,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             return data;
         });
 
-        // Guard against late replays — job already completed means segments/chunks are final
+        // Guard against late replays — job already completed means segments are final
         if (job.status === "completed") {
             console.log(`[inngest] Job ${job.id} already completed — skipping replay for project ${projectId}`);
             return { status: "skipped", projectId, jobId: job.id };
@@ -139,12 +139,10 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             }
             const response = responseParsed.data;
 
-            // Parse Deepgram response
-            // Utterances can be at results level or under alternatives (legacy worker handled both)
+            // Parse Deepgram response — use channel words for word-level speaker grouping
             const results = response.results || {};
             const channels = results.channels || [];
             const alt = channels[0]?.alternatives?.[0];
-            const utterances = results.utterances || alt?.utterances;
             const words = alt?.words || [];
 
             // Clear existing segments for idempotency
@@ -197,7 +195,9 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 startMs: number,
                 endMs: number,
                 text: string,
-                segmentWords: DeepgramWord[]
+                segmentWords: NormalizedWord[],
+                isFiller: boolean,
+                algoVersion: string
             ): Promise<void> {
                 const { data: segment, error: segError } = await supabase
                     .from("segments")
@@ -207,6 +207,8 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                         start_ms: startMs,
                         end_ms: endMs,
                         text,
+                        is_filler: isFiller,
+                        algo_version: algoVersion,
                     })
                     .select("id")
                     .single();
@@ -221,11 +223,16 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 if (segmentWords.length > 0) {
                     const wordRows = segmentWords.map((w, idx) => ({
                         segment_id: segment.id,
-                        start_ms: Math.round(w.start * 1000),
-                        end_ms: Math.round(w.end * 1000),
-                        text: w.word,
+                        start_ms: w.startMs,
+                        end_ms: w.endMs,
+                        text: w.text,
                         confidence: w.confidence,
                         order_index: idx,
+                        speaker: w.speaker,
+                        speaker_confidence: w.speakerConfidence,
+                        punctuated_text: w.punctuatedText,
+                        paragraph_index: w.paragraphIndex,
+                        sentence_end: w.sentenceEnd,
                     }));
 
                     const { error: wordError } = await supabase
@@ -240,47 +247,42 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 }
             }
 
-            // Process utterances (preferred) or words
-            if (utterances && utterances.length > 0) {
-                for (const utt of utterances as DeepgramUtterance[]) {
-                    const startMs = Math.round(utt.start * 1000);
-                    const endMs = Math.round(utt.end * 1000);
-                    maxEndMs = Math.max(maxEndMs, endMs);
+            if (words.length > 0) {
+                const normalizedWords = normalizeWords(words, alt?.paragraphs ?? null);
+                const builtSegments = buildSegments(
+                    normalizedWords,
+                    DEFAULT_SEGMENT_BUILDER_CONFIG
+                );
 
-                    // Determine majority speaker
-                    const speakerNum = getMajoritySpeaker(utt.words || []);
+                for (const segment of builtSegments) {
+                    maxEndMs = Math.max(maxEndMs, segment.endMs);
+
                     let speakerId: string | null = null;
-
-                    if (typeof speakerNum === "number") {
-                        speakerId = await getOrCreateSpeaker(speakerNum);
+                    if (typeof segment.speakerNum === "number") {
+                        speakerId = await getOrCreateSpeaker(segment.speakerNum);
                     }
 
                     await insertSegment(
                         speakerId,
-                        startMs,
-                        endMs,
-                        utt.transcript || "",
-                        utt.words || []
+                        segment.startMs,
+                        segment.endMs,
+                        segment.text,
+                        segment.words,
+                        segment.isFiller,
+                        segment.algoVersion
                     );
                 }
-            } else if (words.length > 0) {
-                // Fallback: single segment covering all words
-                const startMs = Math.round(words[0].start * 1000);
-                const endMs = Math.round(words[words.length - 1].end * 1000);
-                maxEndMs = Math.max(maxEndMs, endMs);
-
-                const speakerNum = getMajoritySpeaker(words);
-                let speakerId: string | null = null;
-
-                if (typeof speakerNum === "number") {
-                    speakerId = await getOrCreateSpeaker(speakerNum);
-                }
-
-                const transcript = alt?.transcript || "";
-                await insertSegment(speakerId, startMs, endMs, transcript, words);
             } else {
                 // No words returned; create empty segment
-                await insertSegment(null, 0, 0, alt?.transcript || "", []);
+                await insertSegment(
+                    null,
+                    0,
+                    0,
+                    alt?.transcript || "",
+                    [],
+                    false,
+                    DEFAULT_SEGMENT_BUILDER_CONFIG.algoVersion
+                );
             }
 
             return {
@@ -290,53 +292,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             };
         });
 
-        // Step 3: Run consolidation pipeline (if enabled)
-        // Wrapped in try-catch so consolidation failure doesn't fail the entire transcription
-        const consolidationEnabled = process.env.CONSOLIDATION_ENABLED !== "false";
-        const consolidationResult = await step.run("run-consolidation", async () => {
-            if (!consolidationEnabled) {
-                console.log(`[inngest] Consolidation DISABLED for project: ${projectId} (CONSOLIDATION_ENABLED=false)`);
-                return {
-                    chunkCount: 0,
-                    chunkWordCount: 0,
-                    algoVersion: "skipped",
-                    consolidationError: null,
-                };
-            }
-            console.log(`[inngest] Running consolidation for project: ${projectId}`);
-            try {
-                const result = await runConsolidation(projectId);
-                return {
-                    ...result,
-                    consolidationError: null,
-                };
-            } catch (consolidationError) {
-                // Log but don't throw - transcription segments still exist and are usable
-                const errorMessage = consolidationError instanceof Error
-                    ? consolidationError.message
-                    : String(consolidationError);
-                console.error(`[inngest] Consolidation failed for project ${projectId}:`, errorMessage);
-                return {
-                    chunkCount: 0,
-                    chunkWordCount: 0,
-                    algoVersion: "failed",
-                    consolidationError: errorMessage,
-                };
-            }
-        });
-
-        // Step 4: Trigger completion event
-        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}, consolidation: ${consolidationEnabled ? 'enabled' : 'disabled'}`);
+        // Step 3: Trigger completion event
+        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}`);
         await step.sendEvent("trigger-completed", {
             name: "transcription/completed",
             data: {
                 projectId,
                 jobId: job.id,
                 duration: Math.floor(transcriptionResult.durationMs / 1000),
-                chunkCount: consolidationResult.chunkCount,
-                chunkWordCount: consolidationResult.chunkWordCount,
-                algoVersion: consolidationResult.algoVersion,
-                consolidationError: consolidationResult.consolidationError,
             },
         });
         console.log(`[inngest] transcription/completed event sent successfully for project: ${projectId}`);
@@ -345,17 +308,11 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
             `${transcriptionResult.wordCount} words, ${transcriptionResult.durationMs}ms duration`
         );
-        console.log(
-            `[inngest] Consolidation complete: ${consolidationResult.chunkCount} chunks, ` +
-            `${consolidationResult.chunkWordCount} chunk_words (${consolidationResult.algoVersion})`
-        );
-
         return {
             status: "stored",
             projectId,
             jobId: job.id,
             ...transcriptionResult,
-            ...consolidationResult,
         };
     }
 );
