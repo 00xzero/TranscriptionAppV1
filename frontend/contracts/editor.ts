@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ProjectSchema, SpeakerSchema, SegmentSchema } from './db'
+import { ProjectSchema, SpeakerSchema, SegmentSchema } from '@/contracts/db'
 
 // EditorWord: has computed key field not in the DB
 export const EditorWordSchema = z.object({
