@@ -140,16 +140,19 @@ export async function updateProject(
     return data
 }
 
-function isMissingStorageObjectError(error: { message?: string; statusCode?: string | number; status?: string | number }) {
+function isMissingStorageObjectError(error: { message?: string; error?: string; code?: string }) {
     const message = error.message?.toLowerCase() ?? ''
-    const statusCode = Number(error.statusCode)
-    const status = Number(error.status)
+    const errorName = error.error?.toLowerCase() ?? ''
+    const code = error.code?.toLowerCase() ?? ''
+
     return (
-        statusCode === 404 ||
-        status === 404 ||
-        message.includes('not found') ||
+        code === 'nosuchkey' ||
+        errorName === 'nosuchkey' ||
+        errorName === 'no such key' ||
         message.includes('no such key') ||
-        message.includes('nosuchkey')
+        message.includes('nosuchkey') ||
+        message.includes('object not found') ||
+        message.includes('specified key does not exist')
     )
 }
 
@@ -162,9 +165,10 @@ export async function deleteProject(id: string): Promise<void> {
         .from('projects')
         .select('source_object_key')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
     if (fetchError) throw fetchError
+    if (!project) return
 
     if (project.source_object_key) {
         const { error: storageError } = await supabase.storage
