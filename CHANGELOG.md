@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-07] - Project Media Cleanup
+
+Prevented deleted projects from leaving media files behind in Supabase Storage, and added a maintenance script for reconciling existing orphaned storage objects against live project records.
+
+### Added
+
+- **`frontend/scripts/cleanup-orphaned-media.mjs`** — Added a dry-run-first maintenance script that compares `projects.source_object_key` values with objects in the private `media` bucket, reports orphaned files and total bytes, and deletes them only when run with `--delete`.
+
+### Changed
+
+- **`frontend/lib/supabase/queries.ts`** — Updated project deletion to fetch `source_object_key`, remove the associated file from Supabase Storage, and only then delete the project row so existing database cascades can clean up related records.
+
+### Operations
+
+- Cleaned up existing orphaned media in remote Supabase Storage (`21` objects, `412.1 MB`) and local Supabase Storage (`1` object, `31.4 MB`).
+- Verified both environments report `0` orphaned media objects after cleanup.
+
+### Tests
+
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with existing warnings and no lint errors)
+
 ## [2026-04-20] - Segments-Only Migration
 
 Moved the transcription pipeline from chunk-backed transcript editing to canonical segment-backed editing. New transcriptions now request Deepgram paragraph metadata instead of utterances, build readable speaker-homogeneous segments from word-level diarization, persist enriched word metadata for future rebuild/debugging, and use those same segments for editor rendering, editing, speaker assignment, search/replace, and exports. The legacy chunk/consolidation layer has been removed from runtime code and schema cleanup is now covered by a Supabase migration.
