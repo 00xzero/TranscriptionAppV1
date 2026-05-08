@@ -142,9 +142,11 @@ export async function updateProject(
 
 function isMissingStorageObjectError(error: { message?: string; statusCode?: string | number; status?: string | number }) {
     const message = error.message?.toLowerCase() ?? ''
+    const statusCode = Number(error.statusCode)
+    const status = Number(error.status)
     return (
-        error.statusCode === 404 ||
-        error.status === 404 ||
+        statusCode === 404 ||
+        status === 404 ||
         message.includes('not found') ||
         message.includes('no such key') ||
         message.includes('nosuchkey')
