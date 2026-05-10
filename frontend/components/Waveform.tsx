@@ -19,7 +19,22 @@ interface WaveformProps {
 
 const MIN_BARS = 80
 const MAX_BARS = 280
-const PX_PER_BAR = 8
+const BAR_WIDTH_PX = 6
+const BAR_GAP_PX = 4
+const PX_PER_BAR = BAR_WIDTH_PX + BAR_GAP_PX // 10
+const MIN_BAR_HEIGHT_PCT = 6
+const RULER_TICK_COUNT = 5
+
+function formatRulerTime(seconds: number): string {
+    if (!Number.isFinite(seconds) || seconds < 0) return '00:00'
+    const total = Math.floor(seconds)
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    return h > 0
+        ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+        : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+}
 
 function clampFraction(f: number): number {
     if (!Number.isFinite(f)) return 0
@@ -90,10 +105,25 @@ export default function Waveform({
         return Math.max(MIN_BARS, Math.min(MAX_BARS, Math.floor(width / PX_PER_BAR)))
     }, [width])
 
-    const displayBars = useMemo(
-        () => downsamplePeaks(peaks, barCount),
-        [peaks, barCount]
-    )
+    const displayBars = useMemo(() => {
+        const sampled = downsamplePeaks(peaks, barCount)
+        // Normalize to [0, 1] using the loudest bar so quiet recordings still
+        // express full dynamic range — matches the prototype's strong height
+        // variation. Without this, real-world audio peaks (typically 0.1–0.5)
+        // render as a squat band of nearly-equal bars.
+        let max = 0
+        for (let i = 0; i < sampled.length; i++) if (sampled[i] > max) max = sampled[i]
+        if (max <= 0) return sampled
+        for (let i = 0; i < sampled.length; i++) sampled[i] = sampled[i] / max
+        return sampled
+    }, [peaks, barCount])
+
+    const rulerTicks = useMemo(() => {
+        if (!Number.isFinite(duration) || duration <= 0) return []
+        return Array.from({ length: RULER_TICK_COUNT }, (_, i) =>
+            (i * duration) / (RULER_TICK_COUNT - 1)
+        )
+    }, [duration])
 
     // Drive the active-region clip via a CSS variable, set imperatively so
     // React never re-renders the bar grids during playback. Only the wrapper's
@@ -168,8 +198,8 @@ export default function Waveform({
 
     return (
         <div
-            ref={containerRef}
             data-testid="waveform-bars"
+            ref={containerRef}
             role="slider"
             tabIndex={0}
             aria-label="Audio waveform"
@@ -178,32 +208,44 @@ export default function Waveform({
             aria-valuenow={ariaValueNow}
             onMouseDown={handleMouseDown}
             onKeyDown={handleKeyDown}
-            className="relative h-32 w-full cursor-pointer select-none"
+            className="relative w-full cursor-pointer select-none"
             style={{ ['--waveform-progress' as string]: '0%' }}
         >
-            {/* Inactive bar layer */}
-            <BarLayer
-                bars={displayBars}
-                className="absolute inset-0 flex items-center justify-between gap-px text-ink/20 dark:text-[#333]"
-            />
-            {/* Active (played) bar layer — same bars, different color, clipped by --waveform-progress */}
-            <div
-                className="absolute inset-0 overflow-hidden pointer-events-none"
-                style={{ clipPath: 'inset(0 calc(100% - var(--waveform-progress)) 0 0)' }}
-            >
+            {/* Bars region — h-40 (160px) to match Olivetti.html:700 */}
+            <div className="relative h-40 w-full">
+                {/* Inactive bar layer */}
                 <BarLayer
                     bars={displayBars}
-                    className="absolute inset-0 flex items-center justify-between gap-px text-trust-blue"
+                    className="absolute inset-0 flex items-center justify-center gap-1 text-ink/20 dark:text-[#333]"
                 />
+                {/* Active (played) bar layer — same bars, different color, clipped by --waveform-progress */}
+                <div
+                    className="absolute inset-0 overflow-hidden pointer-events-none"
+                    style={{ clipPath: 'inset(0 calc(100% - var(--waveform-progress)) 0 0)' }}
+                >
+                    <BarLayer
+                        bars={displayBars}
+                        className="absolute inset-0 flex items-center justify-center gap-1 text-trust-blue"
+                    />
+                </div>
+                {/* Playhead — spans the full h-40 bars region, matching the
+                    maximum theoretical peak height. */}
+                <div
+                    aria-hidden
+                    className="absolute inset-y-0 w-0.5 bg-trust-blue shadow-[0_0_10px_rgba(79,99,140,0.8)] pointer-events-none -translate-x-1/2 z-20"
+                    style={{ left: 'var(--waveform-progress)' }}
+                >
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-trust-blue rounded-full" />
+                </div>
             </div>
-            {/* Playhead — 2px line with a circle knob at the top, matches Olivetti.html:705 */}
-            <div
-                aria-hidden
-                className="absolute top-2 bottom-2 w-0.5 bg-trust-blue shadow-[0_0_10px_rgba(79,99,140,0.8)] pointer-events-none -translate-x-1/2"
-                style={{ left: 'var(--waveform-progress)' }}
-            >
-                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-trust-blue rounded-full" />
-            </div>
+            {/* Time ruler — matches Olivetti.html:709 */}
+            {rulerTicks.length > 0 && (
+                <div aria-hidden className="flex justify-between mt-4 mb-3 text-[10px] font-mono text-ink/40 dark:text-paper/30 px-2">
+                    {rulerTicks.map((t, i) => (
+                        <span key={i}>{formatRulerTime(t)}</span>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -219,12 +261,13 @@ const BarLayer = React.memo(function BarLayer({ bars, className }: BarLayerProps
             {bars.map((height, i) => (
                 <span
                     key={i}
-                    className="bg-current rounded-full"
+                    className="bg-current rounded-full shrink-0"
                     style={{
-                        // Minimum 4% so silent regions are still visible
-                        height: `${Math.max(4, height * 100)}%`,
-                        width: `${100 / bars.length}%`,
-                        maxWidth: '4px',
+                        // MIN_BAR_HEIGHT_PCT keeps silent regions faintly visible without
+                        // making them as prominent as content. Bar width is fixed at
+                        // BAR_WIDTH_PX (6px) — matches the prototype's `w-1.5`.
+                        height: `${Math.max(MIN_BAR_HEIGHT_PCT, height * 100)}%`,
+                        width: `${BAR_WIDTH_PX}px`,
                     }}
                 />
             ))}
