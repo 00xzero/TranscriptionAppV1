@@ -189,7 +189,7 @@ describe('AudioPlayer', () => {
     fireEvent.mouseDown(slider, { clientX: 100 })
 
     expect(slider).toHaveAttribute('aria-valuenow', '60')
-    expect(screen.getByText('1:00')).toBeInTheDocument()
+    expect(screen.getByText('01:00')).toBeInTheDocument()
     expect(getCurrentTime()).toBe(0)
 
     flushAnimationFrame()
@@ -239,7 +239,7 @@ describe('AudioPlayer', () => {
     })
 
     expect(slider).toHaveAttribute('aria-valuenow', '90')
-    expect(screen.getByText('1:30')).toBeInTheDocument()
+    expect(screen.getByText('01:30')).toBeInTheDocument()
   })
 
   it('shows immediate progress preview when scrubbing before metadata loads', () => {
@@ -248,7 +248,7 @@ describe('AudioPlayer', () => {
     fireEvent.mouseDown(slider, { clientX: 100 })
 
     expect(getProgressFill(slider).style.width).toBe('50%')
-    expect(screen.getAllByText('0:00')).toHaveLength(2)
+    expect(screen.getAllByText('00:00')).toHaveLength(2)
   })
 
   it('resolves a pending scrub preview when metadata arrives', () => {
@@ -267,7 +267,7 @@ describe('AudioPlayer', () => {
 
     expect(onScrubPreview).toHaveBeenLastCalledWith(60)
     expect(getCurrentTime()).toBe(60)
-    expect(screen.getByText('1:00')).toBeInTheDocument()
+    expect(screen.getByText('01:00')).toBeInTheDocument()
     expect(getProgressFill(slider).style.width).toBe('50%')
   })
 
@@ -296,7 +296,7 @@ describe('AudioPlayer', () => {
     flushAnimationFrame()
 
     expect(audioState.getCurrentTime()).toBe(90)
-    expect(screen.getByText('1:30')).toBeInTheDocument()
+    expect(screen.getByText('01:30')).toBeInTheDocument()
   })
 
   it('exposes the imperative player handle to callback refs used by the editor', () => {
@@ -385,7 +385,7 @@ describe('AudioPlayer', () => {
     flushAnimationFrame()
 
     expect(audioState.getCurrentTime()).toBe(60)
-    expect(screen.getByText('1:00')).toBeInTheDocument()
+    expect(screen.getByText('01:00')).toBeInTheDocument()
   })
 
   it('shows a pending preview for click seeks before metadata loads', () => {

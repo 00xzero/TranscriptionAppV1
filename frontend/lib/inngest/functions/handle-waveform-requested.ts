@@ -81,7 +81,9 @@ export const handleWaveformRequested = inngest.createFunction(
                 .from('projects')
                 .update({ waveform_status: 'processing' })
                 .eq('id', projectId)
-                .in('waveform_status', ['pending', 'skipped'])
+                // Include processing so retries of this event can re-run the
+                // generation step after transient ffmpeg/storage failures.
+                .in('waveform_status', ['pending', 'processing', 'skipped'])
                 .select('id')
                 .maybeSingle()
 

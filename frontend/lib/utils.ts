@@ -26,6 +26,6 @@ export function formatClockTime(
   const ss = s.toString().padStart(2, '0')
   if (hoursMode === 'always') return `${h.toString().padStart(2, '0')}:${mm}:${ss}`
   if (hoursMode === 'auto' && h > 0) return `${h}:${mm}:${ss}`
-  if (hoursMode === 'never') return `${Math.floor(seconds / 60)}:${ss}`
+  if (hoursMode === 'never') return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${ss}`
   return `${mm}:${ss}`
 }
