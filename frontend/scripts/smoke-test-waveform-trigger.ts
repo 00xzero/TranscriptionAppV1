@@ -114,10 +114,18 @@ async function main() {
     }
 
     // Reset to skipped so re-running the smoke is clean
-    await adminClient
+    const { data: resetRow, error: resetErr } = await adminClient
         .from('projects')
         .update({ waveform_status: 'skipped' })
         .eq('id', projectId)
+        .select('waveform_status')
+        .single()
+    if (resetErr) {
+        throw new Error(`Could not reset waveform_status to skipped: ${resetErr.message}`)
+    }
+    if (resetRow?.waveform_status !== 'skipped') {
+        throw new Error(`Reset completed but row reads ${resetRow?.waveform_status}`)
+    }
 
     if (!pass) {
         console.error('[smoke] FAIL')

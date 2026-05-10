@@ -21,11 +21,9 @@ export const PEAK_SAMPLE_RATE = 8000
 /**
  * The ffmpeg/ffprobe binaries shipped via @ffmpeg-installer / @ffprobe-installer
  * are statically linked and bypass NSS — they cannot resolve /etc/hosts entries
- * like Docker's `host.docker.internal`. Node (via libc) can. Pre-resolve the
- * hostname here and rewrite the URL with the IP literal so ffmpeg never has to
- * resolve. We keep the IP-literal URL as input; HTTP doesn't require the host
- * header to match the URL hostname for non-TLS requests, and the upstream
- * (signed Storage URLs) doesn't validate Host either.
+ * like Docker's `host.docker.internal`. Node (via libc) can. Only rewrite that
+ * local-dev hostname; production HTTPS storage URLs must keep their original
+ * host for TLS/SNI and storage routing.
  */
 async function resolveUrlHost(url: string): Promise<string> {
     let parsed: URL
@@ -34,8 +32,7 @@ async function resolveUrlHost(url: string): Promise<string> {
     } catch {
         return url
     }
-    // Skip IP literals
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(parsed.hostname) || parsed.hostname.includes(':')) {
+    if (parsed.hostname !== 'host.docker.internal' || parsed.protocol !== 'http:') {
         return url
     }
     try {

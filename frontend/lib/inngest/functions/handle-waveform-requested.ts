@@ -119,6 +119,25 @@ export const handleWaveformRequested = inngest.createFunction(
             const stderrChunks: string[] = []
             ffmpeg.stderr.on('data', (chunk) => { stderrChunks.push(chunk.toString()) })
 
+            const ffmpegDone = new Promise<void>((resolve, reject) => {
+                if (ffmpeg.exitCode !== null) {
+                    if (ffmpeg.exitCode !== 0) {
+                        reject(new Error(`ffmpeg exited with code ${ffmpeg.exitCode}: ${stderrChunks.join('').slice(0, 500)}`))
+                        return
+                    }
+                    resolve()
+                    return
+                }
+                ffmpeg.once('close', (code) => {
+                    if (code !== 0) {
+                        reject(new Error(`ffmpeg exited with code ${code}: ${stderrChunks.join('').slice(0, 500)}`))
+                        return
+                    }
+                    resolve()
+                })
+                ffmpeg.once('error', reject)
+            })
+
             let peaksResult
             try {
                 peaksResult = await computePeaks(ffmpeg.stdout, {
@@ -126,16 +145,7 @@ export const handleWaveformRequested = inngest.createFunction(
                     targetPeaks: PEAK_COUNT,
                     durationSeconds: probe.durationSeconds,
                 })
-                await new Promise<void>((resolve, reject) => {
-                    ffmpeg.on('close', (code) => {
-                        if (code !== 0) {
-                            reject(new Error(`ffmpeg exited with code ${code}: ${stderrChunks.join('').slice(0, 500)}`))
-                            return
-                        }
-                        resolve()
-                    })
-                    ffmpeg.on('error', reject)
-                })
+                await ffmpegDone
             } finally {
                 if (!ffmpeg.killed && ffmpeg.exitCode === null) {
                     ffmpeg.kill('SIGKILL')
