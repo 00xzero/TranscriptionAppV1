@@ -8,7 +8,7 @@
  *
  * Behavior:
  *   - Selects projects where waveform_status='skipped' AND source_object_key IS NOT NULL
- *   - Flips each row's waveform_status to 'pending' and dispatches waveform/requested
+ *   - Dispatches waveform/requested, then flips each still-skipped row to 'pending'
  *   - The durable Inngest function does the actual work and is idempotent
  *   - Throttled to ~5 dispatches/sec to avoid saturating the queue
  *   - Resumable: re-running picks up via the same filter (rows that succeeded
@@ -58,7 +58,17 @@ async function dispatchOne(row: { id: string; user_id: string; source_object_key
     if (dryRun) {
         return { dispatched: false as const, dryRun: true as const }
     }
-    // Conditional update: only flip if still 'skipped' (avoids racing the live dispatch path)
+    await inngest.send({
+        name: 'waveform/requested',
+        data: {
+            projectId: row.id,
+            userId: row.user_id,
+            sourceObjectKey: row.source_object_key,
+        },
+    })
+
+    // Conditional update: only flip if still 'skipped' (avoids racing the live dispatch path
+    // and the Inngest handler, which may already have claimed the row as processing).
     const { data: updated, error: updateError } = await supabase
         .from('projects')
         .update({ waveform_status: 'pending' })
@@ -74,15 +84,6 @@ async function dispatchOne(row: { id: string; user_id: string; source_object_key
         // Status changed under us; skip — the live path or a previous backfill run owns it
         return { dispatched: false as const, raced: true as const }
     }
-
-    await inngest.send({
-        name: 'waveform/requested',
-        data: {
-            projectId: row.id,
-            userId: row.user_id,
-            sourceObjectKey: row.source_object_key,
-        },
-    })
     return { dispatched: true as const }
 }
 

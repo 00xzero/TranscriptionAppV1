@@ -46,6 +46,8 @@ export function useEditorData(projectId: string) {
   useEffect(() => {
     let cancelled = false
     let waveformPollId: ReturnType<typeof setInterval> | null = null
+    setPeaks(null)
+    setWaveformStatus('skipped')
 
     const stopWaveformPolling = () => {
       if (waveformPollId) {
@@ -86,13 +88,16 @@ export function useEditorData(projectId: string) {
       const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
       setWaveformStatus(wfStatus)
       if (wfStatus === 'ready') {
-        stopWaveformPolling()
         try {
-          await loadWaveformPeaks()
+          const loaded = await loadWaveformPeaks()
+          if (loaded) {
+            stopWaveformPolling()
+            return wfStatus
+          }
         } catch (err) {
           console.warn('[useEditorData] failed to load waveform peaks (non-fatal):', err)
         }
-        return wfStatus
+        return 'processing'
       }
       if (!WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
         stopWaveformPolling()

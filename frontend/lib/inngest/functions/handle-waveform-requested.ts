@@ -83,13 +83,20 @@ export const handleWaveformRequested = inngest.createFunction(
                 return { shouldGenerate: false as const }
             }
 
-            const { error: updateError } = await supabase
+            const { data: claimedProject, error: updateError } = await supabase
                 .from('projects')
                 .update({ waveform_status: 'processing' })
                 .eq('id', projectId)
+                .in('waveform_status', ['pending', 'skipped'])
+                .select('id')
+                .maybeSingle()
 
             if (updateError) {
                 throw new Error(`Failed to mark waveform processing: ${updateError.message}`)
+            }
+            if (!claimedProject) {
+                console.log(`[inngest] Waveform status no longer claimable for ${projectId}, skipping`)
+                return { shouldGenerate: false as const }
             }
             return {
                 shouldGenerate: true as const,

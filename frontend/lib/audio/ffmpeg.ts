@@ -17,6 +17,37 @@ export const FFMPEG_PATH = ffmpegInstaller.path
 export const FFPROBE_PATH = ffprobeInstaller.path
 
 export const PEAK_SAMPLE_RATE = 8000
+const DEFAULT_FFPROBE_TIMEOUT_MS = 15_000
+const DEFAULT_FFMPEG_TIMEOUT_MS = 6 * 60 * 60 * 1000
+
+export class ProcessTimeoutError extends Error {
+    constructor(command: string, timeoutMs: number) {
+        super(`${command} timed out after ${timeoutMs}ms`)
+        this.name = 'ProcessTimeoutError'
+    }
+}
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+    const raw = process.env[name]
+    if (!raw) return fallback
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function armProcessTimeout(
+    proc: ChildProcessWithoutNullStreams,
+    command: string,
+    timeoutMs: number,
+    onTimeout?: (error: ProcessTimeoutError) => void
+): ReturnType<typeof setTimeout> {
+    return setTimeout(() => {
+        const error = new ProcessTimeoutError(command, timeoutMs)
+        onTimeout?.(error)
+        if (!proc.killed && proc.exitCode === null) {
+            proc.kill('SIGKILL')
+        }
+    }, timeoutMs)
+}
 
 /**
  * The ffmpeg/ffprobe binaries shipped via @ffmpeg-installer / @ffprobe-installer
@@ -63,14 +94,33 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
             resolved,
         ]
         const proc = spawn(FFPROBE_PATH, args)
+        let settled = false
+        const timeout = armProcessTimeout(
+            proc,
+            'ffprobe',
+            readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS),
+            (error) => {
+                if (settled) return
+                settled = true
+                reject(error)
+            }
+        )
 
         let stdout = ''
         let stderr = ''
         proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
         proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
 
-        proc.on('error', reject)
+        proc.on('error', (err) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            reject(err)
+        })
         proc.on('close', (code) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
             if (code !== 0) {
                 reject(new Error(`ffprobe exited with code ${code}: ${stderr.slice(0, 500)}`))
                 return
@@ -115,5 +165,13 @@ export async function spawnPcmStream(url: string): Promise<ChildProcessWithoutNu
         '-acodec', 'pcm_s16le',
         'pipe:1',
     ]
-    return spawn(FFMPEG_PATH, args)
+    const proc = spawn(FFMPEG_PATH, args)
+    const timeout = armProcessTimeout(
+        proc,
+        'ffmpeg',
+        readPositiveIntEnv('FFMPEG_TIMEOUT_MS', DEFAULT_FFMPEG_TIMEOUT_MS)
+    )
+    proc.once('close', () => clearTimeout(timeout))
+    proc.once('error', () => clearTimeout(timeout))
+    return proc
 }

@@ -8,6 +8,10 @@ ALTER TABLE projects ADD COLUMN waveform_status TEXT NOT NULL DEFAULT 'skipped'
     CHECK (waveform_status IN ('pending', 'processing', 'ready', 'error', 'skipped'));
 ALTER TABLE projects ADD COLUMN waveform_points_per_second REAL;
 ALTER TABLE projects ADD COLUMN waveform_version SMALLINT;
+ALTER TABLE projects ADD CONSTRAINT projects_waveform_points_per_second_positive
+    CHECK (waveform_points_per_second > 0);
+ALTER TABLE projects ADD CONSTRAINT projects_waveform_version_positive
+    CHECK (waveform_version > 0);
 
 -- Server-owned columns: reject inserts/updates from authenticated/anon roles.
 -- The user-facing API layer separately omits these from its update schemas,

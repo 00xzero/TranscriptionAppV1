@@ -193,13 +193,20 @@ export async function startTranscription(opts: {
     // UPDATE trigger rejects writes from the authenticated role).
     try {
         const adminSupabase = createAdminClient()
-        const { error: waveformStatusError } = await adminSupabase
+        const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
             .from('projects')
             .update({ waveform_status: 'pending' })
             .eq('id', projectId)
             .eq('waveform_status', 'skipped')
+            .select('id')
+            .maybeSingle()
         if (waveformStatusError) {
             console.warn('[startTranscription] Failed to mark waveform pending:', waveformStatusError.message)
+            return { outcome: 'started', jobId: job.id }
+        }
+        if (!waveformClaim) {
+            console.warn(`[startTranscription] Skipping waveform/requested for ${projectId}; waveform status was not claimable`)
+            return { outcome: 'started', jobId: job.id }
         }
         await sendInngestEvent({
             name: 'waveform/requested',

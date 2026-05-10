@@ -13,7 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
 
-const NOT_FOUND = NextResponse.json({ error: 'Not found' }, { status: 404 })
+function makeNotFound() {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+}
 
 export async function GET(
     _request: NextRequest,
@@ -33,10 +35,10 @@ export async function GET(
             .select('id, user_id, waveform_object_key, waveform_status')
             .eq('id', projectId)
             .single()
-        if (projectError || !project) return NOT_FOUND
+        if (projectError || !project) return makeNotFound()
 
-        if (project.waveform_status !== 'ready') return NOT_FOUND
-        if (!project.waveform_object_key) return NOT_FOUND
+        if (project.waveform_status !== 'ready') return makeNotFound()
+        if (!project.waveform_object_key) return makeNotFound()
 
         // Path-shape validation: must match {userId}/{projectId}/waveform.json,
         // and userId must match the row's user_id (not the requester directly,
@@ -46,7 +48,7 @@ export async function GET(
             console.warn(
                 `[waveform-url] Path mismatch for project ${projectId}: stored=${project.waveform_object_key}, expected=${expectedPath}`
             )
-            return NOT_FOUND
+            return makeNotFound()
         }
 
         const { data, error: signedUrlError } = await supabase.storage

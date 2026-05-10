@@ -30,7 +30,7 @@ export const TranscriptionFailedDataSchema = z.object({
 export const WaveformRequestedDataSchema = z.object({
   projectId: UuidSchema,
   userId: UuidSchema,
-  sourceObjectKey: z.string(),
+  sourceObjectKey: z.string().min(1),
 })
 
 export type TranscriptionRequestedData = z.infer<typeof TranscriptionRequestedDataSchema>
