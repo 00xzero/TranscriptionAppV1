@@ -303,9 +303,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
+  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
 
-  // Reset ready state when src changes
+  // Reset ready state when src changes or when switching between visible-player
+  // and engine-only mode. That mode switch replaces the underlying <audio>
+  // element, so the new element needs a fresh readiness cycle.
   useEffect(() => {
     readyRef.current = false
     setReady(false)
@@ -318,7 +320,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     cancelPendingScrubFrame()
     setIsDragging(false)
     wasPlayingBeforeDragRef.current = false
-  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
+  }, [audioEngineOnly, cancelPendingScrubFrame, clearPendingScrubFraction, src])
 
   useEffect(() => {
     return () => {

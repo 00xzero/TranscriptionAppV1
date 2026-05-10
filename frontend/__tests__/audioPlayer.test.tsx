@@ -311,6 +311,56 @@ describe('AudioPlayer', () => {
     expect(typeof player?.getDuration).toBe('function')
   })
 
+  it('keeps audio events wired after switching to engine-only mode', () => {
+    const onReady = jest.fn()
+    const onPlayingChange = jest.fn()
+    const onTimeUpdate = jest.fn()
+
+    const { rerender } = render(
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        onReady={onReady}
+        onPlayingChange={onPlayingChange}
+        onTimeUpdate={onTimeUpdate}
+      />
+    )
+
+    let audio = document.querySelector('audio') as HTMLAudioElement
+    setupAudioElement(audio, { duration: 120, paused: true })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+    })
+
+    rerender(
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        audioEngineOnly
+        onReady={onReady}
+        onPlayingChange={onPlayingChange}
+        onTimeUpdate={onTimeUpdate}
+      />
+    )
+
+    audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration: 120, paused: true })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+      audioState.setCurrentTime(12)
+      audio.play()
+      audio.dispatchEvent(new Event('timeupdate'))
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(2)
+    expect(onPlayingChange).toHaveBeenLastCalledWith(true)
+    expect(onTimeUpdate).toHaveBeenLastCalledWith(12)
+  })
+
   it('lets a pre-ready scrub override an older queued imperative seek', () => {
     const playerRef = React.createRef<AudioPlayerRef>()
     render(<AudioPlayer ref={playerRef} src="test.mp3" hideControls />)
