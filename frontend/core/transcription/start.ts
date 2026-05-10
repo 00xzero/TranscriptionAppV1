@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendInngestEvent } from '@/infra/inngest/client'
+import { createAdminClient } from '@/infra/supabase/admin'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
@@ -151,9 +152,8 @@ export async function startTranscription(opts: {
         return { outcome: 'error', reason: 'Failed to create job' }
     }
 
-    // Project status is derived by the DB trigger from job INSERT
+    // Project status is derived by the DB trigger from job INSERT.
 
-    // Send Inngest event
     try {
         await sendInngestEvent({
             name: 'transcription/requested',
@@ -184,5 +184,50 @@ export async function startTranscription(opts: {
     }
 
     console.log(`[startTranscription] Started for project: ${projectId}, job: ${job.id}`)
+
+    // Waveform dispatch is a UI enhancement and MUST NOT fail the transcription
+    // start path. Admin client because waveform_status is server-owned (a BEFORE
+    // UPDATE trigger rejects writes from the authenticated role).
+    let adminSupabase: ReturnType<typeof createAdminClient> | null = null
+    try {
+        adminSupabase = createAdminClient()
+        const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
+            .from('projects')
+            .update({ waveform_status: 'pending' })
+            .eq('id', projectId)
+            .eq('waveform_status', 'skipped')
+            .select('id')
+            .maybeSingle()
+        if (waveformStatusError) {
+            console.warn('[startTranscription] Failed to mark waveform pending:', waveformStatusError.message)
+            return { outcome: 'started', jobId: job.id }
+        }
+        if (!waveformClaim) {
+            console.warn(`[startTranscription] Skipping waveform/requested for ${projectId}; waveform status was not claimable`)
+            return { outcome: 'started', jobId: job.id }
+        }
+        await sendInngestEvent({
+            name: 'waveform/requested',
+            data: {
+                projectId,
+                userId,
+                sourceObjectKey: project.source_object_key,
+            },
+        })
+    } catch (waveformError) {
+        console.error('[startTranscription] Failed to dispatch waveform/requested (non-fatal):', waveformError)
+        if (adminSupabase) {
+            try {
+                await adminSupabase
+                    .from('projects')
+                    .update({ waveform_status: 'skipped' })
+                    .eq('id', projectId)
+                    .eq('waveform_status', 'pending')
+            } catch (rollbackError) {
+                console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)
+            }
+        }
+    }
+
     return { outcome: 'started', jobId: job.id }
 }

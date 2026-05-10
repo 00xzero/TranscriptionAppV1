@@ -6,6 +6,7 @@ import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
 import CollapsibleWaveform from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
+import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
@@ -126,20 +127,33 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
         onScrubEnd={playback.handleMiniScrubEnd}
       >
         {data.audioSrc ? (
-          <AudioPlayer
-            ref={playback.handleAudioPlayerRef}
-            src={data.audioSrc}
-            onReady={playback.handleAudioReady}
-            onError={playback.handleAudioError}
-            onPlayingChange={playback.handlePlayingChange}
-            onTimeUpdate={playback.handleTimeUpdate}
-            onScrubPreview={playback.handleScrubPreview}
-            onScrubPreviewFraction={playback.handleScrubPreviewFraction}
-            onDragStart={playback.handlePlayerDragStart}
-            onDragEnd={playback.handlePlayerDragEnd}
-            initialPlaybackRate={playback.playbackRate}
-            hideControls
-          />
+          <>
+            <AudioPlayer
+              ref={playback.handleAudioPlayerRef}
+              src={data.audioSrc}
+              onReady={playback.handleAudioReady}
+              onError={playback.handleAudioError}
+              onPlayingChange={playback.handlePlayingChange}
+              onTimeUpdate={playback.handleTimeUpdate}
+              onScrubPreview={playback.handleScrubPreview}
+              onScrubPreviewFraction={playback.handleScrubPreviewFraction}
+              onDragStart={playback.handlePlayerDragStart}
+              onDragEnd={playback.handlePlayerDragEnd}
+              initialPlaybackRate={playback.playbackRate}
+              hideControls
+              audioEngineOnly={data.peaks !== null}
+            />
+            {data.peaks ? (
+              <Waveform
+                peaks={data.peaks}
+                currentTime={playback.audioCurrentTime}
+                duration={playback.audioDuration}
+                onScrub={playback.handleMiniScrub}
+                onScrubStart={playback.handleMiniScrubStart}
+                onScrubEnd={playback.handleMiniScrubEnd}
+              />
+            ) : null}
+          </>
         ) : (
           <div className="h-12 flex items-center justify-center text-muted">
             Loading audio...

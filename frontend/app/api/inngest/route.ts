@@ -13,7 +13,12 @@ import {
     handleTranscriptionCompleted,
     handleTranscriptionFailed,
     handleTranscriptionTimeouts,
+    handleWaveformRequested,
 } from "@/lib/inngest/functions";
+
+// Waveform generation streams ffmpeg output for multi-hour files; allow up to 5min
+// per invocation. Vercel Pro/Enterprise plans honor this; Hobby is capped lower.
+export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
     client: inngest,
@@ -23,5 +28,6 @@ export const { GET, POST, PUT } = serve({
         handleTranscriptionCompleted,
         handleTranscriptionFailed,
         handleTranscriptionTimeouts,
+        handleWaveformRequested,
     ],
 });

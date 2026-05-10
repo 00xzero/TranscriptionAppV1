@@ -145,16 +145,17 @@ export default function CollapsibleWaveform({
 
       {/* Expandable waveform container */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'max-h-0 opacity-0' : 'max-h-72 opacity-100'
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
           }`}
       >
         <div className="relative pt-[56px] bg-paper dark:bg-black border-b border-ink/10 dark:border-white/10">
-          {/* Gradient fades on edges */}
-          <div className="absolute inset-y-0 left-0 w-8 bg-linear-to-r from-paper dark:from-black to-transparent z-10 pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-8 bg-linear-to-l from-paper dark:from-black to-transparent z-10 pointer-events-none" />
+          {/* Gradient fades on edges — matches Olivetti.html:696 */}
+          <div className="absolute inset-y-0 left-0 w-20 bg-linear-to-r from-paper dark:from-black to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-20 bg-linear-to-l from-paper dark:from-black to-transparent z-10 pointer-events-none" />
 
-          {/* Waveform content */}
-          <div className="px-6 py-4">
+          {/* Waveform content. The shell's pt-[56px] clears the editor header;
+              pt-6 adds the remaining breathing room from Olivetti's pt-20. */}
+          <div className="px-6 md:px-20 pt-6 pb-2">
             {children}
           </div>
         </div>

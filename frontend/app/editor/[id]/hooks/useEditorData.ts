@@ -5,10 +5,22 @@ import {
   fetchSpeakers,
   fetchProjectById,
 } from '@/lib/supabase/queries'
-import { SegmentSchema } from '@/contracts/db'
+import { SegmentSchema, WaveformStatusSchema, type WaveformStatus } from '@/contracts/db'
 import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
+import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
+
+const WaveformArtifactSchema = z.object({
+  version: z.literal(WAVEFORM_ARTIFACT_VERSION),
+  duration_seconds: z.number(),
+  points_per_second: z.number(),
+  peaks: z.array(z.number()),
+})
+
+const WAVEFORM_POLL_INTERVAL_MS = 3000
+const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
+const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
 
 export function useEditorData(projectId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
@@ -18,6 +30,8 @@ export function useEditorData(projectId: string) {
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
+  const [peaks, setPeaks] = useState<number[] | null>(null)
+  const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
 
   const reloadTranscript = async () => {
     try {
@@ -33,6 +47,81 @@ export function useEditorData(projectId: string) {
 
   useEffect(() => {
     let cancelled = false
+    let waveformPollId: ReturnType<typeof setInterval> | null = null
+    let waveformPollStartedAt = 0
+    setPeaks(null)
+    setWaveformStatus('skipped')
+
+    const stopWaveformPolling = () => {
+      if (waveformPollId) {
+        clearInterval(waveformPollId)
+        waveformPollId = null
+      }
+    }
+
+    const loadWaveformPeaks = async () => {
+      const urlRes = await fetch(`/api/projects/${projectId}/waveform-url`)
+      if (!urlRes.ok) return false
+      const { url } = await urlRes.json()
+      const peaksRes = await fetch(url)
+      if (!peaksRes.ok) return false
+      const json = await peaksRes.json()
+      const artifact = WaveformArtifactSchema.safeParse(json)
+      if (cancelled) return false
+      if (artifact.success) {
+        setPeaks(artifact.data.peaks)
+        return true
+      }
+      console.warn('[useEditorData] waveform artifact schema mismatch', artifact.error.issues)
+      return false
+    }
+
+    const loadProjectMetadata = async (): Promise<WaveformStatus | null> => {
+      const projectData = await fetchProjectById(projectId)
+      if (cancelled || !projectData) return null
+      const projectParsed = EditorProjectSchema.safeParse(projectData)
+      if (!projectParsed.success) {
+        console.warn('[useEditorData] project schema mismatch', projectParsed.error.issues)
+      }
+      setProjectTitle(projectData.title || null)
+      setProjectCreatedAt(projectData.created_at)
+      setProjectDurationSecs(projectData.duration_seconds)
+
+      const statusParsed = WaveformStatusSchema.safeParse(projectData.waveform_status)
+      const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
+      setWaveformStatus(wfStatus)
+      if (wfStatus === 'ready') {
+        try {
+          const loaded = await loadWaveformPeaks()
+          if (loaded) {
+            stopWaveformPolling()
+            return wfStatus
+          }
+        } catch (err) {
+          console.warn('[useEditorData] failed to load waveform peaks (non-fatal):', err)
+        }
+        return 'processing'
+      }
+      if (!WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
+        stopWaveformPolling()
+      }
+      return wfStatus
+    }
+
+    const startWaveformPolling = () => {
+      if (waveformPollId) return
+      waveformPollStartedAt = Date.now()
+      waveformPollId = setInterval(() => {
+        if (Date.now() - waveformPollStartedAt >= WAVEFORM_POLL_TIMEOUT_MS) {
+          console.warn(`[useEditorData] stopped waveform polling for project ${projectId} after timeout`)
+          stopWaveformPolling()
+          setWaveformStatus('skipped')
+          return
+        }
+        void loadProjectMetadata().catch(() => { /* ignore */ })
+      }, WAVEFORM_POLL_INTERVAL_MS)
+    }
+
     const init = async () => {
       try {
         setStatus('Loading media...')
@@ -77,16 +166,11 @@ export function useEditorData(projectId: string) {
           })
           .catch(() => { /* ignore */ })
 
-        void fetchProjectById(projectId)
-          .then((projectData) => {
-            if (cancelled || !projectData) return
-            const projectParsed = EditorProjectSchema.safeParse(projectData)
-            if (!projectParsed.success) {
-              console.warn('[useEditorData] project schema mismatch', projectParsed.error.issues)
+        void loadProjectMetadata()
+          .then((wfStatus) => {
+            if (!cancelled && wfStatus && WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
+              startWaveformPolling()
             }
-            setProjectTitle(projectData.title || null)
-            setProjectCreatedAt(projectData.created_at)
-            setProjectDurationSecs(projectData.duration_seconds)
           })
           .catch(() => { /* ignore */ })
 
@@ -98,6 +182,7 @@ export function useEditorData(projectId: string) {
     init()
     return () => {
       cancelled = true
+      stopWaveformPolling()
     }
   }, [projectId])
 
@@ -109,6 +194,8 @@ export function useEditorData(projectId: string) {
     projectTitle, setProjectTitle,
     projectCreatedAt,
     projectDurationSecs,
+    peaks,
+    waveformStatus,
     reloadTranscript,
   }
 }

@@ -27,7 +27,14 @@ export const TranscriptionFailedDataSchema = z.object({
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })
 
+export const WaveformRequestedDataSchema = z.object({
+  projectId: UuidSchema,
+  userId: UuidSchema,
+  sourceObjectKey: z.string().min(1),
+})
+
 export type TranscriptionRequestedData = z.infer<typeof TranscriptionRequestedDataSchema>
 export type TranscriptionWebhookData = z.infer<typeof TranscriptionWebhookDataSchema>
 export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDataSchema>
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>
+export type WaveformRequestedData = z.infer<typeof WaveformRequestedDataSchema>

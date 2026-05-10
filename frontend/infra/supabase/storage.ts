@@ -124,28 +124,35 @@ export async function uploadProjectMedia(
 }
 
 /**
- * Generate a signed download URL for media playback.
- *
- * @param supabase - Supabase client instance
- * @param path - Storage path (from project.source_object_key)
- * @param expiresIn - URL validity in seconds (default: 3600 = 1 hour)
- * @returns Object with url on success, or error on failure
+ * Generate a signed download URL for an object in a private bucket.
+ * Defaults to the 'media' bucket for backwards-compatible call sites.
  */
 export async function getSignedMediaUrl(
     supabase: SupabaseClient,
     path: string,
-    expiresIn: number = 3600
+    expiresIn: number = 3600,
+    bucket: string = 'media'
 ): Promise<{ url: string; error: null } | { url: null; error: string }> {
     const { data, error } = await supabase.storage
-        .from('media')
+        .from(bucket)
         .createSignedUrl(path, expiresIn)
 
     if (error) {
-        console.error('[storage] Signed URL error:', error)
+        console.error(`[storage] Signed URL error (bucket=${bucket}):`, error)
         return { url: null, error: error.message }
     }
 
     return { url: data.signedUrl, error: null }
+}
+
+/**
+ * In Docker dev, signed URLs may use `host.docker.internal`, which the browser
+ * can't resolve. Rewrite to localhost. No-op in production.
+ */
+export function localizeSignedUrl(signedUrl: string): string {
+    if (process.env.NODE_ENV === 'production') return signedUrl
+    if (!signedUrl.includes('host.docker.internal')) return signedUrl
+    return signedUrl.replace('host.docker.internal', 'localhost')
 }
 
 /**

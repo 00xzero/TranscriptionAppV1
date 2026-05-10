@@ -3,20 +3,14 @@
 import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { formatClockTime } from '@/lib/utils'
 
 /**
- * Lightweight audio player component using native HTMLAudioElement.
- * Replaces WaveSurfer.js to eliminate WebAudio memory overhead.
- * 
- * Features:
- * - Simple progress bar with drag-to-seek
- * - Play/Pause, seek controls
- * - Playback rate adjustment
- * - Current time / Duration display
- * 
- * Designed to be stackable with Option B (server-side waveform peaks)
- * by accepting an optional `peaks` prop for future waveform visualization.
+ * Native HTMLAudioElement-backed player.
+ * Set `audioEngineOnly` when an external visualization (Waveform.tsx) owns
+ * the visible scrubber — only the <audio> element is rendered, no UI state.
  */
+const TIMEUPDATE_QUANTIZE_MS = 100
 
 export interface AudioPlayerProps {
   /** URL of the audio file */
@@ -33,10 +27,14 @@ export interface AudioPlayerProps {
   onSeeked?: (time: number) => void
   /** Initial playback rate */
   initialPlaybackRate?: number
-  /** Pre-rendered peaks for future waveform (Option B ready) */
-  peaks?: number[]
   /** Hide transport controls (when FloatingPlayerDeck is visible) */
   hideControls?: boolean
+  /**
+   * Render only the underlying <audio> element — no progress bar, no controls,
+   * nothing focusable. Use when an external visualization (e.g. Waveform.tsx)
+   * owns the visible scrubber and we just need the audio engine.
+   */
+  audioEngineOnly?: boolean
   /** Called when the user starts dragging the progress bar */
   onDragStart?: () => void
   /** Called when the user ends dragging the progress bar */
@@ -74,8 +72,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   onTimeUpdate,
   onSeeked,
   initialPlaybackRate = 1.0,
-  peaks,
   hideControls = false,
+  audioEngineOnly = false,
   onDragStart,
   onDragEnd,
   onScrubPreview,
@@ -96,6 +94,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const rafRef = useRef<number | null>(null)
   const latestScrubTimeRef = useRef(0)
   const pendingScrubFractionRef = useRef<number | null>(null)
+  const lastEmittedTimeRef = useRef(-Infinity)
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
 
   const clampFraction = useCallback((nextFraction: number) => {
@@ -263,10 +262,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
 
     const handleTimeUpdate = () => {
-      if (!isScrubbingRef.current) {
-        setCurrentTime(audio.currentTime)
-        onTimeUpdate?.(audio.currentTime)
-      }
+      if (isScrubbingRef.current) return
+      const t = audio.currentTime
+      // Quantize to ~10Hz so we don't re-render on sub-100ms ticks.
+      if (Math.abs(t - lastEmittedTimeRef.current) * 1000 < TIMEUPDATE_QUANTIZE_MS) return
+      lastEmittedTimeRef.current = t
+      if (!audioEngineOnly) setCurrentTime(t)
+      onTimeUpdate?.(t)
     }
 
     const handlePlay = () => {
@@ -305,9 +307,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
+  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
 
-  // Reset ready state when src changes
+  // Toggling audioEngineOnly replaces the underlying <audio> element, so the
+  // new element needs a fresh readiness cycle (same as when src changes).
   useEffect(() => {
     readyRef.current = false
     setReady(false)
@@ -315,12 +318,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     setDuration(0)
     pendingSeekRef.current = null
     latestScrubTimeRef.current = 0
+    lastEmittedTimeRef.current = -Infinity
     clearPendingScrubFraction()
     isScrubbingRef.current = false
     cancelPendingScrubFrame()
     setIsDragging(false)
     wasPlayingBeforeDragRef.current = false
-  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
+  }, [audioEngineOnly, cancelPendingScrubFrame, clearPendingScrubFraction, src])
 
   useEffect(() => {
     return () => {
@@ -434,17 +438,14 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
   }, [endScrub, isDragging, onDragEnd, updateSeekFromEvent])
 
-  // Format time as MM:SS
-  const formatTime = (seconds: number) => {
-    if (!isFinite(seconds) || isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
   const progress = previewFraction !== null
     ? previewFraction * 100
     : duration > 0 ? (currentTime / duration) * 100 : 0
+
+  // Engine-only: render bare <audio> so there's no second focusable scrubber.
+  if (audioEngineOnly) {
+    return <audio ref={audioRef} src={src} preload="metadata" />
+  }
 
   return (
     <div className="space-y-3">
@@ -480,19 +481,12 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-paper dark:bg-ink rounded-full shadow-lg ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
           style={{ left: `calc(${progress}% - 6px)` }}
         />
-
-        {/* Optional: Future waveform visualization slot (Option B ready) */}
-        {peaks && peaks.length > 0 && (
-          <div className="absolute inset-0 overflow-hidden rounded-sm">
-            {/* Placeholder for waveform rendering with pre-computed peaks */}
-          </div>
-        )}
       </div>
 
       {/* Time display */}
       <div className="flex items-center justify-between text-sm text-muted font-mono">
-        <span>{formatTime(currentTime)}</span>
-        <span>{formatTime(duration)}</span>
+        <span>{formatClockTime(currentTime, 'never')}</span>
+        <span>{formatClockTime(duration, 'never')}</span>
       </div>
 
       {/* Controls — hidden when FloatingPlayerDeck is active */}

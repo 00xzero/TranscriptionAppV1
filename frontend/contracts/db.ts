@@ -9,6 +9,7 @@ import { UuidSchema } from './primitives'
 // Status enums — canonical, imported by state-machine.ts and transition.ts
 export const JobStatusSchema = z.enum(['queued', 'processing', 'completed', 'error'])
 export const ProjectStatusSchema = z.enum(['created', 'queued', 'processing', 'completed', 'error'])
+export const WaveformStatusSchema = z.enum(['pending', 'processing', 'ready', 'error', 'skipped'])
 
 // === Load-bearing schemas (used at validation boundaries) ===
 // Source of truth: infra/supabase/migrations/20260114000000_initial_schema.sql
@@ -20,6 +21,10 @@ export const ProjectSchema = z.object({
   status: ProjectStatusSchema,
   source_object_key: z.string().nullable(),
   duration_seconds: z.number().nullable(),
+  waveform_object_key: z.string().nullable(),
+  waveform_status: WaveformStatusSchema,
+  waveform_points_per_second: z.number().nullable(),
+  waveform_version: z.number().int().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 })
@@ -103,6 +108,17 @@ export const ProjectUpdateSchema = z.object({
   duration_seconds: z.number().nullable().optional(),
 })
 
+// Server-only update schema for waveform fields. Must NOT be used by browser-facing
+// code paths — these fields are populated by the Inngest worker via the admin client.
+// Excluding them from ProjectUpdateSchema prevents a client from forging waveform_status
+// or pointing waveform_object_key at an arbitrary blob.
+export const ProjectWaveformInternalUpdateSchema = z.object({
+  waveform_object_key: z.string().nullable().optional(),
+  waveform_status: WaveformStatusSchema.optional(),
+  waveform_points_per_second: z.number().nullable().optional(),
+  waveform_version: z.number().int().nullable().optional(),
+})
+
 export const SpeakerInsertSchema = z.object({
   id: UuidSchema.optional(),
   project_id: UuidSchema,
@@ -124,6 +140,7 @@ export const SpeakerUpdateSchema = z.object({
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
+export type WaveformStatus = z.infer<typeof WaveformStatusSchema>
 export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>
@@ -133,6 +150,7 @@ export type Segment = z.infer<typeof SegmentSchema>
 export type WatchlistTerm = z.infer<typeof WatchlistTermSchema>
 export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
+export type ProjectWaveformInternalUpdate = z.infer<typeof ProjectWaveformInternalUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>

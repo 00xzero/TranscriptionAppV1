@@ -2,6 +2,66 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-11] - Waveform Branch Cleanup
+
+Follow-up simplification pass over the waveform branch: deduplicated helpers, cut a re-render hot path in the audio engine, and removed narrating comments left over from the initial implementation.
+
+### Changed
+
+- **`frontend/infra/supabase/storage.ts`** — `getSignedMediaUrl` now accepts an optional bucket argument (defaults to `media`) and a shared `localizeSignedUrl` helper handles the `host.docker.internal → localhost` rewrite for both media and waveform routes.
+- **`frontend/lib/audio/compute-peaks.ts`** — Promoted `WAVEFORM_BUCKET` and `buildWaveformObjectKey` from the Inngest handler so the route, the handler, and any future consumer share one source of truth.
+- **`frontend/app/api/projects/[id]/waveform-url/route.ts`** and **`frontend/app/api/projects/[id]/media-url/route.ts`** — Routes now use the shared signed-URL and localization helpers instead of inlining `createSignedUrl` and string `replace`.
+- **`frontend/lib/utils.ts`** — Added a single `formatClockTime(seconds, mode)` helper. `AudioPlayer`, `Waveform`, and `FloatingPlayerDeck` now use it instead of three near-duplicate seconds-to-clock formatters.
+- **`frontend/app/editor/[id]/hooks/useEditorData.ts`** — Imports `WAVEFORM_ARTIFACT_VERSION` instead of hardcoding `z.literal(1)` in the artifact schema.
+- **`frontend/lib/inngest/functions/handle-waveform-requested.ts`** — Replaced the nested-promise `ffmpegDone` block with `node:events.once(ffmpeg, 'close')`, and now imports the shared bucket/object-key helpers.
+- **`frontend/core/transcription/start.ts`** — Reused a single `createAdminClient()` instance for the waveform claim and the rollback path instead of creating it twice.
+
+### Fixed
+
+- **`frontend/components/AudioPlayer.tsx`** — Quantized `timeupdate` handling to ~10Hz and skipped redundant `setCurrentTime` writes in `audioEngineOnly` mode, so sub-100ms native ticks no longer trigger React re-renders that propagate into the waveform tree.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand` (`32` suites / `315` tests passing)
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm run lint` (no new warnings)
+
+## [2026-05-10] - Olivetti Waveform Player
+
+Added the final Olivetti-style editor waveform while preserving the native `<audio>` playback architecture introduced after the WaveSurfer memory regression. Waveform rendering now uses small precomputed peak artifacts generated server-side, so long recordings keep bounded browser memory and the editor falls back to the lightweight flat player whenever peaks are unavailable.
+
+### Added
+
+- **`frontend/components/Waveform.tsx`** — Added a responsive vertical-bar waveform with two-layer active/inactive rendering, playhead knob, time ruler, click/drag scrubbing, keyboard scrubbing, and bounded bar count regardless of recording length.
+- **`frontend/lib/audio/compute-peaks.ts`** and **`frontend/lib/audio/ffmpeg.ts`** — Added server-side helpers that probe media with `ffprobe`, stream PCM from `ffmpeg`, and aggregate fixed-size normalized peak artifacts without loading full audio into memory.
+- **`frontend/lib/inngest/functions/handle-waveform-requested.ts`** — Added an Inngest waveform generation function that validates event payloads against the project row, signs media URLs server-side, uploads peak artifacts to Storage, and updates project waveform metadata.
+- **`frontend/app/api/projects/[id]/waveform-url/route.ts`** — Added a signed URL route for private waveform artifacts with project ownership checks and strict artifact path validation.
+- **`infra/supabase/migrations/20260510000000_add_waveform_columns.sql`** — Added waveform metadata columns on `projects` plus a DB trigger that prevents authenticated clients from mutating server-owned waveform fields.
+- **`infra/supabase/migrations/20260510010000_add_waveforms_bucket.sql`** — Added a private `waveforms` Storage bucket for JSON peak artifacts, keeping waveform JSON separate from the audio/video-only media bucket.
+- **`frontend/scripts/backfill-waveforms.ts`** and **`frontend/scripts/smoke-test-waveform-trigger.ts`** — Added operational scripts for retrying historical projects and smoke-testing the waveform trigger path.
+- **`frontend/__tests__/computePeaks.test.ts`** and **`frontend/__tests__/waveform.test.tsx`** — Added focused coverage for peak aggregation and waveform UI behavior.
+
+### Changed
+
+- **`frontend/app/editor/[id]/EditorScreen.tsx`** and **`frontend/app/editor/[id]/hooks/useEditorData.ts`** — The editor now loads waveform artifacts for ready projects, renders the Olivetti waveform when peaks are available, and gracefully falls back to the existing flat player otherwise.
+- **`frontend/components/AudioPlayer.tsx`** — Added an engine-only mode so the native audio element can drive playback while the waveform owns the visible scrubber, avoiding duplicate focusable sliders.
+- **`frontend/components/CollapsibleWaveform.tsx`** — Updated the expanded waveform shell to match the Olivetti spacing, wider edge fades, and immersive header offset while keeping the collapsed mini-scrubber behavior.
+- **`frontend/components/Waveform.tsx`** — Polished the waveform visual treatment with fixed-width bars, normalized display heights, timestamp ruler spacing, and a full-height playhead matching the maximum theoretical peak height.
+- **`frontend/core/transcription/start.ts`** and **`frontend/lib/inngest/events.ts`** — Dispatch waveform generation alongside transcription start without letting waveform failures block transcription.
+- **`frontend/next.config.mjs`**, **`frontend/package.json`**, and **`frontend/package-lock.json`** — Added and configured `ffmpeg`/`ffprobe` installer packages for server-side waveform generation.
+- **`infra/supabase/config.toml`** — Added the local `waveforms` bucket configuration used by Supabase CLI.
+
+### Fixed
+
+- Prevented stale or failed waveform Inngest attempts from overwriting already-ready waveform rows.
+- Fixed intermittent editor fallback to the old player caused by waveform artifacts being missing or stored in the wrong bucket during early local testing.
+
+### Tests
+
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm test -- --runInBand computePeaks.test.ts waveform.test.tsx startRouteIdempotency.test.ts inngestHandlers.test.ts editor.test.tsx`
+- **`frontend`** — `npm test -- --runInBand collapsibleWaveform.test.tsx waveform.test.tsx`
+
 ## [2026-05-07] - Project Media Cleanup
 
 Prevented deleted projects from leaving media files behind in Supabase Storage, and added a maintenance script for reconciling existing orphaned storage objects against live project records.
