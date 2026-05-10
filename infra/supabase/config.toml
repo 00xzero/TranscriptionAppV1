@@ -54,6 +54,11 @@ public = false
 file_size_limit = "50MiB"
 allowed_mime_types = ["audio/*", "video/*"]
 
+[storage.buckets.waveforms]
+public = false
+file_size_limit = "1MiB"
+allowed_mime_types = ["application/json"]
+
 # Auth Configuration
 [auth]
 enabled = true

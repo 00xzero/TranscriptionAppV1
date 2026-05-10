@@ -38,6 +38,7 @@ export const handleWaveformRequested = inngest.createFunction(
                     .from('projects')
                     .update({ waveform_status: 'error' })
                     .eq('id', projectId)
+                    .neq('waveform_status', 'ready')
             } catch (err) {
                 console.error(`[inngest] handle-waveform onFailure DB update failed for ${projectId}:`, err)
             }

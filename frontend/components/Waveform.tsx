@@ -196,12 +196,14 @@ export default function Waveform({
                     className="absolute inset-0 flex items-center justify-between gap-px text-trust-blue"
                 />
             </div>
-            {/* Playhead line */}
+            {/* Playhead — 2px line with a circle knob at the top, matches Olivetti.html:705 */}
             <div
                 aria-hidden
-                className="absolute top-0 bottom-0 w-px bg-trust-blue pointer-events-none"
+                className="absolute top-2 bottom-2 w-0.5 bg-trust-blue shadow-[0_0_10px_rgba(79,99,140,0.8)] pointer-events-none -translate-x-1/2"
                 style={{ left: 'var(--waveform-progress)' }}
-            />
+            >
+                <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-trust-blue rounded-full" />
+            </div>
         </div>
     )
 }
