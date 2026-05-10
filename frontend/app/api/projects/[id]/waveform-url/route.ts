@@ -1,17 +1,14 @@
 /**
- * API Route: GET /api/projects/[id]/waveform-url
+ * GET /api/projects/[id]/waveform-url — short-lived signed URL for the
+ * precomputed waveform peaks artifact.
  *
- * Returns a short-lived signed URL for the precomputed waveform peaks file.
- * Defense-in-depth:
- *   1. Project ownership verified via the user-authenticated client + RLS
- *   2. Stored waveform_object_key is path-shape-validated — we never blindly
- *      sign whatever string is in the column
- *
- * Returns 404 (not 403) on any failure to avoid leaking row existence.
+ * Returns 404 (not 403) on lookup failures to avoid leaking row existence.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
+import { getSignedMediaUrl, localizeSignedUrl } from '@/infra/supabase/storage'
+import { WAVEFORM_BUCKET, buildWaveformObjectKey } from '@/lib/audio/compute-peaks'
 
 function makeNotFound() {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -40,10 +37,8 @@ export async function GET(
         if (project.waveform_status !== 'ready') return makeNotFound()
         if (!project.waveform_object_key) return makeNotFound()
 
-        // Path-shape validation: must match {userId}/{projectId}/waveform.json,
-        // and userId must match the row's user_id (not the requester directly,
-        // because admin/share scenarios may diverge later, but the row must own it).
-        const expectedPath = `${project.user_id}/${project.id}/waveform.json`
+        // Path-shape validation: never sign whatever string is in the column.
+        const expectedPath = buildWaveformObjectKey(project.user_id, project.id)
         if (project.waveform_object_key !== expectedPath) {
             console.warn(
                 `[waveform-url] Path mismatch for project ${projectId}: stored=${project.waveform_object_key}, expected=${expectedPath}`
@@ -51,20 +46,17 @@ export async function GET(
             return makeNotFound()
         }
 
-        const { data, error: signedUrlError } = await supabase.storage
-            .from('waveforms')
-            .createSignedUrl(project.waveform_object_key, 600) // 10 min — UI fetches once
-        if (signedUrlError || !data) {
-            console.error('[waveform-url] Signed URL error:', signedUrlError)
+        const signed = await getSignedMediaUrl(
+            supabase,
+            project.waveform_object_key,
+            600,
+            WAVEFORM_BUCKET
+        )
+        if (signed.error || !signed.url) {
             return NextResponse.json({ error: 'Failed to generate URL' }, { status: 500 })
         }
 
-        let signedUrl = data.signedUrl
-        if (signedUrl.includes('host.docker.internal')) {
-            signedUrl = signedUrl.replace('host.docker.internal', 'localhost')
-        }
-
-        return NextResponse.json({ url: signedUrl })
+        return NextResponse.json({ url: localizeSignedUrl(signed.url) })
     } catch (error) {
         console.error('[waveform-url] Unexpected error:', error)
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

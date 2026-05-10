@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-11] - Waveform Branch Cleanup
+
+Follow-up simplification pass over the waveform branch: deduplicated helpers, cut a re-render hot path in the audio engine, and removed narrating comments left over from the initial implementation.
+
+### Changed
+
+- **`frontend/infra/supabase/storage.ts`** — `getSignedMediaUrl` now accepts an optional bucket argument (defaults to `media`) and a shared `localizeSignedUrl` helper handles the `host.docker.internal → localhost` rewrite for both media and waveform routes.
+- **`frontend/lib/audio/compute-peaks.ts`** — Promoted `WAVEFORM_BUCKET` and `buildWaveformObjectKey` from the Inngest handler so the route, the handler, and any future consumer share one source of truth.
+- **`frontend/app/api/projects/[id]/waveform-url/route.ts`** and **`frontend/app/api/projects/[id]/media-url/route.ts`** — Routes now use the shared signed-URL and localization helpers instead of inlining `createSignedUrl` and string `replace`.
+- **`frontend/lib/utils.ts`** — Added a single `formatClockTime(seconds, mode)` helper. `AudioPlayer`, `Waveform`, and `FloatingPlayerDeck` now use it instead of three near-duplicate seconds-to-clock formatters.
+- **`frontend/app/editor/[id]/hooks/useEditorData.ts`** — Imports `WAVEFORM_ARTIFACT_VERSION` instead of hardcoding `z.literal(1)` in the artifact schema.
+- **`frontend/lib/inngest/functions/handle-waveform-requested.ts`** — Replaced the nested-promise `ffmpegDone` block with `node:events.once(ffmpeg, 'close')`, and now imports the shared bucket/object-key helpers.
+- **`frontend/core/transcription/start.ts`** — Reused a single `createAdminClient()` instance for the waveform claim and the rollback path instead of creating it twice.
+
+### Fixed
+
+- **`frontend/components/AudioPlayer.tsx`** — Quantized `timeupdate` handling to ~10Hz and skipped redundant `setCurrentTime` writes in `audioEngineOnly` mode, so sub-100ms native ticks no longer trigger React re-renders that propagate into the waveform tree.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand` (`32` suites / `315` tests passing)
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm run lint` (no new warnings)
+
 ## [2026-05-10] - Olivetti Waveform Player
 
 Added the final Olivetti-style editor waveform while preserving the native `<audio>` playback architecture introduced after the WaveSurfer memory regression. Waveform rendering now uses small precomputed peak artifacts generated server-side, so long recordings keep bounded browser memory and the editor falls back to the lightweight flat player whenever peaks are unavailable.
@@ -31,7 +55,6 @@ Added the final Olivetti-style editor waveform while preserving the native `<aud
 
 - Prevented stale or failed waveform Inngest attempts from overwriting already-ready waveform rows.
 - Fixed intermittent editor fallback to the old player caused by waveform artifacts being missing or stored in the wrong bucket during early local testing.
-- Recovered the affected local project `96ecd2a6-e0ae-4610-b8ff-6be26ad545bb` by regenerating its 2048-point waveform artifact.
 
 ### Tests
 

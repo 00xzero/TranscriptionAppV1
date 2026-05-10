@@ -29,7 +29,7 @@ export async function computePeaks(
     let nextBucketBoundary = samplesPerBucket
     let sampleIndex = 0
     let lastFilledValue = 0
-    // Tracks half a 16-bit sample carried across chunk boundaries.
+    // Half a 16-bit sample carried across chunk boundaries.
     let leftoverByte: number | null = null
 
     return new Promise((resolve, reject) => {
@@ -37,7 +37,6 @@ export async function computePeaks(
 
         pcmStream.on('data', (chunk: Buffer) => {
             let offset = 0
-            // Reassemble a sample if the previous chunk ended on an odd byte.
             if (leftoverByte !== null && chunk.length > 0) {
                 const sample = (leftoverByte | (chunk[0] << 8))
                 const signed = sample > 32767 ? sample - 65536 : sample
@@ -56,16 +55,14 @@ export async function computePeaks(
         })
 
         pcmStream.on('end', () => {
-            // Flush trailing partial bucket.
             if (samplesIntoBucket > 0 && bucketIndex < targetPeaks) {
                 const value = bucketMaxAbs / INT16_MAX_ABS
                 peaks[bucketIndex] = value
                 lastFilledValue = value
                 bucketIndex++
             }
-            // Pad any remaining buckets (e.g. ffmpeg returned slightly fewer
-            // samples than ffprobe predicted) with the last filled value to
-            // avoid visual zeros at the tail.
+            // ffmpeg may emit slightly fewer samples than ffprobe predicted;
+            // pad with the last value so the tail isn't visually flat-zero.
             for (let i = bucketIndex; i < targetPeaks; i++) {
                 peaks[i] = lastFilledValue
             }
@@ -104,15 +101,18 @@ export type WaveformArtifact = {
 }
 
 export const WAVEFORM_ARTIFACT_VERSION = 1
+export const WAVEFORM_BUCKET = 'waveforms'
+
+export function buildWaveformObjectKey(userId: string, projectId: string): string {
+    return `${userId}/${projectId}/waveform.json`
+}
 
 export function buildWaveformArtifact(
     peaks: Float32Array,
     durationSeconds: number,
     pointsPerSecond: number
 ): WaveformArtifact {
-    // Round to 4 decimal places — well below visual perception threshold for
-    // bar height (0.0001 = ~0.01% of full scale) and shrinks the JSON ~3× by
-    // keeping each value to 6 chars max instead of float32-roundtrip noise.
+    // 4 decimals: ~3× smaller JSON, well under visual perception threshold.
     const rounded: number[] = new Array(peaks.length)
     for (let i = 0; i < peaks.length; i++) {
         rounded[i] = Math.round(peaks[i] * 10000) / 10000

@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
+import { getSignedMediaUrl, localizeSignedUrl } from '@/infra/supabase/storage'
 
 export async function GET(
     request: NextRequest,
@@ -46,27 +47,15 @@ export async function GET(
             )
         }
 
-        // Generate signed URL (1 hour expiry)
-        const { data, error: signedUrlError } = await supabase.storage
-            .from('media')
-            .createSignedUrl(project.source_object_key, 3600)
-
-        if (signedUrlError || !data) {
-            console.error('[api/media-url] Signed URL error:', signedUrlError)
+        const signed = await getSignedMediaUrl(supabase, project.source_object_key, 3600)
+        if (signed.error || !signed.url) {
             return NextResponse.json(
                 { error: 'Failed to generate media URL' },
                 { status: 500 }
             )
         }
 
-        // In Docker, the signed URL may contain host.docker.internal which the browser can't access
-        // Replace with localhost for browser access
-        let signedUrl = data.signedUrl
-        if (signedUrl.includes('host.docker.internal')) {
-            signedUrl = signedUrl.replace('host.docker.internal', 'localhost')
-        }
-
-        return NextResponse.json({ url: signedUrl })
+        return NextResponse.json({ url: localizeSignedUrl(signed.url) })
     } catch (error) {
         console.error('[api/media-url] Unexpected error:', error)
         return NextResponse.json(

@@ -7,17 +7,19 @@ import {
 } from '@/lib/supabase/queries'
 import { SegmentSchema, WaveformStatusSchema, type WaveformStatus } from '@/contracts/db'
 import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
+import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
 
 const WaveformArtifactSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(WAVEFORM_ARTIFACT_VERSION),
   duration_seconds: z.number(),
   points_per_second: z.number(),
   peaks: z.array(z.number()),
 })
 
 const WAVEFORM_POLL_INTERVAL_MS = 3000
+const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
 
 export function useEditorData(projectId: string) {
@@ -46,6 +48,7 @@ export function useEditorData(projectId: string) {
   useEffect(() => {
     let cancelled = false
     let waveformPollId: ReturnType<typeof setInterval> | null = null
+    let waveformPollStartedAt = 0
     setPeaks(null)
     setWaveformStatus('skipped')
 
@@ -107,7 +110,14 @@ export function useEditorData(projectId: string) {
 
     const startWaveformPolling = () => {
       if (waveformPollId) return
+      waveformPollStartedAt = Date.now()
       waveformPollId = setInterval(() => {
+        if (Date.now() - waveformPollStartedAt >= WAVEFORM_POLL_TIMEOUT_MS) {
+          console.warn(`[useEditorData] stopped waveform polling for project ${projectId} after timeout`)
+          stopWaveformPolling()
+          setWaveformStatus('skipped')
+          return
+        }
         void loadProjectMetadata().catch(() => { /* ignore */ })
       }, WAVEFORM_POLL_INTERVAL_MS)
     }

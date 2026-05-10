@@ -1,11 +1,10 @@
 /**
- * Handle waveform/requested
- * Sibling to transcription/requested — runs in parallel, never blocks transcription.
- *
- * Pipeline: probe media → stream PCM via ffmpeg → bucket-aggregate peak amplitude
- * → upload JSON artifact to Storage → update project columns.
+ * Handle waveform/requested — sibling to transcription/requested. Never blocks
+ * transcription. Pipeline: probe → stream PCM via ffmpeg → bucket-aggregate
+ * peaks → upload JSON artifact → finalize project columns.
  */
 
+import { once } from 'node:events'
 import { inngest } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getSignedMediaUrl } from '@/infra/supabase/storage'
@@ -13,17 +12,14 @@ import { waveformRequestedTrigger } from '@/lib/inngest/events'
 import { probeMedia, spawnPcmStream } from '@/lib/audio/ffmpeg'
 import {
     buildWaveformArtifact,
+    buildWaveformObjectKey,
     computePeaks,
     PEAK_COUNT,
     WAVEFORM_ARTIFACT_VERSION,
+    WAVEFORM_BUCKET,
 } from '@/lib/audio/compute-peaks'
 
-const SIGNED_URL_TTL_SECONDS = 6 * 60 * 60 // 6 hours — long enough for ffmpeg to finish on multi-hour files
-const WAVEFORM_BUCKET = 'waveforms'
-
-function buildWaveformObjectKey(userId: string, projectId: string): string {
-    return `${userId}/${projectId}/waveform.json`
-}
+const SIGNED_URL_TTL_SECONDS = 6 * 60 * 60 // long enough for multi-hour files
 
 export const handleWaveformRequested = inngest.createFunction(
     {
@@ -38,7 +34,7 @@ export const handleWaveformRequested = inngest.createFunction(
                     .from('projects')
                     .update({ waveform_status: 'error' })
                     .eq('id', projectId)
-                    .neq('waveform_status', 'ready')
+                    .in('waveform_status', ['pending', 'processing'])
             } catch (err) {
                 console.error(`[inngest] handle-waveform onFailure DB update failed for ${projectId}:`, err)
             }
@@ -48,8 +44,8 @@ export const handleWaveformRequested = inngest.createFunction(
         const { projectId, userId, sourceObjectKey } = event.data
         console.log(`[inngest] Waveform requested for project: ${projectId}`)
 
-        // Step 1: re-validate the event payload against the DB row + idempotency check + transition to 'processing'.
-        // Returns the row-of-record source_object_key so step 2 signs that, not the event payload.
+        // Validate event payload against the row of record (don't trust the event
+        // bus to sign URLs with admin privileges) and transition to 'processing'.
         const validation = await step.run('mark-processing', async () => {
             const supabase = createAdminClient()
             const { data: project, error } = await supabase
@@ -62,8 +58,6 @@ export const handleWaveformRequested = inngest.createFunction(
                 throw new Error(`Project ${projectId} not found: ${error?.message ?? 'no row'}`)
             }
 
-            // Defense in depth: don't trust the event payload. Verify against the
-            // row of record before we sign anything with admin privileges.
             if (project.user_id !== userId) {
                 throw new Error(`Project ${projectId} user_id mismatch: event=${userId}, row=${project.user_id}`)
             }
@@ -109,8 +103,8 @@ export const handleWaveformRequested = inngest.createFunction(
         }
         const verifiedSourceObjectKey = validation.verifiedSourceObjectKey
 
-        // Step 2: full peak generation + upload + DB finalize.
-        // Single step so retries replay the whole pipeline (Storage upload uses upsert).
+        // Single step: peak generation + upload + DB finalize. Retries replay
+        // the whole pipeline (Storage upload uses upsert).
         const result = await step.run('generate-peaks', async () => {
             const supabase = createAdminClient()
 
@@ -126,25 +120,6 @@ export const handleWaveformRequested = inngest.createFunction(
             const stderrChunks: string[] = []
             ffmpeg.stderr.on('data', (chunk) => { stderrChunks.push(chunk.toString()) })
 
-            const ffmpegDone = new Promise<void>((resolve, reject) => {
-                if (ffmpeg.exitCode !== null) {
-                    if (ffmpeg.exitCode !== 0) {
-                        reject(new Error(`ffmpeg exited with code ${ffmpeg.exitCode}: ${stderrChunks.join('').slice(0, 500)}`))
-                        return
-                    }
-                    resolve()
-                    return
-                }
-                ffmpeg.once('close', (code) => {
-                    if (code !== 0) {
-                        reject(new Error(`ffmpeg exited with code ${code}: ${stderrChunks.join('').slice(0, 500)}`))
-                        return
-                    }
-                    resolve()
-                })
-                ffmpeg.once('error', reject)
-            })
-
             let peaksResult
             try {
                 peaksResult = await computePeaks(ffmpeg.stdout, {
@@ -152,7 +127,12 @@ export const handleWaveformRequested = inngest.createFunction(
                     targetPeaks: PEAK_COUNT,
                     durationSeconds: probe.durationSeconds,
                 })
-                await ffmpegDone
+                if (ffmpeg.exitCode === null) {
+                    await once(ffmpeg, 'close')
+                }
+                if (ffmpeg.exitCode !== 0) {
+                    throw new Error(`ffmpeg exited with code ${ffmpeg.exitCode}: ${stderrChunks.join('').slice(0, 500)}`)
+                }
             } finally {
                 if (!ffmpeg.killed && ffmpeg.exitCode === null) {
                     ffmpeg.kill('SIGKILL')

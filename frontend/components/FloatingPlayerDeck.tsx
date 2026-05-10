@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatClockTime } from '@/lib/utils'
 
 interface FloatingPlayerDeckProps {
   currentTime: number
@@ -11,15 +12,6 @@ interface FloatingPlayerDeckProps {
   onTogglePlay: () => void
   onSeekRelative: (sec: number) => void
   onRateChange: (rate: number) => void
-}
-
-function formatTime(seconds: number): string {
-  if (!isFinite(seconds) || isNaN(seconds)) return '00:00:00'
-  const total = Math.max(0, Math.floor(seconds))
-  const hours = Math.floor(total / 3600)
-  const mins = Math.floor((total % 3600) / 60)
-  const secs = total % 60
-  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
 function formatRate(rate: number): string {
@@ -49,8 +41,8 @@ export default function FloatingPlayerDeck({
       <div className="flex items-center justify-between">
         {/* Left: Time display */}
         <div className="font-mono text-xs select-none min-w-[80px]">
-          <span className="text-trust-blue">{formatTime(currentTime)}</span>
-          <span className="text-ink/40 dark:text-paper/40"> / {formatTime(duration)}</span>
+          <span className="text-trust-blue">{formatClockTime(currentTime, 'always')}</span>
+          <span className="text-ink/40 dark:text-paper/40"> / {formatClockTime(duration, 'always')}</span>
         </div>
 
         {/* Center: Transport controls */}

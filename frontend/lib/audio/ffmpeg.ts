@@ -49,13 +49,9 @@ function armProcessTimeout(
     }, timeoutMs)
 }
 
-/**
- * The ffmpeg/ffprobe binaries shipped via @ffmpeg-installer / @ffprobe-installer
- * are statically linked and bypass NSS — they cannot resolve /etc/hosts entries
- * like Docker's `host.docker.internal`. Node (via libc) can. Only rewrite that
- * local-dev hostname; production HTTPS storage URLs must keep their original
- * host for TLS/SNI and storage routing.
- */
+// The bundled ffmpeg/ffprobe binaries are statically linked and bypass NSS, so
+// they can't resolve Docker's `host.docker.internal`. Pre-resolve via Node DNS
+// for that one local-dev hostname only; never touch production URLs (TLS/SNI).
 async function resolveUrlHost(url: string): Promise<string> {
     let parsed: URL
     try {
@@ -138,8 +134,7 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
                     reject(new Error(`ffprobe returned invalid duration: ${format.duration}`))
                     return
                 }
-                // We always decode to PEAK_SAMPLE_RATE downstream, so totalSamples is
-                // computed against that target rate, not the source rate.
+                // Computed against the target decode rate, not the source rate.
                 const totalSamples = Math.floor(durationSeconds * PEAK_SAMPLE_RATE)
                 resolve({
                     totalSamples,
@@ -159,9 +154,9 @@ export async function spawnPcmStream(url: string): Promise<ChildProcessWithoutNu
         '-v', 'error',
         '-i', resolved,
         '-vn',
-        '-ac', '1',                    // mono
-        '-ar', String(PEAK_SAMPLE_RATE), // downsample
-        '-f', 's16le',                  // 16-bit signed little-endian
+        '-ac', '1',
+        '-ar', String(PEAK_SAMPLE_RATE),
+        '-f', 's16le',
         '-acodec', 'pcm_s16le',
         'pipe:1',
     ]

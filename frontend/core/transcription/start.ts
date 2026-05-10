@@ -152,9 +152,8 @@ export async function startTranscription(opts: {
         return { outcome: 'error', reason: 'Failed to create job' }
     }
 
-    // Project status is derived by the DB trigger from job INSERT
+    // Project status is derived by the DB trigger from job INSERT.
 
-    // Send Inngest event
     try {
         await sendInngestEvent({
             name: 'transcription/requested',
@@ -186,13 +185,12 @@ export async function startTranscription(opts: {
 
     console.log(`[startTranscription] Started for project: ${projectId}, job: ${job.id}`)
 
-    // Dispatch waveform generation in parallel. A failure here MUST NOT fail
-    // the transcription start path — peaks are a UI enhancement, not a
-    // pipeline gate. Backfill recovers any rows stuck in 'pending' or 'error'.
-    // Uses the admin client because waveform_status is server-owned (BEFORE
+    // Waveform dispatch is a UI enhancement and MUST NOT fail the transcription
+    // start path. Admin client because waveform_status is server-owned (a BEFORE
     // UPDATE trigger rejects writes from the authenticated role).
+    let adminSupabase: ReturnType<typeof createAdminClient> | null = null
     try {
-        const adminSupabase = createAdminClient()
+        adminSupabase = createAdminClient()
         const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
             .from('projects')
             .update({ waveform_status: 'pending' })
@@ -218,6 +216,17 @@ export async function startTranscription(opts: {
         })
     } catch (waveformError) {
         console.error('[startTranscription] Failed to dispatch waveform/requested (non-fatal):', waveformError)
+        if (adminSupabase) {
+            try {
+                await adminSupabase
+                    .from('projects')
+                    .update({ waveform_status: 'skipped' })
+                    .eq('id', projectId)
+                    .eq('waveform_status', 'pending')
+            } catch (rollbackError) {
+                console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)
+            }
+        }
     }
 
     return { outcome: 'started', jobId: job.id }

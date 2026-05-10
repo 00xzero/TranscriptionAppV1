@@ -3,14 +3,14 @@
 import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { formatClockTime } from '@/lib/utils'
 
 /**
- * Lightweight audio player component using native HTMLAudioElement.
- * Replaces WaveSurfer.js to eliminate WebAudio memory overhead.
- *
- * Set `audioEngineOnly` when the visible scrubber is owned elsewhere
- * (Waveform.tsx for projects with precomputed peaks).
+ * Native HTMLAudioElement-backed player.
+ * Set `audioEngineOnly` when an external visualization (Waveform.tsx) owns
+ * the visible scrubber — only the <audio> element is rendered, no UI state.
  */
+const TIMEUPDATE_QUANTIZE_MS = 100
 
 export interface AudioPlayerProps {
   /** URL of the audio file */
@@ -94,6 +94,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const rafRef = useRef<number | null>(null)
   const latestScrubTimeRef = useRef(0)
   const pendingScrubFractionRef = useRef<number | null>(null)
+  const lastEmittedTimeRef = useRef(-Infinity)
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
 
   const clampFraction = useCallback((nextFraction: number) => {
@@ -261,10 +262,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
 
     const handleTimeUpdate = () => {
-      if (!isScrubbingRef.current) {
-        setCurrentTime(audio.currentTime)
-        onTimeUpdate?.(audio.currentTime)
-      }
+      if (isScrubbingRef.current) return
+      const t = audio.currentTime
+      // Quantize to ~10Hz so we don't re-render on sub-100ms ticks.
+      if (Math.abs(t - lastEmittedTimeRef.current) * 1000 < TIMEUPDATE_QUANTIZE_MS) return
+      lastEmittedTimeRef.current = t
+      if (!audioEngineOnly) setCurrentTime(t)
+      onTimeUpdate?.(t)
     }
 
     const handlePlay = () => {
@@ -305,9 +309,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
   }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
 
-  // Reset ready state when src changes or when switching between visible-player
-  // and engine-only mode. That mode switch replaces the underlying <audio>
-  // element, so the new element needs a fresh readiness cycle.
+  // Toggling audioEngineOnly replaces the underlying <audio> element, so the
+  // new element needs a fresh readiness cycle (same as when src changes).
   useEffect(() => {
     readyRef.current = false
     setReady(false)
@@ -315,6 +318,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     setDuration(0)
     pendingSeekRef.current = null
     latestScrubTimeRef.current = 0
+    lastEmittedTimeRef.current = -Infinity
     clearPendingScrubFraction()
     isScrubbingRef.current = false
     cancelPendingScrubFrame()
@@ -434,21 +438,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
   }, [endScrub, isDragging, onDragEnd, updateSeekFromEvent])
 
-  // Format time as MM:SS
-  const formatTime = (seconds: number) => {
-    if (!isFinite(seconds) || isNaN(seconds)) return '0:00'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
   const progress = previewFraction !== null
     ? previewFraction * 100
     : duration > 0 ? (currentTime / duration) * 100 : 0
 
-  // Engine-only mode: an external visualization (Waveform.tsx) owns the visible
-  // scrubber. Render just the <audio> element so screen readers and keyboard
-  // focus don't see two scrubbers.
+  // Engine-only: render bare <audio> so there's no second focusable scrubber.
   if (audioEngineOnly) {
     return <audio ref={audioRef} src={src} preload="metadata" />
   }
@@ -491,8 +485,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
 
       {/* Time display */}
       <div className="flex items-center justify-between text-sm text-muted font-mono">
-        <span>{formatTime(currentTime)}</span>
-        <span>{formatTime(duration)}</span>
+        <span>{formatClockTime(currentTime, 'never')}</span>
+        <span>{formatClockTime(duration, 'never')}</span>
       </div>
 
       {/* Controls — hidden when FloatingPlayerDeck is active */}
