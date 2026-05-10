@@ -155,7 +155,7 @@ export default function CollapsibleWaveform({
 
           {/* Waveform content. The shell's pt-[56px] clears the editor header;
               pt-6 adds the remaining breathing room from Olivetti's pt-20. */}
-          <div className="px-6 md:px-20 pt-6 pb-12">
+          <div className="px-6 md:px-20 pt-6 pb-2">
             {children}
           </div>
         </div>
