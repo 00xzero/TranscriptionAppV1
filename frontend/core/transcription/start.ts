@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendInngestEvent } from '@/infra/inngest/client'
+import { createAdminClient } from '@/infra/supabase/admin'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
@@ -184,5 +185,33 @@ export async function startTranscription(opts: {
     }
 
     console.log(`[startTranscription] Started for project: ${projectId}, job: ${job.id}`)
+
+    // Dispatch waveform generation in parallel. A failure here MUST NOT fail
+    // the transcription start path — peaks are a UI enhancement, not a
+    // pipeline gate. Backfill recovers any rows stuck in 'pending' or 'error'.
+    // Uses the admin client because waveform_status is server-owned (BEFORE
+    // UPDATE trigger rejects writes from the authenticated role).
+    try {
+        const adminSupabase = createAdminClient()
+        const { error: waveformStatusError } = await adminSupabase
+            .from('projects')
+            .update({ waveform_status: 'pending' })
+            .eq('id', projectId)
+            .eq('waveform_status', 'skipped')
+        if (waveformStatusError) {
+            console.warn('[startTranscription] Failed to mark waveform pending:', waveformStatusError.message)
+        }
+        await sendInngestEvent({
+            name: 'waveform/requested',
+            data: {
+                projectId,
+                userId,
+                sourceObjectKey: project.source_object_key,
+            },
+        })
+    } catch (waveformError) {
+        console.error('[startTranscription] Failed to dispatch waveform/requested (non-fatal):', waveformError)
+    }
+
     return { outcome: 'started', jobId: job.id }
 }

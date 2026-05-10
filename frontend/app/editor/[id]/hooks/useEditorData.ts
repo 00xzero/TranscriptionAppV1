@@ -5,10 +5,17 @@ import {
   fetchSpeakers,
   fetchProjectById,
 } from '@/lib/supabase/queries'
-import { SegmentSchema } from '@/contracts/db'
+import { SegmentSchema, WaveformStatusSchema, type WaveformStatus } from '@/contracts/db'
 import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
+
+const WaveformArtifactSchema = z.object({
+  version: z.literal(1),
+  duration_seconds: z.number(),
+  points_per_second: z.number(),
+  peaks: z.array(z.number()),
+})
 
 export function useEditorData(projectId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
@@ -18,6 +25,8 @@ export function useEditorData(projectId: string) {
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
+  const [peaks, setPeaks] = useState<number[] | null>(null)
+  const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
 
   const reloadTranscript = async () => {
     try {
@@ -78,7 +87,7 @@ export function useEditorData(projectId: string) {
           .catch(() => { /* ignore */ })
 
         void fetchProjectById(projectId)
-          .then((projectData) => {
+          .then(async (projectData) => {
             if (cancelled || !projectData) return
             const projectParsed = EditorProjectSchema.safeParse(projectData)
             if (!projectParsed.success) {
@@ -87,6 +96,29 @@ export function useEditorData(projectId: string) {
             setProjectTitle(projectData.title || null)
             setProjectCreatedAt(projectData.created_at)
             setProjectDurationSecs(projectData.duration_seconds)
+
+            const statusParsed = WaveformStatusSchema.safeParse(projectData.waveform_status)
+            const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
+            setWaveformStatus(wfStatus)
+            if (wfStatus === 'ready') {
+              try {
+                const urlRes = await fetch(`/api/projects/${projectId}/waveform-url`)
+                if (!urlRes.ok) return
+                const { url } = await urlRes.json()
+                const peaksRes = await fetch(url)
+                if (!peaksRes.ok) return
+                const json = await peaksRes.json()
+                const artifact = WaveformArtifactSchema.safeParse(json)
+                if (cancelled) return
+                if (artifact.success) {
+                  setPeaks(artifact.data.peaks)
+                } else {
+                  console.warn('[useEditorData] waveform artifact schema mismatch', artifact.error.issues)
+                }
+              } catch (err) {
+                console.warn('[useEditorData] failed to load waveform peaks (non-fatal):', err)
+              }
+            }
           })
           .catch(() => { /* ignore */ })
 
@@ -109,6 +141,8 @@ export function useEditorData(projectId: string) {
     projectTitle, setProjectTitle,
     projectCreatedAt,
     projectDurationSecs,
+    peaks,
+    waveformStatus,
     reloadTranscript,
   }
 }

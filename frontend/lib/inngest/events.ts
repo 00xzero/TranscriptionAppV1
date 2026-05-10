@@ -11,12 +11,14 @@ import type {
     TranscriptionWebhookData,
     TranscriptionCompletedData,
     TranscriptionFailedData,
+    WaveformRequestedData,
 } from '@/contracts/events'
 import {
     TranscriptionRequestedDataSchema,
     TranscriptionWebhookDataSchema,
     TranscriptionCompletedDataSchema,
     TranscriptionFailedDataSchema,
+    WaveformRequestedDataSchema,
 } from '@/contracts/events'
 
 export const transcriptionRequestedTrigger = eventType("transcription/requested", {
@@ -35,6 +37,10 @@ export const transcriptionFailedTrigger = eventType("transcription/failed", {
     schema: TranscriptionFailedDataSchema,
 })
 
+export const waveformRequestedTrigger = eventType("waveform/requested", {
+    schema: WaveformRequestedDataSchema,
+})
+
 export type TranscriptionEvents = {
     "transcription/requested": {
         data: TranscriptionRequestedData;
@@ -47,5 +53,8 @@ export type TranscriptionEvents = {
     };
     "transcription/failed": {
         data: TranscriptionFailedData;
+    };
+    "waveform/requested": {
+        data: WaveformRequestedData;
     };
 };

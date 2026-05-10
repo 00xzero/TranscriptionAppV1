@@ -12,6 +12,9 @@ if (process.env.DEEPGRAM_CALLBACK_URL) {
 const nextConfig = {
   reactStrictMode: true,
   allowedDevOrigins: [...new Set(allowedDevOrigins)],
+  // Native binaries — must not go through bundler. NFT still traces them into
+  // the function's deployment artifact at runtime.
+  serverExternalPackages: ['@ffmpeg-installer/ffmpeg', '@ffprobe-installer/ffprobe'],
 }
 
 export default nextConfig

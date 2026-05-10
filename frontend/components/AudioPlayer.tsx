@@ -7,15 +7,9 @@ import { Label } from '@/components/ui/label'
 /**
  * Lightweight audio player component using native HTMLAudioElement.
  * Replaces WaveSurfer.js to eliminate WebAudio memory overhead.
- * 
- * Features:
- * - Simple progress bar with drag-to-seek
- * - Play/Pause, seek controls
- * - Playback rate adjustment
- * - Current time / Duration display
- * 
- * Designed to be stackable with Option B (server-side waveform peaks)
- * by accepting an optional `peaks` prop for future waveform visualization.
+ *
+ * Set `audioEngineOnly` when the visible scrubber is owned elsewhere
+ * (Waveform.tsx for projects with precomputed peaks).
  */
 
 export interface AudioPlayerProps {
@@ -33,10 +27,14 @@ export interface AudioPlayerProps {
   onSeeked?: (time: number) => void
   /** Initial playback rate */
   initialPlaybackRate?: number
-  /** Pre-rendered peaks for future waveform (Option B ready) */
-  peaks?: number[]
   /** Hide transport controls (when FloatingPlayerDeck is visible) */
   hideControls?: boolean
+  /**
+   * Render only the underlying <audio> element — no progress bar, no controls,
+   * nothing focusable. Use when an external visualization (e.g. Waveform.tsx)
+   * owns the visible scrubber and we just need the audio engine.
+   */
+  audioEngineOnly?: boolean
   /** Called when the user starts dragging the progress bar */
   onDragStart?: () => void
   /** Called when the user ends dragging the progress bar */
@@ -74,8 +72,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   onTimeUpdate,
   onSeeked,
   initialPlaybackRate = 1.0,
-  peaks,
   hideControls = false,
+  audioEngineOnly = false,
   onDragStart,
   onDragEnd,
   onScrubPreview,
@@ -446,6 +444,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     ? previewFraction * 100
     : duration > 0 ? (currentTime / duration) * 100 : 0
 
+  // Engine-only mode: an external visualization (Waveform.tsx) owns the visible
+  // scrubber. Render just the <audio> element so screen readers and keyboard
+  // focus don't see two scrubbers.
+  if (audioEngineOnly) {
+    return <audio ref={audioRef} src={src} preload="metadata" />
+  }
+
   return (
     <div className="space-y-3">
       {/* Audio element (hidden) */}
@@ -480,13 +485,6 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-paper dark:bg-ink rounded-full shadow-lg ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
           style={{ left: `calc(${progress}% - 6px)` }}
         />
-
-        {/* Optional: Future waveform visualization slot (Option B ready) */}
-        {peaks && peaks.length > 0 && (
-          <div className="absolute inset-0 overflow-hidden rounded-sm">
-            {/* Placeholder for waveform rendering with pre-computed peaks */}
-          </div>
-        )}
       </div>
 
       {/* Time display */}
