@@ -28,16 +28,25 @@ function SegmentHeaderRow({
   setEditingId,
   setEditingTexts,
 }: SegmentHeaderRowProps) {
+  const speakerButtonClassName = [
+    'font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-all duration-200 ease-out motion-reduce:transition-none bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40 whitespace-nowrap',
+    showSpeaker
+      ? ''
+      : 'max-w-0 -mr-3 overflow-hidden opacity-0 -translate-x-1 pointer-events-none group-hover:max-w-48 group-hover:mr-0 group-hover:opacity-100 group-hover:translate-x-0 group-hover:pointer-events-auto',
+  ].join(' ')
+
   return (
     <div className="flex items-baseline gap-3 mb-2">
-      {showSpeaker && onSpeakerClick && (
+      {onSpeakerClick && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40"
+              className={speakerButtonClassName}
               onClick={onSpeakerClick}
               aria-label={`Change speaker (${speakerLabel})`}
+              aria-hidden={showSpeaker ? undefined : true}
+              tabIndex={showSpeaker ? undefined : -1}
             >
               {speakerLabel}
             </button>
