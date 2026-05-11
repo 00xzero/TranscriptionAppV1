@@ -9,6 +9,10 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   return (
     <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body className="m-0 flex min-h-screen items-center justify-center bg-paper p-6 font-sans text-ink">
         <div
           role="alert"
@@ -42,7 +46,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <button
             type="button"
             onClick={reset}
-            className="mt-10 cursor-pointer rounded-full border-0 bg-ember-red px-7 py-3 text-sm font-medium text-paper"
+            className="mt-10 cursor-pointer rounded-full border-0 bg-ember-red px-7 py-3 text-sm font-medium text-paper transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-red focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
           >
             Try again
           </button>
