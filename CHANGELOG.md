@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-11] - Editor Small Fixes
+
+Small editor polish pass covering issues 69 and 70.
+
+### Fixed
+
+- **`frontend/app/editor/[id]/components/EditorHeader.tsx`**, **`frontend/app/editor/[id]/components/TranscriptSegmentCard.tsx`**, and **`frontend/components/CaptureModal/CaptureModal.tsx`** — Replaced raw `dark:text-[#EAEAEA]` text colors with the Olivetti `dark:text-paper` design token.
+- **`frontend/app/editor/[id]/components/TranscriptSegmentCard.tsx`** — Made same-speaker reassignment controls keyboard-reachable so consecutive segments from the same speaker can open the speaker assignment dialog without relying on hover.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand` (`32` suites / `315` tests passing)
+- **`frontend`** — `npm run lint` (completed with existing warnings and no lint errors)
+
 ## [2026-05-11] - Hover-Reveal Speaker on Consecutive Segments
 
 Restored per-segment speaker reassignment on cards inside a same-speaker run. Previously only the first card of a monologue exposed the click-to-change speaker affordance; subsequent cards hid the header entirely, so users could not retarget a single segment without going through the run's first card.

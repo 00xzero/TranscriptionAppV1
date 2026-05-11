@@ -29,10 +29,10 @@ function SegmentHeaderRow({
   setEditingTexts,
 }: SegmentHeaderRowProps) {
   const speakerButtonClassName = [
-    'font-sans font-bold text-sm text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-all duration-200 ease-out motion-reduce:transition-none bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40 whitespace-nowrap',
+    'font-sans font-bold text-sm text-ink dark:text-paper cursor-pointer hover:text-trust-blue transition-all duration-200 ease-out motion-reduce:transition-none bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40 whitespace-nowrap',
     showSpeaker
       ? ''
-      : 'max-w-0 -mr-3 overflow-hidden opacity-0 -translate-x-1 pointer-events-none group-hover:max-w-48 group-hover:mr-0 group-hover:opacity-100 group-hover:translate-x-0 group-hover:pointer-events-auto',
+      : 'max-w-0 -mr-3 overflow-hidden opacity-0 -translate-x-1 pointer-events-none group-hover:max-w-48 group-hover:mr-0 group-hover:opacity-100 group-hover:translate-x-0 group-hover:pointer-events-auto focus-visible:max-w-48 focus-visible:mr-0 focus-visible:opacity-100 focus-visible:translate-x-0 focus-visible:pointer-events-auto',
   ].join(' ')
 
   return (
@@ -45,8 +45,8 @@ function SegmentHeaderRow({
               className={speakerButtonClassName}
               onClick={onSpeakerClick}
               aria-label={`Change speaker (${speakerLabel})`}
-              aria-hidden={showSpeaker ? undefined : true}
-              tabIndex={showSpeaker ? undefined : -1}
+              aria-haspopup="dialog"
+              tabIndex={0}
             >
               {speakerLabel}
             </button>
