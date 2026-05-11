@@ -117,19 +117,19 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
   const waveformCollapsed = sync.waveformCollapsed && !playback.expandedPlayerScrubbing
   const didInteractOutsidePopoverRef = useRef(false)
 
-
   return (
     <div className="flex flex-col h-full relative">
-      {waveformCollapsed && (
-        <div className="absolute top-0 left-0 w-full z-40">
-          <MiniWaveformProgress
-            audioProgress={playback.audioProgress}
-            onScrub={playback.handleMiniScrub}
-            onScrubStart={playback.handleMiniScrubStart}
-            onScrubEnd={playback.handleMiniScrubEnd}
-          />
-        </div>
-      )}
+      <div
+        className={`absolute top-0 left-0 w-full z-40 transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        aria-hidden={!waveformCollapsed}
+      >
+        <MiniWaveformProgress
+          audioProgress={playback.audioProgress}
+          onScrub={playback.handleMiniScrub}
+          onScrubStart={playback.handleMiniScrubStart}
+          onScrubEnd={playback.handleMiniScrubEnd}
+        />
+      </div>
 
       <FindReplaceModal
         open={search.findReplaceOpen}
@@ -166,6 +166,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
         <CollapsibleWaveform
           collapsed={waveformCollapsed}
           contentRef={sync.expandedWaveformContainerRef}
+          expandedHeight={sync.expandedWaveformHeight}
           pinned={playback.expandedPlayerScrubbing}
         >
           {data.audioSrc ? (

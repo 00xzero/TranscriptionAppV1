@@ -71,6 +71,15 @@ describe('CollapsibleWaveform', () => {
     expect(content.closest('.sticky')).not.toBeNull()
   })
 
+  it('preserves layout height while the waveform content is collapsed', () => {
+    renderWaveform({ collapsed: true, expandedHeight: 312 })
+    const content = screen.getByTestId('waveform-content')
+    const shell = content.closest('.relative.leading-none') as HTMLElement
+
+    expect(shell).not.toBeNull()
+    expect(shell.style.height).toBe('312px')
+  })
+
   it('calls onScrub with correct fraction on mouse down at 50%', () => {
     const onScrub = jest.fn()
     renderMiniProgress({ onScrub })

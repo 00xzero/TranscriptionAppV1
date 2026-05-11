@@ -7,6 +7,7 @@ interface CollapsibleWaveformProps {
   collapsed: boolean
   children: React.ReactNode
   contentRef?: (el: HTMLDivElement | null) => void
+  expandedHeight?: number
   pinned?: boolean
 }
 
@@ -148,10 +149,18 @@ export default function CollapsibleWaveform({
   collapsed,
   children,
   contentRef,
+  expandedHeight,
   pinned = false,
 }: CollapsibleWaveformProps) {
+  const spacerHeight = typeof expandedHeight === 'number' && Number.isFinite(expandedHeight) && expandedHeight > 0
+    ? expandedHeight
+    : undefined
+
   return (
-    <div className={`relative leading-none ${pinned ? 'sticky top-0 z-30' : ''}`}>
+    <div
+      className={`relative leading-none ${pinned ? 'sticky top-0 z-30' : ''}`}
+      style={collapsed && spacerHeight ? { height: spacerHeight } : undefined}
+    >
       {/* Expandable waveform container */}
       <div
         ref={contentRef}

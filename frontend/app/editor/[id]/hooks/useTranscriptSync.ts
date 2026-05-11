@@ -22,6 +22,7 @@ export function useTranscriptSync({
   const [syncDirection, setSyncDirection] = useState<'up' | 'down'>('down')
   const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null)
   const [waveformCollapsed, setWaveformCollapsed] = useState(false)
+  const [expandedWaveformHeight, setExpandedWaveformHeight] = useState(DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX)
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
@@ -46,6 +47,9 @@ export function useTranscriptSync({
     const nextHeight = rectHeight > 0 ? rectHeight : el.offsetHeight
     if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
     expandedWaveformHeightRef.current = nextHeight
+    setExpandedWaveformHeight((currentHeight) =>
+      Math.abs(currentHeight - nextHeight) > 1 ? nextHeight : currentHeight
+    )
   }, [])
 
   const expandedWaveformContainerRef = useCallback((el: HTMLDivElement | null) => {
@@ -246,6 +250,7 @@ export function useTranscriptSync({
     scrollParent,
     waveformCollapsed, setWaveformCollapsed,
     expandedWaveformContainerRef,
+    expandedWaveformHeight,
     shouldCollapseForCurrentScroll,
     virtuosoRef,
     transcriptScrollRef,
