@@ -9,125 +9,40 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
 
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#E4E1D9',
-          color: '#1D1E18',
-          fontFamily: 'ui-sans-serif, -apple-system, Inter, sans-serif',
-          padding: '24px',
-        }}
-      >
+      <body className="m-0 flex min-h-screen items-center justify-center bg-paper p-6 font-sans text-ink">
         <div
           role="alert"
           aria-live="assertive"
-          style={{
-            width: '100%',
-            maxWidth: '560px',
-            textAlign: 'center',
-          }}
+          className="w-full max-w-[560px] text-center"
         >
           <div
             aria-label="Olivetti"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontFamily: 'ui-serif, Georgia, serif',
-              fontStyle: 'italic',
-              fontSize: '32px',
-              lineHeight: 1,
-              margin: 0,
-              color: '#1D1E18',
-              letterSpacing: '-0.02em',
-            }}
+            className="m-0 inline-flex items-center gap-2.5 font-serif text-[32px] italic leading-none tracking-tight text-ink"
           >
             <span
               aria-hidden="true"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                flex: '0 0 auto',
-              }}
+              className="inline-flex shrink-0 items-center gap-1.5"
             >
-              <span
-                style={{
-                  width: '5px',
-                  height: '30px',
-                  borderRadius: '9999px',
-                  backgroundColor: '#1D1E18',
-                  display: 'block',
-                }}
-              />
-              <span
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '2px',
-                  backgroundColor: '#C73E1D',
-                  display: 'block',
-                }}
-              />
+              <span className="block h-[30px] w-[5px] rounded-full bg-ink" />
+              <span className="block h-2.5 w-2.5 rounded-[2px] bg-ember-red" />
             </span>
             <span>olivetti</span>
           </div>
-          <h1
-            style={{
-              marginTop: '14px',
-              marginBottom: 0,
-              fontFamily: 'ui-serif, Georgia, serif',
-              fontWeight: 500,
-              fontSize: '56px',
-              lineHeight: 1.05,
-              letterSpacing: '-0.02em',
-              color: '#1D1E18',
-            }}
-          >
+          <h1 className="mb-0 mt-3.5 font-serif text-[56px] font-medium leading-[1.05] tracking-tight text-ink">
             Something went wrong
           </h1>
-          <p
-            style={{
-              marginTop: '24px',
-              marginBottom: 0,
-              fontSize: '16px',
-              lineHeight: 1.6,
-              color: '#6F6B63',
-            }}
-          >
+          <p className="mb-0 mt-6 text-base leading-relaxed text-muted">
             The application failed to load. Please try again.
           </p>
           {error.digest && (
-            <p
-              style={{
-                marginTop: '16px',
-                marginBottom: 0,
-                fontFamily: 'ui-monospace, Menlo, monospace',
-                fontSize: '12px',
-                color: '#6F6B63',
-              }}
-            >
+            <p className="mb-0 mt-4 font-mono text-xs text-muted">
               Reference: {error.digest}
             </p>
           )}
           <button
             type="button"
             onClick={reset}
-            style={{
-              marginTop: '40px',
-              padding: '12px 28px',
-              borderRadius: '9999px',
-              backgroundColor: '#C73E1D',
-              color: '#E4E1D9',
-              border: 'none',
-              fontSize: '14px',
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
+            className="mt-10 cursor-pointer rounded-full border-0 bg-ember-red px-7 py-3 text-sm font-medium text-paper"
           >
             Try again
           </button>
