@@ -3,7 +3,8 @@
  *
  * These hooks wrap the base realtime hook with specific table configurations.
  */
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { createClient } from '@/infra/supabase/client'
 import { useSupabaseRealtime } from './realtime'
 import {
     fetchProjects,
@@ -22,18 +23,51 @@ import type { Project, JobSummary, Speaker, SpeakerUpdate, ProjectUpdate } from 
 // Projects Hook
 // ============================================================================
 
+function useCurrentUserId() {
+    const [userId, setUserId] = useState<string | null>(null)
+
+    useEffect(() => {
+        let isMounted = true
+        const supabase = createClient()
+
+        supabase.auth.getUser().then(({ data, error }) => {
+            if (!isMounted) return
+            setUserId(error ? null : data.user?.id ?? null)
+        })
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (!isMounted) return
+            setUserId(session?.user.id ?? null)
+        })
+
+        return () => {
+            isMounted = false
+            authListener.subscription.unsubscribe()
+        }
+    }, [])
+
+    return userId
+}
+
 /**
  * Hook for fetching and subscribing to the projects list.
  * Uses Supabase Realtime with 5s polling fallback.
  */
 export function useProjectsRealtime() {
+    const userId = useCurrentUserId()
     const fetchFn = useCallback(() => fetchProjects(), [])
 
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
         useSupabaseRealtime<Project>('projects', fetchFn, {
+            realtimeFilter: userId ? `user_id=eq.${userId}` : null,
+            subscriptionEnabled: Boolean(userId),
             enablePollingFallback: true,
             pollingInterval: 5000,
         })
+
+    useEffect(() => {
+        if (!userId) mutate([])
+    }, [userId, mutate])
 
     // Action: Delete project with optimistic update
     const deleteProject = useCallback(
@@ -84,7 +118,11 @@ export function useProjectRealtime(projectId: string | null) {
     const { data, isLoading, error, mutate } = useSupabaseRealtime<Project>(
         'projects',
         fetchFn,
-        { enablePollingFallback: true }
+        {
+            realtimeFilter: projectId ? `id=eq.${projectId}` : null,
+            subscriptionEnabled: Boolean(projectId),
+            enablePollingFallback: true,
+        }
     )
 
     // Action: Update project
@@ -147,7 +185,12 @@ export function useProjectJobsRealtime(projectId: string | null) {
     const { data, isLoading, error, refetch } = useSupabaseRealtime<JobSummary>(
         'jobs',
         fetchFn,
-        { enablePollingFallback: true, transformRealtimePayload }
+        {
+            realtimeFilter: projectId ? `project_id=eq.${projectId}` : null,
+            subscriptionEnabled: Boolean(projectId),
+            enablePollingFallback: true,
+            transformRealtimePayload,
+        }
     )
 
     return {
@@ -174,7 +217,11 @@ export function useSpeakersRealtime(projectId: string | null) {
     const { data, isLoading, error, mutate } = useSupabaseRealtime<Speaker>(
         'speakers',
         fetchFn,
-        { enablePollingFallback: true }
+        {
+            realtimeFilter: projectId ? `project_id=eq.${projectId}` : null,
+            subscriptionEnabled: Boolean(projectId),
+            enablePollingFallback: true,
+        }
     )
 
     // Action: Create speaker
