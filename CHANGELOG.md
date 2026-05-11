@@ -11,11 +11,11 @@ Refined the editor waveform/player scroll behavior so the expanded waveform stay
 - **`frontend/app/editor/[id]/EditorScreen.tsx`** and **`frontend/components/CollapsibleWaveform.tsx`** — Split the collapsed mini scrubber into a standalone `MiniWaveformProgress` export and moved the expanded waveform/player shell into the transcript scroll container. The mini scrubber now overlays at the top of the editor and fades/pointer-disables based on collapse state instead of mounting only when collapsed.
 - **`frontend/app/editor/[id]/hooks/useTranscriptSync.ts`** and **`frontend/app/editor/[id]/utils.ts`** — Replaced the fixed `scrollTop > 50` collapse trigger with a measured expanded-player height and a shared `shouldCollapseWaveform` threshold helper, so collapse timing tracks the actual player size.
 - **`frontend/app/editor/[id]/hooks/useEditorPlayback.ts`** — Added expanded-player scrub state so the full waveform stays pinned while users drag/scrub it, then re-evaluates collapse state after the gesture ends.
-- **`frontend/components/CollapsibleWaveform.tsx`** — Preserves the measured expanded waveform height while collapsed, preventing transcript layout jumps as the mini scrubber appears.
+- **`frontend/components/CollapsibleWaveform.tsx`** — Preserves the measured expanded waveform height while collapsed, preventing transcript layout jumps as the mini scrubber appears. The hidden mini scrubber is also removed from keyboard navigation while the expanded waveform is visible.
 
 ### Tests
 
-- **`frontend/__tests__/collapsibleWaveform.test.tsx`**, **`frontend/__tests__/editor.test.tsx`**, **`frontend/__tests__/audioPlayer.test.tsx`**, and **`frontend/__tests__/editor/useEditorPlayback.test.ts`** — Updated coverage for the extracted mini scrubber, measured collapse threshold, pinned expanded-player scrub flow, and collapsed-layout spacer behavior.
+- **`frontend/__tests__/collapsibleWaveform.test.tsx`**, **`frontend/__tests__/editor.test.tsx`**, **`frontend/__tests__/audioPlayer.test.tsx`**, **`frontend/__tests__/editor/useEditorPlayback.test.ts`**, and **`frontend/__tests__/editor/useTranscriptSync.test.ts`** — Updated coverage for the extracted mini scrubber, measured collapse threshold, pinned expanded-player scrub flow, collapsed-layout spacer behavior, hidden mini-scrubber focus behavior, and collapsed-transition height measurement.
 
 ## [2026-05-11] - Editor Small Fixes
 

@@ -125,6 +125,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
       >
         <MiniWaveformProgress
           audioProgress={playback.audioProgress}
+          interactive={waveformCollapsed}
           onScrub={playback.handleMiniScrub}
           onScrubStart={playback.handleMiniScrubStart}
           onScrubEnd={playback.handleMiniScrubEnd}

@@ -168,4 +168,46 @@ describe('useTranscriptSync', () => {
       expect(result.current.isFollowMode).toBe(false)
     })
   })
+
+  describe('waveform height measurement', () => {
+    it('does not replace expanded height with collapsed transition measurements', () => {
+      const { result } = setup()
+      const waveform = document.createElement('div')
+      let measuredHeight = 320
+
+      jest.spyOn(waveform, 'getBoundingClientRect').mockImplementation(() => ({
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: measuredHeight,
+        width: 0,
+        height: measuredHeight,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }))
+      Object.defineProperty(waveform, 'offsetHeight', {
+        configurable: true,
+        get: () => measuredHeight,
+      })
+
+      act(() => {
+        result.current.expandedWaveformContainerRef(waveform)
+      })
+
+      expect(result.current.expandedWaveformHeight).toBe(320)
+
+      act(() => {
+        result.current.setWaveformCollapsed(true)
+      })
+
+      measuredHeight = 24
+
+      act(() => {
+        result.current.expandedWaveformContainerRef(waveform)
+      })
+
+      expect(result.current.expandedWaveformHeight).toBe(320)
+    })
+  })
 })

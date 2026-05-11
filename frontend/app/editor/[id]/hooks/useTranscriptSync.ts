@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { VirtuosoHandle, ListRange } from 'react-virtuoso'
 import type { Seg } from '../types'
 import {
@@ -28,6 +28,7 @@ export function useTranscriptSync({
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
   const expandedWaveformRef = useRef<HTMLDivElement | null>(null)
   const expandedWaveformHeightRef = useRef(DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX)
+  const waveformCollapsedRef = useRef(waveformCollapsed)
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const segmentsRef = useRef(segments)
   const prevEditingBlockedRef = useRef<boolean>(false)
@@ -41,6 +42,7 @@ export function useTranscriptSync({
   }, [])
 
   const measureExpandedWaveform = useCallback(() => {
+    if (waveformCollapsedRef.current) return
     const el = expandedWaveformRef.current
     if (!el) return
     const rectHeight = el.getBoundingClientRect().height
@@ -65,6 +67,13 @@ export function useTranscriptSync({
     observer.observe(el)
     return () => observer.disconnect()
   }, [measureExpandedWaveform])
+
+  useLayoutEffect(() => {
+    waveformCollapsedRef.current = waveformCollapsed
+    if (!waveformCollapsed) {
+      measureExpandedWaveform()
+    }
+  }, [measureExpandedWaveform, waveformCollapsed])
 
   const shouldCollapseForCurrentScroll = useCallback(() => {
     const container = transcriptScrollRef.current

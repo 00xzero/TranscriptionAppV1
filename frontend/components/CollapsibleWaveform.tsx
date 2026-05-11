@@ -13,6 +13,7 @@ interface CollapsibleWaveformProps {
 
 interface MiniWaveformProgressProps {
   audioProgress: number
+  interactive?: boolean
   onScrub?: (fraction: number) => void
   /** Called when the user begins a drag-scrub gesture */
   onScrubStart?: () => void
@@ -22,6 +23,7 @@ interface MiniWaveformProgressProps {
 
 export function MiniWaveformProgress({
   audioProgress,
+  interactive = true,
   onScrub,
   onScrubStart,
   onScrubEnd,
@@ -48,15 +50,17 @@ export function MiniWaveformProgress({
   }, [clampFraction])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!interactive) return
     if (!onScrub) return
     const fraction = fractionFromEvent(e.clientX)
     setDragFraction(fraction)
     setIsDragging(true)
     onScrubStart?.()
     onScrub(fraction)
-  }, [fractionFromEvent, onScrub, onScrubStart])
+  }, [fractionFromEvent, interactive, onScrub, onScrubStart])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!interactive) return
     const currentFraction = clampedProgress / 100
     switch (e.key) {
       case ' ':
@@ -90,7 +94,7 @@ export function MiniWaveformProgress({
       default:
         break
     }
-  }, [clampedProgress, onScrub, clampFraction])
+  }, [clampedProgress, interactive, onScrub, clampFraction])
 
   useEffect(() => {
     if (!isDragging) return
@@ -124,7 +128,7 @@ export function MiniWaveformProgress({
         <div
           ref={barRef}
           role="slider"
-          tabIndex={0}
+          tabIndex={interactive ? 0 : -1}
           aria-label="Audio scrubber"
           aria-orientation="horizontal"
           aria-valuemin={0}

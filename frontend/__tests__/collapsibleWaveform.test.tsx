@@ -59,6 +59,18 @@ describe('CollapsibleWaveform', () => {
     expect(slider).toHaveAttribute('aria-valuenow', '40')
   })
 
+  it('removes the mini progress bar from keyboard navigation when hidden', () => {
+    const onScrub = jest.fn()
+    renderMiniProgress({ interactive: false, onScrub })
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+
+    expect(slider).toHaveAttribute('tabindex', '-1')
+
+    fireEvent.keyDown(slider, { key: 'End' })
+    fireEvent.mouseDown(slider, { clientX: 100 })
+    expect(onScrub).not.toHaveBeenCalled()
+  })
+
   it('renders expanded waveform content without the mini bar', () => {
     renderWaveform({ collapsed: false })
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
