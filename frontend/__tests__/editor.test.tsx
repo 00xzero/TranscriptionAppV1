@@ -571,7 +571,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    await user.click(screen.getByRole('button', { name: /Change speaker/i }))
+    await user.click(screen.getAllByRole('button', { name: /Change speaker/i })[0])
     await screen.findByText(/Suggested Speakers/i)
 
     fireEvent.keyDown(document, { key: 'f', metaKey: true })
@@ -586,7 +586,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await waitForEditorContent()
 
-    const trigger = screen.getByRole('button', { name: /Change speaker/i })
+    const trigger = screen.getAllByRole('button', { name: /Change speaker/i })[0]
     await user.click(trigger)
 
     const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
@@ -603,6 +603,38 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     })
     await waitFor(() => {
       expect(trigger).toHaveFocus()
+    })
+  })
+
+  test('makes consecutive same-speaker reassignment reachable by keyboard', async () => {
+    const user = userEventLib.setup()
+    ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce([
+      { id: 'sp1', project_id: 'p1', label: 'Alice', color: null, created_at: '2024-01-01T00:00:00Z' },
+    ])
+
+    renderEditorScreen()
+
+    await waitForEditorContent()
+
+    const speakerButtons = screen.getAllByRole('button', { name: /Change speaker/i })
+    expect(speakerButtons).toHaveLength(2)
+    speakerButtons.forEach((button) => {
+      expect(button).toHaveAttribute('aria-haspopup', 'dialog')
+      expect(button).toHaveAttribute('tabIndex', '0')
+      expect(button).not.toHaveAttribute('aria-hidden')
+    })
+    expect(speakerButtons[1]).toHaveClass('focus-visible:max-w-48')
+    expect(speakerButtons[1]).toHaveClass('focus-visible:opacity-100')
+    expect(speakerButtons[1]).toHaveClass('focus-visible:translate-x-0')
+    expect(speakerButtons[1]).toHaveClass('focus-visible:pointer-events-auto')
+
+    speakerButtons[1].focus()
+    await user.keyboard('{Enter}')
+    await screen.findByRole('dialog', { name: /Speaker assignment/i })
+
+    await user.click(screen.getByRole('button', { name: /Assign speaker Alice/i }))
+    await waitFor(() => {
+      expect(supabaseQueries.updateSegment).toHaveBeenCalledWith('s2', { speaker_id: 'sp1' })
     })
   })
 

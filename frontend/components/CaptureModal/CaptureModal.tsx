@@ -67,7 +67,7 @@ export default function CaptureModal() {
       }}
     >
       <DialogContent
-        className="top-[10%] w-[500px] overflow-hidden p-0 text-ink dark:text-[#EAEAEA]"
+        className="top-[10%] w-[500px] overflow-hidden p-0 text-ink dark:text-paper"
         aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
           if (isUploading) {

@@ -44,7 +44,7 @@ export default function EditorHeader({
           {editingTitle ? (
             <input
               ref={titleInputRef}
-              className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-[#EAEAEA] min-w-[300px] focus:outline-hidden mb-4 ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
+              className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-paper min-w-[300px] focus:outline-hidden mb-4 ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
               value={titleInput}
               onChange={(e) => setTitleInput(e.target.value)}
               onKeyDown={onTitleKeyDown}
@@ -56,7 +56,7 @@ export default function EditorHeader({
             <Tooltip>
               <TooltipTrigger asChild>
                 <h1
-                  className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-[#EAEAEA] cursor-pointer hover:text-trust-blue transition-colors mb-4"
+                  className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-paper cursor-pointer hover:text-trust-blue transition-colors mb-4"
                   onClick={startEditingTitle}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
