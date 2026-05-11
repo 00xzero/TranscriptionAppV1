@@ -92,7 +92,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     Object.defineProperty(scrollContainer, 'scrollTop', {
       configurable: true,
       writable: true,
-      value: 80,
+      value: 200,
     })
 
     fireEvent.scroll(scrollContainer)
@@ -182,6 +182,25 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
     })
     expect(scrollContainer.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
+  })
+
+  test('keeps the waveform expanded before most of the player scrolls away', async () => {
+    renderEditorScreen()
+
+    await waitForEditorContent()
+
+    const scrollContainer = document.querySelector('.overflow-auto') as HTMLElement
+    expect(scrollContainer).not.toBeNull()
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 120,
+    })
+
+    fireEvent.scroll(scrollContainer)
+
+    expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('audio-player')).toBeInTheDocument()
   })
 
   test('supports debounced search, arrow navigation, whole-word filtering, and clear', async () => {

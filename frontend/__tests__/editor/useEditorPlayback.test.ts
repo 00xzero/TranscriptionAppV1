@@ -34,9 +34,7 @@ function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
   const onWordSeek = jest.fn()
   const onSegmentSeek = jest.fn()
   const setWaveformCollapsed = jest.fn()
-  const transcriptScrollRef = {
-    current: { scrollTop: 80 } as HTMLDivElement | null,
-  }
+  const shouldCollapseWaveform = jest.fn(() => true)
 
   const props = {
     projectId: 'p1',
@@ -50,7 +48,7 @@ function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
     onWordSeek,
     onSegmentSeek,
     setWaveformCollapsed,
-    transcriptScrollRef,
+    shouldCollapseWaveform,
     ...overrides,
   }
 
@@ -68,12 +66,13 @@ function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
     onWordSeek,
     onSegmentSeek,
     setWaveformCollapsed,
+    shouldCollapseWaveform,
   }
 }
 
 describe('useEditorPlayback', () => {
   it('commits the current player position after mini scrub ends', () => {
-    const { result, commitSeek, setWaveformCollapsed } = setup()
+    const { result, commitSeek, setWaveformCollapsed, shouldCollapseWaveform } = setup()
     const player = createPlayer()
 
     act(() => {
@@ -83,23 +82,62 @@ describe('useEditorPlayback', () => {
     })
 
     expect(player.endScrub).toHaveBeenCalledTimes(1)
+    expect(shouldCollapseWaveform).toHaveBeenCalledTimes(1)
     expect(commitSeek).toHaveBeenCalledWith(12000)
     expect(setWaveformCollapsed).toHaveBeenCalledWith(true)
   })
 
   it('commits the current player position after player drag ends', () => {
-    const { result, commitSeek, setWaveformCollapsed, startSeek } = setup()
+    const { result, commitSeek, setWaveformCollapsed, shouldCollapseWaveform, startSeek } = setup()
     const player = createPlayer()
 
     act(() => {
       result.current.handleAudioPlayerRef(player as any)
       result.current.handlePlayerDragStart()
+    })
+
+    expect(result.current.expandedPlayerScrubbing).toBe(true)
+
+    act(() => {
       result.current.handlePlayerDragEnd()
     })
 
     expect(startSeek).toHaveBeenCalledTimes(1)
+    expect(shouldCollapseWaveform).toHaveBeenCalledTimes(1)
     expect(commitSeek).toHaveBeenCalledWith(12000)
     expect(setWaveformCollapsed).toHaveBeenCalledWith(true)
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
+  })
+
+  it('keeps the expanded player pinned while the expanded waveform is being scrubbed', () => {
+    const { result } = setup()
+    const player = createPlayer()
+
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleExpandedScrubStart()
+    })
+
+    expect(result.current.expandedPlayerScrubbing).toBe(true)
+    expect(player.beginScrub).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.handleExpandedScrubEnd()
+    })
+
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
+  })
+
+  it('does not pin the expanded player for mini-player scrubs', () => {
+    const { result } = setup()
+    const player = createPlayer()
+
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleMiniScrubStart()
+    })
+
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
   })
 
   it('ignores mini scrub gestures before the player is ready', () => {

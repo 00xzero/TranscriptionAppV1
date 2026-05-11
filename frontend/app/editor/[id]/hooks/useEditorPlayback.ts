@@ -14,7 +14,7 @@ export function useEditorPlayback({
   onWordSeek,
   onSegmentSeek,
   setWaveformCollapsed,
-  transcriptScrollRef,
+  shouldCollapseWaveform,
 }: {
   projectId: string
   audioSrc: string | null
@@ -27,7 +27,7 @@ export function useEditorPlayback({
   onWordSeek: (segId: string) => void
   onSegmentSeek: (segId: string) => void
   setWaveformCollapsed: (collapsed: boolean) => void
-  transcriptScrollRef: React.RefObject<HTMLDivElement | null>
+  shouldCollapseWaveform: () => boolean
 }) {
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const wasPlayingBeforeScrubRef = useRef(false)
@@ -39,6 +39,7 @@ export function useEditorPlayback({
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
   const [audioDuration, setAudioDuration] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1.0)
+  const [expandedPlayerScrubbing, setExpandedPlayerScrubbing] = useState(false)
   const readyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
   const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
@@ -172,32 +173,39 @@ export function useEditorPlayback({
     player.endScrub()
     const currentMs = Math.floor(player.getCurrentTime() * 1000)
     seekGestureActiveRef.current = false
-    const container = transcriptScrollRef.current
-    if (container) {
-      setWaveformCollapsed(container.scrollTop > 50)
-    }
+    setWaveformCollapsed(shouldCollapseWaveform())
     commitSeek(currentMs)
     if (wasPlayingBeforeScrubRef.current) {
       wasPlayingBeforeScrubRef.current = false
       player.play()
     }
-  }, [commitSeek, transcriptScrollRef, setWaveformCollapsed])
+  }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed])
+
+  const handleExpandedScrubStart = useCallback(() => {
+    if (!audioPlayerRef.current) return
+    setExpandedPlayerScrubbing(true)
+    handleMiniScrubStart()
+  }, [handleMiniScrubStart])
+
+  const handleExpandedScrubEnd = useCallback(() => {
+    handleMiniScrubEnd()
+    setExpandedPlayerScrubbing(false)
+  }, [handleMiniScrubEnd])
 
   const handlePlayerDragStart = useCallback(() => {
+    setExpandedPlayerScrubbing(true)
     seekGestureActiveRef.current = true
     startSeek()
   }, [startSeek])
 
   const handlePlayerDragEnd = useCallback(() => {
     seekGestureActiveRef.current = false
-    const container = transcriptScrollRef.current
-    if (container) {
-      setWaveformCollapsed(container.scrollTop > 50)
-    }
+    setWaveformCollapsed(shouldCollapseWaveform())
+    setExpandedPlayerScrubbing(false)
     const player = audioPlayerRef.current
     if (!player) return
     commitSeek(Math.floor(player.getCurrentTime() * 1000))
-  }, [commitSeek, transcriptScrollRef, setWaveformCollapsed])
+  }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed])
 
   return {
     handleAudioPlayerRef,
@@ -206,6 +214,7 @@ export function useEditorPlayback({
     audioCurrentTime,
     audioDuration,
     playbackRate,
+    expandedPlayerScrubbing,
     handleAudioReady,
     handleAudioError,
     handlePlayingChange,
@@ -220,6 +229,8 @@ export function useEditorPlayback({
     handleMiniScrubStart,
     handleMiniScrub,
     handleMiniScrubEnd,
+    handleExpandedScrubStart,
+    handleExpandedScrubEnd,
     handlePlayerDragStart,
     handlePlayerDragEnd,
   }

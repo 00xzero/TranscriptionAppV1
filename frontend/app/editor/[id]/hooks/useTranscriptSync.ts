@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { VirtuosoHandle, ListRange } from 'react-virtuoso'
 import type { Seg } from '../types'
 import {
+  DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX,
   SYNC_OFFSET_MS,
   ACTIVE_CARD_VISIBILITY_MARGIN_PX,
+  shouldCollapseWaveform,
 } from '../utils'
 import { useScrollSyncMachine } from './useScrollSyncMachine'
 import { useUserScrollDetection } from './useUserScrollDetection'
@@ -23,6 +25,8 @@ export function useTranscriptSync({
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null)
+  const expandedWaveformRef = useRef<HTMLDivElement | null>(null)
+  const expandedWaveformHeightRef = useRef(DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX)
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const segmentsRef = useRef(segments)
   const prevEditingBlockedRef = useRef<boolean>(false)
@@ -34,6 +38,39 @@ export function useTranscriptSync({
     transcriptScrollRef.current = el
     setScrollParent(el)
   }, [])
+
+  const measureExpandedWaveform = useCallback(() => {
+    const el = expandedWaveformRef.current
+    if (!el) return
+    const rectHeight = el.getBoundingClientRect().height
+    const nextHeight = rectHeight > 0 ? rectHeight : el.offsetHeight
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) return
+    expandedWaveformHeightRef.current = nextHeight
+  }, [])
+
+  const expandedWaveformContainerRef = useCallback((el: HTMLDivElement | null) => {
+    expandedWaveformRef.current = el
+    measureExpandedWaveform()
+  }, [measureExpandedWaveform])
+
+  useEffect(() => {
+    measureExpandedWaveform()
+    const el = expandedWaveformRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => measureExpandedWaveform())
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [measureExpandedWaveform])
+
+  const shouldCollapseForCurrentScroll = useCallback(() => {
+    const container = transcriptScrollRef.current
+    if (!container) return false
+    return shouldCollapseWaveform(container.scrollTop, expandedWaveformHeightRef.current)
+  }, [])
+
+  const refreshWaveformCollapse = useCallback(() => {
+    setWaveformCollapsed(shouldCollapseForCurrentScroll())
+  }, [shouldCollapseForCurrentScroll])
 
   const findActiveSegmentId = useCallback((tMs: number) => {
     if (segmentsRef.current.length === 0) return undefined
@@ -136,17 +173,17 @@ export function useTranscriptSync({
     else if (activeIdx > range.endIndex) setSyncDirection('down')
   }, [machineState.activeSegId, segments])
 
-  // Collapse waveform when transcript scrolls past 50px
+  // Collapse waveform once most of the in-flow player has scrolled away.
   useEffect(() => {
     const container = transcriptScrollRef.current
     if (!container) return
     const handleScroll = () => {
       if (machineStateRef.current.mode === 'seeking') return
-      setWaveformCollapsed(container.scrollTop > 50)
+      refreshWaveformCollapse()
     }
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [machineStateRef])
+  }, [machineStateRef, refreshWaveformCollapse])
 
   useEffect(() => {
     const isBlocked = !!editingId
@@ -208,6 +245,8 @@ export function useTranscriptSync({
     suspendFollow,
     scrollParent,
     waveformCollapsed, setWaveformCollapsed,
+    expandedWaveformContainerRef,
+    shouldCollapseForCurrentScroll,
     virtuosoRef,
     transcriptScrollRef,
     scrollContainerRef,

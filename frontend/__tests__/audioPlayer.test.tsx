@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import AudioPlayer, { AudioPlayerRef } from '../components/AudioPlayer'
-import CollapsibleWaveform from '../components/CollapsibleWaveform'
+import { MiniWaveformProgress } from '../components/CollapsibleWaveform'
 import { TooltipProvider } from '../components/ui/tooltip'
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
@@ -402,7 +402,8 @@ describe('AudioPlayer', () => {
       const [audioProgress, setAudioProgress] = React.useState(0)
 
       return (
-        <CollapsibleWaveform collapsed={collapsed} audioProgress={audioProgress}>
+        <>
+          {collapsed && <MiniWaveformProgress audioProgress={audioProgress} />}
           <AudioPlayer
             src="test.mp3"
             hideControls
@@ -411,7 +412,7 @@ describe('AudioPlayer', () => {
               setCollapsed(true)
             }}
           />
-        </CollapsibleWaveform>
+        </>
       )
     }
 
