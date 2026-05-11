@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-11] - Hover-Reveal Speaker on Consecutive Segments
+
+Restored per-segment speaker reassignment on cards inside a same-speaker run. Previously only the first card of a monologue exposed the click-to-change speaker affordance; subsequent cards hid the header entirely, so users could not retarget a single segment without going through the run's first card.
+
+### Changed
+
+- **`frontend/app/editor/[id]/components/TranscriptSegmentCard.tsx`** — `SegmentHeaderRow` now always renders the speaker button when `onSpeakerClick` is provided. On consecutive same-speaker cards it collapses to zero width with a negative margin offset so default spacing stays clean (no phantom indent before the timestamp), then expands on card hover with a width + opacity + slide-in animation. Reveal is non-interactive while collapsed (`pointer-events-none`, `aria-hidden`, `tabIndex={-1}`) so Testing Library's `getByRole` still matches a single speaker button and no hover-only tab stops are introduced.
+
+### Accessibility
+
+- Hover-reveal honors `prefers-reduced-motion` via `motion-reduce:transition-none` — the show/hide still fires but without the fade/slide/width animation.
+- `aria-hidden` on the collapsed buttons is a deliberate scope choice: keyboard / AT users retain today's behavior (the duplicate buttons did not previously exist on those cards). A keyboard-accessible per-segment affordance is a follow-up.
+
+### Tests
+
+- **`frontend`** — `npx jest __tests__/editor.test.tsx` (30/30 passing — speaker popover and edit-button cases unaffected)
+- **`frontend`** — `npm run lint` (no new warnings)
+
 ## [2026-05-11] - Waveform Branch Cleanup
 
 Follow-up simplification pass over the waveform branch: deduplicated helpers, cut a re-render hot path in the audio engine, and removed narrating comments left over from the initial implementation.
