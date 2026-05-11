@@ -65,6 +65,10 @@ export function useProjectsRealtime() {
             pollingInterval: 5000,
         })
 
+    useEffect(() => {
+        if (!userId) mutate([])
+    }, [userId, mutate])
+
     // Action: Delete project with optimistic update
     const deleteProject = useCallback(
         async (id: string) => {
