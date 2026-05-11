@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import AudioPlayer, { AudioPlayerRef } from '../components/AudioPlayer'
-import { MiniWaveformProgress } from '../components/CollapsibleWaveform'
+import { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import { TooltipProvider } from '../components/ui/tooltip'
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
