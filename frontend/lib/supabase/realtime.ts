@@ -15,6 +15,10 @@ type TableName = 'projects' | 'jobs' | 'speakers'
 interface UseRealtimeOptions<T> {
     /** Initial data to display while loading */
     initialData?: T[]
+    /** Optional Postgres Changes filter, e.g. `project_id=eq.<uuid>` */
+    realtimeFilter?: string | null
+    /** Disable subscription setup while required filter inputs are unavailable */
+    subscriptionEnabled?: boolean
     /** Enable 5s polling fallback when realtime fails */
     enablePollingFallback?: boolean
     /** Custom polling interval in ms (default: 5000) */
@@ -31,7 +35,14 @@ export function useSupabaseRealtime<T extends { id: string }>(
     fetchFn: () => Promise<T[]>,
     options: UseRealtimeOptions<T> = {}
 ) {
-    const { initialData = [], enablePollingFallback = true, pollingInterval = 5000, transformRealtimePayload } = options
+    const {
+        initialData = [],
+        realtimeFilter,
+        subscriptionEnabled = true,
+        enablePollingFallback = true,
+        pollingInterval = 5000,
+        transformRealtimePayload,
+    } = options
 
     const [data, setData] = useState<T[]>(initialData)
     const [isLoading, setIsLoading] = useState(true)
@@ -99,12 +110,27 @@ export function useSupabaseRealtime<T extends { id: string }>(
         // Initial fetch
         fetchData()
 
+        if (!subscriptionEnabled) {
+            setConnectionStatus('disconnected')
+            return () => {
+                isMountedRef.current = false
+                stopPolling()
+            }
+        }
+
+        const changesFilter = {
+            event: '*',
+            schema: 'public',
+            table,
+            ...(realtimeFilter ? { filter: realtimeFilter } : {}),
+        } as const
+
         // Setup realtime channel
         const channel = supabase
-            .channel(`${table}-changes`)
+            .channel(`${table}-changes:${realtimeFilter ?? 'all'}`)
             .on<T>(
                 'postgres_changes',
-                { event: '*', schema: 'public', table },
+                changesFilter,
                 (payload: RealtimePostgresChangesPayload<T>) => {
                     if (!isMountedRef.current) return
 
@@ -161,7 +187,17 @@ export function useSupabaseRealtime<T extends { id: string }>(
                 channelRef.current = null
             }
         }
-    }, [table, fetchData, startPolling, stopPolling, enablePollingFallback, pollingInterval])
+    }, [
+        table,
+        realtimeFilter,
+        subscriptionEnabled,
+        fetchData,
+        startPolling,
+        stopPolling,
+        enablePollingFallback,
+        pollingInterval,
+        transformRealtimePayload,
+    ])
 
     return {
         data,
