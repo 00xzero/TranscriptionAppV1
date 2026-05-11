@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import CollapsibleWaveform from '../components/CollapsibleWaveform'
-import { TooltipProvider } from '../components/ui/tooltip'
+import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 // Helper to mock getBoundingClientRect on the scrubber bar
 function mockBarRect(el: HTMLElement, left: number, width: number) {
@@ -19,16 +19,26 @@ function mockBarRect(el: HTMLElement, left: number, width: number) {
 }
 
 describe('CollapsibleWaveform', () => {
-  const defaultProps = {
-    collapsed: true,
-    audioProgress: 40,
+  const defaultShellProps = {
+    collapsed: false,
     children: <div data-testid="waveform-content">Audio Player</div>,
+  }
+
+  const defaultMiniProps = {
+    audioProgress: 40,
   }
 
   const renderWaveform = (props: Partial<React.ComponentProps<typeof CollapsibleWaveform>> = {}) =>
     render(
       <TooltipProvider delayDuration={0}>
-        <CollapsibleWaveform {...defaultProps} {...props} />
+        <CollapsibleWaveform {...defaultShellProps} {...props} />
+      </TooltipProvider>
+    )
+
+  const renderMiniProgress = (props: Partial<React.ComponentProps<typeof MiniWaveformProgress>> = {}) =>
+    render(
+      <TooltipProvider delayDuration={0}>
+        <MiniWaveformProgress {...defaultMiniProps} {...props} />
       </TooltipProvider>
     )
 
@@ -43,20 +53,48 @@ describe('CollapsibleWaveform', () => {
   })
 
   it('renders mini progress bar when collapsed', () => {
-    renderWaveform()
+    renderMiniProgress()
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     expect(slider).toBeInTheDocument()
     expect(slider).toHaveAttribute('aria-valuenow', '40')
   })
 
-  it('does not render mini bar when expanded', () => {
+  it('removes the mini progress bar from keyboard navigation when hidden', () => {
+    const onScrub = jest.fn()
+    renderMiniProgress({ interactive: false, onScrub })
+    const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
+
+    expect(slider).toHaveAttribute('tabindex', '-1')
+
+    fireEvent.keyDown(slider, { key: 'End' })
+    fireEvent.mouseDown(slider, { clientX: 100 })
+    expect(onScrub).not.toHaveBeenCalled()
+  })
+
+  it('renders expanded waveform content without the mini bar', () => {
     renderWaveform({ collapsed: false })
     expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+    expect(screen.getByTestId('waveform-content')).toBeInTheDocument()
+  })
+
+  it('can pin the expanded waveform while a full-player scrub is active', () => {
+    renderWaveform({ collapsed: false, pinned: true })
+    const content = screen.getByTestId('waveform-content')
+    expect(content.closest('.sticky')).not.toBeNull()
+  })
+
+  it('preserves layout height while the waveform content is collapsed', () => {
+    renderWaveform({ collapsed: true, expandedHeight: 312 })
+    const content = screen.getByTestId('waveform-content')
+    const shell = content.closest('.relative.leading-none') as HTMLElement
+
+    expect(shell).not.toBeNull()
+    expect(shell.style.height).toBe('312px')
   })
 
   it('calls onScrub with correct fraction on mouse down at 50%', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 200)
 
@@ -66,7 +104,7 @@ describe('CollapsibleWaveform', () => {
 
   it('calls onScrub with 0 on mouse down at left edge', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 400)
 
@@ -76,7 +114,7 @@ describe('CollapsibleWaveform', () => {
 
   it('calls onScrub with 1 on mouse down at right edge', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 300)
 
@@ -86,7 +124,7 @@ describe('CollapsibleWaveform', () => {
 
   it('returns safe default when scrubber width is zero', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 0)
 
@@ -96,7 +134,7 @@ describe('CollapsibleWaveform', () => {
 
   it('clamps fraction to 0-1 for out-of-bounds drags', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 100, 200)
 
@@ -111,7 +149,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports keyboard scrub-to-start with Home when onScrub is provided', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     fireEvent.keyDown(slider, { key: 'Home' })
     expect(onScrub).toHaveBeenCalledWith(0)
@@ -119,7 +157,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports keyboard scrubbing with arrow/end keys', () => {
     const onScrub = jest.fn()
-    renderWaveform({ audioProgress: 40, onScrub })
+    renderMiniProgress({ audioProgress: 40, onScrub })
     const slider = screen.getByRole('slider')
 
     fireEvent.keyDown(slider, { key: 'ArrowRight' })
@@ -131,7 +169,7 @@ describe('CollapsibleWaveform', () => {
 
   it('supports drag-to-scrub via mousedown + mousemove + mouseup', () => {
     const onScrub = jest.fn()
-    renderWaveform({ onScrub })
+    renderMiniProgress({ onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -160,7 +198,7 @@ describe('CollapsibleWaveform', () => {
 
   it('renders local drag preview during scrubbing and resets to prop progress on release', () => {
     const onScrub = jest.fn()
-    renderWaveform({ audioProgress: 40, onScrub })
+    renderMiniProgress({ audioProgress: 40, onScrub })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -183,7 +221,7 @@ describe('CollapsibleWaveform', () => {
   })
 
   it('renders progress bar at correct width', () => {
-    renderWaveform({ audioProgress: 65 })
+    renderMiniProgress({ audioProgress: 65 })
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     const fill = slider.firstChild as HTMLElement
     expect(fill.style.width).toBe('65%')
@@ -193,7 +231,7 @@ describe('CollapsibleWaveform', () => {
     const onScrub = jest.fn()
     const onScrubStart = jest.fn()
     const onScrubEnd = jest.fn()
-    renderWaveform({ onScrub, onScrubStart, onScrubEnd })
+    renderMiniProgress({ onScrub, onScrubStart, onScrubEnd })
     const slider = screen.getByRole('slider')
     mockBarRect(slider, 0, 400)
 
@@ -212,7 +250,7 @@ describe('CollapsibleWaveform', () => {
   it('does not call onScrubStart/onScrubEnd when onScrub is not provided', () => {
     const onScrubStart = jest.fn()
     const onScrubEnd = jest.fn()
-    renderWaveform({ onScrubStart, onScrubEnd })
+    renderMiniProgress({ onScrubStart, onScrubEnd })
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
 
     fireEvent.mouseDown(slider)

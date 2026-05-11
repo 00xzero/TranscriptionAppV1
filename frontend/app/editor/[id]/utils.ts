@@ -5,6 +5,8 @@ export const SYNC_OFFSET_MS = 150
 export const SEEK_LOCK_MS = 3000
 export const PROGRAMMATIC_SCROLL_RESET_MS = 250
 export const ACTIVE_CARD_VISIBILITY_MARGIN_PX = 24
+export const WAVEFORM_COLLAPSE_THRESHOLD_RATIO = 0.6
+export const DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX = 256
 export const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
 // Scripts with little/no case mapping support; used for whole-word boundary checks.
 export const NON_CASED_WORD_CHAR_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u3040-\u30FF\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF]/
@@ -71,4 +73,15 @@ export function msToTimestamp(ms: number): string {
   const h = Math.floor(totalSec / 3600)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${pad(h)}:${pad(m)}:${pad(s)}`
+}
+
+export function shouldCollapseWaveform(
+  scrollTop: number,
+  expandedWaveformHeight: number,
+  thresholdRatio = WAVEFORM_COLLAPSE_THRESHOLD_RATIO
+): boolean {
+  const measuredHeight = Number.isFinite(expandedWaveformHeight) && expandedWaveformHeight > 0
+    ? expandedWaveformHeight
+    : DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX
+  return scrollTop >= measuredHeight * thresholdRatio
 }

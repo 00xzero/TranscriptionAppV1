@@ -4,7 +4,7 @@ import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
-import CollapsibleWaveform from '@/components/CollapsibleWaveform'
+import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
@@ -63,7 +63,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     onWordSeek: sync.onWordSeek,
     onSegmentSeek: sync.onSegmentSeek,
     setWaveformCollapsed: sync.setWaveformCollapsed,
-    transcriptScrollRef: sync.transcriptScrollRef,
+    shouldCollapseWaveform: sync.shouldCollapseForCurrentScroll,
   })
 
   // 5. Search + Export modal
@@ -114,52 +114,23 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
     (!!sync.activeIds.segId || sync.hasUserScrolled) &&
     !speakerHook.speakerPopover &&
     !editing.editingId
+  const waveformCollapsed = sync.waveformCollapsed && !playback.expandedPlayerScrubbing
   const didInteractOutsidePopoverRef = useRef(false)
-
 
   return (
     <div className="flex flex-col h-full relative">
-      <CollapsibleWaveform
-        collapsed={sync.waveformCollapsed}
-        audioProgress={playback.audioProgress}
-        onScrub={playback.handleMiniScrub}
-        onScrubStart={playback.handleMiniScrubStart}
-        onScrubEnd={playback.handleMiniScrubEnd}
+      <div
+        className={`absolute top-0 left-0 w-full z-40 transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        aria-hidden={!waveformCollapsed}
       >
-        {data.audioSrc ? (
-          <>
-            <AudioPlayer
-              ref={playback.handleAudioPlayerRef}
-              src={data.audioSrc}
-              onReady={playback.handleAudioReady}
-              onError={playback.handleAudioError}
-              onPlayingChange={playback.handlePlayingChange}
-              onTimeUpdate={playback.handleTimeUpdate}
-              onScrubPreview={playback.handleScrubPreview}
-              onScrubPreviewFraction={playback.handleScrubPreviewFraction}
-              onDragStart={playback.handlePlayerDragStart}
-              onDragEnd={playback.handlePlayerDragEnd}
-              initialPlaybackRate={playback.playbackRate}
-              hideControls
-              audioEngineOnly={data.peaks !== null}
-            />
-            {data.peaks ? (
-              <Waveform
-                peaks={data.peaks}
-                currentTime={playback.audioCurrentTime}
-                duration={playback.audioDuration}
-                onScrub={playback.handleMiniScrub}
-                onScrubStart={playback.handleMiniScrubStart}
-                onScrubEnd={playback.handleMiniScrubEnd}
-              />
-            ) : null}
-          </>
-        ) : (
-          <div className="h-12 flex items-center justify-center text-muted">
-            Loading audio...
-          </div>
-        )}
-      </CollapsibleWaveform>
+        <MiniWaveformProgress
+          audioProgress={playback.audioProgress}
+          interactive={waveformCollapsed}
+          onScrub={playback.handleMiniScrub}
+          onScrubStart={playback.handleMiniScrubStart}
+          onScrubEnd={playback.handleMiniScrubEnd}
+        />
+      </div>
 
       <FindReplaceModal
         open={search.findReplaceOpen}
@@ -190,9 +161,50 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
       />
 
       <div
-        className={`flex-1 overflow-auto pb-32 ${sync.waveformCollapsed ? 'pt-[56px]' : 'pt-0'}`}
+        className="flex-1 overflow-auto pb-32"
         ref={sync.scrollContainerRef}
       >
+        <CollapsibleWaveform
+          collapsed={waveformCollapsed}
+          contentRef={sync.expandedWaveformContainerRef}
+          expandedHeight={sync.expandedWaveformHeight}
+          pinned={playback.expandedPlayerScrubbing}
+        >
+          {data.audioSrc ? (
+            <>
+              <AudioPlayer
+                ref={playback.handleAudioPlayerRef}
+                src={data.audioSrc}
+                onReady={playback.handleAudioReady}
+                onError={playback.handleAudioError}
+                onPlayingChange={playback.handlePlayingChange}
+                onTimeUpdate={playback.handleTimeUpdate}
+                onScrubPreview={playback.handleScrubPreview}
+                onScrubPreviewFraction={playback.handleScrubPreviewFraction}
+                onDragStart={playback.handlePlayerDragStart}
+                onDragEnd={playback.handlePlayerDragEnd}
+                initialPlaybackRate={playback.playbackRate}
+                hideControls
+                audioEngineOnly={data.peaks !== null}
+              />
+              {data.peaks ? (
+                <Waveform
+                  peaks={data.peaks}
+                  currentTime={playback.audioCurrentTime}
+                  duration={playback.audioDuration}
+                  onScrub={playback.handleMiniScrub}
+                  onScrubStart={playback.handleExpandedScrubStart}
+                  onScrubEnd={playback.handleExpandedScrubEnd}
+                />
+              ) : null}
+            </>
+          ) : (
+            <div className="h-12 flex items-center justify-center text-muted">
+              Loading audio...
+            </div>
+          )}
+        </CollapsibleWaveform>
+
         <EditorHeader
           projectId={projectId}
           projectTitle={data.projectTitle}

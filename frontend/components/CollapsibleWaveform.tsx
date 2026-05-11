@@ -5,23 +5,29 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 interface CollapsibleWaveformProps {
   collapsed: boolean
+  children: React.ReactNode
+  contentRef?: (el: HTMLDivElement | null) => void
+  expandedHeight?: number
+  pinned?: boolean
+}
+
+interface MiniWaveformProgressProps {
   audioProgress: number
+  interactive?: boolean
   onScrub?: (fraction: number) => void
   /** Called when the user begins a drag-scrub gesture */
   onScrubStart?: () => void
   /** Called when the user releases a drag-scrub gesture */
   onScrubEnd?: () => void
-  children: React.ReactNode
 }
 
-export default function CollapsibleWaveform({
-  collapsed,
+export function MiniWaveformProgress({
   audioProgress,
+  interactive = true,
   onScrub,
   onScrubStart,
   onScrubEnd,
-  children,
-}: CollapsibleWaveformProps) {
+}: MiniWaveformProgressProps) {
   const normalizedProgress = Number.isFinite(audioProgress) ? audioProgress : 0
   const clampedProgress = Math.min(100, Math.max(0, normalizedProgress))
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -44,15 +50,17 @@ export default function CollapsibleWaveform({
   }, [clampFraction])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!interactive) return
     if (!onScrub) return
     const fraction = fractionFromEvent(e.clientX)
     setDragFraction(fraction)
     setIsDragging(true)
     onScrubStart?.()
     onScrub(fraction)
-  }, [fractionFromEvent, onScrub, onScrubStart])
+  }, [fractionFromEvent, interactive, onScrub, onScrubStart])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!interactive) return
     const currentFraction = clampedProgress / 100
     switch (e.key) {
       case ' ':
@@ -86,7 +94,7 @@ export default function CollapsibleWaveform({
       default:
         break
     }
-  }, [clampedProgress, onScrub, clampFraction])
+  }, [clampedProgress, interactive, onScrub, clampFraction])
 
   useEffect(() => {
     if (!isDragging) return
@@ -115,37 +123,52 @@ export default function CollapsibleWaveform({
   const visibleProgress = dragFraction !== null ? dragFraction * 100 : clampedProgress
 
   return (
-    <div className={`relative leading-none ${collapsed ? 'z-50' : 'z-30'}`}>
-      {/* Mini progress bar — visible when collapsed */}
-      {collapsed && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              ref={barRef}
-              role="slider"
-              tabIndex={0}
-              aria-label="Audio scrubber"
-              aria-orientation="horizontal"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(visibleProgress)}
-              onMouseDown={handleMouseDown}
-              onKeyDown={handleKeyDown}
-              className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
-            >
-              <div
-                className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
-                style={{ width: `${visibleProgress}%` }}
-              />
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>Scrub audio</TooltipContent>
-        </Tooltip>
-      )}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          ref={barRef}
+          role="slider"
+          tabIndex={interactive ? 0 : -1}
+          aria-label="Audio scrubber"
+          aria-orientation="horizontal"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(visibleProgress)}
+          onMouseDown={handleMouseDown}
+          onKeyDown={handleKeyDown}
+          className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
+        >
+          <div
+            className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
+            style={{ width: `${visibleProgress}%` }}
+          />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>Scrub audio</TooltipContent>
+    </Tooltip>
+  )
+}
 
+export default function CollapsibleWaveform({
+  collapsed,
+  children,
+  contentRef,
+  expandedHeight,
+  pinned = false,
+}: CollapsibleWaveformProps) {
+  const spacerHeight = typeof expandedHeight === 'number' && Number.isFinite(expandedHeight) && expandedHeight > 0
+    ? expandedHeight
+    : undefined
+
+  return (
+    <div
+      className={`relative leading-none ${pinned ? 'sticky top-0 z-30' : ''}`}
+      style={collapsed && spacerHeight ? { height: spacerHeight } : undefined}
+    >
       {/* Expandable waveform container */}
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
+        ref={contentRef}
+        className={`overflow-hidden transition-[max-height,padding,opacity] duration-500 ease-in-out ${collapsed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-[500px] opacity-100'
           }`}
       >
         <div className="relative pt-[56px] bg-paper dark:bg-black border-b border-ink/10 dark:border-white/10">
