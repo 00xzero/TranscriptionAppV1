@@ -2,7 +2,7 @@
  * Supabase Realtime subscription hooks for live data updates.
  *
  * Primary mechanism for data fetching with 5s polling fallback
- * when realtime subscription fails.
+ * when realtime is unavailable.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/infra/supabase/client'
@@ -11,6 +11,9 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'
 
 type TableName = 'projects' | 'jobs' | 'speakers'
+type InsertPosition = 'append' | 'prepend'
+let nextSubscriptionId = 0
+const MAX_REALTIME_RETRIES = 5
 
 interface UseRealtimeOptions<T> {
     /** Initial data to display while loading */
@@ -25,6 +28,8 @@ interface UseRealtimeOptions<T> {
     pollingInterval?: number
     /** Transform function to strip unwanted fields from realtime payloads */
     transformRealtimePayload?: (row: Record<string, unknown>) => T
+    /** Where to place rows that arrive before the next ordered refetch */
+    insertPosition?: InsertPosition
 }
 
 /**
@@ -42,16 +47,26 @@ export function useSupabaseRealtime<T extends { id: string }>(
         enablePollingFallback = true,
         pollingInterval = 5000,
         transformRealtimePayload,
+        insertPosition = 'append',
     } = options
 
     const [data, setData] = useState<T[]>(initialData)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<Error | null>(null)
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
+    const [subscriptionNonce, setSubscriptionNonce] = useState(0)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
     const pollingRef = useRef<NodeJS.Timeout | null>(null)
+    const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const retryCountRef = useRef(0)
     const isMountedRef = useRef(true)
+    const subscriptionIdRef = useRef<number | null>(null)
+
+    if (subscriptionIdRef.current === null) {
+        nextSubscriptionId += 1
+        subscriptionIdRef.current = nextSubscriptionId
+    }
 
     // Fetch data function
     const fetchData = useCallback(async () => {
@@ -102,6 +117,22 @@ export function useSupabaseRealtime<T extends { id: string }>(
         }
     }, [])
 
+    const clearRetryTimeout = useCallback(() => {
+        if (retryTimeoutRef.current) {
+            clearTimeout(retryTimeoutRef.current)
+            retryTimeoutRef.current = null
+        }
+    }, [])
+
+    const mergeItem = useCallback((prev: T[], item: T) => {
+        const existingIndex = prev.findIndex((current) => current.id === item.id)
+        if (existingIndex !== -1) {
+            return prev.map((current) => current.id === item.id ? item : current)
+        }
+
+        return insertPosition === 'prepend' ? [item, ...prev] : [...prev, item]
+    }, [insertPosition])
+
     // Setup realtime subscription
     useEffect(() => {
         isMountedRef.current = true
@@ -111,10 +142,13 @@ export function useSupabaseRealtime<T extends { id: string }>(
         fetchData()
 
         if (!subscriptionEnabled) {
-            setConnectionStatus('disconnected')
+            setConnectionStatus('connecting')
+            retryCountRef.current = 0
+            clearRetryTimeout()
             return () => {
                 isMountedRef.current = false
                 stopPolling()
+                clearRetryTimeout()
             }
         }
 
@@ -126,8 +160,9 @@ export function useSupabaseRealtime<T extends { id: string }>(
         } as const
 
         // Setup realtime channel
+        const channelName = `${table}-changes:${realtimeFilter ?? 'all'}:${subscriptionIdRef.current}:${subscriptionNonce}`
         const channel = supabase
-            .channel(`${table}-changes:${realtimeFilter ?? 'all'}`)
+            .channel(channelName)
             .on<T>(
                 'postgres_changes',
                 changesFilter,
@@ -138,16 +173,12 @@ export function useSupabaseRealtime<T extends { id: string }>(
                         const newItem = transformRealtimePayload 
                             ? transformRealtimePayload(payload.new as Record<string, unknown>)
                             : payload.new as T
-                        setData(prev => [...prev, newItem])
+                        setData(prev => mergeItem(prev, newItem))
                     } else if (payload.eventType === 'UPDATE') {
                         const updatedItem = transformRealtimePayload
                             ? transformRealtimePayload(payload.new as Record<string, unknown>)
                             : payload.new as T
-                        setData(prev =>
-                            prev.map(item =>
-                                item.id === updatedItem.id ? updatedItem : item
-                            )
-                        )
+                        setData(prev => mergeItem(prev, updatedItem))
                     } else if (payload.eventType === 'DELETE') {
                         setData(prev =>
                             prev.filter(item => item.id !== (payload.old as T).id)
@@ -159,18 +190,27 @@ export function useSupabaseRealtime<T extends { id: string }>(
                 if (!isMountedRef.current) return
 
                 if (status === 'SUBSCRIBED') {
+                    retryCountRef.current = 0
+                    clearRetryTimeout()
                     setConnectionStatus('connected')
-                    // Keep polling as backup even when connected, but at a slower rate
-                    // This ensures we never miss updates due to realtime timing issues
                     stopPolling()
-                    if (enablePollingFallback) {
-                        pollingRef.current = setInterval(() => {
-                            fetchData()
-                        }, pollingInterval * 2) // Poll at half the frequency when realtime is active
-                    }
+                    fetchData()
                 } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-                    setConnectionStatus('disconnected')
                     startPolling() // Start aggressive polling fallback
+
+                    // retryCountRef increments up to MAX_REALTIME_RETRIES, with retryTimeoutRef scheduling setSubscriptionNonce reconnects after clearRetryTimeout using 250ms backoff steps capped at 1000ms; once retries are exhausted, setConnectionStatus marks disconnected.
+                    if (retryCountRef.current < MAX_REALTIME_RETRIES) {
+                        retryCountRef.current += 1
+                        setConnectionStatus('connecting')
+                        clearRetryTimeout()
+                        retryTimeoutRef.current = setTimeout(() => {
+                            if (!isMountedRef.current) return
+                            setSubscriptionNonce((current) => current + 1)
+                        }, Math.min(250 * retryCountRef.current, 1000))
+                    } else {
+                        clearRetryTimeout()
+                        setConnectionStatus('disconnected')
+                    }
                 } else {
                     setConnectionStatus('connecting')
                     startPolling() // Also poll while connecting to catch any missed updates
@@ -182,6 +222,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         return () => {
             isMountedRef.current = false
             stopPolling()
+            clearRetryTimeout()
             if (channelRef.current) {
                 supabase.removeChannel(channelRef.current)
                 channelRef.current = null
@@ -191,12 +232,15 @@ export function useSupabaseRealtime<T extends { id: string }>(
         table,
         realtimeFilter,
         subscriptionEnabled,
+        subscriptionNonce,
         fetchData,
         startPolling,
         stopPolling,
+        clearRetryTimeout,
         enablePollingFallback,
         pollingInterval,
         transformRealtimePayload,
+        mergeItem,
     ])
 
     return {
