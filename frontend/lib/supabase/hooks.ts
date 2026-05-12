@@ -30,10 +30,18 @@ function useCurrentUserId() {
         let isMounted = true
         const supabase = createClient()
 
-        supabase.auth.getUser().then(({ data, error }) => {
+        const loadUserId = async () => {
+            const { data: sessionData } = await supabase.auth.getSession()
             if (!isMounted) return
-            setUserId(error ? null : data.user?.id ?? null)
-        })
+            const sessionUserId = sessionData.session?.user.id ?? null
+            setUserId(sessionUserId)
+
+            const { data, error } = await supabase.auth.getUser()
+            if (!isMounted) return
+            setUserId(error ? sessionUserId : data.user?.id ?? null)
+        }
+
+        void loadUserId()
 
         const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
             if (!isMounted) return
@@ -63,6 +71,7 @@ export function useProjectsRealtime() {
             subscriptionEnabled: Boolean(userId),
             enablePollingFallback: true,
             pollingInterval: 5000,
+            insertPosition: 'prepend',
         })
 
     useEffect(() => {
@@ -190,6 +199,7 @@ export function useProjectJobsRealtime(projectId: string | null) {
             subscriptionEnabled: Boolean(projectId),
             enablePollingFallback: true,
             transformRealtimePayload,
+            insertPosition: 'prepend',
         }
     )
 

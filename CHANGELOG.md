@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-13] - Realtime Subscription Reliability
+
+Removed the recurring REST polling that still ran after realtime subscriptions connected, then hardened the surrounding subscription flow so the Projects and Library views continue to update live without that background polling.
+
+### Changed
+
+- **`frontend/lib/supabase/realtime.ts`** — Removed recurring REST polling once a channel reaches `SUBSCRIBED`; the hook now performs a single resync fetch on subscribe and then relies on realtime until the channel drops.
+- **`frontend/lib/supabase/realtime.ts`** — Polling is now limited to connecting/error fallback states, preserving the scalability goal of the filtered realtime subscription work.
+- **`frontend/lib/supabase/hooks.ts`** — Project subscriptions now read the browser session first, then verify with `getUser()`, so the filtered `user_id` realtime channel can open promptly during navigation while still reconciling against the authenticated user.
+- **`frontend/lib/supabase/hooks.ts`** — Project and job realtime lists opt into prepending incoming rows, matching their newest-first query ordering and keeping new transcripts visible in Library and Projects.
+- **`frontend/lib/supabase/realtime.ts`** — Added an `insertPosition` option and a shared row merge path for realtime `INSERT` and `UPDATE` payloads, replacing existing rows by `id` and inserting new rows in the configured position.
+- **`frontend/lib/supabase/realtime.ts`** — Realtime channel names now include a per-hook subscription id and retry nonce, giving overlapping subscriptions and retry attempts distinct topics while retaining the same row-level `filter`.
+- **`frontend/lib/supabase/realtime.ts`** — Channel errors now retry with a fresh channel topic before settling into a disconnected state.
+
+### Fixed
+
+- Newly-created transcript projects now appear immediately in the Library and Projects views without a manual refresh.
+- Processing projects now recover from missed realtime events through reconnect/error fallback polling and a one-shot subscribe resync, without reintroducing background polling while subscribed.
+- The Projects page realtime indicator now stays in `connecting` while auth/subscription inputs are still loading instead of flashing `disconnected`.
+
+### Tests
+
+- **`frontend/__tests__/supabaseRealtime.test.tsx`** — Added regression coverage for prepend/merge behavior, duplicate replacement, no connected-state polling, initial connecting state, and channel retry.
+- **`frontend/__tests__/supabaseHooks.test.tsx`** — Added regression coverage for session-seeded filtered project channels and distinct channel topics for overlapping project subscriptions.
+
 ## [2026-05-11] - Editor Audio Scroll Flow
 
 Refined the editor waveform/player scroll behavior so the expanded waveform stays in the transcript flow until most of the player has scrolled away, while the collapsed mini scrubber remains available once the player is out of view.
