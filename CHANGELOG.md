@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-13] - Inngest Dev Server Bump
+
+Bumped the local Inngest dev server image so its protocol matches the v4.x Inngest SDK in the frontend. Every function run was being marked as failed with `error reading generator opcode response: RunComplete does not belong to Opcode values`, even though the underlying work (transcription, waveform, status transitions) executed successfully.
+
+### Changed
+
+- **`infra/docker-compose.dev.yml`** — Pinned `inngest/inngest` from `v0.27.0` to `v1.19.2`, which understands the opcode model emitted by `inngest@4.x` in the frontend. Existing CLI flags (`-u <url> --no-discovery`) remain compatible.
+
+### Fixed
+
+- Local Inngest dev-server runs for `handle-transcription-webhook`, `handle-transcription-completed`, `handle-transcription-requested`, `handle-transcription-failed`, `handle-transcription-timeouts`, and `handle-waveform-requested` no longer fail with an unknown-opcode error.
+- The cascading failure where webhook "failures" emitted `transcription/failed` events that then failed with `Invalid transition: completed -> error` is gone — those failures were downstream of the protocol mismatch, not a real state-machine bug.
+
+### Notes
+
+- Production uses Inngest Cloud, which is on a current protocol version; this fix is local-development-only.
+
+## [2026-05-13] - Atomic Transcript Segment Persistence
+
+Moved webhook transcript persistence from multi-step row writes to a single Supabase RPC so segment, word, and speaker updates are applied atomically for each completed Deepgram webhook.
+
+### Added
+
+- **`infra/supabase/migrations/20260513000000_save_transcript_segments_rpc.sql`** — Added `save_transcript_segments(project_id, payload)` to delete existing transcript rows, upsert speakers, insert segments, insert words, and return persisted counts inside one database transaction.
+- **`frontend/contracts/db.ts`** — Added Zod schemas and inferred types for the `save_transcript_segments` RPC payload and result.
+
+### Changed
+
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** — The webhook handler now builds the canonical segment payload in TypeScript, pre-generates segment UUIDs, validates the payload, and calls the RPC once instead of issuing delete/upsert/insert calls in a loop.
+
+### Tests
+
+- **`frontend/__tests__/inngestHandlers.test.ts`** — Updated webhook coverage around RPC payload shape, no-words fallback behavior, replay skipping, malformed RPC summaries, and failure handling that avoids emitting completion when persistence fails.
+
 ## [2026-05-13] - Realtime Subscription Reliability
 
 Removed the recurring REST polling that still ran after realtime subscriptions connected, then hardened the surrounding subscription flow so the Projects and Library views continue to update live without that background polling.
