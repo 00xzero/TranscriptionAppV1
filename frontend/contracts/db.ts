@@ -137,6 +137,52 @@ export const SpeakerUpdateSchema = z.object({
   color: z.string().nullable().optional(),
 })
 
+// === RPC: save_transcript_segments ===
+// The webhook handler builds the full transcript in TypeScript (segment-builder) and
+// hands it to a single Postgres function that atomically replaces all segments + words
+// + speaker upserts for the project. See:
+//   infra/supabase/migrations/*_save_transcript_segments_rpc.sql
+
+const SaveTranscriptSegmentsWordSchema = z.object({
+  start_ms: z.number().int().nonnegative(),
+  end_ms: z.number().int().nonnegative(),
+  text: z.string(),
+  confidence: z.number(),
+  order_index: z.number().int().nonnegative(),
+  speaker: z.number().int().nullable(),
+  speaker_confidence: z.number().nullable(),
+  punctuated_text: z.string(),
+  paragraph_index: z.number().int().nullable(),
+  sentence_end: z.boolean(),
+})
+
+const SaveTranscriptSegmentsSegmentSchema = z.object({
+  id: UuidSchema,
+  speaker_num: z.number().int().nullable(),
+  start_ms: z.number().int().nonnegative(),
+  end_ms: z.number().int().nonnegative(),
+  text: z.string(),
+  is_filler: z.boolean(),
+  algo_version: z.string(),
+  words: z.array(SaveTranscriptSegmentsWordSchema),
+})
+
+const SaveTranscriptSegmentsSpeakerSchema = z.object({
+  num: z.number().int(),
+  label: z.string(),
+})
+
+export const SaveTranscriptSegmentsPayloadSchema = z.object({
+  speakers: z.array(SaveTranscriptSegmentsSpeakerSchema),
+  segments: z.array(SaveTranscriptSegmentsSegmentSchema),
+})
+
+export const SaveTranscriptSegmentsResultSchema = z.object({
+  segment_count: z.number().int().nonnegative(),
+  word_count: z.number().int().nonnegative(),
+  duration_ms: z.number().int().nonnegative(),
+})
+
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
@@ -154,6 +200,8 @@ export type ProjectWaveformInternalUpdate = z.infer<typeof ProjectWaveformIntern
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
+export type SaveTranscriptSegmentsPayload = z.infer<typeof SaveTranscriptSegmentsPayloadSchema>
+export type SaveTranscriptSegmentsResult = z.infer<typeof SaveTranscriptSegmentsResultSchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)
 export type Json =
