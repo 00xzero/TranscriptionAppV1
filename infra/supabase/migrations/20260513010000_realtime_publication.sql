@@ -9,20 +9,17 @@
 -- payloads, so the Library/Projects UI never sees newly-created projects
 -- or status transitions until the user manually refreshes.
 --
--- Realtime row-level filters (e.g. `user_id=eq.<uuid>` on projects,
--- `project_id=eq.<uuid>` on jobs/speakers) are evaluated against the row
--- data in each WAL record. For INSERT and UPDATE this is the new row, which
--- always carries every column. For DELETE only the old row is available,
--- and with REPLICA IDENTITY DEFAULT that record contains only the primary
--- key — so any filter on a non-PK column silently fails to match. The
--- filters on `projects`, `jobs`, and `speakers` are all non-PK columns, so
--- they need REPLICA IDENTITY FULL for delete events to reach the right
--- channels.
+-- Scope of this fix is INSERT and UPDATE only. Per the Supabase docs
+-- (https://supabase.com/docs/guides/realtime/postgres-changes), filters
+-- are not applied to DELETE events, and with RLS enabled the DELETE
+-- payload's `old` record is restricted to primary keys regardless of
+-- REPLICA IDENTITY. The client compensates by handling deletions
+-- optimistically in `useProjectsRealtime.deleteProject` and
+-- `useSpeakersRealtime.deleteSpeaker`, so the publication add is enough
+-- to restore live updates for the two reported symptoms (project INSERT
+-- not appearing in the list; project `status` UPDATE not flipping the
+-- processing badge).
 -- =========================================================================
-
-ALTER TABLE public.projects REPLICA IDENTITY FULL;
-ALTER TABLE public.jobs REPLICA IDENTITY FULL;
-ALTER TABLE public.speakers REPLICA IDENTITY FULL;
 
 DO $$
 DECLARE

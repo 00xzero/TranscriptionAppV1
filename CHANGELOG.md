@@ -8,16 +8,20 @@ Library and Projects views were not seeing realtime updates because the `supabas
 
 ### Added
 
-- **`infra/supabase/migrations/20260513010000_realtime_publication.sql`** — Adds `projects`, `jobs`, and `speakers` to the `supabase_realtime` publication (idempotent via a `DO` block guarded against duplicates) and sets `REPLICA IDENTITY FULL` on the same tables so DELETE events carry the non-PK filter columns (`user_id` on projects, `project_id` on jobs/speakers).
+- **`infra/supabase/migrations/20260513010000_realtime_publication.sql`** — Adds `projects`, `jobs`, and `speakers` to the `supabase_realtime` publication, wrapped in an idempotent `DO` block guarded against duplicate adds so re-applies do not fail.
 
 ### Fixed
 
 - New transcript projects now appear in the Library and Projects views without a manual refresh because Postgres now publishes the `INSERT` event the client was already subscribed to.
 - The "Processing" badge flips to "Completed" within the realtime round-trip when the `derive_project_status` trigger updates `projects.status`, instead of waiting for the user to refresh.
 
+### Notes
+
+- Scope is INSERT and UPDATE only. Per the Supabase docs, filters are not applied to DELETE events, and with RLS enabled the DELETE payload's `old` record is restricted to primary keys regardless of `REPLICA IDENTITY`. The client already handles deletions optimistically in `useProjectsRealtime.deleteProject` / `useSpeakersRealtime.deleteSpeaker`, so this is sufficient for the reported symptoms.
+
 ### Tests
 
-- **`frontend/__tests__/realtimePublication.test.ts`** — Locks in the migration contract: each realtime-published table is added to `supabase_realtime`, has `REPLICA IDENTITY FULL`, and the `ALTER PUBLICATION` is wrapped in a duplicate-safe guard so partial re-applies do not fail.
+- **`frontend/__tests__/realtimePublication.test.ts`** — Locks in the migration contract: each realtime-published table is in the allowlist the migration iterates over, the `ALTER PUBLICATION` is issued via the dynamic-table template, and the add is guarded against duplicates so partial re-applies do not fail.
 
 ## [2026-05-13] - Inngest Dev Server Bump
 

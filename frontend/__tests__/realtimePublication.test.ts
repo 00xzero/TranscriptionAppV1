@@ -16,22 +16,16 @@ const REALTIME_TABLES = ['projects', 'jobs', 'speakers'] as const
 describe('supabase_realtime publication migration', () => {
   const sql = fs.readFileSync(MIGRATION_PATH, 'utf8')
 
-  test.each(REALTIME_TABLES)(
-    '%s is added to the supabase_realtime publication',
-    (table) => {
-      expect(sql).toMatch(
-        new RegExp(`ALTER PUBLICATION supabase_realtime ADD TABLE public\\.%I`),
-      )
-      expect(sql).toMatch(new RegExp(`'${table}'`))
-    },
-  )
+  test('uses ALTER PUBLICATION ADD TABLE via the dynamic %I template', () => {
+    expect(sql).toMatch(
+      /ALTER PUBLICATION supabase_realtime ADD TABLE public\.%I/,
+    )
+  })
 
   test.each(REALTIME_TABLES)(
-    '%s has REPLICA IDENTITY FULL set so DELETE events carry the filter columns',
+    '%s is in the realtime-table allowlist the migration iterates over',
     (table) => {
-      expect(sql).toMatch(
-        new RegExp(`ALTER TABLE public\\.${table} REPLICA IDENTITY FULL`),
-      )
+      expect(sql).toMatch(new RegExp(`'${table}'`))
     },
   )
 
