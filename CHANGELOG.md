@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-13] - Realtime Publication Setup
+
+Library and Projects views were not seeing realtime updates because the `supabase_realtime` publication was empty. Subscriptions reached `SUBSCRIBED` but Postgres never emitted any logical replication events for `projects`/`jobs`/`speakers`, so newly-created projects only appeared after a manual refresh and the processing → completed status flip never arrived. Prior client-side hardening (filtered channels, retry, prepend ordering) could not surface this because the channel never delivered any payloads.
+
+### Added
+
+- **`infra/supabase/migrations/20260513010000_realtime_publication.sql`** — Adds `projects`, `jobs`, and `speakers` to the `supabase_realtime` publication (idempotent via a `DO` block guarded against duplicates) and sets `REPLICA IDENTITY FULL` on the same tables so DELETE events carry the non-PK filter columns (`user_id` on projects, `project_id` on jobs/speakers).
+
+### Fixed
+
+- New transcript projects now appear in the Library and Projects views without a manual refresh because Postgres now publishes the `INSERT` event the client was already subscribed to.
+- The "Processing" badge flips to "Completed" within the realtime round-trip when the `derive_project_status` trigger updates `projects.status`, instead of waiting for the user to refresh.
+
+### Tests
+
+- **`frontend/__tests__/realtimePublication.test.ts`** — Locks in the migration contract: each realtime-published table is added to `supabase_realtime`, has `REPLICA IDENTITY FULL`, and the `ALTER PUBLICATION` is wrapped in a duplicate-safe guard so partial re-applies do not fail.
+
 ## [2026-05-13] - Inngest Dev Server Bump
 
 Bumped the local Inngest dev server image so its protocol matches the v4.x Inngest SDK in the frontend. Every function run was being marked as failed with `error reading generator opcode response: RunComplete does not belong to Opcode values`, even though the underlying work (transcription, waveform, status transitions) executed successfully.
