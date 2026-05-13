@@ -13,14 +13,21 @@ type SelectRequest = {
   filters: Record<string, unknown>
 }
 
+type RpcResponse = { data: unknown; error: { message: string } | null }
+
+type RpcCall = {
+  fn: string
+  args: Record<string, unknown>
+}
+
 const mockDb = {
   jobPayload: null as Record<string, unknown> | null,
-  deletedSegmentProjectIds: [] as string[],
-  insertedSegments: [] as Record<string, unknown>[],
-  insertedWordBatches: [] as Array<Record<string, unknown>[]>,
-  upsertedSpeakers: [] as Record<string, unknown>[],
-  segmentIdCounter: 0,
+  rpcCalls: [] as RpcCall[],
 }
+
+// Per-call rpc response queue. Tests push responses to override the default
+// success summary. Reset in beforeEach.
+const rpcResponseQueue: RpcResponse[] = []
 
 const projectUpdateEqMock = jest.fn(async () => ({ error: null }))
 const projectUpdateMock = jest.fn(() => ({ eq: projectUpdateEqMock }))
@@ -61,58 +68,41 @@ const fromMock = jest.fn((table: string) => {
       select: (columns: string) => createSelectChain(table, columns),
     }
   }
-  if (table === 'segments') {
-    return {
-      delete: () => ({
-        eq: async (_field: string, value: string) => {
-          mockDb.deletedSegmentProjectIds.push(value)
-          return { error: null }
-        },
-      }),
-      insert: (row: Record<string, unknown>) => ({
-        select: () => ({
-          single: async () => {
-            mockDb.insertedSegments.push(row)
-            mockDb.segmentIdCounter += 1
-            return {
-              data: { id: `segment-${mockDb.segmentIdCounter}` },
-              error: null,
-            }
-          },
-        }),
-      }),
-    }
-  }
-  if (table === 'words') {
-    return {
-      insert: async (rows: Record<string, unknown>[]) => {
-        mockDb.insertedWordBatches.push(rows)
-        return { error: null }
-      },
-    }
-  }
-  if (table === 'speakers') {
-    return {
-      upsert: (row: Record<string, unknown>) => ({
-        select: () => ({
-          single: async () => {
-            mockDb.upsertedSpeakers.push(row)
-            return {
-              data: { id: `speaker-${mockDb.upsertedSpeakers.length}` },
-              error: null,
-            }
-          },
-        }),
-      }),
-    }
-  }
   return {}
+})
+
+const rpcMock = jest.fn(async (fn: string, args: Record<string, unknown>): Promise<RpcResponse> => {
+  mockDb.rpcCalls.push({ fn, args })
+
+  const override = rpcResponseQueue.shift()
+  if (override) return override
+
+  // Default success response for save_transcript_segments — derive plausible
+  // counts from the payload so most tests don't need to override.
+  if (fn === 'save_transcript_segments') {
+    const payload = args.p_payload as { segments?: Array<{ end_ms: number; words: unknown[] }> }
+    const segments = payload?.segments ?? []
+    const segmentCount = segments.length
+    const wordCount = segments.reduce((sum, s) => sum + (s.words?.length ?? 0), 0)
+    const durationMs = segments.reduce((max, s) => Math.max(max, s.end_ms ?? 0), 0)
+    return {
+      data: {
+        segment_count: segmentCount,
+        word_count: wordCount,
+        duration_ms: durationMs,
+      },
+      error: null,
+    }
+  }
+
+  return { data: null, error: null }
 })
 
 jest.mock('@/infra/supabase/admin', () => {
   return {
     createAdminClient: () => ({
       from: fromMock,
+      rpc: rpcMock,
     }),
   }
 })
@@ -165,11 +155,22 @@ const webhookEvent = {
 
 function resetMockDb() {
   mockDb.jobPayload = null
-  mockDb.deletedSegmentProjectIds = []
-  mockDb.insertedSegments = []
-  mockDb.insertedWordBatches = []
-  mockDb.upsertedSpeakers = []
-  mockDb.segmentIdCounter = 0
+  mockDb.rpcCalls = []
+  rpcResponseQueue.length = 0
+}
+
+function getSavePayload(): {
+  speakers: Array<{ num: number; label: string }>
+  segments: Array<Record<string, unknown>>
+} {
+  const call = mockDb.rpcCalls.find((c) => c.fn === 'save_transcript_segments')
+  if (!call) {
+    throw new Error('save_transcript_segments was not called')
+  }
+  return call.args.p_payload as {
+    speakers: Array<{ num: number; label: string }>
+    segments: Array<Record<string, unknown>>
+  }
 }
 
 describe('Inngest handlers', () => {
@@ -341,46 +342,57 @@ describe('Inngest handlers', () => {
     })
 
     expect(result).toEqual(expect.objectContaining({ status: 'stored', segmentCount: 3, wordCount: 6 }))
-    expect(mockDb.deletedSegmentProjectIds).toEqual([projectId])
-    expect(mockDb.insertedSegments).toHaveLength(3)
-    expect(mockDb.insertedSegments[0]).toEqual(expect.objectContaining({
-      project_id: projectId,
-      speaker_id: 'speaker-1',
+
+    expect(rpcMock).toHaveBeenCalledTimes(1)
+    expect(rpcMock).toHaveBeenCalledWith('save_transcript_segments', expect.objectContaining({
+      p_project_id: projectId,
+    }))
+
+    const payload = getSavePayload()
+    expect(payload.segments).toHaveLength(3)
+
+    // Each segment must carry a freshly minted UUID (pre-generated client-side
+    // so the RPC can wire words to segments without a round-trip).
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    payload.segments.forEach((seg) => {
+      expect(seg.id).toMatch(uuidRe)
+    })
+
+    expect(payload.segments[0]).toEqual(expect.objectContaining({
+      speaker_num: 0,
       is_filler: false,
       algo_version: 'v2.0-segments',
     }))
-    expect(mockDb.insertedSegments[1]).toEqual(expect.objectContaining({
-      speaker_id: 'speaker-2',
-    }))
-    expect(mockDb.insertedSegments[2]).toEqual(expect.objectContaining({
-      speaker_id: 'speaker-2',
-    }))
+    expect(payload.segments[1]).toEqual(expect.objectContaining({ speaker_num: 1 }))
+    expect(payload.segments[2]).toEqual(expect.objectContaining({ speaker_num: 1 }))
 
-    const insertedWords = mockDb.insertedWordBatches.flat()
-    expect(insertedWords).toHaveLength(6)
-    expect(insertedWords[0]).toEqual(expect.objectContaining({
+    const allWords = payload.segments.flatMap((s) => (s.words as Record<string, unknown>[]))
+    expect(allWords).toHaveLength(6)
+    expect(allWords[0]).toEqual(expect.objectContaining({
       speaker: 0,
       speaker_confidence: 0.91,
       punctuated_text: 'Hello',
       paragraph_index: 0,
       sentence_end: false,
     }))
-    expect(insertedWords[1]).toEqual(expect.objectContaining({
+    expect(allWords[1]).toEqual(expect.objectContaining({
       speaker: 0,
       punctuated_text: 'there.',
       paragraph_index: 0,
       sentence_end: true,
     }))
-    expect(insertedWords[3]).toEqual(expect.objectContaining({
+    expect(allWords[3]).toEqual(expect.objectContaining({
       speaker: 1,
       punctuated_text: 'voice.',
       paragraph_index: 1,
       sentence_end: true,
     }))
 
-    expect(mockDb.upsertedSpeakers).toEqual([
-      { project_id: projectId, label: 'Speaker 0' },
-      { project_id: projectId, label: 'Speaker 1' },
+    // Speakers are deduped and sorted; the RPC upserts these and joins on
+    // speaker_num when resolving segment.speaker_id.
+    expect(payload.speakers).toEqual([
+      { num: 0, label: 'Speaker 0' },
+      { num: 1, label: 'Speaker 1' },
     ])
   })
 
@@ -415,13 +427,19 @@ describe('Inngest handlers', () => {
     })
 
     expect(result).toEqual(expect.objectContaining({ status: 'stored', segmentCount: 1, wordCount: 0 }))
-    expect(mockDb.insertedSegments).toHaveLength(1)
-    expect(mockDb.insertedSegments[0]).toEqual(expect.objectContaining({
+
+    const payload = getSavePayload()
+    expect(payload.speakers).toEqual([])
+    expect(payload.segments).toHaveLength(1)
+    expect(payload.segments[0]).toEqual(expect.objectContaining({
+      speaker_num: null,
+      start_ms: 0,
+      end_ms: 0,
       text: 'No spoken words detected.',
       is_filler: false,
       algo_version: 'v2.0-segments',
+      words: [],
     }))
-    expect(mockDb.insertedWordBatches).toHaveLength(0)
   })
 
   test('handleTranscriptionWebhook skips replayed completed jobs without writing', async () => {
@@ -438,10 +456,7 @@ describe('Inngest handlers', () => {
     })
 
     expect(result).toEqual({ status: 'skipped', projectId, jobId })
-    expect(mockDb.deletedSegmentProjectIds).toHaveLength(0)
-    expect(mockDb.insertedSegments).toHaveLength(0)
-    expect(mockDb.insertedWordBatches).toHaveLength(0)
-    expect(mockDb.upsertedSpeakers).toHaveLength(0)
+    expect(rpcMock).not.toHaveBeenCalled()
   })
 
   test('handleTranscriptionWebhook builds segments without paragraph metadata', async () => {
@@ -480,9 +495,101 @@ describe('Inngest handlers', () => {
     })
 
     expect(result).toEqual(expect.objectContaining({ status: 'stored', segmentCount: 2, wordCount: 4 }))
-    expect(mockDb.insertedSegments).toHaveLength(2)
-    expect(mockDb.insertedWordBatches.flat().map((row) => row.paragraph_index)).toEqual([null, null, null, null])
-    expect(mockDb.insertedWordBatches.flat().map((row) => row.sentence_end)).toEqual([false, true, false, true])
+
+    const payload = getSavePayload()
+    expect(payload.segments).toHaveLength(2)
+    const allWords = payload.segments.flatMap((s) => (s.words as Record<string, unknown>[]))
+    expect(allWords.map((w) => w.paragraph_index)).toEqual([null, null, null, null])
+    expect(allWords.map((w) => w.sentence_end)).toEqual([false, true, false, true])
+  })
+
+  test('handleTranscriptionWebhook does not send completed event when the RPC fails (atomicity guard)', async () => {
+    mockDb.jobPayload = {
+      deepgram: {
+        results: {
+          channels: [{
+            alternatives: [{
+              transcript: 'Hello world.',
+              words: [
+                { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
+                { word: 'world', punctuated_word: 'world.', start: 0.22, end: 0.45, confidence: 0.98, speaker: 0 },
+              ],
+            }],
+          }],
+        },
+      },
+    }
+
+    // Force the next RPC call to fail. The whole transaction inside the RPC
+    // rolls back; the handler should propagate the error and never emit
+    // transcription/completed.
+    rpcResponseQueue.push({
+      data: null,
+      error: { message: 'simulated rollback' },
+    })
+
+    const triggerCompletedHandler = jest.fn(() => undefined)
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+
+    const { error } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        {
+          id: 'find-job',
+          handler: () => ({ id: jobId, status: 'processing' }),
+        },
+        {
+          id: 'trigger-completed',
+          handler: triggerCompletedHandler,
+        },
+      ],
+    })
+
+    expect(getErrorMessage(error)).toContain('simulated rollback')
+    expect(triggerCompletedHandler).not.toHaveBeenCalled()
+    expect(rpcMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('handleTranscriptionWebhook throws when the RPC returns a malformed summary', async () => {
+    mockDb.jobPayload = {
+      deepgram: {
+        results: {
+          channels: [{
+            alternatives: [{
+              transcript: 'Hello.',
+              words: [
+                { word: 'Hello', punctuated_word: 'Hello.', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
+              ],
+            }],
+          }],
+        },
+      },
+    }
+
+    // Bad-shape response: missing required fields. Zod should reject it.
+    rpcResponseQueue.push({
+      data: { segment_count: 'not-a-number' },
+      error: null,
+    })
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+
+    const { error } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        {
+          id: 'find-job',
+          handler: () => ({ id: jobId, status: 'processing' }),
+        },
+        {
+          id: 'trigger-completed',
+          handler: () => undefined,
+        },
+      ],
+    })
+
+    // Zod throws a ZodError; the message includes details about the failed parse.
+    expect(error).toBeDefined()
   })
 
   test('handleTranscriptionFailed marks project error when no active job can be found', async () => {

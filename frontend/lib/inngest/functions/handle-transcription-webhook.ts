@@ -7,17 +7,104 @@
  * so the UI can surface the error to the user.
  */
 
+import { randomUUID } from "crypto";
+
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import {
     DEFAULT_SEGMENT_BUILDER_CONFIG,
-    NormalizedWord,
     buildSegments,
     normalizeWords,
 } from "@/core/transcript/segment-builder";
-import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
+import { DeepgramWebhookPayloadSchema, type DeepgramWord } from "@/contracts/webhook";
+import {
+    SaveTranscriptSegmentsPayload,
+    SaveTranscriptSegmentsPayloadSchema,
+    SaveTranscriptSegmentsResultSchema,
+} from "@/contracts/db";
 import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
 import { writeTranscriptionFailureFallback } from "./_shared";
+
+/**
+ * Minimal alternative shape used to derive paragraphs + transcript fallback.
+ * Extracted to keep buildRpcPayload signature precise and testable.
+ */
+type AlternativeForPayload = {
+    transcript?: string;
+    paragraphs?: { paragraphs: Array<{ speaker: number; start: number; end: number; sentences: Array<{ text: string; start: number; end: number }> }> };
+} | undefined;
+
+/**
+ * Build the SaveTranscriptSegmentsPayload from raw Deepgram words.
+ *
+ * - Runs the canonical normalize → buildSegments pipeline (same as before).
+ * - Pre-generates a UUID per segment so the RPC can persist segments + words
+ *   without a round-trip to discover inserted ids.
+ * - Collects unique speakers into a deduped `speakers` array — the RPC upserts
+ *   these and resolves segment.speaker_id by joining on `speaker_num`.
+ * - Falls back to a single empty segment when Deepgram returned no words,
+ *   matching the pre-refactor behavior.
+ */
+function buildRpcPayload(
+    rawWords: DeepgramWord[],
+    alt: AlternativeForPayload,
+): SaveTranscriptSegmentsPayload {
+    if (rawWords.length === 0) {
+        return {
+            speakers: [],
+            segments: [
+                {
+                    id: randomUUID(),
+                    speaker_num: null,
+                    start_ms: 0,
+                    end_ms: 0,
+                    text: alt?.transcript ?? "",
+                    is_filler: false,
+                    algo_version: DEFAULT_SEGMENT_BUILDER_CONFIG.algoVersion,
+                    words: [],
+                },
+            ],
+        };
+    }
+
+    const normalizedWords = normalizeWords(rawWords, alt?.paragraphs ?? null);
+    const builtSegments = buildSegments(normalizedWords, DEFAULT_SEGMENT_BUILDER_CONFIG);
+
+    const speakerNums = new Set<number>();
+    const segments = builtSegments.map((seg) => {
+        if (typeof seg.speakerNum === "number") {
+            speakerNums.add(seg.speakerNum);
+        }
+
+        return {
+            id: randomUUID(),
+            speaker_num: typeof seg.speakerNum === "number" ? seg.speakerNum : null,
+            start_ms: seg.startMs,
+            end_ms: seg.endMs,
+            text: seg.text,
+            is_filler: seg.isFiller,
+            algo_version: seg.algoVersion,
+            words: seg.words.map((w, idx) => ({
+                start_ms: w.startMs,
+                end_ms: w.endMs,
+                text: w.text,
+                confidence: w.confidence,
+                order_index: idx,
+                speaker: w.speaker,
+                speaker_confidence: w.speakerConfidence,
+                punctuated_text: w.punctuatedText,
+                paragraph_index: w.paragraphIndex,
+                sentence_end: w.sentenceEnd,
+            })),
+        };
+    });
+
+    const speakers = Array.from(speakerNums)
+        .sort((a, b) => a - b)
+        .map((num) => ({ num, label: `Speaker ${num}` }));
+
+    return { speakers, segments };
+}
 
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
@@ -117,7 +204,10 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             return { status: "skipped", projectId, jobId: job.id };
         }
 
-        // Step 2: Parse and store transcription results
+        // Step 2: Parse Deepgram payload, build canonical transcript, and persist
+        //         via a single atomic RPC call. The RPC replaces segments/words/
+        //         speaker upserts inside one Postgres transaction, so a mid-write
+        //         failure cannot leave the project with partial data.
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();
 
@@ -145,150 +235,30 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const alt = channels[0]?.alternatives?.[0];
             const words = alt?.words || [];
 
-            // Clear existing segments for idempotency
-            const { error: deleteError } = await supabase
-                .from("segments")
-                .delete()
-                .eq("project_id", projectId);
+            // Build the canonical transcript in TypeScript. The RPC just persists it.
+            const payload = buildRpcPayload(words, alt);
 
-            if (deleteError) {
-                console.error("[inngest] Failed to clear segments:", deleteError);
-                throw new Error(`Failed to clear segments: ${deleteError.message}`);
+            // Defence-in-depth: validate the payload we're about to send.
+            const validatedPayload = SaveTranscriptSegmentsPayloadSchema.parse(payload);
+
+            const { data: rpcData, error: rpcError } = await supabase.rpc(
+                "save_transcript_segments",
+                {
+                    p_project_id: projectId,
+                    p_payload: validatedPayload,
+                }
+            );
+
+            if (rpcError) {
+                throw new Error(`save_transcript_segments RPC failed: ${rpcError.message}`);
             }
 
-            let maxEndMs = 0;
-            let segmentCount = 0;
-            let wordCount = 0;
-
-            // Speaker cache: speaker number -> speaker ID
-            const speakerCache: Record<number, string> = {};
-
-            // Helper: Get or create speaker using upsert (requires UNIQUE constraint on project_id, label)
-            async function getOrCreateSpeaker(speakerNum: number): Promise<string> {
-                if (speakerCache[speakerNum]) {
-                    return speakerCache[speakerNum];
-                }
-
-                const label = `Speaker ${speakerNum}`;
-
-                // Upsert speaker - DB uniqueness constraint prevents duplicates
-                const { data: speaker, error } = await supabase
-                    .from("speakers")
-                    .upsert(
-                        { project_id: projectId, label },
-                        { onConflict: "project_id,label" }
-                    )
-                    .select("id")
-                    .single();
-
-                if (error || !speaker) {
-                    throw new Error(`Failed to upsert speaker: ${error?.message}`);
-                }
-
-                speakerCache[speakerNum] = speaker.id;
-                return speaker.id;
-            }
-
-            // Helper: Insert segment with words
-            async function insertSegment(
-                speakerId: string | null,
-                startMs: number,
-                endMs: number,
-                text: string,
-                segmentWords: NormalizedWord[],
-                isFiller: boolean,
-                algoVersion: string
-            ): Promise<void> {
-                const { data: segment, error: segError } = await supabase
-                    .from("segments")
-                    .insert({
-                        project_id: projectId,
-                        speaker_id: speakerId,
-                        start_ms: startMs,
-                        end_ms: endMs,
-                        text,
-                        is_filler: isFiller,
-                        algo_version: algoVersion,
-                    })
-                    .select("id")
-                    .single();
-
-                if (segError || !segment) {
-                    throw new Error(`Failed to insert segment: ${segError?.message}`);
-                }
-
-                segmentCount++;
-
-                // Insert words for this segment
-                if (segmentWords.length > 0) {
-                    const wordRows = segmentWords.map((w, idx) => ({
-                        segment_id: segment.id,
-                        start_ms: w.startMs,
-                        end_ms: w.endMs,
-                        text: w.text,
-                        confidence: w.confidence,
-                        order_index: idx,
-                        speaker: w.speaker,
-                        speaker_confidence: w.speakerConfidence,
-                        punctuated_text: w.punctuatedText,
-                        paragraph_index: w.paragraphIndex,
-                        sentence_end: w.sentenceEnd,
-                    }));
-
-                    const { error: wordError } = await supabase
-                        .from("words")
-                        .insert(wordRows);
-
-                    if (wordError) {
-                        throw new Error(`Failed to insert words: ${wordError.message}`);
-                    }
-
-                    wordCount += wordRows.length;
-                }
-            }
-
-            if (words.length > 0) {
-                const normalizedWords = normalizeWords(words, alt?.paragraphs ?? null);
-                const builtSegments = buildSegments(
-                    normalizedWords,
-                    DEFAULT_SEGMENT_BUILDER_CONFIG
-                );
-
-                for (const segment of builtSegments) {
-                    maxEndMs = Math.max(maxEndMs, segment.endMs);
-
-                    let speakerId: string | null = null;
-                    if (typeof segment.speakerNum === "number") {
-                        speakerId = await getOrCreateSpeaker(segment.speakerNum);
-                    }
-
-                    await insertSegment(
-                        speakerId,
-                        segment.startMs,
-                        segment.endMs,
-                        segment.text,
-                        segment.words,
-                        segment.isFiller,
-                        segment.algoVersion
-                    );
-                }
-            } else {
-                // No words returned; create empty segment
-                await insertSegment(
-                    null,
-                    0,
-                    0,
-                    alt?.transcript || "",
-                    [],
-                    false,
-                    DEFAULT_SEGMENT_BUILDER_CONFIG.algoVersion
-                );
-            }
+            const summary = SaveTranscriptSegmentsResultSchema.parse(rpcData);
 
             return {
-                segmentCount,
-                wordCount,
-                durationMs: maxEndMs,
+                segmentCount: summary.segment_count,
+                wordCount: summary.word_count,
+                durationMs: summary.duration_ms,
             };
         });
 
