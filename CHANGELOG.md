@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-13] - Atomic Transcript Segment Persistence
+
+Moved webhook transcript persistence from multi-step row writes to a single Supabase RPC so segment, word, and speaker updates are applied atomically for each completed Deepgram webhook.
+
+### Added
+
+- **`infra/supabase/migrations/20260513000000_save_transcript_segments_rpc.sql`** — Added `save_transcript_segments(project_id, payload)` to delete existing transcript rows, upsert speakers, insert segments, insert words, and return persisted counts inside one database transaction.
+- **`frontend/contracts/db.ts`** — Added Zod schemas and inferred types for the `save_transcript_segments` RPC payload and result.
+
+### Changed
+
+- **`frontend/lib/inngest/functions/handle-transcription-webhook.ts`** — The webhook handler now builds the canonical segment payload in TypeScript, pre-generates segment UUIDs, validates the payload, and calls the RPC once instead of issuing delete/upsert/insert calls in a loop.
+
+### Tests
+
+- **`frontend/__tests__/inngestHandlers.test.ts`** — Updated webhook coverage around RPC payload shape, no-words fallback behavior, replay skipping, malformed RPC summaries, and failure handling that avoids emitting completion when persistence fails.
+
 ## [2026-05-13] - Realtime Subscription Reliability
 
 Removed the recurring REST polling that still ran after realtime subscriptions connected, then hardened the surrounding subscription flow so the Projects and Library views continue to update live without that background polling.
