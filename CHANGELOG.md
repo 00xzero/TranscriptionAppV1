@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-13] - Inngest Dev Server Bump
+
+Bumped the local Inngest dev server image so its protocol matches the v4.x Inngest SDK in the frontend. Every function run was being marked as failed with `error reading generator opcode response: RunComplete does not belong to Opcode values`, even though the underlying work (transcription, waveform, status transitions) executed successfully.
+
+### Changed
+
+- **`infra/docker-compose.dev.yml`** — Pinned `inngest/inngest` from `v0.27.0` to `v1.19.2`, which understands the opcode model emitted by `inngest@4.x` in the frontend. Existing CLI flags (`-u <url> --no-discovery`) remain compatible.
+
+### Fixed
+
+- Local Inngest dev-server runs for `handle-transcription-webhook`, `handle-transcription-completed`, `handle-transcription-requested`, `handle-transcription-failed`, `handle-transcription-timeouts`, and `handle-waveform-requested` no longer fail with an unknown-opcode error.
+- The cascading failure where webhook "failures" emitted `transcription/failed` events that then failed with `Invalid transition: completed -> error` is gone — those failures were downstream of the protocol mismatch, not a real state-machine bug.
+
+### Notes
+
+- Production uses Inngest Cloud, which is on a current protocol version; this fix is local-development-only.
+
 ## [2026-05-13] - Atomic Transcript Segment Persistence
 
 Moved webhook transcript persistence from multi-step row writes to a single Supabase RPC so segment, word, and speaker updates are applied atomically for each completed Deepgram webhook.
