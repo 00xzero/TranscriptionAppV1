@@ -45,6 +45,12 @@ function setup(overrides?: Partial<Parameters<typeof useTranscriptSync>[0]>) {
 beforeEach(() => {
   jest.clearAllMocks()
   jest.restoreAllMocks()
+  jest.useFakeTimers()
+})
+
+afterEach(() => {
+  jest.runOnlyPendingTimers()
+  jest.useRealTimers()
 })
 
 describe('useTranscriptSync', () => {
@@ -207,6 +213,53 @@ describe('useTranscriptSync', () => {
         result.current.expandedWaveformContainerRef(waveform)
       })
 
+      expect(result.current.expandedWaveformHeight).toBe(320)
+    })
+
+    it('ignores transient measurements while the waveform transition is settling', () => {
+      const { result } = setup()
+      const waveform = document.createElement('div')
+      let measuredHeight = 320
+
+      jest.spyOn(waveform, 'getBoundingClientRect').mockImplementation(() => ({
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: measuredHeight,
+        width: 0,
+        height: measuredHeight,
+        x: 0,
+        y: 0,
+        toJSON: () => {},
+      }))
+      Object.defineProperty(waveform, 'offsetHeight', {
+        configurable: true,
+        get: () => measuredHeight,
+      })
+
+      act(() => {
+        jest.advanceTimersByTime(350)
+        result.current.expandedWaveformContainerRef(waveform)
+      })
+      expect(result.current.expandedWaveformHeight).toBe(320)
+
+      act(() => {
+        result.current.setWaveformCollapsed(true)
+      })
+      act(() => {
+        result.current.setWaveformCollapsed(false)
+      })
+
+      measuredHeight = 240
+      act(() => {
+        result.current.expandedWaveformContainerRef(waveform)
+      })
+      expect(result.current.expandedWaveformHeight).toBe(320)
+
+      measuredHeight = 320
+      act(() => {
+        jest.advanceTimersByTime(350)
+      })
       expect(result.current.expandedWaveformHeight).toBe(320)
     })
   })

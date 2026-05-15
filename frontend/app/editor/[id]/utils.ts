@@ -6,6 +6,7 @@ export const SEEK_LOCK_MS = 3000
 export const PROGRAMMATIC_SCROLL_RESET_MS = 250
 export const ACTIVE_CARD_VISIBILITY_MARGIN_PX = 24
 export const WAVEFORM_COLLAPSE_THRESHOLD_RATIO = 0.6
+export const WAVEFORM_EXPAND_THRESHOLD_RATIO = 0.35
 export const DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX = 256
 export const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
 // Scripts with little/no case mapping support; used for whole-word boundary checks.
@@ -84,4 +85,15 @@ export function shouldCollapseWaveform(
     ? expandedWaveformHeight
     : DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX
   return scrollTop >= measuredHeight * thresholdRatio
+}
+
+export function getNextWaveformCollapsed(
+  currentCollapsed: boolean,
+  scrollTop: number,
+  expandedWaveformHeight: number,
+): boolean {
+  const thresholdRatio = currentCollapsed
+    ? WAVEFORM_EXPAND_THRESHOLD_RATIO
+    : WAVEFORM_COLLAPSE_THRESHOLD_RATIO
+  return shouldCollapseWaveform(scrollTop, expandedWaveformHeight, thresholdRatio)
 }

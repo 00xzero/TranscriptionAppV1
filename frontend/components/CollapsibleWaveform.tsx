@@ -163,12 +163,18 @@ export default function CollapsibleWaveform({
   return (
     <div
       className={`relative leading-none ${pinned ? 'sticky top-0 z-30' : ''}`}
-      style={collapsed && spacerHeight ? { height: spacerHeight } : undefined}
+      style={
+        spacerHeight
+          ? collapsed
+            ? { height: spacerHeight }
+            : { minHeight: spacerHeight }
+          : undefined
+      }
     >
       {/* Expandable waveform container */}
       <div
         ref={contentRef}
-        className={`overflow-hidden transition-[max-height,padding,opacity] duration-500 ease-in-out ${collapsed ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-[500px] opacity-100'
+        className={`overflow-hidden transition-opacity duration-300 ease-in-out ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
       >
         <div className="relative pt-[56px] bg-paper dark:bg-black border-b border-ink/10 dark:border-white/10">

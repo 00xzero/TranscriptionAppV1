@@ -118,7 +118,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
   const didInteractOutsidePopoverRef = useRef(false)
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="editor-scroll-shell flex flex-col h-full relative">
       <div
         className={`absolute top-0 left-0 w-full z-40 transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         aria-hidden={!waveformCollapsed}
@@ -161,7 +161,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
       />
 
       <div
-        className="flex-1 overflow-auto pb-32"
+        className="flex-1 overflow-auto pb-32 [overflow-anchor:none] [scrollbar-gutter:stable]"
         ref={sync.scrollContainerRef}
       >
         <CollapsibleWaveform

@@ -104,7 +104,7 @@ export default function CaptureModal() {
           </button>
         </div>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto p-6">
+        <div className="scrollbar-thin max-h-[70vh] space-y-6 overflow-y-auto p-6">
           <FileDropZone
             selectedFile={selectedFile}
             onFileSelect={handleFileSelect}

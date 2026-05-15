@@ -250,7 +250,7 @@ export default function FindReplaceModal({
         {findTerm && (
           <div className="border-b border-[#D1CEC5]/60 px-5 py-3 dark:border-[#333]/60">
             {snippets.length > 0 && canNavigate && (
-              <div className="max-h-[300px] space-y-1 overflow-y-auto">
+              <div className="scrollbar-thin max-h-[300px] space-y-1 overflow-y-auto">
                 {snippets.map((s) => {
                   return (
                     <button

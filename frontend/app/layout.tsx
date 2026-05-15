@@ -41,10 +41,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ModalProvider>
             <Sidebar />
             <main className="flex-1 relative overflow-hidden z-[1]">
-              <div className="absolute top-0 left-0 right-0 z-40">
+              <div className="absolute top-0 left-0 right-3 z-40">
                 <ContextualHeader />
               </div>
-              <div className="h-full w-full overflow-y-auto">
+              <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
                 {children}
               </div>
             </main>
