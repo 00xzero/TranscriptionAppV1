@@ -63,7 +63,7 @@ export default function KeyTermsInput({
       )}
 
       {keyTerms.length > 0 && (
-        <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+        <div className="scrollbar-thin flex flex-wrap gap-2 max-h-24 overflow-y-auto">
           {keyTerms.map((term, index) => (
             <span
               key={`${term}-${index}`}
