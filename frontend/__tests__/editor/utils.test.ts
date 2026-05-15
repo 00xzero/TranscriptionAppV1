@@ -4,6 +4,7 @@ import {
   computeWordsForSegments,
   formatProjectDate,
   formatDurationHHMMSS,
+  getNextWaveformCollapsed,
   msToTimestamp,
 } from '../../app/editor/[id]/utils'
 
@@ -126,5 +127,13 @@ describe('msToTimestamp', () => {
   it('floors partial seconds', () => {
     expect(msToTimestamp(1500)).toBe('00:00:01')
     expect(msToTimestamp(999)).toBe('00:00:00')
+  })
+})
+
+describe('getNextWaveformCollapsed', () => {
+  it('uses a lower expand threshold once the waveform is already collapsed', () => {
+    expect(getNextWaveformCollapsed(false, 190, 300)).toBe(true)
+    expect(getNextWaveformCollapsed(true, 190, 300)).toBe(true)
+    expect(getNextWaveformCollapsed(true, 100, 300)).toBe(false)
   })
 })

@@ -161,7 +161,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
       />
 
       <div
-        className="flex-1 overflow-auto pb-32 [scrollbar-gutter:stable]"
+        className="flex-1 overflow-auto pb-32 [overflow-anchor:none] [scrollbar-gutter:stable]"
         ref={sync.scrollContainerRef}
       >
         <CollapsibleWaveform

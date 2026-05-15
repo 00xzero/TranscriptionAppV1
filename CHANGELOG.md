@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-15] - Scrollbar Rail and Editor Return Scroll
+
+Improved long-document navigation by making native scrollbars easier to see and by removing the layout motion that could fight slow upward scrolling when the editor waveform returned.
+
+### Changed
+
+- **`frontend/app/globals.css`**, **`frontend/app/layout.tsx`**, and editor/modal scroll containers — Reworked the native scrollbar into a bolder "Archive Rail", exposed the rail beside the translucent contextual header, reserved the correct gutter on layout and editor scroll regions, and added a compact scrollbar variant for tighter modal/popover lists.
+- **`frontend/components/CollapsibleWaveform.tsx`**, **`frontend/app/editor/[id]/hooks/useTranscriptSync.ts`**, and **`frontend/app/editor/[id]/utils.ts`** — Stabilized the waveform return-to-top behavior with reserved layout space, collapse/expand hysteresis, transition-safe height measurement, and opacity-only reveal so slow upward wheel scrolling is no longer pulled back by reflow above the transcript.
+
+### Fixed
+
+- Scrollbars are now clearly visible on contextual-header pages instead of disappearing into the background or being visually covered at the top edge.
+- Slow upward scrolling in the editor no longer gets caught while the full waveform/player returns into view.
+
+### Tests
+
+- **`frontend`** — `npm run test:ci` (`35` suites / `337` tests passing)
+- **`frontend`** — Focused browser verification on the live editor route at `http://localhost:3000`, including slow upward return through the waveform transition.
+
 ## [2026-05-13] - Realtime Publication Setup
 
 Library and Projects views were not seeing realtime updates because the `supabase_realtime` publication was empty. Subscriptions reached `SUBSCRIBED` but Postgres never emitted any logical replication events for `projects`/`jobs`/`speakers`, so newly-created projects only appeared after a manual refresh and the processing → completed status flip never arrived. Prior client-side hardening (filtered channels, retry, prepend ordering) could not surface this because the channel never delivered any payloads.

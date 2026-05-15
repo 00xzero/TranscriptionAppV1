@@ -5,6 +5,7 @@ import {
   DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX,
   SYNC_OFFSET_MS,
   ACTIVE_CARD_VISIBILITY_MARGIN_PX,
+  getNextWaveformCollapsed,
   shouldCollapseWaveform,
 } from '../utils'
 import { useScrollSyncMachine } from './useScrollSyncMachine'
@@ -29,6 +30,9 @@ export function useTranscriptSync({
   const expandedWaveformRef = useRef<HTMLDivElement | null>(null)
   const expandedWaveformHeightRef = useRef(DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX)
   const waveformCollapsedRef = useRef(waveformCollapsed)
+  const waveformInitializedRef = useRef(false)
+  const waveformTransitioningRef = useRef(false)
+  const waveformTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
   const segmentsRef = useRef(segments)
   const prevEditingBlockedRef = useRef<boolean>(false)
@@ -42,7 +46,7 @@ export function useTranscriptSync({
   }, [])
 
   const measureExpandedWaveform = useCallback(() => {
-    if (waveformCollapsedRef.current) return
+    if (waveformCollapsedRef.current || waveformTransitioningRef.current) return
     const el = expandedWaveformRef.current
     if (!el) return
     const rectHeight = el.getBoundingClientRect().height
@@ -69,9 +73,33 @@ export function useTranscriptSync({
   }, [measureExpandedWaveform])
 
   useLayoutEffect(() => {
+    if (!waveformInitializedRef.current) {
+      waveformInitializedRef.current = true
+      waveformCollapsedRef.current = waveformCollapsed
+      if (!waveformCollapsed) {
+        measureExpandedWaveform()
+      }
+      return
+    }
+
+    if (waveformTransitionTimeoutRef.current) {
+      clearTimeout(waveformTransitionTimeoutRef.current)
+    }
+    waveformTransitioningRef.current = true
     waveformCollapsedRef.current = waveformCollapsed
     if (!waveformCollapsed) {
       measureExpandedWaveform()
+    }
+    waveformTransitionTimeoutRef.current = setTimeout(() => {
+      waveformTransitioningRef.current = false
+      if (!waveformCollapsedRef.current) {
+        measureExpandedWaveform()
+      }
+    }, 350)
+    return () => {
+      if (waveformTransitionTimeoutRef.current) {
+        clearTimeout(waveformTransitionTimeoutRef.current)
+      }
     }
   }, [measureExpandedWaveform, waveformCollapsed])
 
@@ -82,8 +110,16 @@ export function useTranscriptSync({
   }, [])
 
   const refreshWaveformCollapse = useCallback(() => {
-    setWaveformCollapsed(shouldCollapseForCurrentScroll())
-  }, [shouldCollapseForCurrentScroll])
+    const container = transcriptScrollRef.current
+    if (!container) return
+    setWaveformCollapsed((currentCollapsed) =>
+      getNextWaveformCollapsed(
+        currentCollapsed,
+        container.scrollTop,
+        expandedWaveformHeightRef.current,
+      )
+    )
+  }, [])
 
   const findActiveSegmentId = useCallback((tMs: number) => {
     if (segmentsRef.current.length === 0) return undefined
