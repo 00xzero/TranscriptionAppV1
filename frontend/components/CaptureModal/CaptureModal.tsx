@@ -1,20 +1,32 @@
 "use client"
 
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import { useModal } from '@/lib/ModalContext'
 import { useCaptureForm } from './useCaptureForm'
-import FileDropZone from './FileDropZone'
-import CaptureDetails from './CaptureDetails'
-import KeyTermsInput from './KeyTermsInput'
+import UploadAudioPanel from './UploadAudioPanel'
+import RecordAudioPanel from './RecordAudioPanel'
 import CaptureFooter from './CaptureFooter'
+
+type CaptureTab = 'upload' | 'record'
+
+const RECORD_DISABLED_TOOLTIP = 'Recording mode is not yet available.'
 
 export default function CaptureModal() {
   const { isCaptureModalOpen, closeCaptureModal } = useModal()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
   const restoreOnExternalCloseRef = useRef(true)
+  const bodyScrollRef = useRef<HTMLDivElement>(null)
+  const [activeTab, setActiveTab] = useState<CaptureTab>('upload')
+
+  useEffect(() => {
+    if (bodyScrollRef.current) {
+      bodyScrollRef.current.scrollTop = 0
+    }
+  }, [activeTab])
 
   useLayoutEffect(() => {
     if (isCaptureModalOpen && !wasOpenRef.current) {
@@ -57,6 +69,11 @@ export default function CaptureModal() {
     buttonText,
   } = useCaptureForm({ isCaptureModalOpen, closeCaptureModal: handleClose })
 
+  const isRecordTab = activeTab === 'record' && !isUploading
+  const footerButtonText = isRecordTab ? 'Start Recording' : buttonText
+  const footerCanSubmit = isRecordTab ? false : canSubmit
+  const footerDisabledTooltip = isRecordTab ? RECORD_DISABLED_TOOLTIP : undefined
+
   return (
     <Dialog
       open={isCaptureModalOpen}
@@ -67,7 +84,7 @@ export default function CaptureModal() {
       }}
     >
       <DialogContent
-        className="top-[10%] w-[500px] overflow-hidden p-0 text-ink dark:text-paper"
+        className="top-[7vh] flex max-h-[86vh] w-[500px] flex-col overflow-hidden p-0 text-ink dark:text-paper"
         aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
           if (isUploading) {
@@ -104,37 +121,77 @@ export default function CaptureModal() {
           </button>
         </div>
 
-        <div className="scrollbar-thin max-h-[70vh] space-y-6 overflow-y-auto p-6">
-          <FileDropZone
-            selectedFile={selectedFile}
-            onFileSelect={handleFileSelect}
-            isUploading={isUploading}
-            displayError={displayError}
-            maxFileSizeLabel={maxFileSizeLabel}
-          />
-          <CaptureDetails
-            title={title}
-            setTitle={setTitle}
-            isUploading={isUploading}
-          />
-          <KeyTermsInput
-            keyTerms={keyTerms}
-            keyTermInput={keyTermInput}
-            setKeyTermInput={setKeyTermInput}
-            keyTermsError={keyTermsError}
-            isUploading={isUploading}
-            onKeyDown={handleKeyTermKeyDown}
-            onAddClick={handleAddTermClick}
-            onRemoveTerm={removeTerm}
-          />
-        </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as CaptureTab)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="relative pt-3">
+            <TabsList className="gap-0">
+              <TabsTrigger
+                value="upload"
+                disabled={isUploading}
+                className="flex-1 justify-center data-[state=active]:border-transparent dark:data-[state=active]:border-transparent"
+              >
+                Upload Audio
+              </TabsTrigger>
+              <TabsTrigger
+                value="record"
+                disabled={isUploading}
+                className="flex-1 justify-center data-[state=active]:border-transparent dark:data-[state=active]:border-transparent"
+              >
+                Record Audio
+              </TabsTrigger>
+            </TabsList>
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute bottom-0 left-0 h-0.5 w-1/2 bg-ink transition-transform duration-200 ease-out motion-reduce:transition-none dark:bg-paper ${activeTab === 'record' ? 'translate-x-full' : 'translate-x-0'}`}
+            />
+          </div>
+
+          <div ref={bodyScrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-6">
+            <TabsContent value="upload">
+              <UploadAudioPanel
+                selectedFile={selectedFile}
+                handleFileSelect={handleFileSelect}
+                title={title}
+                setTitle={setTitle}
+                keyTerms={keyTerms}
+                keyTermInput={keyTermInput}
+                setKeyTermInput={setKeyTermInput}
+                keyTermsError={keyTermsError}
+                handleKeyTermKeyDown={handleKeyTermKeyDown}
+                handleAddTermClick={handleAddTermClick}
+                removeTerm={removeTerm}
+                isUploading={isUploading}
+                displayError={displayError}
+                maxFileSizeLabel={maxFileSizeLabel}
+              />
+            </TabsContent>
+            <TabsContent value="record">
+              <RecordAudioPanel
+                title={title}
+                setTitle={setTitle}
+                keyTerms={keyTerms}
+                keyTermInput={keyTermInput}
+                setKeyTermInput={setKeyTermInput}
+                keyTermsError={keyTermsError}
+                handleKeyTermKeyDown={handleKeyTermKeyDown}
+                handleAddTermClick={handleAddTermClick}
+                removeTerm={removeTerm}
+                isUploading={isUploading}
+              />
+            </TabsContent>
+          </div>
+        </Tabs>
 
         <CaptureFooter
           isUploading={isUploading}
-          canSubmit={canSubmit}
+          canSubmit={footerCanSubmit}
           onClose={handleClose}
           onSubmit={handleSubmit}
-          buttonText={buttonText}
+          buttonText={footerButtonText}
+          disabledTooltip={footerDisabledTooltip}
         />
       </DialogContent>
     </Dialog>

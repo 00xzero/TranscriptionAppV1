@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-16] - Capture Modal Mode Tabs
+
+Prepared the capture dialog for future recording support by splitting the existing upload flow into dedicated Upload Audio and Record Audio tabs while keeping upload behavior unchanged.
+
+### Added
+
+- **`frontend/components/CaptureModal/UploadAudioPanel.tsx`**, **`frontend/components/CaptureModal/RecordAudioPanel.tsx`**, and **`frontend/components/ui/tabs.tsx`** — Added panel-specific capture surfaces plus a shared Radix-backed tabs primitive for switching between upload and recording modes.
+- **`frontend/components/CaptureModal/RecordAudioPanel.tsx`** — Added the placeholder recording-mode controls for microphone selection, mic testing, and level display ahead of live recording support.
+
+### Changed
+
+- **`frontend/components/CaptureModal/CaptureModal.tsx`** — Reworked the modal body into a tabbed layout, preserves the last-used tab while the mounted modal reopens, resets the body scroll position on tab change, and keeps tabs locked while an upload is active.
+- **`frontend/components/CaptureModal/CaptureFooter.tsx`** — Added a disabled-state tooltip path so the Record Audio CTA can explain that recording mode is not available yet.
+- **`frontend/package.json`** and **`frontend/package-lock.json`** — Added `@radix-ui/react-tabs`.
+
+### Tests
+
+- **`frontend/__tests__/captureModal.ui.test.tsx`** — Added coverage for the new tabs, record-mode placeholder fields, disabled recording CTA, upload-state locking, and tab persistence across modal reopen.
+- **`frontend`** — `npm --prefix frontend test -- --runInBand captureModal.ui.test.tsx`
+
 ## [2026-05-15] - Scrollbar Rail and Editor Return Scroll
 
 Improved long-document navigation by making native scrollbars easier to see and by removing the layout motion that could fight slow upward scrolling when the editor waveform returned.
