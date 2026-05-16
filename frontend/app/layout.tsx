@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { Inter, Newsreader, IBM_Plex_Mono } from 'next/font/google'
 import { ModalProvider } from '../lib/ModalContext'
+import { RecordingSessionProvider } from '../lib/recording/RecordingSessionContext'
 import Sidebar from '../components/Sidebar'
 import ContextualHeader from '../components/ContextualHeader'
 import CaptureModal from '../components/CaptureModal'
@@ -39,16 +40,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
         <TooltipProvider delayDuration={700}>
           <ModalProvider>
-            <Sidebar />
-            <main className="flex-1 relative overflow-hidden z-[1]">
-              <div className="absolute top-0 left-0 right-3 z-40">
-                <ContextualHeader />
-              </div>
-              <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-                {children}
-              </div>
-            </main>
-            <CaptureModal />
+            <RecordingSessionProvider>
+              <Sidebar />
+              <main className="flex-1 relative overflow-hidden z-[1]">
+                <div className="absolute top-0 left-0 right-3 z-40">
+                  <ContextualHeader />
+                </div>
+                <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
+                  {children}
+                </div>
+              </main>
+              <CaptureModal />
+            </RecordingSessionProvider>
           </ModalProvider>
         </TooltipProvider>
       </body>

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-17] - Recording Session Shell
+
+Added the mocked recording-session foundation for the future live capture flow: a persistent client-side session store, a dedicated recording route, and a header indicator that keeps the active session visible across the app.
+
+### Added
+
+- **`frontend/lib/recording/session.ts`** and **`frontend/lib/recording/RecordingSessionContext.tsx`** — Added the recording session singleton, lifecycle actions, elapsed-time tracking, interrupted-draft recovery, and React subscription hooks.
+- **`frontend/app/recording/new/page.tsx`** and **`frontend/components/RecordingSession/*`** — Added the dedicated recording-session page with mocked waveform, timer, state label, controls, lifecycle views, and contextual header pill.
+- **`frontend/__mocks__/recording-session.ts`** — Added a focused test helper for forcing synthetic recording states in component tests.
+
+### Changed
+
+- **`frontend/app/layout.tsx`** and **`frontend/components/ContextualHeader.tsx`** — Wired the recording provider into the app shell and surfaced the recording pill while sessions are recording or paused.
+- **`frontend/lib/ModalContext.tsx`**, **`frontend/components/CaptureModal/CaptureModal.tsx`**, and **`frontend/app/projects/page.tsx`** — Added capture-modal open intents so invalid direct visits to the recording page can return users to the Record tab with a recovery message.
+- **`.docs/live-recording-feature-spec.md`** and **`.docs/live-recording-implementation-plan.md`** — Updated the recording documentation to describe the paused-state header pill and inert phase-one meter shell.
+
+### Tests
+
+- **`frontend/__tests__/recording/session.test.ts`**, **`frontend/__tests__/recording/recordingPage.test.tsx`**, and **`frontend/__tests__/recording/headerPill.test.tsx`** — Added coverage for singleton lifecycle behavior, route states, interrupted-draft recovery, mocked stop progression, and header pill visibility.
+- **`frontend/__tests__/captureModal.ui.test.tsx`** and **`frontend/__tests__/contextualHeader.test.tsx`** — Extended coverage for record-tab open intents and the updated router dependencies.
+- **`frontend`** — `npm test -- --runInBand __tests__/recording/session.test.ts __tests__/recording/recordingPage.test.tsx __tests__/recording/headerPill.test.tsx __tests__/captureModal.ui.test.tsx __tests__/contextualHeader.test.tsx`
+
 ## [2026-05-16] - Capture Modal Mode Tabs
 
 Prepared the capture dialog for future recording support by splitting the existing upload flow into dedicated Upload Audio and Record Audio tabs while keeping upload behavior unchanged.

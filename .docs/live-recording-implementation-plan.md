@@ -49,11 +49,11 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 - New: `frontend/components/ui/tabs.tsx` (Radix wrapper, Olivetti-styled).
 - Modify: `frontend/components/CaptureModal/CaptureModal.tsx` to host two `<Tabs.Content>` panels.
 - New: `frontend/components/CaptureModal/UploadAudioPanel.tsx` — extracted from current modal body (drop zone, details, key terms). Behavior unchanged.
-- New: `frontend/components/CaptureModal/RecordAudioPanel.tsx` — form fields only (microphone selector placeholder, Test microphone button placeholder, title, key terms, disabled Language/Diarization mirrored from `CaptureDetails`). `Start Recording` button is rendered but **disabled** with a tooltip: "Recording mode is not yet available."
+- New: `frontend/components/CaptureModal/RecordAudioPanel.tsx` — form fields only (microphone selector placeholder, Test microphone button placeholder, inert input-level meter shell, title, key terms, disabled Language/Diarization mirrored from `CaptureDetails`). `Start Recording` button is rendered but **disabled** with a tooltip: "Recording mode is not yet available."
 - Modify: `frontend/components/CaptureModal/CaptureFooter.tsx` to adopt tab-aware CTA copy (`Begin transcription` / `Start Recording`).
 - Modify: existing tests in `__tests__/captureModal.ui.test.tsx` to assert tab structure; verify Upload tab still passes its existing test cases.
 
-**Implements spec sections:** Capture Modal Design (Tabs, Upload Audio Tab, Record Audio Tab fields only — no permission, no meter, no real Start), Footer Behavior.
+**Implements spec sections:** Capture Modal Design (Tabs, Upload Audio Tab, Record Audio Tab fields only — no permission, no live meter, no real Start), Footer Behavior.
 
 **Dependencies:** None. Can start immediately.
 

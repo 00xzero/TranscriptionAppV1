@@ -15,7 +15,7 @@ type CaptureTab = 'upload' | 'record'
 const RECORD_DISABLED_TOOLTIP = 'Recording mode is not yet available.'
 
 export default function CaptureModal() {
-  const { isCaptureModalOpen, closeCaptureModal } = useModal()
+  const { isCaptureModalOpen, captureModalIntent, closeCaptureModal } = useModal()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
   const restoreOnExternalCloseRef = useRef(true)
@@ -31,9 +31,12 @@ export default function CaptureModal() {
   useLayoutEffect(() => {
     if (isCaptureModalOpen && !wasOpenRef.current) {
       restoreOnExternalCloseRef.current = true
+      if (captureModalIntent?.initialTab) {
+        setActiveTab(captureModalIntent.initialTab)
+      }
       captureFocus()
     }
-  }, [isCaptureModalOpen, captureFocus])
+  }, [captureModalIntent, isCaptureModalOpen, captureFocus])
 
   useEffect(() => {
     if (!isCaptureModalOpen && wasOpenRef.current && restoreOnExternalCloseRef.current) {
@@ -150,6 +153,15 @@ export default function CaptureModal() {
           </div>
 
           <div ref={bodyScrollRef} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-6">
+            {captureModalIntent?.message && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="mb-4 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                {captureModalIntent.message}
+              </div>
+            )}
             <TabsContent value="upload">
               <UploadAudioPanel
                 selectedFile={selectedFile}

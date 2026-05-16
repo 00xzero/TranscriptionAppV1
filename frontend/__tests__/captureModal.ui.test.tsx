@@ -7,6 +7,10 @@ import { TooltipProvider } from '../components/ui/tooltip'
 const mockCloseCaptureModal = jest.fn()
 const mockModalState = {
   isCaptureModalOpen: true,
+  captureModalIntent: null as null | {
+    initialTab?: 'upload' | 'record'
+    message?: string
+  },
 }
 const mockCaptureFormState = {
   isUploading: false,
@@ -15,6 +19,7 @@ const mockCaptureFormState = {
 jest.mock('../lib/ModalContext', () => ({
   useModal: () => ({
     isCaptureModalOpen: mockModalState.isCaptureModalOpen,
+    captureModalIntent: mockModalState.captureModalIntent,
     closeCaptureModal: mockCloseCaptureModal,
   }),
 }))
@@ -53,6 +58,7 @@ describe('CaptureModal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockModalState.isCaptureModalOpen = true
+    mockModalState.captureModalIntent = null
     mockCaptureFormState.isUploading = false
   })
 
@@ -108,6 +114,7 @@ describe('CaptureModal', () => {
     expect(openButton).toHaveFocus()
 
     mockModalState.isCaptureModalOpen = true
+    mockModalState.captureModalIntent = null
     rerender(<Harness />)
 
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -129,6 +136,7 @@ describe('CaptureModal tabs', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockModalState.isCaptureModalOpen = true
+    mockModalState.captureModalIntent = null
     mockCaptureFormState.isUploading = false
   })
 
@@ -137,6 +145,23 @@ describe('CaptureModal tabs', () => {
 
     expect(screen.getByRole('tab', { name: /upload audio/i })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /record audio/i })).toBeInTheDocument()
+  })
+
+  test('honors a record-tab open intent and shows its message', () => {
+    mockModalState.captureModalIntent = {
+      initialTab: 'record',
+      message: 'Recording session not found. Please start a new recording.',
+    }
+
+    renderModal()
+
+    expect(screen.getByRole('tab', { name: /record audio/i })).toHaveAttribute(
+      'data-state',
+      'active'
+    )
+    expect(
+      screen.getByText(/recording session not found/i)
+    ).toBeInTheDocument()
   })
 
   test('Record tab disables the Start Recording CTA with help text', async () => {

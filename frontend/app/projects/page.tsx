@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useModal } from '@/lib/ModalContext'
 
 export default function ProjectsPage() {
   return (
@@ -17,6 +18,7 @@ export default function ProjectsPage() {
 function ProjectsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { openCaptureModal } = useModal()
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per project - reused until request completes to prevent double-click issues
@@ -31,6 +33,20 @@ function ProjectsPageContent() {
     setCaptureOutcome(searchParams.get('capture'))
     setCaptureProjectId(searchParams.get('projectId'))
   }, [searchParams])
+
+  useEffect(() => {
+    if (searchParams.get('capture') !== 'recording_session_not_found') return
+
+    openCaptureModal({
+      initialTab: 'record',
+      message: 'Recording session not found. Please start a new recording.',
+    })
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('capture')
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
+  }, [openCaptureModal, router, searchParams])
 
   const captureMessage = captureOutcome === 'saved_needs_retry'
     ? 'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'

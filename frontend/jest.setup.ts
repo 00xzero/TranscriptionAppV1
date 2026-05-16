@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom'
+import { __resetForTesting as __resetRecordingSession } from './lib/recording/session'
 
 // Polyfill missing DOM APIs in jsdom
 if (typeof window !== 'undefined') {
@@ -7,6 +8,10 @@ if (typeof window !== 'undefined') {
     value: jest.fn(),
   })
 }
+
+beforeEach(() => {
+  __resetRecordingSession()
+})
 
 // In case any code queries ResizeObserver implicitly
 // @ts-ignore

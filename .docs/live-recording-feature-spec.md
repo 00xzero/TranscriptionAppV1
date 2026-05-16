@@ -171,7 +171,7 @@ The page handles three distinct entry conditions on mount:
 
 ### Header Recording Indicator
 
-While the session singleton reports state `recording` or `paused`, the contextual header renders a compact pill: `● Recording HH:MM:SS`. The dot uses `ember-red`; the pill background uses `night-surface`. Clicking the pill navigates to `/recording/new` (through the same guarded navigation as all other in-app routing — see Navigation Policy below). The pill disappears as soon as the session transitions to `submitted` or `discarded`.
+While the session singleton reports state `recording` or `paused`, the contextual header renders a compact pill. It reads `● Recording HH:MM:SS` while actively recording and `● Paused HH:MM:SS` while paused, so the chrome reflects the real lifecycle state at a glance. The dot uses `ember-red`; the pill background uses `night-surface`. Clicking the pill navigates to `/recording/new` (through the same guarded navigation as all other in-app routing — see Navigation Policy below). The pill disappears as soon as the session transitions to `submitted` or `discarded`.
 
 The pill exists for two reasons:
 
@@ -340,7 +340,7 @@ The flow needs explicit states for:
 
 - Microphone permission is requested only in direct response to the user's explicit action (`Test microphone` or `Start Recording`).
 - The recording page shows a persistent visible recording indicator.
-- The header pill (`● Recording HH:MM:SS`) reinforces the active state app-wide.
+- The header pill (`● Recording HH:MM:SS` / `● Paused HH:MM:SS`) reinforces the active state app-wide.
 - Media tracks are stopped when the user discards or finishes recording.
 - Unfinished recordings are not silently persisted in the first release.
 - The persisted `deviceId` in `localStorage` is an opaque, origin-scoped identifier — no labels are stored.
@@ -359,7 +359,7 @@ The flow needs explicit states for:
 10. Leaving the page with unsaved recording data triggers protection:
     - in-app confirmation dialog for any route change attempt
     - browser warning for unload attempts where supported
-11. A `● Recording HH:MM:SS` pill is visible in the header while the session is `recording` or `paused` and is click-to-return.
+11. A compact pill is visible in the header while the session is `recording` or `paused`, reads `● Recording HH:MM:SS` or `● Paused HH:MM:SS` to match the current lifecycle state, and is click-to-return.
 12. Stopping a recording submits it through the normal upload/transcription pipeline. The project row is created at Stop, not at Start.
 13. After successful submission, the user lands back in the library and sees the new project processing through the normal realtime UI.
 14. Recorder failure mid-session auto-submits salvaged chunks if they pass the empty floor; otherwise discards them. A banner explains what happened.
@@ -419,7 +419,7 @@ This section captures the questions previously listed under "Decisions To Make B
 | 9 | Discard target? | `/projects`. |
 | 10 | Empty-recording floor? | < 2 s active duration **or** < 4 KB cumulative bytes. `Stop & transcribe` is hidden; inline banner offers Resume / Discard only. |
 | 11 | Page-load contract for `/recording/new`? | Three entry conditions: fresh handoff (render in-progress), interrupted (singleton empty but metadata in `sessionStorage` → `interrupted` state with `Start a new recording` CTA), direct visit (redirect to Capture). |
-| 12 | Recording indicator in chrome? | Compact `● Recording HH:MM:SS` pill in the header, clickable to return. |
+| 12 | Recording indicator in chrome? | Compact state-aware pill in the header: `● Recording HH:MM:SS` while recording, `● Paused HH:MM:SS` while paused, clickable to return. |
 | 13 | Title required on Record tab? | Optional on both tabs. Record path generates a `Recording — {date and time}` fallback at Stop time. Filename is always app-generated: `recording-{ISO timestamp}.{ext}`. |
 | 14 | Recorder failure mid-session? | Auto-submit salvaged chunks if they pass the empty floor; otherwise discard. A banner explains the failure. |
 | 15 | Microphone selection persistence? | `deviceId` persisted to `localStorage` (`recording.preferredDeviceId`) after permission grant. Falls back to browser default if the saved device is unavailable. |

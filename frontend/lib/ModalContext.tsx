@@ -4,25 +4,35 @@ import React, { createContext, useContext, useState, useCallback, ReactNode } fr
 
 interface ModalContextType {
   isCaptureModalOpen: boolean
-  openCaptureModal: () => void
+  captureModalIntent: CaptureModalIntent | null
+  openCaptureModal: (intent?: CaptureModalIntent) => void
   closeCaptureModal: () => void
+}
+
+export interface CaptureModalIntent {
+  initialTab?: 'upload' | 'record'
+  message?: string
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined)
 
 export function ModalProvider({ children }: { children: ReactNode }) {
   const [isCaptureModalOpen, setIsCaptureModalOpen] = useState(false)
+  const [captureModalIntent, setCaptureModalIntent] =
+    useState<CaptureModalIntent | null>(null)
 
-  const openCaptureModal = useCallback(() => {
+  const openCaptureModal = useCallback((intent?: CaptureModalIntent) => {
+    setCaptureModalIntent(intent ?? null)
     setIsCaptureModalOpen(true)
   }, [])
 
   const closeCaptureModal = useCallback(() => {
     setIsCaptureModalOpen(false)
+    setCaptureModalIntent(null)
   }, [])
 
   return (
-    <ModalContext.Provider value={{ isCaptureModalOpen, openCaptureModal, closeCaptureModal }}>
+    <ModalContext.Provider value={{ isCaptureModalOpen, captureModalIntent, openCaptureModal, closeCaptureModal }}>
       {children}
     </ModalContext.Provider>
   )

@@ -10,6 +10,7 @@ const getUserMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
 }))
 
 jest.mock('../lib/ModalContext', () => ({
