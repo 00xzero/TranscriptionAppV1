@@ -1,10 +1,12 @@
 import {
   __resetForTesting,
+  attachAndStart,
   discard,
   finalize,
   forceState,
   getElapsedActiveMs,
   getSnapshot,
+  hasUnsavedRecording,
   markError,
   markSubmitted,
   markUploading,
@@ -16,9 +18,58 @@ import {
   subscribe,
 } from '@/lib/recording/session'
 
+class FakeMediaRecorder extends EventTarget {
+  static shouldThrowOnStart = false
+  state: RecordingState = 'inactive'
+
+  constructor(_stream: MediaStream, _options: MediaRecorderOptions) {
+    super()
+  }
+
+  start(): void {
+    if (FakeMediaRecorder.shouldThrowOnStart) {
+      FakeMediaRecorder.shouldThrowOnStart = false
+      throw new Error('start failed')
+    }
+    this.state = 'recording'
+  }
+
+  stop(): void {
+    this.state = 'inactive'
+    this.dispatchEvent(new Event('stop'))
+  }
+
+  pause(): void {
+    this.state = 'paused'
+  }
+
+  resume(): void {
+    this.state = 'recording'
+  }
+}
+
+function createFakeStream(): MediaStream {
+  const track = {
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    stop: jest.fn(),
+  } as unknown as MediaStreamTrack
+
+  return {
+    getAudioTracks: () => [track],
+    getTracks: () => [track],
+  } as unknown as MediaStream
+}
+
 describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
+    FakeMediaRecorder.shouldThrowOnStart = false
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
   })
 
   test('idle is the default snapshot', () => {
@@ -87,12 +138,16 @@ describe('recording session singleton', () => {
 
   test('finalize -> uploading -> submitted is a valid path', () => {
     startMock()
+    expect(hasUnsavedRecording()).toBe(true)
     finalize()
     expect(getSnapshot().state).toBe('finalizing')
+    expect(hasUnsavedRecording()).toBe(true)
     markUploading()
     expect(getSnapshot().state).toBe('uploading')
+    expect(hasUnsavedRecording()).toBe(true)
     markSubmitted()
     expect(getSnapshot().state).toBe('submitted')
+    expect(hasUnsavedRecording()).toBe(false)
   })
 
   test('discard from recording goes to discarded', () => {
@@ -179,5 +234,34 @@ describe('recording session singleton', () => {
     __resetForTesting()
     startMock()
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  test('failed recorder start does not poison later attach attempts', () => {
+    FakeMediaRecorder.shouldThrowOnStart = true
+
+    expect(() =>
+      attachAndStart({
+        stream: createFakeStream(),
+        codec: { mime: 'audio/webm', extension: 'webm' },
+        title: null,
+        keyTerms: [],
+        deviceId: null,
+        maxBytes: 1024,
+      })
+    ).toThrow('start failed')
+
+    expect(getSnapshot().state).toBe('idle')
+
+    expect(() =>
+      attachAndStart({
+        stream: createFakeStream(),
+        codec: { mime: 'audio/webm', extension: 'webm' },
+        title: null,
+        keyTerms: [],
+        deviceId: null,
+        maxBytes: 1024,
+      })
+    ).not.toThrow()
+    expect(getSnapshot().state).toBe('recording')
   })
 })

@@ -32,7 +32,7 @@ main
 
 Each PR opens against `Record-on-demand` for focused review. When PR 4 lands, the feature is shippable; PR 5 is polish that can land before or after final merge to `main`. The final merge `Record-on-demand → main` is a single decision point.
 
-Record tab visibility: the tab is rendered from PR 1 onward but its **CTA is disabled** with copy explaining it's not yet ready until PR 4 lands. No env flag needed — the disabled-state copy is honest and the partial UI is reachable only by users on the integration branch's deploy.
+Record tab visibility: the tab is rendered from PR 1 onward. PR 1 ships a disabled placeholder CTA, while PR 3 enables the real browser-recording flow once mic capture exists. PR 4 swaps the mocked post-stop tail for the real upload/transcription handoff.
 
 ## PR-by-PR breakdown
 
@@ -114,16 +114,18 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 
 **Scope:**
 
-- New: `frontend/lib/hooks/useAudioRecorder.ts` — wraps `getUserMedia`, `MediaRecorder`, codec selection (`isTypeSupported` priority `audio/webm;codecs=opus` → `audio/mp4` → `audio/webm`), `dataavailable` event handling, pause/resume, error events.
+- New: `frontend/lib/hooks/useMicTest.ts` — owns explicit microphone acquisition/testing, preferred-device selection, and the pre-recording input meter.
+- New: `frontend/lib/recording/recorderController.ts` — owns `MediaRecorder` lifecycle, chunk callbacks, pause/resume, and track cleanup after the modal hands the stream off.
 - New: `frontend/lib/recording/codecs.ts` — codec selection logic with browser-support detection. Exports `selectCodec()` and the corresponding extension.
-- Modify: `frontend/lib/recording/session.ts` — connect to `useAudioRecorder`, manage stream lifecycle, accumulate `bytesSoFar` and `accumulated_active_ms`, expose observed bitrate.
+- Modify: `frontend/lib/recording/session.ts` — attach the recorder controller, manage stream lifecycle, accumulate `bytesSoFar` and `accumulated_active_ms`, and expose restart/stop actions.
 - Modify: `frontend/components/CaptureModal/RecordAudioPanel.tsx` — implement Test microphone button: requests `getUserMedia`, populates device dropdown via `enumerateDevices()`, drives input-level meter via `AnalyserNode`. Persist selected `deviceId` to `localStorage` (`recording.preferredDeviceId`). Stream is committed to the singleton on Start Recording (no double prompt).
-- Modify: `frontend/app/recording/new/page.tsx` — implement page entry conditions (fresh handoff / interrupted state / direct visit redirect). Implement dynamic size budget banner (~5 s warmup, then predicted time remaining at ≥ 80%, auto-stop at 100%). Implement empty-floor gate (< 2 s OR < 4 KB → hide Stop, show inline banner).
+- Modify: `frontend/app/recording/new/page.tsx` — implement page entry conditions (fresh handoff / interrupted state / direct visit redirect). Implement dynamic size budget banner (~5 s warmup, then predicted time remaining at ≥ 80%, auto-stop at 97% so the final recorder flush has headroom). Implement empty-floor gate (< 2 s OR < 4 KB → hide Stop, show inline banner).
 - New: `frontend/lib/recording/guardedNavigation.tsx` — `useGuardedNavigate` hook + `<GuardedLink>` wrapper. While the singleton has unsaved chunks, navigation attempts surface a confirm dialog ("Leaving this page will discard your recording. Continue?"). The header pill's click-to-return now uses guarded navigation correctly.
 - New: `frontend/lib/recording/useBeforeUnloadGuard.ts` — attach/detach `beforeunload` listener while session has unsaved chunks.
-- Modify: `frontend/lib/hooks/useCapture.ts` — extend `SUPPORTED_MIME_TYPES` with `audio/webm` and `audio/mp4`.
-- Modify: `frontend/middleware.ts` — add `/recording` to protected routes.
+- Modify: `frontend/lib/hooks/useCapture.ts` — extend `SUPPORTED_MIME_TYPES` with `audio/webm` (the existing `audio/mp4` support is already reused by the recorder path).
+- Modify: `frontend/proxy.ts` — add `/recording` to protected routes.
 - Modify: `frontend/components/CaptureModal/RecordAudioPanel.tsx` — `Start Recording` button now actually fires `MediaRecorder.start()` and routes to `/recording/new` (the page renders the in-progress session).
+- Modify: `frontend/components/CaptureModal/CaptureModal.tsx` + `CaptureFooter.tsx` — **enable** the Record-tab `Start Recording` CTA and drop the "not yet available" tooltip. The disabled state is now codec-driven (`"Audio recording isn't supported in this browser."` when `selectCodec()` returns `null`).
 
 **Implements spec sections:** Modal-To-Page Handoff, Page Entry Conditions, Navigation Policy, Recording Size Budget, Recording Lifecycle (all subsections), MIME / File Handling.
 
@@ -144,7 +146,7 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 
 - **Safari `MediaRecorder` quirks.** Codec support, `pause()` behavior, and `dataavailable` timing differ. Test early.
 - **iOS Safari background-tab kills.** Recording may die when tab is backgrounded. Out of scope for full handling, but verify the failure path (PR 4's salvage policy covers this).
-- **Guarded navigation in Next.js App Router.** No clean `routeChangeStart` hook in App Router; the helper must wrap `useRouter().push`, `useRouter().replace`, `useRouter().back`, and `<Link>` clicks. Browser back via popstate is harder — likely needs a `popstate` listener that prompts and re-pushes the URL if cancelled. Plan a short spike before committing the approach.
+- **Guarded navigation in Next.js App Router.** No clean `routeChangeStart` hook in App Router; the helper must wrap `useRouter().push`, `useRouter().replace`, `useRouter().back`, `<Link>` clicks, and browser back via `popstate`.
 - **`AnalyserNode` cleanup.** Failure to disconnect the analyser on unmount or device change leaks audio context. Use `useEffect` cleanup carefully.
 - **HMR singleton bleed.** Mid-recording HMR reload will land in the interrupted state — verify the recovery flow works in dev.
 - **React 18 Strict Mode** may double-invoke effects; permission requests must be idempotent.
@@ -160,11 +162,10 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 
 **Scope:**
 
-- Modify: `frontend/lib/recording/session.ts` — `finalizeAndSubmit()` action: stop recorder, await final `dataavailable`, concatenate chunks into a `Blob`, wrap as `File` with generated filename (`recording-{ISO}.{ext}`).
-- Modify: `frontend/app/recording/new/page.tsx` — wire Stop & transcribe to the singleton's submission action. Compute title fallback at submit time: `Recording — {Intl.DateTimeFormat}` if the user left title blank.
+- Modify: `frontend/lib/recording/session.ts` — replace the mocked post-stop tail behind `stopAndFinalize()` with the real handoff: await the final `dataavailable`, concatenate chunks into a `Blob`, wrap as `File` with generated filename (`recording-{ISO}.{ext}`), and submit it through the existing capture pipeline.
+- Modify: `frontend/app/recording/new/page.tsx` — keep Stop & transcribe wired to the singleton submission action and compute the persisted title fallback at submit time: `Recording — {Intl.DateTimeFormat}` if the user left title blank.
 - Modify: `frontend/lib/recording/session.ts` — implement recorder-failure auto-submit salvage policy. On `error` event, `track.ended`, or sustained `track.muted`: if chunks pass the empty floor, transition to `finalizing → uploading` automatically with a banner explaining the failure; otherwise transition to `discarded` with a banner.
-- Modify: `frontend/components/CaptureModal/CaptureModal.tsx` — accept a query param or context flag for "open on Record tab with error" so the direct-visit redirect from PR 3 can present a clean entry.
-- Modify: `frontend/components/CaptureModal/RecordAudioPanel.tsx` — **enable** the `Start Recording` CTA. Remove the "not yet available" tooltip. Record tab is now fully functional.
+- (PR 3 already enables the `Start Recording` CTA and drops the "not yet available" tooltip; PR 4 only swaps the trailing mock progression for the real submission pipeline.)
 - Modify: navigation after submission → `/projects` with the existing realtime subscription showing the new project as Processing.
 
 **Implements spec sections:** Recording Lifecycle > Stop & Transcribe, Recording Lifecycle > Discard, Title And Filename Defaults, Error Handling (salvage policy).
@@ -177,7 +178,7 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 - Recorder failure mid-session (simulated by revoking permission in browser dev tools) triggers the salvage path: auto-submit if above floor, with banner; auto-discard if below floor, with banner.
 - Title fallback `Recording — {locale date}` appears as the project title when user left title blank.
 - Upload failure after Stop reuses the existing `useCapture` `saved_needs_retry` / `saved_status_unknown` outcomes.
-- The Record tab is no longer disabled.
+- The Record tab's `Start Recording` now drives the real submission pipeline (no longer the mock `finalizing → uploading → submitted` progression).
 
 **Risks:**
 
@@ -199,7 +200,7 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 - Modify: `frontend/components/RecordingSession/RecordingWaveform.tsx` — replace mocked bars with `AnalyserNode`-driven frequency or time-domain visualization. Canvas-based, 60 fps, throttled to `requestAnimationFrame`. Pauses rendering when state is `paused`.
 - New: `frontend/__mocks__/MediaRecorder.ts` — testable `MediaRecorder` mock for Jest.
 - New: `frontend/__mocks__/getUserMedia.ts` — `navigator.mediaDevices` mock helpers.
-- New tests: `__tests__/recording/session.test.ts`, `__tests__/recording/useAudioRecorder.test.ts`, `__tests__/recording/recordingPage.test.tsx`, `__tests__/recording/sizeBudget.test.ts`, `__tests__/recording/entryConditions.test.tsx`, `__tests__/recording/salvagePolicy.test.ts`, `__tests__/recording/headerPill.test.tsx`.
+- New tests: `__tests__/recording/session.test.ts`, `__tests__/recording/recorderController.test.ts`, `__tests__/recording/recordingPage.test.tsx`, `__tests__/recording/sizeBudget.test.ts`, `__tests__/recording/entryConditions.test.tsx`, `__tests__/recording/salvagePolicy.test.ts`, `__tests__/recording/headerPill.test.tsx`.
 - Modify: `frontend/jest.setup.ts` — add singleton reset between tests.
 - Cross-browser QA pass: Chrome, Firefox, Safari macOS, Safari iOS, Edge.
 - Fix any per-browser bugs surfaced during QA.
@@ -210,7 +211,7 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 
 **Ship criteria:**
 
-- All new tests pass; existing test suites (25 suites, 286 tests per memory) still pass.
+- All new tests pass and the existing suite remains green.
 - Live waveform renders smoothly during recording, freezes during pause, clears on stop.
 - Manual smoke test on each target browser completes successfully.
 

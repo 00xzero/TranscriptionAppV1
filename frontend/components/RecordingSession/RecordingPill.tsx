@@ -1,7 +1,7 @@
 "use client"
 
-import { useRouter } from 'next/navigation'
 import { useRecordingSession } from '@/lib/recording/RecordingSessionContext'
+import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { getElapsedActiveMs } from '@/lib/recording/session'
 
 function format(ms: number): string {
@@ -14,7 +14,7 @@ function format(ms: number): string {
 }
 
 export default function RecordingPill() {
-  const router = useRouter()
+  const guardedNav = useGuardedNavigate()
   const snapshot = useRecordingSession()
 
   if (snapshot.state !== 'recording' && snapshot.state !== 'paused') {
@@ -27,7 +27,7 @@ export default function RecordingPill() {
   return (
     <button
       type="button"
-      onClick={() => router.push('/recording/new')}
+      onClick={() => guardedNav.push('/recording/new')}
       aria-label="Return to recording session"
       data-testid="recording-pill"
       className="flex items-center gap-2 rounded-full bg-night-surface px-3 py-1.5 text-xs font-medium text-paper shadow-xs transition-all hover:shadow-md active:scale-95"

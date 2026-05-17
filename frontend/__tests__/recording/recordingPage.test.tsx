@@ -12,7 +12,8 @@ const replaceMock = jest.fn()
 const pushMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: replaceMock, push: pushMock }),
+  useRouter: () => ({ replace: replaceMock, push: pushMock, back: jest.fn() }),
+  usePathname: () => '/recording/new',
 }))
 
 describe('Recording page', () => {
@@ -69,7 +70,37 @@ describe('Recording page', () => {
     render(<RecordingNewPage />)
     expect(screen.getByTestId('recording-spinner')).toBeInTheDocument()
     expect(screen.queryByTestId('recording-controls')).not.toBeInTheDocument()
+    expect(
+      screen.getByTestId('recording-waveform-mock').firstElementChild
+    ).toHaveStyle({ animationPlayState: 'paused' })
   })
+
+  test('uploading state keeps the waveform frozen', () => {
+    act(() => {
+      mockRecordingSession({ state: 'uploading', title: 't' })
+    })
+    render(<RecordingNewPage />)
+    expect(
+      screen.getByTestId('recording-waveform-mock').firstElementChild
+    ).toHaveStyle({ animationPlayState: 'paused' })
+  })
+
+  test.each(['finalizing', 'uploading'] as const)(
+    '%s state keeps the beforeunload guard active',
+    (state) => {
+      act(() => {
+        mockRecordingSession({ state, title: 't' })
+      })
+      const addSpy = jest.spyOn(window, 'addEventListener')
+
+      render(<RecordingNewPage />)
+
+      expect(addSpy).toHaveBeenCalledWith(
+        'beforeunload',
+        expect.any(Function)
+      )
+    }
+  )
 
   test('error state shows the message and Return to library CTA', () => {
     act(() => {
@@ -114,7 +145,7 @@ describe('Recording page', () => {
     expect(screen.getByText('Recovered title')).toBeInTheDocument()
   })
 
-  test('interrupted CTA starts a new mock recording with the preserved title', () => {
+  test('interrupted CTA surfaces a recovery error when the browser cannot record', async () => {
     act(() => {
       mockRecordingSession({ state: 'interrupted', title: 'Lost one' })
     })
@@ -122,10 +153,12 @@ describe('Recording page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /start a new recording/i }))
 
-    expect(getSnapshot()).toMatchObject({
-      state: 'recording',
-      title: 'Lost one',
-    })
+    // jsdom lacks navigator.mediaDevices.getUserMedia, so the real restart
+    // path surfaces an inline error and the session stays in `interrupted`
+    // (no Capture round-trip per spec).
+    await screen.findByRole('alert')
+    expect(getSnapshot().state).toBe('interrupted')
+    expect(screen.getByText('Lost one')).toBeInTheDocument()
   })
 
   test('submitted state schedules navigation to /projects', () => {
@@ -148,7 +181,13 @@ describe('Recording page', () => {
     jest.useFakeTimers()
     try {
       act(() => {
-        startMock({ title: 't' })
+        // Seed past the empty-floor gate so `Stop & transcribe` is visible.
+        mockRecordingSession({
+          state: 'recording',
+          title: 't',
+          pausedAccumulatedMs: 3000,
+          bytesSoFar: 8192,
+        })
       })
       const { unmount } = render(<RecordingNewPage />)
 
@@ -166,11 +205,16 @@ describe('Recording page', () => {
     }
   })
 
-  test('stop mock completes the mocked lifecycle after controls unmount', () => {
+  test('stop completes the mocked lifecycle after controls unmount', () => {
     jest.useFakeTimers()
     try {
       act(() => {
-        startMock({ title: 't' })
+        mockRecordingSession({
+          state: 'recording',
+          title: 't',
+          pausedAccumulatedMs: 3000,
+          bytesSoFar: 8192,
+        })
       })
       render(<RecordingNewPage />)
 

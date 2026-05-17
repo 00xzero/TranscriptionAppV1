@@ -1,16 +1,20 @@
 "use client"
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
 import type { RecordingState } from '@/lib/recording/session'
+import { useBeforeUnloadGuard } from '@/lib/recording/useBeforeUnloadGuard'
+import { usePopStateGuard } from '@/lib/recording/guardedNavigation'
+import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
 import RecordingStateLabel from '@/components/RecordingSession/RecordingStateLabel'
 import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
 import RecordingWaveformMock from '@/components/RecordingSession/RecordingWaveformMock'
+import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
 
@@ -29,6 +33,11 @@ export default function RecordingNewPage() {
   const router = useRouter()
   const snapshot = useRecordingSession()
   const actions = useRecordingActions()
+  const [restartError, setRestartError] = useState<string | null>(null)
+  const [restarting, setRestarting] = useState(false)
+
+  useBeforeUnloadGuard()
+  usePopStateGuard()
 
   useEffect(() => {
     if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
@@ -48,6 +57,19 @@ export default function RecordingNewPage() {
   }, [actions, router, snapshot.state])
 
   const title = snapshot.title ?? 'Untitled recording'
+
+  const handleRestart = async () => {
+    setRestartError(null)
+    setRestarting(true)
+    try {
+      const result = await actions.restartInterruptedRecording(MAX_FILE_SIZE_BYTES)
+      if (!result.ok) {
+        setRestartError(result.message ?? 'Could not start a new recording.')
+      }
+    } finally {
+      setRestarting(false)
+    }
+  }
 
   if (snapshot.state === 'idle') {
     return (
@@ -148,12 +170,21 @@ export default function RecordingNewPage() {
         <p className="text-sm text-ink/70 dark:text-paper/70">
           Your recording was interrupted and could not be recovered.
         </p>
+        {restartError && (
+          <div
+            role="alert"
+            className="rounded-md border border-ember-red/40 bg-ember-red/10 px-4 py-2 text-sm text-ink dark:text-paper"
+          >
+            {restartError}
+          </div>
+        )}
         <button
           type="button"
-          onClick={() => actions.startMock({ title: snapshot.title })}
-          className="self-start rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95"
+          onClick={handleRestart}
+          disabled={restarting}
+          className="self-start rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Start a new recording
+          {restarting ? 'Starting…' : 'Start a new recording'}
         </button>
       </div>
     )
@@ -192,6 +223,8 @@ export default function RecordingNewPage() {
       </header>
 
       <RecordingWaveformMock />
+
+      <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
 
       {isInFlight ? (
         <div

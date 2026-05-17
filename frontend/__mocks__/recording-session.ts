@@ -12,6 +12,9 @@ interface MockOptions {
   startedAt?: number | null
   lastResumeAt?: number | null
   errorMessage?: string | null
+  keyTerms?: string[]
+  codecExtension?: 'webm' | 'mp4' | null
+  bytesSoFar?: number
 }
 
 export function mockRecordingSession(options: MockOptions): void {
@@ -24,6 +27,10 @@ export function mockRecordingSession(options: MockOptions): void {
     partial.lastResumeAt = options.lastResumeAt ?? null
   if ('errorMessage' in options)
     partial.errorMessage = options.errorMessage ?? null
+  if ('keyTerms' in options) partial.keyTerms = options.keyTerms ?? []
+  if ('codecExtension' in options)
+    partial.codecExtension = options.codecExtension ?? null
+  if ('bytesSoFar' in options) partial.bytesSoFar = options.bytesSoFar ?? 0
   __setSnapshotForTesting(partial)
   forceState(options.state)
 }

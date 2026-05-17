@@ -1,7 +1,9 @@
+import { useMemo } from 'react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CaptureDetails from './CaptureDetails'
 import KeyTermsInput from './KeyTermsInput'
+import type { MicTestApi } from '@/lib/hooks/useMicTest'
 
 const micSelectId = 'capture-mic-select'
 
@@ -16,6 +18,9 @@ interface RecordAudioPanelProps {
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
   isUploading: boolean
+  micTest: MicTestApi
+  codecSupported: boolean | null
+  recordingActive: boolean
 }
 
 export default function RecordAudioPanel({
@@ -29,17 +34,52 @@ export default function RecordAudioPanel({
   handleAddTermClick,
   removeTerm,
   isUploading,
+  micTest,
+  codecSupported,
+  recordingActive,
 }: RecordAudioPanelProps) {
-  const noop = () => {}
+  const selectValue = micTest.selectedDeviceId ?? 'default'
+  const selectItems = useMemo(() => {
+    if (!micTest.permissionGranted || micTest.devices.length === 0) {
+      return [{ value: 'default', label: 'Default microphone' }]
+    }
+    return micTest.devices.map((d) => ({ value: d.deviceId, label: d.label }))
+  }, [micTest.devices, micTest.permissionGranted])
+
+  const handleDeviceChange = (value: string) => {
+    if (value === 'default') return
+    void micTest.changeDevice(value)
+  }
+
+  const handleTestClick = () => {
+    void micTest.request()
+  }
+
+  const meterValue = Math.max(0, Math.min(100, micTest.level))
+  const micControlsDisabled =
+    isUploading || recordingActive || codecSupported === false
 
   return (
     <div className="space-y-6">
       <div className="space-y-3">
         <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60">Microphone</p>
 
+        {codecSupported === false && (
+          <div
+            role="alert"
+            className="rounded-sm border border-ember-red/40 bg-ember-red/10 px-3 py-2 text-xs text-ink dark:text-paper"
+          >
+            Audio recording isn&apos;t supported in this browser.
+          </div>
+        )}
+
         <div className="space-y-1">
           <Label className="text-xs font-medium opacity-80" htmlFor={micSelectId}>Input device</Label>
-          <Select value="default" onValueChange={noop}>
+          <Select
+            value={selectValue}
+            onValueChange={handleDeviceChange}
+            disabled={micControlsDisabled}
+          >
             <SelectTrigger
               id={micSelectId}
               aria-label="Microphone input device"
@@ -48,7 +88,11 @@ export default function RecordAudioPanel({
               <SelectValue placeholder="Default microphone" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Default microphone</SelectItem>
+              {selectItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -56,11 +100,12 @@ export default function RecordAudioPanel({
         <div className="flex items-center justify-between gap-3 pt-1">
           <button
             type="button"
-            onClick={noop}
+            onClick={handleTestClick}
+            disabled={micControlsDisabled || micTest.requesting}
             aria-label="Test microphone"
-            className="text-xs font-medium px-3 py-2 rounded-sm shadow-xs transition-all active:scale-95 border border-[#D1CEC5] dark:border-[#444] bg-white/50 dark:bg-[#222]/50 hover:bg-ink/5 dark:hover:bg-white/5"
+            className="text-xs font-medium px-3 py-2 rounded-sm shadow-xs transition-all active:scale-95 border border-[#D1CEC5] dark:border-[#444] bg-white/50 dark:bg-[#222]/50 hover:bg-ink/5 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Test microphone
+            {micTest.requesting ? 'Requesting…' : 'Test microphone'}
           </button>
           <div className="flex-1 ml-3">
             <div
@@ -68,13 +113,25 @@ export default function RecordAudioPanel({
               aria-label="Microphone input level"
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-valuenow={0}
+              aria-valuenow={meterValue}
               className="h-1.5 w-full rounded-full bg-ink/10 dark:bg-white/10 overflow-hidden"
             >
-              <div className="h-full w-0 bg-trust-blue/60" />
+              <div
+                className="h-full bg-trust-blue/60 transition-[width] duration-75"
+                style={{ width: `${meterValue}%` }}
+              />
             </div>
           </div>
         </div>
+
+        {micTest.error && (
+          <div
+            role="alert"
+            className="rounded-sm border border-ember-red/40 bg-ember-red/10 px-3 py-2 text-xs text-ink dark:text-paper"
+          >
+            {micTest.error.message}
+          </div>
+        )}
       </div>
 
       <CaptureDetails

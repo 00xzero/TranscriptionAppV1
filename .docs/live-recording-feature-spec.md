@@ -184,6 +184,7 @@ Use a soft lock, not an absolute lock. The app shell stays fully visible and not
 
 - A guarded navigation helper wraps `useRouter().push` and all in-app `<Link>` clicks. While the session has unsaved recording data, any in-app navigation attempt opens a confirmation dialog: "Leaving this page will discard your recording. Continue?". Cancel keeps the user on the recording page; confirm transitions the session to `discarded` and performs the navigation.
 - While there is unsaved recording data, a `beforeunload` handler is attached so browser-level close, reload, or back-navigation attempts trigger the browser's native warning dialog.
+- Browser back is also handled in-app through a `popstate` guard that restores the recording route if the user cancels the discard confirmation.
 - The listener is removed the moment the session transitions to `discarded` or `submitted`.
 
 Important limitation:
@@ -196,7 +197,6 @@ Client state machine:
 
 ```text
 idle
--> requesting_permission
 -> recording
 <-> paused
 -> finalizing
@@ -211,7 +211,7 @@ interrupted is a recovery state reachable only on page load when the singleton i
 
 1. User submits the Record tab. If `Test microphone` was not used, permission is requested now; on denial the modal stays open with an explicit recovery message.
 2. The modal calls `MediaRecorder.start()` on the held stream.
-3. Session metadata (title, key terms, codec, started_at) is mirrored to `sessionStorage` under a single draft key.
+3. Session metadata (title, key terms, codec MIME, device ID) is mirrored to `sessionStorage` under a single draft key.
 4. The page is routed to `/recording/new`.
 
 ### Pause / Resume
@@ -247,7 +247,7 @@ Behavior:
 - For the first ~5 seconds, do not show a prediction — early bitrate samples are noisy.
 - At `bytesSoFar ≥ 80% of MAX_FILE_SIZE_BYTES`, show a banner with a predicted time remaining: `(MAX_FILE_SIZE_BYTES * 0.20) / observed_bitrate`, updated each second. Copy: "Approaching size limit — about {N} min left."
 - During the warmup window or if the bitrate is not yet reliable, the banner reads "Approaching size limit."
-- At `bytesSoFar ≥ MAX_FILE_SIZE_BYTES`, auto-stop the recorder and proceed directly into the upload flow. No additional confirmation.
+- At `bytesSoFar ≥ 97% of MAX_FILE_SIZE_BYTES`, auto-stop the recorder and proceed directly into the upload flow. The 3% headroom leaves room for the recorder's final flush before the hard upload cap. No additional confirmation.
 - The prediction is best-effort and labelled as an estimate. Silence right before the cap will overshoot; sustained loud speech will undershoot.
 
 ## Data And Architecture
@@ -260,7 +260,8 @@ Likely additions:
 - `frontend/components/CaptureModal/...` updates for tab state and Record-tab fields
 - `frontend/app/recording/new/page.tsx`
 - `frontend/components/RecordingSession/...`
-- `frontend/lib/hooks/useAudioRecorder.ts`
+- `frontend/lib/hooks/useMicTest.ts`
+- `frontend/lib/recording/recorderController.ts`
 - `frontend/lib/recording/session.ts` — the session singleton (see below)
 
 ### Session State Container
@@ -280,7 +281,7 @@ The module exports a `__resetForTesting()` helper used by Jest setup; the single
 
 ### Session Metadata Handoff
 
-Title, key terms, codec, and started_at are mirrored to `sessionStorage` under a single draft key the moment `Start Recording` is pressed. The recording page reads this draft on mount to support the "interrupted" entry condition. The draft is cleared on `submitted` and `discarded`.
+Title, key terms, codec MIME, and preferred device ID are mirrored to `sessionStorage` under a single draft key the moment `Start Recording` is pressed. The recording page reads this draft on mount to support the "interrupted" entry condition. A restarted interrupted session begins with a fresh active-time clock; the draft preserves setup metadata, not elapsed time. The draft is cleared on `submitted` and `discarded`.
 
 The mic stream and the live `MediaRecorder` are **not** serializable and live only on the singleton.
 
@@ -327,7 +328,7 @@ Accepted tradeoff:
 The flow needs explicit states for:
 
 - **Microphone permission denied.** Modal (pre-handoff) or Record tab stays open with an explicit recovery message describing how to re-enable permission in the browser.
-- **No microphone available.** Record tab disables its CTA and explains the missing device.
+- **No microphone available.** The Record tab surfaces the missing-device error when mic acquisition is attempted and keeps the user in place.
 - **Browser recording API unsupported.** Record tab disables its CTA with a "not supported in this browser" message (per the codec gate above).
 - **Recorder failure mid-session.** Recorder `error` event, `track.ended`, or sustained `track.muted`. The session auto-submits whatever was captured **if** it passes the empty-floor threshold (≥ 2 s, ≥ 4 KB). A banner explains what happened ("Microphone access was lost. Submitting what was recorded."). If chunks are below the floor, the session discards them and the banner explains the loss. The user does not have to click anything.
 - **Recording too large for current upload limits.** Cannot occur on Stop given the dynamic budget auto-stop, but the existing `validateFile` size check remains as a defensive backstop.
@@ -354,7 +355,7 @@ The flow needs explicit states for:
 5. Clicking `Start Recording` begins `MediaRecorder.start()` in the modal and navigates to `/recording/new`, which renders the already-running session.
 6. The user can pause, resume, stop-and-transcribe, or discard a recording.
 7. Elapsed time excludes paused duration.
-8. The session approaches the configured size cap with a dynamic prediction banner at ≥ 80% of `MAX_FILE_SIZE_BYTES`, and auto-stops at 100%.
+8. The session approaches the configured size cap with a dynamic prediction banner at ≥ 80% of `MAX_FILE_SIZE_BYTES`, and auto-stops at 97% to preserve final-flush headroom under the hard cap.
 9. `Stop & transcribe` is hidden until the recording passes the empty-floor threshold (≥ 2 s active duration **and** ≥ 4 KB bytes).
 10. Leaving the page with unsaved recording data triggers protection:
     - in-app confirmation dialog for any route change attempt
@@ -381,7 +382,7 @@ The flow needs explicit states for:
 ### Phase 2: Real Browser Recording
 
 - Build `lib/recording/session.ts` (the singleton + thin React context).
-- Implement `useAudioRecorder`.
+- Implement `useMicTest` and the recorder controller split.
 - Wire permission, recording, pause/resume, elapsed-active-time accounting, discard cleanup, and unload protection.
 - Add runtime codec selection (`audio/webm;codecs=opus` → `audio/mp4` → `audio/webm`) with `MediaRecorder.isTypeSupported()`.
 - Extend `useCapture.ts` `SUPPORTED_MIME_TYPES` to include `audio/webm` and `audio/mp4`.
@@ -415,7 +416,7 @@ This section captures the questions previously listed under "Decisions To Make B
 | 5 | Where does live session state live? | Module-level singleton at `lib/recording/session.ts`, exposed via a thin React context. Survives navigation by virtue of being a module. |
 | 6 | Codec? | Runtime select: `audio/webm;codecs=opus` → `audio/mp4` → `audio/webm`. Disable Record tab if none supported. |
 | 7 | Quiet recording mode behavior? | App shell stays visible. Nav attempts are intercepted with an in-app confirm dialog. Nothing is visually disabled. |
-| 8 | Hard duration cap? | None. Dynamic size-budget banner at ≥ 80% of `MAX_FILE_SIZE_BYTES` with predicted time remaining; auto-stop at 100%. |
+| 8 | Hard duration cap? | None. Dynamic size-budget banner at ≥ 80% of `MAX_FILE_SIZE_BYTES` with predicted time remaining; auto-stop at 97% to preserve final-flush headroom. |
 | 9 | Discard target? | `/projects`. |
 | 10 | Empty-recording floor? | < 2 s active duration **or** < 4 KB cumulative bytes. `Stop & transcribe` is hidden; inline banner offers Resume / Discard only. |
 | 11 | Page-load contract for `/recording/new`? | Three entry conditions: fresh handoff (render in-progress), interrupted (singleton empty but metadata in `sessionStorage` → `interrupted` state with `Start a new recording` CTA), direct visit (redirect to Capture). |

@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-05-17] - Live Recording Capture
+
+Turned the mocked recording shell into a real browser recording flow: users can acquire a microphone, record from the Capture modal, keep a session alive across navigation, and manage long recordings before the later submission-pipeline slice lands.
+
+### Added
+
+- **`frontend/lib/hooks/useMicTest.ts`**, **`frontend/lib/recording/codecs.ts`**, **`frontend/lib/recording/preferredDevice.ts`**, and **`frontend/lib/recording/recorderController.ts`** — Added microphone acquisition/testing, preferred-device persistence, codec selection, live `MediaRecorder` ownership, chunk callbacks, and track cleanup.
+- **`frontend/lib/recording/guardedNavigation.tsx`** and **`frontend/lib/recording/useBeforeUnloadGuard.ts`** — Added guarded in-app navigation, browser-back interception, and unload protection while a recording is still unsaved.
+- **`frontend/lib/recording/sizeBudget.ts`** and **`frontend/components/RecordingSession/SizeBudgetBanner.tsx`** — Added empty-recording thresholds, size-limit prediction helpers, warning UI, and auto-stop headroom support.
+
+### Changed
+
+- **`frontend/components/CaptureModal/CaptureModal.tsx`** and **`frontend/components/CaptureModal/RecordAudioPanel.tsx`** — Enabled the Record tab with real mic testing, live device selection, codec-aware availability, active-session guards, and handoff into the recording route.
+- **`frontend/lib/recording/session.ts`** and **`frontend/lib/recording/RecordingSessionContext.tsx`** — Expanded the singleton to attach real recorder streams, retain recording metadata, track bytes, restart interrupted sessions, drain-aware stop flow, and expose the new recording actions.
+- **`frontend/app/recording/new/page.tsx`**, **`frontend/components/RecordingSession/RecordingControls.tsx`**, and **`frontend/components/RecordingSession/RecordingWaveformMock.tsx`** — Added interrupted-session restart handling, size-budget messaging, empty-floor stop gating, and frozen waveform states while finalizing or uploading.
+- **`frontend/components/Sidebar.tsx`**, **`frontend/components/LibraryView.tsx`**, **`frontend/components/ErrorFallback.tsx`**, **`frontend/components/RecordingSession/RecordingPill.tsx`**, **`frontend/app/projects/page.tsx`**, and **`frontend/components/CaptureModal/useCaptureForm.ts`** — Routed user navigation through the guarded flow so active recordings are not silently discarded.
+- **`frontend/lib/hooks/useCapture.ts`** and **`frontend/proxy.ts`** — Allowed uploaded `audio/webm` files and protected `/recording` routes.
+- **`.docs/live-recording-implementation-plan.md`** — Updated the PR sequencing notes to reflect that PR 3 now enables the Record CTA and leaves only the later submission handoff for PR 4.
+
+### Tests
+
+- **`frontend/__tests__/captureModal.ui.test.tsx`** and **`frontend/__tests__/captureModal/useCaptureForm.test.tsx`** — Added coverage for codec-gated recording, mic failures, active-session locking, stale request cleanup, and guarded upload outcomes.
+- **`frontend/__tests__/recording/session.test.ts`**, **`frontend/__tests__/recording/recordingPage.test.tsx`**, **`frontend/__tests__/recording/guardedNavigation.test.tsx`**, and **`frontend/__tests__/recording/sizeBudget.test.ts`** — Added coverage for live attach failures, unsaved-state guards, interrupted restart behavior, waveform freeze states, browser-back handling, and size-budget auto-stop thresholds.
+- **`frontend`** — `npm test -- --runInBand` (`41` suites / `390` tests passing)
+- **`frontend`** — `npm run typecheck`
+
 ## [2026-05-17] - Recording Session Shell
 
 Added the mocked recording-session foundation for the future live capture flow: a persistent client-side session store, a dedicated recording route, and a header indicator that keeps the active session visible across the app.

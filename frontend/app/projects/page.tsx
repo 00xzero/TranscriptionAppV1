@@ -1,5 +1,5 @@
 "use client"
-import Link from 'next/link'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'

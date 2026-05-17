@@ -3,6 +3,19 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import CaptureModal from '../components/CaptureModal'
 import { TooltipProvider } from '../components/ui/tooltip'
+import {
+  __resetForTesting,
+  startMock,
+} from '../lib/recording/session'
+
+class FakeMediaRecorder {
+  static isTypeSupported = jest.fn(() => true)
+}
+
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
+  usePathname: () => '/projects',
+}))
 
 const mockCloseCaptureModal = jest.fn()
 const mockModalState = {
@@ -57,9 +70,15 @@ function renderModal() {
 describe('CaptureModal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    __resetForTesting()
     mockModalState.isCaptureModalOpen = true
     mockModalState.captureModalIntent = null
     mockCaptureFormState.isUploading = false
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    })
   })
 
   test('renders as an accessible dialog and closes when idle', async () => {
@@ -135,9 +154,15 @@ describe('CaptureModal', () => {
 describe('CaptureModal tabs', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    __resetForTesting()
     mockModalState.isCaptureModalOpen = true
     mockModalState.captureModalIntent = null
     mockCaptureFormState.isUploading = false
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    })
   })
 
   test('renders both tab triggers with correct accessible names', () => {
@@ -164,15 +189,20 @@ describe('CaptureModal tabs', () => {
     ).toBeInTheDocument()
   })
 
-  test('Record tab disables the Start Recording CTA with help text', async () => {
+  test('Record tab disables the Start Recording CTA when the browser cannot record', async () => {
     const user = userEventLib.setup()
     renderModal()
 
     await user.click(screen.getByRole('tab', { name: /record audio/i }))
 
+    // jsdom has no MediaRecorder, so the codec probe fails and the CTA is
+    // disabled with the unsupported-codec message.
     const startButton = screen.getByRole('button', { name: /start recording/i })
     expect(startButton).toBeDisabled()
-    expect(startButton).toHaveAttribute('title', 'Recording mode is not yet available.')
+    expect(startButton).toHaveAttribute(
+      'title',
+      "Audio recording isn't supported in this browser."
+    )
   })
 
   test('Record tab renders its intended fields', async () => {
@@ -191,6 +221,183 @@ describe('CaptureModal tabs', () => {
     expect(screen.getByText(/language/i)).toBeInTheDocument()
     expect(screen.getByText(/speaker diarization/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/add key terms for transcription/i)).toBeInTheDocument()
+  })
+
+  test('Record tab disables microphone controls while another recording is active', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    act(() => {
+      startMock()
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+
+    expect(
+      screen.getByRole('combobox', { name: /microphone input device/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /test microphone/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByText(
+        /a recording is already in progress\. return to it before starting another\./i
+      )
+    ).toBeInTheDocument()
+  })
+
+  test('Record tab shows the immediate microphone failure reason on start', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockRejectedValue(
+          Object.assign(new Error('missing mic'), { name: 'NotFoundError' })
+        ),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(
+      await screen.findAllByText('No microphone was found.')
+    ).not.toHaveLength(0)
+  })
+
+  test('Record tab disables Start Recording while a microphone request is pending', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    let resolveMicRequest: ((stream: MediaStream) => void) | undefined
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn(
+          () =>
+            new Promise<MediaStream>((resolve) => {
+              resolveMicRequest = resolve
+            })
+        ),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    await user.click(screen.getByRole('button', { name: /test microphone/i }))
+
+    const startButton = screen.getByRole('button', { name: /start recording/i })
+    expect(startButton).toBeDisabled()
+    expect(startButton).toHaveAttribute('title', 'Requesting microphone…')
+
+    await act(async () => {
+      resolveMicRequest?.({
+        getAudioTracks: () => [],
+        getTracks: () => [],
+      } as unknown as MediaStream)
+    })
+  })
+
+  test('closing the modal stops a microphone request that resolves afterward', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    const stop = jest.fn()
+    let resolveMicRequest: ((stream: MediaStream) => void) | undefined
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn(
+          () =>
+            new Promise<MediaStream>((resolve) => {
+              resolveMicRequest = resolve
+            })
+        ),
+      },
+    })
+
+    const { rerender } = renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    await user.click(screen.getByRole('button', { name: /test microphone/i }))
+
+    mockModalState.isCaptureModalOpen = false
+    rerender(
+      <TooltipProvider delayDuration={0}>
+        <CaptureModal />
+      </TooltipProvider>
+    )
+
+    await act(async () => {
+      resolveMicRequest?.({
+        getAudioTracks: () => [],
+        getTracks: () => [{ stop }],
+      } as unknown as MediaStream)
+    })
+
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  test('closing the modal cancels a microphone request during device enumeration', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    const stop = jest.fn()
+    let resolveEnumeration: ((devices: MediaDeviceInfo[]) => void) | undefined
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue({
+          getAudioTracks: () => [
+            {
+              getSettings: () => ({ deviceId: 'mic-1' }),
+            },
+          ],
+          getTracks: () => [{ stop }],
+        } as unknown as MediaStream),
+        enumerateDevices: jest.fn(
+          () =>
+            new Promise<MediaDeviceInfo[]>((resolve) => {
+              resolveEnumeration = resolve
+            })
+        ),
+      },
+    })
+
+    const { rerender } = renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    mockModalState.isCaptureModalOpen = false
+    rerender(
+      <TooltipProvider delayDuration={0}>
+        <CaptureModal />
+      </TooltipProvider>
+    )
+
+    await act(async () => {
+      resolveEnumeration?.([])
+    })
+
+    expect(stop).toHaveBeenCalledTimes(1)
   })
 
   test('switching back to Upload restores the Begin Transcription CTA', async () => {

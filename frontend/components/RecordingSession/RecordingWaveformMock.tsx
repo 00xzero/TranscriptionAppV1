@@ -6,7 +6,7 @@ const BAR_COUNT = 48
 
 export default function RecordingWaveformMock() {
   const state = useRecordingState()
-  const paused = state === 'paused'
+  const isRecording = state === 'recording'
 
   return (
     <div
@@ -22,7 +22,7 @@ export default function RecordingWaveformMock() {
             height: '24px',
             animation: 'recording-bar-pulse 1.2s ease-in-out infinite',
             animationDelay: `${(i % 8) * 90}ms`,
-            animationPlayState: paused ? 'paused' : 'running',
+            animationPlayState: isRecording ? 'running' : 'paused',
           }}
         />
       ))}
