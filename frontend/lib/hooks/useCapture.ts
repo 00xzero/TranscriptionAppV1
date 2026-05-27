@@ -152,6 +152,18 @@ type UseCapture = {
     validateFile: (file: File) => string | null
 }
 
+export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'done'
+
+export type CaptureUploadResult =
+    | {
+        kind: 'success'
+        projectId: string
+        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+        message?: string
+    }
+    | { kind: 'validation_error'; message: string }
+    | { kind: 'failure'; message: string }
+
 /**
  * Validate file type and size.
  * Returns error message or null if valid.
@@ -175,6 +187,153 @@ function validateFile(file: File): string | null {
     }
 
     return `Unsupported file type. Please upload MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, or AVI.`
+}
+
+/**
+ * Shared upload/transcription pipeline used by both upload capture and
+ * in-browser recording capture. UI callers can subscribe to coarse progress
+ * updates without coupling the pipeline to React state.
+ */
+export async function runCaptureUpload(
+    file: File,
+    title: string,
+    keyTerms: string[],
+    options?: { onProgress?: (p: CaptureUploadProgress) => void }
+): Promise<CaptureUploadResult> {
+    const supabase = createClient()
+    let projectId: string | null = null
+    let storagePath: string | null = null
+    let didUploadFile = false
+    let didLinkMediaToProject = false
+    let didDispatchStartRequest = false
+    let didReceiveStartResponse = false
+
+    options?.onProgress?.('creating')
+
+    try {
+        const validationError = validateFile(file)
+        if (validationError) {
+            return { kind: 'validation_error', message: validationError }
+        }
+
+        console.log('[useCapture] Step 1: Creating project...')
+        const createRes = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: title || file.name,
+                filename: file.name,
+                key_terms: keyTerms.length > 0 ? keyTerms : undefined
+            })
+        })
+
+        if (!createRes.ok) {
+            const errorData = await createRes.json().catch(() => ({}))
+            console.error('[useCapture] Project creation failed:', errorData)
+            throw new Error(errorData.error || `Failed to create project (${createRes.status})`)
+        }
+
+        const createData = await createRes.json()
+        projectId = createData?.project?.id ?? null
+        storagePath = createData?.storagePath ?? null
+
+        if (!projectId || !storagePath) {
+            throw new Error('Project creation response was missing required fields')
+        }
+
+        console.log('[useCapture] Project created:', projectId, 'storagePath:', storagePath)
+
+        options?.onProgress?.('uploading')
+        console.log('[useCapture] Step 2: Uploading file to storage...', {
+            storagePath,
+            fileSize: file.size,
+            fileType: file.type
+        })
+
+        const mimeType = getMimeType(file)
+        const { error: uploadError } = await supabase.storage
+            .from('media')
+            .upload(storagePath, file, {
+                contentType: mimeType,
+                upsert: false
+            })
+
+        if (uploadError) {
+            console.error('[useCapture] Storage upload failed:', uploadError)
+            throw new Error(`Upload failed: ${uploadError.message}`)
+        }
+        didUploadFile = true
+        console.log('[useCapture] File uploaded successfully')
+
+        console.log('[useCapture] Updating project with source_object_key...')
+        const { error: updateError } = await supabase
+            .from('projects')
+            .update({ source_object_key: storagePath })
+            .eq('id', projectId)
+
+        if (updateError) {
+            console.error('[useCapture] Failed to update project source_object_key:', updateError)
+            throw new Error(`Failed to update project: ${updateError.message}`)
+        }
+        didLinkMediaToProject = true
+        console.log('[useCapture] Project updated with source_object_key')
+
+        options?.onProgress?.('starting')
+        didDispatchStartRequest = true
+        const startRes = await fetch(`/api/projects/${projectId}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        didReceiveStartResponse = true
+
+        if (!startRes.ok) {
+            const errorData = await startRes.json().catch(() => ({}))
+            throw new Error(errorData.error || `Failed to start transcription (${startRes.status})`)
+        }
+
+        options?.onProgress?.('done')
+        return {
+            kind: 'success',
+            projectId,
+            outcome: 'started'
+        }
+    } catch (err) {
+        let message = err instanceof Error ? err.message : 'An unexpected error occurred'
+
+        if (projectId && didLinkMediaToProject) {
+            if (didDispatchStartRequest && !didReceiveStartResponse) {
+                message = `${message} Your file was uploaded and saved, but transcription state is unknown because the network request did not complete. Check Projects before retrying.`
+                return {
+                    kind: 'success',
+                    projectId,
+                    outcome: 'saved_status_unknown',
+                    message,
+                }
+            }
+
+            message = `${message} Your file was uploaded and saved. Retry transcription from the Projects page.`
+            return {
+                kind: 'success',
+                projectId,
+                outcome: 'saved_needs_retry',
+                message,
+            }
+        }
+
+        if (projectId) {
+            const rollbackMessage = await rollbackPartialCapture(
+                supabase,
+                projectId,
+                storagePath,
+                didUploadFile
+            )
+            if (rollbackMessage) {
+                message = `${message} ${rollbackMessage}`
+            }
+        }
+
+        return { kind: 'failure', message }
+    }
 }
 
 /**
@@ -203,154 +362,30 @@ export function useCapture(): UseCapture {
         projectId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
     } | null> => {
-        const supabase = createClient()
-        let projectId: string | null = null
-        let storagePath: string | null = null
-        let didUploadFile = false
-        let didLinkMediaToProject = false
-        let didDispatchStartRequest = false
-        let didReceiveStartResponse = false
-
-        // Reset state
         setError(null)
         setIsUploading(true)
         setProgress('creating')
 
         try {
-            // Validate file
-            const validationError = validateFile(file)
-            if (validationError) {
-                setError(validationError)
-                setIsUploading(false)
+            const result = await runCaptureUpload(file, title, keyTerms, {
+                onProgress: setProgress,
+            })
+
+            if (result.kind === 'validation_error' || result.kind === 'failure') {
+                setError(result.message)
                 setProgress('idle')
                 return null
             }
 
-            // Step 1: Create project
-            console.log('[useCapture] Step 1: Creating project...')
-            const createRes = await fetch('/api/projects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: title || file.name,
-                    filename: file.name,
-                    key_terms: keyTerms.length > 0 ? keyTerms : undefined
-                })
-            })
-
-            if (!createRes.ok) {
-                const errorData = await createRes.json().catch(() => ({}))
-                console.error('[useCapture] Project creation failed:', errorData)
-                throw new Error(errorData.error || `Failed to create project (${createRes.status})`)
-            }
-
-            const createData = await createRes.json()
-            projectId = createData?.project?.id ?? null
-            storagePath = createData?.storagePath ?? null
-
-            if (!projectId || !storagePath) {
-                throw new Error('Project creation response was missing required fields')
-            }
-
-            console.log('[useCapture] Project created:', projectId, 'storagePath:', storagePath)
-
-            // Step 2: Upload file to Supabase storage
-            setProgress('uploading')
-            console.log('[useCapture] Step 2: Uploading file to storage...', {
-                storagePath,
-                fileSize: file.size,
-                fileType: file.type
-            })
-
-            const mimeType = getMimeType(file)
-            const { error: uploadError } = await supabase.storage
-                .from('media')
-                .upload(storagePath, file, {
-                    contentType: mimeType,
-                    upsert: false
-                })
-
-            if (uploadError) {
-                console.error('[useCapture] Storage upload failed:', uploadError)
-                throw new Error(`Upload failed: ${uploadError.message}`)
-            }
-            didUploadFile = true
-            console.log('[useCapture] File uploaded successfully')
-
-            // Step 2b: Update project with storage path
-            console.log('[useCapture] Updating project with source_object_key...')
-            const { error: updateError } = await supabase
-                .from('projects')
-                .update({ source_object_key: storagePath })
-                .eq('id', projectId)
-
-            if (updateError) {
-                console.error('[useCapture] Failed to update project source_object_key:', updateError)
-                throw new Error(`Failed to update project: ${updateError.message}`)
-            }
-            didLinkMediaToProject = true
-            console.log('[useCapture] Project updated with source_object_key')
-
-            // Step 3: Start transcription
-            setProgress('starting')
-            didDispatchStartRequest = true
-            const startRes = await fetch(`/api/projects/${projectId}/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            didReceiveStartResponse = true
-
-            if (!startRes.ok) {
-                const errorData = await startRes.json().catch(() => ({}))
-                throw new Error(errorData.error || `Failed to start transcription (${startRes.status})`)
-            }
-
-            setProgress('done')
-            return {
-                projectId,
-                outcome: 'started'
-            }
-
-        } catch (err) {
-            let message = err instanceof Error ? err.message : 'An unexpected error occurred'
-
-            // If media is already linked to the project, keep the saved project and let users retry.
-            if (projectId && didLinkMediaToProject) {
-                if (didDispatchStartRequest && !didReceiveStartResponse) {
-                    message = `${message} Your file was uploaded and saved, but transcription state is unknown because the network request did not complete. Check Projects before retrying.`
-                    setError(message)
-                    setProgress('idle')
-                    return {
-                        projectId,
-                        outcome: 'saved_status_unknown'
-                    }
-                }
-
-                message = `${message} Your file was uploaded and saved. Retry transcription from the Projects page.`
-                setError(message)
+            if (result.outcome !== 'started') {
+                setError(result.message ?? null)
                 setProgress('idle')
-                return {
-                    projectId,
-                    outcome: 'saved_needs_retry'
-                }
             }
 
-            // Roll back partial state when capture did not fully persist.
-            if (projectId) {
-                const rollbackMessage = await rollbackPartialCapture(
-                    supabase,
-                    projectId,
-                    storagePath,
-                    didUploadFile
-                )
-                if (rollbackMessage) {
-                    message = `${message} ${rollbackMessage}`
-                }
+            return {
+                projectId: result.projectId,
+                outcome: result.outcome,
             }
-
-            setError(message)
-            setProgress('idle')
-            return null
         } finally {
             setIsUploading(false)
         }

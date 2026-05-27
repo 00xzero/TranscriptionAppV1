@@ -11,6 +11,7 @@ import {
   markSubmitted,
   markUploading,
   pause,
+  recordChunk,
   recoverInterruptedMock,
   resetMock,
   resume,
@@ -20,10 +21,12 @@ import {
 
 class FakeMediaRecorder extends EventTarget {
   static shouldThrowOnStart = false
+  static lastInstance: FakeMediaRecorder | null = null
   state: RecordingState = 'inactive'
 
   constructor(_stream: MediaStream, _options: MediaRecorderOptions) {
     super()
+    FakeMediaRecorder.lastInstance = this
   }
 
   start(): void {
@@ -46,6 +49,8 @@ class FakeMediaRecorder extends EventTarget {
   resume(): void {
     this.state = 'recording'
   }
+
+  requestData(): void {}
 }
 
 function createFakeStream(): MediaStream {
@@ -65,6 +70,7 @@ describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
     FakeMediaRecorder.shouldThrowOnStart = false
+    FakeMediaRecorder.lastInstance = null
     Object.defineProperty(window, 'MediaRecorder', {
       configurable: true,
       writable: true,
@@ -263,5 +269,32 @@ describe('recording session singleton', () => {
       })
     ).not.toThrow()
     expect(getSnapshot().state).toBe('recording')
+  })
+
+  test('recorder errors stay on the error path even after salvage threshold is met', () => {
+    const now = jest.spyOn(Date, 'now')
+    now.mockReturnValue(1_000_000)
+    attachAndStart({
+      stream: createFakeStream(),
+      codec: { mime: 'audio/webm', extension: 'webm' },
+      title: null,
+      keyTerms: [],
+      deviceId: null,
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    now.mockReturnValue(1_003_000)
+
+    const event = new Event('error')
+    Object.defineProperty(event, 'error', {
+      value: { message: 'Encoder failure' },
+    })
+    FakeMediaRecorder.lastInstance?.dispatchEvent(event)
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'error',
+      errorMessage: 'Encoder failure',
+      salvageMessage: null,
+    })
   })
 })

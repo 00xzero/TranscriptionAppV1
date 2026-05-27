@@ -27,6 +27,8 @@ export interface AudioPlayerProps {
   onSeeked?: (time: number) => void
   /** Initial playback rate */
   initialPlaybackRate?: number
+  /** Known project duration when container metadata is missing or non-finite. */
+  durationHint?: number | null
   /** Hide transport controls (when FloatingPlayerDeck is visible) */
   hideControls?: boolean
   /**
@@ -72,6 +74,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   onTimeUpdate,
   onSeeked,
   initialPlaybackRate = 1.0,
+  durationHint,
   hideControls = false,
   audioEngineOnly = false,
   onDragStart,
@@ -118,6 +121,28 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     pendingScrubFractionRef.current = null
     setPreviewFraction(null)
   }, [])
+
+  const resolveDuration = useCallback((audio: HTMLAudioElement) => {
+    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+      return audio.duration
+    }
+    if (audio.seekable.length > 0) {
+      const seekableEnd = audio.seekable.end(audio.seekable.length - 1)
+      if (Number.isFinite(seekableEnd) && seekableEnd > 0) {
+        return seekableEnd
+      }
+    }
+    if (durationHint != null && Number.isFinite(durationHint) && durationHint > 0) {
+      return durationHint
+    }
+    return 0
+  }, [durationHint])
+
+  const getResolvedDuration = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return duration
+    return resolveDuration(audio)
+  }, [duration, resolveDuration])
 
   const queuePendingScrubFraction = useCallback((nextFraction: number) => {
     const clamped = clampFraction(nextFraction)
@@ -203,7 +228,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
         pendingSeekRef.current = ms
         return
       }
-      const clampedSec = Math.max(0, Math.min(ms / 1000, audio.duration || Infinity))
+      const resolvedDuration = getResolvedDuration()
+      const clampedSec = Math.max(
+        0,
+        Math.min(ms / 1000, resolvedDuration > 0 ? resolvedDuration : Infinity)
+      )
       audio.currentTime = clampedSec
     },
     beginScrub,
@@ -217,7 +246,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     seekRelative: (seconds: number) => {
       const audio = audioRef.current
       if (!audio) return
-      const newTime = Math.max(0, Math.min(audio.currentTime + seconds, audio.duration || 0))
+      const resolvedDuration = getResolvedDuration()
+      const newTime = Math.max(
+        0,
+        Math.min(audio.currentTime + seconds, resolvedDuration > 0 ? resolvedDuration : 0)
+      )
       audio.currentTime = newTime
     },
     setPlaybackRate: (rate: number) => {
@@ -227,11 +260,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       }
     },
     getCurrentTime: () => audioRef.current?.currentTime || 0,
-    getDuration: () => audioRef.current?.duration || 0,
+    getDuration: getResolvedDuration,
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, scrubToFraction, scrubToTime])
+  }), [beginScrub, endScrub, getResolvedDuration, scrubToFraction, scrubToTime])
 
   // Audio event handlers
   useEffect(() => {
@@ -239,14 +272,15 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     if (!audio) return
 
     const handleLoadedMetadata = () => {
-      setDuration(audio.duration)
+      const resolvedDuration = resolveDuration(audio)
+      setDuration(resolvedDuration)
       const pendingFraction = pendingScrubFractionRef.current
-      if (pendingFraction !== null && audio.duration > 0) {
-        scrubToFraction(pendingFraction, audio.duration)
+      if (pendingFraction !== null && resolvedDuration > 0) {
+        scrubToFraction(pendingFraction, resolvedDuration)
       }
     }
 
-    const handleCanPlayThrough = () => {
+    const handleReady = () => {
       if (!readyRef.current) {
         readyRef.current = true
         setReady(true)
@@ -258,6 +292,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
           pendingSeekRef.current = null
           audio.currentTime = Math.max(0, seekMs / 1000)
         }
+      }
+    }
+
+    const handleDurationChange = () => {
+      const resolvedDuration = resolveDuration(audio)
+      if (resolvedDuration > 0) {
+        setDuration(resolvedDuration)
       }
     }
 
@@ -291,7 +332,9 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
 
     audio.addEventListener('loadedmetadata', handleLoadedMetadata)
-    audio.addEventListener('canplaythrough', handleCanPlayThrough)
+    audio.addEventListener('durationchange', handleDurationChange)
+    audio.addEventListener('canplay', handleReady)
+    audio.addEventListener('canplaythrough', handleReady)
     audio.addEventListener('timeupdate', handleTimeUpdate)
     audio.addEventListener('play', handlePlay)
     audio.addEventListener('pause', handlePause)
@@ -300,14 +343,30 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
-      audio.removeEventListener('canplaythrough', handleCanPlayThrough)
+      audio.removeEventListener('durationchange', handleDurationChange)
+      audio.removeEventListener('canplay', handleReady)
+      audio.removeEventListener('canplaythrough', handleReady)
       audio.removeEventListener('timeupdate', handleTimeUpdate)
       audio.removeEventListener('play', handlePlay)
       audio.removeEventListener('pause', handlePause)
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, scrubToFraction])
+  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, resolveDuration, scrubToFraction])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const resolvedDuration = resolveDuration(audio)
+    if (resolvedDuration <= 0) return
+
+    setDuration(resolvedDuration)
+    const pendingFraction = pendingScrubFractionRef.current
+    if (pendingFraction !== null) {
+      scrubToFraction(pendingFraction, resolvedDuration)
+    }
+  }, [durationHint, resolveDuration, scrubToFraction])
 
   // Toggling audioEngineOnly replaces the underlying <audio> element, so the
   // new element needs a fresh readiness cycle (same as when src changes).

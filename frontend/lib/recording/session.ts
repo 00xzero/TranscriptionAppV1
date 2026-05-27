@@ -4,8 +4,10 @@ import {
   createRecorderController,
   type RecorderController,
 } from './recorderController'
-import { shouldAutoStop } from './sizeBudget'
+import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { PREFERRED_DEVICE_KEY } from './preferredDevice'
+import { buildRecordingMicConstraints } from './micConstraints'
+import { runCaptureUpload } from '@/lib/hooks/useCapture'
 
 export type RecordingState =
   | 'idle'
@@ -21,6 +23,7 @@ export type RecordingState =
 export interface SessionSnapshot {
   state: RecordingState
   title: string | null
+  generatedTitle: string | null
   startedAt: number | null
   lastResumeAt: number | null
   pausedAccumulatedMs: number
@@ -28,6 +31,11 @@ export interface SessionSnapshot {
   keyTerms: string[]
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
+  salvageMessage: string | null
+  submissionResult: {
+    projectId: string
+    outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+  } | null
 }
 
 interface Runtime {
@@ -50,6 +58,7 @@ interface Store {
 
 interface SessionDraft {
   title: string | null
+  generatedTitle: string | null
   keyTerms: string[]
   codecMime: string | null
   deviceId: string | null
@@ -58,6 +67,7 @@ interface SessionDraft {
 const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   state: 'idle',
   title: null,
+  generatedTitle: null,
   startedAt: null,
   lastResumeAt: null,
   pausedAccumulatedMs: 0,
@@ -65,6 +75,8 @@ const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   keyTerms: [],
   codecExtension: null,
   bytesSoFar: 0,
+  salvageMessage: null,
+  submissionResult: null,
 })
 
 const SERVER_SNAPSHOT: SessionSnapshot = IDLE_SNAPSHOT
@@ -161,6 +173,8 @@ function readDraft(): SessionDraft | null {
     const parsed = JSON.parse(raw) as Partial<SessionDraft>
     return {
       title: typeof parsed.title === 'string' ? parsed.title : null,
+      generatedTitle:
+        typeof parsed.generatedTitle === 'string' ? parsed.generatedTitle : null,
       keyTerms: Array.isArray(parsed.keyTerms)
         ? parsed.keyTerms.filter((t): t is string => typeof t === 'string')
         : [],
@@ -251,7 +265,13 @@ export function startMock(metadata: StartMockMetadata = {}): void {
     errorMessage: null,
     keyTerms,
   })
-  writeDraft({ title, keyTerms, codecMime: null, deviceId: null })
+  writeDraft({
+    title,
+    generatedTitle: null,
+    keyTerms,
+    codecMime: null,
+    deviceId: null,
+  })
   startIntervalIfNeeded()
 }
 
@@ -287,8 +307,10 @@ export function attachAndStart(params: AttachAndStartParams): void {
 
   const controller = createRecorderController(params.stream, params.codec.mime, {
     onChunk: (blob) => recordChunk(blob),
-    onError: (reason) => handleRecorderFailure(reason),
+    onError: (reason) => handleRecorderError(reason),
     onTrackEnded: () => handleRecorderFailure('Microphone disconnected.'),
+    onTrackMutedSustained: () =>
+      handleRecorderFailure('Microphone went quiet for too long.'),
   })
 
   store.runtime.controller = controller
@@ -313,10 +335,18 @@ export function attachAndStart(params: AttachAndStartParams): void {
   }
 
   const now = Date.now()
+  const generatedTitle =
+    params.title && params.title.trim()
+      ? null
+      : `Recording — ${new Intl.DateTimeFormat(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }).format(new Date(now))}`
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recording',
     title: params.title,
+    generatedTitle,
     startedAt: now,
     lastResumeAt: now,
     pausedAccumulatedMs: 0,
@@ -326,6 +356,7 @@ export function attachAndStart(params: AttachAndStartParams): void {
   })
   writeDraft({
     title: params.title,
+    generatedTitle,
     keyTerms: params.keyTerms,
     codecMime: params.codec.mime,
     deviceId: params.deviceId,
@@ -370,6 +401,10 @@ export function resume(): void {
 
 export function stopMock(): void {
   finalize()
+  scheduleMockLifecycle()
+}
+
+function scheduleMockLifecycle(): void {
   if (typeof window === 'undefined') return
 
   clearMockLifecycleTimeouts()
@@ -394,15 +429,19 @@ export async function stopAndFinalize(): Promise<void> {
   store.runtime.stopInProgress = true
 
   const controller = store.runtime.controller
+  finalize()
+  if (!controller) {
+    scheduleMockLifecycle()
+    store.runtime.stopInProgress = false
+    return
+  }
+
   if (controller) {
-    finalize()
     try {
       await controller.stop()
     } catch {
       // controller errors will route through onError → handleRecorderFailure
     }
-  } else {
-    finalize()
   }
 
   if (typeof window === 'undefined') {
@@ -410,19 +449,36 @@ export async function stopAndFinalize(): Promise<void> {
     return
   }
 
-  clearMockLifecycleTimeouts()
-  store.mockLifecycleTimeoutIds.push(
-    window.setTimeout(() => {
-      if (store.snapshot.state === 'finalizing') {
-        markUploading()
-      }
-    }, 800),
-    window.setTimeout(() => {
-      if (store.snapshot.state === 'uploading') {
-        markSubmitted()
-      }
-    }, 1800)
+  const normalizedMime = (store.runtime.codecMime ?? 'audio/webm').split(';')[0]
+  const blob = new Blob(store.runtime.chunks, { type: normalizedMime })
+  const ext = store.snapshot.codecExtension ?? 'webm'
+  const isoStamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const filename = `recording-${isoStamp}.${ext}`
+  const file = new File([blob], filename, { type: normalizedMime })
+  const persistedTitle =
+    store.snapshot.title ??
+    store.snapshot.generatedTitle ??
+    `Recording — ${new Date().toISOString()}`
+
+  markUploading()
+
+  const result = await runCaptureUpload(
+    file,
+    persistedTitle,
+    store.snapshot.keyTerms
   )
+
+  if (result.kind === 'success') {
+    setSubmissionResult({
+      projectId: result.projectId,
+      outcome: result.outcome,
+    })
+    markSubmitted()
+  } else {
+    disposeController()
+    markError(result.message)
+  }
+  store.runtime.stopInProgress = false
 }
 
 export function recordChunk(blob: Blob): void {
@@ -444,17 +500,31 @@ export function recordChunk(blob: Blob): void {
   }
 }
 
+const TERMINAL_OR_FINALIZING_STATES: ReadonlySet<RecordingState> = new Set([
+  'finalizing',
+  'uploading',
+  'submitted',
+  'discarded',
+])
+
 export function handleRecorderFailure(reason: string): void {
-  if (
-    store.snapshot.state === 'finalizing' ||
-    store.snapshot.state === 'uploading' ||
-    store.snapshot.state === 'submitted' ||
-    store.snapshot.state === 'discarded'
-  ) {
+  if (TERMINAL_OR_FINALIZING_STATES.has(store.snapshot.state)) return
+
+  const activeMs = getElapsedActiveMs(store.snapshot)
+  if (meetsEmptyFloor(activeMs, store.runtime.bytesSoFar)) {
+    setSalvageMessage(`${reason} Submitting what was recorded.`)
+    void stopAndFinalize()
     return
   }
-  markError(reason)
+
+  discard(`${reason} Recording discarded before enough audio was captured.`)
+}
+
+function handleRecorderError(reason: string): void {
+  if (TERMINAL_OR_FINALIZING_STATES.has(store.snapshot.state)) return
+
   disposeController()
+  markError(reason)
 }
 
 export function finalize(): void {
@@ -478,6 +548,16 @@ export function markUploading(): void {
   setSnapshot({ ...store.snapshot, state: 'uploading' })
 }
 
+function setSalvageMessage(message: string | null): void {
+  setSnapshot({ ...store.snapshot, salvageMessage: message })
+}
+
+function setSubmissionResult(
+  result: SessionSnapshot['submissionResult']
+): void {
+  setSnapshot({ ...store.snapshot, submissionResult: result })
+}
+
 export function markSubmitted(): void {
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
@@ -486,12 +566,17 @@ export function markSubmitted(): void {
   setSnapshot({ ...store.snapshot, state: 'submitted', lastResumeAt: null })
 }
 
-export function discard(): void {
+export function discard(salvageMessage?: string): void {
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   clearDraft()
   disposeController()
-  setSnapshot({ ...store.snapshot, state: 'discarded', lastResumeAt: null })
+  setSnapshot({
+    ...store.snapshot,
+    state: 'discarded',
+    lastResumeAt: null,
+    salvageMessage: salvageMessage ?? null,
+  })
 }
 
 export function markError(message: string): void {
@@ -541,6 +626,7 @@ export function recoverInterruptedMock(): boolean {
     ...IDLE_SNAPSHOT,
     state: 'interrupted',
     title: draft.title,
+    generatedTitle: draft.generatedTitle,
     keyTerms: draft.keyTerms,
   })
   return true
@@ -575,6 +661,8 @@ export async function restartInterruptedRecording(
   const draft = readDraft()
   const snap = store.snapshot
   const preservedTitle = snap.title ?? draft?.title ?? null
+  const preservedGeneratedTitle =
+    snap.generatedTitle ?? draft?.generatedTitle ?? null
   const preservedKeyTerms =
     snap.keyTerms.length > 0 ? snap.keyTerms : draft?.keyTerms ?? []
   const preservedDeviceId = store.runtime.deviceId ?? draft?.deviceId ?? null
@@ -582,9 +670,7 @@ export async function restartInterruptedRecording(
     store.runtime.codecMime ?? draft?.codecMime ?? null
 
   async function tryAcquire(deviceId: string | null): Promise<MediaStream> {
-    const constraints: MediaStreamConstraints = {
-      audio: deviceId ? { deviceId: { exact: deviceId } } : true,
-    }
+    const constraints = buildRecordingMicConstraints(deviceId)
     return navigator.mediaDevices.getUserMedia(constraints)
   }
 
@@ -659,6 +745,16 @@ export async function restartInterruptedRecording(
       deviceId: resolvedDeviceId,
       maxBytes,
     })
+    if (preservedGeneratedTitle) {
+      setSnapshot({ ...store.snapshot, generatedTitle: preservedGeneratedTitle })
+      writeDraft({
+        title: preservedTitle,
+        generatedTitle: preservedGeneratedTitle,
+        keyTerms: preservedKeyTerms,
+        codecMime: codec.mime,
+        deviceId: resolvedDeviceId,
+      })
+    }
   } catch (err) {
     // Clean up the freshly acquired stream — it has no owner if attach throws.
     stream.getTracks().forEach((t) => {

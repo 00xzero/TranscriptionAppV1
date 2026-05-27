@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PREFERRED_DEVICE_KEY } from '@/lib/recording/preferredDevice'
+import { buildRecordingMicConstraints } from '@/lib/recording/micConstraints'
 
 export { PREFERRED_DEVICE_KEY }
 
@@ -189,9 +190,7 @@ export function useMicTest(): MicTestApi {
       throw { kind: 'unsupported', message: 'Audio recording is not supported in this browser.' } satisfies MicTestError
     }
     try {
-      const constraints: MediaStreamConstraints = {
-        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
-      }
+      const constraints = buildRecordingMicConstraints(deviceId)
       return await navigator.mediaDevices.getUserMedia(constraints)
     } catch (err) {
       const name = (err as { name?: string })?.name

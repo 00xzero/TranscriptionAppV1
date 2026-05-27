@@ -227,6 +227,76 @@ describe('AudioPlayer', () => {
     expect(playMock).not.toHaveBeenCalled()
   })
 
+  it('becomes ready on canplay even when canplaythrough has not fired', () => {
+    const onReady = jest.fn()
+    const { audio } = renderPlayer({ props: { onReady } })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the supplied duration hint when media metadata has no finite duration', () => {
+    const { audio } = renderPlayer({
+      duration: Number.POSITIVE_INFINITY,
+      props: { durationHint: 19 },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('00:19')).toBeInTheDocument()
+  })
+
+  it('adopts a duration hint that arrives after media metadata', () => {
+    const { rerender } = render(
+      <AudioPlayer src="test.mp3" hideControls durationHint={null} />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    setupAudioElement(audio, { duration: Number.POSITIVE_INFINITY })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.queryByText('00:19')).not.toBeInTheDocument()
+
+    rerender(<AudioPlayer src="test.mp3" hideControls durationHint={19} />)
+
+    expect(screen.getByText('00:19')).toBeInTheDocument()
+  })
+
+  it('exposes and clamps to the resolved duration through the imperative handle', () => {
+    const playerRef = React.createRef<AudioPlayerRef>()
+    render(
+      <AudioPlayer
+        ref={playerRef}
+        src="test.mp3"
+        hideControls
+        durationHint={19}
+      />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, {
+      duration: Number.POSITIVE_INFINITY,
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+      playerRef.current?.seekToMs(25_000)
+    })
+
+    expect(playerRef.current?.getDuration()).toBe(19)
+    expect(audioState.getCurrentTime()).toBe(19)
+  })
+
   it('ignores stale timeupdate events while scrubbing', () => {
     const { slider, audio, setCurrentTime } = renderReadyPlayer()
 

@@ -40,13 +40,24 @@ export default function RecordingNewPage() {
   usePopStateGuard()
 
   useEffect(() => {
-    if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
+    if (snapshot.state === 'submitted') {
+      const result = snapshot.submissionResult
+      const target =
+        result && result.outcome !== 'started'
+          ? `/projects?capture=${result.outcome}&projectId=${result.projectId}`
+          : '/projects'
+      const id = window.setTimeout(() => {
+        router.replace(target)
+      }, 600)
+      return () => window.clearTimeout(id)
+    }
+    if (snapshot.state === 'discarded') {
       const id = window.setTimeout(() => {
         router.replace('/projects')
       }, 600)
       return () => window.clearTimeout(id)
     }
-  }, [snapshot.state, router])
+  }, [snapshot.state, snapshot.submissionResult, router])
 
   useEffect(() => {
     if (snapshot.state !== 'idle') return
@@ -56,7 +67,18 @@ export default function RecordingNewPage() {
     }
   }, [actions, router, snapshot.state])
 
-  const title = snapshot.title ?? 'Untitled recording'
+  const title =
+    snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
+
+  const salvageBanner = snapshot.salvageMessage ? (
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-md border border-amber-300/60 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+    >
+      {snapshot.salvageMessage}
+    </div>
+  ) : null
 
   const handleRestart = async () => {
     setRestartError(null)
@@ -141,6 +163,7 @@ export default function RecordingNewPage() {
           </h1>
           <RecordingStateLabel className="mt-2 text-sm text-ember-red" />
         </header>
+        {salvageBanner}
         <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
           {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
         </div>
@@ -199,6 +222,7 @@ export default function RecordingNewPage() {
           </h1>
           <RecordingStateLabel className="mt-2 text-sm text-ink/60 dark:text-paper/60" />
         </header>
+        {salvageBanner}
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
@@ -225,6 +249,8 @@ export default function RecordingNewPage() {
       <RecordingWaveformMock />
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
+
+      {salvageBanner}
 
       {isInFlight ? (
         <div

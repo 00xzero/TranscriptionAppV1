@@ -78,6 +78,77 @@ export type ProbeResult = {
     sampleRate: number
 }
 
+async function probeDurationFromPackets(url: string): Promise<number> {
+    const resolved = await resolveUrlHost(url)
+    return new Promise((resolve, reject) => {
+        const args = [
+            '-v', 'error',
+            '-select_streams', 'a:0',
+            '-show_packets',
+            '-show_entries', 'packet=pts_time,duration_time',
+            '-of', 'csv=p=0',
+            resolved,
+        ]
+        const proc = spawn(FFPROBE_PATH, args)
+        let settled = false
+        const timeout = armProcessTimeout(
+            proc,
+            'ffprobe-packets',
+            readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS),
+            (error) => {
+                if (settled) return
+                settled = true
+                reject(error)
+            }
+        )
+
+        let stderr = ''
+        let buffered = ''
+        let lastDurationEnd = 0
+
+        const ingestLine = (line: string) => {
+            const [ptsRaw, durationRaw] = line.trim().split(',')
+            const pts = Number(ptsRaw)
+            const duration = Number(durationRaw)
+            if (!Number.isFinite(pts) || !Number.isFinite(duration)) return
+            const packetEnd = pts + duration
+            if (packetEnd > lastDurationEnd) {
+                lastDurationEnd = packetEnd
+            }
+        }
+
+        proc.stdout.on('data', (chunk) => {
+            buffered += chunk.toString()
+            const lines = buffered.split('\n')
+            buffered = lines.pop() ?? ''
+            for (const line of lines) ingestLine(line)
+        })
+        proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
+
+        proc.on('error', (err) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            reject(err)
+        })
+        proc.on('close', (code) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            if (buffered) ingestLine(buffered)
+            if (code !== 0) {
+                reject(new Error(`ffprobe packets exited with code ${code}: ${stderr.slice(0, 500)}`))
+                return
+            }
+            if (!Number.isFinite(lastDurationEnd) || lastDurationEnd <= 0) {
+                reject(new Error('ffprobe packets returned no usable duration'))
+                return
+            }
+            resolve(lastDurationEnd)
+        })
+    })
+}
+
 export async function probeMedia(url: string): Promise<ProbeResult> {
     const resolved = await resolveUrlHost(url)
     return new Promise((resolve, reject) => {
@@ -129,18 +200,34 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
                     reject(new Error('ffprobe returned no audio stream'))
                     return
                 }
-                const durationSeconds = Number(format.duration ?? stream.duration)
-                if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
-                    reject(new Error(`ffprobe returned invalid duration: ${format.duration}`))
+                const headerDurationSeconds = Number(format.duration ?? stream.duration)
+                const finish = (durationSeconds: number) => {
+                    // Computed against the target decode rate, not the source rate.
+                    const totalSamples = Math.floor(durationSeconds * PEAK_SAMPLE_RATE)
+                    resolve({
+                        totalSamples,
+                        durationSeconds,
+                        sampleRate: PEAK_SAMPLE_RATE,
+                    })
+                }
+
+                if (Number.isFinite(headerDurationSeconds) && headerDurationSeconds > 0) {
+                    finish(headerDurationSeconds)
                     return
                 }
-                // Computed against the target decode rate, not the source rate.
-                const totalSamples = Math.floor(durationSeconds * PEAK_SAMPLE_RATE)
-                resolve({
-                    totalSamples,
-                    durationSeconds,
-                    sampleRate: PEAK_SAMPLE_RATE,
-                })
+
+                // MediaRecorder-produced WebM can omit container duration even
+                // though packet timestamps are valid. Fall back to the final
+                // audio packet end so waveform generation still works.
+                void probeDurationFromPackets(url)
+                    .then(finish)
+                    .catch((packetErr) => {
+                        reject(new Error(
+                            `ffprobe returned invalid duration: ${format.duration}; packet fallback failed: ${
+                                packetErr instanceof Error ? packetErr.message : String(packetErr)
+                            }`
+                        ))
+                    })
             } catch (err) {
                 reject(new Error(`ffprobe output parse failed: ${err instanceof Error ? err.message : String(err)}`))
             }

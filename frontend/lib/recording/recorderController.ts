@@ -2,12 +2,14 @@ export interface RecorderCallbacks {
   onChunk: (blob: Blob) => void
   onError: (reason: string) => void
   onTrackEnded: () => void
+  onTrackMutedSustained: () => void
 }
 
 export interface RecorderController {
   start(timesliceMs: number): void
   pause(): void
   resume(): void
+  requestData(): void
   stop(): Promise<void>
   dispose(): void
   isAttached(): boolean
@@ -21,8 +23,14 @@ interface InternalState {
   callbacks: RecorderCallbacks
   trackListeners: Array<() => void>
   stopResolvers: Array<() => void>
+  pendingFinalChunkResolvers: Array<() => void>
+  pendingManualFlushes: number
+  stopDrainFallbackIds: Array<ReturnType<typeof setTimeout>>
   disposed: boolean
 }
+
+const MUTE_DEBOUNCE_MS = 3_000
+const STOP_DRAIN_FALLBACK_MS = 250
 
 export function createRecorderController(
   stream: MediaStream,
@@ -37,6 +45,9 @@ export function createRecorderController(
     callbacks,
     trackListeners: [],
     stopResolvers: [],
+    pendingFinalChunkResolvers: [],
+    pendingManualFlushes: 0,
+    stopDrainFallbackIds: [],
     disposed: false,
   }
 
@@ -44,6 +55,15 @@ export function createRecorderController(
     if (state.disposed) return
     if (event.data && event.data.size > 0) {
       state.callbacks.onChunk(event.data)
+    }
+    if (state.pendingManualFlushes > 0) {
+      state.pendingManualFlushes -= 1
+      return
+    }
+    if (state.pendingFinalChunkResolvers.length > 0) {
+      const resolvers = state.pendingFinalChunkResolvers
+      state.pendingFinalChunkResolvers = []
+      resolvers.forEach((resolve) => resolve())
     }
   })
 
@@ -58,15 +78,59 @@ export function createRecorderController(
     const resolvers = state.stopResolvers
     state.stopResolvers = []
     resolvers.forEach((resolve) => resolve())
+
+    scheduleFinalChunkDrainFallback()
   })
 
+  const scheduleFinalChunkDrainFallback = () => {
+    if (state.pendingFinalChunkResolvers.length === 0) return
+
+    const fallbackId = setTimeout(() => {
+      const drainResolvers = state.pendingFinalChunkResolvers
+      state.pendingFinalChunkResolvers = []
+      drainResolvers.forEach((resolve) => resolve())
+    }, STOP_DRAIN_FALLBACK_MS)
+    state.stopDrainFallbackIds.push(fallbackId)
+  }
+
   stream.getAudioTracks().forEach((track) => {
+    let muteTimeoutId: ReturnType<typeof setTimeout> | null = null
+    let sustainedMuteReported = false
+
     const handleEnded = () => {
       if (state.disposed) return
       state.callbacks.onTrackEnded()
     }
+    const clearMuteTimeout = () => {
+      if (muteTimeoutId != null) {
+        clearTimeout(muteTimeoutId)
+        muteTimeoutId = null
+      }
+    }
+    const handleMute = () => {
+      if (state.disposed || sustainedMuteReported) return
+      clearMuteTimeout()
+      muteTimeoutId = setTimeout(() => {
+        muteTimeoutId = null
+        if (state.disposed || sustainedMuteReported) return
+        sustainedMuteReported = true
+        state.callbacks.onTrackMutedSustained()
+      }, MUTE_DEBOUNCE_MS)
+    }
+    const handleUnmute = () => {
+      clearMuteTimeout()
+      sustainedMuteReported = false
+    }
+
     track.addEventListener('ended', handleEnded)
-    state.trackListeners.push(() => track.removeEventListener('ended', handleEnded))
+    track.addEventListener('mute', handleMute)
+    track.addEventListener('unmute', handleUnmute)
+    state.trackListeners.push(() => {
+      clearMuteTimeout()
+      track.removeEventListener('ended', handleEnded)
+      track.removeEventListener('mute', handleMute)
+      track.removeEventListener('unmute', handleUnmute)
+    })
   })
 
   return {
@@ -88,14 +152,56 @@ export function createRecorderController(
         state.recorder.resume()
       }
     },
+    requestData(): void {
+      if (state.disposed) return
+      if (
+        state.recorder.state === 'recording' ||
+        state.recorder.state === 'paused'
+      ) {
+        state.pendingManualFlushes += 1
+        try {
+          state.recorder.requestData()
+        } catch (err) {
+          state.pendingManualFlushes -= 1
+          throw err
+        }
+      }
+    },
     stop(): Promise<void> {
       if (state.disposed) return Promise.resolve()
-      if (state.recorder.state === 'inactive') return Promise.resolve()
       return new Promise<void>((resolve) => {
-        state.stopResolvers.push(resolve)
+        let dataDrained = false
+        const alreadyInactive = state.recorder.state === 'inactive'
+        let stopped = alreadyInactive
+        const tryResolve = () => {
+          if (dataDrained && stopped) {
+            resolve()
+          }
+        }
+        if (!alreadyInactive) {
+          state.stopResolvers.push(() => {
+            stopped = true
+            tryResolve()
+          })
+        }
+        state.pendingFinalChunkResolvers.push(() => {
+          dataDrained = true
+          tryResolve()
+        })
+
+        if (alreadyInactive) {
+          // State can flip to inactive before the recorder dispatches its final
+          // `dataavailable` event, so give that queued chunk the same short
+          // drain window as an explicit stop.
+          scheduleFinalChunkDrainFallback()
+          return
+        }
+
         try {
           state.recorder.stop()
         } catch {
+          dataDrained = true
+          stopped = true
           resolve()
         }
       })
@@ -112,6 +218,8 @@ export function createRecorderController(
       }
       state.trackListeners.forEach((cleanup) => cleanup())
       state.trackListeners = []
+      state.stopDrainFallbackIds.forEach((id) => clearTimeout(id))
+      state.stopDrainFallbackIds = []
       state.stream.getTracks().forEach((track) => {
         try {
           track.stop()
@@ -122,6 +230,10 @@ export function createRecorderController(
       const resolvers = state.stopResolvers
       state.stopResolvers = []
       resolvers.forEach((resolve) => resolve())
+      const drainResolvers = state.pendingFinalChunkResolvers
+      state.pendingFinalChunkResolvers = []
+      drainResolvers.forEach((resolve) => resolve())
+      state.pendingManualFlushes = 0
     },
     isAttached(): boolean {
       return !state.disposed
