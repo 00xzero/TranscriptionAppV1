@@ -7,6 +7,7 @@
 --   Some browsers: .wav → audio/x-wav
 --   Some browsers: .mp3 → audio/mp3
 --   Some browsers: .flac → audio/x-flac
+--   MediaRecorder:  WebM audio → audio/webm
 --   Some browsers: .m4v → video/x-m4v
 --
 -- Supabase storage validates uploads against allowed_mime_types independently
@@ -36,6 +37,7 @@ SET allowed_mime_types = (
             COALESCE(b.allowed_mime_types, ARRAY[]::text[]) ||
             ARRAY[
                 'audio/x-m4a', 'audio/m4a', 'audio/x-wav', 'audio/mp3', 'audio/x-flac',
+                'audio/webm',
                 'video/x-m4v'
             ]::text[]
         ) AS mime_type

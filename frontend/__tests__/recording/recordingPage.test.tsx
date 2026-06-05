@@ -117,6 +117,54 @@ describe('Recording page', () => {
     ).toBeInTheDocument()
   })
 
+  test('returning from a retryable upload error requires discard confirmation', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    try {
+      act(() => {
+        mockRecordingSession({
+          state: 'error',
+          title: 't',
+          errorMessage: 'Upload failed',
+          canRetryUpload: true,
+        })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/discard your recording/i)
+      )
+      expect(pushMock).not.toHaveBeenCalled()
+      expect(getSnapshot().state).toBe('error')
+    } finally {
+      confirmSpy.mockRestore()
+    }
+  })
+
+  test('confirming discard on a retryable upload error returns to library', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+    try {
+      act(() => {
+        mockRecordingSession({
+          state: 'error',
+          title: 't',
+          errorMessage: 'Upload failed',
+          canRetryUpload: true,
+        })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
+
+      expect(confirmSpy).toHaveBeenCalled()
+      expect(getSnapshot().state).toBe('idle')
+      expect(pushMock).toHaveBeenCalledWith('/projects')
+    } finally {
+      confirmSpy.mockRestore()
+    }
+  })
+
   test('interrupted state shows recovery copy and Start a new recording CTA', () => {
     act(() => {
       mockRecordingSession({ state: 'interrupted', title: 'Lost one' })

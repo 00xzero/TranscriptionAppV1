@@ -179,6 +179,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
                 onError={playback.handleAudioError}
                 onPlayingChange={playback.handlePlayingChange}
                 onTimeUpdate={playback.handleTimeUpdate}
+                onDurationChange={playback.handleAudioDurationChange}
                 onScrubPreview={playback.handleScrubPreview}
                 onScrubPreviewFraction={playback.handleScrubPreviewFraction}
                 onDragStart={playback.handlePlayerDragStart}

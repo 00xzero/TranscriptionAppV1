@@ -292,7 +292,7 @@ VALUES (
     'media', 
     false,
     1610612736,  -- 1.5GB in bytes
-    ARRAY['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/mp4', 'audio/aac',
+    ARRAY['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/mp4', 'audio/aac', 'audio/webm',
           'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
 );
 

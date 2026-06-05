@@ -19,6 +19,7 @@ import {
   recoverInterruptedMock as recoverInterruptedMockAction,
   resetMock as resetMockAction,
   restartInterruptedRecording as restartInterruptedRecordingAction,
+  retryFinalizedUpload as retryFinalizedUploadAction,
   resume as resumeAction,
   startMock as startMockAction,
   stopAndFinalize as stopAndFinalizeAction,
@@ -42,6 +43,7 @@ interface RecordingActions {
   recordChunk: (blob: Blob) => void
   handleRecorderFailure: (reason: string) => void
   restartInterruptedRecording: (maxBytes: number) => Promise<RestartInterruptedResult>
+  retryFinalizedUpload: () => Promise<void>
   hasUnsavedRecording: () => boolean
   finalize: () => void
   markUploading: () => void
@@ -64,6 +66,7 @@ const actions: RecordingActions = {
   recordChunk: recordChunkAction,
   handleRecorderFailure: handleRecorderFailureAction,
   restartInterruptedRecording: restartInterruptedRecordingAction,
+  retryFinalizedUpload: retryFinalizedUploadAction,
   hasUnsavedRecording: hasUnsavedRecordingFn,
   finalize: finalizeAction,
   markUploading: markUploadingAction,

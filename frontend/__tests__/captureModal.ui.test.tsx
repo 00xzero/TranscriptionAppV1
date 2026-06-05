@@ -5,6 +5,7 @@ import CaptureModal from '../components/CaptureModal'
 import { TooltipProvider } from '../components/ui/tooltip'
 import {
   __resetForTesting,
+  __setSnapshotForTesting,
   startMock,
 } from '../lib/recording/session'
 
@@ -245,7 +246,38 @@ describe('CaptureModal tabs', () => {
     ).toBeDisabled()
     expect(
       screen.getByText(
-        /a recording is already in progress\. return to it before starting another\./i
+        /a recording is already in progress or waiting to upload\. return to it before starting another\./i
+      )
+    ).toBeInTheDocument()
+  })
+
+  test('Record tab disables microphone controls while a recording upload can be retried', async () => {
+    const user = userEventLib.setup()
+    Object.defineProperty(window, 'MediaRecorder', {
+      configurable: true,
+      writable: true,
+      value: FakeMediaRecorder,
+    })
+    act(() => {
+      __setSnapshotForTesting({
+        state: 'error',
+        errorMessage: 'Upload failed',
+        canRetryUpload: true,
+      })
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+
+    expect(
+      screen.getByRole('combobox', { name: /microphone input device/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /test microphone/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByText(
+        /a recording is already in progress or waiting to upload\. return to it before starting another\./i
       )
     ).toBeInTheDocument()
   })

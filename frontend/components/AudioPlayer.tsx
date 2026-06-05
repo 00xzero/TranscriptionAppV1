@@ -23,6 +23,8 @@ export interface AudioPlayerProps {
   onPlayingChange?: (playing: boolean) => void
   /** Called on time update (current time in seconds) */
   onTimeUpdate?: (currentTime: number) => void
+  /** Called when a finite duration is resolved from metadata, seekable ranges, or durationHint */
+  onDurationChange?: (duration: number) => void
   /** Called when seek operation completes */
   onSeeked?: (time: number) => void
   /** Initial playback rate */
@@ -72,6 +74,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   onError,
   onPlayingChange,
   onTimeUpdate,
+  onDurationChange,
   onSeeked,
   initialPlaybackRate = 1.0,
   durationHint,
@@ -98,6 +101,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const latestScrubTimeRef = useRef(0)
   const pendingScrubFractionRef = useRef<number | null>(null)
   const lastEmittedTimeRef = useRef(-Infinity)
+  const lastEmittedDurationRef = useRef(0)
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
 
   const clampFraction = useCallback((nextFraction: number) => {
@@ -143,6 +147,19 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     if (!audio) return duration
     return resolveDuration(audio)
   }, [duration, resolveDuration])
+
+  const commitDuration = useCallback((resolvedDuration: number) => {
+    if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
+      return false
+    }
+
+    setDuration(resolvedDuration)
+    if (Math.abs(resolvedDuration - lastEmittedDurationRef.current) > 0.001) {
+      lastEmittedDurationRef.current = resolvedDuration
+      onDurationChange?.(resolvedDuration)
+    }
+    return true
+  }, [onDurationChange])
 
   const queuePendingScrubFraction = useCallback((nextFraction: number) => {
     const clamped = clampFraction(nextFraction)
@@ -273,7 +290,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
 
     const handleLoadedMetadata = () => {
       const resolvedDuration = resolveDuration(audio)
-      setDuration(resolvedDuration)
+      commitDuration(resolvedDuration)
       const pendingFraction = pendingScrubFractionRef.current
       if (pendingFraction !== null && resolvedDuration > 0) {
         scrubToFraction(pendingFraction, resolvedDuration)
@@ -297,9 +314,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
 
     const handleDurationChange = () => {
       const resolvedDuration = resolveDuration(audio)
-      if (resolvedDuration > 0) {
-        setDuration(resolvedDuration)
-      }
+      commitDuration(resolvedDuration)
     }
 
     const handleTimeUpdate = () => {
@@ -352,7 +367,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, resolveDuration, scrubToFraction])
+  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, resolveDuration, scrubToFraction, commitDuration])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -361,12 +376,12 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     const resolvedDuration = resolveDuration(audio)
     if (resolvedDuration <= 0) return
 
-    setDuration(resolvedDuration)
+    commitDuration(resolvedDuration)
     const pendingFraction = pendingScrubFractionRef.current
     if (pendingFraction !== null) {
       scrubToFraction(pendingFraction, resolvedDuration)
     }
-  }, [durationHint, resolveDuration, scrubToFraction])
+  }, [durationHint, resolveDuration, scrubToFraction, commitDuration])
 
   // Toggling audioEngineOnly replaces the underlying <audio> element, so the
   // new element needs a fresh readiness cycle (same as when src changes).
@@ -375,6 +390,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     setReady(false)
     setCurrentTime(0)
     setDuration(0)
+    lastEmittedDurationRef.current = 0
     pendingSeekRef.current = null
     latestScrubTimeRef.current = 0
     lastEmittedTimeRef.current = -Infinity

@@ -39,7 +39,7 @@ The feature should feel like a sibling of file upload, not a separate product:
 - The current project creation API accepts `title`, `filename`, and `key_terms`.
 - `Language` and `Speaker Diarization` already render in `CaptureDetails.tsx` as disabled `(coming soon)` controls. The Record tab mirrors the same pattern — no new wiring until the backend supports them as real shared settings for both tabs.
 - The default media size limit is exposed as `MAX_FILE_SIZE_BYTES` from `lib/supabase/storage.ts` and is currently `50MB`. The recording flow reads this value at session start so size-based behavior tracks the env-driven cap.
-- `useCapture.ts` accepts the `.webm` extension but does not currently include `audio/webm` in its allowed MIME list. The recording flow extends `SUPPORTED_MIME_TYPES` with `audio/webm` and `audio/mp4`.
+- `audio/webm` is supported by the capture validation/storage allow-lists and by the Supabase `media` bucket migrations. The recording flow also supports `audio/mp4` through the existing upload path.
 
 ## Recommended UX Flow
 
@@ -333,8 +333,9 @@ The flow needs explicit states for:
 - **Recorder failure mid-session.** Recorder `error` event, `track.ended`, or sustained `track.muted`. The session auto-submits whatever was captured **if** it passes the empty-floor threshold (≥ 2 s, ≥ 4 KB). A banner explains what happened ("Microphone access was lost. Submitting what was recorded."). If chunks are below the floor, the session discards them and the banner explains the loss. The user does not have to click anything.
 - **Recording too large for current upload limits.** Cannot occur on Stop given the dynamic budget auto-stop, but the existing `validateFile` size check remains as a defensive backstop.
 - **Empty or near-empty recording on Stop.** Active duration < 2 s **or** cumulative bytes < 4 KB. `Stop & transcribe` is hidden; inline banner explains the situation; user can `Resume` or `Discard`.
-- **Upload failure after Stop.** Reuse the existing `useCapture` `saved_needs_retry` / `saved_status_unknown` outcomes; route the user back to `/projects` with the standard retry affordances already shown for uploaded files.
-- **Transcription-start failure after upload.** Same as above — reuses the existing pipeline's retry behavior.
+- **Upload failure after Stop before the recording is durably saved.** The finalized recording file is retained in the in-memory session. The recording page transitions to `error`, shows a `Retry upload` action, keeps navigation/unload protection active, and requires confirmation before discarding the retryable recording.
+- **Failure after the file is uploaded and linked to a project.** Reuse the existing `useCapture` `saved_needs_retry` / `saved_status_unknown` outcomes; route the user back to `/projects` with the standard retry affordances already shown for uploaded files.
+- **Transcription-start failure after upload.** Same as the post-upload failure path above — reuses the existing pipeline's retry behavior.
 - **Navigation away while recording.** Soft lock with in-app confirm; `beforeunload` listener for browser-level unload.
 
 ## Security And Privacy Notes

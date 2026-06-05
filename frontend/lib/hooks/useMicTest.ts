@@ -29,7 +29,7 @@ export interface MicTestState {
 
 export interface MicTestApi extends MicTestState {
   request: () => Promise<MicRequestResult>
-  changeDevice: (deviceId: string) => Promise<AcquiredMic | null>
+  changeDevice: (deviceId: string | null) => Promise<AcquiredMic | null>
   /** Mark the stream as transferred to the recorder so cleanup doesn't stop tracks. */
   transferStream: () => MediaStream | null
   release: () => void
@@ -297,7 +297,7 @@ export function useMicTest(): MicTestApi {
     }
   }, [acquireWithFallback, dropCurrentStream, enumerate, permissionGranted, startMeter, stopTracks])
 
-  const changeDevice = useCallback(async (deviceId: string): Promise<AcquiredMic | null> => {
+  const changeDevice = useCallback(async (deviceId: string | null): Promise<AcquiredMic | null> => {
     const generation = ++requestGenerationRef.current
     setRequesting(true)
     setError(null)
@@ -311,13 +311,14 @@ export function useMicTest(): MicTestApi {
         stopTracks(s)
         return null
       }
+      const selectedId = deviceId === null ? null : resolvedId
       transferredRef.current = false
       streamRef.current = s
       setStream(s)
-      setSelectedDeviceId(resolvedId)
-      if (resolvedId) persistDeviceId(resolvedId)
+      setSelectedDeviceId(selectedId)
+      persistDeviceId(selectedId)
       startMeter(s)
-      return { stream: s, deviceId: resolvedId }
+      return { stream: s, deviceId: selectedId }
     } catch (err) {
       if (generation !== requestGenerationRef.current) {
         return null

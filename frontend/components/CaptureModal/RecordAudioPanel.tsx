@@ -47,8 +47,7 @@ export default function RecordAudioPanel({
   }, [micTest.devices, micTest.permissionGranted])
 
   const handleDeviceChange = (value: string) => {
-    if (value === 'default') return
-    void micTest.changeDevice(value)
+    void micTest.changeDevice(value === 'default' ? null : value)
   }
 
   const handleTestClick = () => {

@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import { useModal } from '@/lib/ModalContext'
 import { selectCodec } from '@/lib/recording/codecs'
+import { isRecordingSessionActive } from '@/lib/recording/session'
 import {
   useRecordingActions,
   useRecordingSession,
@@ -22,7 +23,7 @@ type CaptureTab = 'upload' | 'record'
 
 const CODEC_UNSUPPORTED_TOOLTIP = "Audio recording isn't supported in this browser."
 const RECORDING_ACTIVE_TOOLTIP =
-  'A recording is already in progress. Return to it before starting another.'
+  'A recording is already in progress or waiting to upload. Return to it before starting another.'
 
 function getRecordDisabledTooltip(input: {
   codecSupported: boolean | null
@@ -42,11 +43,7 @@ export default function CaptureModal() {
   const { isCaptureModalOpen, captureModalIntent, closeCaptureModal } = useModal()
   const recordingActions = useRecordingActions()
   const recordingSnapshot = useRecordingSession()
-  const recordingActive =
-    recordingSnapshot.state === 'recording' ||
-    recordingSnapshot.state === 'paused' ||
-    recordingSnapshot.state === 'finalizing' ||
-    recordingSnapshot.state === 'uploading'
+  const recordingActive = isRecordingSessionActive(recordingSnapshot)
   const micTest = useMicTest()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)

@@ -17,6 +17,7 @@ interface MockOptions {
   codecExtension?: 'webm' | 'mp4' | null
   bytesSoFar?: number
   salvageMessage?: string | null
+  canRetryUpload?: boolean
   submissionResult?: SessionSnapshot['submissionResult']
 }
 
@@ -38,8 +39,15 @@ export function mockRecordingSession(options: MockOptions): void {
   if ('bytesSoFar' in options) partial.bytesSoFar = options.bytesSoFar ?? 0
   if ('salvageMessage' in options)
     partial.salvageMessage = options.salvageMessage ?? null
+  if ('canRetryUpload' in options)
+    partial.canRetryUpload = options.canRetryUpload ?? false
   if ('submissionResult' in options)
     partial.submissionResult = options.submissionResult ?? null
   __setSnapshotForTesting(partial)
   forceState(options.state)
+  if ('canRetryUpload' in options) {
+    __setSnapshotForTesting({
+      canRetryUpload: options.canRetryUpload ?? false,
+    })
+  }
 }

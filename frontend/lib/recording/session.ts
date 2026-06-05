@@ -32,10 +32,17 @@ export interface SessionSnapshot {
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
   salvageMessage: string | null
+  canRetryUpload: boolean
   submissionResult: {
     projectId: string
     outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
   } | null
+}
+
+interface FinalizedRecording {
+  file: File
+  title: string
+  keyTerms: string[]
 }
 
 interface Runtime {
@@ -46,6 +53,7 @@ interface Runtime {
   deviceId: string | null
   codecMime: string | null
   maxBytes: number
+  finalizedRecording: FinalizedRecording | null
 }
 
 interface Store {
@@ -76,6 +84,7 @@ const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   codecExtension: null,
   bytesSoFar: 0,
   salvageMessage: null,
+  canRetryUpload: false,
   submissionResult: null,
 })
 
@@ -96,6 +105,7 @@ function createRuntime(): Runtime {
     deviceId: null,
     codecMime: null,
     maxBytes: 0,
+    finalizedRecording: null,
   }
 }
 
@@ -121,13 +131,20 @@ function loadStore(): Store {
 }
 
 const store = loadStore()
+let captureUploader = runCaptureUpload
 
 function notify(): void {
   store.listeners.forEach((listener) => listener())
 }
 
 function setSnapshot(next: SessionSnapshot): void {
-  store.snapshot = next
+  // `canRetryUpload` is fully derived from runtime state, so compute it here
+  // rather than asking every transition to remember to set it.
+  store.snapshot = {
+    ...next,
+    canRetryUpload:
+      next.state === 'error' && store.runtime.finalizedRecording != null,
+  }
   notify()
 }
 
@@ -202,6 +219,10 @@ function disposeController(): void {
   store.runtime.stopInProgress = false
 }
 
+function clearFinalizedRecording(): void {
+  store.runtime.finalizedRecording = null
+}
+
 // Defensive reconciliation: if the store survived HMR but lost its interval
 // (e.g., after a test reset), restart it so the timer keeps ticking.
 if (store.snapshot.state === 'recording') {
@@ -233,14 +254,22 @@ export function getElapsedActiveMs(
   return snap.pausedAccumulatedMs
 }
 
-export function hasUnsavedRecording(): boolean {
-  const s = store.snapshot.state
+// A capture is "in flight" — recording, finishing, uploading, or finished but
+// holding a recording that can still be retried. Used both to guard against
+// starting a second capture and to warn before navigating away.
+export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
+  const s = snapshot.state
   return (
     s === 'recording' ||
     s === 'paused' ||
     s === 'finalizing' ||
-    s === 'uploading'
+    s === 'uploading' ||
+    (s === 'error' && snapshot.canRetryUpload)
   )
+}
+
+export function hasUnsavedRecording(): boolean {
+  return isRecordingSessionActive(store.snapshot)
 }
 
 // ---- Public actions ----
@@ -304,6 +333,7 @@ export function attachAndStart(params: AttachAndStartParams): void {
   }
 
   clearMockLifecycleTimeouts()
+  clearFinalizedRecording()
 
   const controller = createRecorderController(params.stream, params.codec.mime, {
     onChunk: (blob) => recordChunk(blob),
@@ -460,12 +490,34 @@ export async function stopAndFinalize(): Promise<void> {
     store.snapshot.generatedTitle ??
     `Recording — ${new Date().toISOString()}`
 
+  store.runtime.finalizedRecording = {
+    file,
+    title: persistedTitle,
+    keyTerms: store.snapshot.keyTerms,
+  }
+  store.runtime.chunks = []
+  store.runtime.bytesSoFar = 0
+
+  try {
+    await submitFinalizedRecording()
+  } finally {
+    store.runtime.stopInProgress = false
+  }
+}
+
+async function submitFinalizedRecording(): Promise<void> {
+  const finalized = store.runtime.finalizedRecording
+  if (!finalized) {
+    markError('No finalized recording is available to upload.')
+    return
+  }
+
   markUploading()
 
-  const result = await runCaptureUpload(
-    file,
-    persistedTitle,
-    store.snapshot.keyTerms
+  const result = await captureUploader(
+    finalized.file,
+    finalized.title,
+    finalized.keyTerms
   )
 
   if (result.kind === 'success') {
@@ -475,10 +527,20 @@ export async function stopAndFinalize(): Promise<void> {
     })
     markSubmitted()
   } else {
-    disposeController()
-    markError(result.message)
+    markUploadError(result.message)
   }
-  store.runtime.stopInProgress = false
+}
+
+export async function retryFinalizedUpload(): Promise<void> {
+  if (store.runtime.stopInProgress) return
+  if (!store.runtime.finalizedRecording) return
+
+  store.runtime.stopInProgress = true
+  try {
+    await submitFinalizedRecording()
+  } finally {
+    store.runtime.stopInProgress = false
+  }
 }
 
 export function recordChunk(blob: Blob): void {
@@ -563,7 +625,12 @@ export function markSubmitted(): void {
   clearMockLifecycleTimeouts()
   clearDraft()
   disposeController()
-  setSnapshot({ ...store.snapshot, state: 'submitted', lastResumeAt: null })
+  clearFinalizedRecording()
+  setSnapshot({
+    ...store.snapshot,
+    state: 'submitted',
+    lastResumeAt: null,
+  })
 }
 
 export function discard(salvageMessage?: string): void {
@@ -571,6 +638,7 @@ export function discard(salvageMessage?: string): void {
   clearMockLifecycleTimeouts()
   clearDraft()
   disposeController()
+  clearFinalizedRecording()
   setSnapshot({
     ...store.snapshot,
     state: 'discarded',
@@ -597,6 +665,11 @@ export function markError(message: string): void {
   })
 }
 
+function markUploadError(message: string): void {
+  disposeController()
+  markError(message)
+}
+
 export function markInterrupted(message?: string): void {
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
@@ -613,6 +686,7 @@ export function resetMock(): void {
   clearMockLifecycleTimeouts()
   clearDraft()
   disposeController()
+  clearFinalizedRecording()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }
 
@@ -789,6 +863,7 @@ export function forceState(target: RecordingState): void {
     case 'idle': {
       clearIntervalIfRunning()
       clearMockLifecycleTimeouts()
+      clearFinalizedRecording()
       setSnapshot({ ...IDLE_SNAPSHOT })
       return
     }
@@ -867,4 +942,14 @@ export function __resetForTesting(): void {
 export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {
   store.snapshot = { ...store.snapshot, ...partial }
   notify()
+}
+
+export function __setCaptureUploaderForTesting(
+  uploader: typeof runCaptureUpload
+): void {
+  captureUploader = uploader
+}
+
+export function __resetCaptureUploaderForTesting(): void {
+  captureUploader = runCaptureUpload
 }

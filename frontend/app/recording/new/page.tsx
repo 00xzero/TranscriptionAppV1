@@ -17,6 +17,8 @@ import RecordingWaveformMock from '@/components/RecordingSession/RecordingWavefo
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
+const DISCARD_RETRYABLE_UPLOAD_COPY =
+  'Leaving this page will discard your recording and you will not be able to retry the upload. Continue?'
 
 const MOCK_STATES: RecordingState[] = [
   'recording',
@@ -35,6 +37,7 @@ export default function RecordingNewPage() {
   const actions = useRecordingActions()
   const [restartError, setRestartError] = useState<string | null>(null)
   const [restarting, setRestarting] = useState(false)
+  const [retryingUpload, setRetryingUpload] = useState(false)
 
   useBeforeUnloadGuard()
   usePopStateGuard()
@@ -91,6 +94,25 @@ export default function RecordingNewPage() {
     } finally {
       setRestarting(false)
     }
+  }
+
+  const handleRetryUpload = async () => {
+    setRetryingUpload(true)
+    try {
+      await actions.retryFinalizedUpload()
+    } finally {
+      setRetryingUpload(false)
+    }
+  }
+
+  const handleReturnToLibrary = () => {
+    if (snapshot.canRetryUpload) {
+      const ok = window.confirm(DISCARD_RETRYABLE_UPLOAD_COPY)
+      if (!ok) return
+    }
+
+    actions.resetMock()
+    router.push('/projects')
   }
 
   if (snapshot.state === 'idle') {
@@ -167,16 +189,25 @@ export default function RecordingNewPage() {
         <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
           {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            actions.resetMock()
-            router.push('/projects')
-          }}
-          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
-        >
-          Return to library
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {snapshot.canRetryUpload && (
+            <button
+              type="button"
+              onClick={handleRetryUpload}
+              disabled={retryingUpload}
+              className="rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {retryingUpload ? 'Retrying…' : 'Retry upload'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleReturnToLibrary}
+            className="rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+          >
+            Return to library
+          </button>
+        </div>
       </div>
     )
   }

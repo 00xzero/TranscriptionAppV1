@@ -253,8 +253,14 @@ describe('AudioPlayer', () => {
   })
 
   it('adopts a duration hint that arrives after media metadata', () => {
+    const onDurationChange = jest.fn()
     const { rerender } = render(
-      <AudioPlayer src="test.mp3" hideControls durationHint={null} />
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        durationHint={null}
+        onDurationChange={onDurationChange}
+      />
     )
 
     const audio = document.querySelector('audio') as HTMLAudioElement
@@ -265,10 +271,19 @@ describe('AudioPlayer', () => {
     })
 
     expect(screen.queryByText('00:19')).not.toBeInTheDocument()
+    expect(onDurationChange).not.toHaveBeenCalled()
 
-    rerender(<AudioPlayer src="test.mp3" hideControls durationHint={19} />)
+    rerender(
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        durationHint={19}
+        onDurationChange={onDurationChange}
+      />
+    )
 
     expect(screen.getByText('00:19')).toBeInTheDocument()
+    expect(onDurationChange).toHaveBeenCalledWith(19)
   })
 
   it('exposes and clamps to the resolved duration through the imperative handle', () => {

@@ -1,5 +1,7 @@
 import {
+  __resetCaptureUploaderForTesting,
   __resetForTesting,
+  __setCaptureUploaderForTesting,
   attachAndStart,
   discard,
   finalize,
@@ -14,10 +16,14 @@ import {
   recordChunk,
   recoverInterruptedMock,
   resetMock,
+  retryFinalizedUpload,
   resume,
+  stopAndFinalize,
   startMock,
   subscribe,
 } from '@/lib/recording/session'
+
+const mockRunCaptureUpload = jest.fn()
 
 class FakeMediaRecorder extends EventTarget {
   static shouldThrowOnStart = false
@@ -53,6 +59,14 @@ class FakeMediaRecorder extends EventTarget {
   requestData(): void {}
 }
 
+function dispatchChunk(recorder: EventTarget, bytes: number): void {
+  const event = new Event('dataavailable')
+  Object.defineProperty(event, 'data', {
+    value: new Blob([new Uint8Array(bytes)]),
+  })
+  recorder.dispatchEvent(event)
+}
+
 function createFakeStream(): MediaStream {
   const track = {
     addEventListener: jest.fn(),
@@ -69,13 +83,19 @@ function createFakeStream(): MediaStream {
 describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
+    __setCaptureUploaderForTesting(mockRunCaptureUpload)
     FakeMediaRecorder.shouldThrowOnStart = false
     FakeMediaRecorder.lastInstance = null
+    mockRunCaptureUpload.mockReset()
     Object.defineProperty(window, 'MediaRecorder', {
       configurable: true,
       writable: true,
       value: FakeMediaRecorder,
     })
+  })
+
+  afterEach(() => {
+    __resetCaptureUploaderForTesting()
   })
 
   test('idle is the default snapshot', () => {
@@ -296,5 +316,57 @@ describe('recording session singleton', () => {
       errorMessage: 'Encoder failure',
       salvageMessage: null,
     })
+  })
+
+  test('upload failures preserve finalized recording for retry', async () => {
+    mockRunCaptureUpload
+      .mockResolvedValueOnce({
+        kind: 'failure',
+        message: 'Upload failed',
+      })
+      .mockResolvedValueOnce({
+        kind: 'success',
+        projectId: 'project-1',
+        outcome: 'started',
+      })
+
+    attachAndStart({
+      stream: createFakeStream(),
+      codec: { mime: 'audio/webm', extension: 'webm' },
+      title: 'Retry me',
+      keyTerms: ['alpha'],
+      deviceId: null,
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+
+    const stopPromise = stopAndFinalize()
+    dispatchChunk(FakeMediaRecorder.lastInstance as FakeMediaRecorder, 512)
+    await stopPromise
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'error',
+      errorMessage: 'Upload failed',
+      canRetryUpload: true,
+    })
+    expect(hasUnsavedRecording()).toBe(true)
+
+    const firstFile = mockRunCaptureUpload.mock.calls[0][0]
+    expect(firstFile).toBeInstanceOf(File)
+    expect(firstFile.size).toBe(4608)
+
+    await retryFinalizedUpload()
+
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(2)
+    expect(mockRunCaptureUpload.mock.calls[1][0]).toBe(firstFile)
+    expect(getSnapshot()).toMatchObject({
+      state: 'submitted',
+      canRetryUpload: false,
+      submissionResult: {
+        projectId: 'project-1',
+        outcome: 'started',
+      },
+    })
+    expect(hasUnsavedRecording()).toBe(false)
   })
 })

@@ -165,6 +165,8 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 - Modify: `frontend/lib/recording/session.ts` — replace the mocked post-stop tail behind `stopAndFinalize()` with the real handoff: await the final `dataavailable`, concatenate chunks into a `Blob`, wrap as `File` with generated filename (`recording-{ISO}.{ext}`), and submit it through the existing capture pipeline.
 - Modify: `frontend/app/recording/new/page.tsx` — keep Stop & transcribe wired to the singleton submission action and compute the persisted title fallback at submit time: `Recording — {Intl.DateTimeFormat}` if the user left title blank.
 - Modify: `frontend/lib/recording/session.ts` — implement recorder-failure auto-submit salvage policy. On `error` event, `track.ended`, or sustained `track.muted`: if chunks pass the empty floor, transition to `finalizing → uploading` automatically with a banner explaining the failure; otherwise transition to `discarded` with a banner.
+- Modify: `frontend/lib/recording/session.ts` and `frontend/app/recording/new/page.tsx` — retain the finalized recording file when upload/project/storage submission fails before the file is durably saved. The error state exposes `Retry upload`, treats the retryable file as unsaved recording data, and confirms before discard/navigation clears it.
+- Modify: storage allow-lists and Supabase migrations — allow `audio/webm` uploads for browser `MediaRecorder` output in both fresh local schemas and already-applied databases.
 - (PR 3 already enables the `Start Recording` CTA and drops the "not yet available" tooltip; PR 4 only swaps the trailing mock progression for the real submission pipeline.)
 - Modify: navigation after submission → `/projects` with the existing realtime subscription showing the new project as Processing.
 
@@ -177,12 +179,13 @@ Each PR section below lists scope, dependencies, the spec sections it implements
 - End-to-end smoke test: open Capture → Record tab → record 10 seconds → Stop → land on `/projects` → see new project transitioning through `queued → processing → complete`.
 - Recorder failure mid-session (simulated by revoking permission in browser dev tools) triggers the salvage path: auto-submit if above floor, with banner; auto-discard if below floor, with banner.
 - Title fallback `Recording — {locale date}` appears as the project title when user left title blank.
-- Upload failure after Stop reuses the existing `useCapture` `saved_needs_retry` / `saved_status_unknown` outcomes.
+- Upload failure before durable save keeps the user on the recording error page with `Retry upload`, preserves the finalized file for retry, blocks conflicting new recordings, and requires confirmation before discard.
+- Failure after the media is uploaded/linked reuses the existing `useCapture` `saved_needs_retry` / `saved_status_unknown` outcomes and routes back to `/projects`.
 - The Record tab's `Start Recording` now drives the real submission pipeline (no longer the mock `finalizing → uploading → submitted` progression).
 
 **Risks:**
 
-- **Race between final `dataavailable` and submission.** `MediaRecorder.stop()` is async; the final chunk fires after the stop call. The submission flow must await it (`stop` → listen for the final `dataavailable` → then concatenate). Easy to get wrong.
+- **Race between final `dataavailable` and submission.** `MediaRecorder.stop()` is async; the final chunk fires after the stop call. The recorder controller must await both stop and the final chunk drain before concatenating, with a short fallback for browsers that dispatch `stop` without a final non-empty chunk.
 - **Salvage on permission revoke** — the `track.ended` event fires before `dataavailable` of in-flight data is necessarily flushed. May need a forced `requestData()` call before submission.
 - **Filename collision** is extremely unlikely given ISO timestamp precision, but `useCapture` upserts with `upsert: false` — verify a defensive uniqueness handler.
 
