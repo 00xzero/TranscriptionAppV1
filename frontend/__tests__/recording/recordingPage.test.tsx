@@ -117,6 +117,46 @@ describe('Recording page', () => {
     ).toBeInTheDocument()
   })
 
+  test('discard button discards without rendering the click event as a banner', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+    try {
+      act(() => {
+        startMock({ title: 'Discard me' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+      expect(confirmSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/discard this recording/i)
+      )
+      expect(getSnapshot().state).toBe('discarded')
+      expect(getSnapshot().salvageMessage).toBeNull()
+      expect(screen.getByText(/Returning to library/i)).toBeInTheDocument()
+    } finally {
+      confirmSpy.mockRestore()
+    }
+  })
+
+  test('canceling the discard confirmation keeps the recording active', () => {
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
+    try {
+      act(() => {
+        startMock({ title: 'Keep me' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+      expect(confirmSpy).toHaveBeenCalled()
+      expect(getSnapshot().state).toBe('recording')
+      expect(screen.getByText('Keep me')).toBeInTheDocument()
+      expect(screen.getByTestId('recording-controls')).toBeInTheDocument()
+    } finally {
+      confirmSpy.mockRestore()
+    }
+  })
+
   test('returning from a retryable upload error requires discard confirmation', () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
     try {

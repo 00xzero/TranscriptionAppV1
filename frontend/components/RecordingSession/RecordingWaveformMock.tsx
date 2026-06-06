@@ -12,7 +12,7 @@ export default function RecordingWaveformMock() {
     <div
       data-testid="recording-waveform-mock"
       data-state={state}
-      className="flex h-32 w-full items-center justify-center gap-[3px] rounded-md border border-[#D1CEC5] bg-paper/30 px-4 dark:border-night-border dark:bg-night-surface/40"
+      className="flex h-32 w-full items-center justify-center gap-[3px] px-4"
     >
       {Array.from({ length: BAR_COUNT }).map((_, i) => (
         <span

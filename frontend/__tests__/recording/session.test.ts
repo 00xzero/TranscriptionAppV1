@@ -7,6 +7,7 @@ import {
   finalize,
   forceState,
   getElapsedActiveMs,
+  getLiveRecorder,
   getSnapshot,
   hasUnsavedRecording,
   markError,
@@ -22,76 +23,23 @@ import {
   startMock,
   subscribe,
 } from '@/lib/recording/session'
+import {
+  FakeMediaRecorder,
+  createFakeStream,
+  dispatchChunk,
+  installMediaRecorderMock,
+} from '../../__mocks__/MediaRecorder'
 
 const mockRunCaptureUpload = jest.fn()
-
-class FakeMediaRecorder extends EventTarget {
-  static shouldThrowOnStart = false
-  static lastInstance: FakeMediaRecorder | null = null
-  state: RecordingState = 'inactive'
-
-  constructor(_stream: MediaStream, _options: MediaRecorderOptions) {
-    super()
-    FakeMediaRecorder.lastInstance = this
-  }
-
-  start(): void {
-    if (FakeMediaRecorder.shouldThrowOnStart) {
-      FakeMediaRecorder.shouldThrowOnStart = false
-      throw new Error('start failed')
-    }
-    this.state = 'recording'
-  }
-
-  stop(): void {
-    this.state = 'inactive'
-    this.dispatchEvent(new Event('stop'))
-  }
-
-  pause(): void {
-    this.state = 'paused'
-  }
-
-  resume(): void {
-    this.state = 'recording'
-  }
-
-  requestData(): void {}
-}
-
-function dispatchChunk(recorder: EventTarget, bytes: number): void {
-  const event = new Event('dataavailable')
-  Object.defineProperty(event, 'data', {
-    value: new Blob([new Uint8Array(bytes)]),
-  })
-  recorder.dispatchEvent(event)
-}
-
-function createFakeStream(): MediaStream {
-  const track = {
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    stop: jest.fn(),
-  } as unknown as MediaStreamTrack
-
-  return {
-    getAudioTracks: () => [track],
-    getTracks: () => [track],
-  } as unknown as MediaStream
-}
 
 describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
     __setCaptureUploaderForTesting(mockRunCaptureUpload)
-    FakeMediaRecorder.shouldThrowOnStart = false
-    FakeMediaRecorder.lastInstance = null
     mockRunCaptureUpload.mockReset()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    installMediaRecorderMock()
+    // The session finalize path relies on `stop()` emitting a `stop` event.
+    FakeMediaRecorder.autoDispatchStop = true
   })
 
   afterEach(() => {
@@ -260,6 +208,23 @@ describe('recording session singleton', () => {
     __resetForTesting()
     startMock()
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  test('getLiveRecorder exposes the attached recorder, null otherwise', () => {
+    expect(getLiveRecorder()).toBeNull()
+
+    attachAndStart({
+      stream: createFakeStream(),
+      codec: { mime: 'audio/webm', extension: 'webm' },
+      title: null,
+      keyTerms: [],
+      deviceId: null,
+      maxBytes: 1024,
+    })
+    expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
+
+    markSubmitted() // disposes the controller
+    expect(getLiveRecorder()).toBeNull()
   })
 
   test('failed recorder start does not poison later attach attempts', () => {

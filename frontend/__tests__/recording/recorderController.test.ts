@@ -1,55 +1,11 @@
 import { createRecorderController } from '@/lib/recording/recorderController'
-
-class FakeMediaRecorder extends EventTarget {
-  static lastInstance: FakeMediaRecorder | null = null
-  state: RecordingState = 'inactive'
-
-  constructor(_stream: MediaStream, _options: MediaRecorderOptions) {
-    super()
-    FakeMediaRecorder.lastInstance = this
-  }
-
-  start(): void {
-    this.state = 'recording'
-  }
-
-  pause(): void {
-    this.state = 'paused'
-  }
-
-  resume(): void {
-    this.state = 'recording'
-  }
-
-  requestData(): void {}
-
-  stop(): void {
-    this.state = 'inactive'
-  }
-}
-
-function createFakeStream(): MediaStream {
-  const track = Object.assign(new EventTarget(), {
-    stop: jest.fn(),
-  }) as unknown as MediaStreamTrack
-
-  return {
-    getAudioTracks: () => [track],
-    getTracks: () => [track],
-  } as unknown as MediaStream
-}
-
-function dispatchChunk(recorder: EventTarget, bytes: number): void {
-  const event = new Event('dataavailable')
-  Object.defineProperty(event, 'data', {
-    value: new Blob([new Uint8Array(bytes)]),
-  })
-  recorder.dispatchEvent(event)
-}
-
-function dispatchStop(recorder: EventTarget): void {
-  recorder.dispatchEvent(new Event('stop'))
-}
+import {
+  FakeMediaRecorder,
+  createFakeStream,
+  dispatchChunk,
+  dispatchStop,
+  installMediaRecorderMock,
+} from '../../__mocks__/MediaRecorder'
 
 function makeController() {
   const chunks: Blob[] = []
@@ -77,12 +33,9 @@ async function flushMicrotasks(): Promise<void> {
 
 describe('recorder controller', () => {
   beforeEach(() => {
-    FakeMediaRecorder.lastInstance = null
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    // autoDispatchStop stays false: these tests dispatch `stop` / `dataavailable`
+    // manually to assert the controller's drain ordering.
+    installMediaRecorderMock()
   })
 
   afterEach(() => {

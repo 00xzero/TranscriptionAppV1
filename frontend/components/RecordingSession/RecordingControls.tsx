@@ -8,6 +8,9 @@ import {
 } from '@/lib/recording/session'
 import { meetsEmptyFloor } from '@/lib/recording/sizeBudget'
 
+const DISCARD_CONFIRM_COPY =
+  'Discard this recording? This cannot be undone.'
+
 export default function RecordingControls() {
   const snapshot = useRecordingSession()
   const actions = useRecordingActions()
@@ -22,6 +25,12 @@ export default function RecordingControls() {
 
   const handleStop = () => {
     void actions.stopAndFinalize()
+  }
+
+  const handleDiscard = () => {
+    const ok = window.confirm(DISCARD_CONFIRM_COPY)
+    if (!ok) return
+    actions.discard()
   }
 
   return (
@@ -42,18 +51,39 @@ export default function RecordingControls() {
           <button
             type="button"
             onClick={actions.resume}
-            className="rounded-sm bg-trust-blue px-4 py-2 text-sm font-medium text-white shadow-xs transition-all hover:shadow-md active:scale-95"
+            aria-label="Resume"
+            title="Resume"
+            className="inline-flex items-center justify-center rounded-sm bg-trust-blue px-4 py-2 text-sm font-medium text-white shadow-xs transition-all hover:shadow-md active:scale-95"
           >
-            Resume
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path d="M8 5v14l11-7z" />
+            </svg>
           </button>
         ) : (
           <button
             type="button"
             onClick={actions.pause}
             disabled={!isRecording}
-            className="rounded-sm border border-ink/20 bg-white/60 px-4 py-2 text-sm font-medium text-ink shadow-xs transition-all hover:bg-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+            aria-label="Pause"
+            title="Pause"
+            className="inline-flex items-center justify-center rounded-sm border border-ink/20 bg-white/60 px-4 py-2 text-sm font-medium text-ink shadow-xs transition-all hover:bg-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
           >
-            Pause
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <rect x="7" y="5" width="3.5" height="14" rx="1.25" />
+              <rect x="13.5" y="5" width="3.5" height="14" rx="1.25" />
+            </svg>
           </button>
         )}
 
@@ -70,11 +100,11 @@ export default function RecordingControls() {
 
         <button
           type="button"
-          onClick={actions.discard}
+          onClick={handleDiscard}
           disabled={disabled}
           className="rounded-sm border border-ink/20 bg-transparent px-4 py-2 text-sm font-medium text-ink/70 transition-all hover:text-ink active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:border-night-border dark:text-paper/70 dark:hover:text-paper"
         >
-          Discard recording
+          Discard
         </button>
       </div>
     </div>

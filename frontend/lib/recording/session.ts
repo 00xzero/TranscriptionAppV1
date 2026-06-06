@@ -244,6 +244,14 @@ export function subscribe(listener: () => void): () => void {
   }
 }
 
+// Imperative, non-snapshot accessor for the live `MediaRecorder`. The recorder
+// is not serializable, so it never travels through `SessionSnapshot`; the live
+// waveform reads it directly to feed the visualizer. Returns null whenever no
+// recorder is attached (idle, finalized, interrupted, tests, SSR).
+export function getLiveRecorder(): MediaRecorder | null {
+  return store.runtime.controller?.getRecorder() ?? null
+}
+
 export function getElapsedActiveMs(
   snap: SessionSnapshot,
   now: number = Date.now()

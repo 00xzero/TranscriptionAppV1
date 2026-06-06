@@ -14,6 +14,7 @@ export interface RecorderController {
   dispose(): void
   isAttached(): boolean
   getMimeType(): string
+  getRecorder(): MediaRecorder
 }
 
 interface InternalState {
@@ -240,6 +241,9 @@ export function createRecorderController(
     },
     getMimeType(): string {
       return state.mime
+    },
+    getRecorder(): MediaRecorder {
+      return state.recorder
     },
   }
 }

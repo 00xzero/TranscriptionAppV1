@@ -13,7 +13,7 @@ import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
 import RecordingStateLabel from '@/components/RecordingSession/RecordingStateLabel'
 import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
-import RecordingWaveformMock from '@/components/RecordingSession/RecordingWaveformMock'
+import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
 const IS_DEV = process.env.NODE_ENV !== 'production'
@@ -277,7 +277,7 @@ export default function RecordingNewPage() {
         <RecordingTimer className="font-mono text-3xl tabular-nums text-ink dark:text-paper" />
       </header>
 
-      <RecordingWaveformMock />
+      <RecordingWaveform />
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
 
