@@ -88,15 +88,6 @@ function getMimeType(file: File): string {
 
     // Last resort fallback - this may still fail bucket validation
     console.warn(`[useCapture] Could not determine MIME type for: ${file.name}`)
-    const videoFallbackByExtension: Record<string, string> = {
-        'mp4': 'video/mp4',
-        'webm': 'video/webm',
-        'mov': 'video/quicktime',
-    }
-    const videoFallbackMime = videoFallbackByExtension[ext]
-    if (videoFallbackMime) {
-        return videoFallbackMime
-    }
     return 'application/octet-stream'
 }
 

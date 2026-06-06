@@ -3,26 +3,20 @@
 import { useRecordingSession } from '@/lib/recording/RecordingSessionContext'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { getElapsedActiveMs } from '@/lib/recording/session'
-
-function format(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
-}
+import { formatElapsedTime } from '@/lib/recording/timeUtils'
 
 export default function RecordingPill() {
   const guardedNav = useGuardedNavigate()
   const snapshot = useRecordingSession()
+  const state = snapshot.state
+  const isPaused = state === 'paused'
+  const isActive = state === 'recording' || isPaused
 
-  if (snapshot.state !== 'recording' && snapshot.state !== 'paused') {
+  if (!isActive) {
     return null
   }
 
   const elapsed = getElapsedActiveMs(snapshot)
-  const isPaused = snapshot.state === 'paused'
 
   return (
     <button
@@ -37,7 +31,7 @@ export default function RecordingPill() {
         aria-hidden="true"
       />
       <span className="font-mono">
-        {isPaused ? 'Paused' : 'Recording'} {format(elapsed)}
+        {isPaused ? 'Paused' : 'Recording'} {formatElapsedTime(elapsed)}
       </span>
     </button>
   )

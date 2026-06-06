@@ -4,18 +4,12 @@ import { useSyncExternalStore } from 'react'
 import {
   attachAndStart as attachAndStartAction,
   discard as discardAction,
-  finalize as finalizeAction,
   forceState as forceStateAction,
   getServerSnapshot,
   getSnapshot,
-  handleRecorderFailure as handleRecorderFailureAction,
-  hasUnsavedRecording as hasUnsavedRecordingFn,
   markError as markErrorAction,
   markInterrupted as markInterruptedAction,
-  markSubmitted as markSubmittedAction,
-  markUploading as markUploadingAction,
   pause as pauseAction,
-  recordChunk as recordChunkAction,
   recoverInterruptedMock as recoverInterruptedMockAction,
   resetMock as resetMockAction,
   restartInterruptedRecording as restartInterruptedRecordingAction,
@@ -23,7 +17,6 @@ import {
   resume as resumeAction,
   startMock as startMockAction,
   stopAndFinalize as stopAndFinalizeAction,
-  stopMock as stopMockAction,
   subscribe,
   type AttachAndStartParams,
   type RecordingState,
@@ -38,16 +31,9 @@ interface RecordingActions {
   attachAndStart: (params: AttachAndStartParams) => void
   pause: () => void
   resume: () => void
-  stopMock: () => void
   stopAndFinalize: () => Promise<void>
-  recordChunk: (blob: Blob) => void
-  handleRecorderFailure: (reason: string) => void
   restartInterruptedRecording: (maxBytes: number) => Promise<RestartInterruptedResult>
   retryFinalizedUpload: () => Promise<void>
-  hasUnsavedRecording: () => boolean
-  finalize: () => void
-  markUploading: () => void
-  markSubmitted: () => void
   discard: () => void
   markError: (message: string) => void
   markInterrupted: (message?: string) => void
@@ -61,16 +47,9 @@ const actions: RecordingActions = {
   attachAndStart: attachAndStartAction,
   pause: pauseAction,
   resume: resumeAction,
-  stopMock: stopMockAction,
   stopAndFinalize: stopAndFinalizeAction,
-  recordChunk: recordChunkAction,
-  handleRecorderFailure: handleRecorderFailureAction,
   restartInterruptedRecording: restartInterruptedRecordingAction,
   retryFinalizedUpload: retryFinalizedUploadAction,
-  hasUnsavedRecording: hasUnsavedRecordingFn,
-  finalize: finalizeAction,
-  markUploading: markUploadingAction,
-  markSubmitted: markSubmittedAction,
   discard: discardAction,
   markError: markErrorAction,
   markInterrupted: markInterruptedAction,

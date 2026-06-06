@@ -39,12 +39,14 @@ export function mockRecordingSession(options: MockOptions): void {
   if ('bytesSoFar' in options) partial.bytesSoFar = options.bytesSoFar ?? 0
   if ('salvageMessage' in options)
     partial.salvageMessage = options.salvageMessage ?? null
-  if ('canRetryUpload' in options)
-    partial.canRetryUpload = options.canRetryUpload ?? false
   if ('submissionResult' in options)
     partial.submissionResult = options.submissionResult ?? null
   __setSnapshotForTesting(partial)
   forceState(options.state)
+
+  // `forceState` routes through the real derived snapshot logic, which clears
+  // retryability unless a finalized recording exists in runtime state. Tests
+  // use this helper to mock that retryable surface without creating a file.
   if ('canRetryUpload' in options) {
     __setSnapshotForTesting({
       canRetryUpload: options.canRetryUpload ?? false,

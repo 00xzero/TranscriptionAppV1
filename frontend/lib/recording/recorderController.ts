@@ -27,11 +27,13 @@ interface InternalState {
   pendingFinalChunkResolvers: Array<() => void>
   pendingManualFlushes: number
   stopDrainFallbackIds: Array<ReturnType<typeof setTimeout>>
+  stopWatchdogIds: Array<ReturnType<typeof setTimeout>>
   disposed: boolean
 }
 
 const MUTE_DEBOUNCE_MS = 3_000
 const STOP_DRAIN_FALLBACK_MS = 250
+const STOP_WATCHDOG_MS = 3_000
 
 export function createRecorderController(
   stream: MediaStream,
@@ -49,6 +51,7 @@ export function createRecorderController(
     pendingFinalChunkResolvers: [],
     pendingManualFlushes: 0,
     stopDrainFallbackIds: [],
+    stopWatchdogIds: [],
     disposed: false,
   }
 
@@ -61,11 +64,7 @@ export function createRecorderController(
       state.pendingManualFlushes -= 1
       return
     }
-    if (state.pendingFinalChunkResolvers.length > 0) {
-      const resolvers = state.pendingFinalChunkResolvers
-      state.pendingFinalChunkResolvers = []
-      resolvers.forEach((resolve) => resolve())
-    }
+    resolvePendingFinalChunkDrain()
   })
 
   recorder.addEventListener('error', (event: Event) => {
@@ -76,22 +75,48 @@ export function createRecorderController(
   })
 
   recorder.addEventListener('stop', () => {
-    const resolvers = state.stopResolvers
-    state.stopResolvers = []
-    resolvers.forEach((resolve) => resolve())
-
+    resolvePendingStop()
+    clearStopWatchdogs()
     scheduleFinalChunkDrainFallback()
   })
+
+  const clearStopDrainFallbacks = () => {
+    state.stopDrainFallbackIds.forEach((id) => clearTimeout(id))
+    state.stopDrainFallbackIds = []
+  }
+
+  const clearStopWatchdogs = () => {
+    state.stopWatchdogIds.forEach((id) => clearTimeout(id))
+    state.stopWatchdogIds = []
+  }
 
   const scheduleFinalChunkDrainFallback = () => {
     if (state.pendingFinalChunkResolvers.length === 0) return
 
     const fallbackId = setTimeout(() => {
-      const drainResolvers = state.pendingFinalChunkResolvers
-      state.pendingFinalChunkResolvers = []
-      drainResolvers.forEach((resolve) => resolve())
+      resolvePendingFinalChunkDrain()
     }, STOP_DRAIN_FALLBACK_MS)
     state.stopDrainFallbackIds.push(fallbackId)
+  }
+
+  const resolvePendingStop = () => {
+    const resolvers = state.stopResolvers
+    state.stopResolvers = []
+    resolvers.forEach((resolve) => resolve())
+  }
+
+  const resolvePendingFinalChunkDrain = () => {
+    const drainResolvers = state.pendingFinalChunkResolvers
+    state.pendingFinalChunkResolvers = []
+    drainResolvers.forEach((resolve) => resolve())
+  }
+
+  const scheduleStopWatchdog = () => {
+    const watchdogId = setTimeout(() => {
+      resolvePendingStop()
+      resolvePendingFinalChunkDrain()
+    }, STOP_WATCHDOG_MS)
+    state.stopWatchdogIds.push(watchdogId)
   }
 
   stream.getAudioTracks().forEach((track) => {
@@ -200,6 +225,7 @@ export function createRecorderController(
 
         try {
           state.recorder.stop()
+          scheduleStopWatchdog()
         } catch {
           dataDrained = true
           stopped = true
@@ -219,8 +245,8 @@ export function createRecorderController(
       }
       state.trackListeners.forEach((cleanup) => cleanup())
       state.trackListeners = []
-      state.stopDrainFallbackIds.forEach((id) => clearTimeout(id))
-      state.stopDrainFallbackIds = []
+      clearStopDrainFallbacks()
+      clearStopWatchdogs()
       state.stream.getTracks().forEach((track) => {
         try {
           track.stop()
@@ -228,12 +254,8 @@ export function createRecorderController(
           // ignore
         }
       })
-      const resolvers = state.stopResolvers
-      state.stopResolvers = []
-      resolvers.forEach((resolve) => resolve())
-      const drainResolvers = state.pendingFinalChunkResolvers
-      state.pendingFinalChunkResolvers = []
-      drainResolvers.forEach((resolve) => resolve())
+      resolvePendingStop()
+      resolvePendingFinalChunkDrain()
       state.pendingManualFlushes = 0
     },
     isAttached(): boolean {

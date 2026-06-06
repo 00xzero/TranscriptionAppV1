@@ -223,6 +223,65 @@ function clearFinalizedRecording(): void {
   store.runtime.finalizedRecording = null
 }
 
+function clearTerminalSessionRuntime(): void {
+  clearIntervalIfRunning()
+  clearMockLifecycleTimeouts()
+  clearDraft()
+  disposeController()
+  clearFinalizedRecording()
+}
+
+function getMediaErrorName(err: unknown): string | undefined {
+  return (err as { name?: string })?.name
+}
+
+function isPermissionDeniedError(name: string | undefined): boolean {
+  return name === 'NotAllowedError' || name === 'SecurityError'
+}
+
+function isMissingSavedDeviceError(name: string | undefined): boolean {
+  return name === 'NotFoundError' || name === 'OverconstrainedError'
+}
+
+function mediaAcquireFailure(
+  name: string | undefined
+): RestartInterruptedResult {
+  if (isPermissionDeniedError(name)) {
+    return {
+      ok: false,
+      reason: 'permission_denied',
+      message:
+        'Microphone access was denied. Enable mic permission in your browser to continue.',
+    }
+  }
+
+  return {
+    ok: false,
+    reason: 'no_media_devices',
+    message: 'No microphone was found.',
+  }
+}
+
+function clearSavedPreferredDevice(): void {
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(PREFERRED_DEVICE_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function stopStreamTracks(stream: MediaStream): void {
+  stream.getTracks().forEach((track) => {
+    try {
+      track.stop()
+    } catch {
+      // ignore
+    }
+  })
+}
+
 // Defensive reconciliation: if the store survived HMR but lost its interval
 // (e.g., after a test reset), restart it so the timer keeps ticking.
 if (store.snapshot.state === 'recording') {
@@ -256,10 +315,16 @@ export function getElapsedActiveMs(
   snap: SessionSnapshot,
   now: number = Date.now()
 ): number {
-  if (snap.state === 'recording' && snap.lastResumeAt != null) {
-    return snap.pausedAccumulatedMs + (now - snap.lastResumeAt)
-  }
-  return snap.pausedAccumulatedMs
+  return snap.pausedAccumulatedMs + getActiveSegmentMs(snap, now)
+}
+
+function getActiveSegmentMs(
+  snap: SessionSnapshot,
+  now: number = Date.now()
+): number {
+  return snap.state === 'recording' && snap.lastResumeAt != null
+    ? now - snap.lastResumeAt
+    : 0
 }
 
 // A capture is "in flight" — recording, finishing, uploading, or finished but
@@ -411,7 +476,7 @@ export function pause(): void {
   }
 
   const now = Date.now()
-  const elapsed = snap.lastResumeAt != null ? now - snap.lastResumeAt : 0
+  const elapsed = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
   setSnapshot({
     ...snap,
@@ -435,11 +500,6 @@ export function resume(): void {
     lastResumeAt: Date.now(),
   })
   startIntervalIfNeeded()
-}
-
-export function stopMock(): void {
-  finalize()
-  scheduleMockLifecycle()
 }
 
 function scheduleMockLifecycle(): void {
@@ -474,12 +534,10 @@ export async function stopAndFinalize(): Promise<void> {
     return
   }
 
-  if (controller) {
-    try {
-      await controller.stop()
-    } catch {
-      // controller errors will route through onError → handleRecorderFailure
-    }
+  try {
+    await controller.stop()
+  } catch {
+    // controller errors will route through onError → handleRecorderFailure
   }
 
   if (typeof window === 'undefined') {
@@ -601,10 +659,7 @@ export function finalize(): void {
   const snap = store.snapshot
   if (snap.state !== 'recording' && snap.state !== 'paused') return
   const now = Date.now()
-  const additional =
-    snap.state === 'recording' && snap.lastResumeAt != null
-      ? now - snap.lastResumeAt
-      : 0
+  const additional = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
   setSnapshot({
     ...snap,
@@ -629,11 +684,7 @@ function setSubmissionResult(
 }
 
 export function markSubmitted(): void {
-  clearIntervalIfRunning()
-  clearMockLifecycleTimeouts()
-  clearDraft()
-  disposeController()
-  clearFinalizedRecording()
+  clearTerminalSessionRuntime()
   setSnapshot({
     ...store.snapshot,
     state: 'submitted',
@@ -642,11 +693,7 @@ export function markSubmitted(): void {
 }
 
 export function discard(salvageMessage?: string): void {
-  clearIntervalIfRunning()
-  clearMockLifecycleTimeouts()
-  clearDraft()
-  disposeController()
-  clearFinalizedRecording()
+  clearTerminalSessionRuntime()
   setSnapshot({
     ...store.snapshot,
     state: 'discarded',
@@ -658,10 +705,7 @@ export function discard(salvageMessage?: string): void {
 export function markError(message: string): void {
   const snap = store.snapshot
   const now = Date.now()
-  const additional =
-    snap.state === 'recording' && snap.lastResumeAt != null
-      ? now - snap.lastResumeAt
-      : 0
+  const additional = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   setSnapshot({
@@ -690,11 +734,7 @@ export function markInterrupted(message?: string): void {
 }
 
 export function resetMock(): void {
-  clearIntervalIfRunning()
-  clearMockLifecycleTimeouts()
-  clearDraft()
-  disposeController()
-  clearFinalizedRecording()
+  clearTerminalSessionRuntime()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }
 
@@ -761,56 +801,24 @@ export async function restartInterruptedRecording(
   try {
     stream = await tryAcquire(preservedDeviceId)
   } catch (err) {
-    const name = (err as { name?: string })?.name
-    if (
-      preservedDeviceId &&
-      (name === 'NotFoundError' || name === 'OverconstrainedError')
-    ) {
+    const name = getMediaErrorName(err)
+    if (preservedDeviceId && isMissingSavedDeviceError(name)) {
       // Saved device is gone — clear and retry with the browser default.
-      try {
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem(PREFERRED_DEVICE_KEY)
-        }
-      } catch {
-        // ignore
-      }
+      clearSavedPreferredDevice()
       resolvedDeviceId = null
       try {
         stream = await tryAcquire(null)
       } catch (fallbackErr) {
-        const fallbackName = (fallbackErr as { name?: string })?.name
-        return fallbackName === 'NotAllowedError' || fallbackName === 'SecurityError'
-          ? {
-              ok: false,
-              reason: 'permission_denied',
-              message:
-                'Microphone access was denied. Enable mic permission in your browser to continue.',
-            }
-          : {
-              ok: false,
-              reason: 'no_media_devices',
-              message: 'No microphone was found.',
-            }
-      }
-    } else if (name === 'NotAllowedError' || name === 'SecurityError') {
-      return {
-        ok: false,
-        reason: 'permission_denied',
-        message:
-          'Microphone access was denied. Enable mic permission in your browser to continue.',
+        return mediaAcquireFailure(getMediaErrorName(fallbackErr))
       }
     } else {
-      return {
-        ok: false,
-        reason: 'no_media_devices',
-        message: 'No microphone was found.',
-      }
+      return mediaAcquireFailure(name)
     }
   }
 
   const codec = findCodecByMime(preservedCodecMime) ?? selectCodec()
   if (!codec) {
-    stream.getTracks().forEach((t) => t.stop())
+    stopStreamTracks(stream)
     return {
       ok: false,
       reason: 'no_codec',
@@ -839,9 +847,7 @@ export async function restartInterruptedRecording(
     }
   } catch (err) {
     // Clean up the freshly acquired stream — it has no owner if attach throws.
-    stream.getTracks().forEach((t) => {
-      try { t.stop() } catch { /* ignore */ }
-    })
+    stopStreamTracks(stream)
     if (err instanceof RecordingAlreadyActiveError) {
       return {
         ok: false,
@@ -889,10 +895,7 @@ export function forceState(target: RecordingState): void {
       return
     }
     case 'paused': {
-      const fold =
-        snap.state === 'recording' && snap.lastResumeAt != null
-          ? now - snap.lastResumeAt
-          : 0
+      const fold = getActiveSegmentMs(snap, now)
       const startedAt = snap.startedAt ?? now
       clearIntervalIfRunning()
       setSnapshot({
@@ -906,10 +909,7 @@ export function forceState(target: RecordingState): void {
     }
     case 'finalizing':
     case 'uploading': {
-      const fold =
-        snap.state === 'recording' && snap.lastResumeAt != null
-          ? now - snap.lastResumeAt
-          : 0
+      const fold = getActiveSegmentMs(snap, now)
       clearIntervalIfRunning()
       setSnapshot({
         ...snap,

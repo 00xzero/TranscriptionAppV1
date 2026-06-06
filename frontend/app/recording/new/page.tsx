@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
-import type { RecordingState } from '@/lib/recording/session'
+import type { RecordingState, SessionSnapshot } from '@/lib/recording/session'
 import { useBeforeUnloadGuard } from '@/lib/recording/useBeforeUnloadGuard'
 import { usePopStateGuard } from '@/lib/recording/guardedNavigation'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
@@ -31,6 +31,50 @@ const MOCK_STATES: RecordingState[] = [
   'interrupted',
 ]
 
+const DEV_SECONDARY_BUTTON_CLASS =
+  'rounded-sm border border-ink/20 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink shadow-xs hover:bg-white active:scale-95 dark:border-night-border dark:bg-night-surface/60 dark:text-paper'
+
+function getCompletionRedirectTarget(
+  snapshot: Pick<SessionSnapshot, 'state' | 'submissionResult'>
+): string | null {
+  if (snapshot.state === 'submitted') {
+    const result = snapshot.submissionResult
+    return result && result.outcome !== 'started'
+      ? `/projects?capture=${result.outcome}&projectId=${result.projectId}`
+      : '/projects'
+  }
+
+  if (snapshot.state === 'discarded') {
+    return '/projects'
+  }
+
+  return null
+}
+
+interface RecordingStatusLayoutProps {
+  title: string
+  labelClassName?: string
+  children: ReactNode
+}
+
+function RecordingStatusLayout({
+  title,
+  labelClassName = 'mt-2 text-sm text-ember-red',
+  children,
+}: RecordingStatusLayoutProps) {
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24">
+      <header>
+        <h1 className="font-serif text-3xl text-ink dark:text-paper">
+          {title}
+        </h1>
+        <RecordingStateLabel className={labelClassName} />
+      </header>
+      {children}
+    </div>
+  )
+}
+
 export default function RecordingNewPage() {
   const router = useRouter()
   const snapshot = useRecordingSession()
@@ -43,23 +87,16 @@ export default function RecordingNewPage() {
   usePopStateGuard()
 
   useEffect(() => {
-    if (snapshot.state === 'submitted') {
-      const result = snapshot.submissionResult
-      const target =
-        result && result.outcome !== 'started'
-          ? `/projects?capture=${result.outcome}&projectId=${result.projectId}`
-          : '/projects'
-      const id = window.setTimeout(() => {
-        router.replace(target)
-      }, 600)
-      return () => window.clearTimeout(id)
-    }
-    if (snapshot.state === 'discarded') {
-      const id = window.setTimeout(() => {
-        router.replace('/projects')
-      }, 600)
-      return () => window.clearTimeout(id)
-    }
+    const target = getCompletionRedirectTarget({
+      state: snapshot.state,
+      submissionResult: snapshot.submissionResult,
+    })
+    if (!target) return
+
+    const id = window.setTimeout(() => {
+      router.replace(target)
+    }, 600)
+    return () => window.clearTimeout(id)
   }, [snapshot.state, snapshot.submissionResult, router])
 
   useEffect(() => {
@@ -150,7 +187,7 @@ export default function RecordingNewPage() {
                   key={s}
                   type="button"
                   onClick={() => actions.forceState(s)}
-                  className="rounded-sm border border-ink/20 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink shadow-xs hover:bg-white active:scale-95 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+                  className={DEV_SECONDARY_BUTTON_CLASS}
                 >
                   forceState({s})
                 </button>
@@ -158,14 +195,14 @@ export default function RecordingNewPage() {
               <button
                 type="button"
                 onClick={() => actions.markError('Mock error message')}
-                className="rounded-sm border border-ink/20 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink shadow-xs hover:bg-white active:scale-95 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+                className={DEV_SECONDARY_BUTTON_CLASS}
               >
                 markError
               </button>
               <button
                 type="button"
                 onClick={() => actions.markInterrupted()}
-                className="rounded-sm border border-ink/20 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink shadow-xs hover:bg-white active:scale-95 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+                className={DEV_SECONDARY_BUTTON_CLASS}
               >
                 markInterrupted
               </button>
@@ -178,13 +215,7 @@ export default function RecordingNewPage() {
 
   if (snapshot.state === 'error') {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24">
-        <header>
-          <h1 className="font-serif text-3xl text-ink dark:text-paper">
-            {title}
-          </h1>
-          <RecordingStateLabel className="mt-2 text-sm text-ember-red" />
-        </header>
+      <RecordingStatusLayout title={title}>
         {salvageBanner}
         <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
           {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
@@ -208,19 +239,13 @@ export default function RecordingNewPage() {
             Return to library
           </button>
         </div>
-      </div>
+      </RecordingStatusLayout>
     )
   }
 
   if (snapshot.state === 'interrupted') {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24">
-        <header>
-          <h1 className="font-serif text-3xl text-ink dark:text-paper">
-            {title}
-          </h1>
-          <RecordingStateLabel className="mt-2 text-sm text-ember-red" />
-        </header>
+      <RecordingStatusLayout title={title}>
         <p className="text-sm text-ink/70 dark:text-paper/70">
           Your recording was interrupted and could not be recovered.
         </p>
@@ -240,24 +265,21 @@ export default function RecordingNewPage() {
         >
           {restarting ? 'Starting…' : 'Start a new recording'}
         </button>
-      </div>
+      </RecordingStatusLayout>
     )
   }
 
   if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24">
-        <header>
-          <h1 className="font-serif text-3xl text-ink dark:text-paper">
-            {title}
-          </h1>
-          <RecordingStateLabel className="mt-2 text-sm text-ink/60 dark:text-paper/60" />
-        </header>
+      <RecordingStatusLayout
+        title={title}
+        labelClassName="mt-2 text-sm text-ink/60 dark:text-paper/60"
+      >
         {salvageBanner}
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
-      </div>
+      </RecordingStatusLayout>
     )
   }
 

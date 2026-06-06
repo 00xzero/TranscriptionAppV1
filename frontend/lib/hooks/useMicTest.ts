@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getAudioContextConstructor } from '@/lib/recording/audioContext'
 import { PREFERRED_DEVICE_KEY } from '@/lib/recording/preferredDevice'
 import { buildRecordingMicConstraints } from '@/lib/recording/micConstraints'
 
@@ -121,11 +122,7 @@ export function useMicTest(): MicTestApi {
   }, [stopTracks])
 
   const startMeter = useCallback((s: MediaStream) => {
-    if (typeof window === 'undefined') return
-    const AudioContextCtor =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext
+    const AudioContextCtor = getAudioContextConstructor()
     if (!AudioContextCtor) return
 
     stopMeter()

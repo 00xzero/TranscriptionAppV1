@@ -3,7 +3,6 @@ import { act, render, screen } from '@testing-library/react'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import {
   __resetForTesting,
-  forceState,
   markSubmitted,
   startMock,
 } from '@/lib/recording/session'
@@ -63,12 +62,14 @@ describe('RecordingPill', () => {
     expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
   })
 
-  test('does not render in finalizing or uploading states', () => {
-    act(() => {
-      startMock()
-      forceState('finalizing')
-    })
-    render(<RecordingPill />)
-    expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
-  })
+  test.each(['finalizing', 'uploading'] as const)(
+    'does not render in %s state',
+    (state) => {
+      act(() => {
+        mockRecordingSession({ state, title: 'X' })
+      })
+      render(<RecordingPill />)
+      expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
+    }
+  )
 })

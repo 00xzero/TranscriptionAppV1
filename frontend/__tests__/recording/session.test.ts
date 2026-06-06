@@ -22,15 +22,37 @@ import {
   stopAndFinalize,
   startMock,
   subscribe,
+  type AttachAndStartParams,
 } from '@/lib/recording/session'
 import {
   FakeMediaRecorder,
   createFakeStream,
   dispatchChunk,
+  dispatchRecorderError,
   installMediaRecorderMock,
 } from '../../__mocks__/MediaRecorder'
 
 const mockRunCaptureUpload = jest.fn()
+const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
+
+function attachRecording(overrides: Partial<AttachAndStartParams> = {}): void {
+  attachAndStart({
+    stream: createFakeStream(),
+    codec: DEFAULT_CODEC,
+    title: null,
+    keyTerms: [],
+    deviceId: null,
+    maxBytes: 1024,
+    ...overrides,
+  })
+}
+
+function lastRecorder(): FakeMediaRecorder {
+  if (!FakeMediaRecorder.lastInstance) {
+    throw new Error('Expected a MediaRecorder instance to exist')
+  }
+  return FakeMediaRecorder.lastInstance as FakeMediaRecorder
+}
 
 describe('recording session singleton', () => {
   beforeEach(() => {
@@ -213,14 +235,7 @@ describe('recording session singleton', () => {
   test('getLiveRecorder exposes the attached recorder, null otherwise', () => {
     expect(getLiveRecorder()).toBeNull()
 
-    attachAndStart({
-      stream: createFakeStream(),
-      codec: { mime: 'audio/webm', extension: 'webm' },
-      title: null,
-      keyTerms: [],
-      deviceId: null,
-      maxBytes: 1024,
-    })
+    attachRecording()
     expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
 
     markSubmitted() // disposes the controller
@@ -231,27 +246,13 @@ describe('recording session singleton', () => {
     FakeMediaRecorder.shouldThrowOnStart = true
 
     expect(() =>
-      attachAndStart({
-        stream: createFakeStream(),
-        codec: { mime: 'audio/webm', extension: 'webm' },
-        title: null,
-        keyTerms: [],
-        deviceId: null,
-        maxBytes: 1024,
-      })
+      attachRecording()
     ).toThrow('start failed')
 
     expect(getSnapshot().state).toBe('idle')
 
     expect(() =>
-      attachAndStart({
-        stream: createFakeStream(),
-        codec: { mime: 'audio/webm', extension: 'webm' },
-        title: null,
-        keyTerms: [],
-        deviceId: null,
-        maxBytes: 1024,
-      })
+      attachRecording()
     ).not.toThrow()
     expect(getSnapshot().state).toBe('recording')
   })
@@ -259,22 +260,13 @@ describe('recording session singleton', () => {
   test('recorder errors stay on the error path even after salvage threshold is met', () => {
     const now = jest.spyOn(Date, 'now')
     now.mockReturnValue(1_000_000)
-    attachAndStart({
-      stream: createFakeStream(),
-      codec: { mime: 'audio/webm', extension: 'webm' },
-      title: null,
-      keyTerms: [],
-      deviceId: null,
+    attachRecording({
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
     now.mockReturnValue(1_003_000)
 
-    const event = new Event('error')
-    Object.defineProperty(event, 'error', {
-      value: { message: 'Encoder failure' },
-    })
-    FakeMediaRecorder.lastInstance?.dispatchEvent(event)
+    dispatchRecorderError(lastRecorder(), 'Encoder failure')
 
     expect(getSnapshot()).toMatchObject({
       state: 'error',
@@ -295,18 +287,15 @@ describe('recording session singleton', () => {
         outcome: 'started',
       })
 
-    attachAndStart({
-      stream: createFakeStream(),
-      codec: { mime: 'audio/webm', extension: 'webm' },
+    attachRecording({
       title: 'Retry me',
       keyTerms: ['alpha'],
-      deviceId: null,
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
 
     const stopPromise = stopAndFinalize()
-    dispatchChunk(FakeMediaRecorder.lastInstance as FakeMediaRecorder, 512)
+    dispatchChunk(lastRecorder(), 512)
     await stopPromise
 
     expect(getSnapshot()).toMatchObject({

@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { LiveAudioVisualizer } from '@/components/RecordingSession/LiveAudioVisualizer'
 import { useRecordingState } from '@/lib/recording/RecordingSessionContext'
+import { hasAudioContext } from '@/lib/recording/audioContext'
 import { getLiveRecorder } from '@/lib/recording/session'
 import type { RecordingState } from '@/lib/recording/session'
 import RecordingWaveformMock from './RecordingWaveformMock'
@@ -23,14 +24,6 @@ const BAR_GAP = 4
 
 const CONTAINER_CLASS =
   'flex h-32 w-full items-center justify-center overflow-hidden'
-
-function hasAudioContext(): boolean {
-  if (typeof window === 'undefined') return false
-  return Boolean(
-    window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: unknown }).webkitAudioContext
-  )
-}
 
 // Errors thrown while the visualizer builds its audio graph (e.g. AudioContext
 // or createMediaStreamSource failing) bubble to this boundary, which swaps in

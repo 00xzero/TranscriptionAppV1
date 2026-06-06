@@ -1,6 +1,5 @@
 import FileDropZone from './FileDropZone'
-import CaptureDetails from './CaptureDetails'
-import KeyTermsInput from './KeyTermsInput'
+import CaptureMetadataFields from './CaptureMetadataFields'
 
 interface UploadAudioPanelProps {
   selectedFile: File | null
@@ -44,20 +43,17 @@ export default function UploadAudioPanel({
         displayError={displayError}
         maxFileSizeLabel={maxFileSizeLabel}
       />
-      <CaptureDetails
+      <CaptureMetadataFields
         title={title}
         setTitle={setTitle}
-        isUploading={isUploading}
-      />
-      <KeyTermsInput
         keyTerms={keyTerms}
         keyTermInput={keyTermInput}
         setKeyTermInput={setKeyTermInput}
         keyTermsError={keyTermsError}
+        handleKeyTermKeyDown={handleKeyTermKeyDown}
+        handleAddTermClick={handleAddTermClick}
+        removeTerm={removeTerm}
         isUploading={isUploading}
-        onKeyDown={handleKeyTermKeyDown}
-        onAddClick={handleAddTermClick}
-        onRemoveTerm={removeTerm}
       />
     </div>
   )

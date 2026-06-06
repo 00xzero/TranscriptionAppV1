@@ -18,7 +18,8 @@ export default function RecordingControls() {
   const state = snapshot.state
   const isRecording = state === 'recording'
   const isPaused = state === 'paused'
-  const disabled = !isRecording && !isPaused
+  const canControl = isRecording || isPaused
+  const disabled = !canControl
 
   const activeMs = getElapsedActiveMs(snapshot)
   const aboveFloor = meetsEmptyFloor(activeMs, snapshot.bytesSoFar)
@@ -35,7 +36,7 @@ export default function RecordingControls() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="recording-controls">
-      {!aboveFloor && !disabled && (
+      {!aboveFloor && canControl && (
         <div
           role="status"
           aria-live="polite"

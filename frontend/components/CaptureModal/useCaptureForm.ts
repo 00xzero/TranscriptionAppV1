@@ -75,9 +75,7 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
     }
 
     setKeyTermsError(
-      uniqueIncomingCount > 0
-        ? `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
-        : `Could not add terms because that would exceed the ${MAX_KEY_TERMS}-term limit.`
+      `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
     )
   }, [keyTerms])
 

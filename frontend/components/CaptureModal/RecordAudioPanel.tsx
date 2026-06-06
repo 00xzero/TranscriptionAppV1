@@ -1,8 +1,7 @@
 import { useMemo } from 'react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import CaptureDetails from './CaptureDetails'
-import KeyTermsInput from './KeyTermsInput'
+import CaptureMetadataFields from './CaptureMetadataFields'
 import type { MicTestApi } from '@/lib/hooks/useMicTest'
 
 const micSelectId = 'capture-mic-select'
@@ -133,20 +132,17 @@ export default function RecordAudioPanel({
         )}
       </div>
 
-      <CaptureDetails
+      <CaptureMetadataFields
         title={title}
         setTitle={setTitle}
-        isUploading={isUploading}
-      />
-      <KeyTermsInput
         keyTerms={keyTerms}
         keyTermInput={keyTermInput}
         setKeyTermInput={setKeyTermInput}
         keyTermsError={keyTermsError}
+        handleKeyTermKeyDown={handleKeyTermKeyDown}
+        handleAddTermClick={handleAddTermClick}
+        removeTerm={removeTerm}
         isUploading={isUploading}
-        onKeyDown={handleKeyTermKeyDown}
-        onAddClick={handleAddTermClick}
-        onRemoveTerm={removeTerm}
       />
     </div>
   )

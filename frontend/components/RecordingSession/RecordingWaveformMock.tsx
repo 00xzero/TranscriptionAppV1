@@ -3,6 +3,7 @@
 import { useRecordingState } from '@/lib/recording/RecordingSessionContext'
 
 const BAR_COUNT = 48
+const BAR_INDICES = Array.from({ length: BAR_COUNT }, (_, i) => i)
 
 export default function RecordingWaveformMock() {
   const state = useRecordingState()
@@ -14,7 +15,7 @@ export default function RecordingWaveformMock() {
       data-state={state}
       className="flex h-32 w-full items-center justify-center gap-[3px] px-4"
     >
-      {Array.from({ length: BAR_COUNT }).map((_, i) => (
+      {BAR_INDICES.map((i) => (
         <span
           key={i}
           className="block w-[3px] rounded-full bg-ember-red/70"

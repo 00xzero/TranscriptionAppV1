@@ -68,18 +68,30 @@ function renderModal() {
   )
 }
 
+function setMediaRecorder(value: unknown): void {
+  Object.defineProperty(window, 'MediaRecorder', {
+    configurable: true,
+    writable: true,
+    value,
+  })
+}
+
+function enableFakeRecorder(): void {
+  setMediaRecorder(FakeMediaRecorder)
+}
+
+function resetModalTestState(): void {
+  jest.clearAllMocks()
+  __resetForTesting()
+  mockModalState.isCaptureModalOpen = true
+  mockModalState.captureModalIntent = null
+  mockCaptureFormState.isUploading = false
+  setMediaRecorder(undefined)
+}
+
 describe('CaptureModal', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    __resetForTesting()
-    mockModalState.isCaptureModalOpen = true
-    mockModalState.captureModalIntent = null
-    mockCaptureFormState.isUploading = false
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: undefined,
-    })
+    resetModalTestState()
   })
 
   test('renders as an accessible dialog and closes when idle', async () => {
@@ -154,16 +166,7 @@ describe('CaptureModal', () => {
 
 describe('CaptureModal tabs', () => {
   beforeEach(() => {
-    jest.clearAllMocks()
-    __resetForTesting()
-    mockModalState.isCaptureModalOpen = true
-    mockModalState.captureModalIntent = null
-    mockCaptureFormState.isUploading = false
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: undefined,
-    })
+    resetModalTestState()
   })
 
   test('renders both tab triggers with correct accessible names', () => {
@@ -226,11 +229,7 @@ describe('CaptureModal tabs', () => {
 
   test('Record tab disables microphone controls while another recording is active', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     act(() => {
       startMock()
     })
@@ -253,11 +252,7 @@ describe('CaptureModal tabs', () => {
 
   test('Record tab disables microphone controls while a recording upload can be retried', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     act(() => {
       __setSnapshotForTesting({
         state: 'error',
@@ -284,11 +279,7 @@ describe('CaptureModal tabs', () => {
 
   test('Record tab shows the immediate microphone failure reason on start', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: {
@@ -309,11 +300,7 @@ describe('CaptureModal tabs', () => {
 
   test('Record tab disables Start Recording while a microphone request is pending', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     let resolveMicRequest: ((stream: MediaStream) => void) | undefined
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
@@ -345,11 +332,7 @@ describe('CaptureModal tabs', () => {
 
   test('closing the modal stops a microphone request that resolves afterward', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     const stop = jest.fn()
     let resolveMicRequest: ((stream: MediaStream) => void) | undefined
     Object.defineProperty(navigator, 'mediaDevices', {
@@ -387,11 +370,7 @@ describe('CaptureModal tabs', () => {
 
   test('closing the modal cancels a microphone request during device enumeration', async () => {
     const user = userEventLib.setup()
-    Object.defineProperty(window, 'MediaRecorder', {
-      configurable: true,
-      writable: true,
-      value: FakeMediaRecorder,
-    })
+    enableFakeRecorder()
     const stop = jest.fn()
     let resolveEnumeration: ((devices: MediaDeviceInfo[]) => void) | undefined
     Object.defineProperty(navigator, 'mediaDevices', {

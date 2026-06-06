@@ -32,12 +32,11 @@ import {
   useEffect,
   useRef,
 } from 'react'
+import { getAudioContextConstructor } from '@/lib/recording/audioContext'
 
 interface CustomCanvasRenderingContext2D extends CanvasRenderingContext2D {
   roundRect: (x: number, y: number, w: number, h: number, radius: number) => void
 }
-
-type AudioContextConstructor = typeof AudioContext
 
 // Minimum bar height as a fraction of the canvas, mirroring Waveform.tsx's
 // MIN_BAR_HEIGHT_PCT so silent regions stay faintly visible.
@@ -45,16 +44,6 @@ const MIN_BAR_HEIGHT_FRACTION = 0.06
 // Increase this to make the live waveform respond more dramatically to quieter
 // input; decrease it if normal speech starts clipping at full height too often.
 const WAVEFORM_SENSITIVITY = 1.5
-
-function getAudioContextConstructor(): AudioContextConstructor | null {
-  if (typeof window === 'undefined') return null
-  return (
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext?: AudioContextConstructor })
-      .webkitAudioContext ||
-    null
-  )
-}
 
 // Build a symmetric "butterfly" strip from the frequency data: the center bars
 // sample the lowest (loudest) frequency bins and bars taper out to the highest
@@ -203,14 +192,15 @@ export function LiveAudioVisualizer({
 
   const processFrequencyData = useCallback(
     (data: Uint8Array): void => {
-      if (!canvasRef.current) return
+      const canvas = canvasRef.current
+      if (!canvas) return
       const dataPoints = calculateBarData(
         data,
-        canvasRef.current.width,
+        canvas.width,
         barWidth,
         gap
       )
-      draw(dataPoints, canvasRef.current, barWidth, gap, backgroundColor, barColor)
+      draw(dataPoints, canvas, barWidth, gap, backgroundColor, barColor)
     },
     [backgroundColor, barColor, barWidth, gap]
   )
@@ -220,12 +210,12 @@ export function LiveAudioVisualizer({
     const analyser = analyserRef.current
     const context = contextRef.current
     if (!analyser || !context) return
+    const buffer = new Uint8Array(analyser.frequencyBinCount)
 
     if (mediaRecorder.state === 'recording') {
       const report = () => {
-        const data = new Uint8Array(analyser.frequencyBinCount)
-        analyser.getByteFrequencyData(data)
-        processFrequencyData(data)
+        analyser.getByteFrequencyData(buffer)
+        processFrequencyData(buffer)
         rafRef.current = requestAnimationFrame(report)
       }
       report()
@@ -233,8 +223,8 @@ export function LiveAudioVisualizer({
     }
 
     if (mediaRecorder.state === 'paused') {
-      const data = new Uint8Array(analyser.frequencyBinCount)
-      processFrequencyData(data)
+      buffer.fill(0)
+      processFrequencyData(buffer)
       return
     }
 
