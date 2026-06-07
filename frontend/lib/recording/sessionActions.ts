@@ -22,9 +22,14 @@ import {
 import {
   IDLE_SNAPSHOT,
   type AttachAndStartParams,
-  type RecordingState,
   type SessionSnapshot,
 } from './sessionTypes'
+import {
+  canTransition,
+  isInFlightState,
+  isRetryableError,
+  shouldIgnoreRecorderFailure,
+} from './sessionTransitions'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { runCaptureUpload } from '@/lib/hooks/useCapture'
 
@@ -54,14 +59,7 @@ export function getActiveSegmentMs(
 // holding a recording that can still be retried. Used both to guard against
 // starting a second capture and to warn before navigating away.
 export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
-  const s = snapshot.state
-  return (
-    s === 'recording' ||
-    s === 'paused' ||
-    s === 'finalizing' ||
-    s === 'uploading' ||
-    (s === 'error' && snapshot.canRetryUpload)
-  )
+  return isInFlightState(snapshot.state) || isRetryableError(snapshot)
 }
 
 export function hasUnsavedRecording(): boolean {
@@ -151,7 +149,7 @@ export function attachAndStart(params: AttachAndStartParams): void {
 
 export function pause(): void {
   const snap = store.snapshot
-  if (snap.state !== 'recording') return
+  if (!canTransition(snap.state, 'pause')) return
 
   if (store.runtime.controller) {
     store.runtime.controller.pause()
@@ -170,7 +168,7 @@ export function pause(): void {
 
 export function resume(): void {
   const snap = store.snapshot
-  if (snap.state !== 'paused') return
+  if (!canTransition(snap.state, 'resume')) return
 
   if (store.runtime.controller) {
     store.runtime.controller.resume()
@@ -310,15 +308,8 @@ export function recordChunk(blob: Blob): void {
   }
 }
 
-const TERMINAL_OR_FINALIZING_STATES: ReadonlySet<RecordingState> = new Set([
-  'finalizing',
-  'uploading',
-  'submitted',
-  'discarded',
-])
-
 export function handleRecorderFailure(reason: string): void {
-  if (TERMINAL_OR_FINALIZING_STATES.has(store.snapshot.state)) return
+  if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
 
   const activeMs = getElapsedActiveMs(store.snapshot)
   if (meetsEmptyFloor(activeMs, store.runtime.bytesSoFar)) {
@@ -331,7 +322,7 @@ export function handleRecorderFailure(reason: string): void {
 }
 
 function handleRecorderError(reason: string): void {
-  if (TERMINAL_OR_FINALIZING_STATES.has(store.snapshot.state)) return
+  if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
 
   disposeController(store)
   markError(reason)
@@ -339,7 +330,7 @@ function handleRecorderError(reason: string): void {
 
 export function finalize(): void {
   const snap = store.snapshot
-  if (snap.state !== 'recording' && snap.state !== 'paused') return
+  if (!canTransition(snap.state, 'finalize')) return
   const now = Date.now()
   const additional = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
@@ -352,6 +343,7 @@ export function finalize(): void {
 }
 
 export function markUploading(): void {
+  if (!canTransition(store.snapshot.state, 'markUploading')) return
   setSnapshot({ ...store.snapshot, state: 'uploading' })
 }
 
@@ -366,6 +358,7 @@ function setSubmissionResult(
 }
 
 export function markSubmitted(): void {
+  if (!canTransition(store.snapshot.state, 'markSubmitted')) return
   clearTerminalSessionRuntime(store, clearSessionActivity)
   setSnapshot({
     ...store.snapshot,
@@ -375,6 +368,7 @@ export function markSubmitted(): void {
 }
 
 export function discard(salvageMessage?: string): void {
+  if (!canTransition(store.snapshot.state, 'discard')) return
   clearTerminalSessionRuntime(store, clearSessionActivity)
   setSnapshot({
     ...store.snapshot,
@@ -386,6 +380,7 @@ export function discard(salvageMessage?: string): void {
 
 export function markError(message: string): void {
   const snap = store.snapshot
+  if (!canTransition(snap.state, 'markError')) return
   const now = Date.now()
   const additional = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
@@ -406,6 +401,7 @@ function markUploadError(message: string): void {
 }
 
 export function markInterrupted(message?: string): void {
+  if (!canTransition(store.snapshot.state, 'markInterrupted')) return
   clearInterruptedSessionRuntime(store, clearSessionActivity)
   setSnapshot({
     ...store.snapshot,
@@ -421,7 +417,7 @@ export function resetRecordingSession(): void {
 }
 
 export function recoverInterruptedDraft(): boolean {
-  if (store.snapshot.state !== 'idle') return false
+  if (!canTransition(store.snapshot.state, 'recoverInterruptedDraft')) return false
 
   const draft = readDraft()
   if (!draft) return false
