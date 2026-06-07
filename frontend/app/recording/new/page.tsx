@@ -6,33 +6,20 @@ import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
-import type { RecordingState, SessionSnapshot } from '@/lib/recording/session'
+import type { SessionSnapshot } from '@/lib/recording/session'
 import { useBeforeUnloadGuard } from '@/lib/recording/useBeforeUnloadGuard'
 import { usePopStateGuard } from '@/lib/recording/guardedNavigation'
+import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
+import RecordingDevControls from '@/components/RecordingSession/RecordingDevControls'
 import RecordingStateLabel from '@/components/RecordingSession/RecordingStateLabel'
 import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
 import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
-const IS_DEV = process.env.NODE_ENV !== 'production'
 const DISCARD_RETRYABLE_UPLOAD_COPY =
   'Leaving this page will discard your recording and you will not be able to retry the upload. Continue?'
-
-const MOCK_STATES: RecordingState[] = [
-  'recording',
-  'paused',
-  'finalizing',
-  'uploading',
-  'submitted',
-  'discarded',
-  'error',
-  'interrupted',
-]
-
-const DEV_SECONDARY_BUTTON_CLASS =
-  'rounded-sm border border-ink/20 bg-white/60 px-3 py-1.5 text-xs font-medium text-ink shadow-xs hover:bg-white active:scale-95 dark:border-night-border dark:bg-night-surface/60 dark:text-paper'
 
 function getCompletionRedirectTarget(
   snapshot: Pick<SessionSnapshot, 'state' | 'submissionResult'>
@@ -102,7 +89,10 @@ export default function RecordingNewPage() {
   useEffect(() => {
     if (snapshot.state !== 'idle') return
 
-    if (!actions.recoverInterruptedDraft() && !IS_DEV) {
+    if (
+      !actions.recoverInterruptedDraft() &&
+      !RECORDING_DEV_CONTROLS_ENABLED
+    ) {
       router.replace('/projects?capture=recording_session_not_found')
     }
   }, [actions, router, snapshot.state])
@@ -164,51 +154,7 @@ export default function RecordingNewPage() {
           </p>
         </header>
 
-        {IS_DEV && (
-          <section
-            data-testid="recording-dev-controls"
-            className="rounded-md border border-dashed border-ink/20 bg-paper/50 p-6 dark:border-night-border dark:bg-night-surface/40"
-          >
-            <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-ink/50 dark:text-paper/50">
-              Dev controls — mock state
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  actions.startMock({ title: 'Demo recording' })
-                }
-                className="rounded-sm bg-ember-red px-3 py-1.5 text-xs font-medium text-white shadow-xs active:scale-95"
-              >
-                startMock(&quot;Demo recording&quot;)
-              </button>
-              {MOCK_STATES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => actions.forceState(s)}
-                  className={DEV_SECONDARY_BUTTON_CLASS}
-                >
-                  forceState({s})
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => actions.markError('Mock error message')}
-                className={DEV_SECONDARY_BUTTON_CLASS}
-              >
-                markError
-              </button>
-              <button
-                type="button"
-                onClick={() => actions.markInterrupted()}
-                className={DEV_SECONDARY_BUTTON_CLASS}
-              >
-                markInterrupted
-              </button>
-            </div>
-          </section>
-        )}
+        {RECORDING_DEV_CONTROLS_ENABLED && <RecordingDevControls />}
       </div>
     )
   }
