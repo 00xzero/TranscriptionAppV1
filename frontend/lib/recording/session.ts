@@ -231,6 +231,13 @@ function clearTerminalSessionRuntime(): void {
   clearFinalizedRecording()
 }
 
+function clearInterruptedSessionRuntime(): void {
+  clearIntervalIfRunning()
+  clearMockLifecycleTimeouts()
+  disposeController()
+  clearFinalizedRecording()
+}
+
 function getMediaErrorName(err: unknown): string | undefined {
   return (err as { name?: string })?.name
 }
@@ -366,13 +373,6 @@ export function startMock(metadata: StartMockMetadata = {}): void {
     pausedAccumulatedMs: 0,
     errorMessage: null,
     keyTerms,
-  })
-  writeDraft({
-    title,
-    generatedTitle: null,
-    keyTerms,
-    codecMime: null,
-    deviceId: null,
   })
   startIntervalIfNeeded()
 }
@@ -708,6 +708,7 @@ export function markError(message: string): void {
   const additional = getActiveSegmentMs(snap, now)
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
+  disposeController()
   setSnapshot({
     ...snap,
     state: 'error',
@@ -723,8 +724,7 @@ function markUploadError(message: string): void {
 }
 
 export function markInterrupted(message?: string): void {
-  clearIntervalIfRunning()
-  clearMockLifecycleTimeouts()
+  clearInterruptedSessionRuntime()
   setSnapshot({
     ...store.snapshot,
     state: 'interrupted',
@@ -733,12 +733,12 @@ export function markInterrupted(message?: string): void {
   })
 }
 
-export function resetMock(): void {
+export function resetRecordingSession(): void {
   clearTerminalSessionRuntime()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }
 
-export function recoverInterruptedMock(): boolean {
+export function recoverInterruptedDraft(): boolean {
   if (store.snapshot.state !== 'idle') return false
 
   const draft = readDraft()
@@ -875,9 +875,7 @@ export function forceState(target: RecordingState): void {
 
   switch (target) {
     case 'idle': {
-      clearIntervalIfRunning()
-      clearMockLifecycleTimeouts()
-      clearFinalizedRecording()
+      clearTerminalSessionRuntime()
       setSnapshot({ ...IDLE_SNAPSHOT })
       return
     }
@@ -920,11 +918,28 @@ export function forceState(target: RecordingState): void {
       return
     }
     case 'submitted':
-    case 'discarded':
-    case 'error':
+    case 'discarded': {
+      clearTerminalSessionRuntime()
+      setSnapshot({
+        ...snap,
+        state: target,
+        lastResumeAt: null,
+      })
+      return
+    }
     case 'interrupted': {
+      clearInterruptedSessionRuntime()
+      setSnapshot({
+        ...snap,
+        state: target,
+        lastResumeAt: null,
+      })
+      return
+    }
+    case 'error': {
       clearIntervalIfRunning()
       clearMockLifecycleTimeouts()
+      disposeController()
       setSnapshot({
         ...snap,
         state: target,

@@ -102,7 +102,7 @@ export default function RecordingNewPage() {
   useEffect(() => {
     if (snapshot.state !== 'idle') return
 
-    if (!actions.recoverInterruptedMock() && !IS_DEV) {
+    if (!actions.recoverInterruptedDraft() && !IS_DEV) {
       router.replace('/projects?capture=recording_session_not_found')
     }
   }, [actions, router, snapshot.state])
@@ -148,7 +148,7 @@ export default function RecordingNewPage() {
       if (!ok) return
     }
 
-    actions.resetMock()
+    actions.resetRecordingSession()
     router.push('/projects')
   }
 

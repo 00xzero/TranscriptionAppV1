@@ -11,12 +11,13 @@ import {
   getSnapshot,
   hasUnsavedRecording,
   markError,
+  markInterrupted,
   markSubmitted,
   markUploading,
   pause,
   recordChunk,
-  recoverInterruptedMock,
-  resetMock,
+  recoverInterruptedDraft,
+  resetRecordingSession,
   retryFinalizedUpload,
   resume,
   stopAndFinalize,
@@ -172,29 +173,58 @@ describe('recording session singleton', () => {
     expect(getSnapshot().pausedAccumulatedMs).toBe(2500)
   })
 
-  test('resetMock clears state to idle', () => {
+  test('resetRecordingSession clears state to idle', () => {
     startMock({ title: 'x' })
     forceState('interrupted')
     expect(getSnapshot().state).toBe('interrupted')
-    resetMock()
+    resetRecordingSession()
     expect(getSnapshot().state).toBe('idle')
     expect(getSnapshot().title).toBeNull()
   })
 
-  test('recoverInterruptedMock restores a persisted draft after reload', () => {
-    startMock({ title: 'Recovered title' })
-    __resetForTesting()
-
+  test('recoverInterruptedDraft restores a persisted real draft after reload', () => {
     window.sessionStorage.setItem(
       'recording.sessionDraft',
       JSON.stringify({ title: 'Recovered title' })
     )
 
-    expect(recoverInterruptedMock()).toBe(true)
+    expect(recoverInterruptedDraft()).toBe(true)
     expect(getSnapshot()).toMatchObject({
       state: 'interrupted',
       title: 'Recovered title',
     })
+  })
+
+  test('startMock does not write a real interrupted recovery draft', () => {
+    startMock({ title: 'Mock-only title' })
+
+    expect(window.sessionStorage.getItem('recording.sessionDraft')).toBeNull()
+  })
+
+  test('corrupt interrupted drafts are cleared without recovering', () => {
+    window.sessionStorage.setItem('recording.sessionDraft', '{not-json')
+
+    expect(recoverInterruptedDraft()).toBe(false)
+    expect(window.sessionStorage.getItem('recording.sessionDraft')).toBeNull()
+    expect(getSnapshot().state).toBe('idle')
+  })
+
+  test('attachAndStart writes a real interrupted recovery draft', () => {
+    attachRecording({
+      title: 'Real draft title',
+      keyTerms: ['alpha'],
+      deviceId: 'mic-1',
+    })
+
+    expect(window.sessionStorage.getItem('recording.sessionDraft')).toEqual(
+      JSON.stringify({
+        title: 'Real draft title',
+        generatedTitle: null,
+        keyTerms: ['alpha'],
+        codecMime: 'audio/webm',
+        deviceId: 'mic-1',
+      })
+    )
   })
 
   test('forceState normalizes timing fields per target', () => {
@@ -241,6 +271,32 @@ describe('recording session singleton', () => {
     markSubmitted() // disposes the controller
     expect(getLiveRecorder()).toBeNull()
   })
+
+  test('markInterrupted disposes an attached recorder while preserving interrupted state', () => {
+    attachRecording()
+    expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
+
+    markInterrupted('Page reloaded.')
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'interrupted',
+      errorMessage: 'Page reloaded.',
+    })
+    expect(getLiveRecorder()).toBeNull()
+  })
+
+  test.each(['idle', 'submitted', 'discarded', 'error', 'interrupted'] as const)(
+    'forceState(%s) does not leave a live recorder attached',
+    (state) => {
+      attachRecording()
+      expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
+
+      forceState(state)
+
+      expect(getSnapshot().state).toBe(state)
+      expect(getLiveRecorder()).toBeNull()
+    }
+  )
 
   test('failed recorder start does not poison later attach attempts', () => {
     FakeMediaRecorder.shouldThrowOnStart = true
@@ -321,6 +377,37 @@ describe('recording session singleton', () => {
         outcome: 'started',
       },
     })
+    expect(hasUnsavedRecording()).toBe(false)
+  })
+
+  test('resetRecordingSession clears retryable upload error state', async () => {
+    mockRunCaptureUpload.mockResolvedValueOnce({
+      kind: 'failure',
+      message: 'Upload failed',
+    })
+
+    attachRecording({
+      title: 'Reset retry',
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+
+    const stopPromise = stopAndFinalize()
+    dispatchChunk(lastRecorder(), 512)
+    await stopPromise
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'error',
+      canRetryUpload: true,
+    })
+
+    resetRecordingSession()
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'idle',
+      canRetryUpload: false,
+    })
+    expect(getLiveRecorder()).toBeNull()
     expect(hasUnsavedRecording()).toBe(false)
   })
 })

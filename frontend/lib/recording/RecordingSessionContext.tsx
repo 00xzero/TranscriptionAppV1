@@ -10,8 +10,8 @@ import {
   markError as markErrorAction,
   markInterrupted as markInterruptedAction,
   pause as pauseAction,
-  recoverInterruptedMock as recoverInterruptedMockAction,
-  resetMock as resetMockAction,
+  recoverInterruptedDraft as recoverInterruptedDraftAction,
+  resetRecordingSession as resetRecordingSessionAction,
   restartInterruptedRecording as restartInterruptedRecordingAction,
   retryFinalizedUpload as retryFinalizedUploadAction,
   resume as resumeAction,
@@ -37,8 +37,8 @@ interface RecordingActions {
   discard: () => void
   markError: (message: string) => void
   markInterrupted: (message?: string) => void
-  resetMock: () => void
-  recoverInterruptedMock: () => boolean
+  resetRecordingSession: () => void
+  recoverInterruptedDraft: () => boolean
   forceState: (state: RecordingState) => void
 }
 
@@ -53,8 +53,8 @@ const actions: RecordingActions = {
   discard: discardAction,
   markError: markErrorAction,
   markInterrupted: markInterruptedAction,
-  resetMock: resetMockAction,
-  recoverInterruptedMock: recoverInterruptedMockAction,
+  resetRecordingSession: resetRecordingSessionAction,
+  recoverInterruptedDraft: recoverInterruptedDraftAction,
   forceState: forceStateAction,
 }
 
