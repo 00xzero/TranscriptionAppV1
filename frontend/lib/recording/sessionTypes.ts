@@ -41,7 +41,9 @@ export interface Runtime {
   controller: RecorderController | null
   chunks: Blob[]
   bytesSoFar: number
+  acceptingChunks: boolean
   stopInProgress: boolean
+  uploadAbortController: AbortController | null
   deviceId: string | null
   codecMime: string | null
   maxBytes: number

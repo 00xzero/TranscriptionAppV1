@@ -55,6 +55,20 @@ function lastRecorder(): FakeMediaRecorder {
   return FakeMediaRecorder.lastInstance as FakeMediaRecorder
 }
 
+async function flushAsync(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function dispatchStopDrain(recorder: FakeMediaRecorder, manualBytes: number): void {
+  dispatchChunk(recorder, manualBytes)
+  dispatchChunk(recorder, 0)
+}
+
+function advanceClockPastEmptyFloor(): void {
+  const startedAt = getSnapshot().startedAt ?? 1_000_000
+  jest.spyOn(Date, 'now').mockReturnValue(startedAt + 3_000)
+}
+
 describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
@@ -151,6 +165,94 @@ describe('recording session singleton', () => {
     startMock()
     discard()
     expect(getSnapshot().state).toBe('discarded')
+  })
+
+  test('stop without an attached controller marks the session interrupted', async () => {
+    startMock({ title: 'Missing controller' })
+
+    await stopAndFinalize()
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'interrupted',
+      title: 'Missing controller',
+      errorMessage: 'Recording session was lost before it could be saved.',
+    })
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+    expect(hasUnsavedRecording()).toBe(false)
+  })
+
+  test('discard during stop finalization cancels the pending upload', async () => {
+    FakeMediaRecorder.autoDispatchStop = false
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+
+    attachRecording({
+      title: 'Discard while stopping',
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+
+    const stopPromise = stopAndFinalize()
+    expect(getSnapshot().state).toBe('finalizing')
+
+    discard()
+    await stopPromise
+
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+    expect(getSnapshot().state).toBe('discarded')
+    expect(getLiveRecorder()).toBeNull()
+    expect(hasUnsavedRecording()).toBe(false)
+  })
+
+  test('stop requests a final recorder data flush before finalizing', async () => {
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+
+    attachRecording({
+      title: 'Flush before stop',
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+    const recorder = lastRecorder()
+    const requestDataSpy = jest.spyOn(recorder, 'requestData')
+
+    const stopPromise = stopAndFinalize()
+
+    expect(requestDataSpy).toHaveBeenCalledTimes(1)
+
+    dispatchStopDrain(recorder, 512)
+    await stopPromise
+
+    expect(mockRunCaptureUpload.mock.calls[0][0]).toBeInstanceOf(File)
+    expect(mockRunCaptureUpload.mock.calls[0][0].size).toBe(4608)
+  })
+
+  test('stop below the empty floor discards without uploading', async () => {
+    const now = jest.spyOn(Date, 'now')
+    now.mockReturnValue(4_000_000)
+    attachRecording({
+      title: 'Too short',
+      maxBytes: 1024 * 1024,
+    })
+    now.mockReturnValue(4_000_500)
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 0)
+    await stopPromise
+
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+    expect(getSnapshot()).toMatchObject({
+      state: 'discarded',
+      salvageMessage: 'Recording discarded before enough audio was captured.',
+    })
+    expect(hasUnsavedRecording()).toBe(false)
   })
 
   test('markError sets state and message', () => {
@@ -313,7 +415,12 @@ describe('recording session singleton', () => {
     expect(getSnapshot().state).toBe('recording')
   })
 
-  test('recorder errors stay on the error path even after salvage threshold is met', () => {
+  test('recorder errors above the salvage threshold submit captured audio', async () => {
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-encoder-salvage',
+      outcome: 'started',
+    })
     const now = jest.spyOn(Date, 'now')
     now.mockReturnValue(1_000_000)
     attachRecording({
@@ -323,12 +430,15 @@ describe('recording session singleton', () => {
     now.mockReturnValue(1_003_000)
 
     dispatchRecorderError(lastRecorder(), 'Encoder failure')
+    dispatchStopDrain(lastRecorder(), 512)
+    await flushAsync()
 
     expect(getSnapshot()).toMatchObject({
-      state: 'error',
-      errorMessage: 'Encoder failure',
-      salvageMessage: null,
+      state: 'submitted',
+      errorMessage: null,
+      salvageMessage: 'Encoder failure Submitting what was recorded.',
     })
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
   })
 
   test('upload failures preserve finalized recording for retry', async () => {
@@ -349,9 +459,10 @@ describe('recording session singleton', () => {
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
 
     const stopPromise = stopAndFinalize()
-    dispatchChunk(lastRecorder(), 512)
+    dispatchStopDrain(lastRecorder(), 512)
     await stopPromise
 
     expect(getSnapshot()).toMatchObject({
@@ -380,6 +491,96 @@ describe('recording session singleton', () => {
     expect(hasUnsavedRecording()).toBe(false)
   })
 
+  test('discard during upload aborts the uploader and ignores late success', async () => {
+    let uploadSignal: AbortSignal | undefined
+    let resolveUpload:
+      | ((result: {
+          kind: 'success'
+          projectId: string
+          outcome: 'started'
+        }) => void)
+      | undefined
+    mockRunCaptureUpload.mockImplementation((_file, _title, _keyTerms, options) => {
+      uploadSignal = options?.signal
+      return new Promise((resolve) => {
+        resolveUpload = resolve
+      })
+    })
+
+    attachRecording({
+      title: 'Discard during upload',
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await Promise.resolve()
+
+    expect(getSnapshot().state).toBe('uploading')
+    expect(uploadSignal?.aborted).toBe(false)
+
+    discard()
+
+    expect(uploadSignal?.aborted).toBe(true)
+
+    resolveUpload?.({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+    await stopPromise
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'discarded',
+      submissionResult: null,
+    })
+    expect(hasUnsavedRecording()).toBe(false)
+  })
+
+  test('late recorder chunks after finalized file creation are ignored', async () => {
+    let resolveUpload:
+      | ((result: {
+          kind: 'success'
+          projectId: string
+          outcome: 'started'
+        }) => void)
+      | undefined
+    mockRunCaptureUpload.mockImplementation(() => {
+      return new Promise((resolve) => {
+        resolveUpload = resolve
+      })
+    })
+
+    attachRecording({
+      title: 'Late chunk',
+      maxBytes: 1024 * 1024,
+    })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+
+    const recorder = lastRecorder()
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(recorder, 512)
+    await Promise.resolve()
+
+    expect(getSnapshot().state).toBe('uploading')
+
+    dispatchChunk(recorder, 1024)
+
+    resolveUpload?.({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+    await stopPromise
+
+    expect(mockRunCaptureUpload.mock.calls[0][0]).toBeInstanceOf(File)
+    expect(mockRunCaptureUpload.mock.calls[0][0].size).toBe(4608)
+    expect(getSnapshot().state).toBe('submitted')
+  })
+
   test('resetRecordingSession clears retryable upload error state', async () => {
     mockRunCaptureUpload.mockResolvedValueOnce({
       kind: 'failure',
@@ -391,9 +592,10 @@ describe('recording session singleton', () => {
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
 
     const stopPromise = stopAndFinalize()
-    dispatchChunk(lastRecorder(), 512)
+    dispatchStopDrain(lastRecorder(), 512)
     await stopPromise
 
     expect(getSnapshot()).toMatchObject({

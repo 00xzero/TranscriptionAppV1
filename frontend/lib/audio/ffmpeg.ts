@@ -78,8 +78,7 @@ export type ProbeResult = {
     sampleRate: number
 }
 
-async function probeDurationFromPackets(url: string): Promise<number> {
-    const resolved = await resolveUrlHost(url)
+async function probeDurationFromPackets(resolvedUrl: string): Promise<number> {
     return new Promise((resolve, reject) => {
         const args = [
             '-v', 'error',
@@ -87,7 +86,7 @@ async function probeDurationFromPackets(url: string): Promise<number> {
             '-show_packets',
             '-show_entries', 'packet=pts_time,duration_time',
             '-of', 'csv=p=0',
-            resolved,
+            resolvedUrl,
         ]
         const proc = spawn(FFPROBE_PATH, args)
         let settled = false
@@ -219,7 +218,7 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
                 // MediaRecorder-produced WebM can omit container duration even
                 // though packet timestamps are valid. Fall back to the final
                 // audio packet end so waveform generation still works.
-                void probeDurationFromPackets(url)
+                void probeDurationFromPackets(resolved)
                     .then(finish)
                     .catch((packetErr) => {
                         reject(new Error(

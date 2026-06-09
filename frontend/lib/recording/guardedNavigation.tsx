@@ -10,10 +10,12 @@ import {
   type MouseEvent,
 } from 'react'
 import { useRecordingActions } from './RecordingSessionContext'
-import { hasUnsavedRecording } from './session'
+import { getSnapshot, hasUnsavedRecording } from './session'
 
 const CONFIRM_COPY =
   'Leaving this page will discard your recording. Continue?'
+const UPLOAD_IN_PROGRESS_COPY =
+  'Your recording upload is already in progress. Please wait for it to finish before leaving this page.'
 
 // Navigation to the recording page itself never risks data loss — clicking the
 // header pill or any link that returns to `/recording/...` should never prompt.
@@ -25,6 +27,10 @@ function isSafeDestination(href: string | { pathname?: string | null } | null | 
 
 function confirmAndDiscard(actions: ReturnType<typeof useRecordingActions>): boolean {
   if (!hasUnsavedRecording()) return true
+  if (getSnapshot().state === 'uploading') {
+    window.alert(UPLOAD_IN_PROGRESS_COPY)
+    return false
+  }
   const ok = window.confirm(CONFIRM_COPY)
   if (ok) {
     actions.discard()
@@ -85,6 +91,12 @@ export function usePopStateGuard(): void {
 
     const handler = () => {
       if (!hasUnsavedRecording()) return
+      if (getSnapshot().state === 'uploading') {
+        window.alert(UPLOAD_IN_PROGRESS_COPY)
+        window.history.pushState(null, '', pathname)
+        router.replace(pathname)
+        return
+      }
       const ok = window.confirm(CONFIRM_COPY)
       if (ok) {
         actions.discard()
@@ -125,6 +137,11 @@ export const GuardedLink = forwardRef<HTMLAnchorElement, GuardedLinkProps>(
       }
       if (isSafeDestination(href)) return
       if (!hasUnsavedRecording()) return
+      if (getSnapshot().state === 'uploading') {
+        window.alert(UPLOAD_IN_PROGRESS_COPY)
+        event.preventDefault()
+        return
+      }
       const ok = window.confirm(CONFIRM_COPY)
       if (ok) {
         actions.discard()

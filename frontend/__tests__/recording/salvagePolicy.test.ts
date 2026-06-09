@@ -10,6 +10,7 @@ import {
   FakeMediaRecorder,
   createFakeStream,
   dispatchChunk,
+  dispatchRecorderError,
   getFakeTrack,
   installMediaRecorderMock,
 } from '../../__mocks__/MediaRecorder'
@@ -31,6 +32,12 @@ function attach(stream: MediaStream): void {
 // Let the upload promise chain (controller.stop -> submit -> uploader) settle.
 async function flushAsync(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+function dispatchStopDrain(manualBytes: number): void {
+  const recorder = FakeMediaRecorder.lastInstance as FakeMediaRecorder
+  dispatchChunk(recorder, manualBytes)
+  dispatchChunk(recorder, 0)
 }
 
 describe('recorder-failure salvage policy', () => {
@@ -64,7 +71,7 @@ describe('recorder-failure salvage policy', () => {
 
     getFakeTrack(stream).dispatchEvent(new Event('ended'))
     // Resolve the controller's final-chunk drain so the stop promise settles.
-    dispatchChunk(FakeMediaRecorder.lastInstance as FakeMediaRecorder, 256)
+    dispatchStopDrain(256)
     await flushAsync()
 
     expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
@@ -86,6 +93,33 @@ describe('recorder-failure salvage policy', () => {
     expect(mockRunCaptureUpload).not.toHaveBeenCalled()
     expect(getSnapshot().state).toBe('discarded')
     expect(getSnapshot().salvageMessage).toMatch(/discarded/i)
+  })
+
+  test('recorder error above the empty floor auto-submits with a banner', async () => {
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'p-recorder-error',
+      outcome: 'started',
+    })
+    const now = jest.spyOn(Date, 'now')
+    now.mockReturnValue(2_500_000)
+
+    const stream = createFakeStream()
+    attach(stream)
+    recordChunk(new Blob([new Uint8Array(8192)])) // >= 4 KB
+    now.mockReturnValue(2_503_000) // >= 2 s active
+
+    dispatchRecorderError(
+      FakeMediaRecorder.lastInstance as FakeMediaRecorder,
+      'Encoder failed.'
+    )
+    // Resolve the controller's final-chunk drain so the stop promise settles.
+    dispatchStopDrain(256)
+    await flushAsync()
+
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+    expect(getSnapshot().salvageMessage).toMatch(/Encoder failed/i)
+    expect(getSnapshot().state).toBe('submitted')
   })
 
   test('sustained mute above the floor salvages after the debounce', () => {

@@ -6,11 +6,20 @@ export function createRuntime(): Runtime {
     controller: null,
     chunks: [],
     bytesSoFar: 0,
+    acceptingChunks: false,
     stopInProgress: false,
+    uploadAbortController: null,
     deviceId: null,
     codecMime: null,
     maxBytes: 0,
     finalizedRecording: null,
+  }
+}
+
+export function abortUpload(store: Store): void {
+  if (store.runtime.uploadAbortController) {
+    store.runtime.uploadAbortController.abort()
+    store.runtime.uploadAbortController = null
   }
 }
 
@@ -21,6 +30,7 @@ export function disposeController(store: Store): void {
   }
   store.runtime.chunks = []
   store.runtime.bytesSoFar = 0
+  store.runtime.acceptingChunks = false
   store.runtime.stopInProgress = false
 }
 
@@ -33,6 +43,7 @@ export function clearTerminalSessionRuntime(
   clearSessionActivity: () => void
 ): void {
   clearSessionActivity()
+  abortUpload(store)
   clearDraft()
   disposeController(store)
   clearFinalizedRecording(store)
@@ -43,6 +54,7 @@ export function clearInterruptedSessionRuntime(
   clearSessionActivity: () => void
 ): void {
   clearSessionActivity()
+  abortUpload(store)
   disposeController(store)
   clearFinalizedRecording(store)
 }

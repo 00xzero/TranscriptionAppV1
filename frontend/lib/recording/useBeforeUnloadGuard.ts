@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRecordingSession } from './RecordingSessionContext'
-import { hasUnsavedRecording } from './session'
+import { isRecordingSessionActive } from './session'
 
 export function useBeforeUnloadGuard(): void {
-  useRecordingSession()
-  const active = hasUnsavedRecording()
+  const snapshot = useRecordingSession()
+  const active = isRecordingSessionActive(snapshot)
 
   useEffect(() => {
     if (!active) return

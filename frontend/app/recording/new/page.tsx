@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
@@ -86,7 +86,7 @@ export default function RecordingNewPage() {
     return () => window.clearTimeout(id)
   }, [snapshot.state, snapshot.submissionResult, router])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (snapshot.state !== 'idle') return
 
     if (

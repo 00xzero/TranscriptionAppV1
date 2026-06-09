@@ -3,6 +3,7 @@ import {
 } from './recorderController'
 import { clearDraft, readDraft, writeDraft } from './sessionDraft'
 import {
+  abortUpload,
   clearFinalizedRecording,
   clearInterruptedSessionRuntime,
   clearTerminalSessionRuntime,
@@ -90,7 +91,7 @@ export function attachAndStart(params: AttachAndStartParams): void {
 
   const controller = createRecorderController(params.stream, params.codec.mime, {
     onChunk: (blob) => recordChunk(blob),
-    onError: (reason) => handleRecorderError(reason),
+    onError: (reason) => handleRecorderFailure(reason),
     onTrackEnded: () => handleRecorderFailure('Microphone disconnected.'),
     onTrackMutedSustained: () =>
       handleRecorderFailure('Microphone went quiet for too long.'),
@@ -99,6 +100,7 @@ export function attachAndStart(params: AttachAndStartParams): void {
   store.runtime.controller = controller
   store.runtime.chunks = []
   store.runtime.bytesSoFar = 0
+  store.runtime.acceptingChunks = true
   store.runtime.stopInProgress = false
   store.runtime.deviceId = params.deviceId
   store.runtime.codecMime = params.codec.mime
@@ -182,24 +184,6 @@ export function resume(): void {
   startIntervalIfNeeded()
 }
 
-function scheduleMockLifecycle(): void {
-  if (typeof window === 'undefined') return
-
-  clearMockLifecycleTimeouts()
-  store.mockLifecycleTimeoutIds.push(
-    window.setTimeout(() => {
-      if (store.snapshot.state === 'finalizing') {
-        markUploading()
-      }
-    }, 800),
-    window.setTimeout(() => {
-      if (store.snapshot.state === 'uploading') {
-        markSubmitted()
-      }
-    }, 1800)
-  )
-}
-
 // Single-flight, drain-aware Stop. Used by the recording page's controls and
 // by the size-budget auto-stop.
 export async function stopAndFinalize(): Promise<void> {
@@ -209,19 +193,39 @@ export async function stopAndFinalize(): Promise<void> {
   const controller = store.runtime.controller
   finalize()
   if (!controller) {
-    scheduleMockLifecycle()
+    markInterrupted('Recording session was lost before it could be saved.')
     store.runtime.stopInProgress = false
     return
   }
 
   try {
+    try {
+      controller.requestData()
+    } catch {
+      // Best-effort final flush. Some browsers throw if a recorder is already
+      // stopping; the stop drain below still handles the normal final chunk.
+    }
     await controller.stop()
   } catch {
     // controller errors will route through onError → handleRecorderFailure
   }
 
+  if (
+    store.snapshot.state !== 'finalizing' ||
+    store.runtime.controller !== controller
+  ) {
+    store.runtime.stopInProgress = false
+    return
+  }
+
   if (typeof window === 'undefined') {
     store.runtime.stopInProgress = false
+    return
+  }
+
+  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar)) {
+    store.runtime.stopInProgress = false
+    discard('Recording discarded before enough audio was captured.')
     return
   }
 
@@ -243,6 +247,7 @@ export async function stopAndFinalize(): Promise<void> {
   }
   store.runtime.chunks = []
   store.runtime.bytesSoFar = 0
+  store.runtime.acceptingChunks = false
 
   try {
     await submitFinalizedRecording()
@@ -258,13 +263,29 @@ async function submitFinalizedRecording(): Promise<void> {
     return
   }
 
+  if (!canTransition(store.snapshot.state, 'markUploading')) return
   markUploading()
+  if (store.snapshot.state !== 'uploading') return
 
-  const result = await captureUploader(
-    finalized.file,
-    finalized.title,
-    finalized.keyTerms
-  )
+  const abortController = new AbortController()
+  store.runtime.uploadAbortController = abortController
+
+  let result: Awaited<ReturnType<typeof captureUploader>>
+  try {
+    result = await captureUploader(
+      finalized.file,
+      finalized.title,
+      finalized.keyTerms,
+      { signal: abortController.signal }
+    )
+  } finally {
+    if (store.runtime.uploadAbortController === abortController) {
+      store.runtime.uploadAbortController = null
+    }
+  }
+  if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
+    return
+  }
 
   if (result.kind === 'success') {
     setSubmissionResult({
@@ -290,6 +311,7 @@ export async function retryFinalizedUpload(): Promise<void> {
 }
 
 export function recordChunk(blob: Blob): void {
+  if (!store.runtime.acceptingChunks) return
   if (blob.size <= 0) return
   store.runtime.chunks.push(blob)
   store.runtime.bytesSoFar += blob.size
@@ -319,13 +341,6 @@ export function handleRecorderFailure(reason: string): void {
   }
 
   discard(`${reason} Recording discarded before enough audio was captured.`)
-}
-
-function handleRecorderError(reason: string): void {
-  if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
-
-  disposeController(store)
-  markError(reason)
 }
 
 export function finalize(): void {
@@ -436,6 +451,7 @@ export function __resetForTesting(): void {
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   clearDraft()
+  abortUpload(store)
   disposeController(store)
   store.runtime = createRuntime()
   store.snapshot = { ...IDLE_SNAPSHOT }

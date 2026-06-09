@@ -23,7 +23,7 @@ describe('Recording page', () => {
     pushMock.mockReset()
   })
 
-  test('idle state renders dev controls (in jsdom NODE_ENV=test)', () => {
+  test('idle state renders dev controls when the test flag is enabled', () => {
     render(<RecordingNewPage />)
     expect(screen.getByText(/No active recording/i)).toBeInTheDocument()
     expect(screen.getByTestId('recording-dev-controls')).toBeInTheDocument()
@@ -231,6 +231,7 @@ describe('Recording page', () => {
       await screen.findByText(/Your recording was interrupted/i)
     ).toBeInTheDocument()
     expect(screen.getByText('Recovered title')).toBeInTheDocument()
+    expect(screen.queryByText(/No active recording/i)).not.toBeInTheDocument()
   })
 
   test('interrupted CTA surfaces a recovery error when the browser cannot record', async () => {
@@ -265,61 +266,25 @@ describe('Recording page', () => {
     }
   })
 
-  test('mock stop timers cannot mutate a later reset session', () => {
-    jest.useFakeTimers()
-    try {
-      act(() => {
-        // Seed past the empty-floor gate so `Stop & transcribe` is visible.
-        mockRecordingSession({
-          state: 'recording',
-          title: 't',
-          pausedAccumulatedMs: 3000,
-          bytesSoFar: 8192,
-        })
+  test('stop without a live controller shows interrupted recovery state', async () => {
+    act(() => {
+      mockRecordingSession({
+        state: 'recording',
+        title: 't',
+        pausedAccumulatedMs: 3000,
+        bytesSoFar: 8192,
       })
-      const { unmount } = render(<RecordingNewPage />)
+    })
+    render(<RecordingNewPage />)
 
-      fireEvent.click(screen.getByRole('button', { name: /stop & transcribe/i }))
-      unmount()
+    fireEvent.click(screen.getByRole('button', { name: /stop & transcribe/i }))
 
-      act(() => {
-        __resetForTesting()
-        jest.advanceTimersByTime(2000)
-      })
-
-      expect(getSnapshot().state).toBe('idle')
-    } finally {
-      jest.useRealTimers()
-    }
-  })
-
-  test('stop completes the mocked lifecycle after controls unmount', () => {
-    jest.useFakeTimers()
-    try {
-      act(() => {
-        mockRecordingSession({
-          state: 'recording',
-          title: 't',
-          pausedAccumulatedMs: 3000,
-          bytesSoFar: 8192,
-        })
-      })
-      render(<RecordingNewPage />)
-
-      fireEvent.click(screen.getByRole('button', { name: /stop & transcribe/i }))
-      expect(screen.getByTestId('recording-spinner')).toBeInTheDocument()
-
-      act(() => {
-        jest.advanceTimersByTime(800)
-      })
-      expect(getSnapshot().state).toBe('uploading')
-
-      act(() => {
-        jest.advanceTimersByTime(1000)
-      })
-      expect(getSnapshot().state).toBe('submitted')
-    } finally {
-      jest.useRealTimers()
-    }
+    expect(
+      await screen.findByText(/Your recording was interrupted/i)
+    ).toBeInTheDocument()
+    expect(getSnapshot()).toMatchObject({
+      state: 'interrupted',
+      errorMessage: 'Recording session was lost before it could be saved.',
+    })
   })
 })

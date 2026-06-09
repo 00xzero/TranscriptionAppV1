@@ -27,8 +27,8 @@ jest.mock('next/navigation', () => ({
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
 // NOTE: the direct-URL-visit redirect (`/projects?capture=recording_session_not_found`)
-// is gated on `process.env.NODE_ENV === 'production'`; under Jest (NODE_ENV=test)
-// the page shows the dev controls instead, so that branch is covered by manual QA.
+// is gated off when NEXT_PUBLIC_RECORDING_DEV_CONTROLS is enabled for tests,
+// so that branch is covered by manual QA.
 
 describe('recording page entry conditions', () => {
   beforeEach(() => {

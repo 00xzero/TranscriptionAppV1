@@ -145,6 +145,11 @@ type UseCapture = {
 
 export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'done'
 
+export interface CaptureUploadOptions {
+    onProgress?: (p: CaptureUploadProgress) => void
+    signal?: AbortSignal
+}
+
 export type CaptureUploadResult =
     | {
         kind: 'success'
@@ -189,9 +194,10 @@ export async function runCaptureUpload(
     file: File,
     title: string,
     keyTerms: string[],
-    options?: { onProgress?: (p: CaptureUploadProgress) => void }
+    options?: CaptureUploadOptions
 ): Promise<CaptureUploadResult> {
     const supabase = createClient()
+    const signal = options?.signal
     let projectId: string | null = null
     let storagePath: string | null = null
     let didUploadFile = false
@@ -199,9 +205,23 @@ export async function runCaptureUpload(
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
 
+    const canceledResult = (): CaptureUploadResult => ({
+        kind: 'failure',
+        message: 'Upload canceled.',
+    })
+    const isCanceled = () => signal?.aborted === true
+    const throwIfCanceled = () => {
+        if (isCanceled()) {
+            throw new DOMException('Upload canceled.', 'AbortError')
+        }
+    }
+
+    if (isCanceled()) return canceledResult()
+
     options?.onProgress?.('creating')
 
     try {
+        throwIfCanceled()
         const validationError = validateFile(file)
         if (validationError) {
             return { kind: 'validation_error', message: validationError }
@@ -211,6 +231,7 @@ export async function runCaptureUpload(
         const createRes = await fetch('/api/projects', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal,
             body: JSON.stringify({
                 title: title || file.name,
                 filename: file.name,
@@ -235,6 +256,7 @@ export async function runCaptureUpload(
         console.log('[useCapture] Project created:', projectId, 'storagePath:', storagePath)
 
         options?.onProgress?.('uploading')
+        throwIfCanceled()
         console.log('[useCapture] Step 2: Uploading file to storage...', {
             storagePath,
             fileSize: file.size,
@@ -242,6 +264,9 @@ export async function runCaptureUpload(
         })
 
         const mimeType = getMimeType(file)
+        // Supabase Storage's upload API in this version does not pass an
+        // AbortSignal through to fetch, so the session prevents discard while
+        // this request is in flight and checks the signal before/after it.
         const { error: uploadError } = await supabase.storage
             .from('media')
             .upload(storagePath, file, {
@@ -254,13 +279,17 @@ export async function runCaptureUpload(
             throw new Error(`Upload failed: ${uploadError.message}`)
         }
         didUploadFile = true
+        throwIfCanceled()
         console.log('[useCapture] File uploaded successfully')
 
         console.log('[useCapture] Updating project with source_object_key...')
-        const { error: updateError } = await supabase
+        const updateQuery = supabase
             .from('projects')
             .update({ source_object_key: storagePath })
             .eq('id', projectId)
+        const { error: updateError } = await (signal
+            ? updateQuery.abortSignal(signal)
+            : updateQuery)
 
         if (updateError) {
             console.error('[useCapture] Failed to update project source_object_key:', updateError)
@@ -270,12 +299,15 @@ export async function runCaptureUpload(
         console.log('[useCapture] Project updated with source_object_key')
 
         options?.onProgress?.('starting')
+        throwIfCanceled()
         didDispatchStartRequest = true
         const startRes = await fetch(`/api/projects/${projectId}/start`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            signal,
         })
         didReceiveStartResponse = true
+        throwIfCanceled()
 
         if (!startRes.ok) {
             const errorData = await startRes.json().catch(() => ({}))
@@ -289,6 +321,10 @@ export async function runCaptureUpload(
             outcome: 'started'
         }
     } catch (err) {
+        const wasCanceled =
+            isCanceled() ||
+            (err instanceof DOMException && err.name === 'AbortError') ||
+            ((err as { name?: string })?.name === 'AbortError')
         let message = err instanceof Error ? err.message : 'An unexpected error occurred'
 
         if (projectId && didLinkMediaToProject) {
@@ -322,6 +358,8 @@ export async function runCaptureUpload(
                 message = `${message} ${rollbackMessage}`
             }
         }
+
+        if (wasCanceled) return canceledResult()
 
         return { kind: 'failure', message }
     }

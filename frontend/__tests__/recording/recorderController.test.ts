@@ -115,18 +115,23 @@ describe('recorder controller', () => {
     controller.dispose()
   })
 
-  test('manual requestData chunks immediately before stop do not satisfy final drain', async () => {
+  test('manual requestData chunks do not satisfy the final stop drain', async () => {
     const { chunks, controller, recorder } = makeController()
     controller.requestData()
     const { onResolved, stopPromise } = trackStop(controller)
 
     dispatchChunk(recorder, 10)
+    await flushMicrotasks()
+    expect(onResolved).not.toHaveBeenCalled()
+
     dispatchStop(recorder)
     await flushMicrotasks()
     expect(onResolved).not.toHaveBeenCalled()
 
     dispatchChunk(recorder, 20)
     await stopPromise
+
+    expect(onResolved).toHaveBeenCalledTimes(1)
     expect(chunkSizes(chunks)).toEqual([10, 20])
     controller.dispose()
   })
