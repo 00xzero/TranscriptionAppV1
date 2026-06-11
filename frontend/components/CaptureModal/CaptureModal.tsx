@@ -14,6 +14,7 @@ import {
 } from '@/lib/recording/RecordingSessionContext'
 import { useMicTest } from '@/lib/hooks/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
+import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'
 import { useCaptureForm } from './useCaptureForm'
 import UploadAudioPanel from './UploadAudioPanel'
 import RecordAudioPanel from './RecordAudioPanel'
@@ -30,10 +31,12 @@ function getRecordDisabledTooltip(input: {
   recordingActive: boolean
   requesting: boolean
   startingRecording: boolean
+  preparingMicrophone: boolean
 }): string | undefined {
   if (input.codecSupported === false) return CODEC_UNSUPPORTED_TOOLTIP
   if (input.recordingActive) return RECORDING_ACTIVE_TOOLTIP
   if (input.requesting) return 'Requesting microphone…'
+  if (input.preparingMicrophone) return 'Preparing microphone…'
   if (input.startingRecording) return 'Starting…'
   return undefined
 }
@@ -49,10 +52,12 @@ export default function CaptureModal() {
   const wasOpenRef = useRef(false)
   const restoreOnExternalCloseRef = useRef(true)
   const bodyScrollRef = useRef<HTMLDivElement>(null)
+  const recordingStartAbortRef = useRef<AbortController | null>(null)
   const [activeTab, setActiveTab] = useState<CaptureTab>('upload')
   const [codecSupported, setCodecSupported] = useState<boolean | null>(null)
   const [recordSubmitError, setRecordSubmitError] = useState<string | null>(null)
   const [startingRecording, setStartingRecording] = useState(false)
+  const [preparingMicrophone, setPreparingMicrophone] = useState(false)
 
   useEffect(() => {
     setCodecSupported(selectCodec() != null)
@@ -85,9 +90,12 @@ export default function CaptureModal() {
   // Release the mic stream when the modal closes without starting a recording.
   useEffect(() => {
     if (!isCaptureModalOpen) {
+      recordingStartAbortRef.current?.abort()
+      recordingStartAbortRef.current = null
       micTest.release()
       setRecordSubmitError(null)
       setStartingRecording(false)
+      setPreparingMicrophone(false)
     }
     // micTest.release identity is stable enough — release() reads refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,6 +140,9 @@ export default function CaptureModal() {
       return
     }
     setStartingRecording(true)
+    const abortController = new AbortController()
+    recordingStartAbortRef.current?.abort()
+    recordingStartAbortRef.current = abortController
 
     try {
       let stream = micTest.stream
@@ -146,6 +157,21 @@ export default function CaptureModal() {
         const acquired = requestResult.acquired
         stream = acquired.stream
         deviceId = acquired.deviceId
+      }
+
+      if (micTest.getPrewarmRemainingMs() > 0) {
+        setPreparingMicrophone(true)
+        try {
+          await micTest.waitForPrewarm(abortController.signal)
+        } catch (err) {
+          micTest.release()
+          if (!isPrewarmAbortError(err)) {
+            setRecordSubmitError('Could not prepare the microphone. Try again.')
+          }
+          return
+        } finally {
+          setPreparingMicrophone(false)
+        }
       }
 
       const codec = selectCodec()
@@ -184,6 +210,10 @@ export default function CaptureModal() {
       handleClose()
       router.push('/recording/new')
     } finally {
+      if (recordingStartAbortRef.current === abortController) {
+        recordingStartAbortRef.current = null
+      }
+      setPreparingMicrophone(false)
       setStartingRecording(false)
     }
   }
@@ -192,6 +222,7 @@ export default function CaptureModal() {
     codecSupported === true &&
     !isUploading &&
     !startingRecording &&
+    !preparingMicrophone &&
     !micTest.requesting &&
     !recordingActive
   const recordDisabledTooltip = getRecordDisabledTooltip({
@@ -199,10 +230,15 @@ export default function CaptureModal() {
     recordingActive,
     requesting: micTest.requesting,
     startingRecording,
+    preparingMicrophone,
   })
 
   const footerButtonText = isRecordTab
-    ? (startingRecording ? 'Starting…' : 'Start Recording')
+    ? preparingMicrophone
+      ? 'Preparing microphone…'
+      : startingRecording
+        ? 'Starting…'
+        : 'Start Recording'
     : buttonText
   const footerCanSubmit = isRecordTab ? recordCanSubmit : canSubmit
   const footerDisabledTooltip = isRecordTab ? recordDisabledTooltip : undefined

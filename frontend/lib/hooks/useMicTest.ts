@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getAudioContextConstructor } from '@/lib/recording/audioContext'
 import { PREFERRED_DEVICE_KEY } from '@/lib/recording/preferredDevice'
 import { buildRecordingMicConstraints } from '@/lib/recording/micConstraints'
+import {
+  SAFARI_MIC_PREWARM_MS,
+  shouldPrewarmSafariMic,
+  waitForSafariMicPrewarmUntil,
+} from '@/lib/recording/safariPrewarm'
 
 export { PREFERRED_DEVICE_KEY }
 
@@ -25,12 +30,15 @@ export interface MicTestState {
   level: number
   error: MicTestError | null
   requesting: boolean
+  prewarming: boolean
   stream: MediaStream | null
 }
 
 export interface MicTestApi extends MicTestState {
   request: () => Promise<MicRequestResult>
   changeDevice: (deviceId: string | null) => Promise<AcquiredMic | null>
+  getPrewarmRemainingMs: () => number
+  waitForPrewarm: (signal?: AbortSignal) => Promise<void>
   /** Mark the stream as transferred to the recorder so cleanup doesn't stop tracks. */
   transferStream: () => MediaStream | null
   release: () => void
@@ -74,6 +82,7 @@ export function useMicTest(): MicTestApi {
   const [level, setLevel] = useState(0)
   const [error, setError] = useState<MicTestError | null>(null)
   const [requesting, setRequesting] = useState(false)
+  const [prewarming, setPrewarming] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
 
   const streamRef = useRef<MediaStream | null>(null)
@@ -84,12 +93,37 @@ export function useMicTest(): MicTestApi {
   const lastLevelRef = useRef(0)
   const transferredRef = useRef(false)
   const requestGenerationRef = useRef(0)
+  const prewarmReadyAtRef = useRef<number | null>(null)
+  const prewarmTimerRef = useRef<number | null>(null)
 
   const stopTracks = useCallback((s: MediaStream) => {
     s.getTracks().forEach((t) => {
       try { t.stop() } catch { /* ignore */ }
     })
   }, [])
+
+  const clearPrewarm = useCallback(() => {
+    if (prewarmTimerRef.current != null) {
+      window.clearTimeout(prewarmTimerRef.current)
+      prewarmTimerRef.current = null
+    }
+    prewarmReadyAtRef.current = null
+    setPrewarming(false)
+  }, [])
+
+  const startPrewarmIfNeeded = useCallback(() => {
+    clearPrewarm()
+    if (!shouldPrewarmSafariMic()) return
+
+    const readyAt = Date.now() + SAFARI_MIC_PREWARM_MS
+    prewarmReadyAtRef.current = readyAt
+    setPrewarming(true)
+    prewarmTimerRef.current = window.setTimeout(() => {
+      prewarmTimerRef.current = null
+      prewarmReadyAtRef.current = null
+      setPrewarming(false)
+    }, SAFARI_MIC_PREWARM_MS)
+  }, [clearPrewarm])
 
   const stopMeter = useCallback(() => {
     if (rafRef.current != null) {
@@ -119,7 +153,8 @@ export function useMicTest(): MicTestApi {
     }
     streamRef.current = null
     setStream(null)
-  }, [stopTracks])
+    clearPrewarm()
+  }, [clearPrewarm, stopTracks])
 
   const startMeter = useCallback((s: MediaStream) => {
     const AudioContextCtor = getAudioContextConstructor()
@@ -238,8 +273,9 @@ export function useMicTest(): MicTestApi {
     streamRef.current = null
     transferredRef.current = false
     setStream(null)
+    clearPrewarm()
     stopMeter()
-  }, [stopMeter, stopTracks])
+  }, [clearPrewarm, stopMeter, stopTracks])
 
   const request = useCallback(async (): Promise<MicRequestResult> => {
     const generation = ++requestGenerationRef.current
@@ -261,6 +297,7 @@ export function useMicTest(): MicTestApi {
       transferredRef.current = false
       streamRef.current = s
       setStream(s)
+      startPrewarmIfNeeded()
       setPermissionGranted(true)
       const firstTrack = s.getAudioTracks()[0]
       const actualId = firstTrack?.getSettings?.().deviceId ?? null
@@ -292,7 +329,7 @@ export function useMicTest(): MicTestApi {
         setRequesting(false)
       }
     }
-  }, [acquireWithFallback, dropCurrentStream, enumerate, permissionGranted, startMeter, stopTracks])
+  }, [acquireWithFallback, dropCurrentStream, enumerate, permissionGranted, startMeter, startPrewarmIfNeeded, stopTracks])
 
   const changeDevice = useCallback(async (deviceId: string | null): Promise<AcquiredMic | null> => {
     const generation = ++requestGenerationRef.current
@@ -312,6 +349,7 @@ export function useMicTest(): MicTestApi {
       transferredRef.current = false
       streamRef.current = s
       setStream(s)
+      startPrewarmIfNeeded()
       setSelectedDeviceId(selectedId)
       persistDeviceId(selectedId)
       startMeter(s)
@@ -328,16 +366,26 @@ export function useMicTest(): MicTestApi {
         setRequesting(false)
       }
     }
-  }, [acquireWithFallback, dropCurrentStream, startMeter, stopTracks])
+  }, [acquireWithFallback, dropCurrentStream, startMeter, startPrewarmIfNeeded, stopTracks])
+
+  const waitForPrewarm = useCallback((signal?: AbortSignal): Promise<void> => {
+    return waitForSafariMicPrewarmUntil(prewarmReadyAtRef.current, signal)
+  }, [])
+
+  const getPrewarmRemainingMs = useCallback((): number => {
+    if (prewarmReadyAtRef.current == null) return 0
+    return Math.max(0, prewarmReadyAtRef.current - Date.now())
+  }, [])
 
   const transferStream = useCallback((): MediaStream | null => {
     transferredRef.current = true
     const s = streamRef.current
     stopMeter()
+    clearPrewarm()
     // Keep streamRef so getTracks() etc. still work on the returned stream,
     // but mark transferred so release() won't stop the tracks.
     return s
-  }, [stopMeter])
+  }, [clearPrewarm, stopMeter])
 
   const release = useCallback(() => {
     requestGenerationRef.current += 1
@@ -360,9 +408,12 @@ export function useMicTest(): MicTestApi {
     level,
     error,
     requesting,
+    prewarming,
     stream,
     request,
     changeDevice,
+    getPrewarmRemainingMs,
+    waitForPrewarm,
     transferStream,
     release,
   }

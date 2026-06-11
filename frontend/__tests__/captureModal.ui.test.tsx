@@ -6,11 +6,39 @@ import { TooltipProvider } from '../components/ui/tooltip'
 import {
   __resetForTesting,
   __setSnapshotForTesting,
+  getSnapshot,
   startMock,
 } from '../lib/recording/session'
 
-class FakeMediaRecorder {
+class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
+  state: 'inactive' | 'recording' | 'paused' = 'inactive'
+
+  constructor(
+    readonly stream: MediaStream,
+    readonly options?: MediaRecorderOptions
+  ) {
+    super()
+  }
+
+  start = jest.fn(() => {
+    this.state = 'recording'
+  })
+
+  pause = jest.fn(() => {
+    this.state = 'paused'
+  })
+
+  resume = jest.fn(() => {
+    this.state = 'recording'
+  })
+
+  stop = jest.fn(() => {
+    this.state = 'inactive'
+    this.dispatchEvent(new Event('stop'))
+  })
+
+  requestData = jest.fn()
 }
 
 jest.mock('next/navigation', () => ({
@@ -29,6 +57,8 @@ const mockModalState = {
 const mockCaptureFormState = {
   isUploading: false,
 }
+const originalUserAgent = navigator.userAgent
+const originalVendor = navigator.vendor
 
 jest.mock('../lib/ModalContext', () => ({
   useModal: () => ({
@@ -74,6 +104,11 @@ function setMediaRecorder(value: unknown): void {
     writable: true,
     value,
   })
+  Object.defineProperty(globalThis, 'MediaRecorder', {
+    configurable: true,
+    writable: true,
+    value,
+  })
 }
 
 function enableFakeRecorder(): void {
@@ -82,11 +117,50 @@ function enableFakeRecorder(): void {
 
 function resetModalTestState(): void {
   jest.clearAllMocks()
+  jest.useRealTimers()
   __resetForTesting()
   mockModalState.isCaptureModalOpen = true
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
   setMediaRecorder(undefined)
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value: originalUserAgent,
+  })
+  Object.defineProperty(navigator, 'vendor', {
+    configurable: true,
+    value: originalVendor,
+  })
+}
+
+function makeMockStream(options: {
+  deviceId?: string | null
+  stop?: jest.Mock
+} = {}): MediaStream {
+  const stop = options.stop ?? jest.fn()
+  const track = {
+    stop,
+    getSettings: () => ({ deviceId: options.deviceId ?? null }),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+  }
+
+  return {
+    getAudioTracks: () => [track],
+    getTracks: () => [track],
+  } as unknown as MediaStream
+}
+
+function setSafariNavigator(): void {
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+  })
+  Object.defineProperty(navigator, 'vendor', {
+    configurable: true,
+    value: 'Apple Computer, Inc.',
+  })
 }
 
 describe('CaptureModal', () => {
@@ -409,6 +483,163 @@ describe('CaptureModal tabs', () => {
     })
 
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  test('Safari prewarms a freshly acquired mic before recording starts', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    setSafariNavigator()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    jest.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(await screen.findAllByText('Preparing microphone…')).not.toHaveLength(0)
+    expect(getSnapshot().state).toBe('idle')
+
+    await act(async () => {
+      jest.advanceTimersByTime(3999)
+    })
+
+    expect(getSnapshot().state).toBe('idle')
+
+    await act(async () => {
+      jest.advanceTimersByTime(1)
+    })
+
+    expect(getSnapshot().state).toBe('recording')
+    expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
+  })
+
+  test('closing the modal during Safari prewarm stops the fresh mic stream', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    setSafariNavigator()
+    const stop = jest.fn()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(
+          makeMockStream({ deviceId: 'mic-1', stop })
+        ),
+      },
+    })
+
+    const { rerender } = renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    jest.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(await screen.findAllByText('Preparing microphone…')).not.toHaveLength(0)
+
+    mockModalState.isCaptureModalOpen = false
+    rerender(
+      <TooltipProvider delayDuration={0}>
+        <CaptureModal />
+      </TooltipProvider>
+    )
+
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(getSnapshot().state).toBe('idle')
+  })
+
+  test('Safari shows microphone preparation when testing a fresh mic stream', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    setSafariNavigator()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    jest.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /test microphone/i }))
+
+    expect(await screen.findAllByText('Preparing microphone…')).not.toHaveLength(0)
+
+    await act(async () => {
+      jest.advanceTimersByTime(4000)
+    })
+
+    expect(screen.queryByText('Preparing microphone…')).not.toBeInTheDocument()
+    expect(getSnapshot().state).toBe('idle')
+  })
+
+  test('Safari waits only the remaining mic warmup when recording after a quick test', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    setSafariNavigator()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    jest.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /test microphone/i }))
+    expect(await screen.findAllByText('Preparing microphone…')).not.toHaveLength(0)
+
+    await act(async () => {
+      jest.advanceTimersByTime(1000)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+
+    await act(async () => {
+      jest.advanceTimersByTime(2999)
+    })
+
+    expect(getSnapshot().state).toBe('idle')
+
+    await act(async () => {
+      jest.advanceTimersByTime(1)
+    })
+
+    expect(getSnapshot().state).toBe('recording')
+    expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
+  })
+
+  test('Safari uses a fully warmed tested mic stream without another prewarm delay', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    setSafariNavigator()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    jest.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: /test microphone/i }))
+
+    expect(await screen.findAllByText('Preparing microphone…')).not.toHaveLength(0)
+
+    await act(async () => {
+      jest.advanceTimersByTime(4000)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(screen.queryByText('Preparing microphone…')).not.toBeInTheDocument()
+    expect(getSnapshot().state).toBe('recording')
+    expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
   })
 
   test('switching back to Upload restores the Begin Transcription CTA', async () => {

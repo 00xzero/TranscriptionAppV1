@@ -8,6 +8,7 @@ import {
 } from './sessionActions'
 import { stopStreamTracks } from './sessionRuntime'
 import { setSnapshot, store } from './sessionStore'
+import { waitForSafariMicPrewarm } from './safariPrewarm'
 import type { RestartInterruptedResult } from './sessionTypes'
 
 function getMediaErrorName(err: unknown): string | undefined {
@@ -110,6 +111,8 @@ export async function restartInterruptedRecording(
       message: "Audio recording isn't supported in this browser.",
     }
   }
+
+  await waitForSafariMicPrewarm()
 
   try {
     attachAndStart({

@@ -99,11 +99,15 @@ export default function RecordAudioPanel({
           <button
             type="button"
             onClick={handleTestClick}
-            disabled={micControlsDisabled || micTest.requesting}
+            disabled={micControlsDisabled || micTest.requesting || micTest.prewarming}
             aria-label="Test microphone"
             className="text-xs font-medium px-3 py-2 rounded-sm shadow-xs transition-all active:scale-95 border border-[#D1CEC5] dark:border-[#444] bg-white/50 dark:bg-[#222]/50 hover:bg-ink/5 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {micTest.requesting ? 'Requesting…' : 'Test microphone'}
+            {micTest.requesting
+              ? 'Requesting…'
+              : micTest.prewarming
+                ? 'Preparing…'
+                : 'Test microphone'}
           </button>
           <div className="flex-1 ml-3">
             <div
@@ -121,6 +125,16 @@ export default function RecordAudioPanel({
             </div>
           </div>
         </div>
+
+        {micTest.prewarming && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-sm border border-trust-blue/30 bg-trust-blue/10 px-3 py-2 text-xs text-ink dark:text-paper"
+          >
+            Preparing microphone…
+          </div>
+        )}
 
         {micTest.error && (
           <div
