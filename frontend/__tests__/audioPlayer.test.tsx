@@ -77,8 +77,36 @@ function setupAudioElement(audio: HTMLAudioElement, { duration = 120, paused = t
 describe('AudioPlayer', () => {
   let rafCallbacks: Map<number, FrameRequestCallback>
   let nextRafId: number
+  const originalUserAgent = navigator.userAgent
+  const originalVendor = navigator.vendor
+
+  function setNavigator(userAgent: string, vendor: string): void {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: userAgent,
+    })
+    Object.defineProperty(navigator, 'vendor', {
+      configurable: true,
+      value: vendor,
+    })
+  }
+
+  function setSafariNavigator(): void {
+    setNavigator(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+      'Apple Computer, Inc.'
+    )
+  }
+
+  function setChromeNavigator(): void {
+    setNavigator(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Google Inc.'
+    )
+  }
 
   beforeEach(() => {
+    setNavigator(originalUserAgent, originalVendor)
     rafCallbacks = new Map()
     nextRafId = 0
 
@@ -103,6 +131,7 @@ describe('AudioPlayer', () => {
 
   afterEach(() => {
     jest.restoreAllMocks()
+    setNavigator(originalUserAgent, originalVendor)
   })
 
   const flushAnimationFrame = () => {
@@ -237,6 +266,53 @@ describe('AudioPlayer', () => {
     })
 
     expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('primes Safari WebM playback with a tiny seek when the audio becomes ready', () => {
+    setSafariNavigator()
+    const onReady = jest.fn()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: {
+        src: 'https://storage.example.test/object/sign/media/user/project/recording.webm?token=abc',
+        onReady,
+      },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0.001)
+    expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prime Safari playback for non-WebM audio', () => {
+    setSafariNavigator()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: { src: 'recording.mp3' },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0)
+  })
+
+  it('does not prime Chrome WebM playback', () => {
+    setChromeNavigator()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: { src: 'recording.webm' },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0)
   })
 
   it('uses the supplied duration hint when media metadata has no finite duration', () => {

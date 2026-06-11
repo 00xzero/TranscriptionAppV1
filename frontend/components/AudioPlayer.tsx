@@ -4,6 +4,7 @@ import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperat
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { formatClockTime } from '@/lib/utils'
+import { isSafariBrowser } from '@/lib/recording/safariPrewarm'
 
 /**
  * Native HTMLAudioElement-backed player.
@@ -11,6 +12,21 @@ import { formatClockTime } from '@/lib/utils'
  * the visible scrubber — only the <audio> element is rendered, no UI state.
  */
 const TIMEUPDATE_QUANTIZE_MS = 100
+const SAFARI_WEBM_PRIME_TIME_SECONDS = 0.001
+
+function isLikelyWebmSource(src: string): boolean {
+  try {
+    const pathname = new URL(src, typeof window === 'undefined' ? 'http://localhost' : window.location.href).pathname
+    return decodeURIComponent(pathname).toLowerCase().endsWith('.webm')
+  } catch {
+    return src.split('?')[0]?.toLowerCase().endsWith('.webm') ?? false
+  }
+}
+
+function shouldPrimeSafariWebmPlayback(src: string): boolean {
+  if (typeof navigator === 'undefined') return false
+  return isLikelyWebmSource(src) && isSafariBrowser(navigator.userAgent, navigator.vendor)
+}
 
 export interface AudioPlayerProps {
   /** URL of the audio file */
@@ -102,6 +118,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const pendingScrubFractionRef = useRef<number | null>(null)
   const lastEmittedTimeRef = useRef(-Infinity)
   const lastEmittedDurationRef = useRef(0)
+  const didPrimeSafariWebmRef = useRef(false)
   const [previewFraction, setPreviewFraction] = useState<number | null>(null)
 
   const clampFraction = useCallback((nextFraction: number) => {
@@ -147,6 +164,24 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     if (!audio) return duration
     return resolveDuration(audio)
   }, [duration, resolveDuration])
+
+  const primeSafariWebmPlayback = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (didPrimeSafariWebmRef.current) return
+    if (!shouldPrimeSafariWebmPlayback(src)) return
+
+    didPrimeSafariWebmRef.current = true
+    if (audio.currentTime > 0) return
+
+    try {
+      const resolvedDuration = resolveDuration(audio)
+      if (resolvedDuration > 0 && resolvedDuration <= SAFARI_WEBM_PRIME_TIME_SECONDS) return
+      audio.currentTime = SAFARI_WEBM_PRIME_TIME_SECONDS
+    } catch (err) {
+      console.warn('[AudioPlayer] Safari WebM playback prime failed:', err)
+    }
+  }, [resolveDuration, src])
 
   const commitDuration = useCallback((resolvedDuration: number) => {
     if (!Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
@@ -302,6 +337,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
         readyRef.current = true
         setReady(true)
         audio.playbackRate = playbackRate
+        primeSafariWebmPlayback()
         onReady?.()
         // Process pending seek if any
         if (pendingSeekRef.current !== null) {
@@ -367,7 +403,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       audio.removeEventListener('seeked', handleSeeked)
       audio.removeEventListener('error', handleError)
     }
-  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, resolveDuration, scrubToFraction, commitDuration])
+  }, [audioEngineOnly, onReady, onError, onPlayingChange, onTimeUpdate, onSeeked, playbackRate, resolveDuration, scrubToFraction, commitDuration, primeSafariWebmPlayback])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -391,6 +427,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     setCurrentTime(0)
     setDuration(0)
     lastEmittedDurationRef.current = 0
+    didPrimeSafariWebmRef.current = false
     pendingSeekRef.current = null
     latestScrubTimeRef.current = 0
     lastEmittedTimeRef.current = -Infinity
