@@ -32,6 +32,7 @@ export const ALLOWED_MIME_TYPES = [
     'audio/flac',
     'audio/mp4',
     'audio/aac',
+    'audio/webm',
     'video/mp4',
     'video/webm',
     'video/quicktime',

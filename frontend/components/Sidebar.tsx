@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
@@ -112,7 +113,10 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     })
   }, [])
 
+  const guardedNav = useGuardedNavigate()
+
   const handleSignOut = async () => {
+    if (!guardedNav.confirmBeforeLeave()) return
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth')
@@ -120,7 +124,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   }
 
   const navigateTo = (path: string) => {
-    router.push(path)
+    guardedNav.push(path)
   }
 
   // Get user initials

@@ -1,0 +1,474 @@
+import {
+  createRecorderController,
+} from './recorderController'
+import { clearDraft, readDraft, writeDraft } from './sessionDraft'
+import {
+  abortUpload,
+  clearFinalizedRecording,
+  clearInterruptedSessionRuntime,
+  clearTerminalSessionRuntime,
+  createRuntime,
+  disposeController,
+  getLiveRecorderFromStore,
+} from './sessionRuntime'
+import {
+  clearIntervalIfRunning,
+  clearMockLifecycleTimeouts,
+  clearSessionActivity,
+  notify,
+  setSnapshot,
+  startIntervalIfNeeded,
+  store,
+} from './sessionStore'
+import {
+  IDLE_SNAPSHOT,
+  type AttachAndStartParams,
+  type SessionSnapshot,
+} from './sessionTypes'
+import {
+  canTransition,
+  isInFlightState,
+  isRetryableError,
+  shouldIgnoreRecorderFailure,
+} from './sessionTransitions'
+import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
+import { runCaptureUpload } from '@/lib/hooks/useCapture'
+
+let captureUploader = runCaptureUpload
+
+export function getLiveRecorder(): MediaRecorder | null {
+  return getLiveRecorderFromStore(store)
+}
+
+export function getElapsedActiveMs(
+  snap: SessionSnapshot,
+  now: number = Date.now()
+): number {
+  return Math.max(0, snap.pausedAccumulatedMs + getActiveSegmentMs(snap, now))
+}
+
+export function getActiveSegmentMs(
+  snap: SessionSnapshot,
+  now: number = Date.now()
+): number {
+  return snap.state === 'recording' && snap.lastResumeAt != null
+    ? Math.max(0, now - snap.lastResumeAt)
+    : 0
+}
+
+// A capture is "in flight" — recording, finishing, uploading, or finished but
+// holding a recording that can still be retried. Used both to guard against
+// starting a second capture and to warn before navigating away.
+export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
+  return isInFlightState(snapshot.state) || isRetryableError(snapshot)
+}
+
+export function hasUnsavedRecording(): boolean {
+  return isRecordingSessionActive(store.snapshot)
+}
+
+export class RecordingAlreadyActiveError extends Error {
+  readonly code = 'recording_already_active' as const
+  constructor() {
+    super('A recording is already in progress. Return to it before starting another.')
+    this.name = 'RecordingAlreadyActiveError'
+  }
+}
+
+export function attachAndStart(params: AttachAndStartParams): void {
+  // Only one live session is supported. Refuse explicitly so callers can stop
+  // the orphaned stream and surface a clear message — silently returning would
+  // leak the newly acquired stream and pretend a new recording started.
+  if (
+    (store.runtime.controller && store.runtime.controller.isAttached()) ||
+    hasUnsavedRecording()
+  ) {
+    throw new RecordingAlreadyActiveError()
+  }
+
+  clearMockLifecycleTimeouts()
+  clearFinalizedRecording(store)
+
+  const controller = createRecorderController(params.stream, params.codec.mime, {
+    onChunk: (blob) => recordChunk(blob),
+    onError: (reason) => handleRecorderFailure(reason),
+    onTrackEnded: () => handleRecorderFailure('Microphone disconnected.'),
+    onTrackMutedSustained: () =>
+      handleRecorderFailure('Microphone went quiet for too long.'),
+  })
+
+  store.runtime.controller = controller
+  store.runtime.chunks = []
+  store.runtime.bytesSoFar = 0
+  store.runtime.acceptingChunks = true
+  store.runtime.stopInProgress = false
+  store.runtime.deviceId = params.deviceId
+  store.runtime.codecMime = params.codec.mime
+  store.runtime.maxBytes = params.maxBytes
+
+  try {
+    controller.start(1000)
+  } catch (err) {
+    // Recorder startup is the last synchronous failure point. If it throws,
+    // leave the singleton as idle as it was before this attempt so a later
+    // attach can proceed normally.
+    disposeController(store)
+    store.runtime.deviceId = null
+    store.runtime.codecMime = null
+    store.runtime.maxBytes = 0
+    throw err
+  }
+
+  const now = Date.now()
+  const generatedTitle =
+    params.title && params.title.trim()
+      ? null
+      : `Recording — ${new Intl.DateTimeFormat(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }).format(new Date(now))}`
+  setSnapshot({
+    ...IDLE_SNAPSHOT,
+    state: 'recording',
+    title: params.title,
+    generatedTitle,
+    startedAt: now,
+    lastResumeAt: now,
+    pausedAccumulatedMs: 0,
+    keyTerms: params.keyTerms,
+    codecExtension: params.codec.extension,
+    bytesSoFar: 0,
+  })
+  writeDraft({
+    title: params.title,
+    generatedTitle,
+    keyTerms: params.keyTerms,
+    codecMime: params.codec.mime,
+    deviceId: params.deviceId,
+  })
+  startIntervalIfNeeded()
+}
+
+export function pause(): void {
+  const snap = store.snapshot
+  if (!canTransition(snap.state, 'pause')) return
+
+  if (store.runtime.controller) {
+    store.runtime.controller.pause()
+  }
+
+  const now = Date.now()
+  const elapsed = getActiveSegmentMs(snap, now)
+  clearIntervalIfRunning()
+  setSnapshot({
+    ...snap,
+    state: 'paused',
+    lastResumeAt: null,
+    pausedAccumulatedMs: snap.pausedAccumulatedMs + elapsed,
+  })
+}
+
+export function resume(): void {
+  const snap = store.snapshot
+  if (!canTransition(snap.state, 'resume')) return
+
+  if (store.runtime.controller) {
+    store.runtime.controller.resume()
+  }
+
+  setSnapshot({
+    ...snap,
+    state: 'recording',
+    lastResumeAt: Date.now(),
+  })
+  startIntervalIfNeeded()
+}
+
+// Single-flight, drain-aware Stop. Used by the recording page's controls and
+// by the size-budget auto-stop.
+export async function stopAndFinalize(): Promise<void> {
+  if (store.runtime.stopInProgress) return
+  store.runtime.stopInProgress = true
+
+  const controller = store.runtime.controller
+  finalize()
+  if (!controller) {
+    markInterrupted('Recording session was lost before it could be saved.')
+    store.runtime.stopInProgress = false
+    return
+  }
+
+  try {
+    try {
+      controller.requestData()
+    } catch {
+      // Best-effort final flush. Some browsers throw if a recorder is already
+      // stopping; the stop drain below still handles the normal final chunk.
+    }
+    await controller.stop()
+  } catch {
+    // controller errors will route through onError → handleRecorderFailure
+  }
+
+  if (
+    store.snapshot.state !== 'finalizing' ||
+    store.runtime.controller !== controller
+  ) {
+    store.runtime.stopInProgress = false
+    return
+  }
+
+  if (typeof window === 'undefined') {
+    store.runtime.stopInProgress = false
+    return
+  }
+
+  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar)) {
+    store.runtime.stopInProgress = false
+    discard('Recording discarded before enough audio was captured.')
+    return
+  }
+
+  const normalizedMime = (store.runtime.codecMime ?? 'audio/webm').split(';')[0]
+  const blob = new Blob(store.runtime.chunks, { type: normalizedMime })
+  const ext = store.snapshot.codecExtension ?? 'webm'
+  const isoStamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const filename = `recording-${isoStamp}.${ext}`
+  const file = new File([blob], filename, { type: normalizedMime })
+  const persistedTitle =
+    store.snapshot.title ??
+    store.snapshot.generatedTitle ??
+    `Recording — ${new Date().toISOString()}`
+
+  store.runtime.finalizedRecording = {
+    file,
+    title: persistedTitle,
+    keyTerms: store.snapshot.keyTerms,
+  }
+  store.runtime.chunks = []
+  store.runtime.bytesSoFar = 0
+  store.runtime.acceptingChunks = false
+
+  try {
+    await submitFinalizedRecording()
+  } finally {
+    store.runtime.stopInProgress = false
+  }
+}
+
+async function submitFinalizedRecording(): Promise<void> {
+  const finalized = store.runtime.finalizedRecording
+  if (!finalized) {
+    markError('No finalized recording is available to upload.')
+    return
+  }
+
+  if (!canTransition(store.snapshot.state, 'markUploading')) return
+  markUploading()
+  if (store.snapshot.state !== 'uploading') return
+
+  const abortController = new AbortController()
+  store.runtime.uploadAbortController = abortController
+
+  let result: Awaited<ReturnType<typeof captureUploader>>
+  try {
+    result = await captureUploader(
+      finalized.file,
+      finalized.title,
+      finalized.keyTerms,
+      { signal: abortController.signal }
+    )
+  } finally {
+    if (store.runtime.uploadAbortController === abortController) {
+      store.runtime.uploadAbortController = null
+    }
+  }
+  if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
+    return
+  }
+
+  if (result.kind === 'success') {
+    setSubmissionResult({
+      projectId: result.projectId,
+      outcome: result.outcome,
+    })
+    markSubmitted()
+  } else {
+    markUploadError(result.message)
+  }
+}
+
+export async function retryFinalizedUpload(): Promise<void> {
+  if (store.runtime.stopInProgress) return
+  if (!store.runtime.finalizedRecording) return
+
+  store.runtime.stopInProgress = true
+  try {
+    await submitFinalizedRecording()
+  } finally {
+    store.runtime.stopInProgress = false
+  }
+}
+
+export function recordChunk(blob: Blob): void {
+  if (!store.runtime.acceptingChunks) return
+  if (blob.size <= 0) return
+  store.runtime.chunks.push(blob)
+  store.runtime.bytesSoFar += blob.size
+
+  setSnapshot({
+    ...store.snapshot,
+    bytesSoFar: store.runtime.bytesSoFar,
+  })
+
+  if (
+    !store.runtime.stopInProgress &&
+    store.runtime.maxBytes > 0 &&
+    shouldAutoStop(store.runtime.bytesSoFar, store.runtime.maxBytes)
+  ) {
+    void stopAndFinalize()
+  }
+}
+
+export function handleRecorderFailure(reason: string): void {
+  if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
+
+  const activeMs = getElapsedActiveMs(store.snapshot)
+  if (meetsEmptyFloor(activeMs, store.runtime.bytesSoFar)) {
+    setSalvageMessage(`${reason} Submitting what was recorded.`)
+    void stopAndFinalize()
+    return
+  }
+
+  discard(`${reason} Recording discarded before enough audio was captured.`)
+}
+
+export function finalize(): void {
+  const snap = store.snapshot
+  if (!canTransition(snap.state, 'finalize')) return
+  const now = Date.now()
+  const additional = getActiveSegmentMs(snap, now)
+  clearIntervalIfRunning()
+  setSnapshot({
+    ...snap,
+    state: 'finalizing',
+    lastResumeAt: null,
+    pausedAccumulatedMs: snap.pausedAccumulatedMs + additional,
+  })
+}
+
+export function markUploading(): void {
+  if (!canTransition(store.snapshot.state, 'markUploading')) return
+  setSnapshot({ ...store.snapshot, state: 'uploading' })
+}
+
+function setSalvageMessage(message: string | null): void {
+  setSnapshot({ ...store.snapshot, salvageMessage: message })
+}
+
+function setSubmissionResult(
+  result: SessionSnapshot['submissionResult']
+): void {
+  setSnapshot({ ...store.snapshot, submissionResult: result })
+}
+
+export function markSubmitted(): void {
+  if (!canTransition(store.snapshot.state, 'markSubmitted')) return
+  clearTerminalSessionRuntime(store, clearSessionActivity)
+  setSnapshot({
+    ...store.snapshot,
+    state: 'submitted',
+    lastResumeAt: null,
+  })
+}
+
+export function discard(salvageMessage?: string): void {
+  if (!canTransition(store.snapshot.state, 'discard')) return
+  clearTerminalSessionRuntime(store, clearSessionActivity)
+  setSnapshot({
+    ...store.snapshot,
+    state: 'discarded',
+    lastResumeAt: null,
+    salvageMessage: salvageMessage ?? null,
+  })
+}
+
+export function markError(message: string): void {
+  const snap = store.snapshot
+  if (!canTransition(snap.state, 'markError')) return
+  const now = Date.now()
+  const additional = getActiveSegmentMs(snap, now)
+  clearIntervalIfRunning()
+  clearMockLifecycleTimeouts()
+  disposeController(store)
+  setSnapshot({
+    ...snap,
+    state: 'error',
+    lastResumeAt: null,
+    pausedAccumulatedMs: snap.pausedAccumulatedMs + additional,
+    errorMessage: message,
+  })
+}
+
+function markUploadError(message: string): void {
+  disposeController(store)
+  markError(message)
+}
+
+export function markInterrupted(message?: string): void {
+  if (!canTransition(store.snapshot.state, 'markInterrupted')) return
+  clearInterruptedSessionRuntime(store, clearSessionActivity)
+  setSnapshot({
+    ...store.snapshot,
+    state: 'interrupted',
+    lastResumeAt: null,
+    errorMessage: message ?? null,
+  })
+}
+
+export function resetRecordingSession(): void {
+  clearTerminalSessionRuntime(store, clearSessionActivity)
+  setSnapshot({ ...IDLE_SNAPSHOT })
+}
+
+export function recoverInterruptedDraft(): boolean {
+  if (!canTransition(store.snapshot.state, 'recoverInterruptedDraft')) return false
+
+  const draft = readDraft()
+  if (!draft) return false
+
+  setSnapshot({
+    ...IDLE_SNAPSHOT,
+    state: 'interrupted',
+    title: draft.title,
+    generatedTitle: draft.generatedTitle,
+    keyTerms: draft.keyTerms,
+  })
+  return true
+}
+
+export function __resetForTesting(): void {
+  clearIntervalIfRunning()
+  clearMockLifecycleTimeouts()
+  clearDraft()
+  abortUpload(store)
+  disposeController(store)
+  store.runtime = createRuntime()
+  store.snapshot = { ...IDLE_SNAPSHOT }
+  store.listeners.clear()
+}
+
+export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {
+  store.snapshot = { ...store.snapshot, ...partial }
+  notify()
+}
+
+export function __setCaptureUploaderForTesting(
+  uploader: typeof runCaptureUpload
+): void {
+  captureUploader = uploader
+}
+
+export function __resetCaptureUploaderForTesting(): void {
+  captureUploader = runCaptureUpload
+}

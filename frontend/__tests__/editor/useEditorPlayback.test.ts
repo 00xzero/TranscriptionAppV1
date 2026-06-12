@@ -165,4 +165,20 @@ describe('useEditorPlayback', () => {
     expect(onWordSeek).toHaveBeenCalledWith('s2')
     expect(player.seekToMs).toHaveBeenCalledWith(7500)
   })
+
+  it('updates editor duration state when the player resolves a late duration hint', () => {
+    const { result } = setup()
+    const player = createPlayer({
+      getCurrentTime: jest.fn(() => 12),
+      getDuration: jest.fn(() => 48),
+    })
+
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleAudioDurationChange(48)
+    })
+
+    expect(result.current.audioDuration).toBe(48)
+    expect(result.current.audioProgress).toBe(25)
+  })
 })

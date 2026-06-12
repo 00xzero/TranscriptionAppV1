@@ -60,6 +60,7 @@ password: 4qdGNrheWHR25Js
 
 ## Commit & Pull Request Guidelines
 - Commit messages follow Conventional Commits (examples from history: `feat: ...`, `fix: ...`, `fix(frontend): ...`).
+- Codex-authored commits should include a rich body when the change is more than trivial: start with a concise narrative summary, then list concrete bullets for the important files, behaviors, tests, and verification, similar to the Claude-authored commits in this repo.
 - PRs should include a short summary, test command(s) run, and screenshots for UI changes when applicable. Link related issues if they exist.
 
 ## Security & Configuration Tips

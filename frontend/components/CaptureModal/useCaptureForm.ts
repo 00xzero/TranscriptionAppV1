@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useCapture, validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/hooks/useCapture'
+import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { MAX_KEY_TERMS, formatFileSize } from './shared'
 
 interface UseCaptureFormParams {
@@ -9,7 +9,7 @@ interface UseCaptureFormParams {
 }
 
 export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCaptureFormParams) {
-  const router = useRouter()
+  const guardedNav = useGuardedNavigate()
   const { upload, isUploading, error, progress, resetError } = useCapture()
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -75,9 +75,7 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
     }
 
     setKeyTermsError(
-      uniqueIncomingCount > 0
-        ? `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
-        : `Could not add terms because that would exceed the ${MAX_KEY_TERMS}-term limit.`
+      `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
     )
   }, [keyTerms])
 
@@ -112,9 +110,12 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
         capture: result.outcome,
         projectId: result.projectId
       })
-      router.push(`/projects?${params.toString()}`)
+      if (result.message) {
+        params.set('captureMessage', result.message)
+      }
+      guardedNav.push(`/projects?${params.toString()}`)
     }
-  }, [selectedFile, title, keyTerms, isUploading, upload, closeCaptureModal, router])
+  }, [selectedFile, title, keyTerms, isUploading, upload, closeCaptureModal, guardedNav])
 
   const canSubmit = Boolean(selectedFile && !isUploading && !fileError)
   const displayError = fileError ?? error ?? null

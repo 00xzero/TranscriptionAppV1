@@ -10,6 +10,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
   onReady,
   onPlayingChange,
   onTimeUpdate,
+  onDurationChange,
   onSeeked,
   onScrubPreview,
   onScrubPreviewFraction,
@@ -80,9 +81,10 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
   useEffect(() => {
     if (src) {
       readyRef.current = true
+      onDurationChange?.(duration)
       onReady?.()
     }
-  }, [src, onReady])
+  }, [src, duration, onDurationChange, onReady])
 
   return (
     <div data-testid="audio-player" data-src={src}>

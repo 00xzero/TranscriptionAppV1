@@ -1,6 +1,6 @@
 "use client"
 
-import Link from 'next/link'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 
 type Action =
   | { kind: 'button'; label: string; onClick: () => void }

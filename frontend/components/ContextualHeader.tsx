@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
@@ -124,6 +125,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
       {/* Right: Editor actions (Find/Replace + Export) */}
       {user && effectiveViewType === 'editor' && (
         <div className="flex items-center gap-2">
+          <RecordingPill />
           {/* Export icon button */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -202,6 +204,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
       {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
       {user && effectiveViewType !== 'editor' && (
         <div className="flex items-center gap-6">
+          <RecordingPill />
           {/* Global Search - Desktop Only */}
           <div className="relative hidden md:flex items-center gap-3 bg-white/50 dark:bg-white/5 border border-[#D1CEC5] dark:border-night-border rounded-lg px-3 py-1.5 focus-within:border-trust-blue/50 focus-within:bg-white dark:focus-within:bg-[#1A1A1A] transition-all group">
             <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 group-focus-within:text-trust-blue transition-colors">
@@ -219,7 +222,7 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={openCaptureModal}
+                onClick={() => openCaptureModal()}
                 aria-label="Open capture modal"
                 className="cursor-pointer bg-ember-red text-white px-4 py-2 rounded-sm shadow-xs hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
               >

@@ -89,22 +89,35 @@ export function useEditorPlayback({
   const handlePlayingChange = useCallback((isPlaying: boolean) => {
     setPlaying(isPlaying)
   }, [])
+
+  const updateAudioProgress = useCallback((currentTime: number, dur: number) => {
+    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+  }, [])
+
   const handleTimeUpdate = useCallback((currentTime: number) => {
     setAudioCurrentTime(currentTime)
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || 0
     setAudioDuration(dur)
-    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+    updateAudioProgress(currentTime, dur)
     onAudioTick(Math.floor(currentTime * 1000))
-  }, [onAudioTick])
+  }, [onAudioTick, updateAudioProgress])
+
+  const handleAudioDurationChange = useCallback((duration: number) => {
+    const player = audioPlayerRef.current
+    const currentTime = player?.getCurrentTime?.() ?? 0
+    setAudioDuration(duration)
+    updateAudioProgress(currentTime, duration)
+  }, [updateAudioProgress])
+
   const handleScrubPreview = useCallback((currentTime: number) => {
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || audioDuration
     setAudioCurrentTime(currentTime)
     setAudioDuration(dur)
-    setAudioProgress(dur > 0 ? (currentTime / dur) * 100 : 0)
+    updateAudioProgress(currentTime, dur)
     previewSeek(Math.floor(currentTime * 1000))
-  }, [audioDuration, previewSeek])
+  }, [audioDuration, previewSeek, updateAudioProgress])
 
   const handleScrubPreviewFraction = useCallback((fraction: number) => {
     setAudioProgress(Math.max(0, Math.min(fraction, 1)) * 100)
@@ -219,6 +232,7 @@ export function useEditorPlayback({
     handleAudioError,
     handlePlayingChange,
     handleTimeUpdate,
+    handleAudioDurationChange,
     handleScrubPreview,
     handleScrubPreviewFraction,
     togglePlay,

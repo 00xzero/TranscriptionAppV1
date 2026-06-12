@@ -1,10 +1,11 @@
 "use client"
-import Link from 'next/link'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsRealtime } from '@/lib/supabase/hooks'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useModal } from '@/lib/ModalContext'
 
 export default function ProjectsPage() {
   return (
@@ -17,6 +18,7 @@ export default function ProjectsPage() {
 function ProjectsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { openCaptureModal } = useModal()
   const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per project - reused until request completes to prevent double-click issues
@@ -32,16 +34,33 @@ function ProjectsPageContent() {
     setCaptureProjectId(searchParams.get('projectId'))
   }, [searchParams])
 
+  useEffect(() => {
+    if (searchParams.get('capture') !== 'recording_session_not_found') return
+
+    openCaptureModal({
+      initialTab: 'record',
+      message: 'Recording session not found. Please start a new recording.',
+    })
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('capture')
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
+  }, [openCaptureModal, router, searchParams])
+
   const captureMessage = captureOutcome === 'saved_needs_retry'
-    ? 'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
+    ? searchParams.get('captureMessage') ??
+      'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
     : captureOutcome === 'saved_status_unknown'
-      ? 'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
+      ? searchParams.get('captureMessage') ??
+        'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
       : null
 
   const dismissCaptureMessage = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('capture')
     params.delete('projectId')
+    params.delete('captureMessage')
     const nextQuery = params.toString()
     setCaptureOutcome(null)
     setCaptureProjectId(null)

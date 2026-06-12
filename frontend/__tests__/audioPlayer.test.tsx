@@ -77,8 +77,36 @@ function setupAudioElement(audio: HTMLAudioElement, { duration = 120, paused = t
 describe('AudioPlayer', () => {
   let rafCallbacks: Map<number, FrameRequestCallback>
   let nextRafId: number
+  const originalUserAgent = navigator.userAgent
+  const originalVendor = navigator.vendor
+
+  function setNavigator(userAgent: string, vendor: string): void {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: userAgent,
+    })
+    Object.defineProperty(navigator, 'vendor', {
+      configurable: true,
+      value: vendor,
+    })
+  }
+
+  function setSafariNavigator(): void {
+    setNavigator(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+      'Apple Computer, Inc.'
+    )
+  }
+
+  function setChromeNavigator(): void {
+    setNavigator(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Google Inc.'
+    )
+  }
 
   beforeEach(() => {
+    setNavigator(originalUserAgent, originalVendor)
     rafCallbacks = new Map()
     nextRafId = 0
 
@@ -103,6 +131,7 @@ describe('AudioPlayer', () => {
 
   afterEach(() => {
     jest.restoreAllMocks()
+    setNavigator(originalUserAgent, originalVendor)
   })
 
   const flushAnimationFrame = () => {
@@ -225,6 +254,138 @@ describe('AudioPlayer', () => {
     })
 
     expect(playMock).not.toHaveBeenCalled()
+  })
+
+  it('becomes ready on canplay even when canplaythrough has not fired', () => {
+    const onReady = jest.fn()
+    const { audio } = renderPlayer({ props: { onReady } })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('primes Safari WebM playback with a tiny seek when the audio becomes ready', () => {
+    setSafariNavigator()
+    const onReady = jest.fn()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: {
+        src: 'https://storage.example.test/object/sign/media/user/project/recording.webm?token=abc',
+        onReady,
+      },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0.001)
+    expect(onReady).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prime Safari playback for non-WebM audio', () => {
+    setSafariNavigator()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: { src: 'recording.mp3' },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0)
+  })
+
+  it('does not prime Chrome WebM playback', () => {
+    setChromeNavigator()
+    const { audio, getCurrentTime } = renderPlayer({
+      props: { src: 'recording.webm' },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+
+    expect(getCurrentTime()).toBe(0)
+  })
+
+  it('uses the supplied duration hint when media metadata has no finite duration', () => {
+    const { audio } = renderPlayer({
+      duration: Number.POSITIVE_INFINITY,
+      props: { durationHint: 19 },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('00:19')).toBeInTheDocument()
+  })
+
+  it('adopts a duration hint that arrives after media metadata', () => {
+    const onDurationChange = jest.fn()
+    const { rerender } = render(
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        durationHint={null}
+        onDurationChange={onDurationChange}
+      />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    setupAudioElement(audio, { duration: Number.POSITIVE_INFINITY })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.queryByText('00:19')).not.toBeInTheDocument()
+    expect(onDurationChange).not.toHaveBeenCalled()
+
+    rerender(
+      <AudioPlayer
+        src="test.mp3"
+        hideControls
+        durationHint={19}
+        onDurationChange={onDurationChange}
+      />
+    )
+
+    expect(screen.getByText('00:19')).toBeInTheDocument()
+    expect(onDurationChange).toHaveBeenCalledWith(19)
+  })
+
+  it('exposes and clamps to the resolved duration through the imperative handle', () => {
+    const playerRef = React.createRef<AudioPlayerRef>()
+    render(
+      <AudioPlayer
+        ref={playerRef}
+        src="test.mp3"
+        hideControls
+        durationHint={19}
+      />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, {
+      duration: Number.POSITIVE_INFINITY,
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+      playerRef.current?.seekToMs(25_000)
+    })
+
+    expect(playerRef.current?.getDuration()).toBe(19)
+    expect(audioState.getCurrentTime()).toBe(19)
   })
 
   it('ignores stale timeupdate events while scrubbing', () => {
