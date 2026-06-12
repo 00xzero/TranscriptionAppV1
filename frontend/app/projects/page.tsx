@@ -49,15 +49,18 @@ function ProjectsPageContent() {
   }, [openCaptureModal, router, searchParams])
 
   const captureMessage = captureOutcome === 'saved_needs_retry'
-    ? 'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
+    ? searchParams.get('captureMessage') ??
+      'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
     : captureOutcome === 'saved_status_unknown'
-      ? 'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
+      ? searchParams.get('captureMessage') ??
+        'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
       : null
 
   const dismissCaptureMessage = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('capture')
     params.delete('projectId')
+    params.delete('captureMessage')
     const nextQuery = params.toString()
     setCaptureOutcome(null)
     setCaptureProjectId(null)

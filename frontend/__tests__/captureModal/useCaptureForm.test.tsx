@@ -32,6 +32,7 @@ describe('useCaptureForm', () => {
     uploadMock.mockResolvedValue({
       outcome: 'saved_needs_retry',
       projectId: 'project-1',
+      message: 'Specific retry guidance.',
     })
     const closeCaptureModal = jest.fn()
     const file = new File(['audio'], 'sample.wav', { type: 'audio/wav' })
@@ -49,7 +50,7 @@ describe('useCaptureForm', () => {
 
     expect(closeCaptureModal).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith(
-      '/projects?capture=saved_needs_retry&projectId=project-1'
+      '/projects?capture=saved_needs_retry&projectId=project-1&captureMessage=Specific+retry+guidance.'
     )
   })
 })

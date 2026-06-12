@@ -25,9 +25,14 @@ function isSafeDestination(href: string | { pathname?: string | null } | null | 
   return path.startsWith('/recording/')
 }
 
+function isProcessingRecording(): boolean {
+  const state = getSnapshot().state
+  return state === 'finalizing' || state === 'uploading'
+}
+
 function confirmAndDiscard(actions: ReturnType<typeof useRecordingActions>): boolean {
   if (!hasUnsavedRecording()) return true
-  if (getSnapshot().state === 'uploading') {
+  if (isProcessingRecording()) {
     window.alert(UPLOAD_IN_PROGRESS_COPY)
     return false
   }
@@ -91,7 +96,7 @@ export function usePopStateGuard(): void {
 
     const handler = () => {
       if (!hasUnsavedRecording()) return
-      if (getSnapshot().state === 'uploading') {
+      if (isProcessingRecording()) {
         window.alert(UPLOAD_IN_PROGRESS_COPY)
         window.history.pushState(null, '', pathname)
         router.replace(pathname)
@@ -137,7 +142,7 @@ export const GuardedLink = forwardRef<HTMLAnchorElement, GuardedLinkProps>(
       }
       if (isSafeDestination(href)) return
       if (!hasUnsavedRecording()) return
-      if (getSnapshot().state === 'uploading') {
+      if (isProcessingRecording()) {
         window.alert(UPLOAD_IN_PROGRESS_COPY)
         event.preventDefault()
         return

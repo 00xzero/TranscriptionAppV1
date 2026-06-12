@@ -116,6 +116,21 @@ describe('recording session singleton', () => {
     expect(snap.lastResumeAt).toBeNull()
   })
 
+  test('elapsed active time is clamped across backward clock changes', () => {
+    const baseTime = 1_000_000
+    const now = jest.spyOn(Date, 'now')
+    now.mockReturnValue(baseTime)
+    startMock()
+    now.mockReturnValue(baseTime - 5000)
+
+    pause()
+
+    const snap = getSnapshot()
+    expect(snap.state).toBe('paused')
+    expect(snap.pausedAccumulatedMs).toBe(0)
+    expect(getElapsedActiveMs(snap, baseTime - 5000)).toBe(0)
+  })
+
   test('resume restarts the clock; elapsed accumulates across runs', () => {
     const t = 2_000_000
     const now = jest.spyOn(Date, 'now')

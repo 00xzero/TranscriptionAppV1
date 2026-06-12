@@ -110,6 +110,9 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
         capture: result.outcome,
         projectId: result.projectId
       })
+      if (result.message) {
+        params.set('captureMessage', result.message)
+      }
       guardedNav.push(`/projects?${params.toString()}`)
     }
   }, [selectedFile, title, keyTerms, isUploading, upload, closeCaptureModal, guardedNav])

@@ -44,7 +44,7 @@ export function getElapsedActiveMs(
   snap: SessionSnapshot,
   now: number = Date.now()
 ): number {
-  return snap.pausedAccumulatedMs + getActiveSegmentMs(snap, now)
+  return Math.max(0, snap.pausedAccumulatedMs + getActiveSegmentMs(snap, now))
 }
 
 export function getActiveSegmentMs(
@@ -52,7 +52,7 @@ export function getActiveSegmentMs(
   now: number = Date.now()
 ): number {
   return snap.state === 'recording' && snap.lastResumeAt != null
-    ? now - snap.lastResumeAt
+    ? Math.max(0, now - snap.lastResumeAt)
     : 0
 }
 

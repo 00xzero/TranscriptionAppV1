@@ -45,7 +45,11 @@ export function waitForSafariMicPrewarmUntil(
   signal?: AbortSignal
 ): Promise<void> {
   if (!shouldPrewarmSafariMic() || readyAt == null) return Promise.resolve()
-  if (signal?.aborted) return Promise.reject(signal.reason)
+  if (signal?.aborted) {
+    return Promise.reject(
+      signal.reason ?? new DOMException('Prewarm canceled.', 'AbortError')
+    )
+  }
 
   const remainingMs = Math.max(0, readyAt - Date.now())
   if (remainingMs === 0) return Promise.resolve()

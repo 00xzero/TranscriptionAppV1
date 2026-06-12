@@ -138,6 +138,7 @@ type UseCapture = {
     upload: (file: File, title: string, keyTerms: string[]) => Promise<{
         projectId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+        message?: string
     } | null>
     resetError: () => void
     validateFile: (file: File) => string | null
@@ -390,6 +391,7 @@ export function useCapture(): UseCapture {
     ): Promise<{
         projectId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+        message?: string
     } | null> => {
         setError(null)
         setIsUploading(true)
@@ -414,6 +416,7 @@ export function useCapture(): UseCapture {
             return {
                 projectId: result.projectId,
                 outcome: result.outcome,
+                message: result.message,
             }
         } finally {
             setIsUploading(false)

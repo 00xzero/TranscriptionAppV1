@@ -104,6 +104,20 @@ describe('GuardedLink', () => {
     expect(getSnapshot().state).toBe('uploading')
   })
 
+  test('same-tab navigation is blocked without discard while finalizing', () => {
+    startMock()
+    forceState('finalizing')
+    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+
+    render(<GuardedLink href="/projects">Projects</GuardedLink>)
+    fireEvent.click(screen.getByRole('link', { name: 'Projects' }))
+
+    expect(alertSpy).toHaveBeenCalledTimes(1)
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(getSnapshot().state).toBe('finalizing')
+  })
+
   test('canceling browser back restores the recording route in the app router', () => {
     pathnameMock = '/recording/new'
     startMock()
@@ -142,5 +156,19 @@ describe('GuardedLink', () => {
     expect(alertSpy).toHaveBeenCalledTimes(1)
     expect(onResult).toHaveBeenCalledWith(false)
     expect(getSnapshot().state).toBe('uploading')
+  })
+
+  test('confirmBeforeLeave blocks while finalizing', () => {
+    startMock()
+    forceState('finalizing')
+    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
+    const onResult = jest.fn()
+
+    render(<ConfirmBeforeLeaveHarness onResult={onResult} />)
+    fireEvent.click(screen.getByRole('button', { name: 'confirm' }))
+
+    expect(alertSpy).toHaveBeenCalledTimes(1)
+    expect(onResult).toHaveBeenCalledWith(false)
+    expect(getSnapshot().state).toBe('finalizing')
   })
 })

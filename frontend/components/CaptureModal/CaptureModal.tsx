@@ -207,8 +207,17 @@ export default function CaptureModal() {
       // Attach succeeded — the controller now owns the stream. Flip the
       // ownership flag so closing the modal doesn't stop the live tracks.
       micTest.transferStream()
+      try {
+        router.push('/recording/new')
+      } catch (err) {
+        recordingActions.discard()
+        micTest.release()
+        setRecordSubmitError(
+          (err as Error)?.message ?? 'Failed to open the recording page. Try again.'
+        )
+        return
+      }
       handleClose()
-      router.push('/recording/new')
     } finally {
       if (recordingStartAbortRef.current === abortController) {
         recordingStartAbortRef.current = null
@@ -243,12 +252,13 @@ export default function CaptureModal() {
   const footerCanSubmit = isRecordTab ? recordCanSubmit : canSubmit
   const footerDisabledTooltip = isRecordTab ? recordDisabledTooltip : undefined
   const footerOnSubmit = isRecordTab ? handleStartRecording : handleSubmit
+  const actionInProgress = isUploading || startingRecording || preparingMicrophone
 
   return (
     <Dialog
       open={isCaptureModalOpen}
       onOpenChange={(open) => {
-        if (!open && !isUploading) {
+        if (!open && !actionInProgress) {
           handleClose()
         }
       }}
@@ -257,12 +267,12 @@ export default function CaptureModal() {
         className="top-[7vh] flex max-h-[86vh] w-[500px] flex-col overflow-hidden p-0 text-ink dark:text-paper"
         aria-describedby={undefined}
         onEscapeKeyDown={(event) => {
-          if (isUploading) {
+          if (actionInProgress) {
             event.preventDefault()
           }
         }}
         onPointerDownOutside={(event) => {
-          if (isUploading) {
+          if (actionInProgress) {
             event.preventDefault()
           }
         }}
@@ -278,9 +288,9 @@ export default function CaptureModal() {
           </div>
           <button
             type="button"
-            className={`flex items-center gap-2 border-none bg-transparent p-0 ${isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-            onClick={isUploading ? undefined : handleClose}
-            disabled={isUploading}
+            className={`flex items-center gap-2 border-none bg-transparent p-0 ${actionInProgress ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            onClick={actionInProgress ? undefined : handleClose}
+            disabled={actionInProgress}
             aria-label="Close modal"
             title="Close (Esc)"
           >
@@ -300,14 +310,14 @@ export default function CaptureModal() {
             <TabsList className="gap-0">
               <TabsTrigger
                 value="upload"
-                disabled={isUploading}
+                disabled={actionInProgress}
                 className="flex-1 justify-center data-[state=active]:border-transparent dark:data-[state=active]:border-transparent"
               >
                 Upload Audio
               </TabsTrigger>
               <TabsTrigger
                 value="record"
-                disabled={isUploading}
+                disabled={actionInProgress}
                 className="flex-1 justify-center data-[state=active]:border-transparent dark:data-[state=active]:border-transparent"
               >
                 Record Audio

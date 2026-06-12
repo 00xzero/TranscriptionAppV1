@@ -1,4 +1,7 @@
-import { isSafariBrowser } from '@/lib/recording/safariPrewarm'
+import {
+  isSafariBrowser,
+  waitForSafariMicPrewarmUntil,
+} from '@/lib/recording/safariPrewarm'
 
 describe('Safari microphone prewarm detection', () => {
   test('matches Safari with an Apple vendor', () => {
@@ -17,5 +20,18 @@ describe('Safari microphone prewarm detection', () => {
         'Google Inc.'
       )
     ).toBe(false)
+  })
+
+  test('rejects pre-aborted waits with an AbortError fallback', async () => {
+    jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15'
+    )
+    jest.spyOn(window.navigator, 'vendor', 'get').mockReturnValue('Apple Computer, Inc.')
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      waitForSafariMicPrewarmUntil(Date.now() + 1000, controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })
