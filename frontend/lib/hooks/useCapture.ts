@@ -206,9 +206,9 @@ export async function runCaptureUpload(
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
 
-    const canceledResult = (): CaptureUploadResult => ({
+    const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
-        message: 'Upload canceled.',
+        message,
     })
     const isCanceled = () => signal?.aborted === true
     const throwIfCanceled = () => {
@@ -360,7 +360,7 @@ export async function runCaptureUpload(
             }
         }
 
-        if (wasCanceled) return canceledResult()
+        if (wasCanceled) return canceledResult(message)
 
         return { kind: 'failure', message }
     }

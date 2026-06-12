@@ -2,13 +2,13 @@ import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import CaptureModal from '../components/CaptureModal'
-import { TooltipProvider } from '../components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   __resetForTesting,
   __setSnapshotForTesting,
   getSnapshot,
   startMock,
-} from '../lib/recording/session'
+} from '@/lib/recording/session'
 
 class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
@@ -59,6 +59,7 @@ const mockCaptureFormState = {
 }
 const originalUserAgent = navigator.userAgent
 const originalVendor = navigator.vendor
+const originalNavigatorMediaDevices = navigator.mediaDevices
 
 jest.mock('../lib/ModalContext', () => ({
   useModal: () => ({
@@ -123,6 +124,10 @@ function resetModalTestState(): void {
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
   setMediaRecorder(undefined)
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: originalNavigatorMediaDevices,
+  })
   Object.defineProperty(navigator, 'userAgent', {
     configurable: true,
     value: originalUserAgent,

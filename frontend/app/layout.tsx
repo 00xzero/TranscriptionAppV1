@@ -1,12 +1,12 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter, Newsreader, IBM_Plex_Mono } from 'next/font/google'
-import { ModalProvider } from '../lib/ModalContext'
-import { RecordingSessionProvider } from '../lib/recording/RecordingSessionContext'
-import Sidebar from '../components/Sidebar'
-import ContextualHeader from '../components/ContextualHeader'
-import CaptureModal from '../components/CaptureModal'
-import { TooltipProvider } from '../components/ui/tooltip'
+import { ModalProvider } from '@/lib/ModalContext'
+import { RecordingSessionProvider } from '@/lib/recording/RecordingSessionContext'
+import Sidebar from '@/components/Sidebar'
+import ContextualHeader from '@/components/ContextualHeader'
+import CaptureModal from '@/components/CaptureModal'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const inter = Inter({
   subsets: ['latin'],

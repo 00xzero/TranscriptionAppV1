@@ -20,7 +20,7 @@ This is a feature epic, not a single PR. The reasoning:
 
 ## Branch strategy
 
-```
+```text
 main
  └── Record-on-demand        (integration branch — already exists)
       ├── PR 1: tabs + modal restructure

@@ -46,7 +46,7 @@ export default function SizeBudgetBanner({ snapshot, maxBytes }: SizeBudgetBanne
       role="status"
       aria-live="polite"
       data-testid="recording-size-banner"
-      className="flex items-center justify-between gap-3 rounded-md border border-amber-300/60 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
+      className="flex items-center justify-between gap-3 rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
     >
       <span>{message}</span>
       <span className="font-mono text-xs opacity-70">

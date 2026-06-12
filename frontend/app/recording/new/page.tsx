@@ -104,7 +104,7 @@ export default function RecordingNewPage() {
     <div
       role="status"
       aria-live="polite"
-      className="rounded-md border border-amber-300/60 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+      className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
     >
       {snapshot.salvageMessage}
     </div>

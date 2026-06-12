@@ -13,7 +13,7 @@ import {
   dispatchRecorderError,
   getFakeTrack,
   installMediaRecorderMock,
-} from '../../__mocks__/MediaRecorder'
+} from '@/__mocks__/MediaRecorder'
 
 const mockRunCaptureUpload = jest.fn()
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }

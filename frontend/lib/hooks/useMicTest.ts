@@ -75,6 +75,28 @@ function persistDeviceId(id: string | null): void {
   }
 }
 
+function normalizeMicError(err: unknown): MicTestError {
+  const maybeError = err as Partial<MicTestError> | undefined
+  if (
+    maybeError?.kind === 'permission_denied' ||
+    maybeError?.kind === 'no_devices' ||
+    maybeError?.kind === 'unsupported' ||
+    maybeError?.kind === 'unknown'
+  ) {
+    return {
+      kind: maybeError.kind,
+      message: typeof maybeError.message === 'string'
+        ? maybeError.message
+        : 'Failed to access microphone.',
+    }
+  }
+
+  return {
+    kind: 'unknown',
+    message: err instanceof Error ? err.message : 'Failed to access microphone.',
+  }
+}
+
 export function useMicTest(): MicTestApi {
   const [permissionGranted, setPermissionGranted] = useState(false)
   const [devices, setDevices] = useState<MicDevice[]>([])
@@ -318,7 +340,7 @@ export function useMicTest(): MicTestApi {
           error: { kind: 'unknown', message: 'Microphone request was canceled.' },
         }
       }
-      const e = err as MicTestError
+      const e = normalizeMicError(err)
       setError(e)
       setPermissionGranted(e.kind !== 'permission_denied' && permissionGranted)
       // Ensure we don't expose a dead stream after a failed acquire.
@@ -358,7 +380,7 @@ export function useMicTest(): MicTestApi {
       if (generation !== requestGenerationRef.current) {
         return null
       }
-      setError(err as MicTestError)
+      setError(normalizeMicError(err))
       dropCurrentStream()
       return null
     } finally {

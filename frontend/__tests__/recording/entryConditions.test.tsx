@@ -6,15 +6,15 @@ import {
   attachAndStart,
   getSnapshot,
 } from '@/lib/recording/session'
-import { mockRecordingSession } from '../../__mocks__/recording-session'
+import { mockRecordingSession } from '@/__mocks__/recording-session'
 import {
   createFakeStream,
   installMediaRecorderMock,
-} from '../../__mocks__/MediaRecorder'
+} from '@/__mocks__/MediaRecorder'
 import {
   installGetUserMediaMock,
   resetGetUserMediaMock,
-} from '../../__mocks__/getUserMedia'
+} from '@/__mocks__/getUserMedia'
 
 const replaceMock = jest.fn()
 const pushMock = jest.fn()

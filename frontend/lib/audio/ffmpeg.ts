@@ -20,6 +20,16 @@ export const PEAK_SAMPLE_RATE = 8000
 const DEFAULT_FFPROBE_TIMEOUT_MS = 15_000
 const DEFAULT_FFMPEG_TIMEOUT_MS = 6 * 60 * 60 * 1000
 
+function firstPositiveNumber(...values: unknown[]): number | null {
+    for (const value of values) {
+        const numeric = Number(value)
+        if (Number.isFinite(numeric) && numeric > 0) {
+            return numeric
+        }
+    }
+    return null
+}
+
 export class ProcessTimeoutError extends Error {
     constructor(command: string, timeoutMs: number) {
         super(`${command} timed out after ${timeoutMs}ms`)
@@ -199,7 +209,7 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
                     reject(new Error('ffprobe returned no audio stream'))
                     return
                 }
-                const headerDurationSeconds = Number(format.duration ?? stream.duration)
+                const headerDurationSeconds = firstPositiveNumber(format.duration, stream.duration)
                 const finish = (durationSeconds: number) => {
                     // Computed against the target decode rate, not the source rate.
                     const totalSamples = Math.floor(durationSeconds * PEAK_SAMPLE_RATE)
@@ -210,7 +220,7 @@ export async function probeMedia(url: string): Promise<ProbeResult> {
                     })
                 }
 
-                if (Number.isFinite(headerDurationSeconds) && headerDurationSeconds > 0) {
+                if (headerDurationSeconds != null) {
                     finish(headerDurationSeconds)
                     return
                 }

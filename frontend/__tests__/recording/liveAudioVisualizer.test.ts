@@ -3,6 +3,11 @@ import React from 'react'
 import { render, waitFor } from '@testing-library/react'
 import { LiveAudioVisualizer } from '@/components/RecordingSession/LiveAudioVisualizer'
 
+const originalAudioContext = window.AudioContext
+const originalWebkitAudioContext = (
+  window as unknown as { webkitAudioContext?: typeof AudioContext }
+).webkitAudioContext
+
 // Build a frequency array where every bin has a distinct value, so an
 // accidental mirroring bug can't be masked by repeated values.
 function rampFrequencyData(length = 512): Uint8Array {
@@ -48,8 +53,11 @@ describe('LiveAudioVisualizer bar data', () => {
 
 describe('LiveAudioVisualizer browser support', () => {
   afterEach(() => {
-    delete (window as unknown as { AudioContext?: unknown }).AudioContext
-    delete (window as unknown as { webkitAudioContext?: unknown }).webkitAudioContext
+    ;(window as unknown as { AudioContext?: typeof AudioContext }).AudioContext =
+      originalAudioContext
+    ;(
+      window as unknown as { webkitAudioContext?: typeof AudioContext }
+    ).webkitAudioContext = originalWebkitAudioContext
     jest.restoreAllMocks()
   })
 

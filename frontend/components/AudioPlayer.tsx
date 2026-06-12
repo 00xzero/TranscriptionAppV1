@@ -301,7 +301,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       const resolvedDuration = getResolvedDuration()
       const newTime = Math.max(
         0,
-        Math.min(audio.currentTime + seconds, resolvedDuration > 0 ? resolvedDuration : 0)
+        Math.min(audio.currentTime + seconds, resolvedDuration > 0 ? resolvedDuration : Infinity)
       )
       audio.currentTime = newTime
     },

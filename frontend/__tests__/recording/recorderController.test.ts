@@ -5,7 +5,7 @@ import {
   dispatchChunk,
   dispatchStop,
   installMediaRecorderMock,
-} from '../../__mocks__/MediaRecorder'
+} from '@/__mocks__/MediaRecorder'
 
 function makeController() {
   const chunks: Blob[] = []

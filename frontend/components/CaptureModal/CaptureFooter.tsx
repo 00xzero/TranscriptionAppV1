@@ -2,6 +2,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 interface CaptureFooterProps {
   isUploading: boolean
+  isActionInProgress?: boolean
+  isRecordMode?: boolean
   canSubmit: boolean
   onClose: () => void
   onSubmit: () => void
@@ -11,14 +13,18 @@ interface CaptureFooterProps {
 
 export default function CaptureFooter({
   isUploading,
+  isActionInProgress = isUploading,
+  isRecordMode = false,
   canSubmit,
   onClose,
   onSubmit,
   buttonText,
   disabledTooltip,
 }: CaptureFooterProps) {
-  const nativeTitle = disabledTooltip ?? (canSubmit ? 'Begin transcription' : 'Select a file to continue')
-  const isDisabled = !canSubmit
+  const nativeTitle = disabledTooltip ?? (canSubmit
+    ? isRecordMode ? 'Start Recording' : 'Begin transcription'
+    : 'Select a file to continue')
+  const isDisabled = !canSubmit || isActionInProgress
 
   const submitButton = (
     <button
@@ -64,7 +70,7 @@ export default function CaptureFooter({
       <div className="flex items-center gap-3">
         <button
           onClick={onClose}
-          disabled={isUploading}
+          disabled={isActionInProgress}
           title="Cancel capture"
           className="text-xs font-medium hover:text-ink/70 dark:hover:text-white/70 transition-colors disabled:opacity-50"
         >

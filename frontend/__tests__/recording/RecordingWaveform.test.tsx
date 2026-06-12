@@ -10,7 +10,7 @@ import {
 import {
   createFakeStream,
   installMediaRecorderMock,
-} from '../../__mocks__/MediaRecorder'
+} from '@/__mocks__/MediaRecorder'
 
 // The real vendored LiveAudioVisualizer builds an AudioContext/AnalyserNode and
 // draws to a canvas, neither of which works in jsdom. Stub it with a canvas the

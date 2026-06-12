@@ -2,73 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2026-05-17] - Live Recording Capture
+## [2026-06-12] - Live Recording (Record on Demand)
 
-Turned the mocked recording shell into a real browser recording flow: users can acquire a microphone, record from the Capture modal, keep a session alive across navigation, and manage long recordings before the later submission-pipeline slice lands.
-
-### Added
-
-- **`frontend/lib/hooks/useMicTest.ts`**, **`frontend/lib/recording/codecs.ts`**, **`frontend/lib/recording/preferredDevice.ts`**, and **`frontend/lib/recording/recorderController.ts`** — Added microphone acquisition/testing, preferred-device persistence, codec selection, live `MediaRecorder` ownership, chunk callbacks, and track cleanup.
-- **`frontend/lib/recording/guardedNavigation.tsx`** and **`frontend/lib/recording/useBeforeUnloadGuard.ts`** — Added guarded in-app navigation, browser-back interception, and unload protection while a recording is still unsaved.
-- **`frontend/lib/recording/sizeBudget.ts`** and **`frontend/components/RecordingSession/SizeBudgetBanner.tsx`** — Added empty-recording thresholds, size-limit prediction helpers, warning UI, and auto-stop headroom support.
-
-### Changed
-
-- **`frontend/components/CaptureModal/CaptureModal.tsx`** and **`frontend/components/CaptureModal/RecordAudioPanel.tsx`** — Enabled the Record tab with real mic testing, live device selection, codec-aware availability, active-session guards, and handoff into the recording route.
-- **`frontend/lib/recording/session.ts`** and **`frontend/lib/recording/RecordingSessionContext.tsx`** — Expanded the singleton to attach real recorder streams, retain recording metadata, track bytes, restart interrupted sessions, drain-aware stop flow, and expose the new recording actions.
-- **`frontend/app/recording/new/page.tsx`**, **`frontend/components/RecordingSession/RecordingControls.tsx`**, and **`frontend/components/RecordingSession/RecordingWaveformMock.tsx`** — Added interrupted-session restart handling, size-budget messaging, empty-floor stop gating, and frozen waveform states while finalizing or uploading.
-- **`frontend/components/Sidebar.tsx`**, **`frontend/components/LibraryView.tsx`**, **`frontend/components/ErrorFallback.tsx`**, **`frontend/components/RecordingSession/RecordingPill.tsx`**, **`frontend/app/projects/page.tsx`**, and **`frontend/components/CaptureModal/useCaptureForm.ts`** — Routed user navigation through the guarded flow so active recordings are not silently discarded.
-- **`frontend/lib/hooks/useCapture.ts`** and **`frontend/proxy.ts`** — Allowed uploaded `audio/webm` files and protected `/recording` routes.
-- **`.docs/live-recording-implementation-plan.md`** — Updated the PR sequencing notes to reflect that PR 3 now enables the Record CTA and leaves only the later submission handoff for PR 4.
-
-### Tests
-
-- **`frontend/__tests__/captureModal.ui.test.tsx`** and **`frontend/__tests__/captureModal/useCaptureForm.test.tsx`** — Added coverage for codec-gated recording, mic failures, active-session locking, stale request cleanup, and guarded upload outcomes.
-- **`frontend/__tests__/recording/session.test.ts`**, **`frontend/__tests__/recording/recordingPage.test.tsx`**, **`frontend/__tests__/recording/guardedNavigation.test.tsx`**, and **`frontend/__tests__/recording/sizeBudget.test.ts`** — Added coverage for live attach failures, unsaved-state guards, interrupted restart behavior, waveform freeze states, browser-back handling, and size-budget auto-stop thresholds.
-- **`frontend`** — `npm test -- --runInBand` (`41` suites / `390` tests passing)
-- **`frontend`** — `npm run typecheck`
-
-## [2026-05-17] - Recording Session Shell
-
-Added the mocked recording-session foundation for the future live capture flow: a persistent client-side session store, a dedicated recording route, and a header indicator that keeps the active session visible across the app.
+Added a complete in-app microphone recording flow as a sibling of file upload. The Capture modal now offers Upload Audio and Record Audio tabs; recording happens on a dedicated session page with a live waveform, pause/resume, guarded navigation, size budgeting, and upload handoff into the existing transcription pipeline. The session survives in-app navigation, recovers interrupted drafts, salvages usable audio after recorder failures, keeps failed uploads retryable, and works around Safari's microphone fade-in and silent WebM playback quirks.
 
 ### Added
 
-- **`frontend/lib/recording/session.ts`** and **`frontend/lib/recording/RecordingSessionContext.tsx`** — Added the recording session singleton, lifecycle actions, elapsed-time tracking, interrupted-draft recovery, and React subscription hooks.
-- **`frontend/app/recording/new/page.tsx`** and **`frontend/components/RecordingSession/*`** — Added the dedicated recording-session page with mocked waveform, timer, state label, controls, lifecycle views, and contextual header pill.
-- **`frontend/__mocks__/recording-session.ts`** — Added a focused test helper for forcing synthetic recording states in component tests.
+- **`.docs/live-recording-feature-spec.md`** and **`.docs/live-recording-implementation-plan.md`** — Added the Phase 1 design spec (codec selection, session state container, project-creation timing, navigation policy, dynamic size budget, empty-floor gate, recorder-failure salvage policy) and the PR-sequenced delivery plan.
+- **`frontend/components/ui/tabs.tsx`**, **`frontend/components/CaptureModal/UploadAudioPanel.tsx`**, **`frontend/components/CaptureModal/RecordAudioPanel.tsx`**, and **`frontend/components/CaptureModal/CaptureMetadataFields.tsx`** — Added the Radix-backed capture-mode tabs and split the upload/record surfaces into dedicated panels sharing the title/key-terms metadata fields.
+- **`frontend/lib/recording/session.ts`** with **`sessionTypes.ts`**, **`sessionStore.ts`**, **`sessionActions.ts`**, **`sessionTransitions.ts`**, **`sessionDraft.ts`**, **`sessionRestart.ts`**, **`sessionRuntime.ts`**, and **`sessionDev.ts`** — Added the recording-session singleton as a public facade over focused internals: a typed state machine with explicit legal/ignored transitions (`canTransition`), elapsed-time tracking clamped against backward clock changes, draft persistence hardened against storage failures, interrupted-session restart, terminal-state runtime cleanup with recorder disposal and upload aborts, retryable-upload state, and dev-only force-state helpers kept out of the production action surface.
+- **`frontend/lib/recording/RecordingSessionContext.tsx`** — Exposed the session runtime through React context with subscription hooks and a production `useRecordingActions` surface separated from dev/mock controls.
+- **`frontend/lib/hooks/useMicTest.ts`**, **`frontend/lib/recording/recorderController.ts`**, **`frontend/lib/recording/codecs.ts`**, **`frontend/lib/recording/micConstraints.ts`**, and **`frontend/lib/recording/preferredDevice.ts`** — Added microphone permission/device probing, mic testing with level display, preferred-device persistence, supported-codec selection, normalized mic-acquisition errors, and `MediaRecorder` lifecycle ownership that waits for the true final recorder drain on stop and cleans up tracks.
+- **`frontend/app/recording/new/page.tsx`** and **`frontend/components/RecordingSession/*`** — Added the dedicated recording page with start/pause/resume/stop/submit/discard flows, entry-condition handling for invalid direct visits, interrupted-restart handling, retry-after-failure UI, plus the controls, timer, state label, header pill, size-budget banner, and dev-controls components.
+- **`frontend/components/RecordingSession/LiveAudioVisualizer.tsx`** and **`frontend/components/RecordingSession/RecordingWaveform.tsx`** — Added a live waveform driven by analyser samples from the active mic stream, with responsive bars, frozen states while finalizing/uploading, and clean fallback when live input is unavailable.
+- **`frontend/lib/recording/guardedNavigation.tsx`** and **`frontend/lib/recording/useBeforeUnloadGuard.ts`** — Added guarded in-app navigation, browser-back interception, and unload protection covering unsaved, finalizing, and uploading recordings.
+- **`frontend/lib/recording/sizeBudget.ts`** and **`frontend/components/RecordingSession/SizeBudgetBanner.tsx`** — Added the empty-recording floor, size-limit prediction, warning UI, and auto-stop headroom for long recordings.
+- **`frontend/lib/recording/safariPrewarm.ts`** — Added WebKit detection and an abortable ~4s mic warmup (surfaced as "Preparing microphone…" in the modal and record panel) so Safari's first-seconds input attenuation does not fade in the start of recordings; reused on interrupted-session restart and abortable when the modal closes mid-prepare.
+- **`infra/supabase/migrations/20260605000000_allow_audio_webm_media_bucket.sql`**, **`frontend/infra/supabase/storage.ts`**, and earlier bucket migrations — Allowed `audio/webm` in the media bucket so browser recordings can persist; the migration fails fast when the media bucket is missing.
+- **`frontend/__mocks__/MediaRecorder.ts`**, **`frontend/__mocks__/getUserMedia.ts`**, and **`frontend/__mocks__/recording-session.ts`** — Added reusable browser-media test doubles for recorder, stream, track, and audio-context scenarios, plus a helper for forcing synthetic session states that is isolated from the real interrupted-recovery draft.
+- **`frontend/.env.example`** and **`infra/.env.docker.example`** — Added the `NEXT_PUBLIC_RECORDING_DEV_CONTROLS` flag that gates the recording dev panel and guarded dev actions.
 
 ### Changed
 
-- **`frontend/app/layout.tsx`** and **`frontend/components/ContextualHeader.tsx`** — Wired the recording provider into the app shell and surfaced the recording pill while sessions are recording or paused.
-- **`frontend/lib/ModalContext.tsx`**, **`frontend/components/CaptureModal/CaptureModal.tsx`**, and **`frontend/app/projects/page.tsx`** — Added capture-modal open intents so invalid direct visits to the recording page can return users to the Record tab with a recovery message.
-- **`.docs/live-recording-feature-spec.md`** and **`.docs/live-recording-implementation-plan.md`** — Updated the recording documentation to describe the paused-state header pill and inert phase-one meter shell.
+- **`frontend/components/CaptureModal/CaptureModal.tsx`**, **`frontend/components/CaptureModal/CaptureFooter.tsx`**, and **`frontend/components/CaptureModal/useCaptureForm.ts`** — Reworked the modal body into a tabbed layout that preserves the last-used tab across reopen, locks tabs while an upload or recording is active, surfaces mic readiness/device selection/codec availability, keeps the footer CTA disabled with action-specific titles during recording startup and Safari prewarm, blocks dismissal mid-prepare, and cleanly discards/releases the mic if navigation to the recording page fails.
+- **`frontend/lib/hooks/useCapture.ts`** — Routed recording-origin uploads through the same capture flow as file uploads, including metadata, project creation, editor navigation, failure handling, and rollback guidance on canceled uploads.
+- **`frontend/components/AudioPlayer.tsx`** and **`frontend/lib/audio/ffmpeg.ts`** — Added recorded-media playback support: WebM duration probing that prefers numeric format duration with numeric stream/packet fallbacks (reusing resolved ffprobe URLs), object-URL cleanup, correct relative seeking when duration is unknown, and a one-time internal seek at `canplay` that primes Safari WebM sources so recorded projects are audible from initial playback (Chrome and non-WebM media untouched).
+- **`frontend/app/layout.tsx`** and **`frontend/components/ContextualHeader.tsx`** — Wired the recording provider into the app shell and surfaced the recording pill while sessions are recording, paused, finalizing, or uploading.
+- **`frontend/components/Sidebar.tsx`**, **`frontend/components/LibraryView.tsx`**, **`frontend/components/ErrorFallback.tsx`**, **`frontend/app/projects/page.tsx`**, and **`frontend/lib/ModalContext.tsx`** — Routed user navigation through the guarded flow so active recordings are not silently discarded, added capture-modal open intents so invalid direct visits to the recording page return users to the Record tab, and preserved partial-upload retry/status guidance through the Projects redirect with query-state cleanup on dismiss.
+- **`frontend/app/editor/[id]/EditorScreen.tsx`** and **`frontend/app/editor/[id]/hooks/useEditorPlayback.ts`** — Passed freshly recorded audio through to the editor playback path after capture completion, with resilient object-URL and fallback-source handling.
+- **`frontend/proxy.ts`** — Protected `/recording` routes behind auth.
+- **`frontend/package.json`** — Added `@radix-ui/react-tabs`.
+
+### Fixed
+
+- Safari recordings no longer begin with a multi-second fade-in (mic prewarm before `MediaRecorder` start, plus enabled `autoGainControl` to even out capture levels), and recorded WebM projects are no longer silent in Safari until the user scrubs the player.
+- Failed recording submissions keep their captured blob and session context for retry instead of dropping into a dead terminal state, and in-flight uploads are aborted during terminal cleanup.
+- Recorder errors route through the salvage policy so usable captured audio can still be submitted, and stop finalization enforces the empty-recording floor and waits for the final recorder drain instead of treating a manual `requestData` flush as the trailing chunk.
+- Guarded navigation treats finalizing like uploading, so in-flight recording saves cannot be discarded by links, browser back, or `beforeunload`.
+- Live recorder/controller resources are disposed when sessions are interrupted, errored, or forced into terminal dev states, and the idle session snapshot's nested key terms are frozen against mutation.
 
 ### Tests
 
-- **`frontend/__tests__/recording/session.test.ts`**, **`frontend/__tests__/recording/recordingPage.test.tsx`**, and **`frontend/__tests__/recording/headerPill.test.tsx`** — Added coverage for singleton lifecycle behavior, route states, interrupted-draft recovery, mocked stop progression, and header pill visibility.
-- **`frontend/__tests__/captureModal.ui.test.tsx`** and **`frontend/__tests__/contextualHeader.test.tsx`** — Extended coverage for record-tab open intents and the updated router dependencies.
-- **`frontend`** — `npm test -- --runInBand __tests__/recording/session.test.ts __tests__/recording/recordingPage.test.tsx __tests__/recording/headerPill.test.tsx __tests__/captureModal.ui.test.tsx __tests__/contextualHeader.test.tsx`
-
-## [2026-05-16] - Capture Modal Mode Tabs
-
-Prepared the capture dialog for future recording support by splitting the existing upload flow into dedicated Upload Audio and Record Audio tabs while keeping upload behavior unchanged.
-
-### Added
-
-- **`frontend/components/CaptureModal/UploadAudioPanel.tsx`**, **`frontend/components/CaptureModal/RecordAudioPanel.tsx`**, and **`frontend/components/ui/tabs.tsx`** — Added panel-specific capture surfaces plus a shared Radix-backed tabs primitive for switching between upload and recording modes.
-- **`frontend/components/CaptureModal/RecordAudioPanel.tsx`** — Added the placeholder recording-mode controls for microphone selection, mic testing, and level display ahead of live recording support.
-
-### Changed
-
-- **`frontend/components/CaptureModal/CaptureModal.tsx`** — Reworked the modal body into a tabbed layout, preserves the last-used tab while the mounted modal reopens, resets the body scroll position on tab change, and keeps tabs locked while an upload is active.
-- **`frontend/components/CaptureModal/CaptureFooter.tsx`** — Added a disabled-state tooltip path so the Record Audio CTA can explain that recording mode is not available yet.
-- **`frontend/package.json`** and **`frontend/package-lock.json`** — Added `@radix-ui/react-tabs`.
-
-### Tests
-
-- **`frontend/__tests__/captureModal.ui.test.tsx`** — Added coverage for the new tabs, record-mode placeholder fields, disabled recording CTA, upload-state locking, and tab persistence across modal reopen.
-- **`frontend`** — `npm --prefix frontend test -- --runInBand captureModal.ui.test.tsx`
+- **`frontend/__tests__/recording/*`** — Added suites covering the session state machine and transitions, session restart, salvage policy, recorder controller, Safari prewarm, guarded navigation, size budget, entry conditions, live visualizer, recording waveform, recording page, header pill, dev controls, and the session context.
+- **`frontend/__tests__/captureModal.ui.test.tsx`**, **`frontend/__tests__/captureModal/useCaptureForm.test.tsx`**, and **`frontend/__tests__/audioPlayer.test.tsx`** — Extended coverage for capture-mode tabs, codec-gated recording, mic failures, active-session locking, prewarm-locked dismissal, recorded-media playback/conversion, and Safari/Chrome WebM priming behavior.
+- **`frontend/__mocks__/MediaRecorder.ts`** and **`frontend/__mocks__/getUserMedia.ts`** — Browser-media test doubles restore globals and event spies between tests.
+- **`frontend`** — `npm test -- --runInBand` (`51` suites / `468` tests passing)
+- **`frontend`** — `npm run build`
 
 ## [2026-05-15] - Scrollbar Rail and Editor Return Scroll
 

@@ -6,7 +6,7 @@ import {
   getSnapshot,
   startMock,
 } from '@/lib/recording/session'
-import { mockRecordingSession } from '../../__mocks__/recording-session'
+import { mockRecordingSession } from '@/__mocks__/recording-session'
 
 const replaceMock = jest.fn()
 const pushMock = jest.fn()
@@ -99,6 +99,7 @@ describe('Recording page', () => {
         'beforeunload',
         expect.any(Function)
       )
+      addSpy.mockRestore()
     }
   )
 

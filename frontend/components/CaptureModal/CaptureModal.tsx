@@ -396,6 +396,8 @@ export default function CaptureModal() {
 
         <CaptureFooter
           isUploading={isUploading}
+          isActionInProgress={actionInProgress}
+          isRecordMode={isRecordTab}
           canSubmit={footerCanSubmit}
           onClose={handleClose}
           onSubmit={footerOnSubmit}

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { __resetForTesting as __resetRecordingSession } from './lib/recording/session'
+import { __resetForTesting as __resetRecordingSession } from '@/lib/recording/session'
 
 process.env.NEXT_PUBLIC_RECORDING_DEV_CONTROLS = 'true'
 

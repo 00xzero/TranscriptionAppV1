@@ -6,7 +6,7 @@ import {
   markSubmitted,
   startMock,
 } from '@/lib/recording/session'
-import { mockRecordingSession } from '../../__mocks__/recording-session'
+import { mockRecordingSession } from '@/__mocks__/recording-session'
 
 const pushMock = jest.fn()
 

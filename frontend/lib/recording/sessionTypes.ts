@@ -66,6 +66,8 @@ export interface SessionDraft {
   deviceId: string | null
 }
 
+const EMPTY_KEY_TERMS = Object.freeze([]) as unknown as string[]
+
 export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   state: 'idle',
   title: null,
@@ -74,7 +76,7 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   lastResumeAt: null,
   pausedAccumulatedMs: 0,
   errorMessage: null,
-  keyTerms: [],
+  keyTerms: EMPTY_KEY_TERMS,
   codecExtension: null,
   bytesSoFar: 0,
   salvageMessage: null,

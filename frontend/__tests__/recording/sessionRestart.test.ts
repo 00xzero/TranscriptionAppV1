@@ -6,11 +6,11 @@ import {
 import {
   installMediaRecorderMock,
   FakeMediaRecorder,
-} from '../../__mocks__/MediaRecorder'
+} from '@/__mocks__/MediaRecorder'
 import {
   installGetUserMediaMock,
   resetGetUserMediaMock,
-} from '../../__mocks__/getUserMedia'
+} from '@/__mocks__/getUserMedia'
 
 const originalUserAgent = navigator.userAgent
 const originalVendor = navigator.vendor

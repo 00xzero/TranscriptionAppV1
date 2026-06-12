@@ -17,7 +17,12 @@ export function writeDraft(draft: SessionDraft): void {
 export function readDraft(): SessionDraft | null {
   if (typeof window === 'undefined') return null
 
-  const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY)
+  let raw: string | null
+  try {
+    raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY)
+  } catch {
+    return null
+  }
   if (!raw) return null
 
   try {
@@ -33,12 +38,20 @@ export function readDraft(): SessionDraft | null {
       deviceId: typeof parsed.deviceId === 'string' ? parsed.deviceId : null,
     }
   } catch {
-    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+    try {
+      window.sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
     return null
   }
 }
 
 export function clearDraft(): void {
   if (typeof window === 'undefined') return
-  window.sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+  try {
+    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
 }

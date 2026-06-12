@@ -4,6 +4,17 @@
 -- bootstrap migrations, but deployed databases need a forward migration
 -- because already-applied migration versions are not replayed.
 
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM storage.buckets
+        WHERE id = 'media'
+    ) THEN
+        RAISE EXCEPTION 'Expected storage.buckets row for id=% before allowing audio/webm', 'media';
+    END IF;
+END $$;
+
 UPDATE storage.buckets AS b
 SET allowed_mime_types = (
     SELECT array_agg(DISTINCT mime_type ORDER BY mime_type)
