@@ -36,6 +36,22 @@ describe('RecordingPill', () => {
     expect(pill).toHaveTextContent(/\d{2}:\d{2}:\d{2}/)
   })
 
+  test('uses theme-aware design token classes', () => {
+    act(() => {
+      startMock({ title: 'X' })
+    })
+    render(<RecordingPill />)
+    const pill = screen.getByTestId('recording-pill')
+
+    expect(pill).toHaveClass(
+      'border-base',
+      'bg-surface',
+      'text-ink',
+      'dark:bg-night-surface',
+      'dark:text-paper'
+    )
+  })
+
   test('renders Paused label when state is paused', () => {
     act(() => {
       mockRecordingSession({

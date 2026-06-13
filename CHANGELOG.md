@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-13] - Recording Architecture Refinements
+
+Refined the live-recording implementation after the Record on Demand launch by separating the shared capture-upload pipeline from React UI state, making recording session transitions declarative, and aligning the header recording pill with the Olivetti light/dark theme tokens.
+
+### Changed
+
+- **`frontend/lib/capture/upload.ts`** and **`frontend/lib/hooks/useCapture.ts`** — Moved the shared capture upload/transcription pipeline, validation, MIME normalization, rollback handling, size constants, and upload progress contract into a framework-free capture module. The `useCapture` hook now focuses on React state and navigation while both file upload and browser recording submission import the same upload pipeline.
+- **`frontend/components/CaptureModal/FileDropZone.tsx`**, **`frontend/components/CaptureModal/useCaptureForm.ts`**, and recording tests — Pointed capture UI constants and recording-session tests at the extracted upload module, removing the mutable capture-uploader test seam from the recording session public API.
+- **`frontend/lib/recording/sessionTransitions.ts`** and **`frontend/lib/recording/sessionActions.ts`** — Replaced advisory from-state checks with structural transition specs. Snapshot actions now flow through a single transition helper that owns guards, runtime side effects, elapsed-time folding, target-state calculation, and subscriber notification.
+- **`frontend/components/RecordingSession/RecordingPill.tsx`** and **`.docs/live-recording-feature-spec.md`** — Updated the header recording pill to use themed Olivetti surface, text, and border tokens instead of documenting and rendering a dark-only `night-surface` chip in every theme.
+
+### Fixed
+
+- The recording pill no longer stays in dark-mode colors when the rest of the UI is in light mode.
+
+### Tests
+
+- **`frontend`** — `npm test` (`51` suites / `470` tests passing)
+- **`frontend`** — `npx tsc --noEmit`
+- **`frontend`** — `npm run lint` (completed with existing editor warnings only)
+- **`frontend`** — `npm test -- headerPill.test.tsx --runInBand`
+
 ## [2026-06-12] - Live Recording (Record on Demand)
 
 Added a complete in-app microphone recording flow as a sibling of file upload. The Capture modal now offers Upload Audio and Record Audio tabs; recording happens on a dedicated session page with a live waveform, pause/resume, guarded navigation, size budgeting, and upload handoff into the existing transcription pipeline. The session survives in-app navigation, recovers interrupted drafts, salvages usable audio after recorder failures, keeps failed uploads retryable, and works around Safari's microphone fade-in and silent WebM playback quirks.

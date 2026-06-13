@@ -171,7 +171,7 @@ The page handles three distinct entry conditions on mount:
 
 ### Header Recording Indicator
 
-While the session singleton reports state `recording` or `paused`, the contextual header renders a compact pill. It reads `● Recording HH:MM:SS` while actively recording and `● Paused HH:MM:SS` while paused, so the chrome reflects the real lifecycle state at a glance. The dot uses `ember-red`; the pill background uses `night-surface`. Clicking the pill navigates to `/recording/new` (through the same guarded navigation as all other in-app routing — see Navigation Policy below). The pill disappears as soon as the session transitions to `submitted` or `discarded`.
+While the session singleton reports state `recording` or `paused`, the contextual header renders a compact pill. It reads `● Recording HH:MM:SS` while actively recording and `● Paused HH:MM:SS` while paused, so the chrome reflects the real lifecycle state at a glance. The dot uses `ember-red`; the pill uses the themed Olivetti surface, text, and border tokens (`surface` / `ink` / `border` in light mode, `night-surface` / `paper` / `night-border` in dark mode). Clicking the pill navigates to `/recording/new` (through the same guarded navigation as all other in-app routing — see Navigation Policy below). The pill disappears as soon as the session transitions to `submitted` or `discarded`.
 
 The pill exists for two reasons:
 

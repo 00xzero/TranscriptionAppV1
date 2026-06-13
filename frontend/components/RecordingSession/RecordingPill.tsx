@@ -24,7 +24,7 @@ export default function RecordingPill() {
       onClick={() => guardedNav.push('/recording/new')}
       aria-label="Return to recording session"
       data-testid="recording-pill"
-      className="flex items-center gap-2 rounded-full bg-night-surface px-3 py-1.5 text-xs font-medium text-paper shadow-xs transition-all hover:shadow-md active:scale-95"
+      className="flex items-center gap-2 rounded-full border border-base bg-surface px-3 py-1.5 text-xs font-medium text-ink shadow-xs transition-all hover:bg-paper hover:shadow-md active:scale-95 dark:bg-night-surface dark:text-paper dark:hover:bg-night-surface/80"
     >
       <span
         className={`h-2 w-2 rounded-full bg-ember-red ${isPaused ? '' : 'animate-pulse'}`}
