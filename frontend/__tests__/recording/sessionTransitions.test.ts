@@ -1,9 +1,11 @@
 import {
+  TRANSITION_SPECS,
   canTransition,
   isInFlightState,
   isRetryableError,
   isTerminalState,
   shouldIgnoreRecorderFailure,
+  type SnapshotTransitionAction,
 } from '@/lib/recording/sessionTransitions'
 import {
   IDLE_SNAPSHOT,
@@ -21,6 +23,44 @@ function snapshot(
 }
 
 describe('recording session transitions', () => {
+  test('snapshot transition specs structurally map actions to target states', () => {
+    const expectedTargets: Record<SnapshotTransitionAction, RecordingState> = {
+      pause: 'paused',
+      resume: 'recording',
+      finalize: 'finalizing',
+      markUploading: 'uploading',
+      markSubmitted: 'submitted',
+      discard: 'discarded',
+      markError: 'error',
+      markInterrupted: 'interrupted',
+      recoverInterruptedDraft: 'interrupted',
+    }
+
+    expect(Object.keys(TRANSITION_SPECS).sort()).toEqual(
+      Object.keys(expectedTargets).sort()
+    )
+
+    Object.entries(expectedTargets).forEach(([action, target]) => {
+      expect(TRANSITION_SPECS[action as SnapshotTransitionAction].target).toBe(
+        target
+      )
+    })
+  })
+
+  test('snapshot transition specs fold elapsed time only where expected', () => {
+    const elapsedFoldActions: SnapshotTransitionAction[] = [
+      'pause',
+      'finalize',
+      'markError',
+    ]
+
+    Object.entries(TRANSITION_SPECS).forEach(([action, spec]) => {
+      expect(spec.foldsElapsedTime).toBe(
+        elapsedFoldActions.includes(action as SnapshotTransitionAction)
+      )
+    })
+  })
+
   test('recording -> pause is allowed; non-recording pause is ignored', () => {
     expect(canTransition('recording', 'pause')).toBe(true)
     expect(canTransition('idle', 'pause')).toBe(false)
