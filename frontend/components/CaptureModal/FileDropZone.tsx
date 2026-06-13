@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { Label } from '@/components/ui/label'
-import { SUPPORTED_EXTENSIONS } from '@/lib/hooks/useCapture'
+import { SUPPORTED_EXTENSIONS } from '@/lib/capture/upload'
 import { formatFileSize } from './shared'
 
 interface FileDropZoneProps {

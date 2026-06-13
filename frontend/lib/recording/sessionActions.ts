@@ -32,9 +32,7 @@ import {
   shouldIgnoreRecorderFailure,
 } from './sessionTransitions'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
-import { runCaptureUpload } from '@/lib/hooks/useCapture'
-
-let captureUploader = runCaptureUpload
+import { runCaptureUpload } from '@/lib/capture/upload'
 
 export function getLiveRecorder(): MediaRecorder | null {
   return getLiveRecorderFromStore(store)
@@ -270,9 +268,9 @@ async function submitFinalizedRecording(): Promise<void> {
   const abortController = new AbortController()
   store.runtime.uploadAbortController = abortController
 
-  let result: Awaited<ReturnType<typeof captureUploader>>
+  let result: Awaited<ReturnType<typeof runCaptureUpload>>
   try {
-    result = await captureUploader(
+    result = await runCaptureUpload(
       finalized.file,
       finalized.title,
       finalized.keyTerms,
@@ -461,14 +459,4 @@ export function __resetForTesting(): void {
 export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {
   store.snapshot = { ...store.snapshot, ...partial }
   notify()
-}
-
-export function __setCaptureUploaderForTesting(
-  uploader: typeof runCaptureUpload
-): void {
-  captureUploader = uploader
-}
-
-export function __resetCaptureUploaderForTesting(): void {
-  captureUploader = runCaptureUpload
 }

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useCapture, validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/hooks/useCapture'
+import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
+import { useCapture } from '@/lib/hooks/useCapture'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { MAX_KEY_TERMS, formatFileSize } from './shared'
 
