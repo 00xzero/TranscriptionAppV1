@@ -12,8 +12,6 @@ jest.mock('@/lib/recording/guardedNavigation', () => ({
 }))
 
 jest.mock('@/lib/hooks/useCapture', () => ({
-  MAX_FILE_SIZE_BYTES: 1024,
-  validateFile: jest.fn(() => null),
   useCapture: () => ({
     upload: uploadMock,
     isUploading: false,
@@ -21,6 +19,11 @@ jest.mock('@/lib/hooks/useCapture', () => ({
     progress: 'idle',
     resetError: resetErrorMock,
   }),
+}))
+
+jest.mock('@/lib/capture/upload', () => ({
+  MAX_FILE_SIZE_BYTES: 1024,
+  validateFile: jest.fn(() => null),
 }))
 
 describe('useCaptureForm', () => {

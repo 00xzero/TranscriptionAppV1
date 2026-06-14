@@ -26,15 +26,15 @@ import {
   type SessionSnapshot,
 } from './sessionTypes'
 import {
+  TRANSITION_SPECS,
   canTransition,
   isInFlightState,
   isRetryableError,
   shouldIgnoreRecorderFailure,
+  type SnapshotTransitionAction,
 } from './sessionTransitions'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
-import { runCaptureUpload } from '@/lib/hooks/useCapture'
-
-let captureUploader = runCaptureUpload
+import { runCaptureUpload } from '@/lib/capture/upload'
 
 export function getLiveRecorder(): MediaRecorder | null {
   return getLiveRecorderFromStore(store)
@@ -65,6 +65,76 @@ export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
 
 export function hasUnsavedRecording(): boolean {
   return isRecordingSessionActive(store.snapshot)
+}
+
+function assertNeverTransitionAction(value: never): never {
+  throw new Error(`Unhandled recording snapshot transition action: ${String(value)}`)
+}
+
+function buildTransitionSnapshot(
+  snap: SessionSnapshot,
+  action: SnapshotTransitionAction,
+  patch: Partial<SessionSnapshot> = {},
+  now: number = Date.now()
+): SessionSnapshot {
+  const { target, foldsElapsedTime } = TRANSITION_SPECS[action]
+  const foldedMs = foldsElapsedTime ? getActiveSegmentMs(snap, now) : 0
+
+  return {
+    ...snap,
+    ...patch,
+    state: target,
+    ...(target !== 'recording' ? { lastResumeAt: null } : {}),
+    ...(foldsElapsedTime
+      ? { pausedAccumulatedMs: snap.pausedAccumulatedMs + foldedMs }
+      : {}),
+  }
+}
+
+function transition(
+  action: SnapshotTransitionAction,
+  patch?: Partial<SessionSnapshot>
+): boolean {
+  const snap = store.snapshot
+  if (!canTransition(snap.state, action)) return false
+
+  switch (action) {
+    case 'pause':
+      store.runtime.controller?.pause()
+      clearIntervalIfRunning()
+      break
+    case 'resume':
+      store.runtime.controller?.resume()
+      break
+    case 'finalize':
+      clearIntervalIfRunning()
+      break
+    case 'markSubmitted':
+    case 'discard':
+      clearTerminalSessionRuntime(store, clearSessionActivity)
+      break
+    case 'markError':
+      clearIntervalIfRunning()
+      clearMockLifecycleTimeouts()
+      disposeController(store)
+      break
+    case 'markInterrupted':
+      clearInterruptedSessionRuntime(store, clearSessionActivity)
+      break
+    case 'markUploading':
+    case 'recoverInterruptedDraft':
+      break
+    default:
+      assertNeverTransitionAction(action)
+  }
+
+  setSnapshot(buildTransitionSnapshot(snap, action, patch))
+
+  if (action === 'resume') {
+    startIntervalIfNeeded()
+  }
+
+  return true
 }
 
 export class RecordingAlreadyActiveError extends Error {
@@ -150,38 +220,11 @@ export function attachAndStart(params: AttachAndStartParams): void {
 }
 
 export function pause(): void {
-  const snap = store.snapshot
-  if (!canTransition(snap.state, 'pause')) return
-
-  if (store.runtime.controller) {
-    store.runtime.controller.pause()
-  }
-
-  const now = Date.now()
-  const elapsed = getActiveSegmentMs(snap, now)
-  clearIntervalIfRunning()
-  setSnapshot({
-    ...snap,
-    state: 'paused',
-    lastResumeAt: null,
-    pausedAccumulatedMs: snap.pausedAccumulatedMs + elapsed,
-  })
+  transition('pause')
 }
 
 export function resume(): void {
-  const snap = store.snapshot
-  if (!canTransition(snap.state, 'resume')) return
-
-  if (store.runtime.controller) {
-    store.runtime.controller.resume()
-  }
-
-  setSnapshot({
-    ...snap,
-    state: 'recording',
-    lastResumeAt: Date.now(),
-  })
-  startIntervalIfNeeded()
+  transition('resume', { lastResumeAt: Date.now() })
 }
 
 // Single-flight, drain-aware Stop. Used by the recording page's controls and
@@ -263,16 +306,15 @@ async function submitFinalizedRecording(): Promise<void> {
     return
   }
 
-  if (!canTransition(store.snapshot.state, 'markUploading')) return
-  markUploading()
+  if (!transition('markUploading')) return
   if (store.snapshot.state !== 'uploading') return
 
   const abortController = new AbortController()
   store.runtime.uploadAbortController = abortController
 
-  let result: Awaited<ReturnType<typeof captureUploader>>
+  let result: Awaited<ReturnType<typeof runCaptureUpload>>
   try {
-    result = await captureUploader(
+    result = await runCaptureUpload(
       finalized.file,
       finalized.title,
       finalized.keyTerms,
@@ -344,22 +386,11 @@ export function handleRecorderFailure(reason: string): void {
 }
 
 export function finalize(): void {
-  const snap = store.snapshot
-  if (!canTransition(snap.state, 'finalize')) return
-  const now = Date.now()
-  const additional = getActiveSegmentMs(snap, now)
-  clearIntervalIfRunning()
-  setSnapshot({
-    ...snap,
-    state: 'finalizing',
-    lastResumeAt: null,
-    pausedAccumulatedMs: snap.pausedAccumulatedMs + additional,
-  })
+  transition('finalize')
 }
 
 export function markUploading(): void {
-  if (!canTransition(store.snapshot.state, 'markUploading')) return
-  setSnapshot({ ...store.snapshot, state: 'uploading' })
+  transition('markUploading')
 }
 
 function setSalvageMessage(message: string | null): void {
@@ -373,41 +404,15 @@ function setSubmissionResult(
 }
 
 export function markSubmitted(): void {
-  if (!canTransition(store.snapshot.state, 'markSubmitted')) return
-  clearTerminalSessionRuntime(store, clearSessionActivity)
-  setSnapshot({
-    ...store.snapshot,
-    state: 'submitted',
-    lastResumeAt: null,
-  })
+  transition('markSubmitted')
 }
 
 export function discard(salvageMessage?: string): void {
-  if (!canTransition(store.snapshot.state, 'discard')) return
-  clearTerminalSessionRuntime(store, clearSessionActivity)
-  setSnapshot({
-    ...store.snapshot,
-    state: 'discarded',
-    lastResumeAt: null,
-    salvageMessage: salvageMessage ?? null,
-  })
+  transition('discard', { salvageMessage: salvageMessage ?? null })
 }
 
 export function markError(message: string): void {
-  const snap = store.snapshot
-  if (!canTransition(snap.state, 'markError')) return
-  const now = Date.now()
-  const additional = getActiveSegmentMs(snap, now)
-  clearIntervalIfRunning()
-  clearMockLifecycleTimeouts()
-  disposeController(store)
-  setSnapshot({
-    ...snap,
-    state: 'error',
-    lastResumeAt: null,
-    pausedAccumulatedMs: snap.pausedAccumulatedMs + additional,
-    errorMessage: message,
-  })
+  transition('markError', { errorMessage: message })
 }
 
 function markUploadError(message: string): void {
@@ -416,14 +421,7 @@ function markUploadError(message: string): void {
 }
 
 export function markInterrupted(message?: string): void {
-  if (!canTransition(store.snapshot.state, 'markInterrupted')) return
-  clearInterruptedSessionRuntime(store, clearSessionActivity)
-  setSnapshot({
-    ...store.snapshot,
-    state: 'interrupted',
-    lastResumeAt: null,
-    errorMessage: message ?? null,
-  })
+  transition('markInterrupted', { errorMessage: message ?? null })
 }
 
 export function resetRecordingSession(): void {
@@ -437,14 +435,12 @@ export function recoverInterruptedDraft(): boolean {
   const draft = readDraft()
   if (!draft) return false
 
-  setSnapshot({
+  return transition('recoverInterruptedDraft', {
     ...IDLE_SNAPSHOT,
-    state: 'interrupted',
     title: draft.title,
     generatedTitle: draft.generatedTitle,
     keyTerms: draft.keyTerms,
   })
-  return true
 }
 
 export function __resetForTesting(): void {
@@ -461,14 +457,4 @@ export function __resetForTesting(): void {
 export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {
   store.snapshot = { ...store.snapshot, ...partial }
   notify()
-}
-
-export function __setCaptureUploaderForTesting(
-  uploader: typeof runCaptureUpload
-): void {
-  captureUploader = uploader
-}
-
-export function __resetCaptureUploaderForTesting(): void {
-  captureUploader = runCaptureUpload
 }

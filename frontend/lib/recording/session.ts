@@ -20,9 +20,7 @@ export {
 } from './sessionStore'
 export {
   RecordingAlreadyActiveError,
-  __resetCaptureUploaderForTesting,
   __resetForTesting,
-  __setCaptureUploaderForTesting,
   __setSnapshotForTesting,
   attachAndStart,
   discard,

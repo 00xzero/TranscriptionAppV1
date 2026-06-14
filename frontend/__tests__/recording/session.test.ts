@@ -1,7 +1,8 @@
+jest.mock('@/lib/capture/upload', () => ({ runCaptureUpload: jest.fn() }))
+
+import { runCaptureUpload } from '@/lib/capture/upload'
 import {
-  __resetCaptureUploaderForTesting,
   __resetForTesting,
-  __setCaptureUploaderForTesting,
   attachAndStart,
   discard,
   finalize,
@@ -33,7 +34,7 @@ import {
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
 
-const mockRunCaptureUpload = jest.fn()
+const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
 
 function attachRecording(overrides: Partial<AttachAndStartParams> = {}): void {
@@ -72,15 +73,10 @@ function advanceClockPastEmptyFloor(): void {
 describe('recording session singleton', () => {
   beforeEach(() => {
     __resetForTesting()
-    __setCaptureUploaderForTesting(mockRunCaptureUpload)
     mockRunCaptureUpload.mockReset()
     installMediaRecorderMock()
     // The session finalize path relies on `stop()` emitting a `stop` event.
     FakeMediaRecorder.autoDispatchStop = true
-  })
-
-  afterEach(() => {
-    __resetCaptureUploaderForTesting()
   })
 
   test('idle is the default snapshot', () => {

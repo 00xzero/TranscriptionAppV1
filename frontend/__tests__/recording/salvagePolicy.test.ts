@@ -1,7 +1,8 @@
+jest.mock('@/lib/capture/upload', () => ({ runCaptureUpload: jest.fn() }))
+
+import { runCaptureUpload } from '@/lib/capture/upload'
 import {
-  __resetCaptureUploaderForTesting,
   __resetForTesting,
-  __setCaptureUploaderForTesting,
   attachAndStart,
   getSnapshot,
   recordChunk,
@@ -15,7 +16,7 @@ import {
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
 
-const mockRunCaptureUpload = jest.fn()
+const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
 function attach(stream: MediaStream): void {
@@ -43,7 +44,6 @@ function dispatchStopDrain(manualBytes: number): void {
 describe('recorder-failure salvage policy', () => {
   beforeEach(() => {
     __resetForTesting()
-    __setCaptureUploaderForTesting(mockRunCaptureUpload)
     mockRunCaptureUpload.mockReset()
     installMediaRecorderMock()
     // Salvage routes through stopAndFinalize, which needs `stop` to emit.
@@ -51,7 +51,6 @@ describe('recorder-failure salvage policy', () => {
   })
 
   afterEach(() => {
-    __resetCaptureUploaderForTesting()
     jest.restoreAllMocks()
   })
 
