@@ -33,6 +33,13 @@ import {
   shouldIgnoreRecorderFailure,
   type SnapshotTransitionAction,
 } from './sessionTransitions'
+import {
+  getPersistence,
+  gcExpiredSessions,
+  requestPersistentStorage,
+  SessionWriteQueue,
+  __setPersistenceForTesting,
+} from './persistence'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { runCaptureUpload } from '@/lib/capture/upload'
 
@@ -176,6 +183,16 @@ export function attachAndStart(params: AttachAndStartParams): void {
   store.runtime.codecMime = params.codec.mime
   store.runtime.maxBytes = params.maxBytes
 
+  // Initialize durable persistence identity BEFORE start(): `acceptingChunks` is
+  // already true, so the chunk path is live and a (theoretical) synchronous chunk
+  // must find an initialized queue. The session row is only enqueued after start
+  // succeeds, so a start failure leaves no orphan row.
+  const persistence = getPersistence()
+  const sessionId = generateSessionId()
+  store.runtime.sessionId = sessionId
+  store.runtime.nextChunkSeq = 0
+  store.runtime.writeQueue = new SessionWriteQueue(persistence, sessionId)
+
   try {
     controller.start(1000)
   } catch (err) {
@@ -186,6 +203,9 @@ export function attachAndStart(params: AttachAndStartParams): void {
     store.runtime.deviceId = null
     store.runtime.codecMime = null
     store.runtime.maxBytes = 0
+    store.runtime.sessionId = null
+    store.runtime.nextChunkSeq = 0
+    store.runtime.writeQueue = null
     throw err
   }
 
@@ -216,15 +236,59 @@ export function attachAndStart(params: AttachAndStartParams): void {
     codecMime: params.codec.mime,
     deviceId: params.deviceId,
   })
+
+  // Persist the session row first (queue invariant: putSession is op #0), then
+  // best-effort durable-storage request and an opportunistic 7-day GC sweep.
+  store.runtime.writeQueue.enqueueSession({
+    sessionId,
+    userId: null,
+    uploadIntentId: null,
+    title: params.title,
+    generatedTitle,
+    keyTerms: params.keyTerms,
+    codecMime: params.codec.mime,
+    codecExtension: params.codec.extension,
+    deviceId: params.deviceId,
+    createdAt: now,
+    startedAt: now,
+    lastResumeAt: now,
+    pausedAccumulatedMs: 0,
+    bytesSoFar: 0,
+    lastChunkSeq: null,
+    lastChunkReceivedAt: null,
+    phase: 'capturing',
+    armed: true,
+    failureReason: null,
+  })
+  void requestPersistentStorage()
+  void gcExpiredSessions(persistence)
+
   startIntervalIfNeeded()
 }
 
+function generateSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export function pause(): void {
-  transition('pause')
+  if (transition('pause')) persistTimingPatch()
 }
 
 export function resume(): void {
-  transition('resume', { lastResumeAt: Date.now() })
+  if (transition('resume', { lastResumeAt: Date.now() })) persistTimingPatch()
+}
+
+// Persist pause/resume timing from the POST-transition snapshot. `transition()`
+// folds `pausedAccumulatedMs` and clears/sets `lastResumeAt` inside setSnapshot,
+// so reading before it returns would persist stale values.
+function persistTimingPatch(): void {
+  store.runtime.writeQueue?.enqueueMetadata({
+    pausedAccumulatedMs: store.snapshot.pausedAccumulatedMs,
+    lastResumeAt: store.snapshot.lastResumeAt,
+  })
 }
 
 // Single-flight, drain-aware Stop. Used by the recording page's controls and
@@ -309,6 +373,9 @@ async function submitFinalizedRecording(): Promise<void> {
   if (!transition('markUploading')) return
   if (store.snapshot.state !== 'uploading') return
 
+  // Persist the phase transition (advisory) after it has applied.
+  store.runtime.writeQueue?.enqueueMetadata({ phase: 'uploading' })
+
   const abortController = new AbortController()
   store.runtime.uploadAbortController = abortController
 
@@ -357,6 +424,19 @@ export function recordChunk(blob: Blob): void {
   if (blob.size <= 0) return
   store.runtime.chunks.push(blob)
   store.runtime.bytesSoFar += blob.size
+
+  // Mirror the chunk + advisory counters to durable storage (write-behind, never
+  // awaited). The first persisted chunk is seq=0 — the required init chunk.
+  const queue = store.runtime.writeQueue
+  if (queue) {
+    const seq = store.runtime.nextChunkSeq++
+    queue.enqueueChunk(seq, blob)
+    queue.enqueueMetadata({
+      bytesSoFar: store.runtime.bytesSoFar,
+      lastChunkSeq: seq,
+      lastChunkReceivedAt: Date.now(),
+    })
+  }
 
   setSnapshot({
     ...store.snapshot,
@@ -452,6 +532,9 @@ export function __resetForTesting(): void {
   store.runtime = createRuntime()
   store.snapshot = { ...IDLE_SNAPSHOT }
   store.listeners.clear()
+  // Restore the default (env-detected) persistence adapter so an injected fake
+  // from one test cannot leak into the next.
+  __setPersistenceForTesting(null)
 }
 
 export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {

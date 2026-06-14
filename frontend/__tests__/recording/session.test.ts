@@ -33,6 +33,10 @@ import {
   dispatchRecorderError,
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
+import {
+  __setPersistenceForTesting,
+  InMemorySessionPersistence,
+} from '@/lib/recording/persistence'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
@@ -622,5 +626,117 @@ describe('recording session singleton', () => {
     })
     expect(getLiveRecorder()).toBeNull()
     expect(hasUnsavedRecording()).toBe(false)
+  })
+})
+
+// A fake whose chunk writes always reject — exercises the sticky downgrade path
+// while keeping metadata writes (so the armed:false marker can land).
+class FailingChunkPersistence extends InMemorySessionPersistence {
+  override async putChunk(): Promise<void> {
+    throw new Error('quota exceeded')
+  }
+}
+
+describe('recording session durability mirror', () => {
+  let persistence: InMemorySessionPersistence
+
+  function installPersistence(adapter: InMemorySessionPersistence): void {
+    persistence = adapter
+    __setPersistenceForTesting(adapter)
+  }
+
+  beforeEach(() => {
+    __resetForTesting()
+    mockRunCaptureUpload.mockReset()
+    installMediaRecorderMock()
+    FakeMediaRecorder.autoDispatchStop = true
+    installPersistence(new InMemorySessionPersistence())
+  })
+
+  test('mirrors session metadata and a contiguous seq=0..N chunk stream', async () => {
+    attachRecording({ title: 'Durable', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(1000)]))
+    recordChunk(new Blob([new Uint8Array(2000)]))
+    recordChunk(new Blob([new Uint8Array(3000)]))
+    await flushAsync()
+
+    const sessions = await persistence.listSessions()
+    expect(sessions).toHaveLength(1)
+    const session = sessions[0]
+    expect(session.title).toBe('Durable')
+    expect(session.phase).toBe('capturing')
+    expect(session.armed).toBe(true)
+    expect(session.bytesSoFar).toBe(6000)
+    expect(session.lastChunkSeq).toBe(2)
+
+    // The first persisted chunk is seq=0 (the required init chunk) and the
+    // stream is contiguous.
+    expect(await persistence.listChunkSeqs(session.sessionId)).toEqual([0, 1, 2])
+  })
+
+  test('a failing chunk write downgrades the session but recording continues', async () => {
+    installPersistence(new FailingChunkPersistence())
+
+    attachRecording({ title: 'Downgrade', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    await flushAsync()
+
+    // Live recording is unaffected by the persistence failure.
+    expect(getSnapshot().state).toBe('recording')
+
+    const session = (await persistence.listSessions())[0]
+    expect(session.armed).toBe(false)
+    expect(session.failureReason).toBe('quota exceeded')
+  })
+
+  test('a downgraded mirror still finalizes and submits the recording', async () => {
+    installPersistence(new FailingChunkPersistence())
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+
+    attachRecording({ title: 'Still submits', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+    await stopAndFinalize()
+
+    expect(getSnapshot().state).toBe('submitted')
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+  })
+
+  test('discard clears the persisted session and chunks', async () => {
+    attachRecording({ title: 'Cleanup', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    await flushAsync()
+    expect(await persistence.listSessions()).toHaveLength(1)
+
+    discard()
+    await flushAsync()
+
+    expect(await persistence.listSessions()).toEqual([])
+    const sessionId = 'unused' // session is gone; nothing should remain
+    expect(await persistence.listChunkSeqs(sessionId)).toEqual([])
+  })
+
+  test('successful submission clears the persisted session', async () => {
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-1',
+      outcome: 'started',
+    })
+
+    attachRecording({ title: 'Saved cleanup', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+    await flushAsync()
+    expect(await persistence.listSessions()).toHaveLength(1)
+
+    await stopAndFinalize()
+    await flushAsync()
+
+    expect(getSnapshot().state).toBe('submitted')
+    expect(await persistence.listSessions()).toEqual([])
   })
 })

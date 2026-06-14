@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned; not yet implemented.
+Phase 1 (Durability Foundation) implemented; Phases 2-5 planned.
 
 This plan complements
 [`durable-app-level-recording-design.md`](./durable-app-level-recording-design.md).
@@ -39,6 +39,13 @@ Includes:
 - Sticky downgrade on write/quota failure.
 - `navigator.storage.persist()` where available.
 - 7-day GC.
+- Reserve `userId` and `uploadIntentId` as nullable `sessions` fields, left null
+  and populated in Phase 2.
+- Retain the existing `sessionStorage` draft (dual-write the same metadata); full
+  migration into the IDB `sessions` record is deferred to Phase 2.
+- Track armed/available state internally only (write-behind queue + persisted
+  row). Surfacing the unarmed warning — including the durability-unavailable case —
+  is deferred to Phase 3.
 - Test adapters and `fake-indexeddb` coverage.
 
 Exit criteria:
@@ -56,6 +63,9 @@ Includes:
 
 - Client-generated `uploadIntentId`.
 - Persist upload intent with the session.
+- Populate the session `userId` from the authenticated context.
+- Migrate the session draft from `sessionStorage` fully into the IDB `sessions`
+  record (replacing the Phase 1 dual-write).
 - Server-side dedup by `(userId, uploadIntentId)`.
 - Repeated project/create returns the canonical result.
 - Recovery probe in `RecordingSessionProvider`.
@@ -90,6 +100,9 @@ Includes:
 - Retryable upload error remains an unresolved artifact.
 - Capture-health handling for stale chunks while owner tab is alive.
 - Unarmed warning behavior:
+  - covers both mid-session downgrade and durability-unavailable-from-start;
+  - requires surfacing the write-behind queue's armed/available state to the
+    session snapshot (the foundation tracks it internally only);
   - recording still allowed;
   - roaming still allowed;
   - warning appears in preview/page;

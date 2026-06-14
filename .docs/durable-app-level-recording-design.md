@@ -2,7 +2,8 @@
 
 ## Status
 
-Design agreed; not yet implemented.
+Design agreed. The persistence foundation is implemented (see implementation plan
+Phase 1); upload idempotency and all later stages are not yet implemented.
 
 This document supersedes the narrower "Audio Durability (Crash Recovery) Design"
 and folds in the Persistent Recording Session feature. It should be treated as
@@ -339,6 +340,13 @@ whether the user can record or roam within the app.
 The existing session draft migrates fully into the `sessions` record. Do not
 split draft metadata between `sessionStorage` and IndexedDB.
 
+Transitional note: the persistence foundation (implementation plan Phase 1)
+intentionally keeps the `sessionStorage` draft in place because the existing
+`interrupted` -> `recoverInterruptedDraft` -> restart flow still reads it. During
+that stage the same metadata is written to both the draft and the IDB `sessions`
+row. The full migration — removing the `sessionStorage` draft — lands with the
+recovery stage that replaces the interrupted-restart flow.
+
 ### Writer Semantics
 
 Chunk and metadata writes are write-behind and never awaited in the recorder hot
@@ -360,6 +368,24 @@ means recovery is unavailable for the whole session. Once downgraded:
 - do not try to re-arm;
 - leave already-written chunks until terminal cleanup or GC;
 - continue live recording normally.
+
+There are two distinct unarmed conditions, and both yield the same unarmed UI
+state and warning (see "Warnings", which already lists "unavailable or has
+downgraded"):
+
+- *unavailable from start*: durable storage is absent — no IndexedDB, or the
+  database cannot be opened. No chunks are ever persisted, so the session is
+  effectively unarmed for its whole life. Because nothing is written, no row ever
+  advertises this session as recoverable, and the failure-triggered downgrade path
+  cannot fire; availability must therefore be detected up front, not inferred from
+  a write failure.
+- *mid-session downgrade*: persistence was working, then a chunk/metadata write
+  failed (quota, eviction, transaction abort) and flipped `armed=false`.
+
+The persistence foundation has no recording UI, so it only tracks armed/available
+state internally (in the write-behind queue, and in the persisted row when storage
+is writable). Surfacing the unarmed warning to the user is a later-stage concern
+and requires exposing that state to the session snapshot.
 
 ### Durability Invariants
 

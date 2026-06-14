@@ -1,4 +1,5 @@
 import type { CodecSelection } from './codecs'
+import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 
 export type RecordingState =
@@ -48,6 +49,11 @@ export interface Runtime {
   codecMime: string | null
   maxBytes: number
   finalizedRecording: FinalizedRecording | null
+  // Durable persistence (Phase 1). `sessionId`/`writeQueue` are null when idle;
+  // `nextChunkSeq` is the monotonic seq assigned to the next persisted chunk.
+  sessionId: string | null
+  nextChunkSeq: number
+  writeQueue: SessionWriteQueue | null
 }
 
 export interface Store {
