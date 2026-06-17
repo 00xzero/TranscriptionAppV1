@@ -16,6 +16,8 @@ export function createRuntime(): Runtime {
     nextChunkSeq: 0,
     writeQueue: null,
     uploadIntentId: null,
+    lastChunkReceivedAt: null,
+    flushRequested: false,
   }
 }
 

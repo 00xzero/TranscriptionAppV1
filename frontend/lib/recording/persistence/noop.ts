@@ -9,6 +9,7 @@ import type {
  * SSR). Keeps the recording session code path uniform without persisting anything.
  */
 export class NoOpSessionPersistence implements SessionPersistence {
+  readonly durable = false
   async putSession(_record: PersistedSession): Promise<void> {}
   async patchSession(
     _sessionId: string,

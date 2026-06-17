@@ -44,8 +44,10 @@ type Call =
 
 /** Records call order and supports per-method failure + a manual deferral gate. */
 class LoggingPersistence implements SessionPersistence {
+  readonly durable = true
   readonly calls: Call[] = []
   failPutChunk = false
+  failPutSession = false
   failPatchSession = false
   private pendingGate: Promise<void> | null = null
 
@@ -60,6 +62,7 @@ class LoggingPersistence implements SessionPersistence {
 
   async putSession(_record: PersistedSession): Promise<void> {
     this.calls.push({ op: 'putSession' })
+    if (this.failPutSession) throw new Error('session failed')
   }
 
   async patchSession(
@@ -180,6 +183,39 @@ describe('SessionWriteQueue downgrade', () => {
     queue.enqueueChunk(1, blob(10))
     await queue.whenSettled()
     expect(fake.calls.filter((c) => c.op === 'putChunk')).toHaveLength(1)
+  })
+
+  test('onDowngrade fires once on a chunk write failure', async () => {
+    const fake = new LoggingPersistence()
+    fake.failPutChunk = true
+    const onDowngrade = jest.fn()
+    const queue = new SessionWriteQueue(fake, SESSION_ID, onDowngrade)
+
+    queue.enqueueSession(makeRecord())
+    queue.enqueueChunk(0, blob(10))
+    await queue.whenSettled()
+
+    expect(onDowngrade).toHaveBeenCalledTimes(1)
+    expect(onDowngrade).toHaveBeenCalledWith(SESSION_ID, 'chunk failed')
+
+    // Sticky: a later failed write does not re-notify.
+    queue.enqueueChunk(1, blob(10))
+    await queue.whenSettled()
+    expect(onDowngrade).toHaveBeenCalledTimes(1)
+  })
+
+  test('onDowngrade fires when the first putSession fails (early open failure)', async () => {
+    const fake = new LoggingPersistence()
+    fake.failPutSession = true
+    const onDowngrade = jest.fn()
+    const queue = new SessionWriteQueue(fake, SESSION_ID, onDowngrade)
+
+    queue.enqueueSession(makeRecord())
+    await queue.whenSettled()
+
+    expect(onDowngrade).toHaveBeenCalledTimes(1)
+    expect(onDowngrade).toHaveBeenCalledWith(SESSION_ID, 'session failed')
+    expect(queue.isArmed()).toBe(false)
   })
 
   test('a failing armed:false marker is swallowed and does not recurse', async () => {

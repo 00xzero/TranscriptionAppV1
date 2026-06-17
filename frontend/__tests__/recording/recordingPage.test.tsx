@@ -85,23 +85,52 @@ describe('Recording page', () => {
     ).toHaveStyle({ animationPlayState: 'paused' })
   })
 
-  test.each(['finalizing', 'uploading'] as const)(
-    '%s state keeps the beforeunload guard active',
+  // Phase 3: the beforeunload guard moved to RecordingSessionProvider (app-level),
+  // so the page itself no longer installs it. Covered in beforeUnloadGuard.test.tsx.
+  test('page does not install its own beforeunload listener', () => {
+    act(() => {
+      mockRecordingSession({ state: 'recording', title: 't' })
+    })
+    const addSpy = jest.spyOn(window, 'addEventListener')
+
+    render(<RecordingNewPage />)
+
+    expect(addSpy).not.toHaveBeenCalledWith('beforeunload', expect.any(Function))
+    addSpy.mockRestore()
+  })
+
+  test.each(['recording', 'paused', 'finalizing', 'uploading'] as const)(
+    'shows the durability warning in %s state when not durable',
     (state) => {
       act(() => {
-        mockRecordingSession({ state, title: 't' })
+        mockRecordingSession({ state, title: 't', durable: false })
       })
-      const addSpy = jest.spyOn(window, 'addEventListener')
-
       render(<RecordingNewPage />)
-
-      expect(addSpy).toHaveBeenCalledWith(
-        'beforeunload',
-        expect.any(Function)
-      )
-      addSpy.mockRestore()
+      expect(screen.getByTestId('durability-warning')).toBeInTheDocument()
     }
   )
+
+  test('hides the durability warning while durable', () => {
+    act(() => {
+      mockRecordingSession({ state: 'recording', title: 't', durable: true })
+    })
+    render(<RecordingNewPage />)
+    expect(screen.queryByTestId('durability-warning')).not.toBeInTheDocument()
+  })
+
+  test('shows the capture-health warning when one is present', () => {
+    act(() => {
+      mockRecordingSession({
+        state: 'recording',
+        title: 't',
+        captureHealthWarning: 'No audio recently',
+      })
+    })
+    render(<RecordingNewPage />)
+    expect(screen.getByTestId('capture-health-warning')).toHaveTextContent(
+      'No audio recently'
+    )
+  })
 
   test('error state shows the message and Return to library CTA', () => {
     act(() => {

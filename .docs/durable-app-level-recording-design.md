@@ -2,15 +2,17 @@
 
 ## Status
 
-Design agreed. The persistence foundation and recovery/upload-idempotency phase
-are implemented in the current branch (see implementation plan Phases 1-2).
-Same-browser presence, global pill polish, route-wide navigation guard rewrites,
-and remote-owner UI remain later phases.
+Design agreed. The persistence foundation, recovery/upload-idempotency phase, and
+app-level recording lifecycle are implemented in the current branch (see
+implementation plan Phases 1-3). Same-browser presence/remote-owner UI and global
+pill product polish (hover/focus preview, terminal animations, polished pill
+variants) remain later phases.
 
 This document describes the target architecture, with phase notes where the
-current implementation intentionally ships a narrower behavior. When a section
-mentions current Phase 2 behavior, treat that as the source of truth for the
-implemented slice.
+current implementation intentionally ships a narrower behavior. A "Phase 3 note"
+marks behavior that now ships; a "remaining phases" note marks what is still
+deferred. When a section carries such a note, treat it as the source of truth for
+the implemented slice.
 
 This document supersedes the narrower "Audio Durability (Crash Recovery) Design"
 and folds in the Persistent Recording Session feature. It should be treated as
@@ -129,9 +131,16 @@ The contextual header is the home for recording status. The pill renders only on
 the client after local session/presence state is ready enough to avoid hydration
 mismatches. There is no fallback floating pill in this phase.
 
-Current Phase 2 note: the global pill variants and remote-owner presence UI are
-not implemented yet. Recovery is surfaced by the app-level provider and blocking
-modal, while `/recording/new` remains the expanded local route.
+Phase 3 note: the pill now stays mounted across every state the user must still
+resolve — `recording`, `paused`, `finalizing`, `uploading`, retryable `error`,
+and `recoverable` — with a state-appropriate static label and a distinct
+attention treatment for error/recoverable. A non-retryable terminal error does
+not render a pill (there is nothing to return to). Clicking it routes to
+`/recording/new` via `useGuardedNavigate`.
+
+Remaining phases: the polished/animated pill variants, the hover/focus
+informational preview, the remote-owner "Recording in another tab" variant, and
+the brief saved/discarded terminal animations are still Phase 4-5 work.
 
 The pill remains visible throughout the active capture lifecycle:
 
@@ -218,8 +227,14 @@ persistent in the hover/focus preview and `/recording/new`:
 This warning remains visible through recording, paused, finalizing, and
 uploading until submitted/discarded.
 
-Current Phase 2 note: the write-behind queue tracks durability downgrade
-internally, but the unarmed warning is not surfaced in the UI yet.
+Phase 3 note: the unarmed warning is now surfaced. The session snapshot carries a
+`durable` boolean, seeded at start from `SessionPersistence.durable` (so the
+unavailable-from-start case shows immediately) and flipped to `false` by the
+write queue's `onDowngrade` callback on the first mid-session write failure.
+`/recording/new` renders the passive "If this tab refreshes, closes, or crashes,
+this recording may be lost." banner whenever `durable` is false, for every active
+state. The user-facing copy never says "armed". Surfacing the same warning in the
+hover/focus pill preview waits for the Phase 5 preview work.
 
 ## Navigation and Guards
 
@@ -240,6 +255,18 @@ or discard before leaving the auth/context boundary.
 Unrelated app actions are not globally blocked. Recording does not interfere with
 ordinary project/library flows unless the action would start another recording or
 cross an auth/context boundary.
+
+Phase 3 note: this is implemented. `GuardedLink` and `useGuardedNavigate` are now
+thin pass-throughs over Next's `Link`/`useRouter` and never prompt or discard on
+in-app navigation; the route-bound `usePopStateGuard`/`confirmBeforeLeave` flow
+was removed. `useBeforeUnloadGuard(active)` is installed once in
+`RecordingSessionProvider`, gated on `isRecordingSessionActive` (in-flight states
+plus retryable error), so it survives roaming and stays through upload. The
+sign-out guard lives in `Sidebar.handleSignOut` and blocks via
+`hasUnresolvedRecordingArtifact` (active, retryable, or `recoverable`), showing a
+toast rather than silently discarding audio. The unused `app/auth/actions.ts`
+server action carries a note that it must gain the same guard if it is ever
+wired to a button.
 
 ## Recording States and Models
 
@@ -419,10 +446,13 @@ a persisted downgrade marker exists. If the product wants "known downgrade means
 never recover," the recovery probe should be tightened and this section updated
 again.
 
-The persistence foundation has no recording UI, so it only tracks armed/available
-state internally (in the write-behind queue, and in the persisted row when storage
-is writable). Surfacing the unarmed warning to the user is a later-stage concern
-and requires exposing that state to the session snapshot.
+Phase 3 note: the write-behind queue still owns armed/available state internally
+(and in the persisted row when storage is writable), but it now exposes downgrade
+to the live session through an `onDowngrade(sessionId, reason)` callback. The
+session action layer maps that — together with the up-front
+`SessionPersistence.durable` capability — onto the snapshot's `durable` field that
+drives the passive warning. Both unarmed conditions (unavailable-from-start and
+mid-session downgrade) resolve to the same `durable = false` UI state.
 
 ### Durability Invariants
 
@@ -495,6 +525,21 @@ The exact stale threshold is an implementation constant, but it must be longer
 than the configured `MediaRecorder` timeslice and tolerant of normal browser
 timer jitter. Remote tabs do not run this policy for the owner; they only display
 owner/presence state.
+
+Phase 3 note: this is implemented as `checkCaptureHealth`, driven once per second
+off the recording interval through a `setTickObserver` seam (so `sessionStore`
+need not import `sessionActions`). It runs only while local state is `recording`.
+The stale threshold is `CAPTURE_STALE_MS = 4_000`, measured from
+`lastChunkReceivedAt` (falling back to `lastResumeAt`/`startedAt` before the first
+chunk). On a stale window it escalates in two strikes: the first stale tick
+re-checks recorder/track state and requests a manual `requestData()` flush; if the
+session is still stale on the next tick it surfaces the passive
+`captureHealthWarning` snapshot field, rendered on `/recording/new`. A confirmed
+loss (recorder `inactive` or no `live` audio track) short-circuits both strikes
+and routes straight into `handleRecorderFailure`'s existing salvage policy. The
+warning is cleared whenever a chunk arrives, on resume, on pause, and on finalize,
+and `flushRequested` is re-baselined so each new stall runs a fresh two-strike
+cycle.
 
 ### Storage Persistence and Quota
 

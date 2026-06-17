@@ -7,6 +7,7 @@ import {
   discardRecovered as discardRecoveredAction,
   getServerSnapshot,
   getSnapshot,
+  isRecordingSessionActive,
   pause as pauseAction,
   resetRecordingSession as resetRecordingSessionAction,
   retryFinalizedUpload as retryFinalizedUploadAction,
@@ -22,6 +23,7 @@ import {
   type SessionSnapshot,
 } from './session'
 import { setIdentity } from './sessionIdentity'
+import { useBeforeUnloadGuard } from './useBeforeUnloadGuard'
 import { useAuthIdentity } from '@/lib/supabase/hooks'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 export { RecordingAlreadyActiveError } from './session'
@@ -58,6 +60,10 @@ export function RecordingSessionProvider({
   const identity = useAuthIdentity()
   const snapshot = useRecordingSession()
   const probedUserRef = useRef<string | null>(null)
+
+  // App-level unload guard: warns on refresh/close/quit while a recording is active
+  // (through upload completion), on every route — not just `/recording/new`.
+  useBeforeUnloadGuard(isRecordingSessionActive(snapshot))
 
   // Push the authenticated identity into the recording seam (keeps lib/recording
   // free of any supabase import) and defensively patch any live persisted row.

@@ -54,6 +54,14 @@ export type PersistedSessionPatch = Partial<
  * on failure so the write-behind queue can downgrade without affecting recording.
  */
 export interface SessionPersistence {
+  /**
+   * Up-front durability capability. `false` means this adapter never persists
+   * anything (no IndexedDB / SSR), so a session backed by it is unarmed for its
+   * whole life. This must be detected here rather than inferred from a write
+   * failure: the no-op adapter resolves every write successfully, so the failure
+   * path would never fire and the unarmed warning would never show.
+   */
+  readonly durable: boolean
   putSession(record: PersistedSession): Promise<void>
   patchSession(sessionId: string, patch: PersistedSessionPatch): Promise<void>
   getSession(sessionId: string): Promise<PersistedSession | null>

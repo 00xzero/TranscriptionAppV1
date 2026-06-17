@@ -40,6 +40,7 @@ function chunkRange(sessionId: string): IDBKeyRange {
  * (no wrapper, no base64), matching the durability schema.
  */
 export class IndexedDBSessionPersistence implements SessionPersistence {
+  readonly durable = true
   private dbPromise: Promise<IDBDatabase> | null = null
 
   private openDb(): Promise<IDBDatabase> {

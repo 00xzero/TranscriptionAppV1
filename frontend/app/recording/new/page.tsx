@@ -7,8 +7,6 @@ import {
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
 import type { SessionSnapshot } from '@/lib/recording/session'
-import { useBeforeUnloadGuard } from '@/lib/recording/useBeforeUnloadGuard'
-import { usePopStateGuard } from '@/lib/recording/guardedNavigation'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
@@ -68,8 +66,10 @@ export default function RecordingNewPage() {
   const actions = useRecordingActions()
   const [retryingUpload, setRetryingUpload] = useState(false)
 
-  useBeforeUnloadGuard()
-  usePopStateGuard()
+  // Phase 3: the unload guard is installed app-level in RecordingSessionProvider so
+  // it survives navigation away from this route. In-app navigation (incl. browser
+  // back) is always allowed while recording, so there is no route-bound popstate
+  // guard here anymore.
 
   useEffect(() => {
     const target = getCompletionRedirectTarget({
@@ -104,6 +104,31 @@ export default function RecordingNewPage() {
       className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
     >
       {snapshot.salvageMessage}
+    </div>
+  ) : null
+
+  // Passive, persistent durability warning. Recording and roaming stay allowed; this
+  // only tells the user a crash/close could lose the recording. Never says "armed".
+  const durabilityBanner = !snapshot.durable ? (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="durability-warning"
+      className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+    >
+      If this tab refreshes, closes, or crashes, this recording may be lost.
+    </div>
+  ) : null
+
+  // Passive capture-health warning when audio stops flowing while still recording.
+  const captureHealthBanner = snapshot.captureHealthWarning ? (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="capture-health-warning"
+      className="rounded-md border border-ember-red/40 bg-ember-red/10 px-4 py-2 text-sm text-ink dark:text-paper"
+    >
+      {snapshot.captureHealthWarning}
     </div>
   ) : null
 
@@ -239,6 +264,10 @@ export default function RecordingNewPage() {
       <RecordingWaveform />
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
+
+      {durabilityBanner}
+
+      {captureHealthBanner}
 
       {salvageBanner}
 

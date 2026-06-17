@@ -16,6 +16,7 @@ import {
   clearSessionActivity,
   notify,
   setSnapshot,
+  setTickObserver,
   startIntervalIfNeeded,
   store,
 } from './sessionStore'
@@ -76,6 +77,18 @@ export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
 
 export function hasUnsavedRecording(): boolean {
   return isRecordingSessionActive(store.snapshot)
+}
+
+// Auth/context boundary guard (Phase 3): sign-out and account/workspace switches
+// are blocked until the user resolves any active, recoverable, or retryable
+// recording artifact. Broader than `hasUnsavedRecording` because `recoverable`
+// audio is already persisted but must still be saved/transcribed or discarded
+// before leaving the user/context it belongs to.
+export function hasUnresolvedRecordingArtifact(): boolean {
+  return (
+    isRecordingSessionActive(store.snapshot) ||
+    store.snapshot.state === 'recoverable'
+  )
 }
 
 function assertNeverTransitionAction(value: never): never {
@@ -241,7 +254,13 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.sessionId = sessionId
     store.runtime.uploadIntentId = uploadIntentId
     store.runtime.nextChunkSeq = 0
-    store.runtime.writeQueue = new SessionWriteQueue(persistence, sessionId)
+    store.runtime.lastChunkReceivedAt = null
+    store.runtime.flushRequested = false
+    store.runtime.writeQueue = new SessionWriteQueue(
+      persistence,
+      sessionId,
+      handleDurabilityDowngrade
+    )
 
     controller.start(1000)
   } catch (err) {
@@ -279,6 +298,9 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     keyTerms: params.keyTerms,
     codecExtension: params.codec.extension,
     bytesSoFar: 0,
+    // Unavailable-from-start detection: a no-op adapter never persists, so the
+    // session is unarmed for its whole life and the warning shows immediately.
+    durable: persistence.durable,
   })
 
   // Persist the session row first (queue invariant: putSession is op #0), then
@@ -342,11 +364,25 @@ async function finalizeTerminalCleanup(): Promise<void> {
 }
 
 export function pause(): void {
-  if (transition('pause')) persistTimingPatch()
+  if (transition('pause', { captureHealthWarning: null })) {
+    store.runtime.flushRequested = false
+    persistTimingPatch()
+  }
 }
 
 export function resume(): void {
-  if (transition('resume', { lastResumeAt: Date.now() })) persistTimingPatch()
+  if (
+    transition('resume', {
+      lastResumeAt: Date.now(),
+      captureHealthWarning: null,
+    })
+  ) {
+    // Re-baseline capture-health on resume so a long pause does not register as a
+    // capture stall the instant recording resumes (no chunk has arrived yet).
+    store.runtime.lastChunkReceivedAt = Date.now()
+    store.runtime.flushRequested = false
+    persistTimingPatch()
+  }
 }
 
 // Persist pause/resume timing from the POST-transition snapshot. `transition()`
@@ -497,6 +533,12 @@ export function recordChunk(blob: Blob): void {
   store.runtime.chunks.push(blob)
   store.runtime.bytesSoFar += blob.size
 
+  // Capture-health: a chunk arrived, so audio is flowing. Refresh the freshness
+  // baseline, clear any pending flush request, and drop a stale-capture warning.
+  const now = Date.now()
+  store.runtime.lastChunkReceivedAt = now
+  store.runtime.flushRequested = false
+
   // Mirror the chunk + advisory counters to durable storage (write-behind, never
   // awaited). The first persisted chunk is seq=0 — the required init chunk.
   const queue = store.runtime.writeQueue
@@ -506,13 +548,14 @@ export function recordChunk(blob: Blob): void {
     queue.enqueueMetadata({
       bytesSoFar: store.runtime.bytesSoFar,
       lastChunkSeq: seq,
-      lastChunkReceivedAt: Date.now(),
+      lastChunkReceivedAt: now,
     })
   }
 
   setSnapshot({
     ...store.snapshot,
     bytesSoFar: store.runtime.bytesSoFar,
+    captureHealthWarning: null,
   })
 
   if (
@@ -537,8 +580,79 @@ export function handleRecorderFailure(reason: string): void {
   discard(`${reason} Recording discarded before enough audio was captured.`)
 }
 
+/**
+ * Flip the live session to unarmed when the write-behind queue downgrades. Scoped
+ * to active states so a late write failure from a torn-down queue cannot leak into
+ * a fresh idle/terminal snapshot. The next `attachAndStart` re-initializes
+ * `durable` from the adapter capability.
+ */
+function handleDurabilityDowngrade(
+  sessionId: string,
+  _reason: string | null
+): void {
+  if (store.runtime.sessionId !== sessionId) return
+  if (!isRecordingSessionActive(store.snapshot)) return
+  if (!store.snapshot.durable) return
+  setSnapshot({ ...store.snapshot, durable: false })
+}
+
+const CAPTURE_STALE_MS = 4_000
+const CAPTURE_HEALTH_WARNING =
+  'We have not received new audio recently. The recording may have stopped capturing.'
+
+function hasLiveAudioTrack(recorder: MediaRecorder): boolean {
+  return recorder.stream.getAudioTracks().some((t) => t.readyState === 'live')
+}
+
+/**
+ * Capture-health watchdog (Phase 3). Driven by the 1s recording interval. While
+ * `recording`, if no chunk has arrived within `CAPTURE_STALE_MS`:
+ *   1. confirmed loss (recorder inactive / no live track) → existing salvage path;
+ *   2. first stale tick → request a manual flush, wait one tick (no warning yet);
+ *   3. still stale after the flush → surface a passive warning.
+ * Owner-tab only; non-owner presence tabs never run this (Phase 4).
+ */
+export function checkCaptureHealth(now: number = Date.now()): void {
+  if (store.snapshot.state !== 'recording') return
+  const controller = store.runtime.controller
+  if (!controller) return
+
+  const baseline =
+    store.runtime.lastChunkReceivedAt ??
+    store.snapshot.lastResumeAt ??
+    store.snapshot.startedAt
+  if (baseline == null) return
+  if (now - baseline < CAPTURE_STALE_MS) return
+
+  // Confirmed audio loss takes priority over a soft warning.
+  const recorder = controller.getRecorder()
+  if (recorder.state === 'inactive' || !hasLiveAudioTrack(recorder)) {
+    handleRecorderFailure('Recording stopped unexpectedly.')
+    return
+  }
+
+  if (!store.runtime.flushRequested) {
+    // First stale tick: ask for a manual flush and give it a tick to land.
+    store.runtime.flushRequested = true
+    try {
+      controller.requestData()
+    } catch {
+      // Best-effort flush; some browsers throw while a recorder is transitioning.
+    }
+    return
+  }
+
+  // Still stale after the flush request — surface the passive warning (idempotent).
+  if (store.snapshot.captureHealthWarning == null) {
+    setSnapshot({ ...store.snapshot, captureHealthWarning: CAPTURE_HEALTH_WARNING })
+  }
+}
+
+// Drive the capture-health watchdog from the recording interval tick.
+setTickObserver(checkCaptureHealth)
+
 export function finalize(): void {
-  transition('finalize')
+  transition('finalize', { captureHealthWarning: null })
 }
 
 export function markUploading(): void {

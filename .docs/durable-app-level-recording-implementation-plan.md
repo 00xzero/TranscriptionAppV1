@@ -2,14 +2,21 @@
 
 ## Status
 
-Phases 1-2 implemented in the current branch:
+Phases 1-3 implemented in the current branch:
 
 - Phase 1: IndexedDB durability foundation and write-behind persistence.
 - Phase 2: recovery, user-scoped upload idempotency, and the minimal session lock
   seam needed to keep recovery claims from racing live sessions.
+- Phase 3: app-level recording lifecycle — in-app navigation is always allowed,
+  the `beforeunload` guard moved to `RecordingSessionProvider` and stays through
+  upload completion, sign-out is guarded by `hasUnresolvedRecordingArtifact`, the
+  `durable` and `captureHealthWarning` session-snapshot signals drive passive
+  page warnings, and the recording pill stays reachable across every unresolved
+  state.
 
-Phases 3-5 remain planned: app-level navigation/guard polish, same-browser
-presence/remote-owner UI, and global pill/product polish.
+Phases 4-5 remain planned: same-browser presence/remote-owner UI, and global
+pill/product polish (hover/focus preview, terminal animations, polished pill
+variants).
 
 This plan complements
 [`durable-app-level-recording-design.md`](./durable-app-level-recording-design.md).
@@ -114,6 +121,16 @@ Exit criteria:
 
 Goal: make recording truly survive normal app navigation.
 
+Status: implemented in the current branch. The in-app navigation guards
+(`GuardedLink`, `useGuardedNavigate`) are now thin pass-throughs that never
+prompt or discard; the `usePopStateGuard`/`confirmBeforeLeave` route-bound flow
+was removed. `useBeforeUnloadGuard(active)` takes its active flag as an argument
+and is installed once in `RecordingSessionProvider`. Capture health is a
+tick-driven watchdog (`checkCaptureHealth`) registered via a `setTickObserver`
+seam. Durability is surfaced through the `durable` snapshot field, seeded up
+front from `SessionPersistence.durable` and flipped by the write queue's
+`onDowngrade` callback.
+
 Includes:
 
 - Remove route-bound assumptions from recording lifecycle.
@@ -129,7 +146,8 @@ Includes:
     session snapshot (the foundation tracks it internally only);
   - recording still allowed;
   - roaming still allowed;
-  - warning appears in preview/page;
+  - warning appears on the `/recording/new` page; the hover/focus pill preview
+    that the design also names as a warning surface is deferred to Phase 5;
   - full unload remains guarded.
 
 Exit criteria:

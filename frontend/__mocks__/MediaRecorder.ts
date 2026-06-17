@@ -58,6 +58,7 @@ export class FakeMediaRecorder extends EventTarget {
 /** A `MediaStreamTrack` whose events can be dispatched in tests. */
 export interface FakeMediaStreamTrack extends EventTarget {
   stop: jest.Mock
+  readyState: MediaStreamTrackState
 }
 
 /**
@@ -67,6 +68,9 @@ export interface FakeMediaStreamTrack extends EventTarget {
 export function createFakeStream(): MediaStream {
   const track = Object.assign(new EventTarget(), {
     stop: jest.fn(),
+    // Live by default; capture-health tests flip this to 'ended' to simulate a
+    // track that died while the recorder still reports `recording`.
+    readyState: 'live' as MediaStreamTrackState,
   }) as FakeMediaStreamTrack
 
   return {

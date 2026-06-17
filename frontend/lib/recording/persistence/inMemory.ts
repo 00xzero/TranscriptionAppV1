@@ -9,6 +9,7 @@ import type {
  * behavior (seq-ordered reads, delete-cascade) without a real database.
  */
 export class InMemorySessionPersistence implements SessionPersistence {
+  readonly durable = true
   private readonly sessions = new Map<string, PersistedSession>()
   private readonly chunks = new Map<string, Map<number, Blob>>()
 

@@ -49,7 +49,25 @@ export function setSnapshot(next: SessionSnapshot): void {
   notify()
 }
 
+// Per-tick observer seam. `sessionActions` registers the capture-health watchdog
+// here so the 1s recording interval can drive it without sessionStore importing
+// sessionActions (which would create a cycle).
+let tickObserver: (() => void) | null = null
+
+export function setTickObserver(observer: (() => void) | null): void {
+  tickObserver = observer
+}
+
 function tickSnapshot(): void {
+  // Run the registered watchdog first so any snapshot change it makes is included
+  // in this tick's notification.
+  if (tickObserver) {
+    try {
+      tickObserver()
+    } catch {
+      // A watchdog failure must never stop the timer.
+    }
+  }
   // Bump the snapshot reference each tick so `useSyncExternalStore` re-renders
   // subscribers reading derived values like `getElapsedActiveMs`.
   store.snapshot = { ...store.snapshot }

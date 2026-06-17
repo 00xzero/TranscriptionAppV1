@@ -38,7 +38,17 @@ export class SessionWriteQueue {
 
   constructor(
     private readonly persistence: SessionPersistence,
-    private readonly sessionId: string
+    private readonly sessionId: string,
+    /**
+     * Fired once when the session downgrades to `armed = false` (first write
+     * failure or a lazy IndexedDB open that throws on the first op). Lets the live
+     * session surface the unarmed warning. Never fired for the unavailable-from-
+     * start case — that is detected up front via `SessionPersistence.durable`.
+     */
+    private readonly onDowngrade?: (
+      sessionId: string,
+      reason: string | null
+    ) => void
   ) {}
 
   isArmed(): boolean {
@@ -151,6 +161,13 @@ export class SessionWriteQueue {
 
     this.armed = false
     this.failureReason = err instanceof Error ? err.message : String(err)
+    // Surface the downgrade to the live session (unarmed warning). Swallow any
+    // observer error so persistence failure handling never throws.
+    try {
+      this.onDowngrade?.(this.sessionId, this.failureReason)
+    } catch {
+      // ignore — best-effort notification
+    }
     // Sticky downgrade: drop pending work, but keep a queued terminal delete.
     this.ops = this.ops.filter((pending) => pending.kind === 'delete')
     // Single best-effort downgrade marker; swallow its own failure, no recursion.
