@@ -2,7 +2,14 @@
 
 ## Status
 
-Phase 1 (Durability Foundation) implemented; Phases 2-5 planned.
+Phases 1-2 implemented in the current branch:
+
+- Phase 1: IndexedDB durability foundation and write-behind persistence.
+- Phase 2: recovery, user-scoped upload idempotency, and the minimal session lock
+  seam needed to keep recovery claims from racing live sessions.
+
+Phases 3-5 remain planned: app-level navigation/guard polish, same-browser
+presence/remote-owner UI, and global pill/product polish.
 
 This plan complements
 [`durable-app-level-recording-design.md`](./durable-app-level-recording-design.md).
@@ -78,6 +85,21 @@ Includes:
 - Below-floor cleanup.
 - Newest-first multiple-orphan handling.
 - `/recording/new` recoverable state.
+- Minimal `SessionLock` adapter:
+  - Web Locks where available;
+  - degraded chunk-freshness fallback where Web Locks are unavailable;
+  - protects live sessions from being claimed as recoverable;
+  - lets exactly one tab claim a recoverable orphan.
+- Remove the old `sessionStorage` draft and `recoverInterruptedDraft` restart
+  flow. In this phase, `interrupted` means unrecoverable and returns the user to
+  the library.
+- Keep recovery chunk-authoritative. `armed`/`failureReason` remain internal or
+  diagnostic signals and do not suppress recovery in this phase.
+- Recovery modal shows approximate recovered size, not duration.
+- Recovery probing runs once per resolved authenticated user, with
+  `attachAndStart` re-probing as a final backstop. The app shell does not gate on
+  the probe, and there is no explicit one-retry-on-IDB-open-failure behavior in
+  this phase.
 
 Exit criteria:
 
@@ -85,6 +107,8 @@ Exit criteria:
 - Invalid chunk streams are rejected.
 - Recovery save does not create duplicate projects.
 - Unresolved recovery blocks starting a new recording.
+- Multiple valid orphans are handled defensively by showing the newest first and
+  chaining to the next after save/discard.
 
 ## Phase 3: App-Level Recording Lifecycle
 
@@ -120,8 +144,12 @@ Goal: make multiple tabs in the same browser behave coherently.
 
 Includes:
 
-- `SessionLock` adapter using Web Locks.
-- Degraded heartbeat-only fallback when Web Locks are unavailable.
+- Extend the Phase 2 `SessionLock` seam into full same-browser coordination.
+- Consider adding a global per-browser recording mutex or equivalent duplicate
+  start detector. The Phase 2 lock is per-session and does not block a separate
+  new recording in another tab.
+- Replace the Phase 2 no-Web-Locks chunk-freshness fallback with
+  heartbeat-based degraded awareness.
 - `RecordingPresence` adapter using BroadcastChannel and localStorage.
 - Owner heartbeat every 2 seconds.
 - Stale after 15 seconds plus lock confirmation.

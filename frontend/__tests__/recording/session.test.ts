@@ -3,6 +3,7 @@ jest.mock('@/lib/capture/upload', () => ({ runCaptureUpload: jest.fn() }))
 import { runCaptureUpload } from '@/lib/capture/upload'
 import {
   __resetForTesting,
+  __setSnapshotForTesting,
   attachAndStart,
   discard,
   finalize,
@@ -17,15 +18,18 @@ import {
   markUploading,
   pause,
   recordChunk,
-  recoverInterruptedDraft,
   resetRecordingSession,
   retryFinalizedUpload,
   resume,
+  runRecoveryProbe,
+  saveRecovered,
   stopAndFinalize,
   startMock,
   subscribe,
+  syncIdentityToActiveSession,
   type AttachAndStartParams,
 } from '@/lib/recording/session'
+import { setIdentity } from '@/lib/recording/sessionIdentity'
 import {
   FakeMediaRecorder,
   createFakeStream,
@@ -36,13 +40,17 @@ import {
 import {
   __setPersistenceForTesting,
   InMemorySessionPersistence,
+  type PersistedSession,
 } from '@/lib/recording/persistence'
+import { __setSessionLockForTesting, type SessionLock } from '@/lib/recording/lock'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
 
-function attachRecording(overrides: Partial<AttachAndStartParams> = {}): void {
-  attachAndStart({
+async function attachRecording(
+  overrides: Partial<AttachAndStartParams> = {}
+): Promise<void> {
+  await attachAndStart({
     stream: createFakeStream(),
     codec: DEFAULT_CODEC,
     title: null,
@@ -79,6 +87,7 @@ describe('recording session singleton', () => {
     __resetForTesting()
     mockRunCaptureUpload.mockReset()
     installMediaRecorderMock()
+    setIdentity({ userId: 'user-123', ready: true })
     // The session finalize path relies on `stop()` emitting a `stop` event.
     FakeMediaRecorder.autoDispatchStop = true
   })
@@ -204,7 +213,7 @@ describe('recording session singleton', () => {
       outcome: 'started',
     })
 
-    attachRecording({
+    await attachRecording({
       title: 'Discard while stopping',
       maxBytes: 1024 * 1024,
     })
@@ -229,7 +238,7 @@ describe('recording session singleton', () => {
       outcome: 'started',
     })
 
-    attachRecording({
+    await attachRecording({
       title: 'Flush before stop',
       maxBytes: 1024 * 1024,
     })
@@ -247,12 +256,15 @@ describe('recording session singleton', () => {
 
     expect(mockRunCaptureUpload.mock.calls[0][0]).toBeInstanceOf(File)
     expect(mockRunCaptureUpload.mock.calls[0][0].size).toBe(4608)
+    expect(mockRunCaptureUpload.mock.calls[0][3]?.uploadIntentId).toEqual(
+      expect.any(String)
+    )
   })
 
   test('stop below the empty floor discards without uploading', async () => {
     const now = jest.spyOn(Date, 'now')
     now.mockReturnValue(4_000_000)
-    attachRecording({
+    await attachRecording({
       title: 'Too short',
       maxBytes: 1024 * 1024,
     })
@@ -299,51 +311,6 @@ describe('recording session singleton', () => {
     expect(getSnapshot().title).toBeNull()
   })
 
-  test('recoverInterruptedDraft restores a persisted real draft after reload', () => {
-    window.sessionStorage.setItem(
-      'recording.sessionDraft',
-      JSON.stringify({ title: 'Recovered title' })
-    )
-
-    expect(recoverInterruptedDraft()).toBe(true)
-    expect(getSnapshot()).toMatchObject({
-      state: 'interrupted',
-      title: 'Recovered title',
-    })
-  })
-
-  test('startMock does not write a real interrupted recovery draft', () => {
-    startMock({ title: 'Mock-only title' })
-
-    expect(window.sessionStorage.getItem('recording.sessionDraft')).toBeNull()
-  })
-
-  test('corrupt interrupted drafts are cleared without recovering', () => {
-    window.sessionStorage.setItem('recording.sessionDraft', '{not-json')
-
-    expect(recoverInterruptedDraft()).toBe(false)
-    expect(window.sessionStorage.getItem('recording.sessionDraft')).toBeNull()
-    expect(getSnapshot().state).toBe('idle')
-  })
-
-  test('attachAndStart writes a real interrupted recovery draft', () => {
-    attachRecording({
-      title: 'Real draft title',
-      keyTerms: ['alpha'],
-      deviceId: 'mic-1',
-    })
-
-    expect(window.sessionStorage.getItem('recording.sessionDraft')).toEqual(
-      JSON.stringify({
-        title: 'Real draft title',
-        generatedTitle: null,
-        keyTerms: ['alpha'],
-        codecMime: 'audio/webm',
-        deviceId: 'mic-1',
-      })
-    )
-  })
-
   test('forceState normalizes timing fields per target', () => {
     forceState('recording')
     let snap = getSnapshot()
@@ -379,18 +346,18 @@ describe('recording session singleton', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  test('getLiveRecorder exposes the attached recorder, null otherwise', () => {
+  test('getLiveRecorder exposes the attached recorder, null otherwise', async () => {
     expect(getLiveRecorder()).toBeNull()
 
-    attachRecording()
+    await attachRecording()
     expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
 
     markSubmitted() // disposes the controller
     expect(getLiveRecorder()).toBeNull()
   })
 
-  test('markInterrupted disposes an attached recorder while preserving interrupted state', () => {
-    attachRecording()
+  test('markInterrupted disposes an attached recorder while preserving interrupted state', async () => {
+    await attachRecording()
     expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
 
     markInterrupted('Page reloaded.')
@@ -404,8 +371,8 @@ describe('recording session singleton', () => {
 
   test.each(['idle', 'submitted', 'discarded', 'error', 'interrupted'] as const)(
     'forceState(%s) does not leave a live recorder attached',
-    (state) => {
-      attachRecording()
+    async (state) => {
+      await attachRecording()
       expect(getLiveRecorder()).toBe(FakeMediaRecorder.lastInstance)
 
       forceState(state)
@@ -415,19 +382,44 @@ describe('recording session singleton', () => {
     }
   )
 
-  test('failed recorder start does not poison later attach attempts', () => {
+  test('failed recorder start does not poison later attach attempts', async () => {
     FakeMediaRecorder.shouldThrowOnStart = true
 
-    expect(() =>
-      attachRecording()
-    ).toThrow('start failed')
+    await expect(attachRecording()).rejects.toThrow('start failed')
 
     expect(getSnapshot().state).toBe('idle')
 
-    expect(() =>
-      attachRecording()
-    ).not.toThrow()
+    await expect(attachRecording()).resolves.toBeUndefined()
     expect(getSnapshot().state).toBe('recording')
+  })
+
+  test('failed recorder construction releases the acquired session lock', async () => {
+    const release = jest.fn(async () => {})
+    const lock: SessionLock = {
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release,
+    }
+    __setSessionLockForTesting(lock)
+
+    class ThrowingMediaRecorder extends EventTarget {
+      static isTypeSupported = () => true
+      constructor() {
+        super()
+        throw new Error('construct failed')
+      }
+    }
+    ;(globalThis as unknown as { MediaRecorder: unknown }).MediaRecorder =
+      ThrowingMediaRecorder
+    if (typeof window !== 'undefined') {
+      ;(window as unknown as { MediaRecorder: unknown }).MediaRecorder =
+        ThrowingMediaRecorder
+    }
+
+    await expect(attachRecording()).rejects.toThrow('construct failed')
+
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(getSnapshot().state).toBe('idle')
   })
 
   test('recorder errors above the salvage threshold submit captured audio', async () => {
@@ -438,7 +430,7 @@ describe('recording session singleton', () => {
     })
     const now = jest.spyOn(Date, 'now')
     now.mockReturnValue(1_000_000)
-    attachRecording({
+    await attachRecording({
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
@@ -468,7 +460,7 @@ describe('recording session singleton', () => {
         outcome: 'started',
       })
 
-    attachRecording({
+    await attachRecording({
       title: 'Retry me',
       keyTerms: ['alpha'],
       maxBytes: 1024 * 1024,
@@ -522,7 +514,7 @@ describe('recording session singleton', () => {
       })
     })
 
-    attachRecording({
+    await attachRecording({
       title: 'Discard during upload',
       maxBytes: 1024 * 1024,
     })
@@ -568,7 +560,7 @@ describe('recording session singleton', () => {
       })
     })
 
-    attachRecording({
+    await attachRecording({
       title: 'Late chunk',
       maxBytes: 1024 * 1024,
     })
@@ -602,7 +594,7 @@ describe('recording session singleton', () => {
       message: 'Upload failed',
     })
 
-    attachRecording({
+    await attachRecording({
       title: 'Reset retry',
       maxBytes: 1024 * 1024,
     })
@@ -637,6 +629,77 @@ class FailingChunkPersistence extends InMemorySessionPersistence {
   }
 }
 
+// Gates the probe's metadata read (chunkStats) so a test can flip the live
+// snapshot mid-probe and assert the stale result is discarded.
+class DelayedChunkStatsPersistence extends InMemorySessionPersistence {
+  readStarted: Promise<void>
+  releaseRead!: () => void
+  private resolveReadStarted!: () => void
+
+  constructor() {
+    super()
+    this.readStarted = new Promise((resolve) => {
+      this.resolveReadStarted = resolve
+    })
+  }
+
+  override async chunkStats(
+    sessionId: string
+  ): Promise<{ count: number; totalBytes: number }> {
+    this.resolveReadStarted()
+    await new Promise<void>((resolve) => {
+      this.releaseRead = resolve
+    })
+    return super.chunkStats(sessionId)
+  }
+}
+
+class CountingSessionLock implements SessionLock {
+  held: string | null = null
+  releaseCount = 0
+
+  async acquire(sessionId: string): Promise<boolean> {
+    this.held = sessionId
+    return true
+  }
+
+  async isHeld(sessionId: string): Promise<boolean> {
+    return this.held === sessionId
+  }
+
+  async release(): Promise<void> {
+    this.releaseCount++
+    this.held = null
+  }
+}
+
+class DelayedDeletePersistence extends InMemorySessionPersistence {
+  deleteStarted: Promise<void>
+  deleteFinished: Promise<void>
+  releaseDelete!: () => void
+  private resolveDeleteStarted!: () => void
+  private resolveDeleteFinished!: () => void
+
+  constructor() {
+    super()
+    this.deleteStarted = new Promise((resolve) => {
+      this.resolveDeleteStarted = resolve
+    })
+    this.deleteFinished = new Promise((resolve) => {
+      this.resolveDeleteFinished = resolve
+    })
+  }
+
+  override async deleteSession(sessionId: string): Promise<void> {
+    this.resolveDeleteStarted()
+    await new Promise<void>((resolve) => {
+      this.releaseDelete = resolve
+    })
+    await super.deleteSession(sessionId)
+    this.resolveDeleteFinished()
+  }
+}
+
 describe('recording session durability mirror', () => {
   let persistence: InMemorySessionPersistence
 
@@ -650,11 +713,12 @@ describe('recording session durability mirror', () => {
     mockRunCaptureUpload.mockReset()
     installMediaRecorderMock()
     FakeMediaRecorder.autoDispatchStop = true
+    setIdentity({ userId: 'user-123', ready: true })
     installPersistence(new InMemorySessionPersistence())
   })
 
   test('mirrors session metadata and a contiguous seq=0..N chunk stream', async () => {
-    attachRecording({ title: 'Durable', maxBytes: 1024 * 1024 })
+    await attachRecording({ title: 'Durable', maxBytes: 1024 * 1024 })
     recordChunk(new Blob([new Uint8Array(1000)]))
     recordChunk(new Blob([new Uint8Array(2000)]))
     recordChunk(new Blob([new Uint8Array(3000)]))
@@ -674,10 +738,86 @@ describe('recording session durability mirror', () => {
     expect(await persistence.listChunkSeqs(session.sessionId)).toEqual([0, 1, 2])
   })
 
+  test('persists the resolved userId and a non-null uploadIntentId', async () => {
+    setIdentity({ userId: 'user-123', ready: true })
+    await attachRecording({ title: 'Scoped', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(1000)]))
+    await flushAsync()
+
+    const session = (await persistence.listSessions())[0]
+    expect(session.userId).toBe('user-123')
+    expect(typeof session.uploadIntentId).toBe('string')
+    expect(session.uploadIntentId).not.toBeNull()
+  })
+
+  test('attachAndStart blocks until identity is resolved and user-scoped', async () => {
+    setIdentity({ userId: null, ready: false })
+
+    await expect(
+      attachRecording({ title: 'Late auth', maxBytes: 1024 * 1024 })
+    ).rejects.toMatchObject({ code: 'recording_identity_required' })
+
+    expect(await persistence.listSessions()).toEqual([])
+  })
+
+  test('syncIdentityToActiveSession can backfill an existing live row', async () => {
+    await attachRecording({ title: 'Patch auth', maxBytes: 1024 * 1024 })
+    syncIdentityToActiveSession('user-late')
+    await flushAsync()
+    expect((await persistence.listSessions())[0].userId).toBe('user-late')
+  })
+
+  test('a stale recovery probe does not overwrite a live recording', async () => {
+    const delayedPersistence = new DelayedChunkStatsPersistence()
+    installPersistence(delayedPersistence)
+    const lock = new CountingSessionLock()
+    __setSessionLockForTesting(lock)
+
+    const session: PersistedSession = {
+      sessionId: 'old-orphan',
+      userId: 'user-123',
+      uploadIntentId: 'intent-old',
+      title: 'Old orphan',
+      generatedTitle: null,
+      keyTerms: [],
+      codecMime: 'audio/webm',
+      codecExtension: 'webm',
+      deviceId: null,
+      createdAt: 1_000,
+      startedAt: 1_000,
+      lastResumeAt: 1_000,
+      pausedAccumulatedMs: 0,
+      bytesSoFar: 8192,
+      lastChunkSeq: 1,
+      lastChunkReceivedAt: 1_000,
+      phase: 'capturing',
+      armed: true,
+      failureReason: null,
+    }
+    await delayedPersistence.putSession(session)
+    await delayedPersistence.putChunk(session.sessionId, 0, new Blob([new Uint8Array(4096)]))
+    await delayedPersistence.putChunk(session.sessionId, 1, new Blob([new Uint8Array(4096)]))
+
+    const probe = runRecoveryProbe()
+    await delayedPersistence.readStarted
+
+    __setSnapshotForTesting({ state: 'recording', title: 'Live recording' })
+    delayedPersistence.releaseRead()
+
+    await expect(probe).resolves.toBe(false)
+    expect(getSnapshot()).toMatchObject({
+      state: 'recording',
+      title: 'Live recording',
+      recoverable: null,
+    })
+    expect(lock.releaseCount).toBe(1)
+    expect(await delayedPersistence.getSession(session.sessionId)).not.toBeNull()
+  })
+
   test('a failing chunk write downgrades the session but recording continues', async () => {
     installPersistence(new FailingChunkPersistence())
 
-    attachRecording({ title: 'Downgrade', maxBytes: 1024 * 1024 })
+    await attachRecording({ title: 'Downgrade', maxBytes: 1024 * 1024 })
     recordChunk(new Blob([new Uint8Array(4096)]))
     await flushAsync()
 
@@ -697,7 +837,7 @@ describe('recording session durability mirror', () => {
       outcome: 'started',
     })
 
-    attachRecording({ title: 'Still submits', maxBytes: 1024 * 1024 })
+    await attachRecording({ title: 'Still submits', maxBytes: 1024 * 1024 })
     recordChunk(new Blob([new Uint8Array(4096)]))
     advanceClockPastEmptyFloor()
     await stopAndFinalize()
@@ -707,7 +847,7 @@ describe('recording session durability mirror', () => {
   })
 
   test('discard clears the persisted session and chunks', async () => {
-    attachRecording({ title: 'Cleanup', maxBytes: 1024 * 1024 })
+    await attachRecording({ title: 'Cleanup', maxBytes: 1024 * 1024 })
     recordChunk(new Blob([new Uint8Array(4096)]))
     await flushAsync()
     expect(await persistence.listSessions()).toHaveLength(1)
@@ -720,6 +860,33 @@ describe('recording session durability mirror', () => {
     expect(await persistence.listChunkSeqs(sessionId)).toEqual([])
   })
 
+  test('terminal cleanup deletes persisted data before releasing the session lock', async () => {
+    const delayedPersistence = new DelayedDeletePersistence()
+    installPersistence(delayedPersistence)
+    const release = jest.fn(async () => {})
+    __setSessionLockForTesting({
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release,
+    })
+
+    await attachRecording({ title: 'Ordered cleanup', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    await flushAsync()
+
+    discard()
+    await delayedPersistence.deleteStarted
+
+    expect(release).not.toHaveBeenCalled()
+
+    delayedPersistence.releaseDelete()
+    await delayedPersistence.deleteFinished
+    await flushAsync()
+
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(await delayedPersistence.listSessions()).toEqual([])
+  })
+
   test('successful submission clears the persisted session', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
@@ -727,7 +894,7 @@ describe('recording session durability mirror', () => {
       outcome: 'started',
     })
 
-    attachRecording({ title: 'Saved cleanup', maxBytes: 1024 * 1024 })
+    await attachRecording({ title: 'Saved cleanup', maxBytes: 1024 * 1024 })
     recordChunk(new Blob([new Uint8Array(4096)]))
     advanceClockPastEmptyFloor()
     await flushAsync()
@@ -738,5 +905,68 @@ describe('recording session durability mirror', () => {
 
     expect(getSnapshot().state).toBe('submitted')
     expect(await persistence.listSessions()).toEqual([])
+  })
+
+  test('successful recovered save clears the recoverable payload', async () => {
+    const session: PersistedSession = {
+      sessionId: 'recoverable-1',
+      userId: 'user-123',
+      uploadIntentId: 'intent-1',
+      title: 'Recovered title',
+      generatedTitle: null,
+      keyTerms: ['alpha'],
+      codecMime: 'audio/webm',
+      codecExtension: 'webm',
+      deviceId: null,
+      createdAt: 1_000,
+      startedAt: 1_000,
+      lastResumeAt: 1_000,
+      pausedAccumulatedMs: 0,
+      bytesSoFar: 8192,
+      lastChunkSeq: 1,
+      lastChunkReceivedAt: 1_000,
+      phase: 'capturing',
+      armed: true,
+      failureReason: null,
+    }
+    await persistence.putSession(session)
+    await persistence.putChunk(session.sessionId, 0, new Blob([new Uint8Array(4096)]))
+    await persistence.putChunk(session.sessionId, 1, new Blob([new Uint8Array(4096)]))
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'project-recovered',
+      outcome: 'started',
+    })
+    __setSnapshotForTesting({
+      state: 'recoverable',
+      title: session.title,
+      keyTerms: session.keyTerms,
+      recoverable: {
+        sessionId: session.sessionId,
+        uploadIntentId: session.uploadIntentId,
+        title: session.title,
+        generatedTitle: session.generatedTitle,
+        keyTerms: session.keyTerms,
+        codecMime: session.codecMime,
+        codecExtension: session.codecExtension,
+        bytesSoFar: 8192,
+        createdAt: session.createdAt,
+        remainingCount: 0,
+      },
+    })
+
+    await expect(saveRecovered('Recovered title')).resolves.toEqual({
+      ok: true,
+      chainedToNext: false,
+    })
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'submitted',
+      recoverable: null,
+      submissionResult: {
+        projectId: 'project-recovered',
+        outcome: 'started',
+      },
+    })
   })
 })

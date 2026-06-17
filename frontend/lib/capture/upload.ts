@@ -3,6 +3,7 @@ import {
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
+import { randomId } from '@/lib/ids'
 
 /**
  * Supported file types for upload.
@@ -62,6 +63,19 @@ export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'don
 export interface CaptureUploadOptions {
     onProgress?: (p: CaptureUploadProgress) => void
     signal?: AbortSignal
+    /**
+     * Client-generated upload idempotency key (recording sessions only). When set:
+     * project create dedupes by (user_id, uploadIntentId), and `/start` is keyed
+     * with `start:<uploadIntentId>` so a recovery retry returns the canonical
+     * project + job instead of duplicating either.
+     */
+    uploadIntentId?: string
+    /**
+     * Allow overwriting an existing storage object on upload. Used by recovery
+     * saves where the media key may already exist from an interrupted attempt;
+     * the live capture path leaves this false to keep its stricter guarantee.
+     */
+    allowUpsert?: boolean
 }
 
 export type CaptureUploadResult =
@@ -114,7 +128,8 @@ async function rollbackPartialCapture(
     supabase: ReturnType<typeof createClient>,
     projectId: string | null,
     storagePath: string | null,
-    didUploadFile: boolean
+    didUploadFile: boolean,
+    shouldDeleteProject: boolean
 ): Promise<string | null> {
     const cleanupFailures: string[] = []
 
@@ -129,7 +144,7 @@ async function rollbackPartialCapture(
         }
     }
 
-    if (projectId) {
+    if (projectId && shouldDeleteProject) {
         const { error: deleteError } = await supabase
             .from('projects')
             .delete()
@@ -174,6 +189,53 @@ function validateFile(file: File): string | null {
 }
 
 /**
+ * POST /start with optional idempotency. When an uploadIntentId is provided the
+ * start is keyed `start:<uploadIntentId>` so a recovery retry returns the cached
+ * job rather than creating a second one. If a prior errored job maps to that key,
+ * `/start` returns 409 `{ status: 'error' }`; we retry once with a fresh random
+ * key (the one-active-per-project unique index still prevents a duplicate active
+ * job). A plain conflict 409 (no `status`) is returned as-is.
+ */
+async function dispatchStart(
+    projectId: string,
+    uploadIntentId: string | undefined,
+    signal: AbortSignal | undefined
+): Promise<Response> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (uploadIntentId) {
+        headers['x-idempotency-key'] = `start:${uploadIntentId}`
+    }
+
+    const res = await fetch(`/api/projects/${projectId}/start`, {
+        method: 'POST',
+        headers,
+        signal,
+    })
+
+    if (res.ok || res.status !== 409 || !uploadIntentId) {
+        return res
+    }
+
+    const body = await res
+        .clone()
+        .json()
+        .catch(() => ({} as { status?: string }))
+    if (body?.status !== 'error') {
+        return res
+    }
+
+    console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
+    return fetch(`/api/projects/${projectId}/start`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-idempotency-key': `start-retry:${randomId()}`,
+        },
+        signal,
+    })
+}
+
+/**
  * Shared upload/transcription pipeline used by both upload capture and
  * in-browser recording capture. UI callers can subscribe to coarse progress
  * updates without coupling the pipeline to React state.
@@ -192,6 +254,7 @@ export async function runCaptureUpload(
     let didLinkMediaToProject = false
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
+    let createdFreshProject = false
 
     const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
@@ -223,7 +286,8 @@ export async function runCaptureUpload(
             body: JSON.stringify({
                 title: title || file.name,
                 filename: file.name,
-                key_terms: keyTerms.length > 0 ? keyTerms : undefined
+                key_terms: keyTerms.length > 0 ? keyTerms : undefined,
+                upload_intent_id: options?.uploadIntentId
             })
         })
 
@@ -236,64 +300,74 @@ export async function runCaptureUpload(
         const createData = await createRes.json()
         projectId = createData?.project?.id ?? null
         storagePath = createData?.storagePath ?? null
+        // On a recovery retry the canonical project may already have its media
+        // linked from a prior attempt; if so, skip re-uploading.
+        const alreadyLinkedKey: string | null = createData?.sourceObjectKey ?? null
 
         if (!projectId || !storagePath) {
             throw new Error('Project creation response was missing required fields')
         }
 
-        console.log('[capture] Project created:', projectId, 'storagePath:', storagePath)
+        console.log('[capture] Project created:', projectId, 'storagePath:', storagePath, 'deduped:', createData?.deduped === true)
+        createdFreshProject = createData?.deduped !== true
 
-        options?.onProgress?.('uploading')
-        throwIfCanceled()
-        console.log('[capture] Step 2: Uploading file to storage...', {
-            storagePath,
-            fileSize: file.size,
-            fileType: file.type
-        })
-
-        const mimeType = getMimeType(file)
-        // Supabase Storage's upload API in this version does not pass an
-        // AbortSignal through to fetch, so the session prevents discard while
-        // this request is in flight and checks the signal before/after it.
-        const { error: uploadError } = await supabase.storage
-            .from('media')
-            .upload(storagePath, file, {
-                contentType: mimeType,
-                upsert: false
+        if (alreadyLinkedKey) {
+            // Media was already uploaded + linked on a previous attempt. Skip the
+            // upload/link steps and mark them done so the catch-block classification
+            // (saved_needs_retry / saved_status_unknown) stays correct.
+            storagePath = alreadyLinkedKey
+            didUploadFile = true
+            didLinkMediaToProject = true
+            console.log('[capture] Media already linked; skipping upload/link steps')
+        } else {
+            options?.onProgress?.('uploading')
+            throwIfCanceled()
+            console.log('[capture] Step 2: Uploading file to storage...', {
+                storagePath,
+                fileSize: file.size,
+                fileType: file.type
             })
 
-        if (uploadError) {
-            console.error('[capture] Storage upload failed:', uploadError)
-            throw new Error(`Upload failed: ${uploadError.message}`)
-        }
-        didUploadFile = true
-        throwIfCanceled()
-        console.log('[capture] File uploaded successfully')
+            const mimeType = getMimeType(file)
+            // Supabase Storage's upload API in this version does not pass an
+            // AbortSignal through to fetch, so the session prevents discard while
+            // this request is in flight and checks the signal before/after it.
+            const { error: uploadError } = await supabase.storage
+                .from('media')
+                .upload(storagePath, file, {
+                    contentType: mimeType,
+                    upsert: options?.allowUpsert ?? false
+                })
 
-        console.log('[capture] Updating project with source_object_key...')
-        const updateQuery = supabase
-            .from('projects')
-            .update({ source_object_key: storagePath })
-            .eq('id', projectId)
-        const { error: updateError } = await (signal
-            ? updateQuery.abortSignal(signal)
-            : updateQuery)
+            if (uploadError) {
+                console.error('[capture] Storage upload failed:', uploadError)
+                throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+            didUploadFile = true
+            throwIfCanceled()
+            console.log('[capture] File uploaded successfully')
 
-        if (updateError) {
-            console.error('[capture] Failed to update project source_object_key:', updateError)
-            throw new Error(`Failed to update project: ${updateError.message}`)
+            console.log('[capture] Updating project with source_object_key...')
+            const updateQuery = supabase
+                .from('projects')
+                .update({ source_object_key: storagePath })
+                .eq('id', projectId)
+            const { error: updateError } = await (signal
+                ? updateQuery.abortSignal(signal)
+                : updateQuery)
+
+            if (updateError) {
+                console.error('[capture] Failed to update project source_object_key:', updateError)
+                throw new Error(`Failed to update project: ${updateError.message}`)
+            }
+            didLinkMediaToProject = true
+            console.log('[capture] Project updated with source_object_key')
         }
-        didLinkMediaToProject = true
-        console.log('[capture] Project updated with source_object_key')
 
         options?.onProgress?.('starting')
         throwIfCanceled()
         didDispatchStartRequest = true
-        const startRes = await fetch(`/api/projects/${projectId}/start`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal,
-        })
+        const startRes = await dispatchStart(projectId, options?.uploadIntentId, signal)
         didReceiveStartResponse = true
         throwIfCanceled()
 
@@ -314,6 +388,26 @@ export async function runCaptureUpload(
             (err instanceof DOMException && err.name === 'AbortError') ||
             ((err as { name?: string })?.name === 'AbortError')
         let message = err instanceof Error ? err.message : 'An unexpected error occurred'
+
+        if (
+            wasCanceled &&
+            projectId &&
+            didLinkMediaToProject &&
+            !didDispatchStartRequest &&
+            createdFreshProject
+        ) {
+            const rollbackMessage = await rollbackPartialCapture(
+                supabase,
+                projectId,
+                storagePath,
+                didUploadFile,
+                createdFreshProject
+            )
+            if (rollbackMessage) {
+                message = `${message} ${rollbackMessage}`
+            }
+            return canceledResult(message)
+        }
 
         if (projectId && didLinkMediaToProject) {
             if (didDispatchStartRequest && !didReceiveStartResponse) {
@@ -340,7 +434,8 @@ export async function runCaptureUpload(
                 supabase,
                 projectId,
                 storagePath,
-                didUploadFile
+                didUploadFile,
+                createdFreshProject
             )
             if (rollbackMessage) {
                 message = `${message} ${rollbackMessage}`

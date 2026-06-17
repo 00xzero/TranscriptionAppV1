@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar'
 import ContextualHeader from '@/components/ContextualHeader'
 import CaptureModal from '@/components/CaptureModal'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/toaster'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </main>
               <CaptureModal />
+              <Toaster />
             </RecordingSessionProvider>
           </ModalProvider>
         </TooltipProvider>

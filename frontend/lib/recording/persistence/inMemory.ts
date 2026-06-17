@@ -54,6 +54,16 @@ export class InMemorySessionPersistence implements SessionPersistence {
     return Array.from(bucket.keys()).sort((a, b) => a - b)
   }
 
+  async chunkStats(
+    sessionId: string
+  ): Promise<{ count: number; totalBytes: number }> {
+    const bucket = this.chunks.get(sessionId)
+    if (!bucket) return { count: 0, totalBytes: 0 }
+    let totalBytes = 0
+    for (const blob of bucket.values()) totalBytes += blob.size
+    return { count: bucket.size, totalBytes }
+  }
+
   async readChunks(sessionId: string): Promise<Blob[]> {
     const bucket = this.chunks.get(sessionId)
     if (!bucket) return []

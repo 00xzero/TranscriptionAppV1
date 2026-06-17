@@ -144,6 +144,36 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     return (keys as IDBValidKey[]).map((key) => (key as [string, number])[1])
   }
 
+  async chunkStats(
+    sessionId: string
+  ): Promise<{ count: number; totalBytes: number }> {
+    const db = await this.openDb()
+    const tx = db.transaction(CHUNKS_STORE, 'readonly')
+    const store = tx.objectStore(CHUNKS_STORE)
+    let count = 0
+    let totalBytes = 0
+    // Cursor pass over the key range: each step reads `value.size` (the Blob's
+    // byte length) without retaining the Blob body, so no audio is held in
+    // memory. `cursor.continue()` releases the prior value before advancing.
+    await new Promise<void>((resolve, reject) => {
+      const req = store.openCursor(chunkRange(sessionId))
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (!cursor) {
+          resolve()
+          return
+        }
+        const blob = cursor.value as Blob
+        count++
+        totalBytes += blob.size
+        cursor.continue()
+      }
+      req.onerror = () => reject(req.error)
+    })
+    await txDone(tx)
+    return { count, totalBytes }
+  }
+
   async readChunks(sessionId: string): Promise<Blob[]> {
     const db = await this.openDb()
     const tx = db.transaction(CHUNKS_STORE, 'readonly')

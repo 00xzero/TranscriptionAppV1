@@ -2,8 +2,15 @@
 
 ## Status
 
-Design agreed. The persistence foundation is implemented (see implementation plan
-Phase 1); upload idempotency and all later stages are not yet implemented.
+Design agreed. The persistence foundation and recovery/upload-idempotency phase
+are implemented in the current branch (see implementation plan Phases 1-2).
+Same-browser presence, global pill polish, route-wide navigation guard rewrites,
+and remote-owner UI remain later phases.
+
+This document describes the target architecture, with phase notes where the
+current implementation intentionally ships a narrower behavior. When a section
+mentions current Phase 2 behavior, treat that as the source of truth for the
+implemented slice.
 
 This document supersedes the narrower "Audio Durability (Crash Recovery) Design"
 and folds in the Persistent Recording Session feature. It should be treated as
@@ -33,10 +40,10 @@ control the live recorder.
 ## Problem
 
 In-progress recordings currently live only in memory (`store.runtime.chunks` in
-`frontend/lib/recording/session.ts`). The draft metadata persists title, key
-terms, codec MIME, and device ID, but not audio bytes. A tab crash, refresh, or
-browser quit during a long recording loses the captured audio, and the existing
-`interrupted` flow can only restart with preserved metadata.
+`frontend/lib/recording/session.ts`). Before the durability work, draft metadata
+persisted title, key terms, codec MIME, and device ID, but not audio bytes. A tab
+crash, refresh, or browser quit during a long recording lost the captured audio,
+and the old `interrupted` flow could only restart with preserved metadata.
 
 The UI is also route-bound. `/recording/new` acts as the recording surface, and
 navigation guards treat leaving that route as dangerous because the recording
@@ -104,7 +111,8 @@ the expanded recording surface for:
 - finalizing/uploading;
 - retryable upload error;
 - recoverable audio;
-- direct visits from a non-owner tab where another tab owns the live recorder.
+- direct visits from a non-owner tab where another tab owns the live recorder
+  (later same-browser presence phase).
 
 When idle:
 
@@ -120,6 +128,10 @@ There is no instructional copy telling users they can navigate away.
 The contextual header is the home for recording status. The pill renders only on
 the client after local session/presence state is ready enough to avoid hydration
 mismatches. There is no fallback floating pill in this phase.
+
+Current Phase 2 note: the global pill variants and remote-owner presence UI are
+not implemented yet. Recovery is surfaced by the app-level provider and blocking
+modal, while `/recording/new` remains the expanded local route.
 
 The pill remains visible throughout the active capture lifecycle:
 
@@ -162,6 +174,13 @@ state and elapsed time.
 
 ### Terminal States
 
+Current Phase 2 note: terminal IDB cleanup is queue-owned and ordered before lock
+release. Submitted/discarded live-session cleanup asks the write queue to stop
+accepting writes, waits for pending writes plus session/chunk deletion to settle
+best-effort, and only then releases session ownership. Recovery save/discard uses
+the same ordering principle: delete the resolved orphan before releasing the
+claimed lock and probing for the next orphan.
+
 On successful submission:
 
 - clear local IDB/presence first;
@@ -198,6 +217,9 @@ persistent in the hover/focus preview and `/recording/new`:
 
 This warning remains visible through recording, paused, finalizing, and
 uploading until submitted/discarded.
+
+Current Phase 2 note: the write-behind queue tracks durability downgrade
+internally, but the unarmed warning is not surfaced in the UI yet.
 
 ## Navigation and Guards
 
@@ -239,8 +261,11 @@ Local session states:
 - `recoverable`.
 
 `interrupted` means the live recorder was lost and no recoverable audio is
-available. It keeps the existing "start a new recording with preserved metadata"
-path for unarmed or unsupported sessions.
+available. In the current Phase 2 implementation, `interrupted` is an
+unrecoverable state that directs the user back to the library; the old
+`sessionStorage` draft and "start a new recording with preserved metadata" path
+have been removed. Restoring preserved-metadata restart would be a separate
+product decision, not part of the shipped recovery phase.
 
 `recoverable` means persisted audio exists and can be saved/transcribed or
 discarded.
@@ -292,8 +317,18 @@ not declare the owner dead from chunk staleness alone; chunk freshness is a
 capture-health signal, while Web Locks plus heartbeat are ownership/liveness
 signals.
 
-Without Web Locks, use heartbeat-only presence as degraded best-effort awareness.
-It can prevent many duplicate starts but cannot prove owner death as reliably.
+Target presence phase: without Web Locks, use heartbeat-only presence as
+degraded best-effort awareness. It can prevent many duplicate starts but cannot
+prove owner death as reliably.
+
+Current Phase 2 note: the presence model is not implemented yet. The current
+code includes a `SessionLock` seam used to protect live sessions from recovery
+claims and to claim recoverable orphans. In browsers with Web Locks it uses a
+long-lived named lock per recording session. Without Web Locks, the degraded
+fallback infers likely ownership from recent persisted chunk timestamps
+(`OWNER_STALE_MS`, currently 30 seconds). It does not yet provide
+BroadcastChannel/localStorage presence, heartbeat, remote active UI, or
+cross-tab duplicate-start blocking.
 
 ## Durability Layer
 
@@ -337,15 +372,10 @@ whether the user can record or roam within the app.
 - `armed`;
 - optional failure/degrade reason for diagnostics.
 
-The existing session draft migrates fully into the `sessions` record. Do not
-split draft metadata between `sessionStorage` and IndexedDB.
-
-Transitional note: the persistence foundation (implementation plan Phase 1)
-intentionally keeps the `sessionStorage` draft in place because the existing
-`interrupted` -> `recoverInterruptedDraft` -> restart flow still reads it. During
-that stage the same metadata is written to both the draft and the IDB `sessions`
-row. The full migration — removing the `sessionStorage` draft — lands with the
-recovery stage that replaces the interrupted-restart flow.
+The existing session draft has migrated fully into the `sessions` record. Do not
+split draft metadata between `sessionStorage` and IndexedDB. The
+`sessionStorage` draft and `recoverInterruptedDraft` restart flow were removed in
+the recovery/upload-idempotency phase.
 
 ### Writer Semantics
 
@@ -361,8 +391,8 @@ Persist metadata transitions too:
 - upload intent;
 - armed/downgraded state.
 
-If any chunk write fails, the session downgrades to `armed=false`. A known hole
-means recovery is unavailable for the whole session. Once downgraded:
+If any chunk write fails, the session downgrades to `armed=false`. Once
+downgraded:
 
 - stop persistence attempts for that session;
 - do not try to re-arm;
@@ -382,6 +412,13 @@ downgraded"):
 - *mid-session downgrade*: persistence was working, then a chunk/metadata write
   failed (quota, eviction, transaction abort) and flipped `armed=false`.
 
+The current implementation treats `armed` and `failureReason` as live/UI and
+diagnostic signals, not as recovery gates. Recovery is chunk-authoritative:
+contiguous persisted chunks may still be offered as best-effort salvage even when
+a persisted downgrade marker exists. If the product wants "known downgrade means
+never recover," the recovery probe should be tightened and this section updated
+again.
+
 The persistence foundation has no recording UI, so it only tracks armed/available
 state internally (in the write-behind queue, and in the persisted row when storage
 is writable). Surfacing the unarmed warning to the user is a later-stage concern
@@ -398,11 +435,15 @@ fields are advisory hints that may lag the chunk stream after a crash.
 Before offering recovery, the app must verify:
 
 - a current-user session row exists;
-- the codec is recoverable in this browser;
-- the owner is gone or unreachable according to the ownership rules;
+- the row carries a usable persisted codec MIME or extension for file assembly;
+- the owner is gone or unreachable according to the current ownership rules;
 - persisted chunks include `seq = 0` and are contiguous from `0..N`;
-- recovered chunk bytes meet the recovery empty floor;
-- no trusted persisted downgrade/failure marker explicitly suppresses recovery.
+- recovered chunk bytes meet the recovery empty floor.
+
+Current Phase 2 note: recovery does not run a browser playback/support probe such
+as `MediaRecorder.isTypeSupported()` before surfacing a persisted WebM/MP4
+session, and it does not suppress recovery from `armed=false`/`failureReason`.
+Those are optional hardening/product decisions for later phases.
 
 `seq = 0` is the required container/init chunk. For WebM, it carries the EBML /
 Tracks initialization data; for recoverable fragmented MP4, it must include the
@@ -422,8 +463,11 @@ sources are missing or inconsistent, show size only.
 
 Owner liveness, recovery validity, and capture health are separate contracts:
 
-- owner liveness: Web Lock plus heartbeat;
-- recovery validity: contiguous chunks plus codec support plus bytes floor;
+- owner liveness: Web Lock in browsers that support it; degraded chunk-freshness
+  heuristic where Web Locks are unavailable in current Phase 2; Web Lock plus
+  heartbeat in the later presence phase;
+- recovery validity: contiguous chunks plus usable persisted codec metadata plus
+  bytes floor;
 - UI backup status: `armed`, advisory only;
 - capture health: `lastChunkReceivedAt`, `lastChunkSeq`, and owner-side recorder
   monitoring.
@@ -482,14 +526,20 @@ Safari/MP4 recovery is gated on the Stage 0 spike. If Safari MP4 chunks cannot
 be reassembled into decodable audio without a clean `stop()`, Safari falls back
 to unarmed/interrupted behavior.
 
+Current Phase 2 note: there is no Safari/MP4 spike gate in code. The recovery
+probe can assemble persisted `audio/mp4` rows when they otherwise pass structural
+validation.
+
 ### Empty Floor and Display
 
 Recovery empty-floor is bytes-only. If recovered bytes are below the floor, the
 orphan is silently cleaned up and no blocking modal is shown.
 
-When timing metadata is available, recovery UI shows approximate duration and
+When timing metadata is available, recovery UI may show approximate duration and
 size. If timing metadata is missing or unreliable, show size only. Duration is
 always framed as approximate.
+
+Current Phase 2 note: the recovery modal shows approximate size only.
 
 ## Upload Idempotency
 
@@ -534,13 +584,18 @@ The owning tab holds a named Web Lock for the entire active lifecycle:
 - finalizing;
 - uploading.
 
-The lock is released only after terminal local cleanup on submitted/discarded.
-Clear terminal state/IDB first, then release lock/presence, so another tab does
-not briefly see no owner while chunks still exist.
+Final target: the lock is released only after terminal local cleanup on
+submitted/discarded. Clear terminal state/IDB first, then release lock/presence,
+so another tab does not briefly see no owner while chunks still exist.
 
-Same-browser duplicate starts are blocked when another tab owns a live
-recording. Non-owner tabs show a distinct "Recording in another tab" pill if
-presence or lock-only liveness is detected.
+Current Phase 2 note: the implemented lock is per recording session, not a global
+per-browser mutex. It prevents recovery from claiming a live session and lets one
+tab claim a recoverable orphan, but it does not by itself detect or block a
+separate new recording started in another tab.
+
+Future presence phase: same-browser duplicate starts are blocked when another
+tab owns a live recording. Non-owner tabs show a distinct "Recording in another
+tab" pill if presence or lock-only liveness is detected.
 
 Non-owner tabs are observe-only. They cannot pause, resume, stop/transcribe, or
 discard the owner tab's live recording. Direct visits to `/recording/new` in a
@@ -560,9 +615,12 @@ active state: "Recording in another tab," without title/timer.
 Cross-browser and cross-device recording presence are out of scope for this
 phase.
 
-The one-recording rule is enforced per browser profile, not globally per user.
-If a user starts a recording in Chrome, then opens Safari and starts another
-recording, this phase does not detect or prevent it.
+Final target: the one-recording rule is enforced per browser profile, not
+globally per user. Current Phase 2 enforces one live recording in the local tab
+singleton and blocks new starts while a local recoverable/retryable artifact is
+unresolved; cross-tab duplicate-start detection waits for the presence phase. If
+a user starts a recording in Chrome, then opens Safari and starts another
+recording, this feature does not detect or prevent it.
 
 Backend recording presence may be added later, but it would be a separate
 coordination layer. Even then, other devices could only observe or send requests
@@ -577,24 +635,23 @@ app-wide recovery probe:
 2. run a 7-day GC sweep;
 3. find matching current-user session records;
 4. process candidate sessions newest-first;
-5. check ownership/liveness via Web Locks and/or degraded heartbeat;
+5. check ownership/liveness via Web Locks, or the degraded chunk-freshness
+   fallback when Web Locks are unavailable;
 6. hydrate local `recoverable` state when chunks are orphaned and above the
    bytes floor after structural validation.
 
-After this feature ships, the product invariant is at most one unresolved active
-or recoverable session per browser profile. The probe still handles multiple
-legacy/pre-feature orphans defensively: resolve the newest structurally valid
-candidate first, leave older matching candidates hidden for a later probe or GC,
-and never allow a new recording to start while any recoverable candidate is being
-presented.
+Final target: the product invariant is at most one unresolved active or
+recoverable session per browser profile. Current Phase 2 guarantees that within
+the local tab/session singleton and for presented recoverable artifacts; full
+same-browser duplicate-start blocking waits for the presence phase. The recovery
+probe still handles multiple legacy/pre-feature orphans defensively: resolve the
+newest structurally valid candidate first and never allow a new recording to
+start while any recoverable candidate is being presented.
 
-The authenticated app shell may briefly gate rendering to avoid a late blocking
-modal. If probing exceeds about 1.5 seconds, render the shell with recovery
-status pending. If recovery later appears, show the blocking modal.
-
-If opening/probing storage fails, retry once after a short delay. If retry fails,
-do not alarm idle users. Show contextual warning only when a recording is active
-or the user starts one.
+Current Phase 2 note: the app shell does not gate rendering on recovery probing
+and there is no explicit one-retry-on-IDB-open-failure behavior. The provider
+probes once per resolved authenticated user, and `attachAndStart` re-probes as a
+backstop before creating a new session.
 
 When recoverable audio is found, show a blocking global recovery modal. The user
 must resolve it before continuing in the app:
@@ -619,6 +676,10 @@ If offline and recovered audio is found:
 - save/transcribe is disabled or shows a clear offline message;
 - discard remains available;
 - the user can retry saving after network returns.
+
+Multiple orphan handling in current Phase 2 is defensive: the newest valid
+orphan is shown first, `remainingCount` is displayed, and save/discard chains to
+the next valid orphan after deleting and releasing the resolved one.
 
 ## Auth and Privacy
 
@@ -659,48 +720,43 @@ Production adapters:
 
 - IndexedDB for chunks/sessions;
 - Web Locks for owner lock where available;
-- localStorage + BroadcastChannel for same-browser presence.
+- localStorage + BroadcastChannel for same-browser presence in the later
+  presence phase.
 
 Test adapters:
 
 - in-memory persistence fake for fast unit tests;
 - `fake-indexeddb` integration tests for the real IDB adapter;
 - hand-rolled Web Locks fake;
-- fake BroadcastChannel/localStorage presence.
+- fake BroadcastChannel/localStorage presence when the presence phase lands.
 
 No automated test can prove Safari MP4 chunk reassembly. That belongs to the
 Stage 0 browser spike.
 
 ## Implementation Phases
 
-1. **Stage 0 - Safari/MP4 recovery spike.** Determine whether crash-orphaned
-   Safari MP4 chunks reassemble into decodable audio without a clean `stop()`.
-2. **Stage 1 - Persistence and idempotency foundations.** Add IDB schema,
-   persistence adapters, write-behind chunk/metadata writer, 7-day GC, and
-   user-scoped upload idempotency server support. Include storage-persistence
-   request, quota/write-failure downgrade handling, and local budget alignment
-   with the existing recording size ceiling.
-3. **Stage 2 - Ownership and local presence.** Add Web Locks ownership,
-   BroadcastChannel/localStorage presence, heartbeat, remote active detection,
-   and duplicate-start blocking.
-4. **Stage 3 - App-wide provider and recovery.** Make
-   `RecordingSessionProvider` real, add app-wide probe, `recoverable` state,
-   blocking recovery modal, offline recovery behavior, and `/recording/new`
-   recoverable route support.
-5. **Stage 4 - Navigation/auth guard rewrite.** Allow in-app navigation while
-   recording; keep `beforeunload` warnings through upload; guard sign-out and
-   account/workspace switches.
-6. **Stage 5 - Global pill variants.** Add local, remote, recoverable, error,
-   finalizing/uploading, saved, and discarded pill variants plus desktop
-   hover/focus preview.
-7. **Stage 6 - `/recording/new` route states.** Ensure the route handles local
-   active, remote active, recoverable, retryable error, terminal, idle prod
-   redirect, and dev mock states.
-8. **Stage 7 - Live owner-loss handling.** In open non-owner tabs, detect owner
-   loss, verify liveness, and surface recovery immediately when chunks exist.
-9. **Stage 8 - Polish and QA.** Completion animations, reduced motion,
-   browser/manual QA across Chrome, Safari, mobile browsers, offline, private
-   mode, storage failure, and crash/reload scenarios.
+1. **Phase 1 - Durability foundation.** Add IDB schema, persistence adapters,
+   write-behind chunk/metadata writer, structural validation, storage-persistence
+   request, sticky downgrade, and 7-day GC. This phase originally retained the
+   `sessionStorage` draft as a transitional bridge.
+2. **Phase 2 - Recovery and upload idempotency.** Add authenticated user scoping,
+   client-generated `uploadIntentId`, server-side project-create deduplication,
+   stable recording filenames, start idempotency, app-wide recovery probing,
+   `recoverable` state, blocking recovery modal, save/discard recovery actions,
+   offline save handling, multiple-orphan chaining, and the minimal per-session
+   lock seam used for live-session protection and recovery claims. This phase
+   removes the `sessionStorage` draft/restart path.
+3. **Phase 3 - App-level lifecycle and guards.** Allow in-app navigation while
+   recording, keep `beforeunload` warnings through upload, guard sign-out and
+   account/workspace switches, and expose unarmed/downgraded warning state.
+4. **Phase 4 - Same-browser presence and remote-owner behavior.** Extend the
+   lock seam into full same-browser coordination with BroadcastChannel/localStorage
+   presence, heartbeat, remote active UI, duplicate-start blocking across tabs,
+   and owner-loss recovery in already-open non-owner tabs.
+5. **Phase 5 - Product polish and QA.** Add global pill variants, hover/focus
+   preview, saved/discarded animations, reduced motion, accessibility polish,
+   Safari/MP4 spike follow-up, and manual QA across offline/private/mobile
+   browser scenarios.
 
 ## Decisions Changed From Original Durability Design
 
@@ -773,7 +829,7 @@ Confirm behavior across supported browsers for:
 | 24 | Ownership | Web Lock for full active lifecycle |
 | 25 | Presence | localStorage + BroadcastChannel; title yes, key terms no |
 | 26 | Heartbeat | Every 2 seconds; stale after 15 seconds plus lock confirmation |
-| 27 | Without Web Locks | Degraded heartbeat-only awareness; recovery still possible |
+| 27 | Without Web Locks | Phase 2 uses chunk-freshness recovery fallback; later presence phase targets heartbeat-only awareness |
 | 28 | Non-owner tabs | Observe-only; no remote controls |
 | 29 | Owner loss | Open tabs detect and offer recovery when chunks exist |
 | 30 | Cross-browser/device | Out of scope; one-recording rule is per browser profile |
@@ -781,7 +837,7 @@ Confirm behavior across supported browsers for:
 | 32 | Sign-out/context switch | Guard until active/recoverable/retryable artifact resolved |
 | 33 | Successful submission | Clear local state first, then Saved animation |
 | 34 | Discard | Clear local state first, then Discarded animation |
-| 35 | Recovery probe | App-wide, brief shell gate, 1.5s timeout, one retry |
+| 35 | Recovery probe | Phase 2 probes app-wide once per resolved user with attach-start backstop; no shell gate/retry yet |
 | 36 | Multiple orphans | Defensively process newest valid candidate first; target at-most-one |
 | 37 | Offline recovery | Discoverable; save disabled/message; discard available |
 | 38 | Server upload | No progressive upload while recording |

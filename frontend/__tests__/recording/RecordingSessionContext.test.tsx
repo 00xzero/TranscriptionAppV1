@@ -19,12 +19,12 @@ describe('RecordingSessionContext', () => {
     expect(keys.split(',')).toEqual([
       'attachAndStart',
       'discard',
+      'discardRecovered',
       'pause',
-      'recoverInterruptedDraft',
       'resetRecordingSession',
-      'restartInterruptedRecording',
       'resume',
       'retryFinalizedUpload',
+      'saveRecovered',
       'stopAndFinalize',
     ])
     expect(keys).not.toContain('startMock')

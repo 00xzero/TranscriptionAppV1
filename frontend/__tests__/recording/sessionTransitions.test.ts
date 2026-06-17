@@ -33,7 +33,6 @@ describe('recording session transitions', () => {
       discard: 'discarded',
       markError: 'error',
       markInterrupted: 'interrupted',
-      recoverInterruptedDraft: 'interrupted',
     }
 
     expect(Object.keys(TRANSITION_SPECS).sort()).toEqual(
@@ -87,6 +86,8 @@ describe('recording session transitions', () => {
     expect(canTransition('uploading', 'markSubmitted')).toBe(true)
     expect(canTransition('recording', 'markSubmitted')).toBe(true)
     expect(canTransition('idle', 'markSubmitted')).toBe(false)
+    // Recovery save transitions straight from the recoverable state.
+    expect(canTransition('recoverable', 'markSubmitted')).toBe(true)
   })
 
   test('terminal states do not accept recorder failure handling', () => {

@@ -9,7 +9,6 @@ export type RecordingTransitionAction =
   | 'discard'
   | 'markError'
   | 'markInterrupted'
-  | 'recoverInterruptedDraft'
   | 'handleRecorderFailure'
 
 export type SnapshotTransitionAction = Exclude<
@@ -31,7 +30,6 @@ export const TRANSITION_SPECS: Record<SnapshotTransitionAction, TransitionSpec> 
   discard: { target: 'discarded', foldsElapsedTime: false },
   markError: { target: 'error', foldsElapsedTime: true },
   markInterrupted: { target: 'interrupted', foldsElapsedTime: false },
-  recoverInterruptedDraft: { target: 'interrupted', foldsElapsedTime: false },
 }
 
 const IN_FLIGHT_STATES: ReadonlySet<RecordingState> = new Set([
@@ -124,7 +122,9 @@ export function canTransition(
         fromState === 'paused' ||
         fromState === 'finalizing' ||
         fromState === 'uploading' ||
-        fromState === 'submitted'
+        fromState === 'submitted' ||
+        // Recovery save transitions straight from the recoverable state.
+        fromState === 'recoverable'
       )
     case 'discard':
       return DISCARDABLE_STATES.has(fromState)
@@ -132,8 +132,6 @@ export function canTransition(
       return ERRORABLE_STATES.has(fromState)
     case 'markInterrupted':
       return INTERRUPTIBLE_STATES.has(fromState)
-    case 'recoverInterruptedDraft':
-      return fromState === 'idle'
     case 'handleRecorderFailure':
       return ACTIVE_RECORDING_STATES.has(fromState)
     default:

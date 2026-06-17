@@ -20,6 +20,7 @@ export const ProjectSchema = z.object({
   title: z.string().nullable(),
   status: ProjectStatusSchema,
   source_object_key: z.string().nullable(),
+  upload_intent_id: z.string().nullable(),
   duration_seconds: z.number().nullable(),
   waveform_object_key: z.string().nullable(),
   waveform_status: WaveformStatusSchema,

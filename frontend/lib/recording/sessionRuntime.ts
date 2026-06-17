@@ -1,4 +1,3 @@
-import { clearDraft } from './sessionDraft'
 import type { Runtime, Store } from './sessionTypes'
 
 export function createRuntime(): Runtime {
@@ -16,6 +15,7 @@ export function createRuntime(): Runtime {
     sessionId: null,
     nextChunkSeq: 0,
     writeQueue: null,
+    uploadIntentId: null,
   }
 }
 
@@ -44,26 +44,27 @@ export function clearFinalizedRecording(store: Store): void {
 export function clearTerminalSessionRuntime(
   store: Store,
   clearSessionActivity: () => void
-): void {
+): Promise<void> {
   clearSessionActivity()
   abortUpload(store)
-  clearDraft()
-  teardownPersistence(store)
+  const persistenceCleanup = teardownPersistence(store)
   disposeController(store)
   clearFinalizedRecording(store)
+  return persistenceCleanup
 }
 
 // Queue-owned terminal teardown: stop accepting writes, then delete the IDB
 // session + chunks after pending writes settle so a late `dataavailable` cannot
-// resurrect rows. Fire-and-forget; failures are swallowed.
-function teardownPersistence(store: Store): void {
+// resurrect rows. Failures are swallowed so cleanup ordering never wedges the
+// terminal flow or lock release forever.
+function teardownPersistence(store: Store): Promise<void> {
   const queue = store.runtime.writeQueue
-  if (queue) {
-    void queue.closeAndDelete().catch(() => {})
-  }
   store.runtime.writeQueue = null
   store.runtime.sessionId = null
   store.runtime.nextChunkSeq = 0
+  store.runtime.uploadIntentId = null
+  if (!queue) return Promise.resolve()
+  return queue.closeAndDelete().catch(() => {})
 }
 
 export function clearInterruptedSessionRuntime(
@@ -78,6 +79,7 @@ export function clearInterruptedSessionRuntime(
   store.runtime.writeQueue = null
   store.runtime.sessionId = null
   store.runtime.nextChunkSeq = 0
+  store.runtime.uploadIntentId = null
   disposeController(store)
   clearFinalizedRecording(store)
 }

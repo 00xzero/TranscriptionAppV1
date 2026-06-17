@@ -15,6 +15,7 @@ const makeProject = (overrides: Partial<Project> = {}): Project => ({
   title: 'Project Alpha',
   status: 'completed',
   source_object_key: null,
+  upload_intent_id: null,
   duration_seconds: 245,
   waveform_object_key: null,
   waveform_status: 'skipped',

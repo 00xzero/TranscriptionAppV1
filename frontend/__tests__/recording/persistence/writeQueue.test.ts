@@ -96,6 +96,10 @@ class LoggingPersistence implements SessionPersistence {
     return []
   }
 
+  async chunkStats(): Promise<{ count: number; totalBytes: number }> {
+    return { count: 0, totalBytes: 0 }
+  }
+
   async readChunks(): Promise<Blob[]> {
     return []
   }

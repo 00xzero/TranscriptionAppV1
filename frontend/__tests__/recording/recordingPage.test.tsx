@@ -206,7 +206,7 @@ describe('Recording page', () => {
     }
   })
 
-  test('interrupted state shows recovery copy and Start a new recording CTA', () => {
+  test('interrupted state shows the unrecoverable copy and Return to library CTA', () => {
     act(() => {
       mockRecordingSession({ state: 'interrupted', title: 'Lost one' })
     })
@@ -215,40 +215,25 @@ describe('Recording page', () => {
     expect(
       screen.getByText(/Your recording was interrupted/i)
     ).toBeInTheDocument()
+    // The old "Start a new recording" restart CTA is gone; sealed recovery is
+    // offered by the global modal instead.
     expect(
-      screen.getByRole('button', { name: /start a new recording/i })
+      screen.queryByRole('button', { name: /start a new recording/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /return to library/i })
     ).toBeInTheDocument()
   })
 
-  test('idle page restores an interrupted draft from sessionStorage', async () => {
-    window.sessionStorage.setItem(
-      'recording.sessionDraft',
-      JSON.stringify({ title: 'Recovered title' })
-    )
-
-    render(<RecordingNewPage />)
-
-    expect(
-      await screen.findByText(/Your recording was interrupted/i)
-    ).toBeInTheDocument()
-    expect(screen.getByText('Recovered title')).toBeInTheDocument()
-    expect(screen.queryByText(/No active recording/i)).not.toBeInTheDocument()
-  })
-
-  test('interrupted CTA surfaces a recovery error when the browser cannot record', async () => {
+  test('recoverable state shows the recovering status', () => {
     act(() => {
-      mockRecordingSession({ state: 'interrupted', title: 'Lost one' })
+      mockRecordingSession({ state: 'recoverable', title: 'Recovered one' })
     })
     render(<RecordingNewPage />)
-
-    fireEvent.click(screen.getByRole('button', { name: /start a new recording/i }))
-
-    // jsdom lacks navigator.mediaDevices.getUserMedia, so the real restart
-    // path surfaces an inline error and the session stays in `interrupted`
-    // (no Capture round-trip per spec).
-    await screen.findByRole('alert')
-    expect(getSnapshot().state).toBe('interrupted')
-    expect(screen.getByText('Lost one')).toBeInTheDocument()
+    expect(screen.getByText('Recovered one')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Recovering a previous recording/i)
+    ).toBeInTheDocument()
   })
 
   test('submitted state schedules navigation to /projects', () => {

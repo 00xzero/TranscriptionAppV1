@@ -1,20 +1,16 @@
 import React from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import RecordingNewPage from '@/app/recording/new/page'
 import {
   __resetForTesting,
   attachAndStart,
-  getSnapshot,
+  forceState,
 } from '@/lib/recording/session'
-import { mockRecordingSession } from '@/__mocks__/recording-session'
 import {
   createFakeStream,
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
-import {
-  installGetUserMediaMock,
-  resetGetUserMediaMock,
-} from '@/__mocks__/getUserMedia'
+import { setIdentity } from '@/lib/recording/sessionIdentity'
 
 const replaceMock = jest.fn()
 const pushMock = jest.fn()
@@ -36,15 +32,12 @@ describe('recording page entry conditions', () => {
     replaceMock.mockReset()
     pushMock.mockReset()
     installMediaRecorderMock()
+    setIdentity({ userId: 'user-123', ready: true })
   })
 
-  afterEach(() => {
-    resetGetUserMediaMock()
-  })
-
-  test('fresh handoff renders the in-progress recording', () => {
-    act(() => {
-      attachAndStart({
+  test('fresh handoff renders the in-progress recording', async () => {
+    await act(async () => {
+      await attachAndStart({
         stream: createFakeStream(),
         codec: CODEC,
         title: 'Live session',
@@ -61,30 +54,13 @@ describe('recording page entry conditions', () => {
     expect(screen.getByTestId('recording-controls')).toBeInTheDocument()
   })
 
-  test('refresh during recording restores the interrupted draft', async () => {
-    window.sessionStorage.setItem(
-      'recording.sessionDraft',
-      JSON.stringify({ title: 'Recovered', keyTerms: [] })
-    )
-    render(<RecordingNewPage />)
-    expect(
-      await screen.findByText(/Your recording was interrupted/i)
-    ).toBeInTheDocument()
-    expect(screen.getByText('Recovered')).toBeInTheDocument()
-  })
-
-  test('interrupted -> Start a new recording begins a fresh session', async () => {
-    installGetUserMediaMock() // resolves a fake mic stream
+  test('recoverable state renders the recovering status (modal is global)', () => {
     act(() => {
-      mockRecordingSession({ state: 'interrupted', title: 'Lost one' })
+      forceState('recoverable')
     })
     render(<RecordingNewPage />)
-
-    fireEvent.click(
-      screen.getByRole('button', { name: /start a new recording/i })
-    )
-
-    await waitFor(() => expect(getSnapshot().state).toBe('recording'))
-    expect(getSnapshot().title).toBe('Lost one')
+    expect(screen.getByText(/Recovering a previous recording/i)).toBeInTheDocument()
+    // The recovery modal itself is mounted by RecordingSessionProvider, not the
+    // route, so it is not asserted here.
   })
 })

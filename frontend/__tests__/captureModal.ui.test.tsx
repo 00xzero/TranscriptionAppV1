@@ -9,6 +9,7 @@ import {
   getSnapshot,
   startMock,
 } from '@/lib/recording/session'
+import { setIdentity } from '@/lib/recording/sessionIdentity'
 
 class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
@@ -57,6 +58,10 @@ const mockModalState = {
 const mockCaptureFormState = {
   isUploading: false,
 }
+const mockAuthIdentity = {
+  userId: 'user-1' as string | null,
+  ready: true,
+}
 const originalUserAgent = navigator.userAgent
 const originalVendor = navigator.vendor
 const originalNavigatorMediaDevices = navigator.mediaDevices
@@ -91,6 +96,10 @@ jest.mock('../components/CaptureModal/useCaptureForm', () => ({
   }),
 }))
 
+jest.mock('@/lib/supabase/hooks', () => ({
+  useAuthIdentity: () => mockAuthIdentity,
+}))
+
 function renderModal() {
   return render(
     <TooltipProvider delayDuration={0}>
@@ -120,6 +129,9 @@ function resetModalTestState(): void {
   jest.clearAllMocks()
   jest.useRealTimers()
   __resetForTesting()
+  setIdentity({ userId: 'user-1', ready: true })
+  mockAuthIdentity.userId = 'user-1'
+  mockAuthIdentity.ready = true
   mockModalState.isCaptureModalOpen = true
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
@@ -640,7 +652,9 @@ describe('CaptureModal tabs', () => {
       jest.advanceTimersByTime(4000)
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /start recording/i }))
+    })
 
     expect(screen.queryByText('Preparing microphone…')).not.toBeInTheDocument()
     expect(getSnapshot().state).toBe('recording')

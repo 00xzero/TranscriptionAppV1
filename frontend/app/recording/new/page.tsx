@@ -1,6 +1,6 @@
 "use client"
 
-import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
@@ -66,8 +66,6 @@ export default function RecordingNewPage() {
   const router = useRouter()
   const snapshot = useRecordingSession()
   const actions = useRecordingActions()
-  const [restartError, setRestartError] = useState<string | null>(null)
-  const [restarting, setRestarting] = useState(false)
   const [retryingUpload, setRetryingUpload] = useState(false)
 
   useBeforeUnloadGuard()
@@ -86,16 +84,15 @@ export default function RecordingNewPage() {
     return () => window.clearTimeout(id)
   }, [snapshot.state, snapshot.submissionResult, router])
 
-  useLayoutEffect(() => {
+  // Idle here means there's no active session to expand. Recovery is handled by
+  // the global modal (RecordingSessionProvider), not this route, so production
+  // just sends the user back to the library.
+  useEffect(() => {
     if (snapshot.state !== 'idle') return
-
-    if (
-      !actions.recoverInterruptedDraft() &&
-      !RECORDING_DEV_CONTROLS_ENABLED
-    ) {
+    if (!RECORDING_DEV_CONTROLS_ENABLED) {
       router.replace('/projects?capture=recording_session_not_found')
     }
-  }, [actions, router, snapshot.state])
+  }, [router, snapshot.state])
 
   const title =
     snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
@@ -109,19 +106,6 @@ export default function RecordingNewPage() {
       {snapshot.salvageMessage}
     </div>
   ) : null
-
-  const handleRestart = async () => {
-    setRestartError(null)
-    setRestarting(true)
-    try {
-      const result = await actions.restartInterruptedRecording(MAX_FILE_SIZE_BYTES)
-      if (!result.ok) {
-        setRestartError(result.message ?? 'Could not start a new recording.')
-      }
-    } finally {
-      setRestarting(false)
-    }
-  }
 
   const handleRetryUpload = async () => {
     setRetryingUpload(true)
@@ -189,27 +173,34 @@ export default function RecordingNewPage() {
     )
   }
 
+  if (snapshot.state === 'recoverable') {
+    // The blocking recovery modal (RecordingSessionProvider) owns the actions;
+    // this route just shows a neutral status beneath it.
+    return (
+      <RecordingStatusLayout
+        title={title}
+        labelClassName="mt-2 text-sm text-ink/60 dark:text-paper/60"
+      >
+        <p className="text-sm text-ink/60 dark:text-paper/60">
+          Recovering a previous recording…
+        </p>
+      </RecordingStatusLayout>
+    )
+  }
+
   if (snapshot.state === 'interrupted') {
     return (
       <RecordingStatusLayout title={title}>
+        {salvageBanner}
         <p className="text-sm text-ink/70 dark:text-paper/70">
-          Your recording was interrupted and could not be recovered.
+          Your recording was interrupted and couldn&apos;t be recovered.
         </p>
-        {restartError && (
-          <div
-            role="alert"
-            className="rounded-md border border-ember-red/40 bg-ember-red/10 px-4 py-2 text-sm text-ink dark:text-paper"
-          >
-            {restartError}
-          </div>
-        )}
         <button
           type="button"
-          onClick={handleRestart}
-          disabled={restarting}
-          className="self-start rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={handleReturnToLibrary}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
         >
-          {restarting ? 'Starting…' : 'Start a new recording'}
+          Return to library
         </button>
       </RecordingStatusLayout>
     )

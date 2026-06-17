@@ -25,6 +25,11 @@ export class NoOpSessionPersistence implements SessionPersistence {
   async listChunkSeqs(_sessionId: string): Promise<number[]> {
     return []
   }
+  async chunkStats(
+    _sessionId: string
+  ): Promise<{ count: number; totalBytes: number }> {
+    return { count: 0, totalBytes: 0 }
+  }
   async readChunks(_sessionId: string): Promise<Blob[]> {
     return []
   }

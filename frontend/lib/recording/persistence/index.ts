@@ -47,7 +47,12 @@ export {
   type ChunkStreamValidation,
   type ChunkStreamInvalidReason,
 } from './validation'
-export { gcExpiredSessions, SESSION_MAX_AGE_MS } from './gc'
+export {
+  gcExpiredSessions,
+  sweepExpiredSessions,
+  SESSION_MAX_AGE_MS,
+  type GcSweepResult,
+} from './gc'
 export { requestPersistentStorage } from './storagePersist'
 export { IndexedDBSessionPersistence } from './indexedDb'
 export { InMemorySessionPersistence } from './inMemory'

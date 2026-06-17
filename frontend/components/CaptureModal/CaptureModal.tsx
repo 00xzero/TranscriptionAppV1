@@ -14,6 +14,7 @@ import {
 } from '@/lib/recording/RecordingSessionContext'
 import { useMicTest } from '@/lib/hooks/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
+import { useAuthIdentity } from '@/lib/supabase/hooks'
 import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'
 import { useCaptureForm } from './useCaptureForm'
 import UploadAudioPanel from './UploadAudioPanel'
@@ -29,12 +30,16 @@ const RECORDING_ACTIVE_TOOLTIP =
 function getRecordDisabledTooltip(input: {
   codecSupported: boolean | null
   recordingActive: boolean
+  recordingIdentityReady: boolean
+  signedIn: boolean
   requesting: boolean
   startingRecording: boolean
   preparingMicrophone: boolean
 }): string | undefined {
   if (input.codecSupported === false) return CODEC_UNSUPPORTED_TOOLTIP
   if (input.recordingActive) return RECORDING_ACTIVE_TOOLTIP
+  if (!input.recordingIdentityReady) return 'Checking account…'
+  if (!input.signedIn) return 'Sign in to record.'
   if (input.requesting) return 'Requesting microphone…'
   if (input.preparingMicrophone) return 'Preparing microphone…'
   if (input.startingRecording) return 'Starting…'
@@ -47,6 +52,8 @@ export default function CaptureModal() {
   const recordingActions = useRecordingActions()
   const recordingSnapshot = useRecordingSession()
   const recordingActive = isRecordingSessionActive(recordingSnapshot)
+  const authIdentity = useAuthIdentity()
+  const canScopeRecordingToUser = authIdentity.ready && Boolean(authIdentity.userId)
   const micTest = useMicTest()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
@@ -135,8 +142,16 @@ export default function CaptureModal() {
       setRecordSubmitError(CODEC_UNSUPPORTED_TOOLTIP)
       return
     }
-    if (recordingActive) {
+    if (recordingActive || recordingSnapshot.state === 'recoverable') {
       setRecordSubmitError(RECORDING_ACTIVE_TOOLTIP)
+      return
+    }
+    if (!authIdentity.ready) {
+      setRecordSubmitError('Checking account. Try again in a moment.')
+      return
+    }
+    if (!authIdentity.userId) {
+      setRecordSubmitError('Sign in before starting a recording.')
       return
     }
     setStartingRecording(true)
@@ -185,7 +200,7 @@ export default function CaptureModal() {
       // release() (on modal close) will stop the tracks. Transferring up
       // front would leave the stream live with no controller after a failure.
       try {
-        recordingActions.attachAndStart({
+        await recordingActions.attachAndStart({
           stream,
           codec,
           title: title.trim() ? title.trim() : null,
@@ -233,10 +248,14 @@ export default function CaptureModal() {
     !startingRecording &&
     !preparingMicrophone &&
     !micTest.requesting &&
-    !recordingActive
+    !recordingActive &&
+    recordingSnapshot.state !== 'recoverable' &&
+    canScopeRecordingToUser
   const recordDisabledTooltip = getRecordDisabledTooltip({
     codecSupported,
     recordingActive,
+    recordingIdentityReady: authIdentity.ready,
+    signedIn: Boolean(authIdentity.userId),
     requesting: micTest.requesting,
     startingRecording,
     preparingMicrophone,

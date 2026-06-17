@@ -23,29 +23,61 @@ import type { Project, JobSummary, Speaker, SpeakerUpdate, ProjectUpdate } from 
 // Projects Hook
 // ============================================================================
 
-function useCurrentUserId() {
-    const [userId, setUserId] = useState<string | null>(null)
+export interface AuthIdentity {
+    /** Current authenticated user id, or null when signed out. */
+    userId: string | null
+    /**
+     * True once Supabase has verified the current auth state. A cached browser
+     * session may populate `userId` while this remains false; privacy-sensitive
+     * callers (e.g. recording recovery) must wait for `ready`.
+     */
+    ready: boolean
+}
+
+/**
+ * Authenticated identity with an explicit verification state. Exposes a cached
+ * session user id early for low-risk UI responsiveness, but only marks `ready`
+ * after getUser verifies the session (or confirms there is no signed-in user).
+ */
+export function useAuthIdentity(): AuthIdentity {
+    const [identity, setIdentity] = useState<AuthIdentity>({ userId: null, ready: false })
 
     useEffect(() => {
         let isMounted = true
         const supabase = createClient()
 
         const loadUserId = async () => {
-            const { data: sessionData } = await supabase.auth.getSession()
-            if (!isMounted) return
-            const sessionUserId = sessionData.session?.user.id ?? null
-            setUserId(sessionUserId)
+            try {
+                const { data: sessionData } = await supabase.auth.getSession()
+                if (!isMounted) return
+                const sessionUserId = sessionData.session?.user.id ?? null
+                setIdentity({ userId: sessionUserId, ready: false })
 
-            const { data, error } = await supabase.auth.getUser()
-            if (!isMounted) return
-            setUserId(error ? sessionUserId : data.user?.id ?? null)
+                const { data, error } = await supabase.auth.getUser()
+                if (!isMounted) return
+                setIdentity({
+                    userId: error ? sessionUserId : data.user?.id ?? null,
+                    ready: !error,
+                })
+            } catch {
+                if (!isMounted) return
+                setIdentity({ userId: null, ready: true })
+            }
         }
 
         void loadUserId()
 
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
             if (!isMounted) return
-            setUserId(session?.user.id ?? null)
+            if (event === 'INITIAL_SESSION') {
+                setIdentity((current) =>
+                    current.ready
+                        ? current
+                        : { userId: session?.user.id ?? null, ready: false }
+                )
+                return
+            }
+            setIdentity({ userId: session?.user.id ?? null, ready: true })
         })
 
         return () => {
@@ -54,7 +86,11 @@ function useCurrentUserId() {
         }
     }, [])
 
-    return userId
+    return identity
+}
+
+function useCurrentUserId() {
+    return useAuthIdentity().userId
 }
 
 /**

@@ -46,7 +46,7 @@ export function forceState(target: RecordingState): void {
 
   switch (target) {
     case 'idle': {
-      clearTerminalSessionRuntime(store, clearSessionActivity)
+      void clearTerminalSessionRuntime(store, clearSessionActivity)
       setSnapshot({ ...IDLE_SNAPSHOT })
       return
     }
@@ -92,7 +92,7 @@ export function forceState(target: RecordingState): void {
     }
     case 'submitted':
     case 'discarded': {
-      clearTerminalSessionRuntime(store, clearSessionActivity)
+      void clearTerminalSessionRuntime(store, clearSessionActivity)
       setSnapshot({
         ...snap,
         state: target,
@@ -106,6 +106,32 @@ export function forceState(target: RecordingState): void {
         ...snap,
         state: target,
         lastResumeAt: null,
+      })
+      return
+    }
+    case 'recoverable': {
+      // Dev-only: preview the recovery modal with a mock orphan payload.
+      clearInterruptedSessionRuntime(store, clearSessionActivity)
+      setSnapshot({
+        ...IDLE_SNAPSHOT,
+        state: 'recoverable',
+        title: snap.title ?? null,
+        generatedTitle: snap.generatedTitle ?? null,
+        keyTerms: snap.keyTerms,
+        codecExtension: 'webm',
+        bytesSoFar: 1_000_000,
+        recoverable: {
+          sessionId: 'mock-recoverable-session',
+          uploadIntentId: null,
+          title: snap.title ?? null,
+          generatedTitle: snap.generatedTitle ?? null,
+          keyTerms: snap.keyTerms,
+          codecMime: 'audio/webm',
+          codecExtension: 'webm',
+          bytesSoFar: 1_000_000,
+          createdAt: now,
+          remainingCount: 0,
+        },
       })
       return
     }

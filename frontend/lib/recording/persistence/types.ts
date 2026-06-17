@@ -62,6 +62,13 @@ export interface SessionPersistence {
   deleteSession(sessionId: string): Promise<void>
   putChunk(sessionId: string, seq: number, blob: Blob): Promise<void>
   listChunkSeqs(sessionId: string): Promise<number[]>
+  /**
+   * Metadata-only chunk summary: how many chunks exist and their total byte
+   * size, without materializing any Blob body into memory. Used by the recovery
+   * probe on the startup hot path so it never holds tens/hundreds of MB of audio
+   * just to count chunks and sum bytes.
+   */
+  chunkStats(sessionId: string): Promise<{ count: number; totalBytes: number }>
   /** Returns the session's chunks ordered by ascending seq. */
   readChunks(sessionId: string): Promise<Blob[]>
 }

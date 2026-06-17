@@ -2,9 +2,8 @@ export type {
   AttachAndStartParams,
   FinalizedRecording,
   RecordingState,
-  RestartInterruptedResult,
+  RecoverableInfo,
   Runtime,
-  SessionDraft,
   SessionSnapshot,
   StartMockMetadata,
   Store,
@@ -20,10 +19,13 @@ export {
 } from './sessionStore'
 export {
   RecordingAlreadyActiveError,
+  RecordingIdentityRequiredError,
+  RecoveryPendingError,
   __resetForTesting,
   __setSnapshotForTesting,
   attachAndStart,
   discard,
+  discardRecovered,
   finalize,
   getElapsedActiveMs,
   getLiveRecorder,
@@ -36,16 +38,16 @@ export {
   markUploading,
   pause,
   recordChunk,
-  recoverInterruptedDraft,
   resetRecordingSession,
   resume,
   retryFinalizedUpload,
+  runRecoveryProbe,
+  saveRecovered,
   stopAndFinalize,
+  syncIdentityToActiveSession,
+  type SaveRecoveredResult,
 } from './sessionActions'
 export {
   forceState,
   startMock,
 } from './sessionDev'
-export {
-  restartInterruptedRecording,
-} from './sessionRestart'
