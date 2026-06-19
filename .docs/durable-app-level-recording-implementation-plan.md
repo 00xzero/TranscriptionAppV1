@@ -2,7 +2,8 @@
 
 ## Status
 
-Phases 1-4 implemented in the current branch:
+Phases 1-5 implemented in the current branch, with manual cross-browser QA still
+required before calling the browser-hardening work fully complete:
 
 - Phase 1: IndexedDB durability foundation and write-behind persistence.
 - Phase 2: recovery, user-scoped upload idempotency, and the minimal session lock
@@ -19,9 +20,12 @@ Phases 1-4 implemented in the current branch:
   active lifecycle, and a `useRemotePresence` read model drives a remote pill,
   remote `/recording/new` page state, capture-modal disabling, and owner-loss →
   recovery (single side effect in the provider).
-
-Phase 5 remains planned: global pill/product polish (hover/focus preview,
-terminal animations, polished pill variants, a11y/QA, Safari MP4 spike).
+- Phase 5: global pill/product polish — the local, remote, recoverable,
+  uploading/finalizing, retryable-error, and terminal saved/discarded pill
+  variants are implemented; hover/focus previews include status, title, action,
+  and durability warning copy; automated coverage locks the pill behaviors and
+  the Safari-style MP4 codec fallback. Manual Chrome/Safari/private/offline/mobile
+  QA remains the final hardening gate.
 
 This plan complements
 [`durable-app-level-recording-design.md`](./durable-app-level-recording-design.md).
@@ -215,6 +219,17 @@ Exit criteria:
 
 Goal: make the feature feel finished and harden browser edge cases.
 
+Status: code polish implemented in the current branch. The global pill now has
+polished local/remote/recoverable/uploading/finalizing/retryable-error variants,
+hover/focus previews, passive durability-warning copy in the preview, and short
+non-navigation `Saved`/`Discarded` terminal animations. The implementation keeps
+terminal animation state local to the pill UI and does not add new recording
+session states or change persistence/upload/recovery contracts. Automated tests
+cover the pill variants, preview behavior, terminal timing, navigation boundaries,
+remote precedence, and the `audio/mp4` fallback used by Safari. Real Safari MP4
+chunk recovery, private/quota behavior, and mobile browser behavior still require
+manual device/browser QA.
+
 Includes:
 
 - Local recording pill.
@@ -231,11 +246,18 @@ Includes:
 - Private mode/quota/offline testing.
 - Mobile browser behavior checks.
 
+Automated checks currently covering this phase:
+
+- `npm test -- recording/headerPill.test.tsx`
+- `npm test -- recording/recordingPage.test.tsx recording/remotePresence.test.tsx`
+- `npm test -- recording/codecs.test.ts`
+
 Exit criteria:
 
 - Global recording status feels native to the app.
 - All terminal, recovery, and error states are understandable.
-- Core flows pass Chrome/Safari/manual QA.
+- Core flows pass Chrome/Safari/manual QA. As of this implementation, automated
+  checks pass; manual Chrome/Safari/private/offline/mobile QA remains pending.
 
 ## Suggested Review Boundaries
 

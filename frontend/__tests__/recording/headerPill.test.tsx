@@ -1,13 +1,16 @@
 import React from 'react'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEventLib from '@testing-library/user-event'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import {
   __resetForTesting,
+  discard,
   markSubmitted,
   startMock,
 } from '@/lib/recording/session'
 import { RemotePresenceProvider } from '@/lib/recording/RemotePresenceContext'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const pushMock = jest.fn()
 
@@ -15,14 +18,24 @@ jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
+function renderPill(children: React.ReactNode = <RecordingPill />) {
+  return render(
+    <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+  )
+}
+
 describe('RecordingPill', () => {
   beforeEach(() => {
     __resetForTesting()
     pushMock.mockReset()
   })
 
+  afterEach(() => {
+    jest.useRealTimers()
+  })
+
   test('renders nothing when idle', () => {
-    render(<RecordingPill />)
+    renderPill()
     expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
   })
 
@@ -30,7 +43,7 @@ describe('RecordingPill', () => {
     act(() => {
       startMock({ title: 'X' })
     })
-    render(<RecordingPill />)
+    renderPill()
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toBeInTheDocument()
     expect(pill).toHaveTextContent(/Recording/)
@@ -41,7 +54,7 @@ describe('RecordingPill', () => {
     act(() => {
       startMock({ title: 'X' })
     })
-    render(<RecordingPill />)
+    renderPill()
     const pill = screen.getByTestId('recording-pill')
 
     expect(pill).toHaveClass(
@@ -61,22 +74,61 @@ describe('RecordingPill', () => {
         pausedAccumulatedMs: 65_000,
       })
     })
-    render(<RecordingPill />)
+    renderPill()
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toHaveTextContent(/Paused/)
     expect(pill).toHaveTextContent(/00:01:05/)
   })
 
-  test('disappears when state transitions to submitted', () => {
+  test('shows a saved terminal pill briefly after submitted', async () => {
+    jest.useFakeTimers()
     act(() => {
       startMock()
     })
-    render(<RecordingPill />)
+    renderPill()
     expect(screen.getByTestId('recording-pill')).toBeInTheDocument()
     act(() => {
       markSubmitted()
     })
+    act(() => {
+      jest.advanceTimersByTime(0)
+    })
+    expect(await screen.findByTestId('recording-pill-terminal')).toHaveTextContent(
+      /Saved/
+    )
     expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
+
+    act(() => {
+      jest.advanceTimersByTime(2_200)
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('recording-pill-terminal')).not.toBeInTheDocument()
+    })
+  })
+
+  test('shows a discarded terminal pill briefly after discard', async () => {
+    jest.useFakeTimers()
+    act(() => {
+      startMock()
+    })
+    renderPill()
+    act(() => {
+      discard()
+    })
+    act(() => {
+      jest.advanceTimersByTime(0)
+    })
+
+    expect(await screen.findByTestId('recording-pill-terminal')).toHaveTextContent(
+      /Discarded/
+    )
+
+    act(() => {
+      jest.advanceTimersByTime(2_200)
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('recording-pill-terminal')).not.toBeInTheDocument()
+    })
   })
 
   // Phase 3: the pill stays reachable for states the user must still resolve after
@@ -89,16 +141,26 @@ describe('RecordingPill', () => {
     act(() => {
       mockRecordingSession({ state, title: 'X' })
     })
-    render(<RecordingPill />)
+    renderPill()
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toBeInTheDocument()
     expect(pill).toHaveTextContent(label)
   })
 
+  test('renders a retryable error variant', () => {
+    act(() => {
+      mockRecordingSession({ state: 'error', title: 'X', canRetryUpload: true })
+    })
+    renderPill()
+    const pill = screen.getByTestId('recording-pill')
+    expect(pill).toHaveTextContent(/Recording error/)
+    expect(pill).toHaveClass('border-ember-red/50')
+  })
+
   // Phase 4: a passive remote pill when another same-browser tab owns the
   // recording and this tab has no local session.
   test('renders a remote pill when another tab is recording (idle locally)', () => {
-    render(
+    renderPill(
       <RemotePresenceProvider
         value={{
           kind: 'active',
@@ -123,7 +185,7 @@ describe('RecordingPill', () => {
     act(() => {
       startMock({ title: 'X' })
     })
-    render(
+    renderPill(
       <RemotePresenceProvider value={{ kind: 'lock-only' }}>
         <RecordingPill />
       </RemotePresenceProvider>
@@ -136,7 +198,7 @@ describe('RecordingPill', () => {
     act(() => {
       mockRecordingSession({ state: 'error', title: 'X', canRetryUpload: true })
     })
-    const { unmount } = render(<RecordingPill />)
+    const { unmount } = renderPill()
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toHaveTextContent(/Recording error/)
     expect(pill).toHaveClass('border-ember-red/50')
@@ -146,7 +208,123 @@ describe('RecordingPill', () => {
     act(() => {
       mockRecordingSession({ state: 'error', title: 'X', canRetryUpload: false })
     })
-    render(<RecordingPill />)
+    renderPill()
     expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
+  })
+
+  test('tooltip opens on hover with local status details', async () => {
+    const user = userEventLib.setup()
+    act(() => {
+      mockRecordingSession({
+        state: 'recording',
+        title: 'Weekly review',
+        pausedAccumulatedMs: 5_000,
+      })
+    })
+    renderPill()
+
+    await user.hover(screen.getByTestId('recording-pill'))
+
+    expect(await screen.findAllByText('Weekly review')).toHaveLength(2)
+    expect(screen.getAllByText(/The recorder is active in this tab/)).toHaveLength(2)
+    expect(screen.getAllByText(/Open the recording page/)).toHaveLength(2)
+  })
+
+  test('tooltip opens on focus and shows durability warning when not durable', async () => {
+    act(() => {
+      mockRecordingSession({
+        state: 'paused',
+        title: 'At-risk recording',
+        durable: false,
+      })
+    })
+    renderPill()
+
+    act(() => {
+      screen.getByTestId('recording-pill').focus()
+    })
+
+    expect(await screen.findAllByText('At-risk recording')).toHaveLength(2)
+    expect(
+      screen.getAllByText(
+        /If this tab refreshes, closes, or crashes, this recording may be lost/
+      )
+    ).toHaveLength(2)
+  })
+
+  test('tooltip omits durability warning while durable', async () => {
+    const user = userEventLib.setup()
+    act(() => {
+      mockRecordingSession({
+        state: 'recording',
+        title: 'Backed recording',
+        durable: true,
+      })
+    })
+    renderPill()
+
+    await user.hover(screen.getByTestId('recording-pill'))
+
+    expect(await screen.findAllByText('Backed recording')).toHaveLength(2)
+    expect(
+      screen.queryAllByText(
+        /If this tab refreshes, closes, or crashes, this recording may be lost/
+      )
+    ).toHaveLength(0)
+  })
+
+  test('remote tooltip explains that controls stay in the owner tab', async () => {
+    const user = userEventLib.setup()
+    renderPill(
+      <RemotePresenceProvider
+        value={{
+          kind: 'active',
+          sessionId: 's1',
+          title: 'Remote title',
+          state: 'recording',
+          startedAt: 0,
+          lastResumeAt: 0,
+          pausedAccumulatedMs: 0,
+        }}
+      >
+        <RecordingPill />
+      </RemotePresenceProvider>
+    )
+
+    await user.hover(screen.getByTestId('recording-pill-remote'))
+
+    expect(await screen.findAllByText('Remote title')).toHaveLength(2)
+    expect(
+      screen.getAllByText(/cannot pause, stop, or save/)
+    ).toHaveLength(2)
+  })
+
+  test('active and remote pills navigate, but terminal pills do not', async () => {
+    const user = userEventLib.setup()
+    act(() => {
+      startMock({ title: 'X' })
+    })
+    const { unmount } = renderPill()
+
+    await user.click(screen.getByTestId('recording-pill'))
+    expect(pushMock).toHaveBeenCalledWith('/recording/new')
+    unmount()
+
+    pushMock.mockReset()
+    jest.useFakeTimers()
+    act(() => {
+      __resetForTesting()
+      startMock({ title: 'X' })
+    })
+    renderPill()
+    act(() => {
+      markSubmitted()
+    })
+    act(() => {
+      jest.advanceTimersByTime(0)
+    })
+    const terminal = await screen.findByTestId('recording-pill-terminal')
+    expect(terminal.tagName).toBe('DIV')
+    expect(pushMock).not.toHaveBeenCalled()
   })
 })
