@@ -4,6 +4,7 @@ import {
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
 import { randomId } from '@/lib/ids'
+import { transferToStorage } from './storageTransfer'
 
 /**
  * Supported file types for upload.
@@ -329,20 +330,15 @@ export async function runCaptureUpload(
             })
 
             const mimeType = getMimeType(file)
-            // Supabase Storage's upload API in this version does not pass an
-            // AbortSignal through to fetch, so the session prevents discard while
-            // this request is in flight and checks the signal before/after it.
-            const { error: uploadError } = await supabase.storage
-                .from('media')
-                .upload(storagePath, file, {
-                    contentType: mimeType,
-                    upsert: options?.allowUpsert ?? false
-                })
-
-            if (uploadError) {
-                console.error('[capture] Storage upload failed:', uploadError)
-                throw new Error(`Upload failed: ${uploadError.message}`)
-            }
+            // Transfer bytes to storage: single-PUT for small files, resumable
+            // (TUS, 6 MB chunks) for large ones. The resumable path honours the
+            // AbortSignal; the single-PUT path still can't be aborted mid-flight,
+            // so the session continues to prevent discard while this runs.
+            await transferToStorage(supabase, storagePath, file, {
+                contentType: mimeType,
+                upsert: options?.allowUpsert ?? false,
+                signal,
+            })
             didUploadFile = true
             throwIfCanceled()
             console.log('[capture] File uploaded successfully')
