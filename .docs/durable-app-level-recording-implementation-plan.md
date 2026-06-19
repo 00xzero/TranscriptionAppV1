@@ -2,7 +2,7 @@
 
 ## Status
 
-Phases 1-3 implemented in the current branch:
+Phases 1-4 implemented in the current branch:
 
 - Phase 1: IndexedDB durability foundation and write-behind persistence.
 - Phase 2: recovery, user-scoped upload idempotency, and the minimal session lock
@@ -13,10 +13,15 @@ Phases 1-3 implemented in the current branch:
   `durable` and `captureHealthWarning` session-snapshot signals drive passive
   page warnings, and the recording pill stays reachable across every unresolved
   state.
+- Phase 4: same-browser ownership and presence — a global per-browser owner Web
+  Lock (`recording:owner`) blocks duplicate starts, a `RecordingPresence` adapter
+  (BroadcastChannel + localStorage) publishes a 2s owner heartbeat across the
+  active lifecycle, and a `useRemotePresence` read model drives a remote pill,
+  remote `/recording/new` page state, capture-modal disabling, and owner-loss →
+  recovery (single side effect in the provider).
 
-Phases 4-5 remain planned: same-browser presence/remote-owner UI, and global
-pill/product polish (hover/focus preview, terminal animations, polished pill
-variants).
+Phase 5 remains planned: global pill/product polish (hover/focus preview,
+terminal animations, polished pill variants, a11y/QA, Safari MP4 spike).
 
 This plan complements
 [`durable-app-level-recording-design.md`](./durable-app-level-recording-design.md).
@@ -160,14 +165,35 @@ Exit criteria:
 
 Goal: make multiple tabs in the same browser behave coherently.
 
+Status: implemented in the current branch. The global owner mutex is a separate
+`BrowserOwnerLock` seam (`lib/recording/lock/owner*.ts`) on a fixed
+`recording:owner` Web Lock, acquired in `attachAndStart` before the per-session
+lock; a failed acquire throws `RemoteRecordingActiveError`. Presence is a thin
+`RecordingPresenceChannel` adapter (`lib/recording/presence/`) over
+BroadcastChannel + localStorage, published from `sessionActions` on every active
+transition and on a 2s heartbeat driven by the (now generalized, multi-observer)
+1s tick — which required keeping the interval alive through
+paused/finalizing/uploading. Same-browser coordination requires the Web Locks
+API: when it is absent there is no trustworthy cross-tab mutex, so both the owner
+lock (`NoopOwnerLock`) and presence (`NoopPresence`) degrade to no-ops as a unit —
+single-tab recording still works everywhere; the only loss is duplicate-start
+blocking and the remote UI. Remote consumption is a pure `useRemotePresence` hook whose
+status is shared via `RemotePresenceContext`; the owner-loss → `runRecoveryProbe`
+side effect runs once in `RecordingSessionProvider`. Terminal/interrupted cleanup
+clears presence after IDB teardown and before releasing the owner/session locks.
+
 Includes:
 
 - Extend the Phase 2 `SessionLock` seam into full same-browser coordination.
 - Consider adding a global per-browser recording mutex or equivalent duplicate
   start detector. The Phase 2 lock is per-session and does not block a separate
   new recording in another tab.
-- Replace the Phase 2 no-Web-Locks chunk-freshness fallback with
-  heartbeat-based degraded awareness.
+- Same-browser coordination requires the Web Locks API. When it is absent there
+  is no trustworthy cross-tab mutex, so the owner lock (`NoopOwnerLock`) and
+  presence (`NoopPresence`) degrade to no-ops as a unit — single-tab recording
+  still works everywhere; only duplicate-start blocking and the remote UI are
+  lost. (An earlier plan to emulate degraded awareness with heartbeats was
+  dropped; see the design doc's Presence Model note.)
 - `RecordingPresence` adapter using BroadcastChannel and localStorage.
 - Owner heartbeat every 2 seconds.
 - Stale after 15 seconds plus lock confirmation.

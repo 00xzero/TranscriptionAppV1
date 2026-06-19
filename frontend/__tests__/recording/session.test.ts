@@ -42,7 +42,16 @@ import {
   InMemorySessionPersistence,
   type PersistedSession,
 } from '@/lib/recording/persistence'
-import { __setSessionLockForTesting, type SessionLock } from '@/lib/recording/lock'
+import {
+  FakeOwnerLock,
+  __setSessionLockForTesting,
+  __setOwnerLockForTesting,
+  type SessionLock,
+} from '@/lib/recording/lock'
+import {
+  FakeRecordingPresence,
+  __setPresenceForTesting,
+} from '@/lib/recording/presence'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
@@ -288,6 +297,118 @@ describe('recording session singleton', () => {
     const snap = getSnapshot()
     expect(snap.state).toBe('error')
     expect(snap.errorMessage).toBe('Microphone unplugged')
+  })
+
+  // Phase 4: a non-retryable error is no longer a live recording, so presence is
+  // dropped. A retryable upload error stays an unresolved artifact and keeps both
+  // the owner lock and the last presence breadcrumb for owner-loss recovery.
+  test('non-retryable error clears presence and releases the owner lock', async () => {
+    const ownerLock = new FakeOwnerLock(false)
+    __setOwnerLockForTesting(ownerLock)
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    expect(presence.read()).not.toBeNull()
+    const releaseSpy = jest.spyOn(ownerLock, 'release')
+
+    markError('Mic unplugged')
+    await flushAsync()
+
+    expect(getSnapshot().canRetryUpload).toBe(false)
+    expect(presence.read()).toBeNull()
+    expect(releaseSpy).toHaveBeenCalled()
+  })
+
+  test('retryable upload error preserves presence breadcrumb and keeps the owner lock', async () => {
+    const ownerLock = new FakeOwnerLock(false)
+    __setOwnerLockForTesting(ownerLock)
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'failure', message: 'upload boom' })
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+    const releaseSpy = jest.spyOn(ownerLock, 'release')
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopPromise
+
+    expect(getSnapshot().state).toBe('error')
+    expect(getSnapshot().canRetryUpload).toBe(true)
+    expect(presence.read()).toMatchObject({
+      sessionId: expect.any(String),
+      state: 'uploading',
+      userId: 'user-123',
+    })
+    // The Web Locks request holds the lock open across the parked error, so the
+    // owner lock must not be released until the user retries or discards.
+    expect(releaseSpy).not.toHaveBeenCalled()
+  })
+
+  test('retryable upload error parks without keeping the recording interval alive', async () => {
+    const ownerLock = {
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => true),
+      release: jest.fn(async () => {}),
+    }
+    __setOwnerLockForTesting(ownerLock)
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'failure', message: 'upload boom' })
+    const setIntervalSpy = jest.spyOn(window, 'setInterval')
+    const clearIntervalSpy = jest.spyOn(window, 'clearInterval')
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    const intervalsAfterStart = setIntervalSpy.mock.calls.length
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopPromise
+
+    expect(getSnapshot().state).toBe('error')
+    expect(getSnapshot().canRetryUpload).toBe(true)
+    expect(clearIntervalSpy).toHaveBeenCalled()
+    expect(setIntervalSpy).toHaveBeenCalledTimes(intervalsAfterStart)
+  })
+
+  test('retrying a finalized upload restarts the recording interval for uploading heartbeats', async () => {
+    mockRunCaptureUpload.mockResolvedValueOnce({
+      kind: 'failure',
+      message: 'upload boom',
+    })
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopPromise
+    expect(getSnapshot().state).toBe('error')
+    expect(getSnapshot().canRetryUpload).toBe(true)
+
+    let resolveRetryUpload: (
+      result: Awaited<ReturnType<typeof runCaptureUpload>>
+    ) => void = () => {}
+    mockRunCaptureUpload.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetryUpload = resolve
+        })
+    )
+    const setIntervalSpy = jest.spyOn(window, 'setInterval')
+
+    const retryPromise = retryFinalizedUpload()
+    await flushAsync()
+
+    expect(getSnapshot().state).toBe('uploading')
+    expect(setIntervalSpy).toHaveBeenCalled()
+
+    resolveRetryUpload({ kind: 'failure', message: 'upload boom again' })
+    await retryPromise
   })
 
   test('markError preserves elapsed active time from an in-progress segment', () => {

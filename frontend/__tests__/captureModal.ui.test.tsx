@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import CaptureModal from '../components/CaptureModal'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { RemotePresenceProvider } from '@/lib/recording/RemotePresenceContext'
 import {
   __resetForTesting,
   __setSnapshotForTesting,
@@ -337,6 +338,32 @@ describe('CaptureModal tabs', () => {
     expect(
       screen.getByText(
         /a recording is already in progress or waiting to upload\. return to it before starting another\./i
+      )
+    ).toBeInTheDocument()
+  })
+
+  test('Record tab disables controls when another same-browser tab is recording (remote)', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+
+    render(
+      <TooltipProvider delayDuration={0}>
+        <RemotePresenceProvider value={{ kind: 'lock-only' }}>
+          <CaptureModal />
+        </RemotePresenceProvider>
+      </TooltipProvider>
+    )
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+
+    expect(
+      screen.getByRole('combobox', { name: /microphone input device/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: /test microphone/i })
+    ).toBeDisabled()
+    expect(
+      screen.getByText(
+        /a recording is already in progress in another tab\. return to that tab to continue\./i
       )
     ).toBeInTheDocument()
   })

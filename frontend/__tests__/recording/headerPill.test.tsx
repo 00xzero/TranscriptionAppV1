@@ -6,6 +6,7 @@ import {
   markSubmitted,
   startMock,
 } from '@/lib/recording/session'
+import { RemotePresenceProvider } from '@/lib/recording/RemotePresenceContext'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
 
 const pushMock = jest.fn()
@@ -92,6 +93,43 @@ describe('RecordingPill', () => {
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toBeInTheDocument()
     expect(pill).toHaveTextContent(label)
+  })
+
+  // Phase 4: a passive remote pill when another same-browser tab owns the
+  // recording and this tab has no local session.
+  test('renders a remote pill when another tab is recording (idle locally)', () => {
+    render(
+      <RemotePresenceProvider
+        value={{
+          kind: 'active',
+          sessionId: 's1',
+          title: 'X',
+          state: 'recording',
+          startedAt: 0,
+          lastResumeAt: 0,
+          pausedAccumulatedMs: 0,
+        }}
+      >
+        <RecordingPill />
+      </RemotePresenceProvider>
+    )
+    expect(screen.queryByTestId('recording-pill')).not.toBeInTheDocument()
+    expect(screen.getByTestId('recording-pill-remote')).toHaveTextContent(
+      /Recording in another tab/
+    )
+  })
+
+  test('a local session takes precedence over remote presence', () => {
+    act(() => {
+      startMock({ title: 'X' })
+    })
+    render(
+      <RemotePresenceProvider value={{ kind: 'lock-only' }}>
+        <RecordingPill />
+      </RemotePresenceProvider>
+    )
+    expect(screen.getByTestId('recording-pill')).toBeInTheDocument()
+    expect(screen.queryByTestId('recording-pill-remote')).not.toBeInTheDocument()
   })
 
   test('renders a distinct error pill only when the upload can be retried', () => {

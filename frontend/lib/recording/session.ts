@@ -19,6 +19,7 @@ export {
 } from './sessionStore'
 export {
   RecordingAlreadyActiveError,
+  RemoteRecordingActiveError,
   RecordingIdentityRequiredError,
   RecoveryPendingError,
   __resetForTesting,
@@ -30,6 +31,7 @@ export {
   getElapsedActiveMs,
   checkCaptureHealth,
   getLiveRecorder,
+  heartbeatTick,
   handleRecorderFailure,
   hasUnresolvedRecordingArtifact,
   hasUnsavedRecording,

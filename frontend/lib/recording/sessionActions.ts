@@ -41,7 +41,21 @@ import {
   SessionWriteQueue,
   __setPersistenceForTesting,
 } from './persistence'
-import { getSessionLock, __setSessionLockForTesting } from './lock'
+import {
+  getSessionLock,
+  getOwnerLock,
+  __setSessionLockForTesting,
+  __setOwnerLockForTesting,
+} from './lock'
+import {
+  getPresence,
+  getOwnerClientId,
+  HEARTBEAT_INTERVAL_MS,
+  isRecordingPresenceState,
+  __setPresenceForTesting,
+  __setOwnerClientIdForTesting,
+  type RecordingPresence,
+} from './presence'
 import { probeRecoverableSessions } from './recovery'
 import { getIdentity, __resetIdentityForTesting } from './sessionIdentity'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
@@ -123,15 +137,18 @@ function transition(
   if (!canTransition(snap.state, action)) return false
 
   switch (action) {
+    // Phase 4: the 1s interval now runs through recording → paused → finalizing →
+    // uploading so the presence heartbeat keeps publishing across the whole active
+    // lifecycle. It is stopped only on terminal cleanup, error, and interrupted.
+    // `checkCaptureHealth` already no-ops outside `recording`, and the timer
+    // freezes on pause via `getActiveSegmentMs`, so keeping it running is safe.
     case 'pause':
       store.runtime.controller?.pause()
-      clearIntervalIfRunning()
       break
     case 'resume':
       store.runtime.controller?.resume()
       break
     case 'finalize':
-      clearIntervalIfRunning()
       break
     case 'markSubmitted':
     case 'discard':
@@ -140,12 +157,25 @@ function transition(
     case 'markError':
       clearIntervalIfRunning()
       clearMockLifecycleTimeouts()
+      if (store.runtime.finalizedRecording == null) {
+        // Non-retryable errors have no recoverable artifact, so drop the public
+        // presence and release ownership. Retryable upload errors intentionally
+        // keep the last presence snapshot as a recovery breadcrumb: if this tab
+        // dies while parked on the error, other tabs can map the released owner
+        // lock back to the lost session id and run recovery.
+        clearPresenceQuietly()
+        void releaseOwnerLockQuietly()
+      }
       disposeController(store)
       break
     case 'markInterrupted':
       clearInterruptedSessionRuntime(store, clearSessionActivity)
       break
     case 'markUploading':
+      // A retry upload re-enters from the error state where the interval was
+      // cleared; restart it so the presence heartbeat republishes during upload.
+      // No-op when it is already running (the initial finalize → uploading path).
+      startIntervalIfNeeded()
       break
     default:
       assertNeverTransitionAction(action)
@@ -157,6 +187,10 @@ function transition(
     startIntervalIfNeeded()
   }
 
+  // Push the new state to same-browser presence promptly (not only on the next
+  // heartbeat tick) so remote tabs reflect pause/resume/finalize/upload quickly.
+  publishPresence()
+
   return true
 }
 
@@ -165,6 +199,19 @@ export class RecordingAlreadyActiveError extends Error {
   constructor() {
     super('A recording is already in progress. Return to it before starting another.')
     this.name = 'RecordingAlreadyActiveError'
+  }
+}
+
+/**
+ * A recording is already live in ANOTHER same-browser tab (the global owner lock
+ * is held elsewhere). Distinct from `RecordingAlreadyActiveError`, which is about
+ * this tab's own live/unresolved session, so the UI can say "another tab".
+ */
+export class RemoteRecordingActiveError extends Error {
+  readonly code = 'remote_recording_active' as const
+  constructor() {
+    super('A recording is already in progress in another tab. Return to that tab to continue.')
+    this.name = 'RemoteRecordingActiveError'
   }
 }
 
@@ -216,16 +263,26 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
 
   const persistence = getPersistence()
   const lock = getSessionLock()
+  const ownerLock = getOwnerLock()
   const sessionId = randomId('sess-')
   // Distinct from sessionId: the user-scoped upload idempotency key. Generated at
   // start so a session that crashes before stop still carries its dedup key.
   const uploadIntentId = randomId('sess-')
+
+  // Phase 4: take the global per-browser owner lock first. If another same-browser
+  // tab already owns a live recording, this fails fast and we never touch the
+  // recorder — the caller still owns the stream and releases it.
+  const ownerAcquired = await ownerLock.acquire()
+  if (!ownerAcquired) {
+    throw new RemoteRecordingActiveError()
+  }
 
   // Take ownership of this session before constructing the recorder, so another
   // tab cannot claim it as a recoverable orphan while it is live. On failure the
   // caller still owns the stream (it releases it); we only own the lock here.
   const acquired = await lock.acquire(sessionId)
   if (!acquired) {
+    await releaseOwnerLockQuietly()
     throw new RecordingAlreadyActiveError()
   }
 
@@ -276,6 +333,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.nextChunkSeq = 0
     store.runtime.writeQueue = null
     void lock.release()
+    void releaseOwnerLockQuietly()
     throw err
   }
 
@@ -330,6 +388,9 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   void gcExpiredSessions(persistence)
 
   startIntervalIfNeeded()
+  // Announce ownership to same-browser tabs immediately so they reflect the live
+  // recording without waiting for the first heartbeat tick.
+  publishPresence()
 }
 
 /**
@@ -355,12 +416,80 @@ async function releaseSessionLockQuietly(): Promise<void> {
   }
 }
 
+// Release the global per-browser owner lock, swallowing errors (best-effort).
+async function releaseOwnerLockQuietly(): Promise<void> {
+  try {
+    await getOwnerLock().release()
+  } catch {
+    // ignore — best-effort
+  }
+}
+
+// Clear same-browser presence, swallowing errors (best-effort).
+function clearPresenceQuietly(): void {
+  try {
+    getPresence().clear()
+  } catch {
+    // ignore — best-effort
+  }
+}
+
+// Wall-clock of the last presence publish, used to throttle the heartbeat to
+// HEARTBEAT_INTERVAL_MS even though the driving tick is 1s.
+let lastPresencePublishAt = 0
+
+// Publish the current session's presence snapshot for same-browser tabs. No-op
+// unless the session is in an active state with a resolved user — presence must
+// never carry key terms or the upload intent id (it lives in localStorage).
+function publishPresence(): void {
+  const snap = store.snapshot
+  const sessionId = store.runtime.sessionId
+  const userId = getIdentity().userId
+  if (!sessionId || !userId) return
+  if (!isRecordingPresenceState(snap.state)) return
+
+  const nextSeq = store.runtime.nextChunkSeq
+  const presence: RecordingPresence = {
+    sessionId,
+    ownerClientId: getOwnerClientId(),
+    userId,
+    state: snap.state,
+    title: snap.title ?? snap.generatedTitle,
+    startedAt: snap.startedAt ?? Date.now(),
+    lastResumeAt: snap.lastResumeAt,
+    pausedAccumulatedMs: snap.pausedAccumulatedMs,
+    bytesSoFar: store.runtime.bytesSoFar,
+    lastChunkSeq: nextSeq > 0 ? nextSeq - 1 : null,
+    lastChunkReceivedAt: store.runtime.lastChunkReceivedAt,
+    heartbeatAt: Date.now(),
+  }
+  lastPresencePublishAt = presence.heartbeatAt
+  try {
+    getPresence().publish(presence)
+  } catch {
+    // best-effort
+  }
+}
+
+// Tick-driven heartbeat: republish presence every HEARTBEAT_INTERVAL_MS so remote
+// tabs can tell the owner tab is still alive. Driven by the 1s recording interval.
+// Exported for deterministic tests (mirrors checkCaptureHealth).
+export function heartbeatTick(now: number = Date.now()): void {
+  if (!store.runtime.sessionId) return
+  if (!isRecordingPresenceState(store.snapshot.state)) return
+  if (now - lastPresencePublishAt < HEARTBEAT_INTERVAL_MS) return
+  publishPresence()
+}
+
 // Terminal live-session cleanup is ordered: clear/delete local persistence first,
-// then release ownership so another tab cannot briefly claim chunks that this tab
-// is in the process of deleting (especially important for discard).
+// then clear presence, then release ownership — so another tab never sees "no
+// owner" while chunks still exist, and cannot briefly claim chunks this tab is
+// deleting (especially important for discard).
 async function finalizeTerminalCleanup(): Promise<void> {
   await clearTerminalSessionRuntime(store, clearSessionActivity)
+  clearPresenceQuietly()
   await releaseSessionLockQuietly()
+  await releaseOwnerLockQuietly()
 }
 
 export function pause(): void {
@@ -648,8 +777,11 @@ export function checkCaptureHealth(now: number = Date.now()): void {
   }
 }
 
-// Drive the capture-health watchdog from the recording interval tick.
-setTickObserver(checkCaptureHealth)
+// Drive the capture-health watchdog and the presence heartbeat from the 1s
+// recording interval tick. Keyed registration keeps dev HMR idempotent when
+// this module re-evaluates while the sessionStore module survives.
+setTickObserver('capture-health', () => checkCaptureHealth())
+setTickObserver('presence-heartbeat', () => heartbeatTick())
 
 export function finalize(): void {
   transition('finalize', { captureHealthWarning: null })
@@ -706,7 +838,12 @@ async function finalizeInterruptedRecovery(
   } catch {
     // ignore — best-effort
   }
+  // The live owner is gone: clear presence first, then drop ownership so the
+  // orphan is claimable (by this tab's probe or another tab) without remote tabs
+  // momentarily seeing a fresh heartbeat for a session that is no longer live.
+  clearPresenceQuietly()
   await releaseSessionLockQuietly()
+  await releaseOwnerLockQuietly()
   try {
     await runRecoveryProbe()
   } catch {
@@ -900,6 +1037,7 @@ export async function discardRecovered(): Promise<void> {
 }
 
 export function __resetForTesting(): void {
+  void releaseOwnerLockQuietly()
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   abortUpload(store)
@@ -907,11 +1045,18 @@ export function __resetForTesting(): void {
   store.runtime = createRuntime()
   store.snapshot = { ...IDLE_SNAPSHOT }
   store.listeners.clear()
-  // Restore the default (env-detected) persistence adapter + session lock so an
-  // injected fake from one test cannot leak into the next, and reset identity.
+  lastPresencePublishAt = 0
+  // Restore the default (env-detected) adapters so an injected fake from one test
+  // cannot leak into the next, and reset identity + presence client id.
   __setPersistenceForTesting(null)
   __setSessionLockForTesting(null)
+  __setOwnerLockForTesting(null)
+  __setPresenceForTesting(null)
+  __setOwnerClientIdForTesting(null)
   __resetIdentityForTesting()
+  // Wipe any presence the default adapter left in localStorage, so a stale
+  // heartbeat from a prior test can't make the next owner-lock acquire fail.
+  clearPresenceQuietly()
 }
 
 export function __setSnapshotForTesting(partial: Partial<SessionSnapshot>): void {

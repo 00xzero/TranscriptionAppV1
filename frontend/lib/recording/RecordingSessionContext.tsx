@@ -24,6 +24,9 @@ import {
 } from './session'
 import { setIdentity } from './sessionIdentity'
 import { useBeforeUnloadGuard } from './useBeforeUnloadGuard'
+import { useRemotePresence } from './useRemotePresence'
+import { RemotePresenceProvider } from './RemotePresenceContext'
+import { clearPresenceForSession } from './presence'
 import { useAuthIdentity } from '@/lib/supabase/hooks'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 export { RecordingAlreadyActiveError } from './session'
@@ -60,19 +63,58 @@ export function RecordingSessionProvider({
   const identity = useAuthIdentity()
   const snapshot = useRecordingSession()
   const probedUserRef = useRef<string | null>(null)
+  const ownerLossHandledSessionRef = useRef<string | null>(null)
 
   // App-level unload guard: warns on refresh/close/quit while a recording is active
   // (through upload completion), on every route — not just `/recording/new`.
   useBeforeUnloadGuard(isRecordingSessionActive(snapshot))
 
+  // Phase 4: derive same-browser remote-presence status once, here, and share it
+  // via context. `localActive` suppresses remote state when this tab is itself the
+  // (resolving) owner of an active or recoverable recording.
+  const localActive =
+    isRecordingSessionActive(snapshot) || snapshot.state === 'recoverable'
+  const remoteStatus = useRemotePresence(localActive)
+
   // Push the authenticated identity into the recording seam (keeps lib/recording
   // free of any supabase import) and defensively patch any live persisted row.
+  // Keep this before any recovery-probe effects: runRecoveryProbe reads this seam.
   useEffect(() => {
     setIdentity({ userId: identity.userId, ready: identity.ready })
     if (identity.ready && identity.userId) {
       syncIdentityToActiveSession(identity.userId)
     }
   }, [identity.userId, identity.ready])
+
+  // Single owner-loss side effect: when a same-user recording loses its owner tab,
+  // probe once for recoverable chunks. The probe hydrates `recoverable` (surfacing
+  // the blocking modal below) when valid audio exists; otherwise the dead
+  // presence snapshot is cleared so new tabs do not keep rediscovering it. De-dupe
+  // is scoped to the lost sessionId so a *different* orphan still triggers a
+  // probe, and a failed probe clears the marker so it can retry.
+  const lostSessionId =
+    remoteStatus.kind === 'owner-lost' ? remoteStatus.sessionId : null
+  useEffect(() => {
+    if (!lostSessionId) {
+      ownerLossHandledSessionRef.current = null
+      return
+    }
+    if (ownerLossHandledSessionRef.current === lostSessionId) return
+    if (!identity.ready || !identity.userId) return
+    ownerLossHandledSessionRef.current = lostSessionId
+    void runRecoveryProbe()
+      .then((foundRecoverable) => {
+        if (!foundRecoverable) {
+          clearPresenceForSession(lostSessionId)
+        }
+      })
+      .catch(() => {
+        // best-effort; clear the marker so a later evaluation can retry this session.
+        if (ownerLossHandledSessionRef.current === lostSessionId) {
+          ownerLossHandledSessionRef.current = null
+        }
+      })
+  }, [lostSessionId, identity.ready, identity.userId])
 
   // App-wide recovery probe: runs once per resolved user. Recovery is surfaced via
   // the blocking modal below (and attachAndStart re-probes as a backstop before any
@@ -106,10 +148,10 @@ export function RecordingSessionProvider({
     snapshot.state === 'recoverable' ? snapshot.recoverable : null
 
   return (
-    <>
+    <RemotePresenceProvider value={remoteStatus}>
       {children}
       {recoverable && <RecoveryModal info={recoverable} />}
-    </>
+    </RemotePresenceProvider>
   )
 }
 

@@ -1,12 +1,17 @@
 "use client"
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
+import {
+  isRemoteRecordingBlocking,
+  useRemotePresenceStatus,
+} from '@/lib/recording/RemotePresenceContext'
 import type { SessionSnapshot } from '@/lib/recording/session'
+import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
@@ -18,6 +23,9 @@ import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
 const DISCARD_RETRYABLE_UPLOAD_COPY =
   'Leaving this page will discard your recording and you will not be able to retry the upload. Continue?'
+const COMPLETION_REDIRECT_DELAY_MS = 600
+const COMPLETION_REDIRECT_RETRY_MS = 1_500
+const COMPLETION_HARD_FALLBACK_MS = 3_000
 
 function getCompletionRedirectTarget(
   snapshot: Pick<SessionSnapshot, 'state' | 'submissionResult'>
@@ -62,9 +70,25 @@ function RecordingStatusLayout({
 
 export default function RecordingNewPage() {
   const router = useRouter()
+  const routerRef = useRef(router)
   const snapshot = useRecordingSession()
+  const remote = useRemotePresenceStatus()
   const actions = useRecordingActions()
   const [retryingUpload, setRetryingUpload] = useState(false)
+  const completionRedirectTarget = getCompletionRedirectTarget({
+    state: snapshot.state,
+    submissionResult: snapshot.submissionResult,
+  })
+
+  useEffect(() => {
+    routerRef.current = router
+  }, [router])
+
+  // Phase 4: a direct visit here from a non-owner tab (local idle, but another
+  // same-browser tab is recording) shows a passive remote state instead of the
+  // "no active recording" redirect.
+  const isRemoteOnly =
+    snapshot.state === 'idle' && isRemoteRecordingBlocking(remote)
 
   // Phase 3: the unload guard is installed app-level in RecordingSessionProvider so
   // it survives navigation away from this route. In-app navigation (incl. browser
@@ -72,27 +96,42 @@ export default function RecordingNewPage() {
   // guard here anymore.
 
   useEffect(() => {
-    const target = getCompletionRedirectTarget({
-      state: snapshot.state,
-      submissionResult: snapshot.submissionResult,
-    })
-    if (!target) return
+    if (!completionRedirectTarget) return
 
-    const id = window.setTimeout(() => {
-      router.replace(target)
-    }, 600)
-    return () => window.clearTimeout(id)
-  }, [snapshot.state, snapshot.submissionResult, router])
+    const navigate = () => {
+      routerRef.current.replace(completionRedirectTarget)
+    }
+    const primaryId = window.setTimeout(navigate, COMPLETION_REDIRECT_DELAY_MS)
+    const retryId = window.setTimeout(navigate, COMPLETION_REDIRECT_RETRY_MS)
+    const fallbackId = window.setTimeout(() => {
+      try {
+        window.location.replace(completionRedirectTarget)
+      } catch {
+        window.location.href = completionRedirectTarget
+      }
+    }, COMPLETION_HARD_FALLBACK_MS)
+
+    return () => {
+      window.clearTimeout(primaryId)
+      window.clearTimeout(retryId)
+      window.clearTimeout(fallbackId)
+    }
+  }, [completionRedirectTarget])
 
   // Idle here means there's no active session to expand. Recovery is handled by
   // the global modal (RecordingSessionProvider), not this route, so production
   // just sends the user back to the library.
   useEffect(() => {
-    if (snapshot.state !== 'idle') return
-    if (!RECORDING_DEV_CONTROLS_ENABLED) {
+    if (
+      shouldRedirectMissingRecordingSession({
+        state: snapshot.state,
+        remoteKind: remote.kind,
+        devControlsEnabled: RECORDING_DEV_CONTROLS_ENABLED,
+      })
+    ) {
       router.replace('/projects?capture=recording_session_not_found')
     }
-  }, [router, snapshot.state])
+  }, [router, snapshot.state, remote.kind])
 
   const title =
     snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
@@ -149,6 +188,37 @@ export default function RecordingNewPage() {
 
     actions.resetRecordingSession()
     router.push('/projects')
+  }
+
+  if (isRemoteOnly) {
+    const remoteTitle =
+      remote.kind === 'active' && remote.title ? remote.title : null
+    return (
+      <div
+        className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24"
+        data-testid="recording-remote-active"
+      >
+        <header>
+          <h1 className="font-serif text-3xl text-ink dark:text-paper">
+            {remoteTitle ?? 'Recording in another tab'}
+          </h1>
+          <p className="mt-2 text-sm text-ink/60 dark:text-paper/60">
+            A recording is in progress in another browser tab.
+          </p>
+        </header>
+        <p className="text-sm text-ink/70 dark:text-paper/70">
+          Return to the original tab to pause, stop, or save it. You can&apos;t
+          control or start a recording from here while one is active.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push('/projects')}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+        >
+          Return to library
+        </button>
+      </div>
+    )
   }
 
   if (snapshot.state === 'idle') {
@@ -232,6 +302,7 @@ export default function RecordingNewPage() {
   }
 
   if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
+    const target = completionRedirectTarget ?? '/projects'
     return (
       <RecordingStatusLayout
         title={title}
@@ -241,6 +312,12 @@ export default function RecordingNewPage() {
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
+        <a
+          href={target}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+        >
+          Return to library
+        </a>
       </RecordingStatusLayout>
     )
   }

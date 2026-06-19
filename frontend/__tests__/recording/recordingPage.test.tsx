@@ -1,11 +1,13 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import RecordingNewPage from '@/app/recording/new/page'
+import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import {
   __resetForTesting,
   getSnapshot,
   startMock,
 } from '@/lib/recording/session'
+import { RemotePresenceProvider } from '@/lib/recording/RemotePresenceContext'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
 
 const replaceMock = jest.fn()
@@ -27,6 +29,63 @@ describe('Recording page', () => {
     render(<RecordingNewPage />)
     expect(screen.getByText(/No active recording/i)).toBeInTheDocument()
     expect(screen.getByTestId('recording-dev-controls')).toBeInTheDocument()
+  })
+
+  // Phase 4: a non-owner tab visiting /recording/new sees a passive remote state
+  // instead of the idle "no active recording" view (and is not redirected).
+  test('remote-active state renders when another tab is recording', () => {
+    render(
+      <RemotePresenceProvider
+        value={{
+          kind: 'active',
+          sessionId: 's1',
+          title: 'Remote rec',
+          state: 'recording',
+          startedAt: 0,
+          lastResumeAt: 0,
+          pausedAccumulatedMs: 0,
+        }}
+      >
+        <RecordingNewPage />
+      </RemotePresenceProvider>
+    )
+    expect(screen.getByTestId('recording-remote-active')).toBeInTheDocument()
+    expect(screen.getByText('Remote rec')).toBeInTheDocument()
+    expect(screen.queryByText(/No active recording/i)).not.toBeInTheDocument()
+  })
+
+  test('lock-only remote state renders the generic remote panel', () => {
+    render(
+      <RemotePresenceProvider value={{ kind: 'lock-only' }}>
+        <RecordingNewPage />
+      </RemotePresenceProvider>
+    )
+    expect(screen.getByTestId('recording-remote-active')).toBeInTheDocument()
+    expect(screen.getByText(/Recording in another tab/i)).toBeInTheDocument()
+  })
+
+  test('production idle redirect waits for the first remote-presence read', () => {
+    expect(
+      shouldRedirectMissingRecordingSession({
+        state: 'idle',
+        remoteKind: 'checking',
+        devControlsEnabled: false,
+      })
+    ).toBe(false)
+    expect(
+      shouldRedirectMissingRecordingSession({
+        state: 'idle',
+        remoteKind: 'active',
+        devControlsEnabled: false,
+      })
+    ).toBe(false)
+    expect(
+      shouldRedirectMissingRecordingSession({
+        state: 'idle',
+        remoteKind: 'none',
+        devControlsEnabled: false,
+      })
+    ).toBe(true)
   })
 
   test('recording state renders timer, label, waveform, and controls', () => {
@@ -272,10 +331,33 @@ describe('Recording page', () => {
         mockRecordingSession({ state: 'submitted', title: 't' })
       })
       render(<RecordingNewPage />)
+      expect(
+        screen.getByRole('link', { name: /return to library/i })
+      ).toHaveAttribute('href', '/projects')
       act(() => {
         jest.advanceTimersByTime(700)
       })
       expect(replaceMock).toHaveBeenCalledWith('/projects')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('terminal navigation retries if the first replace does not leave the page', () => {
+    jest.useFakeTimers()
+    try {
+      act(() => {
+        mockRecordingSession({ state: 'discarded', title: 't' })
+      })
+      render(<RecordingNewPage />)
+
+      act(() => {
+        jest.advanceTimersByTime(1_600)
+      })
+
+      expect(replaceMock).toHaveBeenCalledTimes(2)
+      expect(replaceMock).toHaveBeenNthCalledWith(1, '/projects')
+      expect(replaceMock).toHaveBeenNthCalledWith(2, '/projects')
     } finally {
       jest.useRealTimers()
     }

@@ -344,9 +344,18 @@ not declare the owner dead from chunk staleness alone; chunk freshness is a
 capture-health signal, while Web Locks plus heartbeat are ownership/liveness
 signals.
 
-Target presence phase: without Web Locks, use heartbeat-only presence as
-degraded best-effort awareness. It can prevent many duplicate starts but cannot
-prove owner death as reliably.
+Phase 4 note: same-browser coordination requires the Web Locks API. An earlier
+plan used heartbeat-only presence as degraded best-effort awareness when Web
+Locks were unavailable, but that emulated mutex (localStorage marker + heartbeats
++ grace window) was the source of subtle owner-liveness bugs and was removed. When
+Web Locks are absent there is no trustworthy way to distinguish a live-but-
+backgrounded owner from a dead one, so the owner lock (`NoopOwnerLock`) and
+presence (`NoopPresence`) degrade to no-ops together: single-tab recording still
+works everywhere, and only duplicate-start blocking and the remote UI are lost.
+The accepted tradeoff is that two tabs in such a browser can each start a
+recording (a self-inflicted duplicate-upload annoyance, not data loss); crash
+recovery is unaffected because it relies on IndexedDB plus the app-level recovery
+probe, not on this lock.
 
 Current Phase 2 note: the presence model is not implemented yet. The current
 code includes a `SessionLock` seam used to protect live sessions from recovery
@@ -874,7 +883,7 @@ Confirm behavior across supported browsers for:
 | 24 | Ownership | Web Lock for full active lifecycle |
 | 25 | Presence | localStorage + BroadcastChannel; title yes, key terms no |
 | 26 | Heartbeat | Every 2 seconds; stale after 15 seconds plus lock confirmation |
-| 27 | Without Web Locks | Phase 2 uses chunk-freshness recovery fallback; later presence phase targets heartbeat-only awareness |
+| 27 | Without Web Locks | Phase 2 session-lock fallback uses chunk-freshness for recovery claims; Phase 4 same-browser coordination requires Web Locks and disables to a no-op (owner lock + presence) when absent |
 | 28 | Non-owner tabs | Observe-only; no remote controls |
 | 29 | Owner loss | Open tabs detect and offer recovery when chunks exist |
 | 30 | Cross-browser/device | Out of scope; one-recording rule is per browser profile |
