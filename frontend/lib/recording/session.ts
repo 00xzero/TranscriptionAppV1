@@ -25,32 +25,36 @@ export {
   __resetForTesting,
   __setSnapshotForTesting,
   attachAndStart,
-  discard,
+  checkCaptureHealth,
+  handleRecorderFailure,
+  recordChunk,
+  stopAndFinalize,
+  syncIdentityToActiveSession,
+} from './sessionActions'
+export { retryFinalizedUpload } from './sessionUpload'
+export {
   discardRecovered,
+  markInterrupted,
+  runRecoveryProbe,
+  saveRecovered,
+  type SaveRecoveredResult,
+} from './sessionRecovery'
+export {
+  discard,
   finalize,
   getElapsedActiveMs,
-  checkCaptureHealth,
   getLiveRecorder,
-  heartbeatTick,
-  handleRecorderFailure,
   hasUnresolvedRecordingArtifact,
   hasUnsavedRecording,
   isRecordingSessionActive,
   markError,
-  markInterrupted,
   markSubmitted,
   markUploading,
   pause,
-  recordChunk,
   resetRecordingSession,
   resume,
-  retryFinalizedUpload,
-  runRecoveryProbe,
-  saveRecovered,
-  stopAndFinalize,
-  syncIdentityToActiveSession,
-  type SaveRecoveredResult,
-} from './sessionActions'
+} from './sessionCore'
+export { heartbeatTick } from './sessionPresence'
 export {
   forceState,
   startMock,

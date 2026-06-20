@@ -4,16 +4,12 @@ import {
 import {
   abortUpload,
   clearFinalizedRecording,
-  clearInterruptedSessionRuntime,
-  clearTerminalSessionRuntime,
   createRuntime,
   disposeController,
-  getLiveRecorderFromStore,
 } from './sessionRuntime'
 import {
   clearIntervalIfRunning,
   clearMockLifecycleTimeouts,
-  clearSessionActivity,
   notify,
   setSnapshot,
   setTickObserver,
@@ -23,17 +19,9 @@ import {
 import {
   IDLE_SNAPSHOT,
   type AttachAndStartParams,
-  type RecoverableInfo,
   type SessionSnapshot,
 } from './sessionTypes'
-import {
-  TRANSITION_SPECS,
-  canTransition,
-  isInFlightState,
-  isRetryableError,
-  shouldIgnoreRecorderFailure,
-  type SnapshotTransitionAction,
-} from './sessionTransitions'
+import { shouldIgnoreRecorderFailure } from './sessionTransitions'
 import {
   getPersistence,
   gcExpiredSessions,
@@ -48,151 +36,33 @@ import {
   __setOwnerLockForTesting,
 } from './lock'
 import {
-  getPresence,
-  getOwnerClientId,
-  HEARTBEAT_INTERVAL_MS,
-  isRecordingPresenceState,
   __setPresenceForTesting,
   __setOwnerClientIdForTesting,
-  type RecordingPresence,
 } from './presence'
-import { probeRecoverableSessions } from './recovery'
+import {
+  clearPresenceQuietly,
+  publishPresence,
+  __resetPresenceThrottle,
+} from './sessionPresence'
+import {
+  discard,
+  finalize,
+  getElapsedActiveMs,
+  hasUnsavedRecording,
+  isRecordingSessionActive,
+  releaseOwnerLockQuietly,
+} from './sessionCore'
+import {
+  recordingMediaFilename,
+  submitFinalizedRecording,
+} from './sessionUpload'
+import {
+  markInterrupted,
+  runRecoveryProbe,
+} from './sessionRecovery'
 import { getIdentity, __resetIdentityForTesting } from './sessionIdentity'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
-import { runCaptureUpload } from '@/lib/capture/upload'
 import { randomId } from '@/lib/ids'
-
-export function getLiveRecorder(): MediaRecorder | null {
-  return getLiveRecorderFromStore(store)
-}
-
-export function getElapsedActiveMs(
-  snap: SessionSnapshot,
-  now: number = Date.now()
-): number {
-  return Math.max(0, snap.pausedAccumulatedMs + getActiveSegmentMs(snap, now))
-}
-
-export function getActiveSegmentMs(
-  snap: SessionSnapshot,
-  now: number = Date.now()
-): number {
-  return snap.state === 'recording' && snap.lastResumeAt != null
-    ? Math.max(0, now - snap.lastResumeAt)
-    : 0
-}
-
-// A capture is "in flight" — recording, finishing, uploading, or finished but
-// holding a recording that can still be retried. Used both to guard against
-// starting a second capture and to warn before navigating away.
-export function isRecordingSessionActive(snapshot: SessionSnapshot): boolean {
-  return isInFlightState(snapshot.state) || isRetryableError(snapshot)
-}
-
-export function hasUnsavedRecording(): boolean {
-  return isRecordingSessionActive(store.snapshot)
-}
-
-// Auth/context boundary guard (Phase 3): sign-out and account/workspace switches
-// are blocked until the user resolves any active, recoverable, or retryable
-// recording artifact. Broader than `hasUnsavedRecording` because `recoverable`
-// audio is already persisted but must still be saved/transcribed or discarded
-// before leaving the user/context it belongs to.
-export function hasUnresolvedRecordingArtifact(): boolean {
-  return (
-    isRecordingSessionActive(store.snapshot) ||
-    store.snapshot.state === 'recoverable'
-  )
-}
-
-function assertNeverTransitionAction(value: never): never {
-  throw new Error(`Unhandled recording snapshot transition action: ${String(value)}`)
-}
-
-function buildTransitionSnapshot(
-  snap: SessionSnapshot,
-  action: SnapshotTransitionAction,
-  patch: Partial<SessionSnapshot> = {},
-  now: number = Date.now()
-): SessionSnapshot {
-  const { target, foldsElapsedTime } = TRANSITION_SPECS[action]
-  const foldedMs = foldsElapsedTime ? getActiveSegmentMs(snap, now) : 0
-
-  return {
-    ...snap,
-    ...patch,
-    state: target,
-    ...(target !== 'recording' ? { lastResumeAt: null } : {}),
-    ...(foldsElapsedTime
-      ? { pausedAccumulatedMs: snap.pausedAccumulatedMs + foldedMs }
-      : {}),
-  }
-}
-
-function transition(
-  action: SnapshotTransitionAction,
-  patch?: Partial<SessionSnapshot>
-): boolean {
-  const snap = store.snapshot
-  if (!canTransition(snap.state, action)) return false
-
-  switch (action) {
-    // Phase 4: the 1s interval now runs through recording → paused → finalizing →
-    // uploading so the presence heartbeat keeps publishing across the whole active
-    // lifecycle. It is stopped only on terminal cleanup, error, and interrupted.
-    // `checkCaptureHealth` already no-ops outside `recording`, and the timer
-    // freezes on pause via `getActiveSegmentMs`, so keeping it running is safe.
-    case 'pause':
-      store.runtime.controller?.pause()
-      break
-    case 'resume':
-      store.runtime.controller?.resume()
-      break
-    case 'finalize':
-      break
-    case 'markSubmitted':
-    case 'discard':
-      void finalizeTerminalCleanup()
-      break
-    case 'markError':
-      clearIntervalIfRunning()
-      clearMockLifecycleTimeouts()
-      if (store.runtime.finalizedRecording == null) {
-        // Non-retryable errors have no recoverable artifact, so drop the public
-        // presence and release ownership. Retryable upload errors intentionally
-        // keep the last presence snapshot as a recovery breadcrumb: if this tab
-        // dies while parked on the error, other tabs can map the released owner
-        // lock back to the lost session id and run recovery.
-        clearPresenceQuietly()
-        void releaseOwnerLockQuietly()
-      }
-      disposeController(store)
-      break
-    case 'markInterrupted':
-      clearInterruptedSessionRuntime(store, clearSessionActivity)
-      break
-    case 'markUploading':
-      // A retry upload re-enters from the error state where the interval was
-      // cleared; restart it so the presence heartbeat republishes during upload.
-      // No-op when it is already running (the initial finalize → uploading path).
-      startIntervalIfNeeded()
-      break
-    default:
-      assertNeverTransitionAction(action)
-  }
-
-  setSnapshot(buildTransitionSnapshot(snap, action, patch))
-
-  if (action === 'resume') {
-    startIntervalIfNeeded()
-  }
-
-  // Push the new state to same-browser presence promptly (not only on the next
-  // heartbeat tick) so remote tabs reflect pause/resume/finalize/upload quickly.
-  publishPresence()
-
-  return true
-}
 
 export class RecordingAlreadyActiveError extends Error {
   readonly code = 'recording_already_active' as const
@@ -406,124 +276,6 @@ export function syncIdentityToActiveSession(userId: string | null): void {
   queue.enqueueMetadata({ userId })
 }
 
-// Release session ownership, swallowing errors. Lock release is always
-// best-effort: a failed release must never block a terminal/recovery flow.
-async function releaseSessionLockQuietly(): Promise<void> {
-  try {
-    await getSessionLock().release()
-  } catch {
-    // ignore — best-effort
-  }
-}
-
-// Release the global per-browser owner lock, swallowing errors (best-effort).
-async function releaseOwnerLockQuietly(): Promise<void> {
-  try {
-    await getOwnerLock().release()
-  } catch {
-    // ignore — best-effort
-  }
-}
-
-// Clear same-browser presence, swallowing errors (best-effort).
-function clearPresenceQuietly(): void {
-  try {
-    getPresence().clear()
-  } catch {
-    // ignore — best-effort
-  }
-}
-
-// Wall-clock of the last presence publish, used to throttle the heartbeat to
-// HEARTBEAT_INTERVAL_MS even though the driving tick is 1s.
-let lastPresencePublishAt = 0
-
-// Publish the current session's presence snapshot for same-browser tabs. No-op
-// unless the session is in an active state with a resolved user — presence must
-// never carry key terms or the upload intent id (it lives in localStorage).
-function publishPresence(): void {
-  const snap = store.snapshot
-  const sessionId = store.runtime.sessionId
-  const userId = getIdentity().userId
-  if (!sessionId || !userId) return
-  if (!isRecordingPresenceState(snap.state)) return
-
-  const nextSeq = store.runtime.nextChunkSeq
-  const presence: RecordingPresence = {
-    sessionId,
-    ownerClientId: getOwnerClientId(),
-    userId,
-    state: snap.state,
-    title: snap.title ?? snap.generatedTitle,
-    startedAt: snap.startedAt ?? Date.now(),
-    lastResumeAt: snap.lastResumeAt,
-    pausedAccumulatedMs: snap.pausedAccumulatedMs,
-    bytesSoFar: store.runtime.bytesSoFar,
-    lastChunkSeq: nextSeq > 0 ? nextSeq - 1 : null,
-    lastChunkReceivedAt: store.runtime.lastChunkReceivedAt,
-    heartbeatAt: Date.now(),
-  }
-  lastPresencePublishAt = presence.heartbeatAt
-  try {
-    getPresence().publish(presence)
-  } catch {
-    // best-effort
-  }
-}
-
-// Tick-driven heartbeat: republish presence every HEARTBEAT_INTERVAL_MS so remote
-// tabs can tell the owner tab is still alive. Driven by the 1s recording interval.
-// Exported for deterministic tests (mirrors checkCaptureHealth).
-export function heartbeatTick(now: number = Date.now()): void {
-  if (!store.runtime.sessionId) return
-  if (!isRecordingPresenceState(store.snapshot.state)) return
-  if (now - lastPresencePublishAt < HEARTBEAT_INTERVAL_MS) return
-  publishPresence()
-}
-
-// Terminal live-session cleanup is ordered: clear/delete local persistence first,
-// then clear presence, then release ownership — so another tab never sees "no
-// owner" while chunks still exist, and cannot briefly claim chunks this tab is
-// deleting (especially important for discard).
-async function finalizeTerminalCleanup(): Promise<void> {
-  await clearTerminalSessionRuntime(store, clearSessionActivity)
-  clearPresenceQuietly()
-  await releaseSessionLockQuietly()
-  await releaseOwnerLockQuietly()
-}
-
-export function pause(): void {
-  if (transition('pause', { captureHealthWarning: null })) {
-    store.runtime.flushRequested = false
-    persistTimingPatch()
-  }
-}
-
-export function resume(): void {
-  if (
-    transition('resume', {
-      lastResumeAt: Date.now(),
-      captureHealthWarning: null,
-    })
-  ) {
-    // Re-baseline capture-health on resume so a long pause does not register as a
-    // capture stall the instant recording resumes (no chunk has arrived yet).
-    store.runtime.lastChunkReceivedAt = Date.now()
-    store.runtime.flushRequested = false
-    persistTimingPatch()
-  }
-}
-
-// Persist pause/resume timing from the POST-transition snapshot. `transition()`
-// folds `pausedAccumulatedMs` and clears/sets `lastResumeAt` inside setSnapshot,
-// so reading before it returns would persist stale values.
-function persistTimingPatch(): void {
-  store.runtime.writeQueue?.enqueueMetadata({
-    pausedAccumulatedMs: store.snapshot.pausedAccumulatedMs,
-    lastResumeAt: store.snapshot.lastResumeAt,
-  })
-}
-
 // Single-flight, drain-aware Stop. Used by the recording page's controls and
 // by the size-budget auto-stop.
 export async function stopAndFinalize(): Promise<void> {
@@ -590,65 +342,6 @@ export async function stopAndFinalize(): Promise<void> {
   store.runtime.bytesSoFar = 0
   store.runtime.acceptingChunks = false
 
-  try {
-    await submitFinalizedRecording()
-  } finally {
-    store.runtime.stopInProgress = false
-  }
-}
-
-async function submitFinalizedRecording(): Promise<void> {
-  const finalized = store.runtime.finalizedRecording
-  if (!finalized) {
-    markError('No finalized recording is available to upload.')
-    return
-  }
-
-  if (!transition('markUploading')) return
-  if (store.snapshot.state !== 'uploading') return
-
-  // Persist the phase transition (advisory) after it has applied.
-  store.runtime.writeQueue?.enqueueMetadata({ phase: 'uploading' })
-
-  const abortController = new AbortController()
-  store.runtime.uploadAbortController = abortController
-
-  let result: Awaited<ReturnType<typeof runCaptureUpload>>
-  try {
-    result = await runCaptureUpload(
-      finalized.file,
-      finalized.title,
-      finalized.keyTerms,
-      {
-        signal: abortController.signal,
-        uploadIntentId: store.runtime.uploadIntentId ?? undefined,
-      }
-    )
-  } finally {
-    if (store.runtime.uploadAbortController === abortController) {
-      store.runtime.uploadAbortController = null
-    }
-  }
-  if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
-    return
-  }
-
-  if (result.kind === 'success') {
-    setSubmissionResult({
-      projectId: result.projectId,
-      outcome: result.outcome,
-    })
-    markSubmitted()
-  } else {
-    markUploadError(result.message)
-  }
-}
-
-export async function retryFinalizedUpload(): Promise<void> {
-  if (store.runtime.stopInProgress) return
-  if (!store.runtime.finalizedRecording) return
-
-  store.runtime.stopInProgress = true
   try {
     await submitFinalizedRecording()
   } finally {
@@ -777,263 +470,14 @@ export function checkCaptureHealth(now: number = Date.now()): void {
   }
 }
 
-// Drive the capture-health watchdog and the presence heartbeat from the 1s
-// recording interval tick. Keyed registration keeps dev HMR idempotent when
-// this module re-evaluates while the sessionStore module survives.
+// Drive the capture-health watchdog from the 1s recording interval tick. Keyed
+// registration keeps dev HMR idempotent when this module re-evaluates while the
+// sessionStore module survives. (The presence-heartbeat tick is registered in
+// sessionPresence.)
 setTickObserver('capture-health', () => checkCaptureHealth())
-setTickObserver('presence-heartbeat', () => heartbeatTick())
-
-export function finalize(): void {
-  transition('finalize', { captureHealthWarning: null })
-}
-
-export function markUploading(): void {
-  transition('markUploading')
-}
 
 function setSalvageMessage(message: string | null): void {
   setSnapshot({ ...store.snapshot, salvageMessage: message })
-}
-
-function setSubmissionResult(
-  result: SessionSnapshot['submissionResult']
-): void {
-  setSnapshot({ ...store.snapshot, submissionResult: result })
-}
-
-export function markSubmitted(): void {
-  transition('markSubmitted', { recoverable: null })
-}
-
-export function discard(salvageMessage?: string): void {
-  transition('discard', { salvageMessage: salvageMessage ?? null })
-}
-
-export function markError(message: string): void {
-  transition('markError', { errorMessage: message })
-}
-
-function markUploadError(message: string): void {
-  disposeController(store)
-  markError(message)
-}
-
-export function markInterrupted(message?: string): void {
-  // Capture the queue before the transition detaches it from runtime, so its
-  // pending writes can settle before we probe.
-  const queue = store.runtime.writeQueue
-  transition('markInterrupted', { errorMessage: message ?? null })
-  void finalizeInterruptedRecovery(queue)
-}
-
-// After an interruption the live recorder is gone but the tab is alive and the
-// chunks remain in IDB. Once writes settle, release the lock so the orphan is
-// claimable, then probe: if the persisted audio is valid it surfaces as
-// recoverable; otherwise it is silently cleaned up and we stay interrupted.
-async function finalizeInterruptedRecovery(
-  queue: SessionWriteQueue | null
-): Promise<void> {
-  try {
-    if (queue) await queue.whenSettled()
-  } catch {
-    // ignore — best-effort
-  }
-  // The live owner is gone: clear presence first, then drop ownership so the
-  // orphan is claimable (by this tab's probe or another tab) without remote tabs
-  // momentarily seeing a fresh heartbeat for a session that is no longer live.
-  clearPresenceQuietly()
-  await releaseSessionLockQuietly()
-  await releaseOwnerLockQuietly()
-  try {
-    await runRecoveryProbe()
-  } catch {
-    // ignore — best-effort
-  }
-}
-
-export function resetRecordingSession(): void {
-  void finalizeTerminalCleanup()
-  setSnapshot({ ...IDLE_SNAPSHOT })
-}
-
-function hydrateRecoverable(info: RecoverableInfo): void {
-  setSnapshot({
-    ...IDLE_SNAPSHOT,
-    state: 'recoverable',
-    title: info.title,
-    generatedTitle: info.generatedTitle,
-    keyTerms: info.keyTerms,
-    codecExtension: info.codecExtension,
-    bytesSoFar: info.bytesSoFar,
-    recoverable: info,
-  })
-}
-
-// Recovery may only surface from a non-live state: idle, interrupted, or while
-// already showing a recoverable (to chain to the next orphan after save/discard).
-function isRecoveryEligibleState(): boolean {
-  return (
-    store.snapshot.state === 'idle' ||
-    store.snapshot.state === 'interrupted' ||
-    store.snapshot.state === 'recoverable'
-  )
-}
-
-/**
- * Probe IDB for a recoverable orphan belonging to the current user and, if found,
- * hydrate the blocking recoverable state. Safe from idle, interrupted, or while
- * already showing a recoverable (to chain to the next orphan after save/discard).
- * Returns true when a recoverable session was surfaced.
- */
-export async function runRecoveryProbe(
-  excludeSessionId?: string | null
-): Promise<boolean> {
-  const identity = getIdentity()
-  if (!identity.ready || !identity.userId) return false
-
-  if (!isRecoveryEligibleState()) {
-    return false
-  }
-
-  // Exclude an explicitly-resolved orphan (recovery chaining) so a failed
-  // deleteSession can't make this same probe re-surface it in a loop; otherwise
-  // exclude the live session, if any.
-  const result = await probeRecoverableSessions(
-    getPersistence(),
-    getSessionLock(),
-    identity.userId,
-    Date.now(),
-    excludeSessionId ?? store.runtime.sessionId
-  )
-  if (!result) return false
-
-  if (!isRecoveryEligibleState()) {
-    // The probe may have taken longer than the provider's startup gate. If the
-    // user started/continued live work in the meantime, leave that session alone
-    // and release the claimed orphan so it can be recovered on a later idle probe.
-    await releaseSessionLockQuietly()
-    return false
-  }
-
-  hydrateRecoverable(result.info)
-  return true
-}
-
-// Storage filename for an uploaded recording. Keyed on uploadIntentId so the live
-// finalize path and any later recovery save of the SAME recording produce the
-// identical name: server dedup recomputes the storage path via
-// getMediaPath(userId, projectId, filename), so a divergent name would re-upload
-// to a new path on a dedup hit and orphan the originally-uploaded object. The
-// timestamp fallback is only reached when no intent id exists, in which case
-// create never dedups (no cross-path collision is possible).
-function recordingMediaFilename(
-  uploadIntentId: string | null,
-  codecExtension: string | null
-): string {
-  const ext = codecExtension ?? 'webm'
-  const stable = uploadIntentId ?? `t${Date.now()}`
-  return `recording-${stable}.${ext}`
-}
-
-// Shared save/discard tail: delete the resolved orphan, release its lock, then
-// chain to the next orphan (defensive multi-orphan handling). Returns true when a
-// subsequent recoverable was surfaced — callers use that to decide whether to
-// apply their own terminal snapshot.
-async function clearRecoveredOrphanAndChain(sessionId: string): Promise<boolean> {
-  try {
-    await getPersistence().deleteSession(sessionId)
-  } catch {
-    // ignore — best-effort
-  }
-  await releaseSessionLockQuietly()
-  try {
-    return await runRecoveryProbe(sessionId)
-  } catch {
-    return false
-  }
-}
-
-export interface SaveRecoveredResult {
-  ok: boolean
-  message?: string
-  /**
-   * True when the save succeeded and another recovered orphan was immediately
-   * surfaced. The caller shows a confirmation toast in this case (the next modal
-   * replaces the redirect that a final save performs).
-   */
-  chainedToNext?: boolean
-}
-
-export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredResult> {
-  const info = store.snapshot.recoverable
-  if (!info) return { ok: false, message: 'No recovered recording to save.' }
-
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return {
-      ok: false,
-      message: "You're offline. Reconnect to save this recording.",
-    }
-  }
-
-  const persistence = getPersistence()
-  let blobs: Blob[]
-  try {
-    blobs = await persistence.readChunks(info.sessionId)
-  } catch {
-    return { ok: false, message: 'Could not read the recovered audio.' }
-  }
-  if (blobs.length === 0) {
-    return { ok: false, message: 'The recovered audio is empty.' }
-  }
-
-  const normalizedMime = (info.codecMime ?? 'audio/webm').split(';')[0]
-  const file = new File(
-    blobs,
-    recordingMediaFilename(info.uploadIntentId, info.codecExtension),
-    { type: normalizedMime }
-  )
-  const title =
-    editedTitle.trim() ||
-    info.title ||
-    info.generatedTitle ||
-    `Recording — ${new Date(info.createdAt).toISOString()}`
-
-  let result: Awaited<ReturnType<typeof runCaptureUpload>>
-  try {
-    result = await runCaptureUpload(file, title, info.keyTerms, {
-      uploadIntentId: info.uploadIntentId ?? undefined,
-      allowUpsert: true,
-    })
-  } catch (err) {
-    return {
-      ok: false,
-      message: (err as Error)?.message ?? 'Could not save the recording.',
-    }
-  }
-
-  if (result.kind !== 'success') {
-    // Leave the IDB row intact so the user can retry safely (server dedup makes
-    // a repeated save idempotent).
-    return { ok: false, message: result.message ?? 'Could not save the recording.' }
-  }
-
-  // Success: clear the orphan and release ownership, then surface the next orphan
-  // (defensive multi-orphan handling) or finish as submitted.
-  const chainedToNext = await clearRecoveredOrphanAndChain(info.sessionId)
-  if (!chainedToNext) {
-    setSubmissionResult({ projectId: result.projectId, outcome: result.outcome })
-    markSubmitted()
-  }
-  return { ok: true, chainedToNext }
-}
-
-export async function discardRecovered(): Promise<void> {
-  const info = store.snapshot.recoverable
-  if (!info) return
-
-  if (!(await clearRecoveredOrphanAndChain(info.sessionId))) {
-    setSnapshot({ ...IDLE_SNAPSHOT })
-  }
 }
 
 export function __resetForTesting(): void {
@@ -1045,7 +489,7 @@ export function __resetForTesting(): void {
   store.runtime = createRuntime()
   store.snapshot = { ...IDLE_SNAPSHOT }
   store.listeners.clear()
-  lastPresencePublishAt = 0
+  __resetPresenceThrottle()
   // Restore the default (env-detected) adapters so an injected fake from one test
   // cannot leak into the next, and reset identity + presence client id.
   __setPersistenceForTesting(null)

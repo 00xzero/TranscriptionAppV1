@@ -1,6 +1,4 @@
-import {
-  getActiveSegmentMs,
-} from './sessionActions'
+import { getActiveSegmentMs } from './sessionCore'
 import {
   clearInterruptedSessionRuntime,
   clearTerminalSessionRuntime,

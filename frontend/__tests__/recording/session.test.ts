@@ -740,6 +740,62 @@ describe('recording session singleton', () => {
     expect(getLiveRecorder()).toBeNull()
     expect(hasUnsavedRecording()).toBe(false)
   })
+
+  test('resume publishes presence with the refreshed capture-health baseline', async () => {
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+    const now = jest.spyOn(Date, 'now')
+
+    now.mockReturnValue(1_000_000)
+    await attachRecording({ title: 'Ordering', maxBytes: 1024 * 1024 })
+
+    now.mockReturnValue(1_000_500)
+    recordChunk(new Blob([new Uint8Array(4096)]))
+
+    now.mockReturnValue(1_001_000)
+    pause()
+    expect(presence.read()?.lastChunkReceivedAt).toBe(1_000_500)
+
+    now.mockReturnValue(1_002_000)
+    resume()
+    expect(presence.read()?.lastChunkReceivedAt).toBe(1_002_000)
+
+    // The refreshed baseline remains in subsequent presence updates until a new
+    // chunk arrives.
+    now.mockReturnValue(1_003_000)
+    pause()
+    expect(presence.read()?.lastChunkReceivedAt).toBe(1_002_000)
+  })
+
+  test('markInterrupted from a non-interruptible state does not run recovery', async () => {
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+    const clearSpy = jest.spyOn(presence, 'clear')
+    const release = jest.fn(async () => {})
+    __setSessionLockForTesting({
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release,
+    })
+    const ownerRelease = jest.fn(async () => {})
+    __setOwnerLockForTesting({
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release: ownerRelease,
+    })
+
+    // `submitted` is not in INTERRUPTIBLE_STATES, so the transition is rejected.
+    forceState('submitted')
+
+    markInterrupted('late interrupt')
+    await flushAsync()
+
+    // The rejected transition leaves both state and ownership untouched.
+    expect(getSnapshot().state).toBe('submitted')
+    expect(clearSpy).not.toHaveBeenCalled()
+    expect(release).not.toHaveBeenCalled()
+    expect(ownerRelease).not.toHaveBeenCalled()
+  })
 })
 
 // A fake whose chunk writes always reject — exercises the sticky downgrade path
@@ -818,6 +874,42 @@ class DelayedDeletePersistence extends InMemorySessionPersistence {
     })
     await super.deleteSession(sessionId)
     this.resolveDeleteFinished()
+  }
+}
+
+// Gates the first chunk write so a test can hold the write queue unsettled and
+// assert ordering around `queue.whenSettled()` (e.g. interrupted recovery must
+// not release ownership while a chunk write is still in flight).
+class DelayedChunkWritePersistence extends InMemorySessionPersistence {
+  writeStarted: Promise<void>
+  writeFinished: Promise<void>
+  releaseWrite!: () => void
+  private resolveWriteStarted!: () => void
+  private resolveWriteFinished!: () => void
+  private firstWrite = true
+
+  constructor() {
+    super()
+    this.writeStarted = new Promise((resolve) => {
+      this.resolveWriteStarted = resolve
+    })
+    this.writeFinished = new Promise((resolve) => {
+      this.resolveWriteFinished = resolve
+    })
+  }
+
+  override async putChunk(sessionId: string, seq: number, blob: Blob): Promise<void> {
+    if (this.firstWrite) {
+      this.firstWrite = false
+      this.resolveWriteStarted()
+      await new Promise<void>((resolve) => {
+        this.releaseWrite = resolve
+      })
+      await super.putChunk(sessionId, seq, blob)
+      this.resolveWriteFinished()
+      return
+    }
+    return super.putChunk(sessionId, seq, blob)
   }
 }
 
@@ -1089,5 +1181,52 @@ describe('recording session durability mirror', () => {
         outcome: 'started',
       },
     })
+  })
+
+  // Characterization (review item #1, slice 1): after an interruption,
+  // finalizeInterruptedRecovery must await the write queue settling before it
+  // clears presence, releases the session + owner locks, and probes — so another
+  // tab never sees "no owner" while chunk writes are still in flight. Pins the
+  // ordering the dispatch-funnel refactor must preserve.
+  test('interrupted recovery waits for the write queue to settle before releasing ownership', async () => {
+    const delayed = new DelayedChunkWritePersistence()
+    installPersistence(delayed)
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+    const release = jest.fn(async () => {})
+    __setSessionLockForTesting({
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release,
+    })
+    const ownerRelease = jest.fn(async () => {})
+    __setOwnerLockForTesting({
+      acquire: jest.fn(async () => true),
+      isHeld: jest.fn(async () => false),
+      release: ownerRelease,
+    })
+
+    await attachRecording({ title: 'Settle first', maxBytes: 1024 * 1024 })
+    // Below the 4_096 empty floor, so the eventual recovery probe cleans it up and
+    // the session stays `interrupted` — keeps the assertion on ordering, not on
+    // whether the orphan is recoverable.
+    recordChunk(new Blob([new Uint8Array(1_000)]))
+    await delayed.writeStarted
+
+    markInterrupted('Page reloaded.')
+    // The chunk write is still in flight, so the queue has not settled: ownership
+    // must NOT have been released and presence must NOT have been cleared yet.
+    expect(release).not.toHaveBeenCalled()
+    expect(ownerRelease).not.toHaveBeenCalled()
+    expect(presence.read()).not.toBeNull()
+
+    delayed.releaseWrite()
+    await delayed.writeFinished
+    await flushAsync()
+
+    expect(release).toHaveBeenCalledTimes(1)
+    expect(ownerRelease).toHaveBeenCalledTimes(1)
+    expect(presence.read()).toBeNull()
+    expect(getSnapshot().state).toBe('interrupted')
   })
 })
