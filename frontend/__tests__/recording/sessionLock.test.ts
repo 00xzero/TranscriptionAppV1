@@ -119,4 +119,19 @@ describe('WebLocksSessionLock', () => {
     const lock = new WebLocksSessionLock()
     expect(await lock.acquire('s1')).toBe(false)
   })
+
+  test('treats query failures as not-held (mirror of the owner lock policy)', async () => {
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: jest.fn(),
+        query: jest.fn(async () => {
+          throw new Error('query failed')
+        }),
+      },
+    })
+
+    const lock = new WebLocksSessionLock()
+    expect(await lock.isHeld('s1')).toBe(false)
+  })
 })
