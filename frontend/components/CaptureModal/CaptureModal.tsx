@@ -12,8 +12,13 @@ import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
+import {
+  isRemoteRecordingBlocking,
+  useRemotePresenceStatus,
+} from '@/lib/recording/RemotePresenceContext'
 import { useMicTest } from '@/lib/hooks/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
+import { useAuthIdentity } from '@/lib/supabase/hooks'
 import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'
 import { useCaptureForm } from './useCaptureForm'
 import UploadAudioPanel from './UploadAudioPanel'
@@ -25,16 +30,24 @@ type CaptureTab = 'upload' | 'record'
 const CODEC_UNSUPPORTED_TOOLTIP = "Audio recording isn't supported in this browser."
 const RECORDING_ACTIVE_TOOLTIP =
   'A recording is already in progress or waiting to upload. Return to it before starting another.'
+const REMOTE_RECORDING_TOOLTIP =
+  'A recording is already in progress in another tab. Return to that tab to continue.'
 
 function getRecordDisabledTooltip(input: {
   codecSupported: boolean | null
   recordingActive: boolean
+  remoteRecordingActive: boolean
+  recordingIdentityReady: boolean
+  signedIn: boolean
   requesting: boolean
   startingRecording: boolean
   preparingMicrophone: boolean
 }): string | undefined {
   if (input.codecSupported === false) return CODEC_UNSUPPORTED_TOOLTIP
   if (input.recordingActive) return RECORDING_ACTIVE_TOOLTIP
+  if (input.remoteRecordingActive) return REMOTE_RECORDING_TOOLTIP
+  if (!input.recordingIdentityReady) return 'Checking account…'
+  if (!input.signedIn) return 'Sign in to record.'
   if (input.requesting) return 'Requesting microphone…'
   if (input.preparingMicrophone) return 'Preparing microphone…'
   if (input.startingRecording) return 'Starting…'
@@ -47,6 +60,11 @@ export default function CaptureModal() {
   const recordingActions = useRecordingActions()
   const recordingSnapshot = useRecordingSession()
   const recordingActive = isRecordingSessionActive(recordingSnapshot)
+  const remoteStatus = useRemotePresenceStatus()
+  const remoteRecordingActive = isRemoteRecordingBlocking(remoteStatus)
+  const anyRecordingActive = recordingActive || remoteRecordingActive
+  const authIdentity = useAuthIdentity()
+  const canScopeRecordingToUser = authIdentity.ready && Boolean(authIdentity.userId)
   const micTest = useMicTest()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
@@ -135,8 +153,20 @@ export default function CaptureModal() {
       setRecordSubmitError(CODEC_UNSUPPORTED_TOOLTIP)
       return
     }
-    if (recordingActive) {
+    if (recordingActive || recordingSnapshot.state === 'recoverable') {
       setRecordSubmitError(RECORDING_ACTIVE_TOOLTIP)
+      return
+    }
+    if (remoteRecordingActive) {
+      setRecordSubmitError(REMOTE_RECORDING_TOOLTIP)
+      return
+    }
+    if (!authIdentity.ready) {
+      setRecordSubmitError('Checking account. Try again in a moment.')
+      return
+    }
+    if (!authIdentity.userId) {
+      setRecordSubmitError('Sign in before starting a recording.')
       return
     }
     setStartingRecording(true)
@@ -185,7 +215,7 @@ export default function CaptureModal() {
       // release() (on modal close) will stop the tracks. Transferring up
       // front would leave the stream live with no controller after a failure.
       try {
-        recordingActions.attachAndStart({
+        await recordingActions.attachAndStart({
           stream,
           codec,
           title: title.trim() ? title.trim() : null,
@@ -233,10 +263,15 @@ export default function CaptureModal() {
     !startingRecording &&
     !preparingMicrophone &&
     !micTest.requesting &&
-    !recordingActive
+    !anyRecordingActive &&
+    recordingSnapshot.state !== 'recoverable' &&
+    canScopeRecordingToUser
   const recordDisabledTooltip = getRecordDisabledTooltip({
     codecSupported,
     recordingActive,
+    remoteRecordingActive,
+    recordingIdentityReady: authIdentity.ready,
+    signedIn: Boolean(authIdentity.userId),
     requesting: micTest.requesting,
     startingRecording,
     preparingMicrophone,
@@ -347,13 +382,13 @@ export default function CaptureModal() {
                 {recordSubmitError}
               </div>
             )}
-            {!recordSubmitError && recordingActive && activeTab === 'record' && (
+            {!recordSubmitError && anyRecordingActive && activeTab === 'record' && (
               <div
                 role="status"
                 aria-live="polite"
                 className="mb-4 rounded-sm border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-200"
               >
-                {RECORDING_ACTIVE_TOOLTIP}
+                {recordingActive ? RECORDING_ACTIVE_TOOLTIP : REMOTE_RECORDING_TOOLTIP}
               </div>
             )}
             <TabsContent value="upload">
@@ -388,7 +423,7 @@ export default function CaptureModal() {
                 isUploading={isUploading}
                 micTest={micTest}
                 codecSupported={codecSupported}
-                recordingActive={recordingActive}
+                recordingActive={anyRecordingActive}
               />
             </TabsContent>
           </div>

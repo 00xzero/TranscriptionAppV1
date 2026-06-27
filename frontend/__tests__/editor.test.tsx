@@ -299,6 +299,51 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
   })
 
+  test('uses the normalized project duration as the waveform-backed audio hint', async () => {
+    ;(supabaseQueries.fetchProjectById as jest.Mock).mockResolvedValueOnce({
+      id: 'p1',
+      title: 'Test Project',
+      status: 'completed',
+      duration_seconds: 78,
+      waveform_status: 'ready',
+    })
+    const fetchMock = global.fetch as jest.Mock
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url
+      const method = (init?.method || 'GET').toUpperCase()
+      if (url.includes('/media-url') && method === 'GET') {
+        return makeJsonResponse({ url: 'http://example.com/audio.mp3' })
+      }
+      if (url.includes('/waveform-url') && method === 'GET') {
+        return makeJsonResponse({ url: 'http://example.com/waveform.json' })
+      }
+      if (url === 'http://example.com/waveform.json') {
+        return makeJsonResponse({
+          version: 1,
+          duration_seconds: 67,
+          points_per_second: 10,
+          peaks: [0.1, 0.4, 0.2],
+        })
+      }
+      return makeJsonResponse('Not found', 404)
+    })
+
+    renderEditorScreen()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('audio-player')).toHaveAttribute('data-duration-hint', '78')
+      expect(screen.getByTestId('audio-player')).toHaveAttribute(
+        'data-prefer-larger-duration-hint',
+        'true'
+      )
+    })
+  })
+
   test('sets audio source but renders no segments when transcript fetch fails', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockRejectedValueOnce(new Error('DB timeout'))
 

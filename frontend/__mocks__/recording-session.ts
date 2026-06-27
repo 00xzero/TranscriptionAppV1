@@ -18,6 +18,8 @@ interface MockOptions {
   bytesSoFar?: number
   salvageMessage?: string | null
   canRetryUpload?: boolean
+  durable?: boolean
+  captureHealthWarning?: string | null
   submissionResult?: SessionSnapshot['submissionResult']
 }
 
@@ -39,6 +41,9 @@ export function mockRecordingSession(options: MockOptions): void {
   if ('bytesSoFar' in options) partial.bytesSoFar = options.bytesSoFar ?? 0
   if ('salvageMessage' in options)
     partial.salvageMessage = options.salvageMessage ?? null
+  if ('durable' in options) partial.durable = options.durable ?? true
+  if ('captureHealthWarning' in options)
+    partial.captureHealthWarning = options.captureHealthWarning ?? null
   if ('submissionResult' in options)
     partial.submissionResult = options.submissionResult ?? null
   __setSnapshotForTesting(partial)

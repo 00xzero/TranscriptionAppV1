@@ -1,14 +1,17 @@
 "use client"
 
-import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useRecordingActions,
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
+import {
+  isRemoteRecordingBlocking,
+  useRemotePresenceStatus,
+} from '@/lib/recording/RemotePresenceContext'
 import type { SessionSnapshot } from '@/lib/recording/session'
-import { useBeforeUnloadGuard } from '@/lib/recording/useBeforeUnloadGuard'
-import { usePopStateGuard } from '@/lib/recording/guardedNavigation'
+import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
@@ -20,6 +23,9 @@ import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 
 const DISCARD_RETRYABLE_UPLOAD_COPY =
   'Leaving this page will discard your recording and you will not be able to retry the upload. Continue?'
+const COMPLETION_REDIRECT_DELAY_MS = 600
+const COMPLETION_REDIRECT_RETRY_MS = 1_500
+const COMPLETION_HARD_FALLBACK_MS = 3_000
 
 function getCompletionRedirectTarget(
   snapshot: Pick<SessionSnapshot, 'state' | 'submissionResult'>
@@ -64,38 +70,68 @@ function RecordingStatusLayout({
 
 export default function RecordingNewPage() {
   const router = useRouter()
+  const routerRef = useRef(router)
   const snapshot = useRecordingSession()
+  const remote = useRemotePresenceStatus()
   const actions = useRecordingActions()
-  const [restartError, setRestartError] = useState<string | null>(null)
-  const [restarting, setRestarting] = useState(false)
   const [retryingUpload, setRetryingUpload] = useState(false)
-
-  useBeforeUnloadGuard()
-  usePopStateGuard()
+  const completionRedirectTarget = getCompletionRedirectTarget({
+    state: snapshot.state,
+    submissionResult: snapshot.submissionResult,
+  })
 
   useEffect(() => {
-    const target = getCompletionRedirectTarget({
-      state: snapshot.state,
-      submissionResult: snapshot.submissionResult,
-    })
-    if (!target) return
+    routerRef.current = router
+  }, [router])
 
-    const id = window.setTimeout(() => {
-      router.replace(target)
-    }, 600)
-    return () => window.clearTimeout(id)
-  }, [snapshot.state, snapshot.submissionResult, router])
+  // Phase 4: a direct visit here from a non-owner tab (local idle, but another
+  // same-browser tab is recording) shows a passive remote state instead of the
+  // "no active recording" redirect.
+  const isRemoteOnly =
+    snapshot.state === 'idle' && isRemoteRecordingBlocking(remote)
 
-  useLayoutEffect(() => {
-    if (snapshot.state !== 'idle') return
+  // Phase 3: the unload guard is installed app-level in RecordingSessionProvider so
+  // it survives navigation away from this route. In-app navigation (incl. browser
+  // back) is always allowed while recording, so there is no route-bound popstate
+  // guard here anymore.
 
+  useEffect(() => {
+    if (!completionRedirectTarget) return
+
+    const navigate = () => {
+      routerRef.current.replace(completionRedirectTarget)
+    }
+    const primaryId = window.setTimeout(navigate, COMPLETION_REDIRECT_DELAY_MS)
+    const retryId = window.setTimeout(navigate, COMPLETION_REDIRECT_RETRY_MS)
+    const fallbackId = window.setTimeout(() => {
+      try {
+        window.location.replace(completionRedirectTarget)
+      } catch {
+        window.location.href = completionRedirectTarget
+      }
+    }, COMPLETION_HARD_FALLBACK_MS)
+
+    return () => {
+      window.clearTimeout(primaryId)
+      window.clearTimeout(retryId)
+      window.clearTimeout(fallbackId)
+    }
+  }, [completionRedirectTarget])
+
+  // Idle here means there's no active session to expand. Recovery is handled by
+  // the global modal (RecordingSessionProvider), not this route, so production
+  // just sends the user back to the library.
+  useEffect(() => {
     if (
-      !actions.recoverInterruptedDraft() &&
-      !RECORDING_DEV_CONTROLS_ENABLED
+      shouldRedirectMissingRecordingSession({
+        state: snapshot.state,
+        remoteKind: remote.kind,
+        devControlsEnabled: RECORDING_DEV_CONTROLS_ENABLED,
+      })
     ) {
       router.replace('/projects?capture=recording_session_not_found')
     }
-  }, [actions, router, snapshot.state])
+  }, [router, snapshot.state, remote.kind])
 
   const title =
     snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
@@ -110,18 +146,30 @@ export default function RecordingNewPage() {
     </div>
   ) : null
 
-  const handleRestart = async () => {
-    setRestartError(null)
-    setRestarting(true)
-    try {
-      const result = await actions.restartInterruptedRecording(MAX_FILE_SIZE_BYTES)
-      if (!result.ok) {
-        setRestartError(result.message ?? 'Could not start a new recording.')
-      }
-    } finally {
-      setRestarting(false)
-    }
-  }
+  // Passive, persistent durability warning. Recording and roaming stay allowed; this
+  // only tells the user a crash/close could lose the recording. Never says "armed".
+  const durabilityBanner = !snapshot.durable ? (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="durability-warning"
+      className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+    >
+      If this tab refreshes, closes, or crashes, this recording may be lost.
+    </div>
+  ) : null
+
+  // Passive capture-health warning when audio stops flowing while still recording.
+  const captureHealthBanner = snapshot.captureHealthWarning ? (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="capture-health-warning"
+      className="rounded-md border border-ember-red/40 bg-ember-red/10 px-4 py-2 text-sm text-ink dark:text-paper"
+    >
+      {snapshot.captureHealthWarning}
+    </div>
+  ) : null
 
   const handleRetryUpload = async () => {
     setRetryingUpload(true)
@@ -140,6 +188,37 @@ export default function RecordingNewPage() {
 
     actions.resetRecordingSession()
     router.push('/projects')
+  }
+
+  if (isRemoteOnly) {
+    const remoteTitle =
+      remote.kind === 'active' && remote.title ? remote.title : null
+    return (
+      <div
+        className="mx-auto flex max-w-2xl flex-col gap-6 px-8 pt-24"
+        data-testid="recording-remote-active"
+      >
+        <header>
+          <h1 className="font-serif text-3xl text-ink dark:text-paper">
+            {remoteTitle ?? 'Recording in another tab'}
+          </h1>
+          <p className="mt-2 text-sm text-ink/60 dark:text-paper/60">
+            A recording is in progress in another browser tab.
+          </p>
+        </header>
+        <p className="text-sm text-ink/70 dark:text-paper/70">
+          Return to the original tab to pause, stop, or save it. You can&apos;t
+          control or start a recording from here while one is active.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push('/projects')}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+        >
+          Return to library
+        </button>
+      </div>
+    )
   }
 
   if (snapshot.state === 'idle') {
@@ -189,33 +268,41 @@ export default function RecordingNewPage() {
     )
   }
 
+  if (snapshot.state === 'recoverable') {
+    // The blocking recovery modal (RecordingSessionProvider) owns the actions;
+    // this route just shows a neutral status beneath it.
+    return (
+      <RecordingStatusLayout
+        title={title}
+        labelClassName="mt-2 text-sm text-ink/60 dark:text-paper/60"
+      >
+        <p className="text-sm text-ink/60 dark:text-paper/60">
+          Recovering a previous recording…
+        </p>
+      </RecordingStatusLayout>
+    )
+  }
+
   if (snapshot.state === 'interrupted') {
     return (
       <RecordingStatusLayout title={title}>
+        {salvageBanner}
         <p className="text-sm text-ink/70 dark:text-paper/70">
-          Your recording was interrupted and could not be recovered.
+          Your recording was interrupted and couldn&apos;t be recovered.
         </p>
-        {restartError && (
-          <div
-            role="alert"
-            className="rounded-md border border-ember-red/40 bg-ember-red/10 px-4 py-2 text-sm text-ink dark:text-paper"
-          >
-            {restartError}
-          </div>
-        )}
         <button
           type="button"
-          onClick={handleRestart}
-          disabled={restarting}
-          className="self-start rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={handleReturnToLibrary}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
         >
-          {restarting ? 'Starting…' : 'Start a new recording'}
+          Return to library
         </button>
       </RecordingStatusLayout>
     )
   }
 
   if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
+    const target = completionRedirectTarget ?? '/projects'
     return (
       <RecordingStatusLayout
         title={title}
@@ -225,6 +312,12 @@ export default function RecordingNewPage() {
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
+        <a
+          href={target}
+          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+        >
+          Return to library
+        </a>
       </RecordingStatusLayout>
     )
   }
@@ -248,6 +341,10 @@ export default function RecordingNewPage() {
       <RecordingWaveform />
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
+
+      {durabilityBanner}
+
+      {captureHealthBanner}
 
       {salvageBanner}
 

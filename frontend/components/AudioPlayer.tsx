@@ -47,6 +47,11 @@ export interface AudioPlayerProps {
   initialPlaybackRate?: number
   /** Known project duration when container metadata is missing or non-finite. */
   durationHint?: number | null
+  /**
+   * Prefer the hint when it is longer than browser metadata. Useful for
+   * MediaRecorder WebM files whose initial finite metadata can under-report.
+   */
+  preferLargerDurationHint?: boolean
   /** Hide transport controls (when FloatingPlayerDeck is visible) */
   hideControls?: boolean
   /**
@@ -94,6 +99,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   onSeeked,
   initialPlaybackRate = 1.0,
   durationHint,
+  preferLargerDurationHint = false,
   hideControls = false,
   audioEngineOnly = false,
   onDragStart,
@@ -144,20 +150,29 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   }, [])
 
   const resolveDuration = useCallback((audio: HTMLAudioElement) => {
+    const mediaDurations: number[] = []
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
-      return audio.duration
+      mediaDurations.push(audio.duration)
     }
     if (audio.seekable.length > 0) {
       const seekableEnd = audio.seekable.end(audio.seekable.length - 1)
       if (Number.isFinite(seekableEnd) && seekableEnd > 0) {
-        return seekableEnd
+        mediaDurations.push(seekableEnd)
       }
+    }
+    const mediaDuration = mediaDurations.length > 0 ? Math.max(...mediaDurations) : 0
+    const hasDurationHint = durationHint != null && Number.isFinite(durationHint) && durationHint > 0
+    if (preferLargerDurationHint && hasDurationHint) {
+      return Math.max(mediaDuration, durationHint)
+    }
+    if (mediaDuration > 0) {
+      return mediaDuration
     }
     if (durationHint != null && Number.isFinite(durationHint) && durationHint > 0) {
       return durationHint
     }
     return 0
-  }, [durationHint])
+  }, [durationHint, preferLargerDurationHint])
 
   const getResolvedDuration = useCallback(() => {
     const audio = audioRef.current
@@ -245,7 +260,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     const audio = audioRef.current
     const clampedFraction = clampFraction(fraction)
     const nextDuration = resolvedDuration
-      ?? (audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration)
+      ?? (audio ? resolveDuration(audio) : duration)
 
     if (nextDuration > 0) {
       scrubToTime(clampedFraction * nextDuration, nextDuration)
@@ -253,7 +268,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
 
     queuePendingScrubFraction(clampedFraction)
-  }, [clampFraction, duration, queuePendingScrubFraction, scrubToTime])
+  }, [clampFraction, duration, queuePendingScrubFraction, resolveDuration, scrubToTime])
 
   const endScrub = useCallback(() => {
     flushScrubSeek()

@@ -11,6 +11,7 @@ import {
   createFakeStream,
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
+import { setIdentity } from '@/lib/recording/sessionIdentity'
 
 // The real vendored LiveAudioVisualizer builds an AudioContext/AnalyserNode and
 // draws to a canvas, neither of which works in jsdom. Stub it with a canvas the
@@ -24,8 +25,8 @@ jest.mock('@/components/RecordingSession/LiveAudioVisualizer', () => ({
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
-function attachLiveRecorder(): void {
-  attachAndStart({
+async function attachLiveRecorder(): Promise<void> {
+  await attachAndStart({
     stream: createFakeStream(),
     codec: CODEC,
     title: 't',
@@ -41,6 +42,7 @@ describe('RecordingWaveform', () => {
   beforeEach(() => {
     __resetForTesting()
     installMediaRecorderMock()
+    setIdentity({ userId: 'user-123', ready: true })
     // jsdom reports clientWidth as 0; the live path needs a measured width.
     widthSpy = jest
       .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
@@ -62,27 +64,27 @@ describe('RecordingWaveform', () => {
     expect(screen.queryByTestId('live-audio-visualizer')).not.toBeInTheDocument()
   })
 
-  test('renders the live visualizer while recording with a real recorder', () => {
-    act(() => {
-      attachLiveRecorder()
+  test('renders the live visualizer while recording with a real recorder', async () => {
+    await act(async () => {
+      await attachLiveRecorder()
     })
     render(<RecordingWaveform />)
     expect(screen.getByTestId('live-audio-visualizer')).toBeInTheDocument()
     expect(screen.queryByTestId('recording-waveform-mock')).not.toBeInTheDocument()
   })
 
-  test('keeps the live visualizer mounted while paused', () => {
-    act(() => {
-      attachLiveRecorder()
+  test('keeps the live visualizer mounted while paused', async () => {
+    await act(async () => {
+      await attachLiveRecorder()
       forceState('paused')
     })
     render(<RecordingWaveform />)
     expect(screen.getByTestId('live-audio-visualizer')).toBeInTheDocument()
   })
 
-  test('falls back to the mock once finalizing (no live recorder)', () => {
-    act(() => {
-      attachLiveRecorder()
+  test('falls back to the mock once finalizing (no live recorder)', async () => {
+    await act(async () => {
+      await attachLiveRecorder()
       forceState('finalizing')
     })
     render(<RecordingWaveform />)
@@ -90,10 +92,10 @@ describe('RecordingWaveform', () => {
     expect(screen.queryByTestId('live-audio-visualizer')).not.toBeInTheDocument()
   })
 
-  test('falls back to the mock when Web Audio is unavailable', () => {
+  test('falls back to the mock when Web Audio is unavailable', async () => {
     delete (window as unknown as { AudioContext?: unknown }).AudioContext
-    act(() => {
-      attachLiveRecorder()
+    await act(async () => {
+      await attachLiveRecorder()
     })
     render(<RecordingWaveform />)
     expect(screen.getByTestId('recording-waveform-mock')).toBeInTheDocument()

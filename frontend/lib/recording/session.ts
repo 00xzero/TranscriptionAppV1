@@ -2,9 +2,8 @@ export type {
   AttachAndStartParams,
   FinalizedRecording,
   RecordingState,
-  RestartInterruptedResult,
+  RecoverableInfo,
   Runtime,
-  SessionDraft,
   SessionSnapshot,
   StartMockMetadata,
   Store,
@@ -20,32 +19,43 @@ export {
 } from './sessionStore'
 export {
   RecordingAlreadyActiveError,
+  RemoteRecordingActiveError,
+  RecordingIdentityRequiredError,
+  RecoveryPendingError,
   __resetForTesting,
   __setSnapshotForTesting,
   attachAndStart,
+  checkCaptureHealth,
+  handleRecorderFailure,
+  recordChunk,
+  stopAndFinalize,
+  syncIdentityToActiveSession,
+} from './sessionActions'
+export { retryFinalizedUpload } from './sessionUpload'
+export {
+  discardRecovered,
+  markInterrupted,
+  runRecoveryProbe,
+  saveRecovered,
+  type SaveRecoveredResult,
+} from './sessionRecovery'
+export {
   discard,
   finalize,
   getElapsedActiveMs,
   getLiveRecorder,
-  handleRecorderFailure,
+  hasUnresolvedRecordingArtifact,
   hasUnsavedRecording,
   isRecordingSessionActive,
   markError,
-  markInterrupted,
   markSubmitted,
   markUploading,
   pause,
-  recordChunk,
-  recoverInterruptedDraft,
   resetRecordingSession,
   resume,
-  retryFinalizedUpload,
-  stopAndFinalize,
-} from './sessionActions'
+} from './sessionCore'
+export { heartbeatTick } from './sessionPresence'
 export {
   forceState,
   startMock,
 } from './sessionDev'
-export {
-  restartInterruptedRecording,
-} from './sessionRestart'

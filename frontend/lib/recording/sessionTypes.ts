@@ -1,4 +1,5 @@
 import type { CodecSelection } from './codecs'
+import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 
 export type RecordingState =
@@ -11,6 +12,31 @@ export type RecordingState =
   | 'discarded'
   | 'error'
   | 'interrupted'
+  | 'recoverable'
+
+/**
+ * Metadata for a recoverable orphan surfaced to the recovery modal. Carries only
+ * what the UI needs — the chunk Blobs are read lazily on save, not held here.
+ */
+export interface RecoverableInfo {
+  sessionId: string
+  uploadIntentId: string | null
+  title: string | null
+  generatedTitle: string | null
+  keyTerms: string[]
+  codecMime: string | null
+  codecExtension: 'webm' | 'mp4' | null
+  bytesSoFar: number
+  createdAt: number
+  /** Number of other valid orphans waiting (for "1 of N" display). */
+  remainingCount: number
+  /**
+   * True when the recovered audio likely lost a meaningful tail — persistence
+   * downgraded mid-capture, or the recorder received >30s more audio than was
+   * durably saved. Drives the "may be missing the end" caution in the recovery modal.
+   */
+  mayBeTruncated: boolean
+}
 
 export interface SessionSnapshot {
   state: RecordingState
@@ -25,6 +51,21 @@ export interface SessionSnapshot {
   bytesSoFar: number
   salvageMessage: string | null
   canRetryUpload: boolean
+  /**
+   * Backup/durability status (Phase 3). `true` = the recording is being mirrored
+   * to durable local storage; `false` = durability is unavailable from start or
+   * has downgraded mid-session. Drives the passive "may be lost" warning. User
+   * copy never says "armed" — this is the internal backup signal.
+   */
+  durable: boolean
+  /**
+   * Passive capture-health warning text (Phase 3). Non-null when chunks have
+   * stopped arriving while still `recording` after a flush was requested. Cleared
+   * when capture resumes. Distinct from durability — this is about live audio flow.
+   */
+  captureHealthWarning: string | null
+  // Populated only in the `recoverable` state; null otherwise.
+  recoverable: RecoverableInfo | null
   submissionResult: {
     projectId: string
     outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
@@ -48,6 +89,20 @@ export interface Runtime {
   codecMime: string | null
   maxBytes: number
   finalizedRecording: FinalizedRecording | null
+  // Durable persistence (Phase 1). `sessionId`/`writeQueue` are null when idle;
+  // `nextChunkSeq` is the monotonic seq assigned to the next persisted chunk.
+  sessionId: string | null
+  nextChunkSeq: number
+  writeQueue: SessionWriteQueue | null
+  // Phase 2: client-generated upload idempotency key for this session; null when
+  // idle. Generated at start so a crash before stop still carries its dedup key.
+  uploadIntentId: string | null
+  // Phase 3 capture-health: wall-clock of the last received chunk (null until the
+  // first chunk), and whether a manual flush has already been requested for the
+  // current stall so the watchdog escalates on the *second* stale tick, not the
+  // first.
+  lastChunkReceivedAt: number | null
+  flushRequested: boolean
 }
 
 export interface Store {
@@ -56,14 +111,6 @@ export interface Store {
   intervalId: number | null
   mockLifecycleTimeoutIds: number[]
   runtime: Runtime
-}
-
-export interface SessionDraft {
-  title: string | null
-  generatedTitle: string | null
-  keyTerms: string[]
-  codecMime: string | null
-  deviceId: string | null
 }
 
 const EMPTY_KEY_TERMS = Object.freeze([]) as unknown as string[]
@@ -81,6 +128,9 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   bytesSoFar: 0,
   salvageMessage: null,
   canRetryUpload: false,
+  durable: true,
+  captureHealthWarning: null,
+  recoverable: null,
   submissionResult: null,
 })
 
@@ -98,16 +148,4 @@ export interface AttachAndStartParams {
   keyTerms: string[]
   deviceId: string | null
   maxBytes: number
-}
-
-export interface RestartInterruptedResult {
-  ok: boolean
-  reason?:
-    | 'permission_denied'
-    | 'no_codec'
-    | 'no_draft'
-    | 'no_media_devices'
-    | 'attach_failed'
-    | 'already_active'
-  message?: string
 }

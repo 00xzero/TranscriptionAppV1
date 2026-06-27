@@ -328,6 +328,64 @@ describe('AudioPlayer', () => {
     expect(screen.getByText('00:19')).toBeInTheDocument()
   })
 
+  it('keeps finite media metadata over a longer duration hint by default', () => {
+    const { audio } = renderPlayer({
+      duration: 67,
+      props: { durationHint: 78 },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('01:07')).toBeInTheDocument()
+  })
+
+  it('uses a longer trusted duration hint when opted in', () => {
+    const onDurationChange = jest.fn()
+    const { audio } = renderPlayer({
+      duration: 67,
+      props: {
+        durationHint: 78,
+        preferLargerDurationHint: true,
+        onDurationChange,
+      },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('01:18')).toBeInTheDocument()
+    expect(onDurationChange).toHaveBeenCalledWith(78)
+  })
+
+  it('scrubs against the trusted duration hint when it is longer than media metadata', () => {
+    const playerRef = React.createRef<AudioPlayerRef>()
+    render(
+      <AudioPlayer
+        ref={playerRef}
+        src="test.mp3"
+        hideControls
+        durationHint={78}
+        preferLargerDurationHint
+      />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration: 67 })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+      playerRef.current?.scrubToFraction(0.75)
+    })
+    flushAnimationFrame()
+
+    expect(audioState.getCurrentTime()).toBe(58.5)
+    expect(screen.getByText('00:58')).toBeInTheDocument()
+  })
+
   it('adopts a duration hint that arrives after media metadata', () => {
     const onDurationChange = jest.fn()
     const { rerender } = render(

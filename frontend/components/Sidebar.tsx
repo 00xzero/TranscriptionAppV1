@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
+import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
 import { createClient } from '@/infra/supabase/client'
+import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
 
@@ -116,7 +118,17 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const guardedNav = useGuardedNavigate()
 
   const handleSignOut = async () => {
-    if (!guardedNav.confirmBeforeLeave()) return
+    // Auth-boundary guard (Phase 3): a recording artifact must be resolved before
+    // leaving the user/context it belongs to. Block sign-out and tell the user to
+    // finish or discard first — never silently discard their audio.
+    if (hasUnresolvedRecordingArtifact()) {
+      toast({
+        title: 'Finish your recording first',
+        description:
+          'Save & transcribe or discard your in-progress recording before signing out.',
+      })
+      return
+    }
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/auth')

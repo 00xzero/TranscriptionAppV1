@@ -17,6 +17,7 @@ export const MOCK_STATES: RecordingState[] = [
   'discarded',
   'error',
   'interrupted',
+  'recoverable',
 ]
 
 const PRODUCTION_DEV_ACTION_ERROR =

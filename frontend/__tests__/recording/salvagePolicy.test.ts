@@ -15,12 +15,13 @@ import {
   getFakeTrack,
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
+import { setIdentity } from '@/lib/recording/sessionIdentity'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
-function attach(stream: MediaStream): void {
-  attachAndStart({
+async function attach(stream: MediaStream): Promise<void> {
+  await attachAndStart({
     stream,
     codec: CODEC,
     title: 'Salvage me',
@@ -46,6 +47,7 @@ describe('recorder-failure salvage policy', () => {
     __resetForTesting()
     mockRunCaptureUpload.mockReset()
     installMediaRecorderMock()
+    setIdentity({ userId: 'user-123', ready: true })
     // Salvage routes through stopAndFinalize, which needs `stop` to emit.
     FakeMediaRecorder.autoDispatchStop = true
   })
@@ -64,7 +66,7 @@ describe('recorder-failure salvage policy', () => {
     now.mockReturnValue(1_000_000)
 
     const stream = createFakeStream()
-    attach(stream)
+    await attach(stream)
     recordChunk(new Blob([new Uint8Array(8192)])) // >= 4 KB
     now.mockReturnValue(1_003_000) // >= 2 s active
 
@@ -78,12 +80,12 @@ describe('recorder-failure salvage policy', () => {
     expect(getSnapshot().state).toBe('submitted')
   })
 
-  test('track end below the empty floor discards with a banner', () => {
+  test('track end below the empty floor discards with a banner', async () => {
     const now = jest.spyOn(Date, 'now')
     now.mockReturnValue(2_000_000)
 
     const stream = createFakeStream()
-    attach(stream)
+    await attach(stream)
     recordChunk(new Blob([new Uint8Array(100)])) // < 4 KB
     now.mockReturnValue(2_000_500) // < 2 s active
 
@@ -104,7 +106,7 @@ describe('recorder-failure salvage policy', () => {
     now.mockReturnValue(2_500_000)
 
     const stream = createFakeStream()
-    attach(stream)
+    await attach(stream)
     recordChunk(new Blob([new Uint8Array(8192)])) // >= 4 KB
     now.mockReturnValue(2_503_000) // >= 2 s active
 
@@ -121,19 +123,20 @@ describe('recorder-failure salvage policy', () => {
     expect(getSnapshot().state).toBe('submitted')
   })
 
-  test('sustained mute above the floor salvages after the debounce', () => {
+  test('sustained mute above the floor salvages after the debounce', async () => {
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'success',
+      projectId: 'p2',
+      outcome: 'started',
+    })
+    const now = jest.spyOn(Date, 'now')
+    now.mockReturnValue(3_000_000)
+
+    const stream = createFakeStream()
+    await attach(stream)
+
     jest.useFakeTimers()
     try {
-      mockRunCaptureUpload.mockResolvedValue({
-        kind: 'success',
-        projectId: 'p2',
-        outcome: 'started',
-      })
-      const now = jest.spyOn(Date, 'now')
-      now.mockReturnValue(3_000_000)
-
-      const stream = createFakeStream()
-      attach(stream)
       recordChunk(new Blob([new Uint8Array(8192)])) // >= 4 KB
       now.mockReturnValue(3_003_000) // >= 2 s active
 

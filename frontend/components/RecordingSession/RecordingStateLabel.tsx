@@ -13,6 +13,7 @@ const LABEL: Record<RecordingState, string> = {
   discarded: 'Discarded',
   error: 'Recording error',
   interrupted: 'Recording interrupted',
+  recoverable: 'Recovered recording',
 }
 
 interface RecordingStateLabelProps {

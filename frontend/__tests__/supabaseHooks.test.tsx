@@ -1,5 +1,5 @@
-import { renderHook, waitFor } from '@testing-library/react'
-import { useProjectsRealtime } from '@/lib/supabase/hooks'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { useAuthIdentity, useProjectsRealtime } from '@/lib/supabase/hooks'
 
 const mockFetchProjects = jest.fn()
 const mockGetSession = jest.fn()
@@ -48,6 +48,71 @@ function makeChannel() {
   }
   mockChannelFactory.mockReturnValue(channelMock)
 }
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
+describe('useAuthIdentity', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-from-session' } } },
+    })
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: mockUnsubscribe } },
+    })
+    makeChannel()
+  })
+
+  test('exposes the cached user id without marking identity ready before verification', async () => {
+    const verified = deferred<{
+      data: { user: { id: string } | null }
+      error: Error | null
+    }>()
+    mockGetUser.mockReturnValueOnce(verified.promise)
+
+    const { result } = renderHook(() => useAuthIdentity())
+
+    await waitFor(() => {
+      expect(result.current.userId).toBe('user-from-session')
+    })
+    expect(result.current.ready).toBe(false)
+
+    await act(async () => {
+      verified.resolve({
+        data: { user: { id: 'verified-user' } },
+        error: null,
+      })
+      await verified.promise
+    })
+
+    await waitFor(() => {
+      expect(result.current).toEqual({
+        userId: 'verified-user',
+        ready: true,
+      })
+    })
+  })
+
+  test('keeps the cached user id but does not mark identity ready when verification fails', async () => {
+    mockGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: new Error('invalid session'),
+    })
+
+    const { result } = renderHook(() => useAuthIdentity())
+
+    await waitFor(() => {
+      expect(result.current.userId).toBe('user-from-session')
+    })
+    expect(result.current.ready).toBe(false)
+  })
+})
 
 describe('useProjectsRealtime', () => {
   beforeEach(() => {
