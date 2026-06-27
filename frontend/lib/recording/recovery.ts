@@ -18,6 +18,7 @@ import {
   type SessionPersistence,
 } from './persistence'
 import type { SessionLock } from './lock'
+import { getPresence, type RecordingPresence } from './presence'
 import type { RecoverableInfo } from './sessionTypes'
 
 export interface RecoveryProbeResult {
@@ -32,12 +33,53 @@ function codecMimeFor(row: PersistedSession): string | null {
   return null
 }
 
+/**
+ * How much captured-but-unpersisted audio (ms) at the tail is enough to warn the
+ * user that a recovered recording may be missing its end.
+ */
+export const TRUNCATION_THRESHOLD_MS = 30_000
+
+/**
+ * Decide whether a recovered session likely lost a meaningful tail.
+ *
+ * Preferred signal: the presence snapshot (localStorage, independent of the IDB
+ * write queue) records `lastChunkReceivedAt` for the last chunk the live recorder
+ * *received*, which keeps advancing past a persistence downgrade. The persisted
+ * row's `lastChunkReceivedAt` freezes at the last *durable* chunk, so their
+ * difference is the dropped tail in audio time — pause- and upload-proof (unlike
+ * `heartbeatAt`, which advances on wall-clock through pauses/uploads).
+ *
+ * Fallback when no matching snapshot survived (private mode, a soft interruption
+ * cleared it, or a newer session overwrote it): the durability downgrade flag is the
+ * only remaining hint that persistence stopped before the recording ended.
+ */
+export function assessTruncation(
+  row: PersistedSession,
+  presence: RecordingPresence | null,
+  thresholdMs: number = TRUNCATION_THRESHOLD_MS
+): boolean {
+  // An interrupted upload has a complete capture; only a capturing-phase orphan can
+  // be tail-truncated.
+  if (row.phase !== 'capturing') return false
+
+  if (
+    presence?.sessionId === row.sessionId &&
+    presence.lastChunkReceivedAt != null &&
+    row.lastChunkReceivedAt != null
+  ) {
+    return presence.lastChunkReceivedAt - row.lastChunkReceivedAt > thresholdMs
+  }
+
+  return row.armed === false
+}
+
 export async function probeRecoverableSessions(
   persistence: SessionPersistence,
   lock: SessionLock,
   userId: string,
   now: number = Date.now(),
-  excludeSessionId: string | null = null
+  excludeSessionId: string | null = null,
+  readPresence: () => RecordingPresence | null = () => getPresence().read()
 ): Promise<RecoveryProbeResult | null> {
   // Single list pass: feed the rows through the opportunistic 7-day sweep and
   // probe the survivors. Avoids a second full listSessions()+parse pass.
@@ -55,6 +97,16 @@ export async function probeRecoverableSessions(
   const candidates = rows
     .filter((row) => row.userId === userId && row.sessionId !== excludeSessionId)
     .sort((a, b) => b.createdAt - a.createdAt)
+
+  // Single presence read for the whole probe: localStorage holds one snapshot (the
+  // most recent session), matched per-candidate by sessionId. A throwing reader is
+  // treated as no snapshot so assessTruncation falls back to the `armed` flag.
+  let presence: RecordingPresence | null
+  try {
+    presence = readPresence()
+  } catch {
+    presence = null
+  }
 
   let claimed: RecoverableInfo | null = null
   let remaining = 0
@@ -154,6 +206,7 @@ export async function probeRecoverableSessions(
       bytesSoFar: recoveredBytes,
       createdAt: row.createdAt,
       remainingCount: 0,
+      mayBeTruncated: assessTruncation(row, presence),
     }
   }
 

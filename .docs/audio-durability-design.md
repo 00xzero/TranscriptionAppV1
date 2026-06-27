@@ -32,9 +32,9 @@ durability: spill chunks to IndexedDB as they arrive (we already receive them on
 Write each `MediaRecorder` chunk to IndexedDB as it arrives (write-behind, never
 blocking the live recording). On a fresh page load, an app-wide probe detects an
 orphaned session — chunks present in IDB with no live tab owning them — and offers
-to reassemble and transcribe what was captured. Recovery availability is gated per
-browser (WebM works; Safari/MP4 pending an empirical spike) and per session
-(degrades to memory-only if persistence fails). The nav guards relax only when
+to reassemble and transcribe what was captured. Recovery availability is per
+browser (WebM works; Safari/MP4 verified by the resolved Stage-0 spike below) and per
+session (degrades to memory-only if persistence fails). The nav guards relax only when
 recovery is actually armed for the current session.
 
 ## Goals
@@ -87,10 +87,11 @@ final un-flushed tail** — `stopAndFinalize` already does `new Blob(runtime.chu
 and reassembling the same chunks from IDB produces the same bytes. WebM recovery is
 therefore near-zero risk.
 
-Safari/MP4 recovery is gated on the [Stage-0 spike](#stage-0-spike-the-one-open-question).
-If MP4 can't reassemble into decodable audio, Safari silently falls back to today's
-`interrupted`→restart flow, and Safari sessions keep the strict guards. Recovery is a
-capability present where the format allows, absent where it doesn't.
+Safari/MP4 recovery is **verified** by the [resolved Stage-0 spike](#stage-0-spike-resolved):
+Safari emits fragmented MP4 (init `moov` written up front, then `moof`/`mdat` per chunk), so
+crash-orphaned chunks reassemble into decodable audio — the same "clean-stop minus the final
+un-flushed tail" contract as WebM. MP4 recovery ships unconditionally; `recovery.ts` carries
+no codec gate.
 
 ### 4. Ownership via the Web Locks API
 
@@ -218,15 +219,15 @@ Define thin interfaces injected into the session actions:
 Production wires IndexedDB and Web Locks adapters; tests inject in-memory fakes, keeping
 the existing suite fast and mostly synchronous. Plus a small number of integration tests
 running the real IDB adapter against `fake-indexeddb`, and a hand-rolled in-memory Web
-Locks fake (~30 lines). **No test can validate Safari MP4 reassembly** — that lives in the
-spike, not the suite. Green tests must not create false confidence on the format question.
+Locks fake (~30 lines). **No automated test can validate Safari MP4 reassembly** — that was
+settled by the Stage-0 spike (now resolved), not the suite.
 
 ### 13. No feature flag; build in dependency order
 
 No users yet, so no production-rollout flag or soak periods. Ship unflagged. The build
 *order* still holds because the layers depend on each other:
 
-1. **Stage 0 — Spike.** Gate Safari/MP4 viability.
+1. **Stage 0 — Spike (resolved).** Confirmed Safari/MP4 viability (fragmented MP4) — see below.
 2. **Stage 1 — Writer + GC.** Persistence adapters, chunk-spill into `recordChunk`,
    lifecycle clearing, startup sweep. Invisible, no UX change.
 3. **Stage 2 — Recovery UX.** `recoverable` state, app-wide probe, recovery prompt, pill
@@ -235,17 +236,22 @@ No users yet, so no production-rollout flag or soak periods. Ship unflagged. The
    Last, because relaxing a "you'll lose everything" warning before recovery is proven
    would be actively dangerous.
 
-## Stage-0 spike: the one open question
+## Stage-0 spike (resolved)
 
-**Does Safari's `MediaRecorder` emit fragmented MP4 (moof/mdat per chunk → crash-orphaned
-chunks reassemble into decodable audio) or single-moov MP4 (the index atom is written only
-on `stop()` → orphaned chunks are an unindexed, unplayable blob)?**
+**Question:** does Safari's `MediaRecorder` emit fragmented MP4 (moof/mdat per chunk →
+crash-orphaned chunks reassemble into decodable audio) or single-moov MP4 (the index atom is
+written only on `stop()` → orphaned chunks are an unindexed, unplayable blob)?
 
-Everything for Safari hangs on this; WebM is near-zero risk. The spike: a throwaway probe
-page (in the spirit of the existing `dev-mic-probe.html`) that records, simulates a crash
-by reassembling from persisted chunks *without* a clean stop, and sends the result to
-Deepgram — per browser, especially Safari. A WebM failure would be astonishing and would
-halt the feature; a Safari failure selects the WebM-only recovery path (decision 3).
+**Answer (2026-06-22, Safari 26.5): fragmented MP4 — recovery is safe.** A throwaway probe
+recorded `audio/mp4`, then reassembled the chunks *without* a clean `stop()`. The top-level
+boxes were `ftyp moov` (init segment written up front, in chunk 0) followed by repeating
+`moof mdat` fragments; the crash blob decoded via both `decodeAudioData` and `<audio>`
+(4.86 s vs 5.89 s clean — recovery loses only the final un-flushed ~1 s tail, the same
+contract as WebM). The "single-moov / unplayable orphan" failure mode did not occur. The
+result was then confirmed end-to-end in the real app: record on Safari → kill the tab
+process (true crash) → reload → RecoveryModal → Save/Transcribe succeeded through upload and
+Deepgram. Conclusion: MP4 recovery ships unconditionally, no codec gate. WebM was never in
+doubt.
 
 ## Decision table
 
@@ -253,7 +259,7 @@ halt the feature; a Safari failure selects the WebM-only recovery path (decision
 |---|----------|--------|
 | 1 | Product promise | Best-effort salvage (modes 1–4), never a guarantee |
 | 2 | Recovery capability | Finalize-only; no resume-and-continue |
-| 3 | Browser coverage | WebM full; Safari/MP4 gated on spike, else strict fallback |
+| 3 | Browser coverage | WebM full; Safari/MP4 verified by Stage-0 spike (fragmented MP4), full |
 | 4 | Ownership / liveness | Web Locks API (auto-release on crash) |
 | 5 | Storage | IDB append-only `chunks` + `sessions` metadata; draft migrates into IDB |
 | 6 | Empty-floor / display | Bytes-only floor for recovery; show size, not duration |
@@ -263,7 +269,7 @@ halt the feature; a Safari failure selects the WebM-only recovery path (decision
 | 10 | Guards when armed | Background recording, no discard; strict retained when not armed |
 | 11 | Discovery | Real provider, app-wide async probe, `recoverable` state + pill |
 | 12 | Testing | Port/adapter seam + `fake-indexeddb` integration + Web Locks fake |
-| 13 | Rollout | No flag; build order spike → writer → recovery UX → guard relaxation |
+| 13 | Rollout | No flag; build order spike (done) → writer → recovery UX → guard relaxation |
 
 ## Spec amendment
 

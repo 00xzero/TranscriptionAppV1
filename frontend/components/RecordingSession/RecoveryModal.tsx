@@ -122,6 +122,16 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
             saved as-is and can&apos;t be continued.
           </p>
 
+          {info.mayBeTruncated && (
+            <div
+              role="status"
+              className="rounded-lg border border-ink/15 bg-warm-highlight px-3 py-2 text-xs text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+            >
+              The recovered audio may be missing the end. Its local backup appears to
+              have stopped before the recording ended.
+            </div>
+          )}
+
           {!online && (
             <div
               role="status"

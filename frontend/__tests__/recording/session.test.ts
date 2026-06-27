@@ -1165,6 +1165,7 @@ describe('recording session durability mirror', () => {
         bytesSoFar: 8192,
         createdAt: session.createdAt,
         remainingCount: 0,
+        mayBeTruncated: false,
       },
     })
 

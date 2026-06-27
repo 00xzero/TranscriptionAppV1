@@ -129,6 +129,7 @@ export function forceState(target: RecordingState): void {
           bytesSoFar: 1_000_000,
           createdAt: now,
           remainingCount: 0,
+          mayBeTruncated: false,
         },
       })
       return

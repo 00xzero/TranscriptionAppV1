@@ -30,6 +30,12 @@ export interface RecoverableInfo {
   createdAt: number
   /** Number of other valid orphans waiting (for "1 of N" display). */
   remainingCount: number
+  /**
+   * True when the recovered audio likely lost a meaningful tail — persistence
+   * downgraded mid-capture, or the recorder received >30s more audio than was
+   * durably saved. Drives the "may be missing the end" caution in the recovery modal.
+   */
+  mayBeTruncated: boolean
 }
 
 export interface SessionSnapshot {

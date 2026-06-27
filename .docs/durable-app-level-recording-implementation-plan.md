@@ -227,8 +227,9 @@ terminal animation state local to the pill UI and does not add new recording
 session states or change persistence/upload/recovery contracts. Automated tests
 cover the pill variants, preview behavior, terminal timing, navigation boundaries,
 remote precedence, and the `audio/mp4` fallback used by Safari. Real Safari MP4
-chunk recovery, private/quota behavior, and mobile browser behavior still require
-manual device/browser QA.
+chunk recovery is now manually verified (Stage-0 spike + end-to-end crash/recover on
+Safari 26.5); private/quota behavior and mobile browser behavior still require manual
+device/browser QA.
 
 Includes:
 
@@ -242,7 +243,7 @@ Includes:
 - Reduced-motion support.
 - Visual/accessibility QA.
 - Manual crash/reload checks.
-- Safari MP4 spike result integration.
+- Safari MP4 spike result integration (done — fragmented MP4, recovery verified).
 - Private mode/quota/offline testing.
 - Mobile browser behavior checks.
 

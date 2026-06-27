@@ -16,6 +16,7 @@ import {
   type SessionPersistence,
 } from '@/lib/recording/persistence'
 import { FakeSessionLock, type SessionLock } from '@/lib/recording/lock'
+import type { RecordingPresence } from '@/lib/recording/presence'
 import { probeRecoverableSessions } from '@/lib/recording/recovery'
 
 const USER = 'user-1'
@@ -42,6 +43,24 @@ function baseSession(overrides: Partial<PersistedSession> = {}): PersistedSessio
     phase: 'capturing',
     armed: true,
     failureReason: null,
+    ...overrides,
+  }
+}
+
+function makePresence(overrides: Partial<RecordingPresence> = {}): RecordingPresence {
+  return {
+    sessionId: 's1',
+    ownerClientId: 'client-1',
+    userId: USER,
+    state: 'recording',
+    title: null,
+    startedAt: 1000,
+    lastResumeAt: 1000,
+    pausedAccumulatedMs: 0,
+    bytesSoFar: 8192,
+    lastChunkSeq: 1,
+    lastChunkReceivedAt: 1000,
+    heartbeatAt: 1000,
     ...overrides,
   }
 }
@@ -191,6 +210,103 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     // GC sweep deleted the row and its chunks.
     expect(await persistence.getSession('stale')).toBeNull()
     expect(await persistence.listChunkSeqs('stale')).toEqual([])
+  })
+})
+
+describe('probeRecoverableSessions truncation assessment', () => {
+  let persistence: SessionPersistence
+  let lock: FakeSessionLock
+
+  beforeEach(() => {
+    indexedDB = new IDBFactory()
+    persistence = new InMemorySessionPersistence()
+    lock = new FakeSessionLock()
+  })
+
+  async function probeWith(
+    session: Partial<PersistedSession>,
+    presence: RecordingPresence | null,
+    readPresence?: () => RecordingPresence | null
+  ) {
+    await seed(persistence, baseSession({ sessionId: 's1', ...session }), [0, 1])
+    return probeRecoverableSessions(
+      persistence,
+      lock,
+      USER,
+      NOW,
+      null,
+      readPresence ?? (() => presence)
+    )
+  }
+
+  test('flags truncation when the recorder received >30s more than was persisted', async () => {
+    const result = await probeWith(
+      { lastChunkReceivedAt: 1000 },
+      makePresence({ sessionId: 's1', lastChunkReceivedAt: 1000 + 40_000 })
+    )
+    expect(result?.info.mayBeTruncated).toBe(true)
+  })
+
+  test('does not flag a small captured-but-unsaved gap', async () => {
+    const result = await probeWith(
+      { lastChunkReceivedAt: 1000 },
+      makePresence({ sessionId: 's1', lastChunkReceivedAt: 1000 + 5_000 })
+    )
+    expect(result?.info.mayBeTruncated).toBe(false)
+  })
+
+  test('ignores a large heartbeat gap when the chunk gap is small (pause-proof)', async () => {
+    const result = await probeWith(
+      { lastChunkReceivedAt: 1000 },
+      makePresence({
+        sessionId: 's1',
+        lastChunkReceivedAt: 1000 + 1_000,
+        heartbeatAt: 1000 + 60_000,
+      })
+    )
+    expect(result?.info.mayBeTruncated).toBe(false)
+  })
+
+  test('never flags an interrupted upload (capture already complete)', async () => {
+    const result = await probeWith(
+      { phase: 'uploading', lastChunkReceivedAt: 1000 },
+      makePresence({ sessionId: 's1', lastChunkReceivedAt: 1000 + 40_000 })
+    )
+    expect(result?.info.mayBeTruncated).toBe(false)
+  })
+
+  test('falls back to the armed flag when the snapshot is for another session', async () => {
+    const result = await probeWith(
+      { lastChunkReceivedAt: 1000, armed: false },
+      makePresence({ sessionId: 'other', lastChunkReceivedAt: 1000 + 40_000 })
+    )
+    // Snapshot mismatch -> measurement skipped -> armed:false fallback warns.
+    expect(result?.info.mayBeTruncated).toBe(true)
+  })
+
+  test('treats exactly the threshold as not truncated (strict >)', async () => {
+    const result = await probeWith(
+      { lastChunkReceivedAt: 1000 },
+      makePresence({ sessionId: 's1', lastChunkReceivedAt: 1000 + 30_000 })
+    )
+    expect(result?.info.mayBeTruncated).toBe(false)
+  })
+
+  test('with no snapshot, flags a downgraded (unarmed) session', async () => {
+    const result = await probeWith({ armed: false }, null)
+    expect(result?.info.mayBeTruncated).toBe(true)
+  })
+
+  test('with no snapshot, does not flag an armed session', async () => {
+    const result = await probeWith({ armed: true }, null)
+    expect(result?.info.mayBeTruncated).toBe(false)
+  })
+
+  test('a throwing presence reader falls back to the armed flag', async () => {
+    const result = await probeWith({ armed: false }, null, () => {
+      throw new Error('localStorage blew up')
+    })
+    expect(result?.info.mayBeTruncated).toBe(true)
   })
 })
 

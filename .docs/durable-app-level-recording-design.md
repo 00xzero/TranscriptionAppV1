@@ -479,10 +479,13 @@ Before offering recovery, the app must verify:
 - persisted chunks include `seq = 0` and are contiguous from `0..N`;
 - recovered chunk bytes meet the recovery empty floor.
 
-Current Phase 2 note: recovery does not run a browser playback/support probe such
+Implementation note: recovery does not run a browser playback/support probe such
 as `MediaRecorder.isTypeSupported()` before surfacing a persisted WebM/MP4
 session, and it does not suppress recovery from `armed=false`/`failureReason`.
-Those are optional hardening/product decisions for later phases.
+The decode-safety risk such a probe would have hedged is moot — the Stage-0 spike
+(see Recovery Capability) confirmed both WebM and Safari MP4 orphans reassemble into
+decodable audio. Suppressing on `armed`/`failureReason` remains an optional product
+decision.
 
 `seq = 0` is the required container/init chunk. For WebM, it carries the EBML /
 Tracks initialization data; for recoverable fragmented MP4, it must include the
@@ -576,13 +579,13 @@ never appends new recording audio to the recovered prefix.
 For WebM, reassembled chunks should be byte-equivalent to today's clean-stop blob
 minus the final unflushed tail.
 
-Safari/MP4 recovery is gated on the Stage 0 spike. If Safari MP4 chunks cannot
-be reassembled into decodable audio without a clean `stop()`, Safari falls back
-to unarmed/interrupted behavior.
-
-Current Phase 2 note: there is no Safari/MP4 spike gate in code. The recovery
-probe can assemble persisted `audio/mp4` rows when they otherwise pass structural
-validation.
+Safari/MP4 recovery is **verified** (Stage-0 spike resolved 2026-06-22, Safari 26.5):
+Safari emits fragmented MP4 with the init `moov` written up front, so crash-orphaned
+chunks reassemble into decodable audio without a clean `stop()` — the same contract as
+WebM, losing only the final un-flushed tail. Confirmed end-to-end in the real app
+(crash → reload → RecoveryModal → Save/Transcribe). The recovery probe therefore
+assembles persisted `audio/mp4` rows whenever they pass structural validation, with no
+codec gate — which is correct.
 
 ### Empty Floor and Display
 
@@ -784,8 +787,8 @@ Test adapters:
 - hand-rolled Web Locks fake;
 - fake BroadcastChannel/localStorage presence when the presence phase lands.
 
-No automated test can prove Safari MP4 chunk reassembly. That belongs to the
-Stage 0 browser spike.
+No automated test can prove Safari MP4 chunk reassembly; that was settled by the
+Stage 0 browser spike (resolved — Safari emits fragmented MP4, orphans recover).
 
 ## Implementation Phases
 
@@ -809,7 +812,7 @@ Stage 0 browser spike.
    and owner-loss recovery in already-open non-owner tabs.
 5. **Phase 5 - Product polish and QA.** Add global pill variants, hover/focus
    preview, saved/discarded animations, reduced motion, accessibility polish,
-   Safari/MP4 spike follow-up, and manual QA across offline/private/mobile
+   Safari/MP4 spike follow-up (done — see Resolved Questions), and manual QA across offline/private/mobile
    browser scenarios.
 
 ## Decisions Changed From Original Durability Design
@@ -830,18 +833,21 @@ Stage 0 browser spike.
 - Different browsers/devices remain out of scope and are documented as a known
   limitation.
 
-## Open Questions
+## Resolved Questions
 
-### Safari/MP4 Recovery Spike
+### Safari/MP4 Recovery Spike (resolved 2026-06-22)
 
-Does Safari's `MediaRecorder` emit fragmented MP4 chunks that can be reassembled
-into decodable audio without a clean `stop()`, or does the required index atom
-arrive only at clean stop?
+**Question:** does Safari's `MediaRecorder` emit fragmented MP4 chunks that can be
+reassembled into decodable audio without a clean `stop()`, or does the required index
+atom arrive only at clean stop?
 
-The spike should record in Safari, persist chunks, simulate crash recovery by
-reassembling chunks without clean stop, and verify playback/transcription. WebM
-failure would halt the feature; Safari failure selects WebM-only recovery and
-unarmed/interrupted fallback for Safari.
+**Answer: fragmented MP4 — recovery is safe.** On Safari 26.5 a throwaway probe recorded
+`audio/mp4` and reassembled the chunks *without* a clean stop; the top-level boxes were
+`ftyp moov` (init segment in chunk 0) then repeating `moof mdat` fragments, and the crash
+blob decoded via both `decodeAudioData` and `<audio>` (4.86 s vs 5.89 s clean — recovery
+loses only the final un-flushed ~1 s tail, same as WebM). Then confirmed end-to-end in the
+real app: record on Safari → kill the tab process → reload → RecoveryModal → Save/Transcribe
+succeeded through upload and Deepgram. No WebM-only fallback or codec gate is needed.
 
 ### Browser Support Details
 

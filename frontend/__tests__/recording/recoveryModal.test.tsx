@@ -28,6 +28,7 @@ function makeInfo(overrides: Partial<RecoverableInfo> = {}): RecoverableInfo {
     bytesSoFar: 2_000_000,
     createdAt: 1000,
     remainingCount: 0,
+    mayBeTruncated: false,
     ...overrides,
   }
 }
@@ -98,6 +99,14 @@ describe('RecoveryModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
     expect(await screen.findByText(/Recording saved/)).toBeInTheDocument()
     expect(screen.getByText(/First clip/)).toBeInTheDocument()
+  })
+
+  test('shows the truncation caution only when mayBeTruncated', () => {
+    const { rerender } = render(<RecoveryModal info={makeInfo()} />)
+    expect(screen.queryByText(/may be missing the end/i)).not.toBeInTheDocument()
+
+    rerender(<RecoveryModal info={makeInfo({ mayBeTruncated: true })} />)
+    expect(screen.getByText(/may be missing the end/i)).toBeInTheDocument()
   })
 
   test('a final save does not toast (the route redirect acknowledges it)', async () => {
