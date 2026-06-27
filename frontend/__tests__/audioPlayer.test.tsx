@@ -360,6 +360,32 @@ describe('AudioPlayer', () => {
     expect(onDurationChange).toHaveBeenCalledWith(78)
   })
 
+  it('scrubs against the trusted duration hint when it is longer than media metadata', () => {
+    const playerRef = React.createRef<AudioPlayerRef>()
+    render(
+      <AudioPlayer
+        ref={playerRef}
+        src="test.mp3"
+        hideControls
+        durationHint={78}
+        preferLargerDurationHint
+      />
+    )
+
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    const audioState = setupAudioElement(audio, { duration: 67 })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplaythrough'))
+      playerRef.current?.scrubToFraction(0.75)
+    })
+    flushAnimationFrame()
+
+    expect(audioState.getCurrentTime()).toBe(58.5)
+    expect(screen.getByText('00:58')).toBeInTheDocument()
+  })
+
   it('adopts a duration hint that arrives after media metadata', () => {
     const onDurationChange = jest.fn()
     const { rerender } = render(

@@ -1,4 +1,5 @@
 import {
+  BroadcastChannelPresence,
   FakePresenceBus,
   FakeRecordingPresence,
   parsePresence,
@@ -54,6 +55,30 @@ describe('FakeRecordingPresence', () => {
 
     unsubscribe()
     owner.publish(makePresence())
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('BroadcastChannelPresence', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  test('same-tab subscribers are notified on local publish and clear', () => {
+    const channel = new BroadcastChannelPresence()
+    const listener = jest.fn()
+    const unsubscribe = channel.subscribe(listener)
+
+    channel.publish(makePresence())
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(channel.read()?.sessionId).toBe('s1')
+
+    channel.clear()
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(channel.read()).toBeNull()
+
+    unsubscribe()
+    channel.publish(makePresence())
     expect(listener).toHaveBeenCalledTimes(2)
   })
 })

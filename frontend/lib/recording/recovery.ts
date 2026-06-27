@@ -118,7 +118,7 @@ export async function probeRecoverableSessions(
     try {
       held = await lock.isHeld(row.sessionId)
     } catch {
-      held = false
+      continue
     }
     if (held) continue
 

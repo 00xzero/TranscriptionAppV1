@@ -64,6 +64,12 @@ export async function submitFinalizedRecording(): Promise<void> {
         uploadIntentId: store.runtime.uploadIntentId ?? undefined,
       }
     )
+  } catch (err) {
+    if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
+      return
+    }
+    markUploadError((err as Error)?.message ?? 'Could not upload the recording.')
+    return
   } finally {
     if (store.runtime.uploadAbortController === abortController) {
       store.runtime.uploadAbortController = null

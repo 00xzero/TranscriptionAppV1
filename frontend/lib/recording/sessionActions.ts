@@ -201,6 +201,8 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.sessionId = null
     store.runtime.uploadIntentId = null
     store.runtime.nextChunkSeq = 0
+    store.runtime.lastChunkReceivedAt = null
+    store.runtime.flushRequested = false
     store.runtime.writeQueue = null
     void lock.release()
     void releaseOwnerLockQuietly()

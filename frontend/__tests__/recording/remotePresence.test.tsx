@@ -79,6 +79,13 @@ describe('useRemotePresence', () => {
     })
   })
 
+  test('cached same-user identity is not usable until auth verification is ready', async () => {
+    identityValue = { userId: 'u1', ready: false }
+    channel.publish(presence())
+    const { result } = await renderStatus()
+    expect(result.current.kind).toBe('lock-only')
+  })
+
   test('server render starts in checking so route effects wait for the first read', () => {
     channel.publish(presence())
 

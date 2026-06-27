@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   attachAndStart as attachAndStartAction,
   discard as discardAction,
@@ -64,6 +64,7 @@ export function RecordingSessionProvider({
   const snapshot = useRecordingSession()
   const probedUserRef = useRef<string | null>(null)
   const ownerLossHandledSessionRef = useRef<string | null>(null)
+  const [ownerLossRetryTick, setOwnerLossRetryTick] = useState(0)
 
   // App-level unload guard: warns on refresh/close/quit while a recording is active
   // (through upload completion), on every route — not just `/recording/new`.
@@ -102,19 +103,36 @@ export function RecordingSessionProvider({
     if (ownerLossHandledSessionRef.current === lostSessionId) return
     if (!identity.ready || !identity.userId) return
     ownerLossHandledSessionRef.current = lostSessionId
-    void runRecoveryProbe()
-      .then((foundRecoverable) => {
+    let cancelled = false
+    let retryTimer: number | null = null
+
+    const probeOwnerLoss = async () => {
+      try {
+        const foundRecoverable = await runRecoveryProbe()
+        if (cancelled) return
         if (!foundRecoverable) {
           clearPresenceForSession(lostSessionId)
         }
-      })
-      .catch(() => {
+      } catch {
         // best-effort; clear the marker so a later evaluation can retry this session.
         if (ownerLossHandledSessionRef.current === lostSessionId) {
           ownerLossHandledSessionRef.current = null
         }
-      })
-  }, [lostSessionId, identity.ready, identity.userId])
+        if (!cancelled) {
+          retryTimer = window.setTimeout(() => {
+            setOwnerLossRetryTick((tick) => tick + 1)
+          }, 2_000)
+        }
+      }
+    }
+
+    void probeOwnerLoss()
+
+    return () => {
+      cancelled = true
+      if (retryTimer !== null) window.clearTimeout(retryTimer)
+    }
+  }, [lostSessionId, identity.ready, identity.userId, ownerLossRetryTick])
 
   // App-wide recovery probe: runs once per resolved user. Recovery is surfaced via
   // the blocking modal below (and attachAndStart re-probes as a backstop before any

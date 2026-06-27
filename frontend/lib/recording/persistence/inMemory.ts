@@ -4,6 +4,12 @@ import type {
   SessionPersistence,
 } from './types'
 
+function stripUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined)
+  ) as T
+}
+
 /**
  * Map-backed fake for fast unit tests. Mirrors the IndexedDB adapter's observable
  * behavior (seq-ordered reads, delete-cascade) without a real database.
@@ -14,7 +20,7 @@ export class InMemorySessionPersistence implements SessionPersistence {
   private readonly chunks = new Map<string, Map<number, Blob>>()
 
   async putSession(record: PersistedSession): Promise<void> {
-    this.sessions.set(record.sessionId, { ...record })
+    this.sessions.set(record.sessionId, { ...stripUndefined(record) })
   }
 
   async patchSession(
@@ -23,7 +29,7 @@ export class InMemorySessionPersistence implements SessionPersistence {
   ): Promise<void> {
     const existing = this.sessions.get(sessionId)
     if (!existing) return
-    this.sessions.set(sessionId, { ...existing, ...patch })
+    this.sessions.set(sessionId, { ...existing, ...stripUndefined(patch) })
   }
 
   async getSession(sessionId: string): Promise<PersistedSession | null> {

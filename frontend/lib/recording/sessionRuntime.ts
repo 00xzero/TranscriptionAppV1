@@ -65,6 +65,8 @@ function teardownPersistence(store: Store): Promise<void> {
   store.runtime.sessionId = null
   store.runtime.nextChunkSeq = 0
   store.runtime.uploadIntentId = null
+  store.runtime.lastChunkReceivedAt = null
+  store.runtime.flushRequested = false
   if (!queue) return Promise.resolve()
   return queue.closeAndDelete().catch(() => {})
 }
@@ -82,6 +84,8 @@ export function clearInterruptedSessionRuntime(
   store.runtime.sessionId = null
   store.runtime.nextChunkSeq = 0
   store.runtime.uploadIntentId = null
+  store.runtime.lastChunkReceivedAt = null
+  store.runtime.flushRequested = false
   disposeController(store)
   clearFinalizedRecording(store)
 }

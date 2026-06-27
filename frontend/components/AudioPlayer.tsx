@@ -260,7 +260,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     const audio = audioRef.current
     const clampedFraction = clampFraction(fraction)
     const nextDuration = resolvedDuration
-      ?? (audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : duration)
+      ?? (audio ? resolveDuration(audio) : duration)
 
     if (nextDuration > 0) {
       scrubToTime(clampedFraction * nextDuration, nextDuration)
@@ -268,7 +268,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
 
     queuePendingScrubFraction(clampedFraction)
-  }, [clampFraction, duration, queuePendingScrubFraction, scrubToTime])
+  }, [clampFraction, duration, queuePendingScrubFraction, resolveDuration, scrubToTime])
 
   const endScrub = useCallback(() => {
     flushScrubSeek()

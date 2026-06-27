@@ -148,6 +148,7 @@ export function useRemotePresence(localActive: boolean): RemotePresenceStatus {
 
   const usable =
     presence != null &&
+    identity.ready &&
     !!identity.userId &&
     presence.userId === identity.userId
 

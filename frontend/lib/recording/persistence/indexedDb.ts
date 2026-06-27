@@ -26,6 +26,12 @@ function txDone(tx: IDBTransaction): Promise<void> {
   })
 }
 
+function stripUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined)
+  ) as T
+}
+
 /**
  * Compound out-of-line key range covering every `[sessionId, <seq>]` chunk.
  * An empty array sorts after any number in IndexedDB key ordering, so the upper
@@ -79,7 +85,7 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
   async putSession(record: PersistedSession): Promise<void> {
     const db = await this.openDb()
     const tx = db.transaction(SESSIONS_STORE, 'readwrite')
-    tx.objectStore(SESSIONS_STORE).put(record)
+    tx.objectStore(SESSIONS_STORE).put(stripUndefined(record))
     await txDone(tx)
   }
 
@@ -92,7 +98,7 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     const store = tx.objectStore(SESSIONS_STORE)
     const existing = await promisifyRequest(store.get(sessionId))
     if (existing) {
-      store.put({ ...existing, ...patch })
+      store.put({ ...existing, ...stripUndefined(patch) })
     }
     await txDone(tx)
   }

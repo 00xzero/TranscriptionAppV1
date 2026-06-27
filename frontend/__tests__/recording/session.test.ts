@@ -6,6 +6,7 @@ import {
   __setSnapshotForTesting,
   attachAndStart,
   discard,
+  discardRecovered,
   finalize,
   forceState,
   getElapsedActiveMs,
@@ -346,6 +347,24 @@ describe('recording session singleton', () => {
     // The Web Locks request holds the lock open across the parked error, so the
     // owner lock must not be released until the user retries or discards.
     expect(releaseSpy).not.toHaveBeenCalled()
+  })
+
+  test('unexpected upload rejection becomes a retryable upload error', async () => {
+    mockRunCaptureUpload.mockRejectedValueOnce(new Error('network exploded'))
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopPromise
+
+    expect(getSnapshot()).toMatchObject({
+      state: 'error',
+      errorMessage: 'network exploded',
+      canRetryUpload: true,
+    })
   })
 
   test('retryable upload error parks without keeping the recording interval alive', async () => {
@@ -877,6 +896,12 @@ class DelayedDeletePersistence extends InMemorySessionPersistence {
   }
 }
 
+class FailingDeletePersistence extends InMemorySessionPersistence {
+  override async deleteSession(): Promise<void> {
+    throw new Error('delete failed')
+  }
+}
+
 // Gates the first chunk write so a test can hold the write queue unsettled and
 // assert ordering around `queue.whenSettled()` (e.g. interrupted recovery must
 // not release ownership while a chunk write is still in flight).
@@ -1025,6 +1050,47 @@ describe('recording session durability mirror', () => {
     })
     expect(lock.releaseCount).toBe(1)
     expect(await delayedPersistence.getSession(session.sessionId)).not.toBeNull()
+  })
+
+  test('a recovery probe releases its claim when identity changes before hydration', async () => {
+    const delayedPersistence = new DelayedChunkStatsPersistence()
+    installPersistence(delayedPersistence)
+    const lock = new CountingSessionLock()
+    __setSessionLockForTesting(lock)
+
+    const session: PersistedSession = {
+      sessionId: 'old-orphan',
+      userId: 'user-123',
+      uploadIntentId: 'intent-old',
+      title: 'Old orphan',
+      generatedTitle: null,
+      keyTerms: [],
+      codecMime: 'audio/webm',
+      codecExtension: 'webm',
+      deviceId: null,
+      createdAt: 1_000,
+      startedAt: 1_000,
+      lastResumeAt: 1_000,
+      pausedAccumulatedMs: 0,
+      bytesSoFar: 8192,
+      lastChunkSeq: 1,
+      lastChunkReceivedAt: 1_000,
+      phase: 'capturing',
+      armed: true,
+      failureReason: null,
+    }
+    await delayedPersistence.putSession(session)
+    await delayedPersistence.putChunk(session.sessionId, 0, new Blob([new Uint8Array(4096)]))
+    await delayedPersistence.putChunk(session.sessionId, 1, new Blob([new Uint8Array(4096)]))
+
+    const probe = runRecoveryProbe()
+    await delayedPersistence.readStarted
+    setIdentity({ userId: 'user-456', ready: true })
+    delayedPersistence.releaseRead()
+
+    await expect(probe).resolves.toBe(false)
+    expect(getSnapshot().state).toBe('idle')
+    expect(lock.releaseCount).toBe(1)
   })
 
   test('a failing chunk write downgrades the session but recording continues', async () => {
@@ -1180,6 +1246,37 @@ describe('recording session durability mirror', () => {
       submissionResult: {
         projectId: 'project-recovered',
         outcome: 'started',
+      },
+    })
+  })
+
+  test('discardRecovered surfaces local delete failure and keeps recovery open', async () => {
+    const failingDelete = new FailingDeletePersistence()
+    installPersistence(failingDelete)
+    __setSnapshotForTesting({
+      state: 'recoverable',
+      title: 'Recovered title',
+      keyTerms: [],
+      recoverable: {
+        sessionId: 'recoverable-1',
+        uploadIntentId: 'intent-1',
+        title: 'Recovered title',
+        generatedTitle: null,
+        keyTerms: [],
+        codecMime: 'audio/webm',
+        codecExtension: 'webm',
+        bytesSoFar: 8192,
+        createdAt: 1_000,
+        remainingCount: 0,
+        mayBeTruncated: false,
+      },
+    })
+
+    await expect(discardRecovered()).rejects.toThrow('delete failed')
+    expect(getSnapshot()).toMatchObject({
+      state: 'recoverable',
+      recoverable: {
+        sessionId: 'recoverable-1',
       },
     })
   })

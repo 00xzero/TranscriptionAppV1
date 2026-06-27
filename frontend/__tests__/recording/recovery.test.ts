@@ -162,6 +162,24 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     expect(await persistence.getSession('s1')).not.toBeNull()
   })
 
+  test('skips a candidate when ownership liveness cannot be determined', async () => {
+    await seed(persistence, baseSession({ sessionId: 's1' }), [0, 1])
+    const acquire = jest.fn(async () => true)
+    const failingLock: SessionLock = {
+      isHeld: async () => {
+        throw new Error('query failed')
+      },
+      acquire,
+      release: async () => {},
+    }
+
+    const result = await probeRecoverableSessions(persistence, failingLock, USER, NOW)
+
+    expect(result).toBeNull()
+    expect(acquire).not.toHaveBeenCalled()
+    expect(await persistence.getSession('s1')).not.toBeNull()
+  })
+
   test('skips a candidate it cannot claim (claim race lost)', async () => {
     await seed(persistence, baseSession({ sessionId: 's1' }), [0, 1])
     // isHeld false (not yet owned) but acquire fails — another probing tab won.

@@ -121,6 +121,36 @@ describe('owner-loss → recovery probe (provider)', () => {
     expect(channel.read()?.sessionId).toBe('s2')
   })
 
+  test('retries owner-loss recovery after a transient probe failure', async () => {
+    jest.useFakeTimers()
+    try {
+      channel.publish(presence())
+      render(<RecordingSessionProvider>x</RecordingSessionProvider>)
+      await flush()
+      mockProbe.mockClear()
+      mockProbe
+        .mockRejectedValueOnce(new Error('temporary failure'))
+        .mockResolvedValueOnce(false)
+
+      await act(async () => {
+        channel.publish(presence({ heartbeatAt: NOW - 60_000 }))
+      })
+      await flush()
+      expect(mockProbe).toHaveBeenCalledTimes(1)
+      expect(channel.read()?.sessionId).toBe('s1')
+
+      await act(async () => {
+        jest.advanceTimersByTime(2_000)
+      })
+      await flush()
+
+      expect(mockProbe).toHaveBeenCalledTimes(2)
+      expect(channel.read()).toBeNull()
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
   test('does not probe for owner-loss of another user', async () => {
     channel.publish(presence({ userId: 'someone-else', heartbeatAt: NOW - 60_000 }))
     render(<RecordingSessionProvider>x</RecordingSessionProvider>)

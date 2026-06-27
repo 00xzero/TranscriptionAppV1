@@ -24,6 +24,15 @@ describe('FakeSessionLock', () => {
     expect(await lock.isHeld('s1')).toBe(true)
     expect(await lock.acquire('s1')).toBe(false)
   })
+
+  test('refuses to overwrite a different session it already holds', async () => {
+    const lock = new FakeSessionLock()
+    expect(await lock.acquire('s1')).toBe(true)
+    expect(await lock.acquire('s1')).toBe(true)
+    expect(await lock.acquire('s2')).toBe(false)
+    expect(await lock.isHeld('s1')).toBe(true)
+    expect(await lock.isHeld('s2')).toBe(false)
+  })
 })
 
 describe('NoWebLocksSessionLock (degraded fallback)', () => {
@@ -120,7 +129,7 @@ describe('WebLocksSessionLock', () => {
     expect(await lock.acquire('s1')).toBe(false)
   })
 
-  test('treats query failures as not-held (mirror of the owner lock policy)', async () => {
+  test('treats query failures as held so recovery does not claim unknown ownership', async () => {
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       value: {
@@ -132,6 +141,6 @@ describe('WebLocksSessionLock', () => {
     })
 
     const lock = new WebLocksSessionLock()
-    expect(await lock.isHeld('s1')).toBe(false)
+    expect(await lock.isHeld('s1')).toBe(true)
   })
 })

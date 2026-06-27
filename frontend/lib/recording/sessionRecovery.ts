@@ -92,6 +92,7 @@ export async function runRecoveryProbe(
 ): Promise<boolean> {
   const identity = getIdentity()
   if (!identity.ready || !identity.userId) return false
+  const probedUserId = identity.userId
 
   if (!isRecoveryEligibleState()) {
     return false
@@ -103,10 +104,17 @@ export async function runRecoveryProbe(
   const result = await probeRecoverableSessions(
     getPersistence(),
     getSessionLock(),
-    identity.userId,
+    probedUserId,
     Date.now(),
     excludeSessionId ?? store.runtime.sessionId
   )
+
+  const currentIdentity = getIdentity()
+  if (!currentIdentity.ready || currentIdentity.userId !== probedUserId) {
+    await releaseSessionLockQuietly()
+    return false
+  }
+
   if (!result) return false
 
   if (!isRecoveryEligibleState()) {
@@ -125,17 +133,32 @@ export async function runRecoveryProbe(
 // chain to the next orphan (defensive multi-orphan handling). Returns true when a
 // subsequent recoverable was surfaced — callers use that to decide whether to
 // apply their own terminal snapshot.
-async function clearRecoveredOrphanAndChain(sessionId: string): Promise<boolean> {
+interface ClearRecoveredResult {
+  ok: boolean
+  chainedToNext: boolean
+  message?: string
+}
+
+async function clearRecoveredOrphanAndChain(
+  sessionId: string
+): Promise<ClearRecoveredResult> {
   try {
     await getPersistence().deleteSession(sessionId)
-  } catch {
-    // ignore — best-effort
+  } catch (err) {
+    return {
+      ok: false,
+      chainedToNext: false,
+      message: (err as Error)?.message ?? 'Could not delete the recovered recording.',
+    }
   }
   await releaseSessionLockQuietly()
   try {
-    return await runRecoveryProbe(sessionId)
+    return {
+      ok: true,
+      chainedToNext: await runRecoveryProbe(sessionId),
+    }
   } catch {
-    return false
+    return { ok: true, chainedToNext: false }
   }
 }
 
@@ -205,19 +228,31 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
 
   // Success: clear the orphan and release ownership, then surface the next orphan
   // (defensive multi-orphan handling) or finish as submitted.
-  const chainedToNext = await clearRecoveredOrphanAndChain(info.sessionId)
-  if (!chainedToNext) {
+  const cleared = await clearRecoveredOrphanAndChain(info.sessionId)
+  if (!cleared.ok) {
+    return {
+      ok: false,
+      message:
+        cleared.message ??
+        'Recording was saved, but the local recovery copy could not be removed.',
+    }
+  }
+  if (!cleared.chainedToNext) {
     setSubmissionResult({ projectId: result.projectId, outcome: result.outcome })
     markSubmitted()
   }
-  return { ok: true, chainedToNext }
+  return { ok: true, chainedToNext: cleared.chainedToNext }
 }
 
 export async function discardRecovered(): Promise<void> {
   const info = store.snapshot.recoverable
   if (!info) return
 
-  if (!(await clearRecoveredOrphanAndChain(info.sessionId))) {
+  const cleared = await clearRecoveredOrphanAndChain(info.sessionId)
+  if (!cleared.ok) {
+    throw new Error(cleared.message ?? 'Could not discard the recording.')
+  }
+  if (!cleared.chainedToNext) {
     setSnapshot({ ...IDLE_SNAPSHOT })
   }
 }

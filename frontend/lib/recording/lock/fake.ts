@@ -14,6 +14,7 @@ export class FakeSessionLock implements SessionLock {
 
   async acquire(sessionId: string): Promise<boolean> {
     if (this.ownedElsewhere.has(sessionId)) return false
+    if (this.held !== null) return this.held === sessionId
     this.held = sessionId
     return true
   }

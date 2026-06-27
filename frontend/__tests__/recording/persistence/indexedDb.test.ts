@@ -7,7 +7,11 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 
-import { IndexedDBSessionPersistence } from '@/lib/recording/persistence/indexedDb'
+import {
+  IndexedDBSessionPersistence,
+  InMemorySessionPersistence,
+  type SessionPersistence,
+} from '@/lib/recording/persistence'
 import { gcExpiredSessions, SESSION_MAX_AGE_MS } from '@/lib/recording/persistence/gc'
 import type { PersistedSession } from '@/lib/recording/persistence/types'
 
@@ -69,6 +73,23 @@ describe('IndexedDBSessionPersistence', () => {
     expect(updated?.bytesSoFar).toBe(42)
     expect(updated?.lastChunkSeq).toBe(2)
     expect(updated?.phase).toBe('uploading')
+  })
+
+  test.each([
+    ['IndexedDB', () => new IndexedDBSessionPersistence()],
+    ['InMemory', () => new InMemorySessionPersistence()],
+  ])('%s patchSession ignores explicit undefined fields', async (_name, makeStore) => {
+    const store = makeStore() as SessionPersistence
+    await store.putSession(makeSession('s1', { title: 'Original title' }))
+
+    await store.patchSession('s1', {
+      title: undefined as never,
+      bytesSoFar: 42,
+    })
+
+    const updated = await store.getSession('s1')
+    expect(updated?.title).toBe('Original title')
+    expect(updated?.bytesSoFar).toBe(42)
   })
 
   test('stores chunks as raw blobs and reads them back in seq order', async () => {

@@ -17,6 +17,7 @@ import {
  */
 export class BroadcastChannelPresence implements RecordingPresenceChannel {
   private channel: BroadcastChannel | null = null
+  private readonly listeners = new Set<() => void>()
 
   private getChannel(): BroadcastChannel | null {
     if (this.channel) return this.channel
@@ -26,6 +27,16 @@ export class BroadcastChannelPresence implements RecordingPresenceChannel {
       this.channel = null
     }
     return this.channel
+  }
+
+  private notify(): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener()
+      } catch {
+        // A listener failure must not stop other subscribers.
+      }
+    })
   }
 
   publish(presence: RecordingPresence): void {
@@ -40,6 +51,7 @@ export class BroadcastChannelPresence implements RecordingPresenceChannel {
     } catch {
       // Channel post is best-effort.
     }
+    this.notify()
   }
 
   clear(): void {
@@ -53,6 +65,7 @@ export class BroadcastChannelPresence implements RecordingPresenceChannel {
     } catch {
       // ignore
     }
+    this.notify()
   }
 
   read(): RecordingPresence | null {
@@ -70,12 +83,14 @@ export class BroadcastChannelPresence implements RecordingPresenceChannel {
     const onMessage = () => listener()
 
     const channel = this.getChannel()
+    this.listeners.add(listener)
     channel?.addEventListener('message', onMessage)
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', onStorage)
     }
 
     return () => {
+      this.listeners.delete(listener)
       channel?.removeEventListener('message', onMessage)
       if (typeof window !== 'undefined') {
         window.removeEventListener('storage', onStorage)
