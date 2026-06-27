@@ -15,6 +15,8 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
   onScrubPreview,
   onScrubPreviewFraction,
   initialPlaybackRate = 1.0,
+  durationHint,
+  preferLargerDurationHint = false,
   hideControls = false,
 }: AudioPlayerProps, ref) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -87,7 +89,12 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
   }, [src, duration, onDurationChange, onReady])
 
   return (
-    <div data-testid="audio-player" data-src={src}>
+    <div
+      data-testid="audio-player"
+      data-src={src}
+      data-duration-hint={durationHint ?? ''}
+      data-prefer-larger-duration-hint={String(preferLargerDurationHint)}
+    >
       <audio ref={audioRef} />
       {!hideControls && (
         <div data-testid="audio-controls">

@@ -185,7 +185,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
                 onDragStart={playback.handlePlayerDragStart}
                 onDragEnd={playback.handlePlayerDragEnd}
                 initialPlaybackRate={playback.playbackRate}
-                durationHint={data.waveformDurationSecs ?? data.projectDurationSecs}
+                durationHint={data.projectDurationSecs}
                 preferLargerDurationHint={data.waveformDurationSecs !== null}
                 hideControls
                 audioEngineOnly={data.peaks !== null}
