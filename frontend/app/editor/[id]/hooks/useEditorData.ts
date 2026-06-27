@@ -22,6 +22,17 @@ const WAVEFORM_POLL_INTERVAL_MS = 3000
 const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
 
+export function chooseEditorDuration(
+  projectDurationSecs: number | null,
+  waveformDurationSecs: number | null
+): number | null {
+  const durations = [projectDurationSecs, waveformDurationSecs].filter(
+    (duration): duration is number => duration != null && Number.isFinite(duration) && duration > 0
+  )
+  if (durations.length === 0) return null
+  return Math.max(...durations)
+}
+
 export function useEditorData(projectId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
@@ -30,6 +41,7 @@ export function useEditorData(projectId: string) {
   const [projectTitle, setProjectTitle] = useState<string | null>(null)
   const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
   const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
+  const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
 
@@ -50,6 +62,7 @@ export function useEditorData(projectId: string) {
     let waveformPollId: ReturnType<typeof setInterval> | null = null
     let waveformPollStartedAt = 0
     setPeaks(null)
+    setWaveformDurationSecs(null)
     setWaveformStatus('skipped')
 
     const stopWaveformPolling = () => {
@@ -70,6 +83,7 @@ export function useEditorData(projectId: string) {
       if (cancelled) return false
       if (artifact.success) {
         setPeaks(artifact.data.peaks)
+        setWaveformDurationSecs(artifact.data.duration_seconds)
         return true
       }
       console.warn('[useEditorData] waveform artifact schema mismatch', artifact.error.issues)
@@ -193,7 +207,8 @@ export function useEditorData(projectId: string) {
     speakers, setSpeakers,
     projectTitle, setProjectTitle,
     projectCreatedAt,
-    projectDurationSecs,
+    projectDurationSecs: chooseEditorDuration(projectDurationSecs, waveformDurationSecs),
+    waveformDurationSecs,
     peaks,
     waveformStatus,
     reloadTranscript,

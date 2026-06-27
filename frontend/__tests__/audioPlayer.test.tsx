@@ -328,6 +328,38 @@ describe('AudioPlayer', () => {
     expect(screen.getByText('00:19')).toBeInTheDocument()
   })
 
+  it('keeps finite media metadata over a longer duration hint by default', () => {
+    const { audio } = renderPlayer({
+      duration: 67,
+      props: { durationHint: 78 },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('01:07')).toBeInTheDocument()
+  })
+
+  it('uses a longer trusted duration hint when opted in', () => {
+    const onDurationChange = jest.fn()
+    const { audio } = renderPlayer({
+      duration: 67,
+      props: {
+        durationHint: 78,
+        preferLargerDurationHint: true,
+        onDurationChange,
+      },
+    })
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+
+    expect(screen.getByText('01:18')).toBeInTheDocument()
+    expect(onDurationChange).toHaveBeenCalledWith(78)
+  })
+
   it('adopts a duration hint that arrives after media metadata', () => {
     const onDurationChange = jest.fn()
     const { rerender } = render(
