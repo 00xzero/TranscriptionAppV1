@@ -13,7 +13,7 @@ interface CaptureDetailsProps {
 export default function CaptureDetails({ title, setTitle, isUploading }: CaptureDetailsProps) {
   return (
     <div className="space-y-4 pt-2 border-t border-[#D1CEC5] dark:border-white/10">
-      <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Project Details</p>
+      <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Transcript Details</p>
 
       <div className="space-y-1">
         <Label className="text-xs font-medium opacity-80" htmlFor={titleInputId}>Title</Label>

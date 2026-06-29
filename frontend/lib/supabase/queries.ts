@@ -1,33 +1,33 @@
 /**
  * Supabase query helpers for frontend data operations.
  *
- * Provides typed functions for CRUD operations on projects, transcript rows, and speakers.
+ * Provides typed functions for CRUD operations on transcripts, transcript rows, and speakers.
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
-    Project,
+    Transcript,
     JobSummary,
     Speaker,
     SegmentUpdate,
     SpeakerUpdate,
     SpeakerInsert,
-    ProjectUpdate,
+    TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
 
 // ============================================================================
-// Projects
+// Transcripts
 // ============================================================================
 
 /**
- * Fetch all projects for the current user.
+ * Fetch all transcripts for the current user.
  */
-export async function fetchProjects(): Promise<Project[]> {
+export async function fetchTranscripts(): Promise<Transcript[]> {
     const supabase = createClient()
     const { data, error } = await supabase
-        .from('projects')
+        .from('transcripts')
         .select('*')
         .order('created_at', { ascending: false })
 
@@ -36,12 +36,12 @@ export async function fetchProjects(): Promise<Project[]> {
 }
 
 /**
- * Fetch a single project by ID.
+ * Fetch a single transcript by ID.
  */
-export async function fetchProjectById(id: string): Promise<Project | null> {
+export async function fetchTranscriptById(id: string): Promise<Transcript | null> {
     const supabase = createClient()
     const { data, error } = await supabase
-        .from('projects')
+        .from('transcripts')
         .select('*')
         .eq('id', id)
         .single()
@@ -58,18 +58,18 @@ export async function fetchProjectById(id: string): Promise<Project | null> {
  * The payload can be multi-MB for long transcriptions and should only be
  * accessed by backend/Inngest processing, not sent to browsers.
  */
-const JOB_SUMMARY_COLUMNS = 'id, project_id, inngest_event_id, idempotency_key, type, status, created_at, started_at, finished_at, updated_at'
+const JOB_SUMMARY_COLUMNS = 'id, transcript_id, inngest_event_id, idempotency_key, type, status, created_at, started_at, finished_at, updated_at'
 
 /**
- * Fetch jobs for a project.
+ * Fetch jobs for a transcript.
  * Returns JobSummary (excludes payload) to avoid sending large JSON to clients.
  */
-export async function fetchProjectJobs(projectId: string): Promise<JobSummary[]> {
+export async function fetchTranscriptJobs(transcriptId: string): Promise<JobSummary[]> {
     const supabase = createClient()
     const { data, error } = await supabase
         .from('jobs')
         .select(JOB_SUMMARY_COLUMNS)
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
         .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -79,9 +79,9 @@ export async function fetchProjectJobs(projectId: string): Promise<JobSummary[]>
 /**
  * Fetch error info for a job.
  * Only fetches payload for jobs in error state to get error details.
- * This is separate from fetchProjectJobs to avoid sending large Deepgram payloads.
+ * This is separate from fetchTranscriptJobs to avoid sending large Deepgram payloads.
  */
-export async function fetchJobError(projectId: string): Promise<{
+export async function fetchJobError(transcriptId: string): Promise<{
     error: string
     error_type: string
 } | null> {
@@ -89,7 +89,7 @@ export async function fetchJobError(projectId: string): Promise<{
     const { data, error } = await supabase
         .from('jobs')
         .select('payload')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
         .eq('status', 'error')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -107,14 +107,14 @@ export async function fetchJobError(projectId: string): Promise<{
 }
 
 /**
- * Fetch watchlist terms for a project.
+ * Fetch watchlist terms for a transcript.
  */
-export async function fetchWatchlistTerms(projectId: string): Promise<string[]> {
+export async function fetchWatchlistTerms(transcriptId: string): Promise<string[]> {
     const supabase = createClient()
     const { data, error } = await supabase
         .from('watchlist')
         .select('term')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
         .order('created_at', { ascending: true })
 
     if (error) throw error
@@ -122,15 +122,15 @@ export async function fetchWatchlistTerms(projectId: string): Promise<string[]> 
 }
 
 /**
- * Update a project.
+ * Update a transcript.
  */
-export async function updateProject(
+export async function updateTranscript(
     id: string,
-    updates: ProjectUpdate
-): Promise<Project> {
+    updates: TranscriptUpdate
+): Promise<Transcript> {
     const supabase = createClient()
     const { data, error } = await supabase
-        .from('projects')
+        .from('transcripts')
         .update(updates)
         .eq('id', id)
         .select()
@@ -157,35 +157,35 @@ function isMissingStorageObjectError(error: { message?: string; error?: string; 
 }
 
 /**
- * Delete a project.
+ * Delete a transcript.
  */
-export async function deleteProject(id: string): Promise<void> {
+export async function deleteTranscript(id: string): Promise<void> {
     const supabase = createClient()
-    const { data: project, error: fetchError } = await supabase
-        .from('projects')
+    const { data: transcript, error: fetchError } = await supabase
+        .from('transcripts')
         .select('source_object_key')
         .eq('id', id)
         .maybeSingle()
 
     if (fetchError) throw fetchError
-    if (!project) return
+    if (!transcript) return
 
-    if (project.source_object_key) {
+    if (transcript.source_object_key) {
         const { error: storageError } = await supabase.storage
             .from('media')
-            .remove([project.source_object_key])
+            .remove([transcript.source_object_key])
 
         if (storageError && !isMissingStorageObjectError(storageError)) throw storageError
 
         if (storageError) {
             console.warn(
-                `[deleteProject] Storage object already missing: ${project.source_object_key}`,
+                `[deleteTranscript] Storage object already missing: ${transcript.source_object_key}`,
                 storageError.message
             )
         }
     }
 
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { error } = await supabase.from('transcripts').delete().eq('id', id)
 
     if (error) throw error
 }
@@ -203,7 +203,7 @@ const FETCH_ALL_ROWS_SUPPORTED_TABLES = new Set(['segments'])
 export async function paginateAllRows<T>(
     supabase: SupabaseClient,
     table: string,
-    projectId: string,
+    transcriptId: string,
     orderColumn: string = 'start_ms'
 ): Promise<T[]> {
     const PAGE_SIZE = 1000
@@ -214,7 +214,7 @@ export async function paginateAllRows<T>(
         const { data: page, error } = await supabase
             .from(table)
             .select('*')
-            .eq('project_id', projectId)
+            .eq('transcript_id', transcriptId)
             .order(orderColumn, { ascending: true })
             .order('id', { ascending: true }) // tie-breaker for deterministic pagination
             .range(offset, offset + PAGE_SIZE - 1)
@@ -241,7 +241,7 @@ export async function paginateAllRows<T>(
  */
 async function fetchAllRows<T>(
     table: string,
-    projectId: string,
+    transcriptId: string,
     orderColumn: string = 'start_ms'
 ): Promise<T[]> {
     const normalizedOrderColumn = orderColumn.trim()
@@ -259,24 +259,24 @@ async function fetchAllRows<T>(
     }
 
     const supabase = createClient()
-    return paginateAllRows<T>(supabase, table, projectId, normalizedOrderColumn)
+    return paginateAllRows<T>(supabase, table, transcriptId, normalizedOrderColumn)
 }
 
 /**
- * Fetch all segments for a project.
+ * Fetch all segments for a transcript.
  */
-export async function fetchSegments(projectId: string): Promise<Segment[]> {
-    return fetchAllRows<Segment>('segments', projectId)
+export async function fetchSegments(transcriptId: string): Promise<Segment[]> {
+    return fetchAllRows<Segment>('segments', transcriptId)
 }
 
 /**
  * Fetch transcript data for editor display.
  * Returns normalized data structure compatible with editor.
  */
-export async function fetchTranscriptData(projectId: string): Promise<{
+export async function fetchTranscriptData(transcriptId: string): Promise<{
     items: Segment[]
 }> {
-    const segments = await fetchSegments(projectId)
+    const segments = await fetchSegments(transcriptId)
     return { items: segments }
 }
 
@@ -308,14 +308,14 @@ export async function updateSegment(
 // ============================================================================
 
 /**
- * Fetch all speakers for a project.
+ * Fetch all speakers for a transcript.
  */
-export async function fetchSpeakers(projectId: string): Promise<Speaker[]> {
+export async function fetchSpeakers(transcriptId: string): Promise<Speaker[]> {
     const supabase = createClient()
     const { data, error } = await supabase
         .from('speakers')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
         .order('created_at', { ascending: true })
 
     if (error) throw error
@@ -326,12 +326,12 @@ export async function fetchSpeakers(projectId: string): Promise<Speaker[]> {
  * Create a new speaker.
  */
 export async function createSpeaker(
-    projectId: string,
+    transcriptId: string,
     label: string
 ): Promise<Speaker> {
     const supabase = createClient()
     const insert: SpeakerInsert = {
-        project_id: projectId,
+        transcript_id: transcriptId,
         label,
     }
 

@@ -16,7 +16,7 @@ const replaceMock = jest.fn()
 const backMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
-  usePathname: () => '/projects',
+  usePathname: () => '/transcripts',
   useRouter: () => ({
     push: pushMock,
     replace: replaceMock,
@@ -27,7 +27,7 @@ jest.mock('next/navigation', () => ({
 function NavHarness() {
   const guardedNav = useGuardedNavigate()
   return (
-    <button type="button" onClick={() => guardedNav.push('/projects')}>
+    <button type="button" onClick={() => guardedNav.push('/transcripts')}>
       go
     </button>
   )
@@ -49,8 +49,8 @@ describe('guardedNavigation (Phase 3: in-app nav always allowed)', () => {
     startMock()
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
 
-    render(<GuardedLink href="/projects">Projects</GuardedLink>)
-    fireEvent.click(screen.getByRole('link', { name: 'Projects' }))
+    render(<GuardedLink href="/transcripts">Transcripts</GuardedLink>)
+    fireEvent.click(screen.getByRole('link', { name: 'Transcripts' }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
     expect(getSnapshot().state).toBe('recording')
@@ -62,8 +62,8 @@ describe('guardedNavigation (Phase 3: in-app nav always allowed)', () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
     const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {})
 
-    render(<GuardedLink href="/projects">Projects</GuardedLink>)
-    fireEvent.click(screen.getByRole('link', { name: 'Projects' }))
+    render(<GuardedLink href="/transcripts">Transcripts</GuardedLink>)
+    fireEvent.click(screen.getByRole('link', { name: 'Transcripts' }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
     expect(alertSpy).not.toHaveBeenCalled()
@@ -78,7 +78,7 @@ describe('guardedNavigation (Phase 3: in-app nav always allowed)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'go' }))
 
     expect(confirmSpy).not.toHaveBeenCalled()
-    expect(pushMock).toHaveBeenCalledWith('/projects')
+    expect(pushMock).toHaveBeenCalledWith('/transcripts')
     expect(getSnapshot().state).toBe('recording')
   })
 })

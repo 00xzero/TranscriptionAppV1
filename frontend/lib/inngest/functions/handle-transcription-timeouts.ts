@@ -30,7 +30,7 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
             const supabase = createAdminClient();
             const { data: processingJobs, error: processingError } = await supabase
                 .from("jobs")
-                .select("id, project_id, status, created_at, started_at")
+                .select("id, transcript_id, status, created_at, started_at")
                 .in("type", ["transcription", "transcribe"])
                 .eq("status", "processing")
                 .lt("started_at", cutoffIso);
@@ -41,7 +41,7 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
 
             const { data: processingNoStartJobs, error: processingNoStartError } = await supabase
                 .from("jobs")
-                .select("id, project_id, status, created_at, started_at")
+                .select("id, transcript_id, status, created_at, started_at")
                 .in("type", ["transcription", "transcribe"])
                 .eq("status", "processing")
                 .is("started_at", null)
@@ -53,7 +53,7 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
 
             const { data: queuedJobs, error: queuedError } = await supabase
                 .from("jobs")
-                .select("id, project_id, status, created_at, started_at")
+                .select("id, transcript_id, status, created_at, started_at")
                 .in("type", ["transcription", "transcribe"])
                 .eq("status", "queued")
                 .lt("created_at", cutoffIso);
@@ -103,7 +103,7 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                         raw_error: "timeout",
                     };
 
-                    // Transition via RPC (project status derived by trigger)
+                    // Transition via RPC (transcript status derived by trigger)
                     const { outcome, error: transitionError } = await transitionJob({
                         supabase,
                         jobId: job.id,

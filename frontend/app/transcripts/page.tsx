@@ -2,36 +2,36 @@
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useProjectsRealtime } from '@/lib/supabase/hooks'
+import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useModal } from '@/lib/ModalContext'
 
-export default function ProjectsPage() {
+export default function TranscriptsPage() {
   return (
     <Suspense fallback={<div className="text-muted">Loading...</div>}>
-      <ProjectsPageContent />
+      <TranscriptsPageContent />
     </Suspense>
   )
 }
 
-function ProjectsPageContent() {
+function TranscriptsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { openCaptureModal } = useModal()
-  const { projects, isLoading, connectionStatus, deleteProject: deleteProjectAction, refetch } = useProjectsRealtime()
+  const { transcripts, isLoading, connectionStatus, deleteTranscript: deleteTranscriptAction, refetch } = useTranscriptsRealtime()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
-  // Cache idempotency keys per project - reused until request completes to prevent double-click issues
+  // Cache idempotency keys per transcript - reused until request completes to prevent double-click issues
   const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
-  const [projectErrors, setProjectErrors] = useState<Record<string, { error: string; error_type: string }>>({})
-  const [projectErrorLoadErrors, setProjectErrorLoadErrors] = useState<Record<string, string>>({})
+  const [transcriptErrors, setTranscriptErrors] = useState<Record<string, { error: string; error_type: string }>>({})
+  const [transcriptErrorLoadErrors, setTranscriptErrorLoadErrors] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
   const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
-  const [captureProjectId, setCaptureProjectId] = useState<string | null>(null)
+  const [captureTranscriptId, setCaptureTranscriptId] = useState<string | null>(null)
 
   useEffect(() => {
     setCaptureOutcome(searchParams.get('capture'))
-    setCaptureProjectId(searchParams.get('projectId'))
+    setCaptureTranscriptId(searchParams.get('transcriptId'))
   }, [searchParams])
 
   useEffect(() => {
@@ -45,66 +45,66 @@ function ProjectsPageContent() {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('capture')
     const nextQuery = params.toString()
-    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
+    router.replace(nextQuery ? `/transcripts?${nextQuery}` : '/transcripts')
   }, [openCaptureModal, router, searchParams])
 
   const captureMessage = captureOutcome === 'saved_needs_retry'
     ? searchParams.get('captureMessage') ??
-      'Upload completed and project was saved, but transcription did not start automatically. Click Transcribe to retry.'
+      'Upload completed and transcript was saved, but transcription did not start automatically. Click Transcribe to retry.'
     : captureOutcome === 'saved_status_unknown'
       ? searchParams.get('captureMessage') ??
-        'Upload completed and project was saved, but transcription status is unknown due to a network interruption. Check the project status before retrying.'
+        'Upload completed and transcript was saved, but transcription status is unknown due to a network interruption. Check the transcript status before retrying.'
       : null
 
   const dismissCaptureMessage = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete('capture')
-    params.delete('projectId')
+    params.delete('transcriptId')
     params.delete('captureMessage')
     const nextQuery = params.toString()
     setCaptureOutcome(null)
-    setCaptureProjectId(null)
-    router.replace(nextQuery ? `/projects?${nextQuery}` : '/projects')
+    setCaptureTranscriptId(null)
+    router.replace(nextQuery ? `/transcripts?${nextQuery}` : '/transcripts')
   }, [router, searchParams])
 
-  // Fetch error info for projects in error state
-  const fetchProjectErrorInfo = useCallback(async (projectId: string) => {
+  // Fetch error info for transcripts in error state
+  const fetchTranscriptErrorInfo = useCallback(async (transcriptId: string) => {
     try {
-      setProjectErrorLoadErrors(prev => {
+      setTranscriptErrorLoadErrors(prev => {
         const next = { ...prev }
-        delete next[projectId]
+        delete next[transcriptId]
         return next
       })
-      const errorInfo = await fetchJobError(projectId)
+      const errorInfo = await fetchJobError(transcriptId)
       if (errorInfo) {
-        setProjectErrors(prev => ({
+        setTranscriptErrors(prev => ({
           ...prev,
-          [projectId]: errorInfo
+          [transcriptId]: errorInfo
         }))
       }
     } catch (e) {
-      console.error('Failed to fetch project error:', e)
-      setProjectErrorLoadErrors(prev => ({
+      console.error('Failed to fetch transcript error:', e)
+      setTranscriptErrorLoadErrors(prev => ({
         ...prev,
-        [projectId]: 'Failed to load error details. Please retry.'
+        [transcriptId]: 'Failed to load error details. Please retry.'
       }))
     }
   }, [])
 
-  // Fetch errors for projects in error state on initial load
+  // Fetch errors for transcripts in error state on initial load
   useEffect(() => {
-    projects.forEach(p => {
-      if (p.status === 'error' && !projectErrors[p.id]) {
-        fetchProjectErrorInfo(p.id)
+    transcripts.forEach(p => {
+      if (p.status === 'error' && !transcriptErrors[p.id]) {
+        fetchTranscriptErrorInfo(p.id)
       }
     })
-  }, [projects, projectErrors, fetchProjectErrorInfo])
+  }, [transcripts, transcriptErrors, fetchTranscriptErrorInfo])
 
   useEffect(() => {
     if (Object.keys(idempotencyKeys).length === 0) return
 
     const inProgressIds = new Set(
-      projects
+      transcripts
         .filter(p => p.status === 'queued' || p.status === 'processing' || p.status === 'error')
         .map(p => p.id)
     )
@@ -124,9 +124,9 @@ function ProjectsPageContent() {
 
       return changed ? next : prev
     })
-  }, [projects, idempotencyKeys])
+  }, [transcripts, idempotencyKeys])
 
-  const startProject = useCallback(async (id: string) => {
+  const startTranscript = useCallback(async (id: string) => {
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
 
@@ -139,7 +139,7 @@ function ProjectsPageContent() {
 
     try {
       // Use existing Next.js API route for starting transcription
-      const res = await fetch(`/api/projects/${id}/start`, {
+      const res = await fetch(`/api/transcripts/${id}/start`, {
         method: 'POST',
         headers: {
           'x-idempotency-key': idempotencyKey,
@@ -162,21 +162,21 @@ function ProjectsPageContent() {
           })
         }
 
-        throw new Error(`Failed to start project: ${parsed?.error || text}`)
+        throw new Error(`Failed to start transcript: ${parsed?.error || text}`)
       }
       setActionError(null)
-      setProjectErrorLoadErrors(prev => {
+      setTranscriptErrorLoadErrors(prev => {
         const next = { ...prev }
         delete next[id]
         return next
       })
       // Clear any previous error
-      setProjectErrors(prev => {
+      setTranscriptErrors(prev => {
         const next = { ...prev }
         delete next[id]
         return next
       })
-      // Refetch projects to get updated status
+      // Refetch transcripts to get updated status
       refetch()
       // Clear cached idempotency key only after confirmed success
       setIdempotencyKeys((prev) => {
@@ -196,13 +196,13 @@ function ProjectsPageContent() {
     }
   }, [starting, idempotencyKeys, refetch])
 
-  const handleDeleteProject = async (id: string) => {
+  const handleDeleteTranscript = async (id: string) => {
     const ok = window.confirm(
-      'Disclaimer: Deleting a project will permanently remove the project and all associated data (segments, speakers, and jobs). This action cannot be undone. Do you want to proceed?'
+      'Disclaimer: Deleting a transcript will permanently remove the transcript and all associated data (segments, speakers, and jobs). This action cannot be undone. Do you want to proceed?'
     )
     if (!ok) return
     try {
-      await deleteProjectAction(id)
+      await deleteTranscriptAction(id)
       setActionError(null)
     } catch (e) {
       console.error(e)
@@ -210,7 +210,7 @@ function ProjectsPageContent() {
     }
   }
 
-  const getErrorInfo = (projectId: string) => projectErrors[projectId]
+  const getErrorInfo = (transcriptId: string) => transcriptErrors[transcriptId]
 
   // Connection status indicator
   const statusColor = connectionStatus === 'connected' ? 'bg-green-500' :
@@ -219,7 +219,7 @@ function ProjectsPageContent() {
   return (
     <div className="space-y-4 pt-[80px] px-6 md:px-10">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Projects</h1>
+        <h1 className="text-xl font-semibold">Transcripts</h1>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
           <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
@@ -249,7 +249,7 @@ function ProjectsPageContent() {
           <div className="flex items-center justify-between gap-3">
             <span>
               {captureMessage}
-              {captureProjectId ? ` Project ID: ${captureProjectId}.` : ''}
+              {captureTranscriptId ? ` Transcript ID: ${captureTranscriptId}.` : ''}
             </span>
             <button
               className="text-xs font-medium text-amber-800 hover:underline"
@@ -262,11 +262,11 @@ function ProjectsPageContent() {
         </div>
       )}
       {isLoading && <div className="text-muted">Loading...</div>}
-      {!isLoading && projects.length === 0 && <div className="text-muted">No projects yet.</div>}
+      {!isLoading && transcripts.length === 0 && <div className="text-muted">No transcripts yet.</div>}
       <ul className="space-y-2">
-        {projects.map((p) => {
+        {transcripts.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
-          const errorLoadError = projectErrorLoadErrors[p.id]
+          const errorLoadError = transcriptErrorLoadErrors[p.id]
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
 
           return (
@@ -288,7 +288,7 @@ function ProjectsPageContent() {
                     return (
                       <button
                         className={className}
-                        onClick={() => startProject(p.id)}
+                        onClick={() => startTranscript(p.id)}
                         disabled={!canTranscribe}
                         title={label}
                       >
@@ -301,15 +301,15 @@ function ProjectsPageContent() {
                     <TooltipTrigger asChild>
                       <button
                         className="p-2 rounded-sm bg-red-600 text-white hover:bg-red-700"
-                        onClick={() => handleDeleteProject(p.id)}
-                        aria-label={`Delete project ${p.title || p.id}`}
+                        onClick={() => handleDeleteTranscript(p.id)}
+                        aria-label={`Delete transcript ${p.title || p.id}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
                           <path fillRule="evenodd" d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.6l-1.095 13.14A3 3 0 0 1 14.07 22.5H9.93a3 3 0 0 1-2.985-3.36L5.85 6H5.25a.75.75 0 0 1 0-1.5H9V3.75Zm1.5.75h3V3.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4.5Zm-2.91 1.5h8.82l-1.08 12.96a1.5 1.5 0 0 1-1.485 1.29H9.93a1.5 1.5 0 0 1-1.485-1.29L7.59 6Z" clipRule="evenodd" />
                         </svg>
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Delete project</TooltipContent>
+                    <TooltipContent>Delete transcript</TooltipContent>
                   </Tooltip>
                 </div>
               </div>
@@ -329,7 +329,7 @@ function ProjectsPageContent() {
                       )}
                       {!errorInfo && (
                         <button
-                          onClick={() => fetchProjectErrorInfo(p.id)}
+                          onClick={() => fetchTranscriptErrorInfo(p.id)}
                           className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
                           title="Retry loading error details"
                         >

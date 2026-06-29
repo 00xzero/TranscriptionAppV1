@@ -1,5 +1,5 @@
 /**
- * GET /api/projects/[id]/waveform-url — short-lived signed URL for the
+ * GET /api/transcripts/[id]/waveform-url — short-lived signed URL for the
  * precomputed waveform peaks artifact.
  *
  * Returns 404 (not 403) on lookup failures to avoid leaking row existence.
@@ -19,7 +19,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id: projectId } = await params
+        const { id: transcriptId } = await params
         const supabase = await createClient()
 
         const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -27,28 +27,28 @@ export async function GET(
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
-        const { data: project, error: projectError } = await supabase
-            .from('projects')
+        const { data: transcript, error: transcriptError } = await supabase
+            .from('transcripts')
             .select('id, user_id, waveform_object_key, waveform_status')
-            .eq('id', projectId)
+            .eq('id', transcriptId)
             .single()
-        if (projectError || !project) return makeNotFound()
+        if (transcriptError || !transcript) return makeNotFound()
 
-        if (project.waveform_status !== 'ready') return makeNotFound()
-        if (!project.waveform_object_key) return makeNotFound()
+        if (transcript.waveform_status !== 'ready') return makeNotFound()
+        if (!transcript.waveform_object_key) return makeNotFound()
 
         // Path-shape validation: never sign whatever string is in the column.
-        const expectedPath = buildWaveformObjectKey(project.user_id, project.id)
-        if (project.waveform_object_key !== expectedPath) {
+        const expectedPath = buildWaveformObjectKey(transcript.user_id, transcript.id)
+        if (transcript.waveform_object_key !== expectedPath) {
             console.warn(
-                `[waveform-url] Path mismatch for project ${projectId}: stored=${project.waveform_object_key}, expected=${expectedPath}`
+                `[waveform-url] Path mismatch for transcript ${transcriptId}: stored=${transcript.waveform_object_key}, expected=${expectedPath}`
             )
             return makeNotFound()
         }
 
         const signed = await getSignedMediaUrl(
             supabase,
-            project.waveform_object_key,
+            transcript.waveform_object_key,
             600,
             WAVEFORM_BUCKET
         )

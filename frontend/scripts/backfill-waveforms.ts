@@ -1,5 +1,5 @@
 /**
- * Backfill waveform peaks for existing projects.
+ * Backfill waveform peaks for existing transcripts.
  *
  * Run with:
  *   npx tsx --env-file=.env.local scripts/backfill-waveforms.ts
@@ -7,7 +7,7 @@
  *   npx tsx --env-file=.env.local scripts/backfill-waveforms.ts --limit=20
  *
  * Behavior:
- *   - Selects projects where waveform_status='skipped' AND source_object_key IS NOT NULL
+ *   - Selects transcripts where waveform_status='skipped' AND source_object_key IS NOT NULL
  *   - Dispatches waveform/requested, then flips each still-skipped row to 'pending'
  *   - The durable Inngest function does the actual work and is idempotent
  *   - Throttled to ~5 dispatches/sec to avoid saturating the queue
@@ -43,7 +43,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 async function selectBatch(offset: number, batchSize: number) {
     const { data, error } = await supabase
-        .from('projects')
+        .from('transcripts')
         .select('id, user_id, source_object_key')
         .eq('waveform_status', 'skipped')
         .not('source_object_key', 'is', null)
@@ -61,7 +61,7 @@ async function dispatchOne(row: { id: string; user_id: string; source_object_key
     await inngest.send({
         name: 'waveform/requested',
         data: {
-            projectId: row.id,
+            transcriptId: row.id,
             userId: row.user_id,
             sourceObjectKey: row.source_object_key,
         },
@@ -70,7 +70,7 @@ async function dispatchOne(row: { id: string; user_id: string; source_object_key
     // Conditional update: only flip if still 'skipped' (avoids racing the live dispatch path
     // and the Inngest handler, which may already have claimed the row as processing).
     const { data: updated, error: updateError } = await supabase
-        .from('projects')
+        .from('transcripts')
         .update({ waveform_status: 'pending' })
         .eq('id', row.id)
         .eq('waveform_status', 'skipped')

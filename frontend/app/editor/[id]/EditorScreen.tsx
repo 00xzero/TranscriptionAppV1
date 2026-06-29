@@ -12,7 +12,7 @@ import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
 import { useEditorData } from './hooks/useEditorData'
-import { useProjectTitleEditing } from './hooks/useProjectTitleEditing'
+import { useTranscriptTitleEditing } from './hooks/useTranscriptTitleEditing'
 import { useTranscriptMutations } from './hooks/useTranscriptMutations'
 import { useSpeakerAssignments } from './hooks/useSpeakerAssignments'
 import { useTranscriptSync } from './hooks/useTranscriptSync'
@@ -20,9 +20,9 @@ import { useEditorPlayback } from './hooks/useEditorPlayback'
 import { useTranscriptSearch } from './hooks/useTranscriptSearch'
 import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 
-export default function EditorScreen({ projectId }: { projectId: string }) {
+export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
   // 1. Data layer
-  const data = useEditorData(projectId)
+  const data = useEditorData(transcriptId)
 
   // 2. Mutation hooks
   const editing = useTranscriptMutations({
@@ -30,17 +30,17 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
   })
 
   const speakerHook = useSpeakerAssignments({
-    projectId,
+    transcriptId,
     speakers: data.speakers,
     setSpeakers: data.setSpeakers,
     setSegments: data.setSegments,
     reloadTranscript: data.reloadTranscript,
   })
 
-  const title = useProjectTitleEditing({
-    projectId,
-    projectTitle: data.projectTitle,
-    setProjectTitle: data.setProjectTitle,
+  const title = useTranscriptTitleEditing({
+    transcriptId,
+    transcriptTitle: data.transcriptTitle,
+    setTranscriptTitle: data.setTranscriptTitle,
   })
 
   // 3. Sync
@@ -52,7 +52,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
 
   // 4. Playback
   const playback = useEditorPlayback({
-    projectId,
+    transcriptId,
     audioSrc: data.audioSrc,
     setAudioSrc: data.setAudioSrc,
     setStatus: data.setStatus,
@@ -185,7 +185,7 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
                 onDragStart={playback.handlePlayerDragStart}
                 onDragEnd={playback.handlePlayerDragEnd}
                 initialPlaybackRate={playback.playbackRate}
-                durationHint={data.projectDurationSecs}
+                durationHint={data.transcriptDurationSecs}
                 preferLargerDurationHint={data.waveformDurationSecs !== null}
                 hideControls
                 audioEngineOnly={data.peaks !== null}
@@ -209,10 +209,10 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
         </CollapsibleWaveform>
 
         <EditorHeader
-          projectId={projectId}
-          projectTitle={data.projectTitle}
-          projectCreatedAt={data.projectCreatedAt}
-          projectDurationSecs={data.projectDurationSecs}
+          transcriptId={transcriptId}
+          transcriptTitle={data.transcriptTitle}
+          transcriptCreatedAt={data.transcriptCreatedAt}
+          transcriptDurationSecs={data.transcriptDurationSecs}
           uniqueSpeakerCount={uniqueSpeakerCount}
           status={data.status}
           editingTitle={title.editingTitle}
@@ -266,8 +266,8 @@ export default function EditorScreen({ projectId }: { projectId: string }) {
 
       {exportModalOpen && (
         <ExportModal
-          projectId={projectId}
-          projectTitle={data.projectTitle}
+          transcriptId={transcriptId}
+          transcriptTitle={data.transcriptTitle}
           onClose={() => setExportModalOpen(false)}
         />
       )}

@@ -17,8 +17,8 @@ const URL_STALE_THRESHOLD_MS = 50 * 60 * 1000
 const RECOVERY_WAIT_TIMEOUT_MS = 5000
 
 interface UseAudioSessionRecoveryOptions {
-  /** Project ID to fetch fresh URL for */
-  projectId: string
+  /** Transcript ID to fetch fresh URL for */
+  transcriptId: string
   /** Current audio source URL */
   audioSrc: string | null
   /** Audio element to manage (from AudioPlayer) */
@@ -30,7 +30,7 @@ interface UseAudioSessionRecoveryOptions {
 }
 
 export function useAudioSessionRecovery({
-  projectId,
+  transcriptId,
   audioSrc,
   audioElement,
   onUrlRefreshed,
@@ -69,7 +69,7 @@ export function useAudioSessionRecovery({
     const savedPosition = audio?.currentTime ?? 0
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/media-url`)
+      const res = await fetch(`/api/transcripts/${transcriptId}/media-url`)
       if (!res.ok) {
         throw new Error(`Failed to refresh media URL: ${res.status}`)
       }
@@ -141,7 +141,7 @@ export function useAudioSessionRecovery({
       onRecoveryError?.(err instanceof Error ? err.message : 'Failed to refresh audio')
       isRecoveringRef.current = false
     }
-  }, [projectId, audioElement, onUrlRefreshed, onRecoveryError, clearPendingRecoveryWait])
+  }, [transcriptId, audioElement, onUrlRefreshed, onRecoveryError, clearPendingRecoveryWait])
 
   // Check if URL is stale
   const isUrlStale = useCallback(() => {

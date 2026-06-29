@@ -109,12 +109,12 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
     if (result.outcome !== 'started') {
       const params = new URLSearchParams({
         capture: result.outcome,
-        projectId: result.projectId
+        transcriptId: result.transcriptId
       })
       if (result.message) {
         params.set('captureMessage', result.message)
       }
-      guardedNav.push(`/projects?${params.toString()}`)
+      guardedNav.push(`/transcripts?${params.toString()}`)
     }
   }, [selectedFile, title, keyTerms, isUploading, upload, closeCaptureModal, guardedNav])
 
@@ -124,7 +124,7 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
 
   let buttonText: string
   switch (progress) {
-    case 'creating': buttonText = 'Creating project...'; break
+    case 'creating': buttonText = 'Creating transcript...'; break
     case 'uploading': buttonText = 'Uploading file...'; break
     case 'starting': buttonText = 'Starting transcription...'; break
     case 'done':     buttonText = 'Done!'; break

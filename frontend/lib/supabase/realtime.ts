@@ -10,7 +10,7 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'
 
-type TableName = 'projects' | 'jobs' | 'speakers'
+type TableName = 'transcripts' | 'jobs' | 'speakers'
 type InsertPosition = 'append' | 'prepend'
 let nextSubscriptionId = 0
 const MAX_REALTIME_RETRIES = 5
@@ -18,7 +18,7 @@ const MAX_REALTIME_RETRIES = 5
 interface UseRealtimeOptions<T> {
     /** Initial data to display while loading */
     initialData?: T[]
-    /** Optional Postgres Changes filter, e.g. `project_id=eq.<uuid>` */
+    /** Optional Postgres Changes filter, e.g. `transcript_id=eq.<uuid>` */
     realtimeFilter?: string | null
     /** Disable subscription setup while required filter inputs are unavailable */
     subscriptionEnabled?: boolean

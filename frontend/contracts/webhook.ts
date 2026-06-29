@@ -46,9 +46,9 @@ export const DeepgramWebhookPayloadSchema = z.object({
     duration: z.number().optional(),
     channels: z.number().optional(),
     models: z.array(z.string()).optional(),
-    // extra is validated structurally: project_id must be a UUID when present
+    // extra is validated structurally: transcript_id must be a UUID when present
     extra: z.object({
-      project_id: UuidSchema.optional(),
+      transcript_id: UuidSchema.optional(),
     }).catchall(z.string().optional()).optional(),
   }).optional(),
   results: z.object({
@@ -71,7 +71,7 @@ export const DeepgramWebhookPayloadSchema = z.object({
 export const WebhookReceiptInsertSchema = z.object({
   provider: z.literal('deepgram'),
   request_id: z.string().min(1),
-  project_id: UuidSchema.nullable().optional(),
+  transcript_id: UuidSchema.nullable().optional(),
   status: z.enum(['processing', 'completed', 'failed']).optional(),
   attempt_id: UuidSchema,
   claimed_at: z.string(),

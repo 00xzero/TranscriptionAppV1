@@ -1,7 +1,7 @@
 /**
  * Handle waveform/requested — sibling to transcription/requested. Never blocks
  * transcription. Pipeline: probe → stream PCM via ffmpeg → bucket-aggregate
- * peaks → upload JSON artifact → finalize project columns.
+ * peaks → upload JSON artifact → finalize transcript columns.
  */
 
 import { once } from 'node:events'
@@ -27,60 +27,60 @@ export const handleWaveformRequested = inngest.createFunction(
         triggers: [{ event: waveformRequestedTrigger }],
         retries: 3,
         onFailure: async ({ event }) => {
-            const { projectId } = event.data.event.data
+            const { transcriptId } = event.data.event.data
             try {
                 const supabase = createAdminClient()
                 await supabase
-                    .from('projects')
+                    .from('transcripts')
                     .update({ waveform_status: 'error' })
-                    .eq('id', projectId)
+                    .eq('id', transcriptId)
                     .in('waveform_status', ['pending', 'processing'])
             } catch (err) {
-                console.error(`[inngest] handle-waveform onFailure DB update failed for ${projectId}:`, err)
+                console.error(`[inngest] handle-waveform onFailure DB update failed for ${transcriptId}:`, err)
             }
         },
     },
     async ({ event, step }) => {
-        const { projectId, userId, sourceObjectKey } = event.data
-        console.log(`[inngest] Waveform requested for project: ${projectId}`)
+        const { transcriptId, userId, sourceObjectKey } = event.data
+        console.log(`[inngest] Waveform requested for transcript: ${transcriptId}`)
 
         // Validate event payload against the row of record (don't trust the event
         // bus to sign URLs with admin privileges) and transition to 'processing'.
         const validation = await step.run('mark-processing', async () => {
             const supabase = createAdminClient()
-            const { data: project, error } = await supabase
-                .from('projects')
+            const { data: transcript, error } = await supabase
+                .from('transcripts')
                 .select('user_id, source_object_key, waveform_status, waveform_version')
-                .eq('id', projectId)
+                .eq('id', transcriptId)
                 .single()
 
-            if (error || !project) {
-                throw new Error(`Project ${projectId} not found: ${error?.message ?? 'no row'}`)
+            if (error || !transcript) {
+                throw new Error(`Transcript ${transcriptId} not found: ${error?.message ?? 'no row'}`)
             }
 
-            if (project.user_id !== userId) {
-                throw new Error(`Project ${projectId} user_id mismatch: event=${userId}, row=${project.user_id}`)
+            if (transcript.user_id !== userId) {
+                throw new Error(`Transcript ${transcriptId} user_id mismatch: event=${userId}, row=${transcript.user_id}`)
             }
-            if (project.source_object_key !== sourceObjectKey) {
-                throw new Error(`Project ${projectId} source_object_key mismatch with event payload`)
+            if (transcript.source_object_key !== sourceObjectKey) {
+                throw new Error(`Transcript ${transcriptId} source_object_key mismatch with event payload`)
             }
-            const expectedPrefix = `${project.user_id}/${projectId}/`
-            if (!project.source_object_key || !project.source_object_key.startsWith(expectedPrefix)) {
-                throw new Error(`Project ${projectId} source_object_key does not match expected path shape`)
+            const expectedPrefix = `${transcript.user_id}/${transcriptId}/`
+            if (!transcript.source_object_key || !transcript.source_object_key.startsWith(expectedPrefix)) {
+                throw new Error(`Transcript ${transcriptId} source_object_key does not match expected path shape`)
             }
 
             if (
-                project.waveform_status === 'ready' &&
-                project.waveform_version === WAVEFORM_ARTIFACT_VERSION
+                transcript.waveform_status === 'ready' &&
+                transcript.waveform_version === WAVEFORM_ARTIFACT_VERSION
             ) {
-                console.log(`[inngest] Waveform already ready for ${projectId}, skipping`)
+                console.log(`[inngest] Waveform already ready for ${transcriptId}, skipping`)
                 return { shouldGenerate: false as const }
             }
 
-            const { data: claimedProject, error: updateError } = await supabase
-                .from('projects')
+            const { data: claimedTranscript, error: updateError } = await supabase
+                .from('transcripts')
                 .update({ waveform_status: 'processing' })
-                .eq('id', projectId)
+                .eq('id', transcriptId)
                 // Include processing so retries of this event can re-run the
                 // generation step after transient ffmpeg/storage failures.
                 .in('waveform_status', ['pending', 'processing', 'skipped'])
@@ -90,18 +90,18 @@ export const handleWaveformRequested = inngest.createFunction(
             if (updateError) {
                 throw new Error(`Failed to mark waveform processing: ${updateError.message}`)
             }
-            if (!claimedProject) {
-                console.log(`[inngest] Waveform status no longer claimable for ${projectId}, skipping`)
+            if (!claimedTranscript) {
+                console.log(`[inngest] Waveform status no longer claimable for ${transcriptId}, skipping`)
                 return { shouldGenerate: false as const }
             }
             return {
                 shouldGenerate: true as const,
-                verifiedSourceObjectKey: project.source_object_key,
+                verifiedSourceObjectKey: transcript.source_object_key,
             }
         })
 
         if (!validation.shouldGenerate) {
-            return { status: 'skipped', projectId }
+            return { status: 'skipped', transcriptId }
         }
         const verifiedSourceObjectKey = validation.verifiedSourceObjectKey
 
@@ -116,7 +116,7 @@ export const handleWaveformRequested = inngest.createFunction(
             }
 
             const probe = await probeMedia(signedUrl.url)
-            console.log(`[inngest] Probed ${projectId}: ${probe.durationSeconds.toFixed(1)}s, ~${probe.totalSamples} samples`)
+            console.log(`[inngest] Probed ${transcriptId}: ${probe.durationSeconds.toFixed(1)}s, ~${probe.totalSamples} samples`)
 
             const ffmpeg = await spawnPcmStream(signedUrl.url)
             const stderrChunks: string[] = []
@@ -146,7 +146,7 @@ export const handleWaveformRequested = inngest.createFunction(
                 probe.durationSeconds,
                 peaksResult.pointsPerSecond
             )
-            const objectKey = buildWaveformObjectKey(userId, projectId)
+            const objectKey = buildWaveformObjectKey(userId, transcriptId)
             const body = JSON.stringify(artifact)
 
             const { error: uploadError } = await supabase.storage
@@ -161,14 +161,14 @@ export const handleWaveformRequested = inngest.createFunction(
             }
 
             const { error: dbError } = await supabase
-                .from('projects')
+                .from('transcripts')
                 .update({
                     waveform_object_key: objectKey,
                     waveform_status: 'ready',
                     waveform_points_per_second: peaksResult.pointsPerSecond,
                     waveform_version: WAVEFORM_ARTIFACT_VERSION,
                 })
-                .eq('id', projectId)
+                .eq('id', transcriptId)
 
             if (dbError) {
                 throw new Error(`Failed to finalize waveform row: ${dbError.message}`)
@@ -182,7 +182,7 @@ export const handleWaveformRequested = inngest.createFunction(
             }
         })
 
-        console.log(`[inngest] Waveform ready for ${projectId}: ${result.objectKey}`)
-        return { status: 'ready', projectId, ...result }
+        console.log(`[inngest] Waveform ready for ${transcriptId}: ${result.objectKey}`)
+        return { status: 'ready', transcriptId, ...result }
     }
 )

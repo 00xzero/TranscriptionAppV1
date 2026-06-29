@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useAuthIdentity, useProjectsRealtime } from '@/lib/supabase/hooks'
+import { useAuthIdentity, useTranscriptsRealtime } from '@/lib/supabase/hooks'
 
-const mockFetchProjects = jest.fn()
+const mockFetchTranscripts = jest.fn()
 const mockGetSession = jest.fn()
 const mockGetUser = jest.fn()
 const mockOnAuthStateChange = jest.fn()
@@ -15,12 +15,12 @@ let channelMock: {
 }
 
 jest.mock('@/lib/supabase/queries', () => ({
-  fetchProjects: () => mockFetchProjects(),
-  deleteProject: jest.fn(),
-  fetchProjectById: jest.fn(),
-  fetchProjectJobs: jest.fn(),
+  fetchTranscripts: () => mockFetchTranscripts(),
+  deleteTranscript: jest.fn(),
+  fetchTranscriptById: jest.fn(),
+  fetchTranscriptJobs: jest.fn(),
   fetchSpeakers: jest.fn(),
-  updateProject: jest.fn(),
+  updateTranscript: jest.fn(),
   createSpeaker: jest.fn(),
   updateSpeaker: jest.fn(),
   deleteSpeaker: jest.fn(),
@@ -114,10 +114,10 @@ describe('useAuthIdentity', () => {
   })
 })
 
-describe('useProjectsRealtime', () => {
+describe('useTranscriptsRealtime', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockFetchProjects.mockResolvedValue([])
+    mockFetchTranscripts.mockResolvedValue([])
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-from-session' } } },
     })
@@ -129,28 +129,28 @@ describe('useProjectsRealtime', () => {
   })
 
   test('opens the filtered realtime channel from the browser session before getUser resolves', async () => {
-    const { result } = renderHook(() => useProjectsRealtime())
+    const { result } = renderHook(() => useTranscriptsRealtime())
 
     await waitFor(() => {
       expect(result.current.connectionStatus).toBe('connected')
     })
 
     expect(mockChannelFactory).toHaveBeenCalledWith(
-      expect.stringMatching(/^projects-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
     )
     expect(channelMock.on).toHaveBeenCalledWith(
       'postgres_changes',
       expect.objectContaining({
-        table: 'projects',
+        table: 'transcripts',
         filter: 'user_id=eq.user-from-session',
       }),
       expect.any(Function)
     )
   })
 
-  test('uses separate channel topics for overlapping projects subscriptions', async () => {
-    renderHook(() => useProjectsRealtime())
-    renderHook(() => useProjectsRealtime())
+  test('uses separate channel topics for overlapping transcripts subscriptions', async () => {
+    renderHook(() => useTranscriptsRealtime())
+    renderHook(() => useTranscriptsRealtime())
 
     await waitFor(() => {
       expect(mockChannelFactory).toHaveBeenCalledTimes(2)
@@ -159,8 +159,8 @@ describe('useProjectsRealtime', () => {
     const firstTopic = mockChannelFactory.mock.calls[0][0]
     const secondTopic = mockChannelFactory.mock.calls[1][0]
 
-    expect(firstTopic).toMatch(/^projects-changes:user_id=eq\.user-from-session:\d+:\d+$/)
-    expect(secondTopic).toMatch(/^projects-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
   })
 })

@@ -45,34 +45,34 @@ Three separate Supabase client factories — use the correct one for the context
 
 ### Auth & Middleware
 
-`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/projects`, `/editor`.
+`frontend/middleware.ts` handles auth on every request. Protected routes: `/`, `/transcripts`, `/editor`.
 
 ### Transcription Pipeline
 
-1. **Upload** → `POST /api/projects` creates project + uploads media to Supabase Storage
-2. **Start** → `POST /api/projects/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
+1. **Upload** → `POST /api/transcripts` creates transcript + uploads media to Supabase Storage
+2. **Start** → `POST /api/transcripts/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
 3. **Webhook** → `POST /api/webhooks/deepgram` receives results, triggers Inngest `transcription/webhook`
 4. **Processing** → Inngest function stores canonical segments/words and assigns speaker-linked segments directly from the webhook payload
-5. **Complete** → Job status updated, project marked `complete`, UI updates via Supabase Realtime
+5. **Complete** → Job status updated, transcript marked `complete`, UI updates via Supabase Realtime
 
 Inngest functions in `lib/inngest/functions.ts`, served via `app/api/inngest/route.ts`.
 
 ### Data Model
 
-Key Supabase tables: `projects`, `speakers`, `segments`, `words`, `jobs`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
+Key Supabase tables: `transcripts`, `speakers`, `segments`, `words`, `jobs`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
 
 ### API Routes
 
-| Route                                     | Purpose                                        |
-| ----------------------------------------- | ---------------------------------------------- |
-| `POST /api/projects`                      | Create project + upload media                  |
-| `POST /api/projects/[id]/start`           | Start transcription (idempotency key required) |
-| `GET /api/projects/[id]/media-url`        | Get signed media URL                           |
-| `GET/POST /api/projects/[id]/export/docx` | Export DOCX                                    |
-| `GET/POST /api/projects/[id]/export/vtt`  | Export VTT                                     |
-| `POST /api/webhooks/deepgram`             | Deepgram callback                              |
-| `GET /api/webhooks/deepgram/health`       | Webhook health check                           |
-| `GET /api/media-proxy`                    | Proxy media with auth (local dev only)         |
+| Route                                        | Purpose                                        |
+| -------------------------------------------- | ---------------------------------------------- |
+| `POST /api/transcripts`                      | Create transcript + upload media               |
+| `POST /api/transcripts/[id]/start`           | Start transcription (idempotency key required) |
+| `GET /api/transcripts/[id]/media-url`        | Get signed media URL                           |
+| `GET/POST /api/transcripts/[id]/export/docx` | Export DOCX                                    |
+| `GET/POST /api/transcripts/[id]/export/vtt`  | Export VTT                                     |
+| `POST /api/webhooks/deepgram`                | Deepgram callback                              |
+| `GET /api/webhooks/deepgram/health`          | Webhook health check                           |
+| `GET /api/media-proxy`                       | Proxy media with auth (local dev only)         |
 
 ### Design System
 

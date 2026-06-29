@@ -17,21 +17,21 @@ function hasCookieWithNameOrChunks(
   return false
 }
 
-function getCloudProjectRef(supabaseUrl: string): string | null {
+function getCloudTranscriptRef(supabaseUrl: string): string | null {
   try {
     const hostname = new URL(supabaseUrl).hostname
     if (!hostname.endsWith('.supabase.co')) return null
 
-    const [projectRef] = hostname.split('.')
-    return projectRef || null
+    const [transcriptRef] = hostname.split('.')
+    return transcriptRef || null
   } catch {
     return null
   }
 }
 
 function getLegacyCookieName(supabaseUrl: string): string | null {
-  const projectRef = getCloudProjectRef(supabaseUrl)
-  return projectRef ? `sb-${projectRef}-auth-token` : null
+  const transcriptRef = getCloudTranscriptRef(supabaseUrl)
+  return transcriptRef ? `sb-${transcriptRef}-auth-token` : null
 }
 
 export function resolveSupabaseCookieName(opts: {

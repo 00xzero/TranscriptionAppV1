@@ -288,7 +288,7 @@ describe('Recording page', () => {
 
       expect(confirmSpy).toHaveBeenCalled()
       expect(getSnapshot().state).toBe('idle')
-      expect(pushMock).toHaveBeenCalledWith('/projects')
+      expect(pushMock).toHaveBeenCalledWith('/transcripts')
     } finally {
       confirmSpy.mockRestore()
     }
@@ -324,7 +324,7 @@ describe('Recording page', () => {
     ).toBeInTheDocument()
   })
 
-  test('submitted state schedules navigation to /projects', () => {
+  test('submitted state schedules navigation to /transcripts', () => {
     jest.useFakeTimers()
     try {
       act(() => {
@@ -333,11 +333,11 @@ describe('Recording page', () => {
       render(<RecordingNewPage />)
       expect(
         screen.getByRole('link', { name: /return to library/i })
-      ).toHaveAttribute('href', '/projects')
+      ).toHaveAttribute('href', '/transcripts')
       act(() => {
         jest.advanceTimersByTime(700)
       })
-      expect(replaceMock).toHaveBeenCalledWith('/projects')
+      expect(replaceMock).toHaveBeenCalledWith('/transcripts')
     } finally {
       jest.useRealTimers()
     }
@@ -356,8 +356,8 @@ describe('Recording page', () => {
       })
 
       expect(replaceMock).toHaveBeenCalledTimes(2)
-      expect(replaceMock).toHaveBeenNthCalledWith(1, '/projects')
-      expect(replaceMock).toHaveBeenNthCalledWith(2, '/projects')
+      expect(replaceMock).toHaveBeenNthCalledWith(1, '/transcripts')
+      expect(replaceMock).toHaveBeenNthCalledWith(2, '/transcripts')
     } finally {
       jest.useRealTimers()
     }

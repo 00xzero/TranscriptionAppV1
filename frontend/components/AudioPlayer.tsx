@@ -45,7 +45,7 @@ export interface AudioPlayerProps {
   onSeeked?: (time: number) => void
   /** Initial playback rate */
   initialPlaybackRate?: number
-  /** Known project duration when container metadata is missing or non-finite. */
+  /** Known transcript duration when container metadata is missing or non-finite. */
   durationHint?: number | null
   /**
    * Prefer the hint when it is longer than browser metadata. Useful for

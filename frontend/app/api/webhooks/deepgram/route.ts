@@ -66,33 +66,33 @@ export async function POST(request: NextRequest) {
 
     if (!payloadParsed.success) {
       const partialRequestId = typeof rawPayload?.metadata?.request_id === 'string' ? rawPayload.metadata.request_id : undefined;
-      const partialProjectId = UuidSchema.safeParse(rawPayload?.metadata?.extra?.project_id).data;
+      const partialTranscriptId = UuidSchema.safeParse(rawPayload?.metadata?.extra?.transcript_id).data;
       console.warn("[deepgram-webhook] Malformed payload:", payloadParsed.error.issues[0]?.message ?? "Invalid input");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, projectId: partialProjectId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
+      await persistWebhookFailure({ supabase, transcriptId: partialTranscriptId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
     }
 
     const payload = payloadParsed.data;
     const requestId = payload.metadata?.request_id;
-    const projectId = payload.metadata?.extra?.project_id;
+    const transcriptId = payload.metadata?.extra?.transcript_id;
 
-    console.log("[deepgram-webhook] Step 2 complete:", { requestId, projectId });
+    console.log("[deepgram-webhook] Step 2 complete:", { requestId, transcriptId });
 
-    if (!projectId || !requestId) {
-      console.warn("[deepgram-webhook] Missing project_id or request_id");
+    if (!transcriptId || !requestId) {
+      console.warn("[deepgram-webhook] Missing transcript_id or request_id");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, projectId, requestId, message: "Deepgram webhook missing project_id or request_id." });
-      return NextResponse.json({ error: "Missing project_id or request_id" }, { status: 400 });
+      await persistWebhookFailure({ supabase, transcriptId, requestId, message: "Deepgram webhook missing transcript_id or request_id." });
+      return NextResponse.json({ error: "Missing transcript_id or request_id" }, { status: 400 });
     }
 
     // Step 3: Delegate to core
     const supabase = createAdminClient();
-    const result = await handleDeepgramWebhook({ supabase, requestId, projectId, payload });
+    const result = await handleDeepgramWebhook({ supabase, requestId, transcriptId, payload });
 
     switch (result.outcome) {
       case 'processed':
-        console.log(`[deepgram-webhook] SUCCESS - project: ${projectId}, request: ${requestId}`);
+        console.log(`[deepgram-webhook] SUCCESS - transcript: ${transcriptId}, request: ${requestId}`);
         return NextResponse.json({ received: true });
 
       case 'duplicate':

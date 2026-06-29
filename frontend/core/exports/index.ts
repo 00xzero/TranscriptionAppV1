@@ -114,7 +114,7 @@ export function normalizeFilename(name: string): string {
 export interface GenerateVttParams {
     segments: ExportSegment[]
     speakersMap: SpeakersMap
-    projectId: string
+    transcriptId: string
 }
 
 /**
@@ -133,7 +133,7 @@ function escapeVttText(text: string): string {
 export function generateVtt({
     segments,
     speakersMap,
-    projectId,
+    transcriptId,
 }: GenerateVttParams): string {
     const lines: string[] = ['WEBVTT', '']
 
@@ -146,8 +146,8 @@ export function generateVtt({
         const startVtt = msToVttTimestamp(segment.start_ms)
         const endVtt = msToVttTimestamp(segment.end_ms)
 
-        // Cue identifier format: {project_id}/{index}
-        const cueId = `${projectId}/${idx}`
+        // Cue identifier format: {transcript_id}/{index}
+        const cueId = `${transcriptId}/${idx}`
 
         lines.push(cueId)
         lines.push(`${startVtt} --> ${endVtt}`)
@@ -163,7 +163,7 @@ export function generateVtt({
 // ============================================================================
 
 export interface GenerateDocxParams {
-    projectTitle: string
+    transcriptTitle: string
     segments: ExportSegment[]
     speakersMap: SpeakersMap
     transcriptionDate: Date
@@ -176,7 +176,7 @@ export interface GenerateDocxParams {
  * @returns Promise resolving to Buffer of DOCX file
  */
 export async function generateDocx({
-    projectTitle,
+    transcriptTitle,
     segments,
     speakersMap,
     transcriptionDate,
@@ -190,7 +190,7 @@ export async function generateDocx({
             alignment: AlignmentType.CENTER,
             children: [
                 new TextRun({
-                    text: projectTitle || 'Transcript',
+                    text: transcriptTitle || 'Transcript',
                     bold: true,
                     size: 32, // 16pt = 32 half-points
                 }),

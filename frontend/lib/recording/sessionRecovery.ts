@@ -238,7 +238,7 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
     }
   }
   if (!cleared.chainedToNext) {
-    setSubmissionResult({ projectId: result.projectId, outcome: result.outcome })
+    setSubmissionResult({ transcriptId: result.transcriptId, outcome: result.outcome })
     markSubmitted()
   }
   return { ok: true, chainedToNext: cleared.chainedToNext }

@@ -7,7 +7,7 @@ jest.mock('react-virtuoso')
 function makeSegment(overrides: Partial<Seg> = {}): Seg {
   return {
     id: 's1',
-    project_id: 'p1',
+    transcript_id: 'p1',
     speaker_id: 'sp1',
     start_ms: 0,
     end_ms: 5000,

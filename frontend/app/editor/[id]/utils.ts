@@ -52,7 +52,7 @@ export const computeWordsForSegments = <T extends { id: string; start_ms: number
 ): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
 
 // Format date as "Oct 24, 2023"
-export const formatProjectDate = (dateStr: string | null): string => {
+export const formatTranscriptDate = (dateStr: string | null): string => {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()

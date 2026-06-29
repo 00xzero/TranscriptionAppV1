@@ -1,14 +1,14 @@
 import { useCallback, useRef, useState } from 'react'
-import { updateProject } from '@/lib/supabase/queries'
+import { updateTranscript } from '@/lib/supabase/queries'
 
-export function useProjectTitleEditing({
-  projectId,
-  projectTitle,
-  setProjectTitle,
+export function useTranscriptTitleEditing({
+  transcriptId,
+  transcriptTitle,
+  setTranscriptTitle,
 }: {
-  projectId: string
-  projectTitle: string | null
-  setProjectTitle: (title: string | null) => void
+  transcriptId: string
+  transcriptTitle: string | null
+  setTranscriptTitle: (title: string | null) => void
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
@@ -17,11 +17,11 @@ export function useProjectTitleEditing({
   const isSavingTitleRef = useRef(false)
 
   const startEditingTitle = useCallback(() => {
-    setTitleInput(projectTitle || '')
+    setTitleInput(transcriptTitle || '')
     setTitleSaveError(null)
     setEditingTitle(true)
     setTimeout(() => titleInputRef.current?.focus(), 0)
-  }, [projectTitle])
+  }, [transcriptTitle])
 
   const saveTitle = useCallback(async () => {
     if (isSavingTitleRef.current) return
@@ -37,8 +37,8 @@ export function useProjectTitleEditing({
     setTitleSaveError(null)
 
     try {
-      await updateProject(projectId, { title: newTitle })
-      setProjectTitle(newTitle)
+      await updateTranscript(transcriptId, { title: newTitle })
+      setTranscriptTitle(newTitle)
       setEditingTitle(false)
     } catch (err) {
       console.error('Failed to save title:', err)
@@ -46,7 +46,7 @@ export function useProjectTitleEditing({
     } finally {
       isSavingTitleRef.current = false
     }
-  }, [titleInput, projectId, setProjectTitle])
+  }, [titleInput, transcriptId, setTranscriptTitle])
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {

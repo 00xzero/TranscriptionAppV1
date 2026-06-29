@@ -16,7 +16,7 @@ export type ErrorType = typeof ERROR_TYPE_KEYTERM | typeof ERROR_TYPE_GENERAL;
 export interface DeepgramAsyncOptions {
     mediaUrl: string;
     callbackUrl: string;
-    projectId: string;
+    transcriptId: string;
     keyTerms?: string[];
     model?: string;
 }
@@ -82,7 +82,7 @@ export async function startAsyncTranscription(
         };
     }
 
-    const { mediaUrl, callbackUrl, projectId, keyTerms, model } = options;
+    const { mediaUrl, callbackUrl, transcriptId, keyTerms, model } = options;
 
     // Build query parameters
     const params = new URLSearchParams();
@@ -92,8 +92,8 @@ export async function startAsyncTranscription(
     params.append("paragraphs", "true");
     params.append("callback", callbackUrl);
 
-    // Pass project ID via extra parameter (returned in metadata.extra in callback)
-    params.append("extra", `project_id:${projectId}`);
+    // Pass transcript ID via extra parameter (returned in metadata.extra in callback)
+    params.append("extra", `transcript_id:${transcriptId}`);
 
     // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {

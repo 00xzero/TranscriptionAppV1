@@ -1,7 +1,7 @@
 /**
  * Handle transcription failure
  * Triggered when transcription fails for any reason.
- * Classifies error type and updates job/project status.
+ * Classifies error type and updates job/transcript status.
  */
 
 import { inngest } from "@/infra/inngest/client";
@@ -17,9 +17,9 @@ export const handleTranscriptionFailed = inngest.createFunction(
         retries: 1,
     },
     async ({ event, step }) => {
-        const { projectId, jobId: providedJobId, error, errorType } = event.data;
+        const { transcriptId, jobId: providedJobId, error, errorType } = event.data;
 
-        console.log(`[inngest] Transcription failed for project: ${projectId}`);
+        console.log(`[inngest] Transcription failed for transcript: ${transcriptId}`);
         console.log(`[inngest] Error type: ${errorType}, message: ${error}`);
 
         await step.run("update-error-status", async () => {
@@ -34,31 +34,31 @@ export const handleTranscriptionFailed = inngest.createFunction(
             const finalErrorType = errorType || classified.type;
             const finalMessage = classified.message;
 
-            // If jobId is empty, try to find the most recent processing job for this project
+            // If jobId is empty, try to find the most recent processing job for this transcript
             let jobId = providedJobId;
             if (!jobId) {
-                console.log("[inngest] No jobId provided, looking up by projectId");
+                console.log("[inngest] No jobId provided, looking up by transcriptId");
                 const { data: job, error: lookupError } = await supabase
                     .from("jobs")
                     .select("id")
-                    .eq("project_id", projectId)
+                    .eq("transcript_id", transcriptId)
                     .in("status", ["processing", "queued"])
                     .order("created_at", { ascending: false })
                     .limit(1)
                     .maybeSingle();
 
                 if (lookupError) {
-                    console.error("[inngest] Failed to lookup job by projectId:", lookupError);
-                    throw new Error(`Job lookup failed for project ${projectId}: ${lookupError.message}`);
+                    console.error("[inngest] Failed to lookup job by transcriptId:", lookupError);
+                    throw new Error(`Job lookup failed for transcript ${transcriptId}: ${lookupError.message}`);
                 }
 
                 if (job) {
                     jobId = job.id;
-                    console.log(`[inngest] Found job ${jobId} by projectId lookup`);
+                    console.log(`[inngest] Found job ${jobId} by transcriptId lookup`);
                 }
             }
 
-            // Transition job to error (project status derived by trigger)
+            // Transition job to error (transcript status derived by trigger)
             if (jobId) {
                 const { outcome, error: transitionError } = await transitionJob({
                     supabase,
@@ -84,26 +84,26 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     );
                 }
             } else {
-                console.error("[inngest] No job found to update for project:", projectId);
+                console.error("[inngest] No job found to update for transcript:", transcriptId);
 
-                const { error: projectError } = await supabase
-                    .from("projects")
+                const { error: transcriptError } = await supabase
+                    .from("transcripts")
                     .update({ status: "error" })
-                    .eq("id", projectId);
+                    .eq("id", transcriptId);
 
-                if (projectError) {
+                if (transcriptError) {
                     throw new Error(
-                        `Failed to mark project ${projectId} as error without a job: ${projectError.message}`
+                        `Failed to mark transcript ${transcriptId} as error without a job: ${transcriptError.message}`
                     );
                 }
             }
 
-            console.log(`[inngest] Project ${projectId} marked as error: ${finalErrorType}`);
+            console.log(`[inngest] Transcript ${transcriptId} marked as error: ${finalErrorType}`);
         });
 
         return {
             status: "error",
-            projectId,
+            transcriptId,
             jobId: providedJobId,
             error,
             errorType,

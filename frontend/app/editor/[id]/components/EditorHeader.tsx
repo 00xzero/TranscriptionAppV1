@@ -1,13 +1,13 @@
 import React from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatProjectDate, formatDurationHHMMSS } from '../utils'
+import { formatTranscriptDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
-  projectId,
-  projectTitle,
-  projectCreatedAt,
-  projectDurationSecs,
+  transcriptId,
+  transcriptTitle,
+  transcriptCreatedAt,
+  transcriptDurationSecs,
   uniqueSpeakerCount,
   status,
   editingTitle,
@@ -19,10 +19,10 @@ export default function EditorHeader({
   onTitleKeyDown,
   onTitleBlur,
 }: {
-  projectId: string
-  projectTitle: string | null
-  projectCreatedAt: string | null
-  projectDurationSecs: number | null
+  transcriptId: string
+  transcriptTitle: string | null
+  transcriptCreatedAt: string | null
+  transcriptDurationSecs: number | null
   uniqueSpeakerCount: number
   status: string
   editingTitle: boolean
@@ -49,8 +49,8 @@ export default function EditorHeader({
               onChange={(e) => setTitleInput(e.target.value)}
               onKeyDown={onTitleKeyDown}
               onBlur={onTitleBlur}
-              placeholder="Project title"
-              aria-label="Project title"
+              placeholder="Transcript title"
+              aria-label="Transcript title"
             />
           ) : (
             <Tooltip>
@@ -68,7 +68,7 @@ export default function EditorHeader({
                   role="button"
                   aria-label="Edit title"
                 >
-                  {projectTitle || `Untitled (${projectId.slice(0, 8)}...)`}
+                  {transcriptTitle || `Untitled (${transcriptId.slice(0, 8)}...)`}
                 </h1>
               </TooltipTrigger>
               <TooltipContent>Click to edit title</TooltipContent>
@@ -85,17 +85,17 @@ export default function EditorHeader({
             </span>
           ) : (
             <>
-              {projectCreatedAt && (
+              {transcriptCreatedAt && (
                 <>
-                  <span>{formatProjectDate(projectCreatedAt)}</span>
+                  <span>{formatTranscriptDate(transcriptCreatedAt)}</span>
                   <span>&bull;</span>
                 </>
               )}
               <span>{uniqueSpeakerCount} speaker{uniqueSpeakerCount !== 1 ? 's' : ''}</span>
-              {projectDurationSecs !== null && (
+              {transcriptDurationSecs !== null && (
                 <>
                   <span>&bull;</span>
-                  <span>{formatDurationHHMMSS(projectDurationSecs)}</span>
+                  <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>
                 </>
               )}
             </>

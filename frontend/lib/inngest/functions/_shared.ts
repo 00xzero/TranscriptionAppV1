@@ -12,12 +12,12 @@ export type TranscriptionFailurePayload = {
 };
 
 export async function writeTranscriptionFailureFallback({
-    projectId,
+    transcriptId,
     jobId,
     payload,
     context,
 }: {
-    projectId: string;
+    transcriptId: string;
     jobId?: string;
     payload: TranscriptionFailurePayload;
     context: string;
@@ -35,17 +35,17 @@ export async function writeTranscriptionFailureFallback({
                 },
                 context: `${context}/fallback`,
             });
-            // Project status derived by trigger
+            // Transcript status derived by trigger
         } else {
-            console.error(`[inngest] ${context} fallback: no jobId, marking project ${projectId} as error directly`);
+            console.error(`[inngest] ${context} fallback: no jobId, marking transcript ${transcriptId} as error directly`);
 
-            const { error: projectError } = await supabase
-                .from("projects")
+            const { error: transcriptError } = await supabase
+                .from("transcripts")
                 .update({ status: "error" })
-                .eq("id", projectId);
+                .eq("id", transcriptId);
 
-            if (projectError) {
-                console.error(`[inngest] Failed to update project in ${context} fallback:`, projectError);
+            if (transcriptError) {
+                console.error(`[inngest] Failed to update transcript in ${context} fallback:`, transcriptError);
             }
         }
     } catch (dbError) {

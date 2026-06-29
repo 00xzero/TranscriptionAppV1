@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-06-29] - Rename "Project" Entity to "Transcript"
+
+Renamed the core domain entity from "project" to "transcript" across the entire stack. The entity has always represented a single transcript (one media file plus its transcription), so "project" was a misnomer. Scope covered the database (table, foreign keys, functions, and all dependent objects), API routes (a clean break with no compatibility redirects), every TypeScript identifier/type/Zod schema, and user-facing copy. Because the app is pre-launch with no production users, the database is renamed in place via a new append-only migration rather than left as a physical-name detail. The Library home's "Recent Projects" section is intentionally retained as "Projects" — it is a placeholder for a future feature where a project groups multiple transcripts/files, a distinct concept from the renamed entity.
+
+### Added
+
+- **`infra/supabase/migrations/20260627000000_rename_projects_to_transcripts.sql`** — Append-only, idempotent, drift-tolerant migration that renames the `projects` table to `transcripts`; renames the `project_id` foreign key to `transcript_id` on `speakers`, `segments`, `watchlist`, `jobs`, `failed_events`, and `webhook_receipts`; recreates the three functions whose bodies referenced the old names (`transition_job_status`, `derive_project_status` → `derive_transcript_status`, and `save_transcript_segments` with its `p_project_id` parameter renamed to `p_transcript_id`); cosmetically renames every dependent index, constraint, trigger, and RLS policy; and re-asserts the renamed table into the `supabase_realtime` publication. Verified applied non-destructively against real local data (55 transcripts / 12,989 segments preserved).
+
+### Changed
+
+- **`frontend/app/transcripts/`** (was `app/projects/`) and **`frontend/app/api/transcripts/`** (was `app/api/projects/`) — Renamed the route directories. Clean break: old `/projects` and `/api/projects/*` URLs now 404 with no redirect.
+- **`frontend/contracts/db.ts`**, **`frontend/contracts/api.ts`**, and **`frontend/contracts/events.ts`** — Renamed `Project`/`ProjectStatus`/`ProjectSchema`/`ProjectInsert`/`ProjectUpdate` and derived types to their `Transcript` equivalents, and switched the `project_id` field to `transcript_id`. Removed the dead, unused `TranscriptInsertSchema`/`TranscriptInsert` (nothing references it; `createTranscript` builds its insert inline).
+- **`frontend/core/transcripts/create.ts`** (was `core/projects/create.ts`), **`frontend/core/transcription/start.ts`**, **`frontend/core/transcription/webhook.ts`**, and **`frontend/lib/inngest/functions/*`** — Switched all `.from('projects')` calls to `.from('transcripts')`, every `project_id` filter to `transcript_id`, the Inngest event field `projectId` to `transcriptId`, and the `save_transcript_segments` RPC argument `p_project_id` to `p_transcript_id`.
+- **`frontend/lib/supabase/hooks.ts`**, **`frontend/lib/supabase/queries.ts`**, and **`frontend/lib/supabase/realtime.ts`** — Renamed `useProjectsRealtime` → `useTranscriptsRealtime` (and `deleteProject` → `deleteTranscript`), the realtime table name `projects` → `transcripts`, and all query identifiers.
+- **`frontend/components/LibraryView.tsx`** and **`frontend/app/editor/[id]/**`** (including `useProjectTitleEditing` → `useTranscriptTitleEditing`) — Renamed identifiers and user-facing copy ("Project" → "Transcript"). The Library "Recent Projects" placeholder section is intentionally kept as "Projects" for the future grouping feature; its View All CTA currently still links to `/transcripts`.
+- **`infra/supabase/seed.sql`** — Updated local-dev seed inserts to the `transcripts` table and `transcript_id` columns so `supabase db reset` seeds against the renamed schema.
+- **`CLAUDE.md`**, **`PRD.md`**, and **`README.md`** — Updated entity references, route tables, and the data model to use "transcript". Historical refactor docs and prior changelog entries are left as-is.
+
+### Preserved
+
+- **`frontend/lib/capture/storageTransfer.ts`** and its test — "Supabase projects" references are deliberately left untouched; they refer to Supabase-platform projects, not the renamed entity.
+
+### Tests
+
+- **`frontend`** — `npm run test:ci` (`75` suites / `686` tests passing)
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (existing warnings only)
+- **Local DB** — migration applied via `supabase migration up`; schema verified free of `project`-named objects; `transition_job_status`, the `derive_transcript_status` trigger, and the fixed `seed.sql` exercised in rolled-back transactions
+- **Browser smoke test (local migrated DB)** — login, Library, `/transcripts` list with live realtime, editor (segments/speakers/words load, Supabase queries return 200), and old `/projects` → 404 confirmed
+
 ## [2026-06-13] - Recording Architecture Refinements
 
 Refined the live-recording implementation after the Record on Demand launch by separating the shared capture-upload pipeline from React UI state, making recording session transitions declarative, and aligning the header recording pill with the Olivetti light/dark theme tokens.

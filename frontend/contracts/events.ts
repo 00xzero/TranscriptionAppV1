@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { UuidSchema } from './primitives'
 
 export const TranscriptionRequestedDataSchema = z.object({
-  projectId: UuidSchema,
+  transcriptId: UuidSchema,
   jobId: UuidSchema,
   userId: UuidSchema,
   mediaUrl: z.url(),
@@ -11,24 +11,24 @@ export const TranscriptionRequestedDataSchema = z.object({
 
 export const TranscriptionWebhookDataSchema = z.object({
   requestId: z.string(),
-  projectId: UuidSchema,
+  transcriptId: UuidSchema,
 })
 
 export const TranscriptionCompletedDataSchema = z.object({
-  projectId: UuidSchema,
+  transcriptId: UuidSchema,
   jobId: UuidSchema,
   duration: z.number(),
 })
 
 export const TranscriptionFailedDataSchema = z.object({
-  projectId: UuidSchema,
+  transcriptId: UuidSchema,
   jobId: UuidSchema.optional(),
   error: z.string(),
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })
 
 export const WaveformRequestedDataSchema = z.object({
-  projectId: UuidSchema,
+  transcriptId: UuidSchema,
   userId: UuidSchema,
   sourceObjectKey: z.string().min(1),
 })

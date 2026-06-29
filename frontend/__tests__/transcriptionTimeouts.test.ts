@@ -82,14 +82,14 @@ describe('Transcription timeouts', () => {
   test('calls transitionJob per stale job with to: error', async () => {
     const job1 = {
       id: 'job-1',
-      project_id: 'proj-1',
+      transcript_id: 'proj-1',
       status: 'processing',
       created_at: '2020-01-01T00:00:00.000Z',
       started_at: '2020-01-01T00:00:00.000Z',
     }
     const job2 = {
       id: 'job-2',
-      project_id: 'proj-2',
+      transcript_id: 'proj-2',
       status: 'queued',
       created_at: '2020-01-01T00:00:00.000Z',
       started_at: null,
@@ -136,7 +136,7 @@ describe('Transcription timeouts', () => {
   test('skips jobs that are already handled (noop/conflict)', async () => {
     const job1 = {
       id: 'job-1',
-      project_id: 'proj-1',
+      transcript_id: 'proj-1',
       status: 'queued',
       created_at: '2020-01-01T00:00:00.000Z',
       started_at: null,
@@ -158,7 +158,7 @@ describe('Transcription timeouts', () => {
   test('aggregates failures from invalid transitions', async () => {
     const job1 = {
       id: 'job-1',
-      project_id: 'proj-1',
+      transcript_id: 'proj-1',
       status: 'processing',
       created_at: '2020-01-01T00:00:00.000Z',
       started_at: '2020-01-01T00:00:00.000Z',

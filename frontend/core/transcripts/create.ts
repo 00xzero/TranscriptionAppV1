@@ -1,15 +1,15 @@
 /**
- * Core: Create Project
+ * Core: Create Transcript
  *
- * Business logic for creating a new project.
+ * Business logic for creating a new transcript.
  * Receives an authenticated Supabase client and validated input — no NextRequest.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { CreateProjectBody } from '@/contracts/api'
+import type { CreateTranscriptBody } from '@/contracts/api'
 import { getMediaPath } from '@/infra/supabase/storage'
 
-export interface ProjectCreated {
+export interface TranscriptCreated {
     id: string
     status: string
     title: string
@@ -17,19 +17,19 @@ export interface ProjectCreated {
     updated_at: string
 }
 
-export interface CreateProjectResult {
-    project: ProjectCreated & { key_terms: string[] }
+export interface CreateTranscriptResult {
+    transcript: TranscriptCreated & { key_terms: string[] }
     storagePath: string
-    /** True when an existing project was returned via upload-intent dedup. */
+    /** True when an existing transcript was returned via upload-intent dedup. */
     deduped: boolean
-    /** Already-linked media key when the canonical project has one (else null). */
+    /** Already-linked media key when the canonical transcript has one (else null). */
     sourceObjectKey: string | null
-    /** Canonical project status, surfaced for idempotent client resume. */
+    /** Canonical transcript status, surfaced for idempotent client resume. */
     status: string
 }
 
-/** Project row shape selected for building the canonical result. */
-interface ProjectRow {
+/** Transcript row shape selected for building the canonical result. */
+interface TranscriptRow {
     id: string
     status: string
     title: string
@@ -38,75 +38,75 @@ interface ProjectRow {
     updated_at: string
 }
 
-const PROJECT_RESULT_COLUMNS =
+const TRANSCRIPT_RESULT_COLUMNS =
     'id, status, title, source_object_key, created_at, updated_at'
 
-export async function createProject(
+export async function createTranscript(
     supabase: SupabaseClient,
     userId: string,
-    input: CreateProjectBody
-): Promise<CreateProjectResult> {
+    input: CreateTranscriptBody
+): Promise<CreateTranscriptResult> {
     const { title, filename, key_terms, upload_intent_id } = input
 
     const buildResult = (
-        project: ProjectRow,
+        transcript: TranscriptRow,
         deduped: boolean
-    ): CreateProjectResult => ({
-        project: {
-            id: project.id,
-            status: project.status,
-            title: project.title,
-            created_at: project.created_at,
-            updated_at: project.updated_at,
+    ): CreateTranscriptResult => ({
+        transcript: {
+            id: transcript.id,
+            status: transcript.status,
+            title: transcript.title,
+            created_at: transcript.created_at,
+            updated_at: transcript.updated_at,
             key_terms: key_terms || [],
         },
-        // storagePath is a pure function of userId + projectId + sanitized
+        // storagePath is a pure function of userId + transcriptId + sanitized
         // filename (getMediaPath), so it is reproducible on a dedup hit (the
         // original path is not persisted separately).
-        storagePath: getMediaPath(userId, project.id, filename),
+        storagePath: getMediaPath(userId, transcript.id, filename),
         deduped,
-        sourceObjectKey: project.source_object_key ?? null,
-        status: project.status,
+        sourceObjectKey: transcript.source_object_key ?? null,
+        status: transcript.status,
     })
 
     // Idempotency pre-check: a prior create with the same (user_id, upload_intent_id)
-    // returns the canonical project so a recovery retry never duplicates.
+    // returns the canonical transcript so a recovery retry never duplicates.
     if (upload_intent_id) {
         const { data: existing } = await supabase
-            .from('projects')
-            .select(PROJECT_RESULT_COLUMNS)
+            .from('transcripts')
+            .select(TRANSCRIPT_RESULT_COLUMNS)
             .eq('user_id', userId)
             .eq('upload_intent_id', upload_intent_id)
-            .maybeSingle<ProjectRow>()
+            .maybeSingle<TranscriptRow>()
 
         if (existing) {
             return buildResult(existing, true)
         }
     }
 
-    // Insert project row
-    const { data: project, error: projectError } = await supabase
-        .from('projects')
+    // Insert transcript row
+    const { data: transcript, error: transcriptError } = await supabase
+        .from('transcripts')
         .insert({
             user_id: userId,
             title: title || filename,
             status: 'created',
             ...(upload_intent_id ? { upload_intent_id } : {}),
         })
-        .select(PROJECT_RESULT_COLUMNS)
-        .single<ProjectRow>()
+        .select(TRANSCRIPT_RESULT_COLUMNS)
+        .single<TranscriptRow>()
 
-    if (projectError || !project) {
+    if (transcriptError || !transcript) {
         // 23505 race: a concurrent create with the same intent id won the unique
         // index. Re-read the canonical row whenever an intent id is in play
         // (message text is brittle, so don't gate on the index name).
-        if (upload_intent_id && projectError?.code === '23505') {
+        if (upload_intent_id && transcriptError?.code === '23505') {
             const { data: raced } = await supabase
-                .from('projects')
-                .select(PROJECT_RESULT_COLUMNS)
+                .from('transcripts')
+                .select(TRANSCRIPT_RESULT_COLUMNS)
                 .eq('user_id', userId)
                 .eq('upload_intent_id', upload_intent_id)
-                .maybeSingle<ProjectRow>()
+                .maybeSingle<TranscriptRow>()
 
             if (raced) {
                 return buildResult(raced, true)
@@ -115,14 +115,14 @@ export async function createProject(
             // surface the original error rather than masking it as a dedup hit.
         }
 
-        throw new Error(projectError?.message ?? 'Failed to create project')
+        throw new Error(transcriptError?.message ?? 'Failed to create transcript')
     }
 
     // Insert key terms into watchlist if provided (non-fatal). Skipped on dedup
     // hits above so terms aren't duplicated (watchlist has no unique constraint).
     if (key_terms && key_terms.length > 0) {
         const watchlistItems = key_terms.map(term => ({
-            project_id: project.id,
+            transcript_id: transcript.id,
             term: term,
             canonical: term.toLowerCase(),
         }))
@@ -132,9 +132,9 @@ export async function createProject(
             .insert(watchlistItems)
 
         if (watchlistError) {
-            console.error('[createProject] Watchlist insert error:', watchlistError)
+            console.error('[createTranscript] Watchlist insert error:', watchlistError)
         }
     }
 
-    return buildResult(project, false)
+    return buildResult(transcript, false)
 }

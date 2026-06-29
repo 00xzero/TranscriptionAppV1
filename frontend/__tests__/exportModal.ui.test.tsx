@@ -41,13 +41,13 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     const fetchMock = jest.fn().mockResolvedValue(makeExportResponse())
     ;(global as any).fetch = fetchMock
 
-    render(<ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />)
+    render(<ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={onClose} />)
 
     await user.click(screen.getByRole('radio', { name: /^VTT$/i }))
     await user.click(screen.getByRole('button', { name: /^Export$/i }))
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/projects/p1/export/vtt')
+      expect(fetchMock).toHaveBeenCalledWith('/api/transcripts/p1/export/vtt')
     })
     await waitFor(() => {
       expect(screen.getByText(/Download started successfully/i)).toBeInTheDocument()
@@ -67,7 +67,7 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     ;(global as any).fetch = jest.fn().mockResolvedValue(makeExportResponse())
 
     const { unmount } = render(
-      <ExportModal projectId="p1" projectTitle="Phase7 Project" onClose={onClose} />
+      <ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={onClose} />
     )
 
     const docxRadio = screen.getByRole('radio', { name: /Word \(\.docx\)/i })

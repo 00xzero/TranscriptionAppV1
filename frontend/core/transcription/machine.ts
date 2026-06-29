@@ -1,15 +1,15 @@
 /**
  * Transcription State Machine
  *
- * Pure logic for job/project status transitions — zero I/O.
+ * Pure logic for job/transcript status transitions — zero I/O.
  * The single source of truth for valid states and transitions.
  */
 
 import { z } from 'zod'
-import { JobStatusSchema, ProjectStatusSchema } from '@/contracts/db'
+import { JobStatusSchema, TranscriptStatusSchema } from '@/contracts/db'
 
 export type JobStatus = z.infer<typeof JobStatusSchema>
-export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
+export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
 
 export type TransitionOutcome = "applied" | "noop" | "conflict" | "invalid";
 
@@ -23,15 +23,15 @@ const VALID_JOB_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 };
 
 const JOB_STATUSES: Set<string> = new Set(["queued", "processing", "completed", "error"]);
-const PROJECT_STATUSES: Set<string> = new Set(["created", "queued", "processing", "completed", "error"]);
+const TRANSCRIPT_STATUSES: Set<string> = new Set(["created", "queued", "processing", "completed", "error"]);
 const TERMINAL_JOB_STATUSES: Set<string> = new Set(["completed", "error"]);
 
 export function isJobStatus(s: string): s is JobStatus {
   return JOB_STATUSES.has(s);
 }
 
-export function isProjectStatus(s: string): s is ProjectStatus {
-  return PROJECT_STATUSES.has(s);
+export function isTranscriptStatus(s: string): s is TranscriptStatus {
+  return TRANSCRIPT_STATUSES.has(s);
 }
 
 export function isTerminalJobStatus(s: string): s is "completed" | "error" {
@@ -58,7 +58,7 @@ export function validateJobTransition(opts: {
   };
 }
 
-export function deriveProjectStatus(jobStatuses: JobStatus[]): ProjectStatus {
+export function deriveTranscriptStatus(jobStatuses: JobStatus[]): TranscriptStatus {
   if (jobStatuses.length === 0) {
     return "created";
   }
@@ -72,5 +72,5 @@ export function deriveProjectStatus(jobStatuses: JobStatus[]): ProjectStatus {
   }
 
   // All terminal — return the newest (last in array, caller orders by created_at)
-  return jobStatuses[jobStatuses.length - 1] as ProjectStatus;
+  return jobStatuses[jobStatuses.length - 1] as TranscriptStatus;
 }

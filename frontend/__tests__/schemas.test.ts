@@ -1,30 +1,30 @@
 /** @jest-environment node */
 
-import { CreateProjectBodySchema } from '@/contracts/api'
+import { CreateTranscriptBodySchema } from '@/contracts/api'
 import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/contracts/webhook'
 import { TransitionJobInputSchema } from '@/contracts/state-machine'
-import { JobStatusSchema, ProjectStatusSchema } from '@/contracts/db'
+import { JobStatusSchema, TranscriptStatusSchema } from '@/contracts/db'
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111'
 
-describe('CreateProjectBodySchema', () => {
+describe('CreateTranscriptBodySchema', () => {
   test('rejects missing filename', () => {
-    const result = CreateProjectBodySchema.safeParse({ title: 'test' })
+    const result = CreateTranscriptBodySchema.safeParse({ title: 'test' })
     expect(result.success).toBe(false)
   })
 
   test('rejects empty filename', () => {
-    const result = CreateProjectBodySchema.safeParse({ filename: '' })
+    const result = CreateTranscriptBodySchema.safeParse({ filename: '' })
     expect(result.success).toBe(false)
   })
 
   test('rejects key_terms with non-strings', () => {
-    const result = CreateProjectBodySchema.safeParse({ filename: 'audio.mp3', key_terms: [1, 2] })
+    const result = CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3', key_terms: [1, 2] })
     expect(result.success).toBe(false)
   })
 
   test('accepts valid body', () => {
-    const result = CreateProjectBodySchema.safeParse({
+    const result = CreateTranscriptBodySchema.safeParse({
       filename: 'audio.mp3',
       title: 'My recording',
       key_terms: ['term1', 'term2'],
@@ -36,7 +36,7 @@ describe('CreateProjectBodySchema', () => {
   })
 
   test('accepts body with only filename', () => {
-    const result = CreateProjectBodySchema.safeParse({ filename: 'audio.mp3' })
+    const result = CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3' })
     expect(result.success).toBe(true)
   })
 })
@@ -56,11 +56,11 @@ describe('DeepgramWebhookPayloadSchema', () => {
     expect(DeepgramWebhookPayloadSchema.safeParse(42).success).toBe(false)
   })
 
-  test('succeeds for payload with metadata.request_id and metadata.extra.project_id', () => {
+  test('succeeds for payload with metadata.request_id and metadata.extra.transcript_id', () => {
     const result = DeepgramWebhookPayloadSchema.safeParse({
       metadata: {
         request_id: 'r1',
-        extra: { project_id: VALID_UUID },
+        extra: { transcript_id: VALID_UUID },
       },
     })
     expect(result.success).toBe(true)
@@ -119,13 +119,13 @@ describe('Status enum schemas', () => {
     }
   })
 
-  test('ProjectStatusSchema rejects unknown string', () => {
-    expect(ProjectStatusSchema.safeParse('unknown').success).toBe(false)
+  test('TranscriptStatusSchema rejects unknown string', () => {
+    expect(TranscriptStatusSchema.safeParse('unknown').success).toBe(false)
   })
 
-  test('ProjectStatusSchema accepts all valid values', () => {
+  test('TranscriptStatusSchema accepts all valid values', () => {
     for (const s of ['created', 'queued', 'processing', 'completed', 'error']) {
-      expect(ProjectStatusSchema.safeParse(s).success).toBe(true)
+      expect(TranscriptStatusSchema.safeParse(s).success).toBe(true)
     }
   })
 })

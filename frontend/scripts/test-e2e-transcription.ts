@@ -1,10 +1,10 @@
 /**
  * End-to-End Transcription Test
  * 
- * Run with: npx tsx --env-file=../infra/.env.docker scripts/test-e2e-transcription.ts <project-id>
+ * Run with: npx tsx --env-file=../infra/.env.docker scripts/test-e2e-transcription.ts <transcript-id>
  * 
  * This script:
- * 1. Uses an existing project with an audio file
+ * 1. Uses an existing transcript with an audio file
  * 2. Generates a signed URL for Deepgram
  * 3. Triggers transcription via Inngest
  * 4. Polls for completion
@@ -17,8 +17,8 @@ import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const DEFAULT_TEST_PROJECT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
-const testProjectId = process.argv[2] || process.env.TEST_PROJECT_ID || DEFAULT_TEST_PROJECT_ID;
+const DEFAULT_TEST_TRANSCRIPT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
+const testTranscriptId = process.argv[2] || process.env.TEST_TRANSCRIPT_ID || DEFAULT_TEST_TRANSCRIPT_ID;
 
 if (!supabaseUrl || !serviceRoleKey) {
     console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -31,33 +31,33 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 async function main() {
     console.log("🎤 End-to-End Transcription Test\n");
-    console.log(`Using project: ${testProjectId}`);
+    console.log(`Using transcript: ${testTranscriptId}`);
 
-    // Step 1: Get project details
-    console.log("1️⃣ Fetching project details...");
-    const { data: project, error: projectError } = await supabase
-        .from("projects")
+    // Step 1: Get transcript details
+    console.log("1️⃣ Fetching transcript details...");
+    const { data: transcript, error: transcriptError } = await supabase
+        .from("transcripts")
         .select("id, title, status, source_object_key, user_id")
-        .eq("id", testProjectId)
+        .eq("id", testTranscriptId)
         .single();
 
-    if (projectError || !project) {
-        console.error("Failed to fetch project:", projectError);
+    if (transcriptError || !transcript) {
+        console.error("Failed to fetch transcript:", transcriptError);
         process.exit(1);
     }
 
-    console.log(`   Project: ${project.title}`);
-    console.log(`   Status: ${project.status}`);
-    console.log(`   Object Key: ${project.source_object_key}`);
+    console.log(`   Transcript: ${transcript.title}`);
+    console.log(`   Status: ${transcript.status}`);
+    console.log(`   Object Key: ${transcript.source_object_key}`);
 
-    if (!project.source_object_key) {
-        console.error("Project has no source_object_key");
+    if (!transcript.source_object_key) {
+        console.error("Transcript has no source_object_key");
         process.exit(1);
     }
 
     // Step 2: Generate a Deepgram-ready media URL
     console.log("\n2️⃣ Generating media URL for Deepgram...");
-    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, project.source_object_key);
+    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key);
 
     if (mediaUrlResult.error || !mediaUrlResult.url) {
         console.error("Failed to generate media URL:", mediaUrlResult.error);
@@ -72,7 +72,7 @@ async function main() {
     const { data: job, error: jobError } = await supabase
         .from("jobs")
         .insert({
-            project_id: project.id,
+            transcript_id: transcript.id,
             type: "transcription",
             status: "queued",
         })
@@ -84,7 +84,7 @@ async function main() {
         process.exit(1);
     }
     console.log(`   Job ID: ${job.id}`);
-    // Project status derived by trigger from job INSERT — no manual update needed
+    // Transcript status derived by trigger from job INSERT — no manual update needed
 
     // Step 4: Trigger Inngest event
     console.log("\n4️⃣ Triggering Inngest transcription event...");
@@ -98,9 +98,9 @@ async function main() {
         body: JSON.stringify({
             name: "transcription/requested",
             data: {
-                projectId: project.id,
+                transcriptId: transcript.id,
                 jobId: job.id,
-                userId: project.user_id,
+                userId: transcript.user_id,
                 mediaUrl: mediaUrl,
                 keyTerms: [],
             },
@@ -160,7 +160,7 @@ async function main() {
     const { data: segments } = await supabase
         .from("segments")
         .select("id, speaker_id, start_ms, end_ms, text, is_filler, algo_version")
-        .eq("project_id", project.id)
+        .eq("transcript_id", transcript.id)
         .order("start_ms");
 
     console.log(`   Segments: ${segments?.length || 0}`);
@@ -182,7 +182,7 @@ async function main() {
     const { data: speakers } = await supabase
         .from("speakers")
         .select("id, label")
-        .eq("project_id", project.id);
+        .eq("transcript_id", transcript.id);
 
     console.log(`   Speakers: ${speakers?.length || 0}`);
 
@@ -190,9 +190,9 @@ async function main() {
     console.log("\n6️⃣ Saving results to file...");
 
     const results = {
-        project: {
-            id: project.id,
-            title: project.title,
+        transcript: {
+            id: transcript.id,
+            title: transcript.title,
         },
         stats: {
             segmentCount: segments?.length || 0,
@@ -217,7 +217,7 @@ async function main() {
         },
     };
 
-    const outputPath = `scripts/test-output-${project.id}.json`;
+    const outputPath = `scripts/test-output-${transcript.id}.json`;
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
     console.log(`   Results saved to: ${outputPath}`);
 
@@ -225,7 +225,7 @@ async function main() {
     console.log("\n" + "=".repeat(60));
     console.log("📊 TRANSCRIPTION SUMMARY");
     console.log("=".repeat(60));
-    console.log(`Project: ${project.title}`);
+    console.log(`Transcript: ${transcript.title}`);
     console.log(`Segments: ${results.stats.segmentCount}`);
     console.log(`Words: ${results.stats.wordCount}`);
     console.log(`Speakers: ${results.stats.speakerCount}`);

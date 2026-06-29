@@ -34,7 +34,7 @@ describe('useCaptureForm', () => {
   test('routes non-started upload outcomes through guarded navigation', async () => {
     uploadMock.mockResolvedValue({
       outcome: 'saved_needs_retry',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       message: 'Specific retry guidance.',
     })
     const closeCaptureModal = jest.fn()
@@ -53,7 +53,7 @@ describe('useCaptureForm', () => {
 
     expect(closeCaptureModal).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith(
-      '/projects?capture=saved_needs_retry&projectId=project-1&captureMessage=Specific+retry+guidance.'
+      '/transcripts?capture=saved_needs_retry&transcriptId=transcript-1&captureMessage=Specific+retry+guidance.'
     )
   })
 })

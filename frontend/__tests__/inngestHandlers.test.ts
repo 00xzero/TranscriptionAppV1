@@ -29,8 +29,8 @@ const mockDb = {
 // success summary. Reset in beforeEach.
 const rpcResponseQueue: RpcResponse[] = []
 
-const projectUpdateEqMock = jest.fn(async () => ({ error: null }))
-const projectUpdateMock = jest.fn(() => ({ eq: projectUpdateEqMock }))
+const transcriptUpdateEqMock = jest.fn(async () => ({ error: null }))
+const transcriptUpdateMock = jest.fn(() => ({ eq: transcriptUpdateEqMock }))
 const jobMaybeSingleMock = jest.fn(async (_request: SelectRequest) => ({ data: null, error: null }))
 const jobSingleMock = jest.fn(async (request: SelectRequest) => {
   if (request.columns === 'payload') {
@@ -58,9 +58,9 @@ function createSelectChain(table: string, columns: string) {
 }
 
 const fromMock = jest.fn((table: string) => {
-  if (table === 'projects') {
+  if (table === 'transcripts') {
     return {
-      update: projectUpdateMock,
+      update: transcriptUpdateMock,
     }
   }
   if (table === 'jobs') {
@@ -118,7 +118,7 @@ import { writeTranscriptionFailureFallback } from '@/lib/inngest/functions/_shar
 const mockTransitionJob = transitionJob as jest.MockedFunction<typeof transitionJob>
 const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobError>
 
-const projectId = '11111111-1111-4111-8111-111111111111'
+const transcriptId = '11111111-1111-4111-8111-111111111111'
 const jobId = '22222222-2222-4222-8222-222222222222'
 const requestId = 'req-1'
 
@@ -136,13 +136,13 @@ function getErrorMessage(error: unknown): string {
 
 const completedEvent = {
   name: 'transcription/completed',
-  data: { projectId, jobId, duration: 120 },
+  data: { transcriptId, jobId, duration: 120 },
 } as const
 
 const failedEvent = {
   name: 'transcription/failed',
   data: {
-    projectId,
+    transcriptId,
     error: 'Deepgram request failed',
     errorType: 'transcription_error' as const,
   },
@@ -150,7 +150,7 @@ const failedEvent = {
 
 const webhookEvent = {
   name: 'transcription/webhook',
-  data: { projectId, requestId },
+  data: { transcriptId, requestId },
 } as const
 
 function resetMockDb() {
@@ -195,7 +195,7 @@ describe('Inngest handlers', () => {
     expect(result).toEqual(
       expect.objectContaining({
         status: 'completed',
-        projectId,
+        transcriptId,
         jobId,
       })
     )
@@ -206,7 +206,7 @@ describe('Inngest handlers', () => {
         context: 'handleTranscriptionCompleted',
       })
     )
-    expect(projectUpdateEqMock).toHaveBeenCalledWith('id', projectId)
+    expect(transcriptUpdateEqMock).toHaveBeenCalledWith('id', transcriptId)
   })
 
   test('handleTranscriptionCompleted throws on transition conflict', async () => {
@@ -230,7 +230,7 @@ describe('Inngest handlers', () => {
         to: 'completed',
       })
     )
-    expect(projectUpdateMock).toHaveBeenCalledWith({ duration_seconds: 120 })
+    expect(transcriptUpdateMock).toHaveBeenCalledWith({ duration_seconds: 120 })
   })
 
   test('handleTranscriptionCompleted accepts success before processing flip lands', async () => {
@@ -245,7 +245,7 @@ describe('Inngest handlers', () => {
         to: 'completed',
       })
     )
-    expect(projectUpdateMock).toHaveBeenCalledWith({ duration_seconds: 120 })
+    expect(transcriptUpdateMock).toHaveBeenCalledWith({ duration_seconds: 120 })
   })
 
   test('handleTranscriptionWebhook surfaces completed-event send failures', async () => {
@@ -345,7 +345,7 @@ describe('Inngest handlers', () => {
 
     expect(rpcMock).toHaveBeenCalledTimes(1)
     expect(rpcMock).toHaveBeenCalledWith('save_transcript_segments', expect.objectContaining({
-      p_project_id: projectId,
+      p_transcript_id: transcriptId,
     }))
 
     const payload = getSavePayload()
@@ -455,7 +455,7 @@ describe('Inngest handlers', () => {
       ],
     })
 
-    expect(result).toEqual({ status: 'skipped', projectId, jobId })
+    expect(result).toEqual({ status: 'skipped', transcriptId, jobId })
     expect(rpcMock).not.toHaveBeenCalled()
   })
 
@@ -592,19 +592,19 @@ describe('Inngest handlers', () => {
     expect(error).toBeDefined()
   })
 
-  test('handleTranscriptionFailed marks project error when no active job can be found', async () => {
+  test('handleTranscriptionFailed marks transcript error when no active job can be found', async () => {
     const engine = new InngestTestEngine({ function: handleTranscriptionFailed })
 
     await engine.execute({ events: [failedEvent] })
 
     expect(mockTransitionJob).not.toHaveBeenCalled()
-    expect(projectUpdateMock).toHaveBeenCalledWith({ status: 'error' })
-    expect(projectUpdateEqMock).toHaveBeenCalledWith('id', projectId)
+    expect(transcriptUpdateMock).toHaveBeenCalledWith({ status: 'error' })
+    expect(transcriptUpdateEqMock).toHaveBeenCalledWith('id', transcriptId)
   })
 
-  test('failure fallback marks project error when no job can be resolved', async () => {
+  test('failure fallback marks transcript error when no job can be resolved', async () => {
     await writeTranscriptionFailureFallback({
-      projectId,
+      transcriptId,
       payload: {
         error: 'Transcription failed: send failed',
         error_type: 'transcription_error',
@@ -614,7 +614,7 @@ describe('Inngest handlers', () => {
     })
 
     expect(mockForceJobError).not.toHaveBeenCalled()
-    expect(projectUpdateMock).toHaveBeenCalledWith({ status: 'error' })
-    expect(projectUpdateEqMock).toHaveBeenCalledWith('id', projectId)
+    expect(transcriptUpdateMock).toHaveBeenCalledWith({ status: 'error' })
+    expect(transcriptUpdateEqMock).toHaveBeenCalledWith('id', transcriptId)
   })
 })

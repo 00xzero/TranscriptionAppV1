@@ -6,7 +6,7 @@
  * 
  * Security:
  * - Requires MEDIA_PROXY_SECRET token in query params (prevents unauthorized access)
- * - Only allows paths that match valid storage key format (userId/projectId/filename)
+ * - Only allows paths that match valid storage key format (userId/transcriptId/filename)
  * - Only enabled when DEEPGRAM_USE_PROXY=true
  * 
  * Usage: GET /api/media-proxy?path=<storage-path>&token=<secret>
@@ -18,7 +18,7 @@ import { createAdminClient } from "@/infra/supabase/admin";
 // Explicit env var required when proxy is enabled
 const PROXY_SECRET = process.env.MEDIA_PROXY_SECRET;
 
-// Validate storage path format: userId/projectId/filename
+// Validate storage path format: userId/transcriptId/filename
 // This prevents path traversal and limits scope to valid media paths
 function isValidStoragePath(path: string): boolean {
     // Must match: uuid/uuid/filename pattern

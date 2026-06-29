@@ -3,10 +3,10 @@ import { z } from 'zod'
 import {
   fetchTranscriptData,
   fetchSpeakers,
-  fetchProjectById,
+  fetchTranscriptById,
 } from '@/lib/supabase/queries'
 import { SegmentSchema, WaveformStatusSchema, type WaveformStatus } from '@/contracts/db'
-import { EditorProjectSchema, EditorSpeakerSchema } from '@/contracts/editor'
+import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
@@ -23,37 +23,37 @@ const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
 
 export function chooseEditorDuration(
-  projectDurationSecs: number | null,
+  transcriptDurationSecs: number | null,
   waveformDurationSecs: number | null
 ): number | null {
-  const durations = [projectDurationSecs, waveformDurationSecs].filter(
+  const durations = [transcriptDurationSecs, waveformDurationSecs].filter(
     (duration): duration is number => duration != null && Number.isFinite(duration) && duration > 0
   )
   if (durations.length === 0) return null
   return Math.max(...durations)
 }
 
-export function useEditorData(projectId: string) {
+export function useEditorData(transcriptId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
-  const [projectTitle, setProjectTitle] = useState<string | null>(null)
-  const [projectCreatedAt, setProjectCreatedAt] = useState<string | null>(null)
-  const [projectDurationSecs, setProjectDurationSecs] = useState<number | null>(null)
+  const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
+  const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
+  const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
 
   const reloadTranscript = async () => {
     try {
-      const { items: segs } = await fetchTranscriptData(projectId)
+      const { items: segs } = await fetchTranscriptData(transcriptId)
       setSegments(computeWordsForSegments(segs) as Seg[])
 
-      const speakerData = await fetchSpeakers(projectId)
+      const speakerData = await fetchSpeakers(transcriptId)
       setSpeakers(speakerData)
     } catch (error) {
-      console.error(`Failed to reload transcript for project ${projectId} while fetching transcript data or speakers:`, error)
+      console.error(`Failed to reload transcript for transcript ${transcriptId} while fetching transcript data or speakers:`, error)
     }
   }
 
@@ -73,7 +73,7 @@ export function useEditorData(projectId: string) {
     }
 
     const loadWaveformPeaks = async () => {
-      const urlRes = await fetch(`/api/projects/${projectId}/waveform-url`)
+      const urlRes = await fetch(`/api/transcripts/${transcriptId}/waveform-url`)
       if (!urlRes.ok) return false
       const { url } = await urlRes.json()
       const peaksRes = await fetch(url)
@@ -90,18 +90,18 @@ export function useEditorData(projectId: string) {
       return false
     }
 
-    const loadProjectMetadata = async (): Promise<WaveformStatus | null> => {
-      const projectData = await fetchProjectById(projectId)
-      if (cancelled || !projectData) return null
-      const projectParsed = EditorProjectSchema.safeParse(projectData)
-      if (!projectParsed.success) {
-        console.warn('[useEditorData] project schema mismatch', projectParsed.error.issues)
+    const loadTranscriptMetadata = async (): Promise<WaveformStatus | null> => {
+      const transcriptData = await fetchTranscriptById(transcriptId)
+      if (cancelled || !transcriptData) return null
+      const transcriptParsed = EditorTranscriptSchema.safeParse(transcriptData)
+      if (!transcriptParsed.success) {
+        console.warn('[useEditorData] transcript schema mismatch', transcriptParsed.error.issues)
       }
-      setProjectTitle(projectData.title || null)
-      setProjectCreatedAt(projectData.created_at)
-      setProjectDurationSecs(projectData.duration_seconds)
+      setTranscriptTitle(transcriptData.title || null)
+      setTranscriptCreatedAt(transcriptData.created_at)
+      setTranscriptDurationSecs(transcriptData.duration_seconds)
 
-      const statusParsed = WaveformStatusSchema.safeParse(projectData.waveform_status)
+      const statusParsed = WaveformStatusSchema.safeParse(transcriptData.waveform_status)
       const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
       setWaveformStatus(wfStatus)
       if (wfStatus === 'ready') {
@@ -127,12 +127,12 @@ export function useEditorData(projectId: string) {
       waveformPollStartedAt = Date.now()
       waveformPollId = setInterval(() => {
         if (Date.now() - waveformPollStartedAt >= WAVEFORM_POLL_TIMEOUT_MS) {
-          console.warn(`[useEditorData] stopped waveform polling for project ${projectId} after timeout`)
+          console.warn(`[useEditorData] stopped waveform polling for transcript ${transcriptId} after timeout`)
           stopWaveformPolling()
           setWaveformStatus('skipped')
           return
         }
-        void loadProjectMetadata().catch(() => { /* ignore */ })
+        void loadTranscriptMetadata().catch(() => { /* ignore */ })
       }, WAVEFORM_POLL_INTERVAL_MS)
     }
 
@@ -140,12 +140,12 @@ export function useEditorData(projectId: string) {
       try {
         setStatus('Loading media...')
 
-        const transcriptDataPromise = fetchTranscriptData(projectId).then(
+        const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
           (data) => ({ data, error: null as unknown }),
           (error) => ({ data: null, error })
         )
 
-        const mediaUrl = await fetch(`/api/projects/${projectId}/media-url`).then(async (res) => {
+        const mediaUrl = await fetch(`/api/transcripts/${transcriptId}/media-url`).then(async (res) => {
           if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
           const j = await res.json()
           return j.url as string
@@ -169,7 +169,7 @@ export function useEditorData(projectId: string) {
 
         setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
 
-        void fetchSpeakers(projectId)
+        void fetchSpeakers(transcriptId)
           .then((speakerData) => {
             if (cancelled) return
             const speakersParsed = z.array(EditorSpeakerSchema).safeParse(speakerData)
@@ -180,7 +180,7 @@ export function useEditorData(projectId: string) {
           })
           .catch(() => { /* ignore */ })
 
-        void loadProjectMetadata()
+        void loadTranscriptMetadata()
           .then((wfStatus) => {
             if (!cancelled && wfStatus && WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
               startWaveformPolling()
@@ -198,16 +198,16 @@ export function useEditorData(projectId: string) {
       cancelled = true
       stopWaveformPolling()
     }
-  }, [projectId])
+  }, [transcriptId])
 
   return {
     audioSrc, setAudioSrc,
     status, setStatus,
     segments, setSegments,
     speakers, setSpeakers,
-    projectTitle, setProjectTitle,
-    projectCreatedAt,
-    projectDurationSecs: chooseEditorDuration(projectDurationSecs, waveformDurationSecs),
+    transcriptTitle, setTranscriptTitle,
+    transcriptCreatedAt,
+    transcriptDurationSecs: chooseEditorDuration(transcriptDurationSecs, waveformDurationSecs),
     waveformDurationSecs,
     peaks,
     waveformStatus,

@@ -170,7 +170,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     )
   }
 
-  const isLibraryActive = pathname === '/' || pathname === '/projects'
+  const isLibraryActive = pathname === '/' || pathname === '/transcripts'
 
   return (
     <nav

@@ -1,5 +1,5 @@
 /**
- * Smoke test for the protect_project_waveform_columns trigger.
+ * Smoke test for the protect_transcript_waveform_columns trigger.
  *
  * Run with:
  *   npx tsx --env-file=../infra/.env.docker scripts/smoke-test-waveform-trigger.ts
@@ -29,10 +29,10 @@ const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
 })
 
-async function ensureTestProject(userId: string): Promise<string> {
-    // Find or create a project owned by the test user we can poke at.
+async function ensureTestTranscript(userId: string): Promise<string> {
+    // Find or create a transcript owned by the test user we can poke at.
     const { data: existing } = await adminClient
-        .from('projects')
+        .from('transcripts')
         .select('id')
         .eq('user_id', userId)
         .limit(1)
@@ -40,11 +40,11 @@ async function ensureTestProject(userId: string): Promise<string> {
     if (existing) return existing.id
 
     const { data: created, error } = await adminClient
-        .from('projects')
+        .from('transcripts')
         .insert({ user_id: userId, title: 'smoke-test-waveform-trigger' })
         .select('id')
         .single()
-    if (error || !created) throw new Error(`Could not create test project: ${error?.message}`)
+    if (error || !created) throw new Error(`Could not create test transcript: ${error?.message}`)
     return created.id
 }
 
@@ -66,22 +66,22 @@ async function main() {
     const userId = signIn.user.id
     console.log(`[smoke] Signed in as ${TEST_EMAIL} (${userId})`)
 
-    const projectId = await ensureTestProject(userId)
-    console.log(`[smoke] Using project ${projectId}`)
+    const transcriptId = await ensureTestTranscript(userId)
+    console.log(`[smoke] Using transcript ${transcriptId}`)
 
     // --- Test 1: authenticated client should be REJECTED ---
     const { error: userUpdateErr } = await userClient
-        .from('projects')
+        .from('transcripts')
         .update({ waveform_status: 'ready' })
-        .eq('id', projectId)
+        .eq('id', transcriptId)
     if (userUpdateErr) {
         console.log(`[smoke] ✓ authenticated client rejected: ${userUpdateErr.code} ${userUpdateErr.message}`)
     } else {
         // PostgREST may return 200 with empty body if RLS+trigger silently filters; verify the row didn't actually change
         const { data: row, error: readErr } = await adminClient
-            .from('projects')
+            .from('transcripts')
             .select('waveform_status')
-            .eq('id', projectId)
+            .eq('id', transcriptId)
             .single()
         if (readErr || !row) {
             throw new Error(`Could not verify authenticated update result: ${readErr?.message ?? 'missing row'}`)
@@ -96,17 +96,17 @@ async function main() {
 
     // --- Test 2: admin client should SUCCEED ---
     const { error: adminUpdateErr } = await adminClient
-        .from('projects')
+        .from('transcripts')
         .update({ waveform_status: 'pending' })
-        .eq('id', projectId)
+        .eq('id', transcriptId)
     if (adminUpdateErr) {
         console.error(`[smoke] ✗ admin client REJECTED: ${adminUpdateErr.message}`)
         pass = false
     } else {
         const { data: row, error: readErr } = await adminClient
-            .from('projects')
+            .from('transcripts')
             .select('waveform_status')
-            .eq('id', projectId)
+            .eq('id', transcriptId)
             .single()
         if (readErr || !row) {
             throw new Error(`Could not verify admin update result: ${readErr?.message ?? 'missing row'}`)
@@ -121,9 +121,9 @@ async function main() {
 
     // Reset to skipped so re-running the smoke is clean
     const { data: resetRow, error: resetErr } = await adminClient
-        .from('projects')
+        .from('transcripts')
         .update({ waveform_status: 'skipped' })
-        .eq('id', projectId)
+        .eq('id', transcriptId)
         .select('waveform_status')
         .single()
     if (resetErr) {

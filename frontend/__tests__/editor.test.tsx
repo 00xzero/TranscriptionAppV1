@@ -61,7 +61,7 @@ const mockFetch = () => {
     if (url.includes('/media-url') && method === 'GET') {
       return makeJsonResponse({ url: 'http://example.com/audio.mp3' })
     }
-    if (url.includes('/api/projects/') && url.includes('/export/') && method === 'GET') {
+    if (url.includes('/api/transcripts/') && url.includes('/export/') && method === 'GET') {
       return makeExportResponse()
     }
     return makeJsonResponse('Not found', 404)
@@ -75,7 +75,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   const renderEditorScreen = () =>
     render(
       <TooltipProvider delayDuration={0}>
-        <EditorScreen projectId="p1" />
+        <EditorScreen transcriptId="p1" />
       </TooltipProvider>
     )
 
@@ -233,7 +233,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 'u1', start_ms: 0, end_ms: 3000, text: 'mañana ana', project_id: 'p1', speaker_id: null },
+        { id: 'u1', start_ms: 0, end_ms: 3000, text: 'mañana ana', transcript_id: 'p1', speaker_id: null },
       ],
     })
 
@@ -255,7 +255,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 'u1', start_ms: 0, end_ms: 3000, text: 'مرحبا حب', project_id: 'p1', speaker_id: null },
+        { id: 'u1', start_ms: 0, end_ms: 3000, text: 'مرحبا حب', transcript_id: 'p1', speaker_id: null },
       ],
     })
 
@@ -275,7 +275,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('sets audio source before transcript data resolves', async () => {
     const transcriptDeferred = deferred<{
-      items: Array<{ id: string; start_ms: number; end_ms: number; text: string; project_id: string; speaker_id: null }>
+      items: Array<{ id: string; start_ms: number; end_ms: number; text: string; transcript_id: string; speaker_id: null }>
     }>()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockReturnValueOnce(transcriptDeferred.promise)
 
@@ -289,8 +289,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await act(async () => {
       transcriptDeferred.resolve({
         items: [
-          { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.', project_id: 'p1', speaker_id: null },
-          { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.', project_id: 'p1', speaker_id: null },
+          { id: 's1', start_ms: 0, end_ms: 2000, text: 'hello world. Hello again.', transcript_id: 'p1', speaker_id: null },
+          { id: 's2', start_ms: 2000, end_ms: 4000, text: 'world says hello.', transcript_id: 'p1', speaker_id: null },
         ],
       })
     })
@@ -299,10 +299,10 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(segmentsRendered.length).toBeGreaterThanOrEqual(2)
   })
 
-  test('uses the normalized project duration as the waveform-backed audio hint', async () => {
-    ;(supabaseQueries.fetchProjectById as jest.Mock).mockResolvedValueOnce({
+  test('uses the normalized transcript duration as the waveform-backed audio hint', async () => {
+    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockResolvedValueOnce({
       id: 'p1',
-      title: 'Test Project',
+      title: 'Test Transcript',
       status: 'completed',
       duration_seconds: 78,
       waveform_status: 'ready',
@@ -380,8 +380,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
   })
 
-  test('renders segments normally when project metadata fetch fails silently', async () => {
-    ;(supabaseQueries.fetchProjectById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
+  test('renders segments normally when transcript metadata fetch fails silently', async () => {
+    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
 
     renderEditorScreen()
 
@@ -673,7 +673,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('makes consecutive same-speaker reassignment reachable by keyboard', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce([
-      { id: 'sp1', project_id: 'p1', label: 'Alice', color: null, created_at: '2024-01-01T00:00:00Z' },
+      { id: 'sp1', transcript_id: 'p1', label: 'Alice', color: null, created_at: '2024-01-01T00:00:00Z' },
     ])
 
     renderEditorScreen()
@@ -793,9 +793,9 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
-        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
-        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', transcript_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', transcript_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', transcript_id: 'p1', speaker_id: null },
       ],
     })
 
@@ -879,9 +879,9 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('mini scrub clears transcript click lock before previewing a new segment', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
-        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
-        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', project_id: 'p1', speaker_id: null },
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', transcript_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', transcript_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 6000, text: 'three', transcript_id: 'p1', speaker_id: null },
       ],
     })
 
@@ -905,8 +905,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('scrub end performs a final follow correction even when the active segment does not change', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', project_id: 'p1', speaker_id: null },
-        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', project_id: 'p1', speaker_id: null },
+        { id: 's1', start_ms: 0, end_ms: 2000, text: 'one', transcript_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 4000, text: 'two', transcript_id: 'p1', speaker_id: null },
       ],
     })
 
@@ -970,9 +970,9 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('active segment lookup stays on the earliest overlapping segment', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [
-        { id: 's1', start_ms: 0, end_ms: 10000, text: 'long', project_id: 'p1', speaker_id: null },
-        { id: 's2', start_ms: 2000, end_ms: 3000, text: 'short one', project_id: 'p1', speaker_id: null },
-        { id: 's3', start_ms: 4000, end_ms: 5000, text: 'short two', project_id: 'p1', speaker_id: null },
+        { id: 's1', start_ms: 0, end_ms: 10000, text: 'long', transcript_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 2000, end_ms: 3000, text: 'short one', transcript_id: 'p1', speaker_id: null },
+        { id: 's3', start_ms: 4000, end_ms: 5000, text: 'short two', transcript_id: 'p1', speaker_id: null },
       ],
     })
 

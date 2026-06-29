@@ -59,7 +59,7 @@ describe('recorder-failure salvage policy', () => {
   test('track end above the empty floor auto-submits with a banner', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'p1',
+      transcriptId: 'p1',
       outcome: 'started',
     })
     const now = jest.spyOn(Date, 'now')
@@ -99,7 +99,7 @@ describe('recorder-failure salvage policy', () => {
   test('recorder error above the empty floor auto-submits with a banner', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'p-recorder-error',
+      transcriptId: 'p-recorder-error',
       outcome: 'started',
     })
     const now = jest.spyOn(Date, 'now')
@@ -126,7 +126,7 @@ describe('recorder-failure salvage policy', () => {
   test('sustained mute above the floor salvages after the debounce', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'p2',
+      transcriptId: 'p2',
       outcome: 'started',
     })
     const now = jest.spyOn(Date, 'now')

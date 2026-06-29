@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     try {
         const supabase = createAdminClient();
         const queryStart = Date.now();
-        const { error } = await supabase.from("projects").select("id").limit(1);
+        const { error } = await supabase.from("transcripts").select("id").limit(1);
         supabaseLatencyMs = Date.now() - queryStart;
 
         if (error) {

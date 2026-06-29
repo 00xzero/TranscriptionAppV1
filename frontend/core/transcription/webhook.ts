@@ -22,31 +22,31 @@ export type WebhookHandleResult =
 
 export async function persistWebhookFailure(params: {
     supabase: SupabaseClient
-    projectId?: string | null
+    transcriptId?: string | null
     requestId?: string | null
     message: string
 }): Promise<void> {
     const { supabase } = params
-    let resolvedProjectId = params.projectId || null
+    let resolvedTranscriptId = params.transcriptId || null
     let resolvedJobId: string | null = null
 
-    if (!resolvedProjectId && params.requestId) {
+    if (!resolvedTranscriptId && params.requestId) {
         const { data: jobByRequest } = await supabase
             .from('jobs')
-            .select('id, project_id')
+            .select('id, transcript_id')
             .eq('inngest_event_id', params.requestId)
             .maybeSingle()
         if (jobByRequest) {
-            resolvedProjectId = jobByRequest.project_id
+            resolvedTranscriptId = jobByRequest.transcript_id
             resolvedJobId = jobByRequest.id
         }
     }
 
-    if (resolvedProjectId && !resolvedJobId) {
+    if (resolvedTranscriptId && !resolvedJobId) {
         const { data: fallbackJob } = await supabase
             .from('jobs')
             .select('id')
-            .eq('project_id', resolvedProjectId)
+            .eq('transcript_id', resolvedTranscriptId)
             .in('status', ['queued', 'processing'])
             .order('created_at', { ascending: false })
             .limit(1)
@@ -72,25 +72,25 @@ export async function persistWebhookFailure(params: {
             },
             context: 'persistWebhookFailure',
         })
-    } else if (resolvedProjectId) {
+    } else if (resolvedTranscriptId) {
         const { error: insertError } = await supabase
             .from('failed_events')
             .insert({
                 event_name: 'deepgram/webhook_failure',
-                event_data: { projectId: resolvedProjectId, requestId: params.requestId },
+                event_data: { transcriptId: resolvedTranscriptId, requestId: params.requestId },
                 error_message: params.message,
-                project_id: resolvedProjectId,
+                transcript_id: resolvedTranscriptId,
             })
         if (insertError) {
             console.error('[webhook] Failed to insert failed_event:', insertError)
         }
 
-        const { error: projectError } = await supabase
-            .from('projects')
+        const { error: transcriptError } = await supabase
+            .from('transcripts')
             .update({ status: 'error' })
-            .eq('id', resolvedProjectId)
-        if (projectError) {
-            console.error('[webhook] Failed to update project error status:', projectError)
+            .eq('id', resolvedTranscriptId)
+        if (transcriptError) {
+            console.error('[webhook] Failed to update transcript error status:', transcriptError)
         }
     }
 }
@@ -98,10 +98,10 @@ export async function persistWebhookFailure(params: {
 export async function handleDeepgramWebhook(opts: {
     supabase: SupabaseClient
     requestId: string
-    projectId: string
+    transcriptId: string
     payload: DeepgramWebhookPayload
 }): Promise<WebhookHandleResult & { attemptId?: string }> {
-    const { supabase, requestId, projectId, payload } = opts
+    const { supabase, requestId, transcriptId, payload } = opts
 
     // Claim idempotency receipt
     const myAttemptId = randomUUID()
@@ -111,7 +111,7 @@ export async function handleDeepgramWebhook(opts: {
         .insert({
             provider: 'deepgram',
             request_id: requestId,
-            project_id: projectId,
+            transcript_id: transcriptId,
             attempt_id: myAttemptId,
             claimed_at: new Date().toISOString(),
         })
@@ -194,7 +194,7 @@ export async function handleDeepgramWebhook(opts: {
     const { data: exactJob, error: exactJobError } = await supabase
         .from('jobs')
         .select('id')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
         .eq('inngest_event_id', requestId)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -212,7 +212,7 @@ export async function handleDeepgramWebhook(opts: {
         const { data: fallbackJob, error: fallbackJobError } = await supabase
             .from('jobs')
             .select('id')
-            .eq('project_id', projectId)
+            .eq('transcript_id', transcriptId)
             .in('status', ['queued', 'processing'])
             .order('created_at', { ascending: false })
             .limit(1)
@@ -228,10 +228,10 @@ export async function handleDeepgramWebhook(opts: {
     }
 
     if (!jobIdToUpdate) {
-        console.error('[webhook] No job found to persist payload', { projectId, requestId })
+        console.error('[webhook] No job found to persist payload', { transcriptId, requestId })
         await persistWebhookFailure({
             supabase,
-            projectId,
+            transcriptId,
             requestId,
             message: 'Deepgram webhook received but job was not found.',
         })
@@ -258,7 +258,7 @@ export async function handleDeepgramWebhook(opts: {
     try {
         await sendInngestEvent({
             name: 'transcription/webhook',
-            data: { requestId, projectId },
+            data: { requestId, transcriptId },
         })
     } catch (sendError) {
         const message = sendError instanceof Error ? sendError.message : String(sendError)

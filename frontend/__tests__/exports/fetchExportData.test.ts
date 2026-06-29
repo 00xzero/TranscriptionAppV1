@@ -7,10 +7,10 @@ jest.mock('../../lib/supabase/queries', () => ({
 
 const mockPaginateAllRows = paginateAllRows as jest.MockedFunction<typeof paginateAllRows>
 
-const makeProjectQuery = jest.fn((project: unknown, error: unknown = null) => ({
+const makeTranscriptQuery = jest.fn((transcript: unknown, error: unknown = null) => ({
   select: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
-  single: jest.fn().mockResolvedValue({ data: project, error }),
+  single: jest.fn().mockResolvedValue({ data: transcript, error }),
 }))
 
 const makeSpeakersQuery = jest.fn((speakers: unknown[] | null, error: unknown = null) => ({
@@ -31,7 +31,7 @@ describe('fetchExportData', () => {
   })
 
   it('reads from segments, preserves order, and maps to export segments', async () => {
-    const project = {
+    const transcript = {
       id: 'p1',
       title: 'Transcript',
       created_at: '2024-01-01T00:00:00Z',
@@ -49,7 +49,7 @@ describe('fetchExportData', () => {
     mockPaginateAllRows.mockResolvedValueOnce(segments as any)
 
     const from = jest.fn((table: string) => {
-      if (table === 'projects') return makeProjectQuery(project)
+      if (table === 'transcripts') return makeTranscriptQuery(transcript)
       if (table === 'speakers') return makeSpeakersQuery(speakers)
       throw new Error(`Unexpected table ${table}`)
     })
@@ -71,7 +71,7 @@ describe('fetchExportData', () => {
       throw new Error('Expected success result')
     }
 
-    expect(from).toHaveBeenCalledWith('projects')
+    expect(from).toHaveBeenCalledWith('transcripts')
     expect(from).toHaveBeenCalledWith('speakers')
     expect(from).not.toHaveBeenCalledWith('chunks')
     expect(mockPaginateAllRows).toHaveBeenCalledWith(supabase, 'segments', 'p1', 'start_ms')
@@ -107,13 +107,13 @@ describe('fetchExportData', () => {
     expect(supabase.auth.getUser).toHaveBeenCalledTimes(1)
     expect(from).not.toHaveBeenCalled()
     expect(mockPaginateAllRows).not.toHaveBeenCalled()
-    expect(makeProjectQuery).not.toHaveBeenCalled()
+    expect(makeTranscriptQuery).not.toHaveBeenCalled()
     expect(makeSpeakersQuery).not.toHaveBeenCalled()
   })
 
-  it('returns not found when the project query returns no rows', async () => {
+  it('returns not found when the transcript query returns no rows', async () => {
     const from = jest.fn((table: string) => {
-      if (table === 'projects') return makeProjectQuery(null)
+      if (table === 'transcripts') return makeTranscriptQuery(null)
       throw new Error(`Unexpected table ${table}`)
     })
 
@@ -131,17 +131,17 @@ describe('fetchExportData', () => {
 
     expect(result).toEqual({
       success: false,
-      error: { error: 'Project not found', status: 404 },
+      error: { error: 'Transcript not found', status: 404 },
     })
     expect(from).toHaveBeenCalledTimes(1)
-    expect(from).toHaveBeenCalledWith('projects')
+    expect(from).toHaveBeenCalledWith('transcripts')
     expect(mockPaginateAllRows).not.toHaveBeenCalled()
-    expect(makeProjectQuery).toHaveBeenCalledWith(null)
+    expect(makeTranscriptQuery).toHaveBeenCalledWith(null)
     expect(makeSpeakersQuery).not.toHaveBeenCalled()
   })
 
   it('returns a transcript fetch error when segment pagination rejects', async () => {
-    const project = {
+    const transcript = {
       id: 'p1',
       title: 'Transcript',
       created_at: '2024-01-01T00:00:00Z',
@@ -151,7 +151,7 @@ describe('fetchExportData', () => {
     mockPaginateAllRows.mockRejectedValueOnce(new Error('segments failed'))
 
     const from = jest.fn((table: string) => {
-      if (table === 'projects') return makeProjectQuery(project)
+      if (table === 'transcripts') return makeTranscriptQuery(transcript)
       throw new Error(`Unexpected table ${table}`)
     })
 
@@ -172,10 +172,10 @@ describe('fetchExportData', () => {
       error: { error: 'Failed to fetch transcript data', status: 500 },
     })
     expect(from).toHaveBeenCalledTimes(1)
-    expect(from).toHaveBeenCalledWith('projects')
+    expect(from).toHaveBeenCalledWith('transcripts')
     expect(from).not.toHaveBeenCalledWith('speakers')
     expect(mockPaginateAllRows).toHaveBeenCalledWith(supabase, 'segments', 'p1', 'start_ms')
-    expect(makeProjectQuery).toHaveBeenCalledWith(project)
+    expect(makeTranscriptQuery).toHaveBeenCalledWith(transcript)
     expect(makeSpeakersQuery).not.toHaveBeenCalled()
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error fetching segments:',
@@ -184,7 +184,7 @@ describe('fetchExportData', () => {
   })
 
   it('returns a speaker fetch error when the speakers query fails', async () => {
-    const project = {
+    const transcript = {
       id: 'p1',
       title: 'Transcript',
       created_at: '2024-01-01T00:00:00Z',
@@ -195,7 +195,7 @@ describe('fetchExportData', () => {
     mockPaginateAllRows.mockResolvedValueOnce([])
 
     const from = jest.fn((table: string) => {
-      if (table === 'projects') return makeProjectQuery(project)
+      if (table === 'transcripts') return makeTranscriptQuery(transcript)
       if (table === 'speakers') return makeSpeakersQuery(null, speakersError)
       throw new Error(`Unexpected table ${table}`)
     })
@@ -217,10 +217,10 @@ describe('fetchExportData', () => {
       error: { error: 'Failed to fetch speaker data', status: 500 },
     })
     expect(from).toHaveBeenCalledTimes(2)
-    expect(from).toHaveBeenCalledWith('projects')
+    expect(from).toHaveBeenCalledWith('transcripts')
     expect(from).toHaveBeenCalledWith('speakers')
     expect(mockPaginateAllRows).toHaveBeenCalledWith(supabase, 'segments', 'p1', 'start_ms')
-    expect(makeProjectQuery).toHaveBeenCalledWith(project)
+    expect(makeTranscriptQuery).toHaveBeenCalledWith(transcript)
     expect(makeSpeakersQuery).toHaveBeenCalledWith(null, speakersError)
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       'Error fetching speakers:',
