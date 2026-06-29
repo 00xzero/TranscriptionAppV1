@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Soniox Async Transcription — POC</title>
+<style>
+  :root {
+    --paper: #faf8f4;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #e2ddd3;
+    --blue: #2f6fed;
+    --blue-soft: #eaf0fe;
+    --red: #c0392b;
+    --green: #2e7d4f;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+  input[type="text"], input[type="password"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--ink);
+  }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 200px; }
+  .field { margin-bottom: 16px; }
+  .checkbox { display: flex; align-items: center; gap: 8px; margin-top: 26px; }
+  .checkbox input { width: 16px; height: 16px; }
+  .checkbox label { margin: 0; }
+  .drop {
+    border: 2px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 28px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop.dragover { border-color: var(--blue); background: var(--blue-soft); }
+  .drop strong { color: var(--ink); }
+  .filename { margin-top: 10px; font-size: 13px; color: var(--ink); }
+  button {
+    font-size: 14px; font-weight: 600;
+    padding: 11px 20px; border-radius: 8px; border: none;
+    cursor: pointer; background: var(--blue); color: #fff;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--blue); border: 1px solid var(--line); }
+  .actions { display: flex; gap: 12px; align-items: center; }
+  .log {
+    font-family: "SF Mono", Menlo, monospace; font-size: 12px;
+    background: #1e1e1e; color: #d4d4d4; border-radius: 8px;
+    padding: 14px; max-height: 200px; overflow: auto; white-space: pre-wrap;
+  }
+  .log .ok { color: #6ee7a8; }
+  .log .err { color: #ff8a80; }
+  .log .dim { color: #888; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+  .tab {
+    background: transparent; color: var(--muted); border: none;
+    border-bottom: 2px solid transparent; border-radius: 0;
+    padding: 8px 14px; font-weight: 600;
+  }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .pane { display: none; }
+  .pane.active { display: block; }
+  .transcript { font-size: 16px; line-height: 1.7; white-space: pre-wrap; }
+  .turn { margin-bottom: 14px; }
+  .turn-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .speaker-tag {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    color: var(--blue); background: var(--blue-soft);
+    padding: 1px 8px; border-radius: 999px;
+  }
+  .ts { font-family: "SF Mono", Menlo, monospace; font-size: 12px; color: var(--muted); }
+  .raw-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  button.copy { background: transparent; color: var(--blue); border: 1px solid var(--line); padding: 6px 12px; font-size: 12px; }
+  button.copy.copied { color: var(--green); border-color: var(--green); }
+  pre.raw {
+    font-family: "SF Mono", Menlo, monospace; font-size: 12px;
+    background: #f4f1ea; border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px; overflow: auto; max-height: 480px;
+  }
+  .meta { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .badge.queued { background:#fdf3e0; color:#9a6b00; }
+  .badge.processing { background: var(--blue-soft); color: var(--blue); }
+  .badge.completed { background:#e4f5ea; color: var(--green); }
+  .badge.error { background:#fbe6e3; color: var(--red); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Soniox Async Transcription — POC</h1>
+  <div class="sub">Upload a media file → Soniox async API → pretty-printed transcript. Local proof of concept only.</div>
+
+  <div class="card">
+    <div class="field">
+      <label for="apiKey">Soniox API key <span class="hint">paste here, or hardcode <code>API_KEY</code> in the &lt;script&gt; below</span></label>
+      <input type="password" id="apiKey" placeholder="Bearer token — paste temp key" autocomplete="off" />
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="model">Model</label>
+        <input type="text" id="model" value="stt-async-preview" />
+      </div>
+      <div class="field">
+        <label for="langHints">Language hints <span class="hint">comma-separated, optional</span></label>
+        <input type="text" id="langHints" placeholder="en, es" />
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="apiBase">API base <span class="hint">direct, or proxy (e.g. http://localhost:8787)</span></label>
+        <input type="text" id="apiBase" value="https://api.soniox.com" />
+      </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="diarize" checked />
+        <label for="diarize">Speaker diarization</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="drop" id="drop">
+      <strong>Click to choose</strong> or drag &amp; drop an audio/video file
+      <div class="hint" style="margin-top:6px">mp3, wav, m4a, mp4, webm, flac, ogg…</div>
+      <div class="filename" id="filename"></div>
+    </div>
+    <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none" />
+    <div class="actions" style="margin-top:16px">
+      <button id="startBtn" disabled>Transcribe</button>
+      <span id="statusBadge"></span>
+    </div>
+  </div>
+
+  <div class="card" id="logCard" style="display:none">
+    <label>Activity log</label>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="meta" id="resultMeta"></div>
+    <div class="tabs">
+      <button class="tab active" data-pane="bySpeaker">By speaker</button>
+      <button class="tab" data-pane="plain">Plain text</button>
+      <button class="tab" data-pane="raw">Raw JSON</button>
+    </div>
+    <div class="pane active" id="pane-bySpeaker"><div class="transcript" id="bySpeaker"></div></div>
+    <div class="pane" id="pane-plain"><div class="transcript" id="plain"></div></div>
+    <div class="pane" id="pane-raw">
+      <div class="raw-head">
+        <span class="hint">Full API response</span>
+        <button class="copy" id="copyRaw">Copy JSON</button>
+      </div>
+      <pre class="raw" id="raw"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── Optionally hardcode your temp key here instead of typing it in the UI ──
+  const API_KEY = ""; // e.g. "sox_live_..." — leave "" to use the input field
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const $ = (id) => document.getElementById(id);
+  if (API_KEY) $("apiKey").value = API_KEY;
+
+  let selectedFile = null;
+
+  // ---- file selection ----
+  const drop = $("drop");
+  $("fileInput").addEventListener("change", (e) => setFile(e.target.files[0]));
+  drop.addEventListener("click", () => $("fileInput").click());
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("dragover"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault(); drop.classList.remove("dragover");
+    setFile(e.dataTransfer.files[0]);
+  });
+  function setFile(f) {
+    if (!f) return;
+    selectedFile = f;
+    $("filename").textContent = `${f.name} · ${(f.size / 1024 / 1024).toFixed(2)} MB`;
+    $("startBtn").disabled = false;
+  }
+
+  // ---- tabs ----
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+    document.querySelectorAll(".pane").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    $("pane-" + t.dataset.pane).classList.add("active");
+  }));
+
+  // ---- logging ----
+  function log(msg, cls = "") {
+    $("logCard").style.display = "block";
+    const line = document.createElement("div");
+    if (cls) line.className = cls;
+    line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    $("log").appendChild(line);
+    $("log").scrollTop = $("log").scrollHeight;
+  }
+  function setBadge(status) {
+    $("statusBadge").innerHTML = status ? `<span class="badge ${status}">${status}</span>` : "";
+  }
+
+  // ---- API helpers ----
+  function base() { return $("apiBase").value.replace(/\/$/, ""); }
+  function authHeaders() { return { Authorization: `Bearer ${$("apiKey").value.trim()}` }; }
+
+  async function apiFetch(path, opts = {}) {
+    let res;
+    try {
+      res = await fetch(base() + path, opts);
+    } catch (e) {
+      // A bare TypeError here almost always means CORS or network — the API
+      // didn't return permissive CORS headers for a browser origin.
+      throw new Error(
+        `Network/CORS failure calling ${path}. If this is a CORS block, run the ` +
+        `included proxy.js and set "API base" to its URL. (${e.message})`
+      );
+    }
+    if (!res.ok) {
+      let detail = "";
+      try { detail = JSON.stringify(await res.json()); } catch { detail = await res.text().catch(() => ""); }
+      throw new Error(`${path} → ${res.status} ${res.statusText} ${detail}`);
+    }
+    return res.status === 204 ? null : res.json();
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---- main flow ----
+  $("startBtn").addEventListener("click", run);
+
+  async function run() {
+    if (!$("apiKey").value.trim()) { alert("Paste your Soniox API key first."); return; }
+    if (!selectedFile) return;
+
+    $("startBtn").disabled = true;
+    $("resultCard").style.display = "none";
+    $("log").innerHTML = "";
+    setBadge("");
+
+    try {
+      // 1) upload file
+      log(`Uploading "${selectedFile.name}" (${(selectedFile.size/1024/1024).toFixed(2)} MB)…`);
+      const form = new FormData();
+      form.append("file", selectedFile);
+      const fileRes = await apiFetch("/v1/files", { method: "POST", headers: authHeaders(), body: form });
+      log(`Uploaded. file_id = ${fileRes.id}`, "ok");
+
+      // 2) create transcription
+      const body = {
+        file_id: fileRes.id,
+        model: $("model").value.trim() || "stt-async-preview",
+        enable_speaker_diarization: $("diarize").checked,
+      };
+      const hints = $("langHints").value.split(",").map(s => s.trim()).filter(Boolean);
+      if (hints.length) body.language_hints = hints;
+
+      log(`Creating transcription (model=${body.model}, diarization=${body.enable_speaker_diarization})…`);
+      const job = await apiFetch("/v1/transcriptions", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      log(`Job created. id = ${job.id}`, "ok");
+
+      // 3) poll until completed/error
+      let status = job.status;
+      setBadge(status);
+      let current = job;
+      const t0 = Date.now();
+      while (status === "queued" || status === "processing") {
+        await sleep(2500);
+        current = await apiFetch(`/v1/transcriptions/${job.id}`, { headers: authHeaders() });
+        status = current.status;
+        setBadge(status);
+        log(`status: ${status} (${((Date.now()-t0)/1000).toFixed(0)}s)`, "dim");
+      }
+
+      if (status === "error") {
+        throw new Error(`Transcription failed: ${current.error_type || ""} ${current.error_message || ""}`);
+      }
+
+      // 4) fetch transcript
+      log("Fetching transcript…");
+      const transcript = await apiFetch(`/v1/transcriptions/${job.id}/transcript`, { headers: authHeaders() });
+      log("Done.", "ok");
+
+      render(current, transcript);
+    } catch (e) {
+      log(e.message, "err");
+      setBadge("error");
+    } finally {
+      $("startBtn").disabled = false;
+    }
+  }
+
+  // ---- rendering ----
+  function render(meta, transcript) {
+    $("resultCard").style.display = "block";
+
+    const durSec = meta.audio_duration_ms ? (meta.audio_duration_ms / 1000).toFixed(1) + "s" : "—";
+    $("resultMeta").textContent =
+      `model: ${meta.model} · duration: ${durSec} · tokens: ${(transcript.tokens || []).length}`;
+
+    const tokens = transcript.tokens || [];
+
+    // plain text — Soniox token.text already carries spacing
+    const plainText = transcript.text || tokens.map(t => t.text).join("");
+    $("plain").textContent = plainText.trim() || "(empty)";
+
+    // group consecutive tokens by speaker, tracking turn time span
+    const turns = [];
+    let cur = null;
+    for (const tk of tokens) {
+      const spk = tk.speaker ?? null;
+      if (!cur || cur.speaker !== spk) {
+        cur = { speaker: spk, text: "", startMs: tk.start_ms, endMs: tk.end_ms };
+        turns.push(cur);
+      }
+      cur.text += tk.text;
+      if (tk.start_ms != null && (cur.startMs == null || tk.start_ms < cur.startMs)) cur.startMs = tk.start_ms;
+      if (tk.end_ms != null) cur.endMs = tk.end_ms;
+    }
+    const bySpeaker = $("bySpeaker");
+    bySpeaker.innerHTML = "";
+    if (turns.length === 0) {
+      bySpeaker.textContent = "(empty)";
+    } else {
+      for (const turn of turns) {
+        const div = document.createElement("div");
+        div.className = "turn";
+        const tag = turn.speaker != null ? `Speaker ${turn.speaker}` : "Speaker —";
+        const span = turn.startMs != null ? `${fmtTime(turn.startMs)} – ${fmtTime(turn.endMs)}` : "";
+        div.innerHTML =
+          `<div class="turn-head"><span class="speaker-tag">${tag}</span><span class="ts">${span}</span></div>` +
+          `<div>${escapeHtml(turn.text.trim())}</div>`;
+        bySpeaker.appendChild(div);
+      }
+    }
+
+    // raw
+    $("raw").textContent = JSON.stringify({ transcription: meta, transcript }, null, 2);
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+
+  function fmtTime(ms) {
+    if (ms == null) return "—";
+    const total = Math.floor(ms / 1000);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  // ---- copy raw JSON ----
+  $("copyRaw").addEventListener("click", async () => {
+    const btn = $("copyRaw");
+    try {
+      await navigator.clipboard.writeText($("raw").textContent);
+      btn.textContent = "Copied!";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "Copy JSON"; btn.classList.remove("copied"); }, 1500);
+    } catch {
+      // clipboard API needs a secure context / user gesture; fall back to select
+      const range = document.createRange();
+      range.selectNodeContents($("raw"));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  });
+</script>
+</body>
+</html>

@@ -14,6 +14,12 @@
       "runtimeArgs": ["next", "dev", "-p", "3100"],
       "cwd": "frontend",
       "port": 3100
+    },
+    {
+      "name": "soniox-poc",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "-l", "8123", "soniox-poc"],
+      "port": 8123
     }
   ]
 }
