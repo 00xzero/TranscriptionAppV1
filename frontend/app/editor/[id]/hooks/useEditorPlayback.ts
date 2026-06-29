@@ -3,7 +3,7 @@ import type { AudioPlayerRef } from '@/components/AudioPlayer'
 import { useAudioSessionRecovery } from '@/hooks/useAudioSessionRecovery'
 
 export function useEditorPlayback({
-  projectId,
+  transcriptId,
   audioSrc,
   setAudioSrc,
   setStatus,
@@ -16,7 +16,7 @@ export function useEditorPlayback({
   setWaveformCollapsed,
   shouldCollapseWaveform,
 }: {
-  projectId: string
+  transcriptId: string
   audioSrc: string | null
   setAudioSrc: (src: string | null) => void
   setStatus: (status: string) => void
@@ -48,7 +48,7 @@ export function useEditorPlayback({
   }, [])
 
   useAudioSessionRecovery({
-    projectId,
+    transcriptId,
     audioSrc,
     audioElement,
     onUrlRefreshed: (newUrl) => setAudioSrc(newUrl),

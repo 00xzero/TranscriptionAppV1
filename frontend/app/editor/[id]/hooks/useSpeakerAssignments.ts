@@ -34,13 +34,13 @@ function createStableMeasurable(el: HTMLElement): Measurable {
 }
 
 export function useSpeakerAssignments({
-  projectId,
+  transcriptId,
   speakers,
   setSpeakers,
   setSegments,
   reloadTranscript,
 }: {
-  projectId: string
+  transcriptId: string
   speakers: Speaker[]
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
   setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
@@ -134,7 +134,7 @@ export function useSpeakerAssignments({
     let newSpeaker: Speaker | null = null
 
     try {
-      const createdSpeaker = await createSpeaker(projectId, label)
+      const createdSpeaker = await createSpeaker(transcriptId, label)
       newSpeaker = createdSpeaker
 
       await updateSegment(segmentId, { speaker_id: createdSpeaker.id })
@@ -151,7 +151,7 @@ export function useSpeakerAssignments({
         }
       }
     }
-  }, [closeSpeakerPopover, speakerPopover, projectId, setSpeakers, setSegments])
+  }, [closeSpeakerPopover, speakerPopover, transcriptId, setSpeakers, setSegments])
 
   const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
     setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))

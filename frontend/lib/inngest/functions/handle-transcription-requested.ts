@@ -4,7 +4,7 @@
  * Calls Deepgram async API and stores request_id.
  *
  * On failure (e.g., Deepgram API rejection), emits transcription/failed
- * so job/project status is updated and users see the error.
+ * so job/transcript status is updated and users see the error.
  */
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
@@ -37,20 +37,20 @@ export const handleTranscriptionRequested = inngest.createFunction(
         onFailure: async ({ event, error }) => {
             // When retries are exhausted, emit failure event
             const originalEvent = event.data.event;
-            const { projectId, jobId } = originalEvent.data;
+            const { transcriptId, jobId } = originalEvent.data;
             const errorMessage = error.message || String(error);
 
-            console.error(`[inngest] Transcription request failed for project ${projectId}:`, errorMessage);
+            console.error(`[inngest] Transcription request failed for transcript ${transcriptId}:`, errorMessage);
 
             // Classify error to detect keyterm issues
             const classified = classifyError(errorMessage);
 
-            // Emit transcription/failed to update job/project status
+            // Emit transcription/failed to update job/transcript status
             try {
                 await sendInngestEvent({
                     name: "transcription/failed",
                     data: {
-                        projectId,
+                        transcriptId,
                         jobId,
                         error: errorMessage,
                         errorType: classified.type,
@@ -65,7 +65,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
                     raw_error: errorMessage.slice(0, 500),
                 };
                 await writeTranscriptionFailureFallback({
-                    projectId,
+                    transcriptId,
                     jobId,
                     payload,
                     context: "onFailure",
@@ -74,9 +74,9 @@ export const handleTranscriptionRequested = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { projectId, jobId, userId, mediaUrl, keyTerms } = event.data;
+        const { transcriptId, jobId, userId, mediaUrl, keyTerms } = event.data;
 
-        console.log(`[inngest] Transcription requested for project: ${projectId}`);
+        console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 
         // Step 1: Call Deepgram async API
         const result = await step.run("call-deepgram-async", async () => {
@@ -86,7 +86,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
             const response = await startAsyncTranscription({
                 mediaUrl,
                 callbackUrl,
-                projectId,
+                transcriptId,
                 keyTerms,
             });
 
@@ -97,7 +97,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
             return { requestId: response.requestId };
         });
 
-        // Step 2: Transition job to processing (project status derived by trigger)
+        // Step 2: Transition job to processing (transcript status derived by trigger)
         await step.run("update-job-status", async () => {
             const supabase = createAdminClient();
 
@@ -126,7 +126,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
 
         return {
             status: "processing",
-            projectId,
+            transcriptId,
             jobId,
             requestId: result.requestId,
         };

@@ -2,17 +2,17 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
-import type { Project } from '../contracts/db'
+import type { Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
 
 const mockGetUser = jest.fn()
-const mockDeleteProject = jest.fn()
-const mockUseProjectsRealtime = jest.fn()
+const mockDeleteTranscript = jest.fn()
+const mockUseTranscriptsRealtime = jest.fn()
 
-const makeProject = (overrides: Partial<Project> = {}): Project => ({
+const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   id: '11111111-1111-1111-1111-111111111111',
   user_id: '22222222-2222-2222-2222-222222222222',
-  title: 'Project Alpha',
+  title: 'Transcript Alpha',
   status: 'completed',
   source_object_key: null,
   upload_intent_id: null,
@@ -35,7 +35,7 @@ jest.mock('@/infra/supabase/client', () => ({
 }))
 
 jest.mock('@/lib/supabase/hooks', () => ({
-  useProjectsRealtime: () => mockUseProjectsRealtime(),
+  useTranscriptsRealtime: () => mockUseTranscriptsRealtime(),
 }))
 
 jest.mock('next/link', () => {
@@ -65,11 +65,11 @@ describe('LibraryView', () => {
       data: { user: null },
       error: null,
     })
-    mockDeleteProject.mockResolvedValue(undefined)
-    mockUseProjectsRealtime.mockReturnValue({
-      projects: [makeProject()],
+    mockDeleteTranscript.mockResolvedValue(undefined)
+    mockUseTranscriptsRealtime.mockReturnValue({
+      transcripts: [makeTranscript()],
       isLoading: false,
-      deleteProject: mockDeleteProject,
+      deleteTranscript: mockDeleteTranscript,
     })
   })
 
@@ -77,9 +77,9 @@ describe('LibraryView', () => {
     const user = userEventLib.setup()
     renderLibraryView()
 
-    await screen.findByText('Project Alpha')
+    await screen.findByText('Transcript Alpha')
 
-    await user.click(screen.getByRole('button', { name: /More options for Project Alpha/i }))
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
     expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
@@ -89,18 +89,18 @@ describe('LibraryView', () => {
     })
   })
 
-  test('calls deleteProject and closes the menu when delete is confirmed', async () => {
+  test('calls deleteTranscript and closes the menu when delete is confirmed', async () => {
     const user = userEventLib.setup()
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
 
     renderLibraryView()
-    await screen.findByText('Project Alpha')
+    await screen.findByText('Transcript Alpha')
 
-    await user.click(screen.getByRole('button', { name: /More options for Project Alpha/i }))
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
     await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
 
     await waitFor(() => {
-      expect(mockDeleteProject).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111')
+      expect(mockDeleteTranscript).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111')
     })
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
 
@@ -112,12 +112,12 @@ describe('LibraryView', () => {
     const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
 
     renderLibraryView()
-    await screen.findByText('Project Alpha')
+    await screen.findByText('Transcript Alpha')
 
-    await user.click(screen.getByRole('button', { name: /More options for Project Alpha/i }))
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
     await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
 
-    expect(mockDeleteProject).not.toHaveBeenCalled()
+    expect(mockDeleteTranscript).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
     })

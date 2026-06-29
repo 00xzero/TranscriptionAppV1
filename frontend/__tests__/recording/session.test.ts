@@ -219,7 +219,7 @@ describe('recording session singleton', () => {
     FakeMediaRecorder.autoDispatchStop = false
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
 
@@ -244,7 +244,7 @@ describe('recording session singleton', () => {
   test('stop requests a final recorder data flush before finalizing', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
 
@@ -565,7 +565,7 @@ describe('recording session singleton', () => {
   test('recorder errors above the salvage threshold submit captured audio', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-encoder-salvage',
+      transcriptId: 'transcript-encoder-salvage',
       outcome: 'started',
     })
     const now = jest.spyOn(Date, 'now')
@@ -596,7 +596,7 @@ describe('recording session singleton', () => {
       })
       .mockResolvedValueOnce({
         kind: 'success',
-        projectId: 'project-1',
+        transcriptId: 'transcript-1',
         outcome: 'started',
       })
 
@@ -631,7 +631,7 @@ describe('recording session singleton', () => {
       state: 'submitted',
       canRetryUpload: false,
       submissionResult: {
-        projectId: 'project-1',
+        transcriptId: 'transcript-1',
         outcome: 'started',
       },
     })
@@ -643,7 +643,7 @@ describe('recording session singleton', () => {
     let resolveUpload:
       | ((result: {
           kind: 'success'
-          projectId: string
+          transcriptId: string
           outcome: 'started'
         }) => void)
       | undefined
@@ -674,7 +674,7 @@ describe('recording session singleton', () => {
 
     resolveUpload?.({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
     await stopPromise
@@ -690,7 +690,7 @@ describe('recording session singleton', () => {
     let resolveUpload:
       | ((result: {
           kind: 'success'
-          projectId: string
+          transcriptId: string
           outcome: 'started'
         }) => void)
       | undefined
@@ -718,7 +718,7 @@ describe('recording session singleton', () => {
 
     resolveUpload?.({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
     await stopPromise
@@ -1112,7 +1112,7 @@ describe('recording session durability mirror', () => {
     installPersistence(new FailingChunkPersistence())
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
 
@@ -1169,7 +1169,7 @@ describe('recording session durability mirror', () => {
   test('successful submission clears the persisted session', async () => {
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-1',
+      transcriptId: 'transcript-1',
       outcome: 'started',
     })
 
@@ -1213,7 +1213,7 @@ describe('recording session durability mirror', () => {
     await persistence.putChunk(session.sessionId, 1, new Blob([new Uint8Array(4096)]))
     mockRunCaptureUpload.mockResolvedValue({
       kind: 'success',
-      projectId: 'project-recovered',
+      transcriptId: 'transcript-recovered',
       outcome: 'started',
     })
     __setSnapshotForTesting({
@@ -1244,7 +1244,7 @@ describe('recording session durability mirror', () => {
       state: 'submitted',
       recoverable: null,
       submissionResult: {
-        projectId: 'project-recovered',
+        transcriptId: 'transcript-recovered',
         outcome: 'started',
       },
     })

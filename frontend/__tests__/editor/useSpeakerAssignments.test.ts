@@ -49,7 +49,7 @@ function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
   return {
     id: 'sp1',
     label: 'Alice',
-    project_id: 'p1',
+    transcript_id: 'p1',
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     color: null,
@@ -60,7 +60,7 @@ function makeSpeaker(overrides: Partial<Speaker> = {}): Speaker {
 function makeSegment(overrides: Partial<Seg> = {}): Seg {
   return {
     id: 's1',
-    project_id: 'p1',
+    transcript_id: 'p1',
     speaker_id: 'sp1',
     start_ms: 0,
     end_ms: 5000,
@@ -85,7 +85,7 @@ function setup(overrides?: Partial<Parameters<typeof useSpeakerAssignments>[0]>)
   const reloadTranscript = jest.fn().mockResolvedValue(undefined)
 
   const defaultProps = {
-    projectId: 'p1',
+    transcriptId: 'p1',
     speakers: makeSpeakers(),
     setSpeakers,
     setSegments,

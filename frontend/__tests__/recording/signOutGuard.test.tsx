@@ -16,7 +16,7 @@ const toastMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
-  usePathname: () => '/projects',
+  usePathname: () => '/transcripts',
 }))
 
 jest.mock('@/components/ui/toaster', () => ({

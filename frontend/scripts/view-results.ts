@@ -1,5 +1,5 @@
 /**
- * View transcription results for a project
+ * View transcription results for a transcript
  * 
  * Run with: npx tsx --env-file=.env.local scripts/view-results.ts
  */
@@ -14,27 +14,27 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const PROJECT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
+const TRANSCRIPT_ID = "a6c35775-9001-4e5e-93db-f2675fc22265";
 const BATCH_SIZE = 500;
 
 async function main() {
-    console.log("📊 Transcription Results for project:", PROJECT_ID);
+    console.log("📊 Transcription Results for transcript:", TRANSCRIPT_ID);
 
-    // Get project
-    const { data: project } = await supabase
-        .from("projects")
+    // Get transcript
+    const { data: transcript } = await supabase
+        .from("transcripts")
         .select("id, title, status")
-        .eq("id", PROJECT_ID)
+        .eq("id", TRANSCRIPT_ID)
         .single();
 
-    console.log(`\nProject: ${project?.title}`);
-    console.log(`Status: ${project?.status}`);
+    console.log(`\nTranscript: ${transcript?.title}`);
+    console.log(`Status: ${transcript?.status}`);
 
     // Get speakers
     const { data: speakers } = await supabase
         .from("speakers")
         .select("id, label")
-        .eq("project_id", PROJECT_ID);
+        .eq("transcript_id", TRANSCRIPT_ID);
 
     console.log(`\nSpeakers: ${speakers?.length || 0}`);
     speakers?.forEach(s => console.log(`  - ${s.label}`));
@@ -43,7 +43,7 @@ async function main() {
     const { data: segments, error: segmentsError } = await supabase
         .from("segments")
         .select("id, speaker_id, start_ms, end_ms, text, is_filler, algo_version")
-        .eq("project_id", PROJECT_ID);
+        .eq("transcript_id", TRANSCRIPT_ID);
     if (segmentsError) {
         throw segmentsError;
     }
@@ -69,7 +69,7 @@ async function main() {
 
     // Save results
     const results = {
-        project: project,
+        transcript: transcript,
         stats: {
             segmentCount,
             wordCount,
@@ -86,7 +86,7 @@ async function main() {
         })),
     };
 
-    const outputPath = `scripts/transcription-results-${PROJECT_ID}.json`;
+    const outputPath = `scripts/transcription-results-${TRANSCRIPT_ID}.json`;
     fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
     console.log(`\n💾 Full results saved to: ${outputPath}`);
 

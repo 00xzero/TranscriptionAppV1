@@ -22,11 +22,11 @@ export type StartTranscriptionResult =
 
 export async function startTranscription(opts: {
     supabase: SupabaseClient
-    projectId: string
+    transcriptId: string
     userId: string
     idempotencyKey: string | null
 }): Promise<StartTranscriptionResult> {
-    const { supabase, projectId, userId, idempotencyKey } = opts
+    const { supabase, transcriptId, userId, idempotencyKey } = opts
 
     // Rate limiting
     const rateLimitMode =
@@ -47,18 +47,18 @@ export async function startTranscription(opts: {
         }
     }
 
-    // Fetch project (RLS ensures ownership)
-    const { data: project, error: projectError } = await supabase
-        .from('projects')
+    // Fetch transcript (RLS ensures ownership)
+    const { data: transcript, error: transcriptError } = await supabase
+        .from('transcripts')
         .select('id, source_object_key, status')
-        .eq('id', projectId)
+        .eq('id', transcriptId)
         .single()
 
-    if (projectError || !project) {
-        return { outcome: 'invalid', reason: 'Project not found' }
+    if (transcriptError || !transcript) {
+        return { outcome: 'invalid', reason: 'Transcript not found' }
     }
 
-    if (!project.source_object_key) {
+    if (!transcript.source_object_key) {
         return { outcome: 'invalid', reason: 'No media file uploaded' }
     }
 
@@ -67,7 +67,7 @@ export async function startTranscription(opts: {
         const { data: existingJob, error: lookupError } = await supabase
             .from('jobs')
             .select('id, status')
-            .eq('project_id', projectId)
+            .eq('transcript_id', transcriptId)
             .eq('idempotency_key', idempotencyKey)
             .maybeSingle()
 
@@ -83,7 +83,7 @@ export async function startTranscription(opts: {
     }
 
     // Reject if already in-flight
-    if (project.status === 'processing' || project.status === 'queued') {
+    if (transcript.status === 'processing' || transcript.status === 'queued') {
         return { outcome: 'conflict' }
     }
 
@@ -91,13 +91,13 @@ export async function startTranscription(opts: {
     const { data: keyTerms, error: keyTermsError } = await supabase
         .from('watchlist')
         .select('term')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
     if (keyTermsError) {
         console.warn('[startTranscription] Failed to fetch key terms; proceeding without them:', keyTermsError.message)
     }
 
     // Get media URL for Deepgram (handles proxy/rewrite env logic)
-    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, project.source_object_key)
+    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key)
     if (mediaUrlResult.error || !mediaUrlResult.url) {
         return { outcome: 'error', reason: mediaUrlResult.error ?? 'Failed to generate media URL' }
     }
@@ -107,7 +107,7 @@ export async function startTranscription(opts: {
     const { data: job, error: jobError } = await supabase
         .from('jobs')
         .insert({
-            project_id: projectId,
+            transcript_id: transcriptId,
             status: 'queued',
             type: 'transcription',
             ...(idempotencyKey && { idempotency_key: idempotencyKey }),
@@ -116,12 +116,12 @@ export async function startTranscription(opts: {
         .single()
 
     if (jobError) {
-        // Handle unique index violation (one active transcription per project)
-        if (jobError.code === '23505' && jobError.message?.includes('idx_jobs_one_active_per_project')) {
+        // Handle unique index violation (one active transcription per transcript)
+        if (jobError.code === '23505' && jobError.message?.includes('idx_jobs_one_active_per_transcript')) {
             const { data: activeJob } = await supabase
                 .from('jobs')
                 .select('id, status')
-                .eq('project_id', projectId)
+                .eq('transcript_id', transcriptId)
                 .in('status', ['queued', 'processing'])
                 .limit(1)
                 .maybeSingle()
@@ -135,7 +135,7 @@ export async function startTranscription(opts: {
             const { data: existingJob } = await supabase
                 .from('jobs')
                 .select('id, status')
-                .eq('project_id', projectId)
+                .eq('transcript_id', transcriptId)
                 .eq('idempotency_key', idempotencyKey)
                 .maybeSingle()
             if (existingJob) {
@@ -152,13 +152,13 @@ export async function startTranscription(opts: {
         return { outcome: 'error', reason: 'Failed to create job' }
     }
 
-    // Project status is derived by the DB trigger from job INSERT.
+    // Transcript status is derived by the DB trigger from job INSERT.
 
     try {
         await sendInngestEvent({
             name: 'transcription/requested',
             data: {
-                projectId,
+                transcriptId,
                 jobId: job.id,
                 userId,
                 mediaUrl,
@@ -183,7 +183,7 @@ export async function startTranscription(opts: {
         return { outcome: 'error', reason: 'Failed to start transcription' }
     }
 
-    console.log(`[startTranscription] Started for project: ${projectId}, job: ${job.id}`)
+    console.log(`[startTranscription] Started for transcript: ${transcriptId}, job: ${job.id}`)
 
     // Waveform dispatch is a UI enhancement and MUST NOT fail the transcription
     // start path. Admin client because waveform_status is server-owned (a BEFORE
@@ -192,9 +192,9 @@ export async function startTranscription(opts: {
     try {
         adminSupabase = createAdminClient()
         const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
-            .from('projects')
+            .from('transcripts')
             .update({ waveform_status: 'pending' })
-            .eq('id', projectId)
+            .eq('id', transcriptId)
             .eq('waveform_status', 'skipped')
             .select('id')
             .maybeSingle()
@@ -203,15 +203,15 @@ export async function startTranscription(opts: {
             return { outcome: 'started', jobId: job.id }
         }
         if (!waveformClaim) {
-            console.warn(`[startTranscription] Skipping waveform/requested for ${projectId}; waveform status was not claimable`)
+            console.warn(`[startTranscription] Skipping waveform/requested for ${transcriptId}; waveform status was not claimable`)
             return { outcome: 'started', jobId: job.id }
         }
         await sendInngestEvent({
             name: 'waveform/requested',
             data: {
-                projectId,
+                transcriptId,
                 userId,
-                sourceObjectKey: project.source_object_key,
+                sourceObjectKey: transcript.source_object_key,
             },
         })
     } catch (waveformError) {
@@ -219,9 +219,9 @@ export async function startTranscription(opts: {
         if (adminSupabase) {
             try {
                 await adminSupabase
-                    .from('projects')
+                    .from('transcripts')
                     .update({ waveform_status: 'skipped' })
-                    .eq('id', projectId)
+                    .eq('id', transcriptId)
                     .eq('waveform_status', 'pending')
             } catch (rollbackError) {
                 console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)

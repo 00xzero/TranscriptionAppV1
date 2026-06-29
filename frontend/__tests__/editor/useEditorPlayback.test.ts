@@ -37,7 +37,7 @@ function setup(overrides?: Partial<Parameters<typeof useEditorPlayback>[0]>) {
   const shouldCollapseWaveform = jest.fn(() => true)
 
   const props = {
-    projectId: 'p1',
+    transcriptId: 'p1',
     audioSrc: 'audio.mp3',
     setAudioSrc,
     setStatus,

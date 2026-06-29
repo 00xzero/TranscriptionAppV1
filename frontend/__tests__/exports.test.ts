@@ -130,7 +130,7 @@ describe('generateVtt', () => {
         const result = generateVtt({
             segments: sampleSegments,
             speakersMap: sampleSpeakers,
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
         expect(typeof result).toBe('string')
     })
@@ -139,7 +139,7 @@ describe('generateVtt', () => {
         const result = generateVtt({
             segments: sampleSegments,
             speakersMap: sampleSpeakers,
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
         expect(result.startsWith('WEBVTT')).toBe(true)
     })
@@ -148,7 +148,7 @@ describe('generateVtt', () => {
         const result = generateVtt({
             segments: sampleSegments,
             speakersMap: sampleSpeakers,
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
         expect(result).toContain('<v Speaker One>')
         expect(result).toContain('<v Speaker Two>')
@@ -158,17 +158,17 @@ describe('generateVtt', () => {
         const result = generateVtt({
             segments: sampleSegments,
             speakersMap: sampleSpeakers,
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
-        expect(result).toContain('test-project/0')
-        expect(result).toContain('test-project/1')
+        expect(result).toContain('test-transcript/0')
+        expect(result).toContain('test-transcript/1')
     })
 
     it('contains properly formatted timestamps', () => {
         const result = generateVtt({
             segments: sampleSegments,
             speakersMap: sampleSpeakers,
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
         expect(result).toContain('00:00:04.205 --> 00:00:10.243')
     })
@@ -177,7 +177,7 @@ describe('generateVtt', () => {
         const result = generateVtt({
             segments: [],
             speakersMap: {},
-            projectId: 'test-project',
+            transcriptId: 'test-transcript',
         })
         expect(result).toBe('WEBVTT\n')
     })

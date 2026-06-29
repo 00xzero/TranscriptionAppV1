@@ -111,20 +111,20 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         id: "handle-transcription-webhook",
         triggers: [{ event: transcriptionWebhookTrigger }],
         retries: 3,
-        // Limit to 1 concurrent execution per project so replayed or duplicate
+        // Limit to 1 concurrent execution per transcript so replayed or duplicate
         // webhook deliveries cannot interleave segment rewrites.
         concurrency: {
             limit: 1,
-            key: "event.data.projectId",
+            key: "event.data.transcriptId",
         },
         onFailure: async ({ event, error }) => {
-            // When retries are exhausted, emit failure event so job/project get error status
+            // When retries are exhausted, emit failure event so job/transcript get error status
             // In onFailure, original event is nested under event.data.event
             const originalEvent = event.data.event;
-            const { projectId, requestId } = originalEvent.data;
+            const { transcriptId, requestId } = originalEvent.data;
             const errorMessage = error.message || String(error);
 
-            console.error(`[inngest] Webhook handler failed for project ${projectId}:`, errorMessage);
+            console.error(`[inngest] Webhook handler failed for transcript ${transcriptId}:`, errorMessage);
 
             // Look up the job by requestId to get the real jobId
             let jobId: string | undefined;
@@ -133,7 +133,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 const { data: job } = await supabase
                     .from("jobs")
                     .select("id")
-                    .eq("project_id", projectId)
+                    .eq("transcript_id", transcriptId)
                     .eq("inngest_event_id", requestId)
                     .single();
 
@@ -144,12 +144,12 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 console.error("[inngest] Failed to lookup job in onFailure:", lookupError);
             }
 
-            // Emit transcription/failed to update job/project status
+            // Emit transcription/failed to update job/transcript status
             try {
                 await sendInngestEvent({
                     name: "transcription/failed",
                     data: {
-                        projectId,
+                        transcriptId,
                         ...(jobId ? { jobId } : {}),
                         error: errorMessage,
                         errorType: "transcription_error",
@@ -164,7 +164,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                     raw_error: errorMessage.slice(0, 500),
                 };
                 await writeTranscriptionFailureFallback({
-                    projectId,
+                    transcriptId,
                     jobId,
                     payload,
                     context: "onFailure",
@@ -173,26 +173,26 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { requestId, projectId } = event.data;
+        const { requestId, transcriptId } = event.data;
 
-        console.log(`[inngest] Webhook received for project: ${projectId}, request: ${requestId}`);
+        console.log(`[inngest] Webhook received for transcript: ${transcriptId}, request: ${requestId}`);
 
-        // Step 1: Find the job for this project
+        // Step 1: Find the job for this transcript
         const job = await step.run("find-job", async () => {
             const supabase = createAdminClient();
 
             const { data, error } = await supabase
                 .from("jobs")
                 .select("id, status")
-                .eq("project_id", projectId)
+                .eq("transcript_id", transcriptId)
                 .eq("inngest_event_id", requestId)
                 .order("created_at", { ascending: false })
                 .limit(1)
                 .single();
 
             if (error || !data) {
-                console.error("[inngest] Job not found for project:", projectId, "requestId:", requestId);
-                throw new Error(`Job not found for project: ${projectId}, requestId: ${requestId}`);
+                console.error("[inngest] Job not found for transcript:", transcriptId, "requestId:", requestId);
+                throw new Error(`Job not found for transcript: ${transcriptId}, requestId: ${requestId}`);
             }
 
             return data;
@@ -200,14 +200,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
 
         // Guard against late replays — job already completed means segments are final
         if (job.status === "completed") {
-            console.log(`[inngest] Job ${job.id} already completed — skipping replay for project ${projectId}`);
-            return { status: "skipped", projectId, jobId: job.id };
+            console.log(`[inngest] Job ${job.id} already completed — skipping replay for transcript ${transcriptId}`);
+            return { status: "skipped", transcriptId, jobId: job.id };
         }
 
         // Step 2: Parse Deepgram payload, build canonical transcript, and persist
         //         via a single atomic RPC call. The RPC replaces segments/words/
         //         speaker upserts inside one Postgres transaction, so a mid-write
-        //         failure cannot leave the project with partial data.
+        //         failure cannot leave the transcript with partial data.
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();
 
@@ -244,7 +244,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const { data: rpcData, error: rpcError } = await supabase.rpc(
                 "save_transcript_segments",
                 {
-                    p_project_id: projectId,
+                    p_transcript_id: transcriptId,
                     p_payload: validatedPayload,
                 }
             );
@@ -263,16 +263,16 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         });
 
         // Step 3: Trigger completion event
-        console.log(`[inngest] Sending transcription/completed event for project: ${projectId}`);
+        console.log(`[inngest] Sending transcription/completed event for transcript: ${transcriptId}`);
         await step.sendEvent("trigger-completed", {
             name: "transcription/completed",
             data: {
-                projectId,
+                transcriptId,
                 jobId: job.id,
                 duration: Math.floor(transcriptionResult.durationMs / 1000),
             },
         });
-        console.log(`[inngest] transcription/completed event sent successfully for project: ${projectId}`);
+        console.log(`[inngest] transcription/completed event sent successfully for transcript: ${transcriptId}`);
 
         console.log(
             `[inngest] Transcription stored: ${transcriptionResult.segmentCount} segments, ` +
@@ -280,7 +280,7 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         );
         return {
             status: "stored",
-            projectId,
+            transcriptId,
             jobId: job.id,
             ...transcriptionResult,
         };

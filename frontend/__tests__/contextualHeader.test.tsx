@@ -52,14 +52,14 @@ describe('ContextualHeader', () => {
     })
   })
 
-  test('dispatches editor-scroll-to-top when the project breadcrumb is activated', async () => {
+  test('dispatches editor-scroll-to-top when the transcript breadcrumb is activated', async () => {
     const user = userEventLib.setup()
     const dispatchSpy = jest.spyOn(window, 'dispatchEvent')
 
     renderHeader()
 
     const button = await waitFor(() =>
-      screen.getByRole('button', { name: /scroll to the top of the project/i })
+      screen.getByRole('button', { name: /scroll to the top of the transcript/i })
     )
 
     await user.click(button)
@@ -67,7 +67,7 @@ describe('ContextualHeader', () => {
     expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({
       type: 'editor-scroll-to-top',
     }))
-    expect(button).toHaveTextContent('Project')
+    expect(button).toHaveTextContent('Transcript')
   })
 
   test('does not query Supabase auth on auth routes', async () => {

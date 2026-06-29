@@ -51,25 +51,25 @@ describe('useSupabaseRealtime', () => {
   })
 
   test('prepends realtime inserts and replaces duplicate rows by id', async () => {
-    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old project' }])
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
 
     const { result } = renderHook(() =>
-      useSupabaseRealtime<Row>('projects', fetchFn, {
+      useSupabaseRealtime<Row>('transcripts', fetchFn, {
         insertPosition: 'prepend',
       })
     )
 
     await waitFor(() => {
-      expect(result.current.data).toEqual([{ id: 'old', title: 'Old project' }])
+      expect(result.current.data).toEqual([{ id: 'old', title: 'Old transcript' }])
     })
 
     act(() => {
-      changeHandler?.({ eventType: 'INSERT', new: { id: 'new', title: 'New project' } })
+      changeHandler?.({ eventType: 'INSERT', new: { id: 'new', title: 'New transcript' } })
     })
 
     expect(result.current.data).toEqual([
-      { id: 'new', title: 'New project' },
-      { id: 'old', title: 'Old project' },
+      { id: 'new', title: 'New transcript' },
+      { id: 'old', title: 'Old transcript' },
     ])
 
     act(() => {
@@ -78,16 +78,16 @@ describe('useSupabaseRealtime', () => {
 
     expect(result.current.data).toEqual([
       { id: 'new', title: 'Updated title' },
-      { id: 'old', title: 'Old project' },
+      { id: 'old', title: 'Old transcript' },
     ])
   })
 
   test('stops polling after realtime connects and performs one resync fetch', async () => {
     jest.useFakeTimers()
-    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old project' }])
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
 
     renderHook(() =>
-      useSupabaseRealtime<Row>('projects', fetchFn, {
+      useSupabaseRealtime<Row>('transcripts', fetchFn, {
         pollingInterval: 5000,
       })
     )
@@ -119,7 +119,7 @@ describe('useSupabaseRealtime', () => {
     const fetchFn = jest.fn().mockResolvedValue([])
 
     const { result } = renderHook(() =>
-      useSupabaseRealtime<Row>('projects', fetchFn, {
+      useSupabaseRealtime<Row>('transcripts', fetchFn, {
         subscriptionEnabled: false,
       })
     )
@@ -134,9 +134,9 @@ describe('useSupabaseRealtime', () => {
 
   test('retries a channel error instead of parking disconnected', async () => {
     jest.useFakeTimers()
-    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old project' }])
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
 
-    const { result } = renderHook(() => useSupabaseRealtime<Row>('projects', fetchFn))
+    const { result } = renderHook(() => useSupabaseRealtime<Row>('transcripts', fetchFn))
 
     await waitFor(() => {
       expect(fetchFn).toHaveBeenCalledTimes(1)
@@ -176,9 +176,9 @@ describe('useSupabaseRealtime', () => {
 
   test('clears pending retry timer when retry attempts are exhausted', async () => {
     jest.useFakeTimers()
-    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old project' }])
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
 
-    const { result } = renderHook(() => useSupabaseRealtime<Row>('projects', fetchFn))
+    const { result } = renderHook(() => useSupabaseRealtime<Row>('transcripts', fetchFn))
 
     await waitFor(() => {
       expect(fetchFn).toHaveBeenCalledTimes(1)

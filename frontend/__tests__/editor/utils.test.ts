@@ -2,7 +2,7 @@ import {
   isUnicodeWordChar,
   computeWordsForSegment,
   computeWordsForSegments,
-  formatProjectDate,
+  formatTranscriptDate,
   formatDurationHHMMSS,
   getNextWaveformCollapsed,
   msToTimestamp,
@@ -92,14 +92,14 @@ describe('computeWordsForSegments', () => {
   })
 })
 
-describe('formatProjectDate', () => {
+describe('formatTranscriptDate', () => {
   it('formats a date string', () => {
-    const result = formatProjectDate('2023-10-24T12:00:00Z')
+    const result = formatTranscriptDate('2023-10-24T12:00:00Z')
     expect(result).toMatch(/OCT\s+24,\s+2023/)
   })
 
   it('returns empty string for null', () => {
-    expect(formatProjectDate(null)).toBe('')
+    expect(formatTranscriptDate(null)).toBe('')
   })
 })
 

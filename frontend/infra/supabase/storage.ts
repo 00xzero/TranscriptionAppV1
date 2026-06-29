@@ -1,7 +1,7 @@
 /**
  * Supabase Storage utilities for media file handling.
  *
- * Storage path convention: {user_id}/{project_id}/{filename}
+ * Storage path convention: {user_id}/{transcript_id}/{filename}
  * Bucket: 'media' (private, 50MB default - configurable via NEXT_PUBLIC_MAX_FILE_SIZE_MB)
  */
 
@@ -69,14 +69,14 @@ export function validateMediaFile(file: File): string | null {
 /**
  * Build the storage path for a media file.
  */
-export function getMediaPath(userId: string, projectId: string, filename: string): string {
+export function getMediaPath(userId: string, transcriptId: string, filename: string): string {
     // Sanitize filename: remove path separators, limit length
     const sanitized = filename
         .replace(/[/\\]/g, '_')
         .replace(/[^a-zA-Z0-9._-]/g, '_')
         .slice(0, 200)
 
-    return `${userId}/${projectId}/${sanitized || 'media'}`
+    return `${userId}/${transcriptId}/${sanitized || 'media'}`
 }
 
 /**
@@ -85,18 +85,18 @@ export function getMediaPath(userId: string, projectId: string, filename: string
  * @param supabase - Supabase client instance
  * @param file - File to upload
  * @param userId - Current user's ID
- * @param projectId - Project ID to associate with
+ * @param transcriptId - Transcript ID to associate with
  * @param onProgress - Optional progress callback (0-100)
  * @returns Object with path on success, or error on failure
  */
-export async function uploadProjectMedia(
+export async function uploadTranscriptMedia(
     supabase: SupabaseClient,
     file: File,
     userId: string,
-    projectId: string,
+    transcriptId: string,
     onProgress?: (percent: number) => void
 ): Promise<{ path: string; error: null } | { path: null; error: string }> {
-    const path = getMediaPath(userId, projectId, file.name)
+    const path = getMediaPath(userId, transcriptId, file.name)
 
     // Supabase JS client v2 doesn't have built-in progress tracking,
     // but we can simulate start/end for UX
@@ -165,7 +165,7 @@ export function localizeSignedUrl(signedUrl: string): string {
  * - Neither → return the signed URL as-is
  *
  * @param supabase - Supabase client instance (server-side or admin)
- * @param objectKey - Storage path (from project.source_object_key)
+ * @param objectKey - Storage path (from transcript.source_object_key)
  * @returns Ready-to-use URL string, or error on failure
  */
 export async function getMediaUrlForDeepgram(
@@ -208,7 +208,7 @@ export async function getMediaUrlForDeepgram(
  * @param path - Storage path to delete
  * @returns Object with error on failure, null error on success
  */
-export async function deleteProjectMedia(
+export async function deleteTranscriptMedia(
     supabase: SupabaseClient,
     path: string
 ): Promise<{ error: string | null }> {

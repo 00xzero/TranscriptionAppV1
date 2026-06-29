@@ -45,7 +45,7 @@ class FakeMediaRecorder extends EventTarget {
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  usePathname: () => '/projects',
+  usePathname: () => '/transcripts',
 }))
 
 const mockCloseCaptureModal = jest.fn()

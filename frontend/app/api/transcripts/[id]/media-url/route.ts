@@ -1,7 +1,7 @@
 /**
- * API Route: GET /api/projects/[id]/media-url
+ * API Route: GET /api/transcripts/[id]/media-url
  * 
- * Generate a signed download URL for project media.
+ * Generate a signed download URL for transcript media.
  * Used by the editor for audio/video playback.
  */
 
@@ -14,7 +14,7 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id: projectId } = await params
+        const { id: transcriptId } = await params
         const supabase = await createClient()
 
         // Get authenticated user
@@ -26,28 +26,28 @@ export async function GET(
             )
         }
 
-        // Fetch project (RLS ensures user can only access their own)
-        const { data: project, error: projectError } = await supabase
-            .from('projects')
+        // Fetch transcript (RLS ensures user can only access their own)
+        const { data: transcript, error: transcriptError } = await supabase
+            .from('transcripts')
             .select('id, source_object_key')
-            .eq('id', projectId)
+            .eq('id', transcriptId)
             .single()
 
-        if (projectError || !project) {
+        if (transcriptError || !transcript) {
             return NextResponse.json(
-                { error: 'Project not found' },
+                { error: 'Transcript not found' },
                 { status: 404 }
             )
         }
 
-        if (!project.source_object_key) {
+        if (!transcript.source_object_key) {
             return NextResponse.json(
-                { error: 'No media file associated with this project' },
+                { error: 'No media file associated with this transcript' },
                 { status: 404 }
             )
         }
 
-        const signed = await getSignedMediaUrl(supabase, project.source_object_key, 3600)
+        const signed = await getSignedMediaUrl(supabase, transcript.source_object_key, 3600)
         if (signed.error || !signed.url) {
             return NextResponse.json(
                 { error: 'Failed to generate media URL' },

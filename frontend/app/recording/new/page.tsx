@@ -33,12 +33,12 @@ function getCompletionRedirectTarget(
   if (snapshot.state === 'submitted') {
     const result = snapshot.submissionResult
     return result && result.outcome !== 'started'
-      ? `/projects?capture=${result.outcome}&projectId=${result.projectId}`
-      : '/projects'
+      ? `/transcripts?capture=${result.outcome}&transcriptId=${result.transcriptId}`
+      : '/transcripts'
   }
 
   if (snapshot.state === 'discarded') {
-    return '/projects'
+    return '/transcripts'
   }
 
   return null
@@ -129,7 +129,7 @@ export default function RecordingNewPage() {
         devControlsEnabled: RECORDING_DEV_CONTROLS_ENABLED,
       })
     ) {
-      router.replace('/projects?capture=recording_session_not_found')
+      router.replace('/transcripts?capture=recording_session_not_found')
     }
   }, [router, snapshot.state, remote.kind])
 
@@ -187,7 +187,7 @@ export default function RecordingNewPage() {
     }
 
     actions.resetRecordingSession()
-    router.push('/projects')
+    router.push('/transcripts')
   }
 
   if (isRemoteOnly) {
@@ -212,7 +212,7 @@ export default function RecordingNewPage() {
         </p>
         <button
           type="button"
-          onClick={() => router.push('/projects')}
+          onClick={() => router.push('/transcripts')}
           className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
         >
           Return to library
@@ -302,7 +302,7 @@ export default function RecordingNewPage() {
   }
 
   if (snapshot.state === 'submitted' || snapshot.state === 'discarded') {
-    const target = completionRedirectTarget ?? '/projects'
+    const target = completionRedirectTarget ?? '/transcripts'
     return (
       <RecordingStatusLayout
         title={title}

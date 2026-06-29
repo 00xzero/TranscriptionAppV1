@@ -8,17 +8,17 @@ import { UuidSchema } from './primitives'
 
 // Status enums — canonical, imported by state-machine.ts and transition.ts
 export const JobStatusSchema = z.enum(['queued', 'processing', 'completed', 'error'])
-export const ProjectStatusSchema = z.enum(['created', 'queued', 'processing', 'completed', 'error'])
+export const TranscriptStatusSchema = z.enum(['created', 'queued', 'processing', 'completed', 'error'])
 export const WaveformStatusSchema = z.enum(['pending', 'processing', 'ready', 'error', 'skipped'])
 
 // === Load-bearing schemas (used at validation boundaries) ===
 // Source of truth: infra/supabase/migrations/20260114000000_initial_schema.sql
 
-export const ProjectSchema = z.object({
+export const TranscriptSchema = z.object({
   id: UuidSchema,
   user_id: UuidSchema,
   title: z.string().nullable(),
-  status: ProjectStatusSchema,
+  status: TranscriptStatusSchema,
   source_object_key: z.string().nullable(),
   upload_intent_id: z.string().nullable(),
   duration_seconds: z.number().nullable(),
@@ -32,7 +32,7 @@ export const ProjectSchema = z.object({
 
 export const JobSchema = z.object({
   id: UuidSchema,
-  project_id: UuidSchema,
+  transcript_id: UuidSchema,
   inngest_event_id: z.string().nullable(),
   idempotency_key: z.string().nullable(),
   type: z.string(),
@@ -46,7 +46,7 @@ export const JobSchema = z.object({
 
 export const SpeakerSchema = z.object({
   id: UuidSchema,
-  project_id: UuidSchema,
+  transcript_id: UuidSchema,
   label: z.string(),
   color: z.string().nullable(),
   created_at: z.string(),
@@ -74,7 +74,7 @@ export const WordSchema = z.object({
 
 export const SegmentSchema = z.object({
   id: UuidSchema,
-  project_id: UuidSchema,
+  transcript_id: UuidSchema,
   speaker_id: UuidSchema.nullable(),
   start_ms: z.number().int(),
   end_ms: z.number().int(),
@@ -88,7 +88,7 @@ export const SegmentSchema = z.object({
 
 export const WatchlistTermSchema = z.object({
   id: UuidSchema,
-  project_id: UuidSchema,
+  transcript_id: UuidSchema,
   term: z.string(),
   canonical: z.string(),
   created_at: z.string(),
@@ -96,24 +96,16 @@ export const WatchlistTermSchema = z.object({
 })
 
 // Insert/update schemas (DB mutations)
-export const ProjectInsertSchema = z.object({
-  id: UuidSchema.optional(),
-  user_id: UuidSchema,
-  title: z.string().nullish(),
-  source_object_key: z.string().nullish(),
-  duration_seconds: z.number().nullish(),
-})
-
-export const ProjectUpdateSchema = z.object({
+export const TranscriptUpdateSchema = z.object({
   title: z.string().nullable().optional(),
   duration_seconds: z.number().nullable().optional(),
 })
 
 // Server-only update schema for waveform fields. Must NOT be used by browser-facing
 // code paths — these fields are populated by the Inngest worker via the admin client.
-// Excluding them from ProjectUpdateSchema prevents a client from forging waveform_status
+// Excluding them from TranscriptUpdateSchema prevents a client from forging waveform_status
 // or pointing waveform_object_key at an arbitrary blob.
-export const ProjectWaveformInternalUpdateSchema = z.object({
+export const TranscriptWaveformInternalUpdateSchema = z.object({
   waveform_object_key: z.string().nullable().optional(),
   waveform_status: WaveformStatusSchema.optional(),
   waveform_points_per_second: z.number().nullable().optional(),
@@ -122,7 +114,7 @@ export const ProjectWaveformInternalUpdateSchema = z.object({
 
 export const SpeakerInsertSchema = z.object({
   id: UuidSchema.optional(),
-  project_id: UuidSchema,
+  transcript_id: UuidSchema,
   label: z.string().optional(),
   color: z.string().nullish(),
 })
@@ -141,7 +133,7 @@ export const SpeakerUpdateSchema = z.object({
 // === RPC: save_transcript_segments ===
 // The webhook handler builds the full transcript in TypeScript (segment-builder) and
 // hands it to a single Postgres function that atomically replaces all segments + words
-// + speaker upserts for the project. See:
+// + speaker upserts for the transcript. See:
 //   infra/supabase/migrations/*_save_transcript_segments_rpc.sql
 
 const SaveTranscriptSegmentsWordSchema = z.object({
@@ -186,18 +178,17 @@ export const SaveTranscriptSegmentsResultSchema = z.object({
 
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
-export type ProjectStatus = z.infer<typeof ProjectStatusSchema>
+export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
 export type WaveformStatus = z.infer<typeof WaveformStatusSchema>
-export type Project = z.infer<typeof ProjectSchema>
+export type Transcript = z.infer<typeof TranscriptSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>
 export type Speaker = z.infer<typeof SpeakerSchema>
 export type Word = z.infer<typeof WordSchema>
 export type Segment = z.infer<typeof SegmentSchema>
 export type WatchlistTerm = z.infer<typeof WatchlistTermSchema>
-export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
-export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
-export type ProjectWaveformInternalUpdate = z.infer<typeof ProjectWaveformInternalUpdateSchema>
+export type TranscriptUpdate = z.infer<typeof TranscriptUpdateSchema>
+export type TranscriptWaveformInternalUpdate = z.infer<typeof TranscriptWaveformInternalUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>

@@ -8,7 +8,7 @@ type UseCapture = {
     error: string | null
     progress: 'idle' | 'creating' | 'uploading' | 'starting' | 'done'
     upload: (file: File, title: string, keyTerms: string[]) => Promise<{
-        projectId: string
+        transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
     } | null>
@@ -20,9 +20,9 @@ type UseCapture = {
  * Hook for file upload and transcription triggering.
  *
  * Flow:
- * 1. Create project via /api/projects
+ * 1. Create transcript via /api/transcripts
  * 2. Upload file to Supabase storage
- * 3. Start transcription via /api/projects/{id}/start
+ * 3. Start transcription via /api/transcripts/{id}/start
  */
 export function useCapture(): UseCapture {
     const [isUploading, setIsUploading] = useState(false)
@@ -39,7 +39,7 @@ export function useCapture(): UseCapture {
         title: string,
         keyTerms: string[]
     ): Promise<{
-        projectId: string
+        transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
     } | null> => {
@@ -64,7 +64,7 @@ export function useCapture(): UseCapture {
             }
 
             return {
-                projectId: result.projectId,
+                transcriptId: result.transcriptId,
                 outcome: result.outcome,
                 message: result.message,
             }

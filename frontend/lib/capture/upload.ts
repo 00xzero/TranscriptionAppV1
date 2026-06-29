@@ -66,9 +66,9 @@ export interface CaptureUploadOptions {
     signal?: AbortSignal
     /**
      * Client-generated upload idempotency key (recording sessions only). When set:
-     * project create dedupes by (user_id, uploadIntentId), and `/start` is keyed
+     * transcript create dedupes by (user_id, uploadIntentId), and `/start` is keyed
      * with `start:<uploadIntentId>` so a recovery retry returns the canonical
-     * project + job instead of duplicating either.
+     * transcript + job instead of duplicating either.
      */
     uploadIntentId?: string
     /**
@@ -82,7 +82,7 @@ export interface CaptureUploadOptions {
 export type CaptureUploadResult =
     | {
         kind: 'success'
-        projectId: string
+        transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
     }
@@ -127,10 +127,10 @@ function getMimeType(file: File): string {
 
 async function rollbackPartialCapture(
     supabase: ReturnType<typeof createClient>,
-    projectId: string | null,
+    transcriptId: string | null,
     storagePath: string | null,
     didUploadFile: boolean,
-    shouldDeleteProject: boolean
+    shouldDeleteTranscript: boolean
 ): Promise<string | null> {
     const cleanupFailures: string[] = []
 
@@ -145,15 +145,15 @@ async function rollbackPartialCapture(
         }
     }
 
-    if (projectId && shouldDeleteProject) {
+    if (transcriptId && shouldDeleteTranscript) {
         const { error: deleteError } = await supabase
-            .from('projects')
+            .from('transcripts')
             .delete()
-            .eq('id', projectId)
+            .eq('id', transcriptId)
 
         if (deleteError) {
-            console.error('[capture] Failed to delete project during rollback:', deleteError)
-            cleanupFailures.push('project record')
+            console.error('[capture] Failed to delete transcript during rollback:', deleteError)
+            cleanupFailures.push('transcript record')
         }
     }
 
@@ -161,7 +161,7 @@ async function rollbackPartialCapture(
         return null
     }
 
-    return `Automatic cleanup failed for ${cleanupFailures.join(' and ')}. Please remove failed uploads from the Projects page.`
+    return `Automatic cleanup failed for ${cleanupFailures.join(' and ')}. Please remove failed uploads from the Transcripts page.`
 }
 
 /**
@@ -194,11 +194,11 @@ function validateFile(file: File): string | null {
  * start is keyed `start:<uploadIntentId>` so a recovery retry returns the cached
  * job rather than creating a second one. If a prior errored job maps to that key,
  * `/start` returns 409 `{ status: 'error' }`; we retry once with a fresh random
- * key (the one-active-per-project unique index still prevents a duplicate active
+ * key (the one-active-per-transcript unique index still prevents a duplicate active
  * job). A plain conflict 409 (no `status`) is returned as-is.
  */
 async function dispatchStart(
-    projectId: string,
+    transcriptId: string,
     uploadIntentId: string | undefined,
     signal: AbortSignal | undefined
 ): Promise<Response> {
@@ -207,7 +207,7 @@ async function dispatchStart(
         headers['x-idempotency-key'] = `start:${uploadIntentId}`
     }
 
-    const res = await fetch(`/api/projects/${projectId}/start`, {
+    const res = await fetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
         headers,
         signal,
@@ -226,7 +226,7 @@ async function dispatchStart(
     }
 
     console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
-    return fetch(`/api/projects/${projectId}/start`, {
+    return fetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -249,13 +249,13 @@ export async function runCaptureUpload(
 ): Promise<CaptureUploadResult> {
     const supabase = createClient()
     const signal = options?.signal
-    let projectId: string | null = null
+    let transcriptId: string | null = null
     let storagePath: string | null = null
     let didUploadFile = false
-    let didLinkMediaToProject = false
+    let didLinkMediaToTranscript = false
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
-    let createdFreshProject = false
+    let createdFreshTranscript = false
 
     const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
@@ -279,8 +279,8 @@ export async function runCaptureUpload(
             return { kind: 'validation_error', message: validationError }
         }
 
-        console.log('[capture] Step 1: Creating project...')
-        const createRes = await fetch('/api/projects', {
+        console.log('[capture] Step 1: Creating transcript...')
+        const createRes = await fetch('/api/transcripts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             signal,
@@ -294,23 +294,23 @@ export async function runCaptureUpload(
 
         if (!createRes.ok) {
             const errorData = await createRes.json().catch(() => ({}))
-            console.error('[capture] Project creation failed:', errorData)
-            throw new Error(errorData.error || `Failed to create project (${createRes.status})`)
+            console.error('[capture] Transcript creation failed:', errorData)
+            throw new Error(errorData.error || `Failed to create transcript (${createRes.status})`)
         }
 
         const createData = await createRes.json()
-        projectId = createData?.project?.id ?? null
+        transcriptId = createData?.transcript?.id ?? null
         storagePath = createData?.storagePath ?? null
-        // On a recovery retry the canonical project may already have its media
+        // On a recovery retry the canonical transcript may already have its media
         // linked from a prior attempt; if so, skip re-uploading.
         const alreadyLinkedKey: string | null = createData?.sourceObjectKey ?? null
 
-        if (!projectId || !storagePath) {
-            throw new Error('Project creation response was missing required fields')
+        if (!transcriptId || !storagePath) {
+            throw new Error('Transcript creation response was missing required fields')
         }
 
-        console.log('[capture] Project created:', projectId, 'storagePath:', storagePath, 'deduped:', createData?.deduped === true)
-        createdFreshProject = createData?.deduped !== true
+        console.log('[capture] Transcript created:', transcriptId, 'storagePath:', storagePath, 'deduped:', createData?.deduped === true)
+        createdFreshTranscript = createData?.deduped !== true
 
         if (alreadyLinkedKey) {
             // Media was already uploaded + linked on a previous attempt. Skip the
@@ -318,7 +318,7 @@ export async function runCaptureUpload(
             // (saved_needs_retry / saved_status_unknown) stays correct.
             storagePath = alreadyLinkedKey
             didUploadFile = true
-            didLinkMediaToProject = true
+            didLinkMediaToTranscript = true
             console.log('[capture] Media already linked; skipping upload/link steps')
         } else {
             options?.onProgress?.('uploading')
@@ -343,27 +343,27 @@ export async function runCaptureUpload(
             throwIfCanceled()
             console.log('[capture] File uploaded successfully')
 
-            console.log('[capture] Updating project with source_object_key...')
+            console.log('[capture] Updating transcript with source_object_key...')
             const updateQuery = supabase
-                .from('projects')
+                .from('transcripts')
                 .update({ source_object_key: storagePath })
-                .eq('id', projectId)
+                .eq('id', transcriptId)
             const { error: updateError } = await (signal
                 ? updateQuery.abortSignal(signal)
                 : updateQuery)
 
             if (updateError) {
-                console.error('[capture] Failed to update project source_object_key:', updateError)
-                throw new Error(`Failed to update project: ${updateError.message}`)
+                console.error('[capture] Failed to update transcript source_object_key:', updateError)
+                throw new Error(`Failed to update transcript: ${updateError.message}`)
             }
-            didLinkMediaToProject = true
-            console.log('[capture] Project updated with source_object_key')
+            didLinkMediaToTranscript = true
+            console.log('[capture] Transcript updated with source_object_key')
         }
 
         options?.onProgress?.('starting')
         throwIfCanceled()
         didDispatchStartRequest = true
-        const startRes = await dispatchStart(projectId, options?.uploadIntentId, signal)
+        const startRes = await dispatchStart(transcriptId, options?.uploadIntentId, signal)
         didReceiveStartResponse = true
         throwIfCanceled()
 
@@ -375,7 +375,7 @@ export async function runCaptureUpload(
         options?.onProgress?.('done')
         return {
             kind: 'success',
-            projectId,
+            transcriptId,
             outcome: 'started'
         }
     } catch (err) {
@@ -387,17 +387,17 @@ export async function runCaptureUpload(
 
         if (
             wasCanceled &&
-            projectId &&
-            didLinkMediaToProject &&
+            transcriptId &&
+            didLinkMediaToTranscript &&
             !didDispatchStartRequest &&
-            createdFreshProject
+            createdFreshTranscript
         ) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
-                projectId,
+                transcriptId,
                 storagePath,
                 didUploadFile,
-                createdFreshProject
+                createdFreshTranscript
             )
             if (rollbackMessage) {
                 message = `${message} ${rollbackMessage}`
@@ -405,33 +405,33 @@ export async function runCaptureUpload(
             return canceledResult(message)
         }
 
-        if (projectId && didLinkMediaToProject) {
+        if (transcriptId && didLinkMediaToTranscript) {
             if (didDispatchStartRequest && !didReceiveStartResponse) {
-                message = `${message} Your file was uploaded and saved, but transcription state is unknown because the network request did not complete. Check Projects before retrying.`
+                message = `${message} Your file was uploaded and saved, but transcription state is unknown because the network request did not complete. Check Transcripts before retrying.`
                 return {
                     kind: 'success',
-                    projectId,
+                    transcriptId,
                     outcome: 'saved_status_unknown',
                     message,
                 }
             }
 
-            message = `${message} Your file was uploaded and saved. Retry transcription from the Projects page.`
+            message = `${message} Your file was uploaded and saved. Retry transcription from the Transcripts page.`
             return {
                 kind: 'success',
-                projectId,
+                transcriptId,
                 outcome: 'saved_needs_retry',
                 message,
             }
         }
 
-        if (projectId) {
+        if (transcriptId) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
-                projectId,
+                transcriptId,
                 storagePath,
                 didUploadFile,
-                createdFreshProject
+                createdFreshTranscript
             )
             if (rollbackMessage) {
                 message = `${message} ${rollbackMessage}`

@@ -7,20 +7,20 @@ import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/infra/supabase/client'
 import { useSupabaseRealtime } from './realtime'
 import {
-    fetchProjects,
-    fetchProjectById,
-    fetchProjectJobs,
+    fetchTranscripts,
+    fetchTranscriptById,
+    fetchTranscriptJobs,
     fetchSpeakers,
-    deleteProject as deleteProjectQuery,
-    updateProject as updateProjectQuery,
+    deleteTranscript as deleteTranscriptQuery,
+    updateTranscript as updateTranscriptQuery,
     createSpeaker as createSpeakerQuery,
     updateSpeaker as updateSpeakerQuery,
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
-import type { Project, JobSummary, Speaker, SpeakerUpdate, ProjectUpdate } from '@/contracts/db'
+import type { Transcript, JobSummary, Speaker, SpeakerUpdate, TranscriptUpdate } from '@/contracts/db'
 
 // ============================================================================
-// Projects Hook
+// Transcripts Hook
 // ============================================================================
 
 export interface AuthIdentity {
@@ -94,15 +94,15 @@ function useCurrentUserId() {
 }
 
 /**
- * Hook for fetching and subscribing to the projects list.
+ * Hook for fetching and subscribing to the transcripts list.
  * Uses Supabase Realtime with 5s polling fallback.
  */
-export function useProjectsRealtime() {
+export function useTranscriptsRealtime() {
     const userId = useCurrentUserId()
-    const fetchFn = useCallback(() => fetchProjects(), [])
+    const fetchFn = useCallback(() => fetchTranscripts(), [])
 
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
-        useSupabaseRealtime<Project>('projects', fetchFn, {
+        useSupabaseRealtime<Transcript>('transcripts', fetchFn, {
             realtimeFilter: userId ? `user_id=eq.${userId}` : null,
             subscriptionEnabled: Boolean(userId),
             enablePollingFallback: true,
@@ -114,18 +114,18 @@ export function useProjectsRealtime() {
         if (!userId) mutate([])
     }, [userId, mutate])
 
-    // Action: Delete project with optimistic update
-    const deleteProject = useCallback(
+    // Action: Delete transcript with optimistic update
+    const deleteTranscript = useCallback(
         async (id: string) => {
             // Capture previous data for rollback using functional update
-            let previousData: Project[] = []
+            let previousData: Transcript[] = []
             mutate((current) => {
                 previousData = current ?? []
                 return previousData.filter((p) => p.id !== id)
             })
 
             try {
-                await deleteProjectQuery(id)
+                await deleteTranscriptQuery(id)
             } catch (err) {
                 // Rollback on error
                 mutate(previousData)
@@ -136,47 +136,47 @@ export function useProjectsRealtime() {
     )
 
     return {
-        projects: data,
+        transcripts: data,
         isLoading,
         error,
         connectionStatus,
         mutate,
         refetch,
-        deleteProject,
+        deleteTranscript,
     }
 }
 
 // ============================================================================
-// Single Project Hook (for Editor)
+// Single Transcript Hook (for Editor)
 // ============================================================================
 
 /**
- * Hook for fetching a single project.
+ * Hook for fetching a single transcript.
  */
-export function useProjectRealtime(projectId: string | null) {
+export function useTranscriptRealtime(transcriptId: string | null) {
     const fetchFn = useCallback(async () => {
-        if (!projectId) return []
-        const project = await fetchProjectById(projectId)
-        return project ? [project] : []
-    }, [projectId])
+        if (!transcriptId) return []
+        const transcript = await fetchTranscriptById(transcriptId)
+        return transcript ? [transcript] : []
+    }, [transcriptId])
 
-    const { data, isLoading, error, mutate } = useSupabaseRealtime<Project>(
-        'projects',
+    const { data, isLoading, error, mutate } = useSupabaseRealtime<Transcript>(
+        'transcripts',
         fetchFn,
         {
-            realtimeFilter: projectId ? `id=eq.${projectId}` : null,
-            subscriptionEnabled: Boolean(projectId),
+            realtimeFilter: transcriptId ? `id=eq.${transcriptId}` : null,
+            subscriptionEnabled: Boolean(transcriptId),
             enablePollingFallback: true,
         }
     )
 
-    // Action: Update project
-    const updateProject = useCallback(
-        async (updates: ProjectUpdate) => {
-            if (!projectId) return
+    // Action: Update transcript
+    const updateTranscript = useCallback(
+        async (updates: TranscriptUpdate) => {
+            if (!transcriptId) return
 
             // Capture previous data for rollback using functional update
-            let previous: Project | null = null
+            let previous: Transcript | null = null
             mutate((current) => {
                 if (!current || current.length === 0) return current
                 previous = current[0]
@@ -187,38 +187,38 @@ export function useProjectRealtime(projectId: string | null) {
             if (!previous) return
 
             try {
-                await updateProjectQuery(projectId, updates)
+                await updateTranscriptQuery(transcriptId, updates)
             } catch (err) {
                 // Rollback on error
                 if (previous) mutate([previous])
                 throw err
             }
         },
-        [projectId, mutate]
+        [transcriptId, mutate]
     )
 
     return {
-        project: data[0] || null,
+        transcript: data[0] || null,
         isLoading,
         error,
-        updateProject,
+        updateTranscript,
         refetch: () => mutate(),
     }
 }
 
 // ============================================================================
-// Project Jobs Hook
+// Transcript Jobs Hook
 // ============================================================================
 
 /**
- * Hook for fetching jobs for a project.
+ * Hook for fetching jobs for a transcript.
  * Returns JobSummary (excludes payload) to avoid large JSON in browser.
  */
-export function useProjectJobsRealtime(projectId: string | null) {
+export function useTranscriptJobsRealtime(transcriptId: string | null) {
     const fetchFn = useCallback(async () => {
-        if (!projectId) return []
-        return fetchProjectJobs(projectId)
-    }, [projectId])
+        if (!transcriptId) return []
+        return fetchTranscriptJobs(transcriptId)
+    }, [transcriptId])
 
     // Transform realtime payloads to strip the large 'payload' field
     // Supabase Realtime sends full rows, which would reintroduce multi-MB JSON
@@ -231,8 +231,8 @@ export function useProjectJobsRealtime(projectId: string | null) {
         'jobs',
         fetchFn,
         {
-            realtimeFilter: projectId ? `project_id=eq.${projectId}` : null,
-            subscriptionEnabled: Boolean(projectId),
+            realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
+            subscriptionEnabled: Boolean(transcriptId),
             enablePollingFallback: true,
             transformRealtimePayload,
             insertPosition: 'prepend',
@@ -254,18 +254,18 @@ export function useProjectJobsRealtime(projectId: string | null) {
 /**
  * Hook for fetching and managing speakers.
  */
-export function useSpeakersRealtime(projectId: string | null) {
+export function useSpeakersRealtime(transcriptId: string | null) {
     const fetchFn = useCallback(async () => {
-        if (!projectId) return []
-        return fetchSpeakers(projectId)
-    }, [projectId])
+        if (!transcriptId) return []
+        return fetchSpeakers(transcriptId)
+    }, [transcriptId])
 
     const { data, isLoading, error, mutate } = useSupabaseRealtime<Speaker>(
         'speakers',
         fetchFn,
         {
-            realtimeFilter: projectId ? `project_id=eq.${projectId}` : null,
-            subscriptionEnabled: Boolean(projectId),
+            realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
+            subscriptionEnabled: Boolean(transcriptId),
             enablePollingFallback: true,
         }
     )
@@ -273,8 +273,8 @@ export function useSpeakersRealtime(projectId: string | null) {
     // Action: Create speaker
     const createSpeaker = useCallback(
         async (label: string) => {
-            if (!projectId) throw new Error('No project ID')
-            const newSpeaker = await createSpeakerQuery(projectId, label)
+            if (!transcriptId) throw new Error('No transcript ID')
+            const newSpeaker = await createSpeakerQuery(transcriptId, label)
             // Use functional mutate to prevent duplicates from Realtime echoes
             mutate((prev) => {
                 if (!prev) return [newSpeaker]
@@ -284,7 +284,7 @@ export function useSpeakersRealtime(projectId: string | null) {
             })
             return newSpeaker
         },
-        [projectId, mutate]
+        [transcriptId, mutate]
     )
 
     // Action: Update speaker with optimistic update

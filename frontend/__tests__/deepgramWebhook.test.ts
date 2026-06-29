@@ -94,13 +94,13 @@ jest.mock('@/infra/supabase/admin', () => {
   }
 })
 
-const VALID_PROJECT_ID = '00000000-0000-0000-0000-000000000456'
+const VALID_TRANSCRIPT_ID = '00000000-0000-0000-0000-000000000456'
 
-function makeRequest(requestId: string, projectId: string) {
+function makeRequest(requestId: string, transcriptId: string) {
   return {
     headers: new Headers({ 'dg-token': 'test-token' }),
     json: async () => ({
-      metadata: { request_id: requestId, extra: { project_id: projectId } },
+      metadata: { request_id: requestId, extra: { transcript_id: transcriptId } },
       results: { channels: [] },
     }),
   } as any
@@ -131,7 +131,7 @@ describe('Deepgram webhook route', () => {
       metadata: {
         request_id: 'req-123',
         extra: {
-          project_id: VALID_PROJECT_ID,
+          transcript_id: VALID_TRANSCRIPT_ID,
         },
       },
       results: {
@@ -165,7 +165,7 @@ describe('Deepgram webhook route', () => {
       name: 'transcription/webhook',
       data: {
         requestId: 'req-123',
-        projectId: VALID_PROJECT_ID,
+        transcriptId: VALID_TRANSCRIPT_ID,
       },
     })
   })
@@ -185,9 +185,9 @@ describe('Deepgram webhook route', () => {
     expect(updateEqMock).not.toHaveBeenCalled()
   })
 
-  test('calls forceJobError when project_id missing but job found via requestId', async () => {
+  test('calls forceJobError when transcript_id missing but job found via requestId', async () => {
     maybeSingleMock.mockResolvedValueOnce({
-      data: { id: 'job-1', project_id: VALID_PROJECT_ID },
+      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
       error: null,
     })
 
@@ -217,7 +217,7 @@ describe('Deepgram webhook route', () => {
     )
   })
 
-  test('marks project as error and logs failed_event when project is known but no job is found', async () => {
+  test('marks transcript as error and logs failed_event when transcript is known but no job is found', async () => {
     maybeSingleMock.mockResolvedValueOnce({
       data: null,
       error: null,
@@ -226,7 +226,7 @@ describe('Deepgram webhook route', () => {
     const payload = {
       metadata: {
         extra: {
-          project_id: VALID_PROJECT_ID,
+          transcript_id: VALID_TRANSCRIPT_ID,
         },
       },
       results: {
@@ -244,12 +244,12 @@ describe('Deepgram webhook route', () => {
 
     expect(insertMock).toHaveBeenCalledWith({
       event_name: 'deepgram/webhook_failure',
-      event_data: { projectId: VALID_PROJECT_ID, requestId: undefined },
-      error_message: 'Deepgram webhook missing project_id or request_id.',
-      project_id: VALID_PROJECT_ID,
+      event_data: { transcriptId: VALID_TRANSCRIPT_ID, requestId: undefined },
+      error_message: 'Deepgram webhook missing transcript_id or request_id.',
+      transcript_id: VALID_TRANSCRIPT_ID,
     })
     expect(updateMock).toHaveBeenCalledWith({ status: 'error' })
-    expect(updateEqMock).toHaveBeenCalledWith('id', VALID_PROJECT_ID)
+    expect(updateEqMock).toHaveBeenCalledWith('id', VALID_TRANSCRIPT_ID)
     expect(mockForceJobError).not.toHaveBeenCalled()
   })
 
@@ -262,7 +262,7 @@ describe('Deepgram webhook route', () => {
       error: null,
     })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(200)
     expect(updateMock).not.toHaveBeenCalled()
@@ -277,7 +277,7 @@ describe('Deepgram webhook route', () => {
       error: null,
     })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
@@ -299,7 +299,7 @@ describe('Deepgram webhook route', () => {
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(200)
     expect(updateMock).toHaveBeenCalledTimes(1)
@@ -311,7 +311,7 @@ describe('Deepgram webhook route', () => {
     receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
     receiptSingleMock.mockResolvedValueOnce({ data: null, error: { message: 'connection lost' } })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(500)
     expect(updateMock).not.toHaveBeenCalled()
@@ -332,7 +332,7 @@ describe('Deepgram webhook route', () => {
       .mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(200)
     expect(updateMock).toHaveBeenCalledTimes(1) // job update
@@ -348,7 +348,7 @@ describe('Deepgram webhook route', () => {
     })
     receiptUpdateTerminal.mockResolvedValueOnce({ data: null, error: { message: 'DB error' } })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(500)
     expect(updateMock).not.toHaveBeenCalled()
@@ -367,7 +367,7 @@ describe('Deepgram webhook route', () => {
       .mockResolvedValueOnce({ data: { status: 'processing' }, error: null })
     receiptUpdateTerminal.mockResolvedValueOnce({ data: [], error: null })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
@@ -386,7 +386,7 @@ describe('Deepgram webhook route', () => {
       .mockResolvedValueOnce({ data: { status: 'completed' }, error: null })
     receiptUpdateTerminal.mockResolvedValueOnce({ data: [], error: null })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(200)
     expect(updateMock).not.toHaveBeenCalled()
@@ -398,7 +398,7 @@ describe('Deepgram webhook route', () => {
     receiptInsertMock.mockResolvedValueOnce({ error: null })
     maybeSingleMock.mockResolvedValueOnce({ data: null, error: { message: 'DB timeout' } })
 
-    const res = await POST(makeRequest('req-fail', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-fail', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(500)
     expect(receiptUpdateTerminal).toHaveBeenCalled()
@@ -414,7 +414,7 @@ describe('Deepgram webhook route', () => {
     receiptUpdateTerminal
       .mockResolvedValueOnce({ data: null, error: { message: 'finalize failed' } }) // finalize fails
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     // Real work was done — still return 200
     expect(res.status).toBe(200)
@@ -425,7 +425,7 @@ describe('Deepgram webhook route', () => {
   test('returns 503 when receipt insert fails with non-conflict error', async () => {
     receiptInsertMock.mockResolvedValueOnce({ error: { code: '08006', message: 'connection failure' } })
 
-    const res = await POST(makeRequest('req-123', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(503)
     expect(updateMock).not.toHaveBeenCalled()
@@ -458,7 +458,7 @@ describe('Deepgram webhook route', () => {
       .mockResolvedValueOnce({ data: null, error: null })              // exact job not found
       .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })   // fallback job found
 
-    const res = await POST(makeRequest('req-inngest-fail', VALID_PROJECT_ID))
+    const res = await POST(makeRequest('req-inngest-fail', VALID_TRANSCRIPT_ID))
 
     expect(res.status).toBe(500)
     // Receipt must be marked failed so retries can take over immediately
@@ -467,10 +467,10 @@ describe('Deepgram webhook route', () => {
   })
 
   test('returns 400 and uses extracted identifiers to fail job when schema fails but metadata is recoverable', async () => {
-    // Payload has valid request_id but project_id is not a UUID — fails schema,
+    // Payload has valid request_id but transcript_id is not a UUID — fails schema,
     // but persistWebhookFailure should still receive the partial identifiers
     maybeSingleMock.mockResolvedValueOnce({
-      data: { id: 'job-1', project_id: VALID_PROJECT_ID },
+      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
       error: null,
     })
 
@@ -479,7 +479,7 @@ describe('Deepgram webhook route', () => {
       json: async () => ({
         metadata: {
           request_id: 'req-recoverable',
-          extra: { project_id: 'not-a-uuid' },
+          extra: { transcript_id: 'not-a-uuid' },
         },
       }),
     } as any

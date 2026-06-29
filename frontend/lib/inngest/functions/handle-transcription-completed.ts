@@ -1,7 +1,7 @@
 /**
  * Handle transcription completed
  * Triggered after successful processing.
- * Updates job and project status.
+ * Updates job and transcript status.
  */
 
 import { inngest } from "@/infra/inngest/client";
@@ -16,15 +16,15 @@ export const handleTranscriptionCompleted = inngest.createFunction(
         retries: 3,
     },
     async ({ event, step }) => {
-        const { projectId, jobId, duration } = event.data;
+        const { transcriptId, jobId, duration } = event.data;
 
-        console.log(`[inngest] Transcription completed for project: ${projectId}`);
+        console.log(`[inngest] Transcription completed for transcript: ${transcriptId}`);
 
         await step.run("update-status", async () => {
             const supabase = createAdminClient();
             const now = new Date().toISOString();
 
-            // Transition job to completed (project status derived by trigger)
+            // Transition job to completed (transcript status derived by trigger)
             const { outcome, error: transitionError } = await transitionJob({
                 supabase,
                 jobId,
@@ -42,23 +42,23 @@ export const handleTranscriptionCompleted = inngest.createFunction(
                 );
             }
 
-            // Update project duration (metadata-only, no status)
-            const { error: projectError } = await supabase
-                .from("projects")
+            // Update transcript duration (metadata-only, no status)
+            const { error: transcriptError } = await supabase
+                .from("transcripts")
                 .update({ duration_seconds: duration })
-                .eq("id", projectId);
+                .eq("id", transcriptId);
 
-            if (projectError) {
-                console.error("[inngest] Failed to update project duration:", projectError);
-                throw new Error(`Failed to update project duration: ${projectError.message}`);
+            if (transcriptError) {
+                console.error("[inngest] Failed to update transcript duration:", transcriptError);
+                throw new Error(`Failed to update transcript duration: ${transcriptError.message}`);
             }
 
-            console.log(`[inngest] Project ${projectId} marked as completed`);
+            console.log(`[inngest] Transcript ${transcriptId} marked as completed`);
         });
 
         return {
             status: "completed",
-            projectId,
+            transcriptId,
             jobId,
             duration,
         };

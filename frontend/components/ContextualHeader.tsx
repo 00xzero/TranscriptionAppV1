@@ -10,10 +10,10 @@ import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
   viewType?: 'library' | 'editor'
-  projectTitle?: string
+  transcriptTitle?: string
 }
 
-export default function ContextualHeader({ viewType, projectTitle }: ContextualHeaderProps) {
+export default function ContextualHeader({ viewType, transcriptTitle }: ContextualHeaderProps) {
   const { openCaptureModal } = useModal()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -111,9 +111,9 @@ export default function ContextualHeader({ viewType, projectTitle }: ContextualH
                   type="button"
                   className="font-sans font-medium text-[12px] leading-[20px] text-ink dark:text-paper bg-transparent border-0 p-0 m-0"
                   onClick={handleEditorTopReset}
-                  aria-label="Scroll to the top of the project"
+                  aria-label="Scroll to the top of the transcript"
                 >
-                  {projectTitle || 'Project'}
+                  {transcriptTitle || 'Transcript'}
                 </button>
               </TooltipTrigger>
               <TooltipContent>Scroll to top</TooltipContent>

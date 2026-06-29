@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
-import { useProjectsRealtime } from '@/lib/supabase/hooks'
+import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,21 +16,21 @@ import type { User } from '@supabase/supabase-js'
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
-  const { projects, isLoading, deleteProject } = useProjectsRealtime()
+  const { transcripts, isLoading, deleteTranscript } = useTranscriptsRealtime()
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Handle delete with confirmation
   const handleDelete = async (id: string, title: string) => {
     const ok = window.confirm(
-      `Delete "${title}"? This will permanently remove the project and all associated data. This action cannot be undone.`
+      `Delete "${title}"? This will permanently remove the transcript and all associated data. This action cannot be undone.`
     )
     if (!ok) return
     setDeleteError(null)
     try {
-      await deleteProject(id)
+      await deleteTranscript(id)
     } catch (e) {
-      console.error('Failed to delete project:', e)
-      setDeleteError('Failed to delete project. Please try again.')
+      console.error('Failed to delete transcript:', e)
+      setDeleteError('Failed to delete transcript. Please try again.')
     }
   }
 
@@ -124,10 +124,10 @@ export default function LibraryView() {
           {getGreeting()}, {getUserFirstName()}.
         </h2>
 
-        {/* Recent Projects Section */}
+        {/* Recent Projects Section (future feature: projects group transcripts/files) */}
         <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Projects</h3>
-          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
+          <Link href="/transcripts" title="View all transcripts" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
           </Link>
         </div>
@@ -173,11 +173,11 @@ export default function LibraryView() {
         </div>
       </section>
 
-      {/* Recent Files Section - Using Real Data */}
+      {/* Recent Transcripts Section - Using Real Data */}
       <section className="mt-8">
         <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
-          <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Files</h3>
-          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
+          <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Transcripts</h3>
+          <Link href="/transcripts" title="View all transcripts" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
           </Link>
         </div>
@@ -201,25 +201,25 @@ export default function LibraryView() {
         <div className="bg-white dark:bg-night-surface rounded-sm border border-[#D1CEC5] dark:border-night-border divide-y divide-[#D1CEC5] dark:divide-night-border">
           {isLoading ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              Loading projects...
+              Loading transcripts...
             </div>
-          ) : projects.length === 0 ? (
+          ) : transcripts.length === 0 ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              No projects yet. Click &ldquo;Capture&rdquo; to start your first transcription.
+              No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
             </div>
           ) : (
-            projects.slice(0, 5).map((project) => {
-              const statusBadge = getStatusBadge(project.status)
-              const duration = formatDuration(project.duration_seconds)
+            transcripts.slice(0, 5).map((transcript) => {
+              const statusBadge = getStatusBadge(transcript.status)
+              const duration = formatDuration(transcript.duration_seconds)
 
               return (
                 <div
-                  key={project.id}
+                  key={transcript.id}
                   className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 transition-colors group"
                 >
                   <Link
-                    href={isCompleted(project.status) ? `/editor/${project.id}` : `/projects`}
-                    title={isCompleted(project.status) ? `Open ${project.title || 'Untitled'}` : `Open project list for ${project.title || 'Untitled'}`}
+                    href={isCompleted(transcript.status) ? `/editor/${transcript.id}` : `/transcripts`}
+                    title={isCompleted(transcript.status) ? `Open ${transcript.title || 'Untitled'}` : `Open transcript list for ${transcript.title || 'Untitled'}`}
                     className="flex items-center gap-4 flex-1 cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-sm bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 shrink-0">
@@ -228,7 +228,7 @@ export default function LibraryView() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <h4 className="font-sans text-sm font-medium text-ink dark:text-paper group-hover:text-trust-blue transition-colors truncate">
-                          {project.title || 'Untitled'}
+                          {transcript.title || 'Untitled'}
                         </h4>
                         {statusBadge && (
                           <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${statusBadge.className}`}>
@@ -243,7 +243,7 @@ export default function LibraryView() {
                   </Link>
                   <div className="flex items-center gap-4">
                     <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
-                      {formatRelativeTime(project.updated_at)}
+                      {formatRelativeTime(transcript.updated_at)}
                     </span>
                     <DropdownMenu>
                       <Tooltip>
@@ -252,7 +252,7 @@ export default function LibraryView() {
                             <button
                               type="button"
                               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
-                              aria-label={`More options for ${project.title || 'Untitled'}`}
+                              aria-label={`More options for ${transcript.title || 'Untitled'}`}
                             >
                               <span className="mb-2">...</span>
                             </button>
@@ -264,7 +264,7 @@ export default function LibraryView() {
                         <DropdownMenuItem
                           className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
                           onSelect={() => {
-                            void handleDelete(project.id, project.title || 'Untitled')
+                            void handleDelete(transcript.id, transcript.title || 'Untitled')
                           }}
                         >
                           Delete

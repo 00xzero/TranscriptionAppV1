@@ -10,16 +10,16 @@ jest.mock('@/infra/supabase/server', () => ({
   })),
 }))
 
-import { POST } from '../app/api/projects/route'
+import { POST } from '../app/api/transcripts/route'
 
-function makeProjectInsertChain(projectData: unknown) {
-  const singleMock = jest.fn(async () => ({ data: projectData, error: null }))
+function makeTranscriptInsertChain(transcriptData: unknown) {
+  const singleMock = jest.fn(async () => ({ data: transcriptData, error: null }))
   const selectMock = jest.fn(() => ({ single: singleMock }))
   const insertMock = jest.fn(() => ({ select: selectMock }))
   return { insert: insertMock }
 }
 
-describe('POST /api/projects', () => {
+describe('POST /api/transcripts', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     getUserMock.mockResolvedValue({
@@ -46,8 +46,8 @@ describe('POST /api/projects', () => {
     expect(json.error).toBeTruthy()
   })
 
-  test('valid body returns 200 with project and storagePath', async () => {
-    const projectData = {
+  test('valid body returns 200 with transcript and storagePath', async () => {
+    const transcriptData = {
       id: '00000000-0000-0000-0000-000000000002',
       status: 'created',
       title: 'audio.mp3',
@@ -55,7 +55,7 @@ describe('POST /api/projects', () => {
       updated_at: '2026-01-01T00:00:00Z',
     }
     fromMock.mockImplementation((table: string) => {
-      if (table === 'projects') return makeProjectInsertChain(projectData)
+      if (table === 'transcripts') return makeTranscriptInsertChain(transcriptData)
       if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
       return {}
     })
@@ -65,7 +65,7 @@ describe('POST /api/projects', () => {
     const res = await POST(req)
     expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.project).toBeDefined()
+    expect(json.transcript).toBeDefined()
     expect(json.storagePath).toContain('audio.mp3')
   })
 })

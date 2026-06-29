@@ -22,7 +22,7 @@ jest.mock('next/navigation', () => ({
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
-// NOTE: the direct-URL-visit redirect (`/projects?capture=recording_session_not_found`)
+// NOTE: the direct-URL-visit redirect (`/transcripts?capture=recording_session_not_found`)
 // is gated off when NEXT_PUBLIC_RECORDING_DEV_CONTROLS is enabled for tests,
 // so that branch is covered by manual QA.
 

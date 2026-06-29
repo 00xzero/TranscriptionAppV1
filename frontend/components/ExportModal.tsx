@@ -8,12 +8,12 @@ import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 type ExportFormat = 'DOCX' | 'VTT'
 
 interface ExportModalProps {
-  projectId: string
-  projectTitle?: string | null
+  transcriptId: string
+  transcriptTitle?: string | null
   onClose: () => void
 }
 
-export default function ExportModal({ projectId, projectTitle, onClose }: ExportModalProps) {
+export default function ExportModal({ transcriptId, transcriptTitle, onClose }: ExportModalProps) {
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('DOCX')
   const [isExporting, setIsExporting] = useState(false)
@@ -35,7 +35,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
 
     try {
       // Use new Next.js API routes (session cookie handles auth)
-      const endpoint = `/api/projects/${projectId}/export/${selectedFormat.toLowerCase()}`
+      const endpoint = `/api/transcripts/${transcriptId}/export/${selectedFormat.toLowerCase()}`
 
       const response = await fetch(endpoint)
 
@@ -48,7 +48,7 @@ export default function ExportModal({ projectId, projectTitle, onClose }: Export
 
       // Get the filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get('Content-Disposition')
-      let filename = `${projectTitle || 'transcript'}.${selectedFormat.toLowerCase()}`
+      let filename = `${transcriptTitle || 'transcript'}.${selectedFormat.toLowerCase()}`
 
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/)

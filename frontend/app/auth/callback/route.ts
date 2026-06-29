@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const next = searchParams.get('next') ?? ''
     const safeNext = (() => {
         if (!next) {
-            return '/projects'
+            return '/transcripts'
         }
 
         try {
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
             // Fall through to default
         }
 
-        return '/projects'
+        return '/transcripts'
     })()
 
     if (code) {

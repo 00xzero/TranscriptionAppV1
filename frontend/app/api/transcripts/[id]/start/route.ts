@@ -1,7 +1,7 @@
 /**
  * Start Transcription Endpoint
  *
- * Triggers a new transcription job for a project.
+ * Triggers a new transcription job for a transcript.
  * Auth, param extraction, and HTTP mapping only — business logic in core.
  */
 
@@ -30,14 +30,14 @@ export async function POST(
 
     const result = await startTranscription({
         supabase,
-        projectId: id,
+        transcriptId: id,
         userId: user.id,
         idempotencyKey,
     });
 
     switch (result.outcome) {
         case 'started':
-            console.log(`Transcription started for project: ${id}, job: ${result.jobId}`);
+            console.log(`Transcription started for transcript: ${id}, job: ${result.jobId}`);
             return NextResponse.json({ message: "Transcription started", jobId: result.jobId });
 
         case 'cached':
@@ -61,7 +61,7 @@ export async function POST(
             );
 
         case 'invalid':
-            if (result.reason === 'Project not found') {
+            if (result.reason === 'Transcript not found') {
                 return NextResponse.json({ error: result.reason }, { status: 404 });
             }
             if (result.reason.includes('Previous transcription attempt failed')) {

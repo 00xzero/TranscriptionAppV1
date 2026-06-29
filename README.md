@@ -14,7 +14,7 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
 
 - `frontend/`: Next.js app, API routes, Inngest functions, Jest tests
   - `contracts/`: Zod schemas — single source of truth for all runtime-validated types
-  - `core/`: Domain logic and application services (transcription, projects, exports, rate limiting)
+  - `core/`: Domain logic and application services (transcription, transcripts, exports, rate limiting)
   - `infra/`: External service adapters (Supabase client factories, Deepgram, Inngest)
   - `lib/`: Cross-cutting utilities (Inngest function handlers, Supabase hooks/queries, ModalContext)
   - `components/`: React UI components

@@ -1,8 +1,8 @@
 import {
   validateJobTransition,
-  deriveProjectStatus,
+  deriveTranscriptStatus,
   isJobStatus,
-  isProjectStatus,
+  isTranscriptStatus,
   isTerminalJobStatus,
 } from '@/core/transcription/machine'
 import type { JobStatus } from '@/core/transcription/machine'
@@ -45,36 +45,36 @@ describe('state-machine', () => {
     })
   })
 
-  describe('deriveProjectStatus', () => {
+  describe('deriveTranscriptStatus', () => {
     test('no jobs → created', () => {
-      expect(deriveProjectStatus([])).toBe('created')
+      expect(deriveTranscriptStatus([])).toBe('created')
     })
 
     test('any processing → processing', () => {
-      expect(deriveProjectStatus(['completed', 'processing'])).toBe('processing')
-      expect(deriveProjectStatus(['processing'])).toBe('processing')
+      expect(deriveTranscriptStatus(['completed', 'processing'])).toBe('processing')
+      expect(deriveTranscriptStatus(['processing'])).toBe('processing')
     })
 
     test('any queued → queued', () => {
-      expect(deriveProjectStatus(['completed', 'queued'])).toBe('queued')
-      expect(deriveProjectStatus(['queued'])).toBe('queued')
+      expect(deriveTranscriptStatus(['completed', 'queued'])).toBe('queued')
+      expect(deriveTranscriptStatus(['queued'])).toBe('queued')
     })
 
     test('processing takes precedence over queued', () => {
-      expect(deriveProjectStatus(['queued', 'processing'])).toBe('processing')
+      expect(deriveTranscriptStatus(['queued', 'processing'])).toBe('processing')
     })
 
     test('all terminal → newest (last in array)', () => {
-      expect(deriveProjectStatus(['error', 'completed'])).toBe('completed')
-      expect(deriveProjectStatus(['completed', 'error'])).toBe('error')
+      expect(deriveTranscriptStatus(['error', 'completed'])).toBe('completed')
+      expect(deriveTranscriptStatus(['completed', 'error'])).toBe('error')
     })
 
     test('single completed → completed', () => {
-      expect(deriveProjectStatus(['completed'])).toBe('completed')
+      expect(deriveTranscriptStatus(['completed'])).toBe('completed')
     })
 
     test('single error → error', () => {
-      expect(deriveProjectStatus(['error'])).toBe('error')
+      expect(deriveTranscriptStatus(['error'])).toBe('error')
     })
   })
 
@@ -93,17 +93,17 @@ describe('state-machine', () => {
       expect(isJobStatus('')).toBe(false)
     })
 
-    test('isProjectStatus accepts valid statuses', () => {
-      expect(isProjectStatus('created')).toBe(true)
-      expect(isProjectStatus('queued')).toBe(true)
-      expect(isProjectStatus('processing')).toBe(true)
-      expect(isProjectStatus('completed')).toBe(true)
-      expect(isProjectStatus('error')).toBe(true)
+    test('isTranscriptStatus accepts valid statuses', () => {
+      expect(isTranscriptStatus('created')).toBe(true)
+      expect(isTranscriptStatus('queued')).toBe(true)
+      expect(isTranscriptStatus('processing')).toBe(true)
+      expect(isTranscriptStatus('completed')).toBe(true)
+      expect(isTranscriptStatus('error')).toBe(true)
     })
 
-    test('isProjectStatus rejects invalid statuses', () => {
-      expect(isProjectStatus('failed')).toBe(false)
-      expect(isProjectStatus('complete')).toBe(false)
+    test('isTranscriptStatus rejects invalid statuses', () => {
+      expect(isTranscriptStatus('failed')).toBe(false)
+      expect(isTranscriptStatus('complete')).toBe(false)
     })
 
     test('isTerminalJobStatus', () => {

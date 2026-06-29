@@ -30,14 +30,14 @@ jest.mock('@/infra/inngest/client', () => {
   }
 })
 
-import { POST } from '../app/api/projects/[id]/start/route'
+import { POST } from '../app/api/transcripts/[id]/start/route'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 
-const projectSingleMock = jest.fn()
-const projectEqMock = jest.fn(() => ({ single: projectSingleMock }))
-const projectSelectMock = jest.fn(() => ({ eq: projectEqMock }))
-const projectUpdateEqMock = jest.fn()
-const projectUpdateMock = jest.fn(() => ({ eq: projectUpdateEqMock }))
+const transcriptSingleMock = jest.fn()
+const transcriptEqMock = jest.fn(() => ({ single: transcriptSingleMock }))
+const transcriptSelectMock = jest.fn(() => ({ eq: transcriptEqMock }))
+const transcriptUpdateEqMock = jest.fn()
+const transcriptUpdateMock = jest.fn(() => ({ eq: transcriptUpdateEqMock }))
 
 const jobsMaybeSingleMock = jest.fn()
 const jobsEqMock = jest.fn()
@@ -60,11 +60,11 @@ describe('Start route idempotency', () => {
     jest.clearAllMocks()
     process.env.RATE_LIMIT_MODE = 'off'
 
-    projectSingleMock.mockReset()
-    projectEqMock.mockClear()
-    projectSelectMock.mockClear()
-    projectUpdateEqMock.mockReset()
-    projectUpdateMock.mockClear()
+    transcriptSingleMock.mockReset()
+    transcriptEqMock.mockClear()
+    transcriptSelectMock.mockClear()
+    transcriptUpdateEqMock.mockReset()
+    transcriptUpdateMock.mockClear()
     jobsMaybeSingleMock.mockReset()
     jobsEqMock.mockClear()
     jobsSelectMock.mockClear()
@@ -75,7 +75,7 @@ describe('Start route idempotency', () => {
     watchlistSelectMock.mockClear()
 
     jobsEqMock.mockImplementation(() => jobsSelectChain)
-    projectUpdateEqMock.mockResolvedValue({ error: null })
+    transcriptUpdateEqMock.mockResolvedValue({ error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: { id: 'job-new' }, error: null })
     watchlistEqMock.mockResolvedValue({ data: [], error: null })
     ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
@@ -84,8 +84,8 @@ describe('Start route idempotency', () => {
     })
 
     fromMock.mockImplementation((table: string) => {
-      if (table === 'projects') {
-        return { select: projectSelectMock, update: projectUpdateMock }
+      if (table === 'transcripts') {
+        return { select: transcriptSelectMock, update: transcriptUpdateMock }
       }
       if (table === 'jobs') {
         return { select: jobsSelectMock, insert: jobsInsertMock }
@@ -106,8 +106,8 @@ describe('Start route idempotency', () => {
     process.env.RATE_LIMIT_MODE = originalRateLimitMode
   })
 
-  test('returns cached job when project is queued and idempotency key matches', async () => {
-    projectSingleMock.mockResolvedValue({
+  test('returns cached job when transcript is queued and idempotency key matches', async () => {
+    transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-1', source_object_key: 'source-1', status: 'queued' },
       error: null,
     })
@@ -136,7 +136,7 @@ describe('Start route idempotency', () => {
   })
 
   test('returns conflict when cached job is in error state', async () => {
-    projectSingleMock.mockResolvedValue({
+    transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-err', source_object_key: 'source-err', status: 'error' },
       error: null,
     })
@@ -165,7 +165,7 @@ describe('Start route idempotency', () => {
   })
 
   test('creates a new job when no cached job exists', async () => {
-    projectSingleMock.mockResolvedValue({
+    transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
       error: null,
     })
@@ -193,7 +193,7 @@ describe('Start route idempotency', () => {
     expect(jobsInsertMock).toHaveBeenCalledTimes(1)
     const [insertPayload] = jobsInsertMock.mock.calls[0] as unknown as [Record<string, unknown>]
     expect(insertPayload).toMatchObject({
-      project_id: 'proj-1',
+      transcript_id: 'proj-1',
       status: 'queued',
       type: 'transcription',
       idempotency_key: 'idem-new',
@@ -201,7 +201,7 @@ describe('Start route idempotency', () => {
   })
 
   test('continues when idempotency lookup fails', async () => {
-    projectSingleMock.mockResolvedValue({
+    transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-2', source_object_key: 'source-2', status: 'created' },
       error: null,
     })
@@ -225,7 +225,7 @@ describe('Start route idempotency', () => {
   })
 
   test('creates a job without idempotency key when header is missing', async () => {
-    projectSingleMock.mockResolvedValue({
+    transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-3', source_object_key: 'source-3', status: 'created' },
       error: null,
     })
@@ -244,7 +244,7 @@ describe('Start route idempotency', () => {
     expect(jobsInsertMock).toHaveBeenCalledTimes(1)
     const [insertPayload] = jobsInsertMock.mock.calls[0] as unknown as [Record<string, unknown>]
     expect(insertPayload).toMatchObject({
-      project_id: 'proj-3',
+      transcript_id: 'proj-3',
       status: 'queued',
       type: 'transcription',
     })

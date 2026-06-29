@@ -273,7 +273,7 @@ describe('AudioPlayer', () => {
     const onReady = jest.fn()
     const { audio, getCurrentTime } = renderPlayer({
       props: {
-        src: 'https://storage.example.test/object/sign/media/user/project/recording.webm?token=abc',
+        src: 'https://storage.example.test/object/sign/media/user/transcript/recording.webm?token=abc',
         onReady,
       },
     })

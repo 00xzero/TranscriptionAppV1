@@ -1,16 +1,16 @@
 /**
  * Shared data-fetching logic for export routes.
  *
- * Centralizes authentication, project/segments/speakers fetching,
+ * Centralizes authentication, transcript/segments/speakers fetching,
  * and speaker map building for DOCX and VTT exports.
  */
 import { SupabaseClient } from '@supabase/supabase-js'
-import type { Segment, Project } from '@/contracts/db'
+import type { Segment, Transcript } from '@/contracts/db'
 import type { ExportSegment, SpeakersMap } from '@/core/exports'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {
-    project: Project
+    transcript: Transcript
     exportSegments: ExportSegment[]
     speakersMap: SpeakersMap
 }
@@ -25,25 +25,25 @@ export type ExportDataResult =
     | { success: false; error: ExportError }
 
 /**
- * Fetch all segments for a project with pagination to avoid PostgREST's
+ * Fetch all segments for a transcript with pagination to avoid PostgREST's
  * default 1000-row limit truncating long transcripts.
  */
-async function fetchAllProjectSegments(
+async function fetchAllTranscriptSegments(
     supabase: SupabaseClient,
-    projectId: string
+    transcriptId: string
 ): Promise<Segment[]> {
-    return paginateAllRows<Segment>(supabase, 'segments', projectId, 'start_ms')
+    return paginateAllRows<Segment>(supabase, 'segments', transcriptId, 'start_ms')
 }
 
 /**
  * Fetch all data needed for transcript export.
  *
- * Handles authentication check, project lookup, segments, and speakers.
+ * Handles authentication check, transcript lookup, segments, and speakers.
  * Returns structured data or error response details.
  */
 export async function fetchExportData(
     supabase: SupabaseClient,
-    projectId: string
+    transcriptId: string
 ): Promise<ExportDataResult> {
     // Authenticate
     const {
@@ -58,24 +58,24 @@ export async function fetchExportData(
         }
     }
 
-    // Fetch project
-    const { data: project, error: projectError } = await supabase
-        .from('projects')
+    // Fetch transcript
+    const { data: transcript, error: transcriptError } = await supabase
+        .from('transcripts')
         .select('*')
-        .eq('id', projectId)
+        .eq('id', transcriptId)
         .single()
 
-    if (projectError || !project) {
+    if (transcriptError || !transcript) {
         return {
             success: false,
-            error: { error: 'Project not found', status: 404 },
+            error: { error: 'Transcript not found', status: 404 },
         }
     }
 
     // Fetch segments
     let segments: Segment[] = []
     try {
-        segments = await fetchAllProjectSegments(supabase, projectId)
+        segments = await fetchAllTranscriptSegments(supabase, transcriptId)
     } catch (error) {
         console.error('Error fetching segments:', error)
         return {
@@ -88,7 +88,7 @@ export async function fetchExportData(
     const { data: speakers, error: speakersError } = await supabase
         .from('speakers')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('transcript_id', transcriptId)
 
     if (speakersError) {
         console.error('Error fetching speakers:', speakersError)
@@ -118,7 +118,7 @@ export async function fetchExportData(
     return {
         success: true,
         data: {
-            project: project as Project,
+            transcript: transcript as Transcript,
             exportSegments,
             speakersMap,
         },

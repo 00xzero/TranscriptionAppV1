@@ -11,10 +11,10 @@ export default function EditorError({ error, reset }: { error: Error & { digest?
   return (
     <ErrorFallback
       title="Couldn't open this transcript"
-      description="The editor failed to render this transcript. Try again, or return to your projects list to pick another."
+      description="The editor failed to render this transcript. Try again, or return to your transcripts list to pick another."
       digest={error.digest}
       primary={{ kind: 'button', label: 'Try again', onClick: reset }}
-      secondary={{ kind: 'link', label: 'Back to projects', href: '/projects' }}
+      secondary={{ kind: 'link', label: 'Back to transcripts', href: '/transcripts' }}
     />
   )
 }

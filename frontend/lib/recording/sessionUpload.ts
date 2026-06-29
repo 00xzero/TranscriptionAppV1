@@ -19,7 +19,7 @@ import { runCaptureUpload } from '@/lib/capture/upload'
 // Storage filename for an uploaded recording. Keyed on uploadIntentId so the live
 // finalize path and any later recovery save of the SAME recording produce the
 // identical name: server dedup recomputes the storage path via
-// getMediaPath(userId, projectId, filename), so a divergent name would re-upload
+// getMediaPath(userId, transcriptId, filename), so a divergent name would re-upload
 // to a new path on a dedup hit and orphan the originally-uploaded object. The
 // timestamp fallback is only reached when no intent id exists, in which case
 // create never dedups (no cross-path collision is possible).
@@ -81,7 +81,7 @@ export async function submitFinalizedRecording(): Promise<void> {
 
   if (result.kind === 'success') {
     setSubmissionResult({
-      projectId: result.projectId,
+      transcriptId: result.transcriptId,
       outcome: result.outcome,
     })
     markSubmitted()

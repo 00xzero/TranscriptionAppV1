@@ -67,7 +67,7 @@ export interface SessionSnapshot {
   // Populated only in the `recoverable` state; null otherwise.
   recoverable: RecoverableInfo | null
   submissionResult: {
-    projectId: string
+    transcriptId: string
     outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
   } | null
 }

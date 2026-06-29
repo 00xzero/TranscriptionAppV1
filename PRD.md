@@ -56,7 +56,7 @@ A privacy-focused transcription tool powered by Deepgram Nova 3, with speaker de
 - Supported formats: `mp3`, `wav`, `m4a`, `aac`, `flac`, `mp4`, `mov`, `webm`, `ogg`, `avi`.
 - Configurable upload cap via `NEXT_PUBLIC_MAX_FILE_SIZE_MB` (default 50MB, can be raised for paid plans).
 - User can set title and optional key terms at capture time.
-- Capture flow creates project first, uploads media to Supabase Storage, then starts transcription.
+- Capture flow creates transcript first, uploads media to Supabase Storage, then starts transcription.
 
 Implementation notes:
 - Language selector UI exists but is currently disabled (coming soon).
@@ -66,7 +66,7 @@ Implementation notes:
 
 - Deepgram async (`/listen` + callback webhook) with `nova-3`, smart formatting, utterances, diarization.
 - Job lifecycle: `queued -> processing -> completed|error`.
-- Project lifecycle status is DB-derived from job state via triggers (not manually set per code path).
+- Transcript lifecycle status is DB-derived from job state via triggers (not manually set per code path).
 - State machine enforces valid transitions; invalid inputs are rejected at the boundary.
 - Optional idempotent start via `x-idempotency-key` to prevent duplicate jobs.
 - Webhook receipt table (`webhook_receipts`) provides idempotent deduplication of Deepgram callbacks: completed duplicates return `200`, active in-flight duplicates return `503`, stale receipts are reclaimed.
@@ -111,8 +111,8 @@ Planned:
 ### Main Surfaces
 
 1. Auth (`/auth`): Email/password sign-in and sign-up via Supabase Auth UI.
-2. Home/Library (`/`): Recent projects/files with status indicators.
-3. Projects (`/projects`): Project list, start transcription, view errors, delete project.
+2. Home/Library (`/`): Recent transcripts/files with status indicators.
+3. Transcripts (`/transcripts`): Transcript list, start transcription, view errors, delete transcript.
 4. Editor (`/editor/[id]`): Waveform, transcript editing, speaker tools, find/replace, export.
 
 ### Keyboard Shortcuts
@@ -137,19 +137,19 @@ Planned:
 
 - Next.js 14 App Router with TypeScript.
 - Tailwind-based UI (Olivetti design system).
-- API routes in the same Next.js app for project creation/start/export/webhooks. Route handlers are thin shells: auth → Zod parse → call `core/` service → return response.
+- API routes in the same Next.js app for transcript creation/start/export/webhooks. Route handlers are thin shells: auth → Zod parse → call `core/` service → return response.
 - Client data layer uses Supabase SDK + realtime subscriptions with polling fallback.
 
 ### Layer Boundaries (`frontend/`)
 
 - `contracts/` — Single source of truth for all Zod schemas and inferred TypeScript types (DB shapes, API bodies, Inngest events, Deepgram webhook format, editor pipeline).
-- `core/` — Domain logic and application services: transcription state machine, project creation, segment building, exports, rate limiting.
+- `core/` — Domain logic and application services: transcription state machine, transcript creation, segment building, exports, rate limiting.
 - `infra/` — External service adapters: Supabase client factories (browser, server, admin), Deepgram client, Inngest client.
 - `lib/` — Cross-cutting utilities: Inngest function handlers, Supabase hooks/queries/realtime, ModalContext.
 
 ### Data/Auth/Storage
 
-- Supabase Postgres with RLS-enabled project-scoped access.
+- Supabase Postgres with RLS-enabled transcript-scoped access.
 - Supabase Auth (email/password flow in current UI).
 - Supabase Storage private `media` bucket with signed URL access.
 
@@ -168,8 +168,8 @@ Planned:
 
 ## 7. Data Model (Simplified)
 
-- `projects`: project metadata and user ownership. Status is derived from job state via DB triggers.
-- `speakers`: speaker labels/colors per project.
+- `transcripts`: transcript metadata and user ownership. Status is derived from job state via DB triggers.
+- `speakers`: speaker labels/colors per transcript.
 - `segments`: canonical editable transcript units derived during ingestion.
 - `words`: word-level timings linked to segments.
 - `watchlist`: key terms for recognition boosting.
@@ -183,11 +183,11 @@ Planned:
 
 ### Next.js API Routes
 
-- `POST /api/projects` - Create project and return storage path.
-- `POST /api/projects/[id]/start` - Queue transcription (supports idempotency key header).
-- `GET /api/projects/[id]/media-url` - Generate signed URL for playback.
-- `GET /api/projects/[id]/export/docx` - Generate DOCX export.
-- `GET /api/projects/[id]/export/vtt` - Generate VTT export.
+- `POST /api/transcripts` - Create transcript and return storage path.
+- `POST /api/transcripts/[id]/start` - Queue transcription (supports idempotency key header).
+- `GET /api/transcripts/[id]/media-url` - Generate signed URL for playback.
+- `GET /api/transcripts/[id]/export/docx` - Generate DOCX export.
+- `GET /api/transcripts/[id]/export/vtt` - Generate VTT export.
 - `POST /api/inngest` - Inngest handler endpoint.
 - `POST /api/webhooks/deepgram` - Deepgram callback ingest + forwarding.
 - `GET /api/webhooks/deepgram/health` - Webhook/system health endpoint.
@@ -195,7 +195,7 @@ Planned:
 
 ### Client-Side Supabase Access
 
-- Project list/status and editor data are fetched directly via Supabase SDK.
+- Transcript list/status and editor data are fetched directly via Supabase SDK.
 - Realtime subscriptions are used where possible with timed polling fallback.
 - Optimistic updates are used for key editor interactions.
 
@@ -207,7 +207,7 @@ Planned:
 - UI responsiveness target: bulk replace operations and transcript scrolling complete fast enough for interactive use on long transcripts (react-virtuoso handles 1hr+ recordings).
 - Duplicate start protection through idempotency key + DB unique index.
 - Stale job auto-fail via scheduled timeout checks.
-- State machine with DB-enforced transitions prevents job/project status desynchronization across the start route, webhook path, timeout handler, and completion handler.
+- State machine with DB-enforced transitions prevents job/transcript status desynchronization across the start route, webhook path, timeout handler, and completion handler.
 - Webhook receipt-based idempotency guards against duplicate Deepgram callbacks without reprocessing.
 - Webhook authentication required via `dg-token` against `DEEPGRAM_API_KEY_IDENTIFIER`.
 - Known platform limitation: Vercel function body cap can reject very large Deepgram callbacks (roughly multi-hour recordings).
@@ -216,7 +216,7 @@ Planned:
 
 ## 10. Security and Privacy
 
-- RLS enforces per-user data isolation for project-scoped tables.
+- RLS enforces per-user data isolation for transcript-scoped tables.
 - Auth middleware protects app routes and redirects unauthenticated users.
 - Storage access is private; signed URLs are used for controlled media access.
 - Service-role operations are restricted to server-side paths (Inngest/webhooks/admin helpers).
@@ -232,10 +232,10 @@ Open operational policy item:
 ### Completed
 
 - Multi-user auth and RLS-backed tenant isolation.
-- Upload -> create project -> store media -> start async transcription flow.
+- Upload -> create transcript -> store media -> start async transcription flow.
 - Deepgram async integration with webhook-based completion path.
 - Job lifecycle tracking with surfaced error states.
-- Realtime project updates with polling fallback.
+- Realtime transcript updates with polling fallback.
 - Key term capture and forwarding to Deepgram `keyterm` parameters.
 - Inline transcript editing with debounced autosave.
 - Bulk find/replace with case and whole-word options.
@@ -243,7 +243,7 @@ Open operational policy item:
 - DOCX and VTT export endpoints with downloadable files.
 - Idempotent transcription start support.
 - Start-route rate limiting and timeout-based stale job protection.
-- State machine with DB-derived project status and idempotent replay handling.
+- State machine with DB-derived transcript status and idempotent replay handling.
 - Webhook receipt-based idempotency for Deepgram callback deduplication.
 - Transcript virtualization (react-virtuoso) for long-recording performance.
 
