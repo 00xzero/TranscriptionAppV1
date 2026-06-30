@@ -1,12 +1,14 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import LibraryView from '../components/LibraryView'
-import type { Transcript } from '../contracts/db'
-import { TooltipProvider } from '../components/ui/tooltip'
+import TranscriptsPage from '@/app/transcripts/page'
+import type { Transcript } from '@/contracts/db'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
-const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
+const mockRefetch = jest.fn()
+const mockReplace = jest.fn()
+const mockOpenCaptureModal = jest.fn()
 const mockUseTranscriptsRealtime = jest.fn()
 
 const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
@@ -26,16 +28,12 @@ const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   ...overrides,
 })
 
-jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getUser: mockGetUser,
-    },
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: mockReplace,
   }),
-}))
-
-jest.mock('@/lib/supabase/hooks', () => ({
-  useTranscriptsRealtime: () => mockUseTranscriptsRealtime(),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 jest.mock('next/link', () => {
@@ -51,85 +49,77 @@ jest.mock('next/link', () => {
   return MockNextLink
 })
 
-describe('LibraryView', () => {
-  const renderLibraryView = () =>
+jest.mock('@/lib/ModalContext', () => ({
+  useModal: () => ({
+    openCaptureModal: mockOpenCaptureModal,
+  }),
+}))
+
+jest.mock('@/lib/supabase/hooks', () => ({
+  useTranscriptsRealtime: () => mockUseTranscriptsRealtime(),
+}))
+
+describe('TranscriptsPage', () => {
+  const renderTranscriptsPage = () =>
     render(
       <TooltipProvider delayDuration={0}>
-        <LibraryView />
+        <TranscriptsPage />
       </TooltipProvider>
     )
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: null,
-    })
     mockDeleteTranscript.mockResolvedValue(undefined)
     mockUseTranscriptsRealtime.mockReturnValue({
       transcripts: [makeTranscript()],
       isLoading: false,
+      connectionStatus: 'connected',
       deleteTranscript: mockDeleteTranscript,
+      refetch: mockRefetch,
     })
   })
 
-  test('opens dropdown on trigger click and closes on Escape', async () => {
+  test('deletes a transcript after alert dialog confirmation', async () => {
     const user = userEventLib.setup()
-    renderLibraryView()
+    renderTranscriptsPage()
 
     await screen.findByText('Transcript Alpha')
+    await user.click(
+      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
+    )
 
-    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
-    expect(screen.getByRole('menuitem', { name: /Delete/i })).toBeInTheDocument()
-
-    await user.keyboard('{Escape}')
-
-    await waitFor(() => {
-      expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
-    })
-  })
-
-  test('calls deleteTranscript and closes the menu when delete is confirmed', async () => {
-    const user = userEventLib.setup()
-
-    renderLibraryView()
-    await screen.findByText('Transcript Alpha')
-
-    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
-    await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
     expect(await screen.findByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
     expect(
       screen.getByText(
         'This will permanently remove the transcript and all associated data. This action cannot be undone.'
       )
     ).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(mockDeleteTranscript).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111')
     })
-    expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
   })
 
-  test('does not delete and closes the menu when delete is canceled', async () => {
+  test('does not delete a transcript when alert dialog is canceled', async () => {
     const user = userEventLib.setup()
+    renderTranscriptsPage()
 
-    renderLibraryView()
     await screen.findByText('Transcript Alpha')
+    await user.click(
+      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
+    )
 
-    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
-    await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
     expect(await screen.findByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
     expect(
       screen.getByText(
         'This will permanently remove the transcript and all associated data. This action cannot be undone.'
       )
     ).toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(mockDeleteTranscript).not.toHaveBeenCalled()
-    await waitFor(() => {
-      expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
-    })
   })
 })

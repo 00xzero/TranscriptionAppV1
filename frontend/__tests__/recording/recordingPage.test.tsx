@@ -207,91 +207,91 @@ describe('Recording page', () => {
   })
 
   test('discard button discards without rendering the click event as a banner', () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
-    try {
-      act(() => {
-        startMock({ title: 'Discard me' })
-      })
-      render(<RecordingNewPage />)
+    act(() => {
+      startMock({ title: 'Discard me' })
+    })
+    render(<RecordingNewPage />)
 
-      fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
-
-      expect(confirmSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/discard this recording/i)
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    expect(screen.getByText('Discard this recording?')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'The recording will be permanently lost and cannot be recovered.'
       )
-      expect(getSnapshot().state).toBe('discarded')
-      expect(getSnapshot().salvageMessage).toBeNull()
-      expect(screen.getByText(/Returning to library/i)).toBeInTheDocument()
-    } finally {
-      confirmSpy.mockRestore()
-    }
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    expect(getSnapshot().state).toBe('discarded')
+    expect(getSnapshot().salvageMessage).toBeNull()
+    expect(screen.getByText(/Returning to library/i)).toBeInTheDocument()
   })
 
   test('canceling the discard confirmation keeps the recording active', () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
-    try {
-      act(() => {
-        startMock({ title: 'Keep me' })
-      })
-      render(<RecordingNewPage />)
+    act(() => {
+      startMock({ title: 'Keep me' })
+    })
+    render(<RecordingNewPage />)
 
-      fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    expect(screen.getByText('Discard this recording?')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'The recording will be permanently lost and cannot be recovered.'
+      )
+    ).toBeInTheDocument()
 
-      expect(confirmSpy).toHaveBeenCalled()
-      expect(getSnapshot().state).toBe('recording')
-      expect(screen.getByText('Keep me')).toBeInTheDocument()
-      expect(screen.getByTestId('recording-controls')).toBeInTheDocument()
-    } finally {
-      confirmSpy.mockRestore()
-    }
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(getSnapshot().state).toBe('recording')
+    expect(screen.getByText('Keep me')).toBeInTheDocument()
+    expect(screen.getByTestId('recording-controls')).toBeInTheDocument()
   })
 
   test('returning from a retryable upload error requires discard confirmation', () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(false)
-    try {
-      act(() => {
-        mockRecordingSession({
-          state: 'error',
-          title: 't',
-          errorMessage: 'Upload failed',
-          canRetryUpload: true,
-        })
+    act(() => {
+      mockRecordingSession({
+        state: 'error',
+        title: 't',
+        errorMessage: 'Upload failed',
+        canRetryUpload: true,
       })
-      render(<RecordingNewPage />)
+    })
+    render(<RecordingNewPage />)
 
-      fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
-
-      expect(confirmSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/discard your recording/i)
+    fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
+    expect(
+      screen.getByText(
+        'The recording will be permanently lost and cannot be recovered.'
       )
-      expect(pushMock).not.toHaveBeenCalled()
-      expect(getSnapshot().state).toBe('error')
-    } finally {
-      confirmSpy.mockRestore()
-    }
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(pushMock).not.toHaveBeenCalled()
+    expect(getSnapshot().state).toBe('error')
   })
 
   test('confirming discard on a retryable upload error returns to library', () => {
-    const confirmSpy = jest.spyOn(window, 'confirm').mockReturnValue(true)
-    try {
-      act(() => {
-        mockRecordingSession({
-          state: 'error',
-          title: 't',
-          errorMessage: 'Upload failed',
-          canRetryUpload: true,
-        })
+    act(() => {
+      mockRecordingSession({
+        state: 'error',
+        title: 't',
+        errorMessage: 'Upload failed',
+        canRetryUpload: true,
       })
-      render(<RecordingNewPage />)
+    })
+    render(<RecordingNewPage />)
 
-      fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
+    fireEvent.click(screen.getByRole('button', { name: /return to library/i }))
+    expect(
+      screen.getByText(
+        'The recording will be permanently lost and cannot be recovered.'
+      )
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
-      expect(confirmSpy).toHaveBeenCalled()
-      expect(getSnapshot().state).toBe('idle')
-      expect(pushMock).toHaveBeenCalledWith('/transcripts')
-    } finally {
-      confirmSpy.mockRestore()
-    }
+    expect(getSnapshot().state).toBe('idle')
+    expect(pushMock).toHaveBeenCalledWith('/transcripts')
   })
 
   test('interrupted state shows the unrecoverable copy and Return to library CTA', () => {
