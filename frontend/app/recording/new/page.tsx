@@ -70,6 +70,10 @@ function RecordingStatusLayout({
 export default function RecordingNewPage() {
   const router = useRouter()
   const routerRef = useRef(router)
+  // Set when the user intentionally leaves via "Return to library". The reset
+  // below flips state to idle, which would otherwise trip the missing-session
+  // redirect and bounce them into the "recording session not found" capture flow.
+  const intentionalReturnRef = useRef(false)
   const snapshot = useRecordingSession()
   const remote = useRemotePresenceStatus()
   const actions = useRecordingActions()
@@ -122,6 +126,7 @@ export default function RecordingNewPage() {
   // the global modal (RecordingSessionProvider), not this route, so production
   // just sends the user back to the library.
   useEffect(() => {
+    if (intentionalReturnRef.current) return
     if (
       shouldRedirectMissingRecordingSession({
         state: snapshot.state,
@@ -181,6 +186,7 @@ export default function RecordingNewPage() {
   }
 
   const returnToLibrary = () => {
+    intentionalReturnRef.current = true
     actions.resetRecordingSession()
     router.push('/transcripts')
   }
