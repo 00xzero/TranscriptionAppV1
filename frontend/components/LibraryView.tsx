@@ -10,27 +10,33 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { User } from '@supabase/supabase-js'
+
+type PendingDelete = {
+  id: string
+  title: string
+}
 
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
   const { transcripts, isLoading, deleteTranscript } = useTranscriptsRealtime()
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
-  // Handle delete with confirmation
-  const handleDelete = async (id: string, title: string) => {
-    const ok = window.confirm(
-      `Delete "${title}"? This will permanently remove the transcript and all associated data. This action cannot be undone.`
-    )
-    if (!ok) return
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return
     setDeleteError(null)
     try {
-      await deleteTranscript(id)
+      await deleteTranscript(pendingDelete.id)
     } catch (e) {
       console.error('Failed to delete transcript:', e)
       setDeleteError('Failed to delete transcript. Please try again.')
+    } finally {
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -118,7 +124,8 @@ export default function LibraryView() {
   const isCompleted = (status: string) => status === 'completed'
 
   return (
-    <div className="pt-[80px] px-6 pb-6 md:pt-[80px] md:px-10 md:pb-10 space-y-10 scroll-smooth">
+    <>
+      <div className="pt-[80px] px-6 pb-6 md:pt-[80px] md:px-10 md:pb-10 space-y-10 scroll-smooth">
       <section>
         <h2 className="font-serif text-3xl text-ink dark:text-paper mb-6">
           {getGreeting()}, {getUserFirstName()}.
@@ -264,7 +271,11 @@ export default function LibraryView() {
                         <DropdownMenuItem
                           className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
                           onSelect={() => {
-                            void handleDelete(transcript.id, transcript.title || 'Untitled')
+                            setPendingDelete({
+                              id: transcript.id,
+                              title: transcript.title || 'Untitled',
+                            })
+                            setDeleteDialogOpen(true)
                           }}
                         >
                           Delete
@@ -277,7 +288,14 @@ export default function LibraryView() {
             })
           )}
         </div>
-      </section>
-    </div>
+        </section>
+      </div>
+      <DeleteTranscriptDialog
+        open={deleteDialogOpen}
+        title={pendingDelete?.title ?? null}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+      />
+    </>
   )
 }

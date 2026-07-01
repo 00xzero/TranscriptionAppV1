@@ -20,9 +20,8 @@ import RecordingStateLabel from '@/components/RecordingSession/RecordingStateLab
 import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
 import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
+import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 
-const DISCARD_RETRYABLE_UPLOAD_COPY =
-  'Leaving this page will discard your recording and you will not be able to retry the upload. Continue?'
 const COMPLETION_REDIRECT_DELAY_MS = 600
 const COMPLETION_REDIRECT_RETRY_MS = 1_500
 const COMPLETION_HARD_FALLBACK_MS = 3_000
@@ -71,10 +70,15 @@ function RecordingStatusLayout({
 export default function RecordingNewPage() {
   const router = useRouter()
   const routerRef = useRef(router)
+  // Set when the user intentionally leaves via "Return to library". The reset
+  // below flips state to idle, which would otherwise trip the missing-session
+  // redirect and bounce them into the "recording session not found" capture flow.
+  const intentionalReturnRef = useRef(false)
   const snapshot = useRecordingSession()
   const remote = useRemotePresenceStatus()
   const actions = useRecordingActions()
   const [retryingUpload, setRetryingUpload] = useState(false)
+  const [returnConfirmOpen, setReturnConfirmOpen] = useState(false)
   const completionRedirectTarget = getCompletionRedirectTarget({
     state: snapshot.state,
     submissionResult: snapshot.submissionResult,
@@ -122,6 +126,7 @@ export default function RecordingNewPage() {
   // the global modal (RecordingSessionProvider), not this route, so production
   // just sends the user back to the library.
   useEffect(() => {
+    if (intentionalReturnRef.current) return
     if (
       shouldRedirectMissingRecordingSession({
         state: snapshot.state,
@@ -180,15 +185,28 @@ export default function RecordingNewPage() {
     }
   }
 
-  const handleReturnToLibrary = () => {
-    if (snapshot.canRetryUpload) {
-      const ok = window.confirm(DISCARD_RETRYABLE_UPLOAD_COPY)
-      if (!ok) return
-    }
-
+  const returnToLibrary = () => {
+    intentionalReturnRef.current = true
     actions.resetRecordingSession()
     router.push('/transcripts')
   }
+
+  const handleReturnToLibrary = () => {
+    if (snapshot.canRetryUpload) {
+      setReturnConfirmOpen(true)
+      return
+    }
+
+    returnToLibrary()
+  }
+
+  const returnConfirmDialog = (
+    <DiscardRecordingDialog
+      open={returnConfirmOpen}
+      onOpenChange={setReturnConfirmOpen}
+      onConfirm={returnToLibrary}
+    />
+  )
 
   if (isRemoteOnly) {
     const remoteTitle =
@@ -240,31 +258,34 @@ export default function RecordingNewPage() {
 
   if (snapshot.state === 'error') {
     return (
-      <RecordingStatusLayout title={title}>
-        {salvageBanner}
-        <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
-          {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {snapshot.canRetryUpload && (
+      <>
+        <RecordingStatusLayout title={title}>
+          {salvageBanner}
+          <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
+            {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {snapshot.canRetryUpload && (
+              <button
+                type="button"
+                onClick={handleRetryUpload}
+                disabled={retryingUpload}
+                className="rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {retryingUpload ? 'Retrying…' : 'Retry upload'}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleRetryUpload}
-              disabled={retryingUpload}
-              className="rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleReturnToLibrary}
+              className="rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
             >
-              {retryingUpload ? 'Retrying…' : 'Retry upload'}
+              Return to library
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleReturnToLibrary}
-            className="rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
-          >
-            Return to library
-          </button>
-        </div>
-      </RecordingStatusLayout>
+          </div>
+        </RecordingStatusLayout>
+        {returnConfirmDialog}
+      </>
     )
   }
 
@@ -285,19 +306,22 @@ export default function RecordingNewPage() {
 
   if (snapshot.state === 'interrupted') {
     return (
-      <RecordingStatusLayout title={title}>
-        {salvageBanner}
-        <p className="text-sm text-ink/70 dark:text-paper/70">
-          Your recording was interrupted and couldn&apos;t be recovered.
-        </p>
-        <button
-          type="button"
-          onClick={handleReturnToLibrary}
-          className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
-        >
-          Return to library
-        </button>
-      </RecordingStatusLayout>
+      <>
+        <RecordingStatusLayout title={title}>
+          {salvageBanner}
+          <p className="text-sm text-ink/70 dark:text-paper/70">
+            Your recording was interrupted and couldn&apos;t be recovered.
+          </p>
+          <button
+            type="button"
+            onClick={handleReturnToLibrary}
+            className="self-start rounded-sm bg-ink px-4 py-2 text-sm font-medium text-paper transition-all hover:shadow-md active:scale-95 dark:bg-paper dark:text-ink"
+          >
+            Return to library
+          </button>
+        </RecordingStatusLayout>
+        {returnConfirmDialog}
+      </>
     )
   }
 

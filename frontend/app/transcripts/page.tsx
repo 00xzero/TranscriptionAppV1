@@ -5,7 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { useModal } from '@/lib/ModalContext'
+
+type PendingDelete = {
+  id: string
+  title: string
+}
 
 export default function TranscriptsPage() {
   return (
@@ -26,6 +32,8 @@ function TranscriptsPageContent() {
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, { error: string; error_type: string }>>({})
   const [transcriptErrorLoadErrors, setTranscriptErrorLoadErrors] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
   const [captureTranscriptId, setCaptureTranscriptId] = useState<string | null>(null)
 
@@ -196,17 +204,16 @@ function TranscriptsPageContent() {
     }
   }, [starting, idempotencyKeys, refetch])
 
-  const handleDeleteTranscript = async (id: string) => {
-    const ok = window.confirm(
-      'Disclaimer: Deleting a transcript will permanently remove the transcript and all associated data (segments, speakers, and jobs). This action cannot be undone. Do you want to proceed?'
-    )
-    if (!ok) return
+  const handleConfirmDeleteTranscript = async () => {
+    if (!pendingDelete) return
     try {
-      await deleteTranscriptAction(id)
+      await deleteTranscriptAction(pendingDelete.id)
       setActionError(null)
     } catch (e) {
       console.error(e)
       setActionError(String(e))
+    } finally {
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -217,7 +224,8 @@ function TranscriptsPageContent() {
     connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
 
   return (
-    <div className="space-y-4 pt-[80px] px-6 md:px-10">
+    <>
+      <div className="space-y-4 pt-[80px] px-6 md:px-10">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Transcripts</h1>
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -301,7 +309,10 @@ function TranscriptsPageContent() {
                     <TooltipTrigger asChild>
                       <button
                         className="p-2 rounded-sm bg-red-600 text-white hover:bg-red-700"
-                        onClick={() => handleDeleteTranscript(p.id)}
+                        onClick={() => {
+                          setPendingDelete({ id: p.id, title: p.title || 'Untitled' })
+                          setDeleteDialogOpen(true)
+                        }}
                         aria-label={`Delete transcript ${p.title || p.id}`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
@@ -350,6 +361,13 @@ function TranscriptsPageContent() {
         })}
       </ul>
 
-    </div>
+      </div>
+      <DeleteTranscriptDialog
+        open={deleteDialogOpen}
+        title={pendingDelete?.title ?? null}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDeleteTranscript}
+      />
+    </>
   )
 }

@@ -32,8 +32,8 @@ export default function CaptureFooter({
       disabled={isDisabled}
       title={nativeTitle}
       className={`min-w-[180px] text-xs font-medium px-4 py-2 rounded shadow-xs transition-all active:scale-95 ${canSubmit
-        ? 'bg-[#4A2018] text-white/90 border border-[#5A2A20] hover:bg-[#5A2A20] hover:text-white'
-        : 'bg-[#4A2018]/50 text-white/50 border border-[#5A2A20]/50 cursor-not-allowed'
+        ? 'bg-transcribe text-white/90 border border-transcribe-hover hover:bg-transcribe-hover hover:text-white'
+        : 'bg-transcribe/50 text-white/50 border border-transcribe-hover/50 cursor-not-allowed'
         }`}
     >
       {isUploading && (
