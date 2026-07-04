@@ -39,6 +39,18 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentcolor);
   }
+
+  /*
+    Tailwind CSS v4 dropped the Preflight rule that set `cursor: pointer` on
+    buttons, matching the browser default (native <button> is `cursor: default`).
+    Restore the expected hand cursor on interactive controls. Utility classes
+    (e.g. `disabled:cursor-not-allowed`, Radix's `cursor-default`) live in the
+    utilities layer and still win over this base rule.
+  */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 html,
