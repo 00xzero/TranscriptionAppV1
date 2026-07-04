@@ -6,6 +6,13 @@ import * as supabaseQueries from '../lib/supabase/queries'
 import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 import { TooltipProvider } from '../components/ui/tooltip'
 
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+  }),
+}))
+
 const makeJsonResponse = (data: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,

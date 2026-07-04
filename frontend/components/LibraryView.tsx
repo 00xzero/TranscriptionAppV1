@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DELETE_TRANSCRIPT_ERROR_MESSAGE } from '@/lib/transcripts/deleteErrors'
 import type { User } from '@supabase/supabase-js'
 
 type PendingDelete = {
@@ -34,7 +35,7 @@ export default function LibraryView() {
       await deleteTranscript(pendingDelete.id)
     } catch (e) {
       console.error('Failed to delete transcript:', e)
-      setDeleteError('Failed to delete transcript. Please try again.')
+      setDeleteError(DELETE_TRANSCRIPT_ERROR_MESSAGE)
     } finally {
       setDeleteDialogOpen(false)
     }
@@ -261,7 +262,7 @@ export default function LibraryView() {
                               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
                               aria-label={`More options for ${transcript.title || 'Untitled'}`}
                             >
-                              <span className="mb-2">...</span>
+                              <span className="text-lg leading-none">&#8942;</span>
                             </button>
                           </DropdownMenuTrigger>
                         </TooltipTrigger>

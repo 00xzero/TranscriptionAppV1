@@ -7,6 +7,7 @@ import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { useModal } from '@/lib/ModalContext'
+import { DELETE_TRANSCRIPT_ERROR_MESSAGE } from '@/lib/transcripts/deleteErrors'
 
 type PendingDelete = {
   id: string
@@ -211,7 +212,7 @@ function TranscriptsPageContent() {
       setActionError(null)
     } catch (e) {
       console.error(e)
-      setActionError(String(e))
+      setActionError(DELETE_TRANSCRIPT_ERROR_MESSAGE)
     } finally {
       setDeleteDialogOpen(false)
     }
