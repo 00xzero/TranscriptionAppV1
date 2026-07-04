@@ -22,6 +22,10 @@ CREATE POLICY "Users can read own waveforms"
         auth.uid()::text = (storage.foldername(name))[1]
     );
 
--- No INSERT/UPDATE/DELETE policies for end users. Writes happen via the admin
+-- No INSERT/UPDATE policies for end users. Writes happen via the admin
 -- client (service_role bypasses RLS); the BEFORE UPDATE trigger on projects
 -- enforces that waveform_object_key is server-owned.
+--
+-- A user-scoped DELETE policy is added later in
+-- 20260704000000_allow_waveform_delete.sql so clients can clean up their own
+-- waveform artifact when deleting a transcript.

@@ -5,6 +5,7 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
+import { WAVEFORM_BUCKET } from '@/lib/audio/compute-peaks'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Transcript,
@@ -156,6 +157,21 @@ function isMissingStorageObjectError(error: { message?: string; error?: string; 
     )
 }
 
+async function removeStorageObjectIfPresent(
+    supabase: SupabaseClient,
+    bucket: string,
+    objectKey: string | null
+): Promise<void> {
+    if (!objectKey) return
+
+    const { error } = await supabase.storage.from(bucket).remove([objectKey])
+    if (error && !isMissingStorageObjectError(error)) throw error
+
+    if (error) {
+        console.warn(`[deleteTranscript] Storage object already missing in ${bucket}: ${objectKey}`, error.message)
+    }
+}
+
 /**
  * Delete a transcript.
  */
@@ -163,27 +179,15 @@ export async function deleteTranscript(id: string): Promise<void> {
     const supabase = createClient()
     const { data: transcript, error: fetchError } = await supabase
         .from('transcripts')
-        .select('source_object_key')
+        .select('source_object_key, waveform_object_key')
         .eq('id', id)
         .maybeSingle()
 
     if (fetchError) throw fetchError
     if (!transcript) return
 
-    if (transcript.source_object_key) {
-        const { error: storageError } = await supabase.storage
-            .from('media')
-            .remove([transcript.source_object_key])
-
-        if (storageError && !isMissingStorageObjectError(storageError)) throw storageError
-
-        if (storageError) {
-            console.warn(
-                `[deleteTranscript] Storage object already missing: ${transcript.source_object_key}`,
-                storageError.message
-            )
-        }
-    }
+    await removeStorageObjectIfPresent(supabase, 'media', transcript.source_object_key)
+    await removeStorageObjectIfPresent(supabase, WAVEFORM_BUCKET, transcript.waveform_object_key)
 
     const { error } = await supabase.from('transcripts').delete().eq('id', id)
 
