@@ -61,6 +61,22 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     })
   })
 
+  test('exports TXT via the txt endpoint', async () => {
+    const user = userEventLib.setup()
+    const onClose = jest.fn()
+    const fetchMock = jest.fn().mockResolvedValue(makeExportResponse())
+    ;(global as any).fetch = fetchMock
+
+    render(<ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={onClose} />)
+
+    await user.click(screen.getByRole('radio', { name: /^TXT$/i }))
+    await user.click(screen.getByRole('button', { name: /^Export$/i }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/transcripts/p1/export/txt')
+    })
+  })
+
   test('traps focus and closes on Escape', async () => {
     const user = userEventLib.setup()
     const onClose = jest.fn()
