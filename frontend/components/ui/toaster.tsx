@@ -12,6 +12,7 @@ import {
 export interface ToastOptions {
   title: string
   description?: string
+  variant?: 'default' | 'error'
   /** Auto-dismiss delay; defaults to 5s. */
   durationMs?: number
 }
@@ -81,11 +82,24 @@ export function Toaster(): React.JSX.Element {
           key={item.id}
           open={item.open}
           duration={item.durationMs ?? 5000}
+          className={
+            item.variant === 'error'
+              ? 'border-red-200/80 [background:color-mix(in_oklab,#fff1f2_78%,transparent)] text-ember-red dark:border-red-800/70 dark:[background:color-mix(in_oklab,rgb(127_29_29)_32%,transparent)] dark:text-red-100'
+              : undefined
+          }
           onOpenChange={(open) => setOpen(item.id, open)}
         >
-          <ToastTitle>{item.title}</ToastTitle>
+          <ToastTitle
+            className={item.variant === 'error' ? 'font-sans text-sm font-bold not-italic text-ember-red dark:text-red-100' : undefined}
+          >
+            {item.title}
+          </ToastTitle>
           {item.description ? (
-            <ToastDescription>{item.description}</ToastDescription>
+            <ToastDescription
+              className={item.variant === 'error' ? 'text-ember-red/80 dark:text-red-100/80' : undefined}
+            >
+              {item.description}
+            </ToastDescription>
           ) : null}
         </Toast>
       ))}

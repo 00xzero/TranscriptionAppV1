@@ -1,6 +1,12 @@
 import React from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { formatTranscriptDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
@@ -18,6 +24,7 @@ export default function EditorHeader({
   startEditingTitle,
   onTitleKeyDown,
   onTitleBlur,
+  onDeleteClick,
 }: {
   transcriptId: string
   transcriptTitle: string | null
@@ -33,6 +40,7 @@ export default function EditorHeader({
   startEditingTitle: () => void
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onTitleBlur: () => void
+  onDeleteClick: () => void
 }) {
   const showStatusInMetaRow = status !== 'Ready'
   const isStatusError = status.startsWith('Error:')
@@ -78,28 +86,54 @@ export default function EditorHeader({
         {titleSaveError && (
           <span className="text-sm text-ember-red">{titleSaveError}</span>
         )}
-        <div className="flex items-center gap-4 text-xs font-mono uppercase tracking-wider text-ink/50 dark:text-paper/40">
-          {showStatusInMetaRow ? (
-            <span className={isStatusError ? 'text-ember-red/90 dark:text-ember-red/90' : ''}>
-              {status}
-            </span>
-          ) : (
-            <>
-              {transcriptCreatedAt && (
-                <>
-                  <span>{formatTranscriptDate(transcriptCreatedAt)}</span>
-                  <span>&bull;</span>
-                </>
-              )}
-              <span>{uniqueSpeakerCount} speaker{uniqueSpeakerCount !== 1 ? 's' : ''}</span>
-              {transcriptDurationSecs !== null && (
-                <>
-                  <span>&bull;</span>
-                  <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>
-                </>
-              )}
-            </>
-          )}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1 flex-wrap text-xs font-mono uppercase tracking-wider text-ink/50 dark:text-paper/40">
+            {showStatusInMetaRow ? (
+              <span className={isStatusError ? 'text-ember-red/90 dark:text-ember-red/90' : ''}>
+                {status}
+              </span>
+            ) : (
+              <>
+                {transcriptCreatedAt && (
+                  <>
+                    <span>{formatTranscriptDate(transcriptCreatedAt)}</span>
+                    <span>&bull;</span>
+                  </>
+                )}
+                <span>{uniqueSpeakerCount} speaker{uniqueSpeakerCount !== 1 ? 's' : ''}</span>
+                {transcriptDurationSecs !== null && (
+                  <>
+                    <span>&bull;</span>
+                    <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors shrink-0"
+                    aria-label="Transcript options"
+                  >
+                    <span className="text-lg leading-none">&#8942;</span>
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>More options</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
+                onSelect={onDeleteClick}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <Separator decorative={false} className="mt-8 bg-ink/10 dark:bg-white/10" />
