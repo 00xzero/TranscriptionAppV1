@@ -36,6 +36,10 @@ describe('session metadata edit — snapshot behavior', () => {
     __resetForTesting()
   })
 
+  afterEach(() => {
+    jest.restoreAllMocks()
+  })
+
   test('updateSessionTitle stores a trimmed title while recording', () => {
     mockRecordingSession({ state: 'recording', title: 'Old' })
     updateSessionTitle('  New title  ')
