@@ -16,7 +16,9 @@ import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
 import RecordingDevControls from '@/components/RecordingSession/RecordingDevControls'
+import RecordingKeyTerms from '@/components/RecordingSession/RecordingKeyTerms'
 import RecordingStateLabel from '@/components/RecordingSession/RecordingStateLabel'
+import RecordingTitle from '@/components/RecordingSession/RecordingTitle'
 import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
 import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
@@ -354,9 +356,7 @@ export default function RecordingNewPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-8 pt-24 pb-12">
       <header className="flex items-baseline justify-between gap-4">
         <div>
-          <h1 className="font-serif text-3xl text-ink dark:text-paper">
-            {title}
-          </h1>
+          <RecordingTitle />
           <RecordingStateLabel className="mt-2 text-sm text-ember-red" />
         </div>
         <RecordingTimer className="font-mono text-3xl tabular-nums text-ink dark:text-paper" />
@@ -371,6 +371,8 @@ export default function RecordingNewPage() {
       {captureHealthBanner}
 
       {salvageBanner}
+
+      {!isInFlight && <RecordingKeyTerms />}
 
       {isInFlight ? (
         <div

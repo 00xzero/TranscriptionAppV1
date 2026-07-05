@@ -384,4 +384,123 @@ describe('Recording page', () => {
       errorMessage: 'Recording session was lost before it could be saved.',
     })
   })
+
+  describe('inline title editing', () => {
+    test('clicking the title edits and Enter saves it to the session', () => {
+      act(() => {
+        startMock({ title: 'Standup notes' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Standup notes' }))
+      const input = screen.getByTestId('recording-title-input')
+      expect(input).toHaveValue('Standup notes')
+
+      fireEvent.change(input, { target: { value: 'Renamed session' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(getSnapshot().title).toBe('Renamed session')
+      expect(
+        screen.getByRole('button', { name: 'Renamed session' })
+      ).toHaveTextContent('Renamed session')
+    })
+
+    test('Escape cancels without changing the title', () => {
+      act(() => {
+        startMock({ title: 'Standup notes' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Standup notes' }))
+      const input = screen.getByTestId('recording-title-input')
+      fireEvent.change(input, { target: { value: 'Discarded edit' } })
+      fireEvent.keyDown(input, { key: 'Escape' })
+
+      expect(getSnapshot().title).toBe('Standup notes')
+      expect(screen.getByText('Standup notes')).toBeInTheDocument()
+    })
+
+    test('clearing the title falls back to the generated recording title', () => {
+      act(() => {
+        startMock({ title: 'Standup notes' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Standup notes' }))
+      const input = screen.getByTestId('recording-title-input')
+      fireEvent.change(input, { target: { value: '   ' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      const snap = getSnapshot()
+      expect(snap.title).toBeNull()
+      expect(snap.generatedTitle).toMatch(/^Recording — /)
+      expect(
+        screen.getByRole('button', { name: /^Recording — / })
+      ).toHaveTextContent(/^Recording — /)
+    })
+
+    test('exits edit mode when the session becomes non-editable', () => {
+      act(() => {
+        startMock({ title: 'Standup notes' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Standup notes' }))
+      expect(screen.getByTestId('recording-title-input')).toBeInTheDocument()
+
+      act(() => {
+        mockRecordingSession({ state: 'finalizing', title: 'Standup notes' })
+      })
+
+      expect(
+        screen.queryByTestId('recording-title-input')
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId('recording-title')).toHaveTextContent(
+        'Standup notes'
+      )
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    test('title is not editable while finalizing', () => {
+      act(() => {
+        mockRecordingSession({ state: 'finalizing', title: 'Standup notes' })
+      })
+      render(<RecordingNewPage />)
+
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+      expect(screen.getByTestId('recording-title')).toHaveTextContent(
+        'Standup notes'
+      )
+    })
+  })
+
+  describe('key terms', () => {
+    test('expanding the disclosure and adding a term updates the session', () => {
+      act(() => {
+        startMock({ title: 'With terms' })
+      })
+      render(<RecordingNewPage />)
+
+      fireEvent.click(
+        screen.getByRole('button', { name: /add key terms/i })
+      )
+      const input = screen.getByLabelText(/add key terms for transcription/i)
+      fireEvent.change(input, { target: { value: 'Helsingborg' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(getSnapshot().keyTerms).toEqual(['Helsingborg'])
+      expect(screen.getByText('Helsingborg')).toBeInTheDocument()
+    })
+
+    test('the key-terms disclosure is hidden while finalizing', () => {
+      act(() => {
+        mockRecordingSession({ state: 'finalizing', title: 't' })
+      })
+      render(<RecordingNewPage />)
+
+      expect(
+        screen.queryByTestId('recording-key-terms-toggle')
+      ).not.toBeInTheDocument()
+    })
+  })
 })

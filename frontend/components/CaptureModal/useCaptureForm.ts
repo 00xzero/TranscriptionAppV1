@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
 import { useCapture } from '@/lib/hooks/useCapture'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
-import { MAX_KEY_TERMS, formatFileSize } from './shared'
+import { formatFileSize } from './shared'
+import { useKeyTermsField } from './useKeyTermsField'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
@@ -16,9 +17,17 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
-  const [keyTermInput, setKeyTermInput] = useState('')
-  const [keyTermsError, setKeyTermsError] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+
+  const {
+    keyTermInput,
+    setKeyTermInput,
+    keyTermsError,
+    setKeyTermsError,
+    handleKeyTermKeyDown,
+    handleAddTermClick,
+    removeTerm,
+  } = useKeyTermsField({ keyTerms, onKeyTermsChange: setKeyTerms })
 
   // Reset form when modal closes
   useEffect(() => {
@@ -31,7 +40,7 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
       setFileError(null)
       resetError()
     }
-  }, [isCaptureModalOpen, resetError])
+  }, [isCaptureModalOpen, resetError, setKeyTermInput, setKeyTermsError])
 
   const handleFileSelect = useCallback((file: File) => {
     const validationError = validateFile(file)
@@ -47,56 +56,6 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
       }
     }
   }, [title])
-
-  const parseAndAddTerms = useCallback((input: string) => {
-    const newTerms = input
-      .split(/[,\n\t]+/)
-      .map(t => t.trim().replace(/\s+/g, ' '))
-      .filter(t => t.length > 0)
-
-    if (newTerms.length === 0) return
-
-    const seen = new Map<string, string>()
-    for (const t of keyTerms) {
-      seen.set(t.toLowerCase(), t)
-    }
-    let uniqueIncomingCount = 0
-    for (const t of newTerms) {
-      if (!seen.has(t.toLowerCase())) {
-        seen.set(t.toLowerCase(), t)
-        uniqueIncomingCount += 1
-      }
-    }
-
-    const allTerms = Array.from(seen.values())
-    if (allTerms.length <= MAX_KEY_TERMS) {
-      setKeyTerms(allTerms)
-      setKeyTermsError(null)
-      return
-    }
-
-    setKeyTermsError(
-      `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
-    )
-  }, [keyTerms])
-
-  const handleKeyTermKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault()
-      parseAndAddTerms(keyTermInput)
-      setKeyTermInput('')
-    }
-  }, [keyTermInput, parseAndAddTerms])
-
-  const handleAddTermClick = useCallback(() => {
-    parseAndAddTerms(keyTermInput)
-    setKeyTermInput('')
-  }, [keyTermInput, parseAndAddTerms])
-
-  const removeTerm = useCallback((index: number) => {
-    setKeyTerms(prev => prev.filter((_, i) => i !== index))
-    setKeyTermsError(null)
-  }, [])
 
   const handleSubmit = useCallback(async () => {
     if (!selectedFile || isUploading) return

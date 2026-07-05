@@ -47,6 +47,7 @@ import {
 import {
   discard,
   finalize,
+  generateRecordingTitle,
   getElapsedActiveMs,
   hasUnsavedRecording,
   isRecordingSessionActive,
@@ -211,12 +212,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
 
   const now = Date.now()
   const generatedTitle =
-    params.title && params.title.trim()
-      ? null
-      : `Recording — ${new Intl.DateTimeFormat(undefined, {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }).format(new Date(now))}`
+    params.title && params.title.trim() ? null : generateRecordingTitle(now)
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recording',
