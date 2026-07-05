@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
-type ExportFormat = 'DOCX' | 'VTT'
+type ExportFormat = 'DOCX' | 'VTT' | 'TXT' | 'MD'
 
 interface ExportModalProps {
   transcriptId: string
@@ -85,10 +85,11 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
     }
   }
 
-  const formats: Array<{ value: ExportFormat | 'PDF'; label: string; description: string; disabled?: boolean }> = [
-    { value: 'PDF', label: 'PDF', description: 'Portable Document Format', disabled: true },
+  const formats: Array<{ value: ExportFormat; label: string; description: string }> = [
     { value: 'DOCX', label: 'Word (.docx)', description: 'Microsoft Word document' },
     { value: 'VTT', label: 'VTT', description: 'WebVTT captions file' },
+    { value: 'TXT', label: 'TXT', description: 'Plain text file' },
+    { value: 'MD', label: 'Markdown (.md)', description: 'Markdown formatted text' },
   ]
 
   return (
@@ -130,39 +131,33 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
           className="space-y-2 px-6 pb-5"
         >
           {formats.map((fmt) => {
-            const isSelected = !fmt.disabled && selectedFormat === fmt.value
-            const isDisabled = fmt.disabled || isExporting
+            const isSelected = selectedFormat === fmt.value
 
             return (
               <div
                 key={fmt.value}
-                title={fmt.disabled ? `${fmt.label} (coming soon)` : `Export as ${fmt.label}`}
-                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${isDisabled
+                title={`Export as ${fmt.label}`}
+                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${isExporting
                   ? 'cursor-not-allowed border-ink/5 opacity-50 dark:border-paper/5'
                   : isSelected
                     ? 'cursor-pointer border-trust-blue bg-trust-blue/10 dark:bg-trust-blue/20'
                     : 'cursor-pointer border-ink/10 hover:bg-ink/5 dark:border-paper/10 dark:hover:bg-paper/5'
                   }`}
                 onClick={() => {
-                  if (!isDisabled && !fmt.disabled) {
-                    setSelectedFormat(fmt.value as ExportFormat)
+                  if (!isExporting) {
+                    setSelectedFormat(fmt.value)
                   }
                 }}
               >
                 <RadioGroupItem
                   value={fmt.value}
-                  disabled={isDisabled}
+                  disabled={isExporting}
                   aria-label={fmt.label}
                   className="shrink-0"
                 />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 text-sm font-medium text-ink dark:text-paper">
                     {fmt.label}
-                    {fmt.disabled && (
-                      <span className="inline-flex h-[17.5px] items-center rounded-sm bg-ink/10 px-1.5 py-0.5 text-[9px] font-mono text-ink/60 dark:bg-white/10 dark:text-white/60">
-                        COMING SOON
-                      </span>
-                    )}
                   </div>
                   <div className="text-xs text-ink/50 dark:text-paper/40">{fmt.description}</div>
                 </div>

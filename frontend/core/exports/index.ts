@@ -1,5 +1,5 @@
 /**
- * Export utilities for generating DOCX and VTT transcript files.
+ * Export utilities for generating DOCX, VTT, TXT, and Markdown transcript files.
  *
  * Port of backend/app/services/exports.py to TypeScript for Next.js API routes.
  */
@@ -105,6 +105,71 @@ export function normalizeFilename(name: string): string {
         .replace(/_+/g, '_') // Collapse multiple underscores
         .replace(/^_|_$/g, '') // Trim leading/trailing underscores
         .substring(0, 100) // Limit length
+}
+
+// ============================================================================
+// Shared Segment Grouping
+// ============================================================================
+
+export interface SpeakerTurn {
+    speakerLabel: string
+    segments: ExportSegment[]
+}
+
+/**
+ * Group consecutive segments into speaker turns. A new turn starts whenever the
+ * speaker changes; consecutive null-speaker segments collapse into a single turn
+ * via a stable key. Shared by the DOCX, TXT, and Markdown generators.
+ */
+export function groupSegmentsBySpeaker(
+    segments: ExportSegment[],
+    speakersMap: SpeakersMap,
+    fallbackLabel = 'Unknown Speaker'
+): SpeakerTurn[] {
+    const turns: SpeakerTurn[] = []
+    let currentKey: string | null = null
+
+    for (const segment of segments) {
+        const key = segment.speaker_id ?? '__null__'
+        if (key !== currentKey) {
+            currentKey = key
+            turns.push({
+                speakerLabel:
+                    speakersMap[segment.speaker_id ?? '']?.label ?? fallbackLabel,
+                segments: [],
+            })
+        }
+        turns[turns.length - 1].segments.push(segment)
+    }
+
+    return turns
+}
+
+/**
+ * Build the metadata line shown under the title in text-based exports (TXT and
+ * Markdown), e.g. "July 4, 2026 · 5m 12s". DOCX uses its own metadata block and
+ * does not call this.
+ */
+export function buildExportMetaLine(
+    date: Date,
+    durationSeconds?: number | null
+): string {
+    const dateStr = date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    })
+    return durationSeconds != null
+        ? `${dateStr} · ${formatDuration(durationSeconds)}`
+        : dateStr
+}
+
+/**
+ * Collapse a segment body to a single line so it sits cleanly under its
+ * timestamp prefix and cannot inject Markdown block syntax on a later line.
+ */
+function normalizeSegmentText(text: string): string {
+    return text.replace(/\s+/g, ' ').trim()
 }
 
 // ============================================================================
@@ -237,56 +302,48 @@ export async function generateDocx({
     // Spacer
     children.push(new Paragraph({ children: [] }))
 
-    // Transcript body - group segments by speaker turns
-    // Use stable key to ensure null speakers get a header on first occurrence
-    let currentSpeakerKey: string | null = null
+    // Transcript body - group segments into speaker turns
+    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+        // Speaker header at the start of each turn
+        children.push(
+            new Paragraph({
+                children: [
+                    new TextRun({
+                        text: turn.speakerLabel,
+                        bold: true,
+                        size: 24, // 12pt
+                    }),
+                ],
+                spacing: { before: 200 },
+            })
+        )
 
-    for (const segment of segments) {
-        const speakerKey = segment.speaker_id ?? '__null__'
-        const speakerLabel =
-            speakersMap[segment.speaker_id ?? '']?.label ?? 'Unknown Speaker'
-
-        // Check if we need a new speaker label
-        if (speakerKey !== currentSpeakerKey) {
-            currentSpeakerKey = speakerKey
+        for (const segment of turn.segments) {
+            // Timestamp and text
+            const timestampStr = msToTimestamp(segment.start_ms)
             children.push(
                 new Paragraph({
                     children: [
                         new TextRun({
-                            text: speakerLabel,
-                            bold: true,
-                            size: 24, // 12pt
+                            text: timestampStr,
+                            size: 20, // 10pt
+                            color: '646464',
                         }),
                     ],
-                    spacing: { before: 200 },
+                })
+            )
+            children.push(
+                new Paragraph({
+                    children: [
+                        new TextRun({
+                            text: segment.text,
+                            size: 22, // 11pt
+                        }),
+                    ],
+                    spacing: { after: 100 },
                 })
             )
         }
-
-        // Timestamp and text
-        const timestampStr = msToTimestamp(segment.start_ms)
-        children.push(
-            new Paragraph({
-                children: [
-                    new TextRun({
-                        text: timestampStr,
-                        size: 20, // 10pt
-                        color: '646464',
-                    }),
-                ],
-            })
-        )
-        children.push(
-            new Paragraph({
-                children: [
-                    new TextRun({
-                        text: segment.text,
-                        size: 22, // 11pt
-                    }),
-                ],
-                spacing: { after: 100 },
-            })
-        )
     }
 
     // Create document
@@ -300,4 +357,95 @@ export async function generateDocx({
 
     // Convert to buffer (Node.js native, returns Buffer which extends Uint8Array)
     return await Packer.toBuffer(doc)
+}
+
+// ============================================================================
+// Text-based Generation (TXT / Markdown)
+// ============================================================================
+
+export interface GenerateTextExportParams {
+    transcriptTitle: string
+    segments: ExportSegment[]
+    speakersMap: SpeakersMap
+    transcriptionDate: Date
+    durationSeconds?: number | null
+}
+
+/**
+ * Generate a plain-text (.txt) transcript, grouped by speaker turn with a
+ * `[m:ss]` timestamp prefixing each segment.
+ *
+ * @returns TXT content as string
+ */
+export function generateTxt({
+    transcriptTitle,
+    segments,
+    speakersMap,
+    transcriptionDate,
+    durationSeconds,
+}: GenerateTextExportParams): string {
+    const lines: string[] = [
+        transcriptTitle || 'Transcript',
+        buildExportMetaLine(transcriptionDate, durationSeconds),
+    ]
+
+    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+        lines.push('', turn.speakerLabel)
+        for (const segment of turn.segments) {
+            lines.push(
+                `[${msToTimestamp(segment.start_ms)}] ${normalizeSegmentText(segment.text)}`
+            )
+        }
+    }
+
+    return lines.join('\n') + '\n'
+}
+
+/**
+ * Escape inline Markdown metacharacters so transcript-derived text (segment
+ * bodies, title, speaker labels) renders literally instead of triggering
+ * emphasis, code spans, or links. Backticks are the critical case: the
+ * timestamp prefix uses them and consecutive segment lines form a single
+ * paragraph, so an unescaped backtick in one segment can pair with a later
+ * timestamp and corrupt an entire speaker turn. The backslash is escaped first
+ * (leading position in the class) so it cannot consume a following escape.
+ *
+ * Markdown-only — never applied to the plain-text (TXT) export, whose output
+ * has no Markdown semantics and would only be uglified by backslashes.
+ */
+function escapeMarkdown(text: string): string {
+    return text.replace(/[\\`*_[\]]/g, '\\$&')
+}
+
+/**
+ * Generate a Markdown (.md) transcript: `#` title, italic metadata line, bold
+ * speaker headings, and an inline-code `[m:ss]` timestamp prefixing each
+ * segment. Segment bodies are normalized to a single line (block-level safety)
+ * and inline metacharacters are escaped (inline safety), so transcript text —
+ * including edited segments and speaker labels — cannot break rendering.
+ *
+ * @returns Markdown content as string
+ */
+export function generateMarkdown({
+    transcriptTitle,
+    segments,
+    speakersMap,
+    transcriptionDate,
+    durationSeconds,
+}: GenerateTextExportParams): string {
+    const lines: string[] = [
+        `# ${escapeMarkdown(transcriptTitle || 'Transcript')}`,
+        `_${buildExportMetaLine(transcriptionDate, durationSeconds)}_`,
+    ]
+
+    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+        lines.push('', `**${escapeMarkdown(turn.speakerLabel)}**`)
+        for (const segment of turn.segments) {
+            lines.push(
+                `\`[${msToTimestamp(segment.start_ms)}]\` ${escapeMarkdown(normalizeSegmentText(segment.text))}`
+            )
+        }
+    }
+
+    return lines.join('\n') + '\n'
 }
