@@ -26,6 +26,8 @@ describe('RecordingSessionContext', () => {
       'retryFinalizedUpload',
       'saveRecovered',
       'stopAndFinalize',
+      'updateSessionKeyTerms',
+      'updateSessionTitle',
     ])
     expect(keys).not.toContain('startMock')
     expect(keys).not.toContain('forceState')

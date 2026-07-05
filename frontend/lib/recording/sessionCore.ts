@@ -279,6 +279,53 @@ export function setSubmissionResult(
   setSnapshot({ ...store.snapshot, submissionResult: result })
 }
 
+// User-facing generated title, e.g. "Recording — 5 Jul 2026, 02:32". Shared by
+// the start path (sessionActions) and the live title editor so both render the
+// same fallback format.
+export function generateRecordingTitle(now: number = Date.now()): string {
+  return `Recording — ${new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(now))}`
+}
+
+// Title/key-terms are editable only while capture is live. finalize reads them
+// straight off the snapshot, so an edit here is automatically carried into the
+// created transcript at Stop & transcribe.
+function isMetadataEditable(state: SessionSnapshot['state']): boolean {
+  return state === 'recording' || state === 'paused'
+}
+
+// Live-edit the recording title. Clearing it (null/blank) restores the generated
+// fallback; if that fallback was dropped because the recording started with a
+// custom title, regenerate one so the display never degrades to "Untitled
+// recording". Republishes presence so same-browser tabs reflect the rename
+// promptly (presence carries the title — sessionPresence.ts).
+export function updateSessionTitle(title: string | null): void {
+  const snap = store.snapshot
+  if (!isMetadataEditable(snap.state)) return
+
+  const trimmed = title && title.trim() ? title.trim() : null
+  const generatedTitle =
+    trimmed == null && snap.generatedTitle == null
+      ? generateRecordingTitle(snap.startedAt ?? undefined)
+      : snap.generatedTitle
+
+  setSnapshot({ ...snap, title: trimmed, generatedTitle })
+  store.runtime.writeQueue?.enqueueMetadata({ title: trimmed, generatedTitle })
+  publishPresence()
+}
+
+// Live-edit the recording's key terms. Not published to presence — presence
+// deliberately never carries key terms (sessionPresence.ts).
+export function updateSessionKeyTerms(keyTerms: string[]): void {
+  const snap = store.snapshot
+  if (!isMetadataEditable(snap.state)) return
+
+  setSnapshot({ ...snap, keyTerms })
+  store.runtime.writeQueue?.enqueueMetadata({ keyTerms })
+}
+
 export function markSubmitted(): void {
   dispatch('markSubmitted', { recoverable: null })
 }

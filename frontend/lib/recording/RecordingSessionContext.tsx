@@ -17,6 +17,8 @@ import {
   stopAndFinalize as stopAndFinalizeAction,
   subscribe,
   syncIdentityToActiveSession,
+  updateSessionKeyTerms as updateSessionKeyTermsAction,
+  updateSessionTitle as updateSessionTitleAction,
   type AttachAndStartParams,
   type RecordingState,
   type SaveRecoveredResult,
@@ -41,6 +43,8 @@ interface RecordingActions {
   resetRecordingSession: () => void
   saveRecovered: (title: string) => Promise<SaveRecoveredResult>
   discardRecovered: () => Promise<void>
+  updateSessionTitle: (title: string | null) => void
+  updateSessionKeyTerms: (keyTerms: string[]) => void
 }
 
 const actions: RecordingActions = {
@@ -53,6 +57,8 @@ const actions: RecordingActions = {
   resetRecordingSession: resetRecordingSessionAction,
   saveRecovered: saveRecoveredAction,
   discardRecovered: discardRecoveredAction,
+  updateSessionTitle: updateSessionTitleAction,
+  updateSessionKeyTerms: updateSessionKeyTermsAction,
 }
 
 export function RecordingSessionProvider({

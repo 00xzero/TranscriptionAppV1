@@ -42,6 +42,7 @@ export {
 export {
   discard,
   finalize,
+  generateRecordingTitle,
   getElapsedActiveMs,
   getLiveRecorder,
   hasUnresolvedRecordingArtifact,
@@ -53,6 +54,8 @@ export {
   pause,
   resetRecordingSession,
   resume,
+  updateSessionKeyTerms,
+  updateSessionTitle,
 } from './sessionCore'
 export { heartbeatTick } from './sessionPresence'
 export {

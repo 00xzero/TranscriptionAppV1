@@ -1,7 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { MAX_KEY_TERMS } from './shared'
 
-const keyTermsInputId = 'capture-key-terms-input'
+const DEFAULT_KEY_TERMS_INPUT_ID = 'capture-key-terms-input'
 
 interface KeyTermsInputProps {
   keyTerms: string[]
@@ -12,6 +12,7 @@ interface KeyTermsInputProps {
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onAddClick: () => void
   onRemoveTerm: (index: number) => void
+  inputId?: string
 }
 
 export default function KeyTermsInput({
@@ -23,7 +24,9 @@ export default function KeyTermsInput({
   onKeyDown,
   onAddClick,
   onRemoveTerm,
+  inputId = DEFAULT_KEY_TERMS_INPUT_ID,
 }: KeyTermsInputProps) {
+  const keyTermsInputId = inputId
   return (
     <div className="space-y-3 pt-2 border-t border-[#D1CEC5] dark:border-white/10">
       <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4" htmlFor={keyTermsInputId}>Key Terms (Optional)</Label>
