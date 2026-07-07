@@ -1,5 +1,6 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import Sidebar from '@/components/Sidebar'
 import {
@@ -37,16 +38,19 @@ jest.mock('@/infra/supabase/client', () => ({
   }),
 }))
 
-async function renderSidebarWithUser() {
+// Sign out now lives inside the account dropdown, so we render, wait for the
+// async user fetch to resolve (its email appears in the account trigger), open
+// the menu, and activate the "Sign out" menu item.
+async function renderAndClickSignOut() {
+  const user = userEvent.setup()
   render(
     <TooltipProvider>
       <Sidebar />
     </TooltipProvider>
   )
-  // The user is loaded asynchronously; the Sign out button appears once it is.
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
-  )
+  await screen.findByText('a@b.com')
+  await user.click(screen.getByRole('button', { name: /account menu/i }))
+  await user.click(await screen.findByRole('menuitem', { name: /sign out/i }))
 }
 
 describe('sign-out auth-boundary guard', () => {
@@ -68,9 +72,7 @@ describe('sign-out auth-boundary guard', () => {
 
   test('blocks sign-out and toasts while recording', async () => {
     startMock()
-    await renderSidebarWithUser()
-
-    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+    await renderAndClickSignOut()
 
     expect(signOutMock).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalledTimes(1)
@@ -78,9 +80,7 @@ describe('sign-out auth-boundary guard', () => {
   })
 
   test('signs out normally when idle', async () => {
-    await renderSidebarWithUser()
-
-    fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
+    await renderAndClickSignOut()
 
     await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1))
     expect(toastMock).not.toHaveBeenCalled()

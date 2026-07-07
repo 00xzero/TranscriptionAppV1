@@ -8,6 +8,14 @@ if (typeof window !== 'undefined') {
     writable: true,
     value: jest.fn(),
   })
+  // Radix menus/dropdowns driven by userEvent call the Pointer Capture APIs,
+  // which jsdom does not implement. Stub them so components can open in tests.
+  for (const method of ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture'] as const) {
+    Object.defineProperty(window.HTMLElement.prototype, method, {
+      writable: true,
+      value: jest.fn(),
+    })
+  }
 }
 
 beforeEach(() => {
