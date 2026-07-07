@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-07-08] - Global Browser Security Headers
+
+Added a small global security-header baseline for the Next.js frontend. Every app route now sends browser instructions that prevent clickjacking via third-party framing, stop MIME-type sniffing, reduce referrer leakage when users leave the app, and restrict unused powerful browser features while preserving the in-browser microphone recording flow.
+
+### Added
+
+- **`frontend/next.config.mjs`** — Added a global `headers()` config for all routes with `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` that blocks camera and geolocation while explicitly allowing microphone access for the app itself via `microphone=(self)`.
+
+### Notes
+
+- Deliberately left out `Strict-Transport-Security` for now so the app does not make a production-domain HTTPS commitment before deployment details are settled.
+- Deliberately left out `Content-Security-Policy` for this pass because a useful CSP needs separate testing against Supabase, media playback, recording, styles/scripts, and local development origins.
+
+### Tests
+
+- **`frontend`** — `npm run build`
+
 ## [2026-06-29] - Rename "Project" Entity to "Transcript"
 
 Renamed the core domain entity from "project" to "transcript" across the entire stack. The entity has always represented a single transcript (one media file plus its transcription), so "project" was a misnomer. Scope covered the database (table, foreign keys, functions, and all dependent objects), API routes (a clean break with no compatibility redirects), every TypeScript identifier/type/Zod schema, and user-facing copy. Because the app is pre-launch with no production users, the database is renamed in place via a new append-only migration rather than left as a physical-name detail. The Library home's "Recent Projects" section is intentionally retained as "Projects" — it is a placeholder for a future feature where a project groups multiple transcripts/files, a distinct concept from the renamed entity.
