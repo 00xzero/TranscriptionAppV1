@@ -8,28 +8,19 @@ import { createClient } from '@/infra/supabase/client'
 import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import AccountMenu from '@/components/AccountMenu'
+import {
+  DARK_MODE_MEDIA_QUERY,
+  applyThemePreference,
+  detectInitialTheme,
+  resolveAppTheme,
+  supportsSystemThemePreference,
+  systemPrefersDark,
+} from '@/lib/theme'
 import type { User } from '@supabase/supabase-js'
 import type { AppTheme } from '@/types/theme'
 
 // Storage key for sidebar collapsed state
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
-
-function applyTheme(theme: AppTheme) {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-  try { localStorage.setItem('app-theme', theme) } catch { }
-}
-
-function detectInitialTheme(): AppTheme {
-  try {
-    const saved = localStorage.getItem('app-theme')
-    if (saved === 'light' || saved === 'dark') return saved
-    if (saved === 'blue') return 'dark' // backward compat
-  } catch { }
-  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
-  return 'light'
-}
 
 interface SidebarProps {
   className?: string
@@ -41,6 +32,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
+  const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -53,9 +45,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       if (saved === 'true') setIsCollapsed(true)
     } catch { }
     // Load theme
-    const initialTheme = detectInitialTheme()
+    const canUseSystemTheme = supportsSystemThemePreference()
+    setSupportsSystemTheme(canUseSystemTheme)
+    const initialTheme = detectInitialTheme(canUseSystemTheme)
     setTheme(initialTheme)
-    applyTheme(initialTheme)
+    applyThemePreference(initialTheme)
   }, [])
 
   // Fetch user
@@ -106,13 +100,23 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     })
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => {
-      const next: AppTheme = prev === 'light' ? 'dark' : 'light'
-      applyTheme(next)
-      return next
-    })
-  }, [])
+  const setThemePreference = useCallback((next: AppTheme) => {
+    const preference = next === 'system' && !supportsSystemTheme
+      ? resolveAppTheme('system', systemPrefersDark())
+      : next
+    setTheme(preference)
+    applyThemePreference(preference)
+  }, [supportsSystemTheme])
+
+  // Keep 'system' live: when the OS appearance flips while the app is open and
+  // the user is following the system, re-apply. Pinned light/dark ignore this.
+  useEffect(() => {
+    if (!mounted || theme !== 'system' || !supportsSystemTheme) return
+    const mql = window.matchMedia(DARK_MODE_MEDIA_QUERY)
+    const handler = () => applyThemePreference('system')
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [theme, mounted, supportsSystemTheme])
 
   const guardedNav = useGuardedNavigate()
 
@@ -291,7 +295,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           user={user}
           isCollapsed={isCollapsed}
           theme={theme}
-          onToggleTheme={toggleTheme}
+          supportsSystemTheme={supportsSystemTheme}
+          onSetTheme={setThemePreference}
           onSignOut={handleSignOut}
         />
       </div>

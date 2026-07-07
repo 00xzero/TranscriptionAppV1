@@ -8,6 +8,7 @@ import ContextualHeader from '@/components/ContextualHeader'
 import CaptureModal from '@/components/CaptureModal'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
+import { createThemeInitScript } from '@/lib/theme'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -35,9 +36,16 @@ export const metadata: Metadata = {
   description: 'Lightweight transcription tool',
 }
 
+// Runs before first paint to set the `.dark` class from the saved preference,
+// avoiding a light-theme flash for dark/system users.
+const themeInitScript = createThemeInitScript()
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
         <TooltipProvider delayDuration={700}>
           <ModalProvider>
