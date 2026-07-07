@@ -7,30 +7,20 @@ import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
 import { createClient } from '@/infra/supabase/client'
 import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import AccountMenu from '@/components/AccountMenu'
+import {
+  DARK_MODE_MEDIA_QUERY,
+  applyThemePreference,
+  detectInitialTheme,
+  resolveAppTheme,
+  supportsSystemThemePreference,
+  systemPrefersDark,
+} from '@/lib/theme'
 import type { User } from '@supabase/supabase-js'
+import type { AppTheme } from '@/types/theme'
 
 // Storage key for sidebar collapsed state
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed'
-
-// Theme helpers
-type AppTheme = 'light' | 'dark'
-
-function applyTheme(theme: AppTheme) {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
-  try { localStorage.setItem('app-theme', theme) } catch { }
-}
-
-function detectInitialTheme(): AppTheme {
-  try {
-    const saved = localStorage.getItem('app-theme')
-    if (saved === 'light' || saved === 'dark') return saved
-    if (saved === 'blue') return 'dark' // backward compat
-  } catch { }
-  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    return 'dark'
-  }
-  return 'light'
-}
 
 interface SidebarProps {
   className?: string
@@ -42,6 +32,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
+  const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [mounted, setMounted] = useState(false)
 
@@ -54,9 +45,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       if (saved === 'true') setIsCollapsed(true)
     } catch { }
     // Load theme
-    const initialTheme = detectInitialTheme()
+    const canUseSystemTheme = supportsSystemThemePreference()
+    setSupportsSystemTheme(canUseSystemTheme)
+    const initialTheme = detectInitialTheme(canUseSystemTheme)
     setTheme(initialTheme)
-    applyTheme(initialTheme)
+    applyThemePreference(initialTheme)
   }, [])
 
   // Fetch user
@@ -107,13 +100,23 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     })
   }, [])
 
-  const toggleTheme = useCallback(() => {
-    setTheme(prev => {
-      const next: AppTheme = prev === 'light' ? 'dark' : 'light'
-      applyTheme(next)
-      return next
-    })
-  }, [])
+  const setThemePreference = useCallback((next: AppTheme) => {
+    const preference = next === 'system' && !supportsSystemTheme
+      ? resolveAppTheme('system', systemPrefersDark())
+      : next
+    setTheme(preference)
+    applyThemePreference(preference)
+  }, [supportsSystemTheme])
+
+  // Keep 'system' live: when the OS appearance flips while the app is open and
+  // the user is following the system, re-apply. Pinned light/dark ignore this.
+  useEffect(() => {
+    if (!mounted || theme !== 'system' || !supportsSystemTheme) return
+    const mql = window.matchMedia(DARK_MODE_MEDIA_QUERY)
+    const handler = () => applyThemePreference('system')
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [theme, mounted, supportsSystemTheme])
 
   const guardedNav = useGuardedNavigate()
 
@@ -137,25 +140,6 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   const navigateTo = (path: string) => {
     guardedNav.push(path)
-  }
-
-  // Get user initials
-  const getUserInitials = (): string => {
-    if (!user) return '?'
-    const email = user.email || ''
-    const name = (user.user_metadata?.full_name || email || '?').trim()
-
-    if (!name) return '?'
-
-    if (name.includes(' ')) {
-      const parts = name.split(' ').filter((part: string) => part.length > 0)
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-      }
-    }
-
-    const initials = name.substring(0, 2).toUpperCase()
-    return initials.length > 0 ? initials : '?'
   }
 
   // Don't show sidebar on auth pages
@@ -304,67 +288,17 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         </button>
       </div>
 
-      {/* User / Bottom */}
-      <div
-        className={`
-          p-4 border-t border-[#D1CEC5] dark:border-night-border overflow-hidden whitespace-nowrap flex flex-col
-          ${isCollapsed ? 'items-center px-2' : 'md:items-start'}
-        `}
-      >
-        {user && (
-          <div
-            className={`
-              flex items-center gap-3 mb-4
-              ${isCollapsed ? 'justify-center mb-0' : 'md:justify-start'}
-            `}
-          >
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-ink dark:bg-paper text-paper dark:text-ink flex items-center justify-center font-mono text-xs shrink-0">
-              {getUserInitials()}
-            </div>
-            {/* User Info - hidden when collapsed */}
-            {!isCollapsed && (
-              <div className="hidden md:block transition-opacity duration-200">
-                <p className="text-xs font-bold text-ink dark:text-paper truncate max-w-[140px]">
-                  {user.user_metadata?.full_name || user.email?.split('@')[0] || 'User'}
-                </p>
-                <button
-                  onClick={handleSignOut}
-                  title="Sign out"
-                  className="text-[10px] text-ink/50 dark:text-paper/50 font-mono hover:text-ink dark:hover:text-paper transition-colors"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Theme Toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleTheme}
-              aria-label={theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}
-              className={`
-                w-full flex items-center gap-3 px-2 py-1.5 rounded 
-                hover:bg-ink/5 dark:hover:bg-white/5 text-ink/60 dark:text-paper/60 
-                transition-colors overflow-hidden whitespace-nowrap
-                ${isCollapsed ? 'justify-center mt-4' : 'justify-center md:justify-start'}
-              `}
-            >
-              <span className="font-mono text-xs shrink-0">
-                {theme === 'light' ? '☾' : '☀'}
-              </span>
-              {!isCollapsed && (
-                <span className="hidden md:block text-[10px] font-mono uppercase tracking-wide transition-opacity duration-200">
-                  {theme === 'light' ? 'Night Mode' : 'Day Mode'}
-                </span>
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>{theme === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode'}</TooltipContent>
-        </Tooltip>
+      {/* User / Bottom — full-width account row + upward menu (theme, sign out live inside).
+          Rendered unconditionally so theme + sign out stay reachable while `user` is null. */}
+      <div className="p-2 border-t border-[#D1CEC5] dark:border-night-border">
+        <AccountMenu
+          user={user}
+          isCollapsed={isCollapsed}
+          theme={theme}
+          supportsSystemTheme={supportsSystemTheme}
+          onSetTheme={setThemePreference}
+          onSignOut={handleSignOut}
+        />
       </div>
     </nav>
   )
