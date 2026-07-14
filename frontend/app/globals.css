@@ -102,6 +102,34 @@ body {
   font-family: var(--font-inter), "Inter", sans-serif;
 }
 
+/* First-paint sidebar shell. Its desktop width is set by the head init script
+   before the body renders, avoiding an empty expanded flash during hydration. */
+.sidebar-initial-shell {
+  width: 4rem;
+}
+
+.sidebar-initial-inline-padding {
+  padding-inline: 0.75rem;
+}
+
+.sidebar-initial-account-padding {
+  padding: 0.5rem;
+}
+
+@media (min-width: 48rem) {
+  .sidebar-initial-shell {
+    width: var(--sidebar-initial-width, 16rem);
+  }
+
+  .sidebar-initial-inline-padding {
+    padding-inline: var(--sidebar-initial-inline-padding, 0.75rem);
+  }
+
+  .sidebar-initial-account-padding {
+    padding: var(--sidebar-initial-account-padding, 0.5rem);
+  }
+}
+
 /* Themed utility helpers */
 .bg-surface {
   background-color: var(--surface);
