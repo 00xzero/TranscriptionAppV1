@@ -70,6 +70,21 @@ describe('sign-out auth-boundary guard', () => {
     expect(hasUnresolvedRecordingArtifact()).toBe(true)
   })
 
+  test('exposes coming-soon navigation as focusable aria-disabled buttons', async () => {
+    render(
+      <TooltipProvider>
+        <Sidebar />
+      </TooltipProvider>
+    )
+    await screen.findByText('a@b.com')
+
+    for (const name of ['Drafts (coming soon)', 'Shared (coming soon)']) {
+      const button = screen.getByRole('button', { name })
+      expect(button).toHaveAttribute('aria-disabled', 'true')
+      expect(button).not.toBeDisabled()
+    }
+  })
+
   test('blocks sign-out and toasts while recording', async () => {
     startMock()
     await renderAndClickSignOut()

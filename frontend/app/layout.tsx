@@ -8,6 +8,7 @@ import ContextualHeader from '@/components/ContextualHeader'
 import CaptureModal from '@/components/CaptureModal'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
+import { SIDEBAR_COLLAPSED_KEY } from '@/lib/constants'
 import { createThemeInitScript } from '@/lib/theme'
 
 const inter = Inter({
@@ -40,11 +41,25 @@ export const metadata: Metadata = {
 // avoiding a light-theme flash for dark/system users.
 const themeInitScript = createThemeInitScript()
 
+// Sidebar width is persisted in localStorage, which React cannot read during
+// SSR. Set CSS-only shell variables before the first body paint so the static
+// sidebar shell matches the saved width while the client hydrates.
+const sidebarInitScript = `
+  try {
+    var sidebarCollapsed = localStorage.getItem('${SIDEBAR_COLLAPSED_KEY}') === 'true';
+    document.documentElement.style.setProperty('--sidebar-initial-width', sidebarCollapsed ? '3.5rem' : '16rem');
+    document.documentElement.style.setProperty('--sidebar-initial-label-opacity', sidebarCollapsed ? '0' : '1');
+    document.documentElement.style.setProperty('--sidebar-initial-inline-padding', sidebarCollapsed ? '0.5rem' : '0.75rem');
+    document.documentElement.style.setProperty('--sidebar-initial-account-padding', sidebarCollapsed ? '0.25rem' : '0.5rem');
+  } catch (_) {}
+`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: sidebarInitScript }} />
       </head>
       <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
         <TooltipProvider delayDuration={700}>
