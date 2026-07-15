@@ -7,19 +7,29 @@ import { cn } from '@/lib/utils'
 const TooltipProvider = TooltipPrimitive.Provider
 const TooltipTrigger = TooltipPrimitive.Trigger
 
+type TooltipProps = React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root> & {
+  /** Keep the trigger mounted while preventing and dismissing tooltip content. */
+  disabled?: boolean
+}
+
 const Tooltip = ({
+  disabled = false,
   open: openProp,
   defaultOpen,
   onOpenChange,
   ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) => {
+}: TooltipProps) => {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
   const blockPointerOpenRef = React.useRef(false)
   const isControlled = openProp !== undefined
-  const open = isControlled ? openProp : uncontrolledOpen
+  const open = disabled ? false : isControlled ? openProp : uncontrolledOpen
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
+      if (nextOpen && disabled) {
+        return
+      }
+
       if (nextOpen && blockPointerOpenRef.current) {
         return
       }
@@ -34,16 +44,30 @@ const Tooltip = ({
 
       onOpenChange?.(nextOpen)
     },
-    [isControlled, onOpenChange]
+    [disabled, isControlled, onOpenChange]
   )
+
+  // A disabled tooltip must forget any prior hover/focus-open state. Without
+  // this reset, re-enabling it can resurrect stale content immediately.
+  React.useEffect(() => {
+    if (disabled) {
+      setUncontrolledOpen(false)
+    }
+  }, [disabled])
 
   React.useEffect(() => {
     const closeTooltip = () => handleOpenChange(false)
-    const closeHiddenTooltip = () => {
-      if (document.visibilityState === 'hidden') {
-        closeTooltip()
-      }
+    const dismissTooltipUntilInteraction = () => {
+      // Returning to a tab can restore hover/focus on the old trigger and make
+      // Radix request an immediate reopen. Keep it blocked until the user
+      // provides fresh pointer or keyboard intent.
+      blockPointerOpenRef.current = true
+      closeTooltip()
     }
+    // Run on both hidden and visible transitions. The visible transition is
+    // important because browsers may restore trigger focus/hover as the tab is
+    // activated, even if the corresponding blur event was skipped.
+    const dismissVisibilityTooltip = () => dismissTooltipUntilInteraction()
     const dismissPointerTooltip = () => {
       blockPointerOpenRef.current = true
       closeTooltip()
@@ -52,17 +76,19 @@ const Tooltip = ({
       blockPointerOpenRef.current = false
     }
 
-    window.addEventListener('blur', closeTooltip)
-    window.addEventListener('pagehide', closeTooltip)
-    document.addEventListener('visibilitychange', closeHiddenTooltip)
+    window.addEventListener('blur', dismissTooltipUntilInteraction)
+    window.addEventListener('focus', dismissTooltipUntilInteraction)
+    window.addEventListener('pagehide', dismissTooltipUntilInteraction)
+    document.addEventListener('visibilitychange', dismissVisibilityTooltip)
     document.addEventListener('pointerdown', dismissPointerTooltip, true)
     document.addEventListener('pointermove', allowTooltipOpen, true)
     document.addEventListener('keydown', allowTooltipOpen, true)
 
     return () => {
-      window.removeEventListener('blur', closeTooltip)
-      window.removeEventListener('pagehide', closeTooltip)
-      document.removeEventListener('visibilitychange', closeHiddenTooltip)
+      window.removeEventListener('blur', dismissTooltipUntilInteraction)
+      window.removeEventListener('focus', dismissTooltipUntilInteraction)
+      window.removeEventListener('pagehide', dismissTooltipUntilInteraction)
+      document.removeEventListener('visibilitychange', dismissVisibilityTooltip)
       document.removeEventListener('pointerdown', dismissPointerTooltip, true)
       document.removeEventListener('pointermove', allowTooltipOpen, true)
       document.removeEventListener('keydown', allowTooltipOpen, true)

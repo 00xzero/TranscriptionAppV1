@@ -307,7 +307,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                     />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>Expand Sidebar</TooltipContent>
+                <TooltipContent side="right" align="center" sideOffset={10}>Expand Sidebar</TooltipContent>
               </Tooltip>
             </>
           ) : (
@@ -357,7 +357,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         {/* Primary Nav */}
         <div className={`flex-1 pt-3 pb-6 space-y-1 transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
           {/* Library */}
-          <Tooltip open={isCollapsed ? undefined : false}>
+          <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
               <button
                 onClick={() => navigateTo('/')}
@@ -382,14 +382,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 </span>
               </button>
             </TooltipTrigger>
-            <TooltipContent>Library</TooltipContent>
+            <TooltipContent side="right" align="center" sideOffset={10}>Library</TooltipContent>
           </Tooltip>
 
           {/* Drafts - Coming Soon.
               The wrapper span is the tooltip trigger + focus target: a disabled <button>
               suppresses pointer events and hit-testing won't fall through to a parent, so
               the button carries `pointer-events-none` and the span owns hover/cursor/focus. */}
-          <Tooltip open={isCollapsed ? undefined : false}>
+          <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
               <span
                 tabIndex={0}
@@ -414,11 +414,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 </button>
               </span>
             </TooltipTrigger>
-            <TooltipContent>Drafts — coming soon</TooltipContent>
+            <TooltipContent side="right" align="center" sideOffset={10}>Drafts — coming soon</TooltipContent>
           </Tooltip>
 
           {/* Shared - Coming Soon (same disabled-trigger pattern as Drafts). */}
-          <Tooltip open={isCollapsed ? undefined : false}>
+          <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
               <span
                 tabIndex={0}
@@ -443,7 +443,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 </button>
               </span>
             </TooltipTrigger>
-            <TooltipContent>Shared — coming soon</TooltipContent>
+            <TooltipContent side="right" align="center" sideOffset={10}>Shared — coming soon</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>
