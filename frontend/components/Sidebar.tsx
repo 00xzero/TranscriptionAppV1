@@ -385,34 +385,26 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             <TooltipContent side="right" align="center" sideOffset={10}>Library</TooltipContent>
           </Tooltip>
 
-          {/* Drafts - Coming Soon.
-              The wrapper span is the tooltip trigger + focus target: a disabled <button>
-              suppresses pointer events and hit-testing won't fall through to a parent, so
-              the button carries `pointer-events-none` and the span owns hover/cursor/focus. */}
+          {/* Drafts - Coming Soon. `aria-disabled` keeps the real button focusable so
+              keyboard users can still discover the explanatory tooltip. */}
           <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
-              <span
-                tabIndex={0}
+              <button
+                type="button"
+                aria-disabled="true"
                 aria-label="Drafts (coming soon)"
-                className="block w-full rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
               >
-                <button
-                  aria-label="Drafts (coming soon)"
-                  tabIndex={-1}
-                  className="w-full flex items-center py-2.5 rounded-md text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap pointer-events-none"
-                  disabled
+                <span className="w-10 flex items-center justify-center shrink-0">
+                  <PenLine className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
+                </span>
+                <span
+                  aria-hidden={isCollapsed}
+                  className={`hidden md:block pr-3 font-medium text-sm ${labelTransitionClass} ${labelStateClass}`}
                 >
-                  <span className="w-10 flex items-center justify-center shrink-0">
-                    <PenLine className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
-                  </span>
-                  <span
-                    aria-hidden={isCollapsed}
-                    className={`hidden md:block pr-3 font-medium text-sm ${labelTransitionClass} ${labelStateClass}`}
-                  >
-                    Drafts <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
-                  </span>
-                </button>
-              </span>
+                  Drafts <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
+                </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="right" align="center" sideOffset={10}>Drafts — coming soon</TooltipContent>
           </Tooltip>
@@ -420,28 +412,22 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           {/* Shared - Coming Soon (same disabled-trigger pattern as Drafts). */}
           <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
-              <span
-                tabIndex={0}
+              <button
+                type="button"
+                aria-disabled="true"
                 aria-label="Shared (coming soon)"
-                className="block w-full rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
               >
-                <button
-                  aria-label="Shared (coming soon)"
-                  tabIndex={-1}
-                  className="w-full flex items-center py-2.5 rounded-md text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap pointer-events-none"
-                  disabled
+                <span className="w-10 flex items-center justify-center shrink-0">
+                  <Users className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
+                </span>
+                <span
+                  aria-hidden={isCollapsed}
+                  className={`hidden md:block pr-3 font-medium text-sm ${labelTransitionClass} ${labelStateClass}`}
                 >
-                  <span className="w-10 flex items-center justify-center shrink-0">
-                    <Users className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
-                  </span>
-                  <span
-                    aria-hidden={isCollapsed}
-                    className={`hidden md:block pr-3 font-medium text-sm ${labelTransitionClass} ${labelStateClass}`}
-                  >
-                    Shared <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
-                  </span>
-                </button>
-              </span>
+                  Shared <span className="text-[10px] opacity-50 ml-1 font-normal font-mono">(coming soon)</span>
+                </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="right" align="center" sideOffset={10}>Shared — coming soon</TooltipContent>
           </Tooltip>
