@@ -29,7 +29,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-[20vh] z-[100] w-[500px] max-w-[90vw] -translate-x-1/2 rounded-xl border border-border [background:color-mix(in_oklab,var(--surface)_45%,transparent)] text-ink shadow-2xl backdrop-blur-md dark:text-paper',
+        'fixed left-1/2 top-[20vh] z-[100] w-[500px] max-w-[90vw] -translate-x-1/2 rounded-xl border border-border [background:color-mix(in_oklab,var(--surface)_45%,transparent)] text-foreground shadow-2xl backdrop-blur-md',
         'data-[state=closed]:animate-[fadeOut_150ms_ease-in] data-[state=open]:animate-[scaleIn_180ms_ease-out]',
         className
       )}

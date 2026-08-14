@@ -103,4 +103,72 @@ describe('LiveAudioVisualizer browser support', () => {
     expect(createAnalyser).toHaveBeenCalledTimes(1)
     expect(createMediaStreamSource).toHaveBeenCalledTimes(1)
   })
+
+  test('redraws a paused frame with the computed canvas color when its class changes', async () => {
+    const createAnalyser = jest.fn(() => ({
+      fftSize: 0,
+      minDecibels: 0,
+      maxDecibels: 0,
+      smoothingTimeConstant: 0,
+      frequencyBinCount: 8,
+      getByteFrequencyData: jest.fn(),
+      disconnect: jest.fn(),
+    }))
+    const createMediaStreamSource = jest.fn(() => ({
+      connect: jest.fn(),
+      disconnect: jest.fn(),
+    }))
+    const AudioContextMock = jest.fn(() => ({
+      state: 'running',
+      close: jest.fn(),
+      createAnalyser,
+      createMediaStreamSource,
+    }))
+    const canvasContext = {
+      beginPath: jest.fn(),
+      clearRect: jest.fn(),
+      fill: jest.fn(),
+      fillRect: jest.fn(),
+      fillStyle: '',
+      roundRect: jest.fn(),
+    }
+
+    ;(window as unknown as { AudioContext?: typeof AudioContext }).AudioContext =
+      AudioContextMock as unknown as typeof AudioContext
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      canvasContext as unknown as CanvasRenderingContext2D
+    )
+    const getComputedStyleSpy = jest
+      .spyOn(window, 'getComputedStyle')
+      .mockImplementation((element) => ({
+        color:
+          element.getAttribute('class') === 'tone-second'
+            ? 'rgb(79, 99, 140)'
+            : 'rgb(199, 62, 29)',
+      }) as unknown as CSSStyleDeclaration)
+    const recorder = makeRecorder('paused')
+
+    const { rerender } = render(
+      React.createElement(LiveAudioVisualizer, {
+        mediaRecorder: recorder,
+        className: 'tone-first',
+        width: 600,
+        height: 128,
+      })
+    )
+
+    await waitFor(() => expect(canvasContext.fillStyle).toBe('rgb(199, 62, 29)'))
+
+    rerender(
+      React.createElement(LiveAudioVisualizer, {
+        mediaRecorder: recorder,
+        className: 'tone-second',
+        width: 600,
+        height: 128,
+      })
+    )
+
+    await waitFor(() => expect(canvasContext.fillStyle).toBe('rgb(79, 99, 140)'))
+    expect(getComputedStyleSpy).toHaveBeenCalledTimes(2)
+  })
 })

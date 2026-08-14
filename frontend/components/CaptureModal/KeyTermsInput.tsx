@@ -30,7 +30,7 @@ export default function KeyTermsInput({
 }: KeyTermsInputProps) {
   const keyTermsInputId = inputId
   return (
-    <div className="space-y-3 pt-2 border-t border-(--border)">
+    <div className="space-y-3 pt-2 border-t border-border">
       <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4" htmlFor={keyTermsInputId}>Key Terms (Optional)</Label>
 
       <div className="flex gap-2">
@@ -47,7 +47,6 @@ export default function KeyTermsInput({
         />
         <Button
           variant="secondary"
-          size="icon"
           onClick={onAddClick}
           disabled={isUploading || !keyTermInput.trim() || keyTerms.length >= MAX_KEY_TERMS}
           aria-label="Add key term"

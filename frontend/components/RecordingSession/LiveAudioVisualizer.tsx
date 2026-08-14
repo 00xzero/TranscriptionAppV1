@@ -246,7 +246,9 @@ export function LiveAudioVisualizer({
       context.close()
     }
   }, [
+    barColor,
     cancelReportFrame,
+    className,
     fftSize,
     maxDecibels,
     mediaRecorder.state,
