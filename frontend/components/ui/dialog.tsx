@@ -21,7 +21,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'fixed inset-0 z-[100] bg-paper/20 backdrop-blur-xs dark:bg-black/60',
+        'fixed inset-0 z-[100] bg-scrim backdrop-blur-xs',
         'data-[state=closed]:animate-[fadeOut_150ms_ease-in] data-[state=open]:animate-[fadeIn_150ms_ease-out]',
         overlayClassName
       )}

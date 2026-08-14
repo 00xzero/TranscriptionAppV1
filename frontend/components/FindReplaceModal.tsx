@@ -2,6 +2,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
@@ -162,7 +163,7 @@ export default function FindReplaceModal({
       <DialogContent
         className="w-[600px] overflow-hidden p-0"
         aria-describedby={undefined}
-        overlayClassName="dark:bg-black/40"
+        overlayClassName="dark:bg-scrim-soft"
         onCloseAutoFocus={(event) => {
           event.preventDefault()
         }}
@@ -175,7 +176,7 @@ export default function FindReplaceModal({
       >
         <DialogTitle className="sr-only">Find and Replace</DialogTitle>
 
-        <div className="flex h-16 items-center gap-3 border-b border-[#D1CEC5]/60 px-5 dark:border-[#333]/60">
+        <div className="flex h-16 items-center gap-3 border-b border-(--border)/60 px-5">
           <svg className="h-4 w-4 shrink-0 text-ink/40 dark:text-paper/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -215,7 +216,7 @@ export default function FindReplaceModal({
         </div>
 
         {canReplace && findTerm && (
-          <div className="flex h-14 items-center gap-3 border-b border-[#D1CEC5]/60 px-5 dark:border-[#333]/60">
+          <div className="flex h-14 items-center gap-3 border-b border-(--border)/60 px-5">
             <svg className="h-4 w-4 shrink-0 text-ink/30 dark:text-paper/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
@@ -226,29 +227,33 @@ export default function FindReplaceModal({
               placeholder="Replacement"
               aria-label="Replace with"
             />
-            <button
+            <Button
               type="button"
-              className="rounded-lg bg-trust-blue px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-trust-blue/90 disabled:opacity-40"
+              variant="primary"
+              size="sm"
+              className="rounded-lg disabled:opacity-40"
               onClick={onReplace}
               disabled={!canNavigate}
               title="Replace current match"
             >
               Replace
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="rounded-lg bg-trust-blue px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-trust-blue/90 disabled:opacity-40"
+              variant="primary"
+              size="sm"
+              className="rounded-lg disabled:opacity-40"
               onClick={onReplaceAll}
               disabled={!canNavigate}
               title="Replace all matches"
             >
               Replace all
-            </button>
+            </Button>
           </div>
         )}
 
         {findTerm && (
-          <div className="border-b border-[#D1CEC5]/60 px-5 py-3 dark:border-[#333]/60">
+          <div className="border-b border-(--border)/60 px-5 py-3">
             {snippets.length > 0 && canNavigate && (
               <div className="scrollbar-thin max-h-[300px] space-y-1 overflow-y-auto">
                 {snippets.map((s) => {
@@ -269,7 +274,7 @@ export default function FindReplaceModal({
                       }}
                     >
                       <span className="text-ink/60 dark:text-paper/50">{s.before}</span>
-                      <span className="rounded-sm bg-warm-highlight px-0.5 text-ink dark:bg-trust-blue dark:text-white">{s.highlight}</span>
+                      <span className="rounded-sm bg-warm-highlight px-0.5 text-ink dark:bg-trust-blue dark:text-solid-foreground">{s.highlight}</span>
                       <span className="text-ink/60 dark:text-paper/50">{s.after}</span>
                     </button>
                   )
@@ -279,7 +284,7 @@ export default function FindReplaceModal({
           </div>
         )}
 
-        <div className="flex h-10 items-center justify-between border-t border-[#D1CEC5] bg-ink/5 px-5 dark:border-white/10 dark:bg-white/5">
+        <div className="flex h-10 items-center justify-between border-t border-border bg-subtle px-5">
           <div className="flex items-center gap-2">
             <button
               type="button"

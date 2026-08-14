@@ -2,6 +2,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Speaker } from '@/contracts/db'
+import { SPEAKER_COLORS } from '@/lib/editor/speaker-palette'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 type SpeakerPopoverContentProps = {
   speakers: Speaker[]
@@ -13,8 +16,7 @@ type SpeakerPopoverContentProps = {
   getColorForSpeaker?: (speaker?: Speaker) => string
 }
 
-// Colors aligned with Olivetti prototype: trust-blue, ember-red, yellow-600 first, then brand-complementary
-const COLORS = ['#4F638C', '#C73E1D', '#A16207', '#0D9488', '#7C3AED', '#64748B', '#B45309', '#059669', '#DB2777', '#2563EB']
+const COLORS = SPEAKER_COLORS
 
 function getColorForSpeaker(speaker?: Speaker): string {
   if (speaker?.color) return speaker.color
@@ -159,16 +161,16 @@ export default function SpeakerPopoverContent({
                 }}
               >
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-solid-foreground"
                   style={{ backgroundColor: color }}
                 >
                   {initials}
                 </div>
 
                 {isEditing ? (
-                  <input
+                  <Input
                     type="text"
-                    className="flex-1 px-2 py-1 text-sm border border-base rounded-sm bg-surface"
+                    className="flex-1 bg-surface px-2 py-1"
                     value={editValue}
                     onChange={e => setEditValue(e.target.value)}
                     onBlur={() => handleRenameSubmit(sp)}
@@ -194,25 +196,27 @@ export default function SpeakerPopoverContent({
 
       <div className="border-t border-base p-3 space-y-2 shrink-0">
         <div className="flex gap-2">
-          <input
+          <Input
             ref={inputRef}
             type="text"
-            className="flex-1 px-3 py-1.5 text-sm border border-base rounded-sm bg-surface placeholder:text-muted"
+            className="flex-1 bg-surface py-1.5 placeholder:text-muted"
             placeholder="Type speaker's name here"
             value={searchValue}
             onChange={e => setSearchValue(e.target.value)}
             onKeyDown={handleKeyDown}
             aria-label="Search speakers or type a new speaker name"
           />
-          <button
+          <Button
             type="button"
-            className="px-3 py-1.5 text-sm font-medium rounded-sm bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            variant="primary"
+            size="sm"
+            className="text-sm"
             disabled={!searchValue.trim()}
             onClick={handleTagClick}
             title="Tag speaker"
           >
             Tag
-          </button>
+          </Button>
         </div>
 
         {currentSpeaker && isCurrentSpeakerNamed && (

@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 
@@ -120,7 +121,7 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
       >
         <div className="px-6 pt-6 pb-4">
           <DialogTitle>Export Transcript</DialogTitle>
-          <p className="mt-1 text-[10px] font-mono text-ink/50 dark:text-white/50">
+          <p className="mt-1 text-[10px] font-mono text-foreground/50">
             Select your preferred download format
           </p>
         </div>
@@ -189,7 +190,7 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-[#D1CEC5] bg-ink/5 px-6 py-4 dark:border-white/10 dark:bg-white/5">
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-subtle px-6 py-4">
           <button
             onClick={handleClose}
             disabled={isExporting}
@@ -198,14 +199,15 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
           >
             Cancel
           </button>
-          <button
+          <Button
+            variant="primary"
             onClick={handleExport}
             disabled={isExporting || showSuccess}
             title={isExporting ? 'Export in progress' : 'Export transcript'}
-            className="rounded-lg bg-trust-blue px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-trust-blue/90 disabled:opacity-40"
+            className="rounded-lg px-5 disabled:opacity-40"
           >
             {isExporting ? 'Exporting...' : 'Export'}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

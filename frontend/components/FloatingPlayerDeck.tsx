@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
 import { formatClockTime } from '@/lib/utils'
 
 interface FloatingPlayerDeckProps {
@@ -37,7 +38,7 @@ export default function FloatingPlayerDeck({
   }
 
   return (
-    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-[90%] md:w-[600px] bg-white/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md rounded-2xl shadow-float border border-[#D1CEC5] dark:border-white/10 px-5 py-3">
+    <div className="absolute bottom-6 left-1/2 z-50 w-[90%] -translate-x-1/2 rounded-2xl border border-border bg-panel/45 px-5 py-3 shadow-float backdrop-blur-md md:w-[600px]">
       <div className="flex items-center justify-between">
         {/* Left: Time display */}
         <div className="font-mono text-xs select-none min-w-[80px]">
@@ -68,10 +69,12 @@ export default function FloatingPlayerDeck({
           {/* Play / Pause */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="icon"
                 onClick={onTogglePlay}
-                className="w-10 h-10 rounded-full bg-trust-blue hover:bg-trust-blue/90 text-white flex items-center justify-center transition-colors shadow-xs"
+                className="rounded-full"
                 aria-label={playing ? 'Pause' : 'Play'}
               >
                 {playing ? (
@@ -84,7 +87,7 @@ export default function FloatingPlayerDeck({
                     <polygon points="8,5 20,12 8,19" />
                   </svg>
                 )}
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>{playing ? 'Pause' : 'Play'}</TooltipContent>
           </Tooltip>

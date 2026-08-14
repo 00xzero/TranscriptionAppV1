@@ -120,11 +120,14 @@ function draw(
 
 export interface LiveAudioVisualizerProps {
   mediaRecorder: MediaRecorder
+  className?: string
   width?: number | string
   height?: number | string
   barWidth?: number
   gap?: number
   backgroundColor?: string
+  /** Optional concrete canvas color. When omitted, the canvas element's
+      computed `color` is used so theme utilities remain the source of truth. */
   barColor?: string
   fftSize?: 32 | 64 | 128 | 256 | 512 | 1024 | 2048 | 4096 | 8192 | 16384 | 32768
   maxDecibels?: number
@@ -134,12 +137,13 @@ export interface LiveAudioVisualizerProps {
 
 export function LiveAudioVisualizer({
   mediaRecorder,
+  className,
   width = '100%',
   height = '100%',
   barWidth = 2,
   gap = 1,
   backgroundColor = 'transparent',
-  barColor = 'rgb(160, 198, 255)',
+  barColor,
   fftSize = 1024,
   maxDecibels = -10,
   minDecibels = -90,
@@ -200,7 +204,8 @@ export function LiveAudioVisualizer({
         barWidth,
         gap
       )
-      draw(dataPoints, canvas, barWidth, gap, backgroundColor, barColor)
+      const resolvedBarColor = barColor ?? getComputedStyle(canvas).color
+      draw(dataPoints, canvas, barWidth, gap, backgroundColor, resolvedBarColor)
     },
     [backgroundColor, barColor, barWidth, gap]
   )
@@ -251,6 +256,7 @@ export function LiveAudioVisualizer({
   return (
     <canvas
       ref={canvasRef}
+      className={className}
       width={width}
       height={height}
       style={{ aspectRatio: 'unset' }}

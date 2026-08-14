@@ -312,7 +312,7 @@ export default function CaptureModal() {
           }
         }}
       >
-        <div className="flex items-center justify-between border-b border-[#D1CEC5] px-6 py-4 dark:border-white/10">
+        <div className="flex items-center justify-between border-b border-(--border) px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="text-ember-red">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

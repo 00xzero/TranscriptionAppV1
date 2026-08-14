@@ -5,6 +5,7 @@ import {
   updateSpeaker,
   deleteSpeaker,
 } from '@/lib/supabase/queries'
+import { SPEAKER_COLORS, SPEAKER_COLOR_FALLBACK } from '@/lib/editor/speaker-palette'
 import type { Seg, Speaker } from '../types'
 
 type Measurable = {
@@ -56,11 +57,7 @@ export function useSpeakerAssignments({
     return m
   }, [speakers])
 
-  const speakerColorPalette = useMemo(() => [
-    '#4F638C', '#C73E1D', '#CA8A04',
-    '#0D9488', '#7C3AED', '#64748B',
-    '#B45309', '#059669', '#DB2777', '#2563EB',
-  ], [])
+  const speakerColorPalette = SPEAKER_COLORS
 
   const speakerColorMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -75,9 +72,9 @@ export function useSpeakerAssignments({
   }, [speakers, speakerColorPalette])
 
   const colorForSpeaker = useCallback((sp?: Speaker) => {
-    if (!sp) return '#9CA3AF'
+    if (!sp) return SPEAKER_COLOR_FALLBACK
     if (sp.color) return sp.color
-    return speakerColorMap.get(sp.id) || '#9CA3AF'
+    return speakerColorMap.get(sp.id) || SPEAKER_COLOR_FALLBACK
   }, [speakerColorMap])
 
   const handleAvatarClick = useCallback((e: React.MouseEvent, segmentId: string, speakerId: string | null) => {

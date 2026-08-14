@@ -48,8 +48,8 @@ export function ErrorFallback({
     <div
       role="alert"
       aria-live="assertive"
-      // 56px keeps route-level fallbacks clear of the fixed contextual header.
-      className="min-h-full pt-[56px] pb-16 flex items-center justify-center px-6"
+      // Shared header-height padding keeps route-level fallbacks clear of the fixed header.
+      className="min-h-full pt-[var(--header-height)] pb-16 flex items-center justify-center px-6"
     >
       <div className="w-full max-w-xl text-center">
         {eyebrow && (

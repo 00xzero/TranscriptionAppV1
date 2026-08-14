@@ -136,7 +136,7 @@ export function MiniWaveformProgress({
           aria-valuenow={Math.round(visibleProgress)}
           onMouseDown={handleMouseDown}
           onKeyDown={handleKeyDown}
-          className="block w-full h-1.5 bg-ink/10 dark:bg-white/10 cursor-pointer group hover:bg-ink/15 dark:hover:bg-white/15 transition-colors select-none"
+          className="group block h-1.5 w-full cursor-pointer select-none bg-subtle-hover transition-colors hover:bg-foreground/15"
         >
           <div
             className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
@@ -177,12 +177,12 @@ export default function CollapsibleWaveform({
         className={`overflow-hidden transition-opacity duration-300 ease-in-out ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
       >
-        <div className="relative pt-[56px] bg-paper dark:bg-black border-b border-ink/10 dark:border-white/10">
+        <div className="relative border-b border-subtle-border bg-background pt-[var(--header-height)]">
           {/* Gradient fades on edges — matches Olivetti.html:696 */}
-          <div className="absolute inset-y-0 left-0 w-20 bg-linear-to-r from-paper dark:from-black to-transparent z-10 pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-20 bg-linear-to-l from-paper dark:from-black to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 left-0 z-10 w-20 bg-linear-to-r from-background to-transparent pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 z-10 w-20 bg-linear-to-l from-background to-transparent pointer-events-none" />
 
-          {/* Waveform content. The shell's pt-[56px] clears the editor header;
+          {/* Waveform content. The shell's shared header-height padding clears the editor header;
               pt-6 adds the remaining breathing room from Olivetti's pt-20. */}
           <div className="px-6 md:px-20 pt-6 pb-2">
             {children}

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CaptureMetadataFields from './CaptureMetadataFields'
 import type { MicTestApi } from '@/lib/hooks/useMicTest'
@@ -81,7 +82,7 @@ export default function RecordAudioPanel({
             <SelectTrigger
               id={micSelectId}
               aria-label="Microphone input device"
-              className="w-full bg-white/50 dark:bg-[#222]/50 border-[#D1CEC5] dark:border-[#444] rounded-sm px-3 py-2 text-sm"
+              className="w-full bg-(--field)/50 border-(--border) rounded-sm px-3 py-2 text-sm"
             >
               <SelectValue placeholder="Default microphone" />
             </SelectTrigger>
@@ -96,19 +97,21 @@ export default function RecordAudioPanel({
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={handleTestClick}
             disabled={micControlsDisabled || micTest.requesting || micTest.prewarming}
             aria-label="Test microphone"
-            className="text-xs font-medium px-3 py-2 rounded-sm shadow-xs transition-all active:scale-95 border border-[#D1CEC5] dark:border-[#444] bg-white/50 dark:bg-[#222]/50 hover:bg-ink/5 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+            className="py-2"
           >
             {micTest.requesting
               ? 'Requesting…'
               : micTest.prewarming
                 ? 'Preparing…'
                 : 'Test microphone'}
-          </button>
+          </Button>
           <div className="flex-1 ml-3">
             <div
               role="meter"
@@ -116,7 +119,7 @@ export default function RecordAudioPanel({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={meterValue}
-              className="h-1.5 w-full rounded-full bg-ink/10 dark:bg-white/10 overflow-hidden"
+              className="h-1.5 w-full overflow-hidden rounded-full bg-subtle-hover"
             >
               <div
                 className="h-full bg-trust-blue/60 transition-[width] duration-75"

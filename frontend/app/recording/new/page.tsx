@@ -23,6 +23,7 @@ import RecordingTimer from '@/components/RecordingSession/RecordingTimer'
 import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
+import { Button } from '@/components/ui/button'
 
 const COMPLETION_REDIRECT_DELAY_MS = 600
 const COMPLETION_REDIRECT_RETRY_MS = 1_500
@@ -268,14 +269,15 @@ export default function RecordingNewPage() {
           </div>
           <div className="flex flex-wrap gap-3">
             {snapshot.canRetryUpload && (
-              <button
+              <Button
                 type="button"
+                variant="destructive"
                 onClick={handleRetryUpload}
                 disabled={retryingUpload}
-                className="rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="hover:shadow-md disabled:opacity-60"
               >
                 {retryingUpload ? 'Retrying…' : 'Retry upload'}
-              </button>
+              </Button>
             )}
             <button
               type="button"

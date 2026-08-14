@@ -114,7 +114,7 @@ export default function LibraryView() {
     switch (status) {
       case 'queued':
       case 'processing':
-        return { label: 'Processing', className: 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' }
+        return { label: 'Processing', className: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700' }
       case 'error':
         return { label: 'Error', className: 'text-ember-red bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' }
       default:
@@ -133,7 +133,7 @@ export default function LibraryView() {
         </h2>
 
         {/* Recent Projects Section (future feature: projects group transcripts/files) */}
-        <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
+        <div className="flex items-center justify-between mb-4 border-b border-(--border) pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Projects</h3>
           <Link href="/transcripts" title="View all transcripts" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
@@ -142,8 +142,8 @@ export default function LibraryView() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Sample Project Cards (Placeholder per Olivetti spec) */}
-          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300">
-            <div className="absolute -top-2.5 left-4 w-16 h-4 bg-warm-highlight dark:bg-[#3A3025] rounded-t-sm border-t border-l border-r border-[#D1CEC5] dark:border-night-border z-0" />
+          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-(--border) p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300">
+            <div className="absolute -top-2.5 left-4 w-16 h-4 bg-warm-highlight dark:bg-night-highlight rounded-t-sm border-t border-l border-r border-(--border) z-0" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-3">
                 <span className="font-mono text-[10px] text-trust-blue bg-trust-blue/5 dark:bg-trust-blue/10 px-1.5 py-0.5 rounded-sm border border-trust-blue/10 dark:border-trust-blue/20">ACTIVE</span>
@@ -158,8 +158,8 @@ export default function LibraryView() {
           </div>
 
           {/* Second Sample Card */}
-          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-[#D1CEC5] dark:border-night-border p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300 opacity-80 hover:opacity-100">
-            <div className="absolute -top-2.5 left-4 w-16 h-4 bg-[#D1CEC5] dark:bg-[#333] rounded-t-sm border-t border-l border-r border-[#D1CEC5] dark:border-night-border z-0" />
+          <div className="group cursor-pointer relative bg-paper dark:bg-night-surface rounded-lg border border-(--border) p-5 shadow-xs hover:shadow-elevation hover:-translate-y-1 transition-all duration-300 opacity-80 hover:opacity-100">
+            <div className="absolute -top-2.5 left-4 w-16 h-4 bg-(--border) rounded-t-sm border-t border-l border-r border-(--border) z-0" />
             <div className="relative z-10">
               <div className="flex justify-between items-start mb-3">
                 <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 bg-ink/5 dark:bg-paper/10 px-1.5 py-0.5 rounded-sm border border-ink/10 dark:border-paper/20">FILED</span>
@@ -174,7 +174,7 @@ export default function LibraryView() {
           </div>
 
           {/* New Project Placeholder */}
-          <div className="group cursor-pointer border-2 border-dashed border-[#D1CEC5] dark:border-night-border rounded-lg p-5 flex flex-col items-center justify-center text-ink/40 dark:text-paper/40 hover:text-trust-blue hover:border-trust-blue/50 hover:bg-trust-blue/5 transition-all">
+          <div className="group cursor-pointer border-2 border-dashed border-(--border) rounded-lg p-5 flex flex-col items-center justify-center text-ink/40 dark:text-paper/40 hover:text-trust-blue hover:border-trust-blue/50 hover:bg-trust-blue/5 transition-all">
             <span className="text-3xl mb-2 font-light">+</span>
             <span className="font-serif italic text-sm">New Project Folder</span>
           </div>
@@ -183,7 +183,7 @@ export default function LibraryView() {
 
       {/* Recent Transcripts Section - Using Real Data */}
       <section className="mt-8">
-        <div className="flex items-center justify-between mb-4 border-b border-[#D1CEC5] dark:border-night-border pb-2">
+        <div className="flex items-center justify-between mb-4 border-b border-(--border) pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Transcripts</h3>
           <Link href="/transcripts" title="View all transcripts" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
@@ -206,7 +206,7 @@ export default function LibraryView() {
           </div>
         )}
 
-        <div className="bg-white dark:bg-night-surface rounded-sm border border-[#D1CEC5] dark:border-night-border divide-y divide-[#D1CEC5] dark:divide-night-border">
+        <div className="divide-y divide-border rounded-sm border border-border bg-panel">
           {isLoading ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
               Loading transcripts...
@@ -223,14 +223,14 @@ export default function LibraryView() {
               return (
                 <div
                   key={transcript.id}
-                  className="p-4 flex items-center justify-between hover:bg-warm-highlight/20 dark:hover:bg-white/5 transition-colors group"
+                  className="group flex items-center justify-between p-4 transition-colors hover:bg-subtle"
                 >
                   <Link
                     href={isCompleted(transcript.status) ? `/editor/${transcript.id}` : `/transcripts`}
                     title={isCompleted(transcript.status) ? `Open ${transcript.title || 'Untitled'}` : `Open transcript list for ${transcript.title || 'Untitled'}`}
                     className="flex items-center gap-4 flex-1 cursor-pointer"
                   >
-                    <div className="w-10 h-10 rounded-sm bg-[#F2EFED] dark:bg-[#252525] flex items-center justify-center text-ink/40 dark:text-paper/40 shrink-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-surface text-foreground/40 dark:bg-subtle">
                       <span className="font-mono text-lg">¶</span>
                     </div>
                     <div className="flex-1 min-w-0">

@@ -95,6 +95,7 @@ describe('LiveAudioVisualizer browser support', () => {
         mediaRecorder: makeRecorder('paused'),
         width: 600,
         height: 128,
+        barColor: 'rgb(199, 62, 29)',
       })
     )
 

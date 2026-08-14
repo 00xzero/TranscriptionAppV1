@@ -130,7 +130,7 @@ function ThemeToggle({
         value={theme}
         onValueChange={(value) => onSetTheme(value as AppTheme)}
         aria-label="Appearance"
-        className="relative ml-auto flex items-center gap-[var(--theme-toggle-item-gap)] rounded-md border border-ink/10 dark:border-white/10 p-0.5"
+        className="relative ml-auto flex items-center gap-[var(--theme-toggle-item-gap)] rounded-md border border-subtle-border p-0.5"
         style={themeToggleMetrics}
       >
         <span
@@ -156,7 +156,7 @@ function ThemeToggle({
               className={`relative z-10 flex h-[var(--theme-toggle-item-size)] w-[var(--theme-toggle-item-size)] items-center justify-center rounded transition-colors focus:outline-hidden data-[highlighted]:ring-1 data-[highlighted]:ring-inset data-[highlighted]:ring-ink/15 dark:data-[highlighted]:ring-paper/20 ${
                 active
                   ? 'text-paper dark:text-ink'
-                  : 'text-ink/50 dark:text-paper/50 hover:bg-ink/5 data-[highlighted]:bg-ink/5 dark:hover:bg-white/5 dark:data-[highlighted]:bg-white/5'
+                  : 'text-foreground/50 hover:bg-subtle data-[highlighted]:bg-subtle'
               }`}
             >
               <opt.icon className="w-4 h-4" strokeWidth={1.75} />
@@ -189,8 +189,8 @@ export default function AccountMenu({
           aria-label="Account menu"
           className="
             w-full flex items-center justify-start gap-3 rounded-md p-2 text-left overflow-hidden transition-colors
-            hover:bg-ink/5 dark:hover:bg-white/5
-            data-[state=open]:bg-ink/5 dark:data-[state=open]:bg-white/5
+            hover:bg-subtle
+            data-[state=open]:bg-subtle
             focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50
           "
         >

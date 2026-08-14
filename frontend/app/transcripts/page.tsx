@@ -222,7 +222,7 @@ function TranscriptsPageContent() {
 
   // Connection status indicator
   const statusColor = connectionStatus === 'connected' ? 'bg-green-500' :
-    connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
+    connectionStatus === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
 
   return (
     <>
