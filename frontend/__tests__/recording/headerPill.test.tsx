@@ -225,9 +225,9 @@ describe('RecordingPill', () => {
 
     await user.hover(screen.getByTestId('recording-pill'))
 
-    expect(await screen.findAllByText('Weekly review')).toHaveLength(2)
-    expect(screen.getAllByText(/The recorder is active in this tab/)).toHaveLength(2)
-    expect(screen.getAllByText(/Open the recording page/)).toHaveLength(2)
+    expect(await screen.findAllByText('Weekly review')).toHaveLength(1)
+    expect(screen.getAllByText(/The recorder is active in this tab/)).toHaveLength(1)
+    expect(screen.getAllByText(/Open the recording page/)).toHaveLength(1)
   })
 
   test('tooltip opens on focus and shows durability warning when not durable', async () => {
@@ -244,12 +244,12 @@ describe('RecordingPill', () => {
       screen.getByTestId('recording-pill').focus()
     })
 
-    expect(await screen.findAllByText('At-risk recording')).toHaveLength(2)
+    expect(await screen.findAllByText('At-risk recording')).toHaveLength(1)
     expect(
       screen.getAllByText(
         /If this tab refreshes, closes, or crashes, this recording may be lost/
       )
-    ).toHaveLength(2)
+    ).toHaveLength(1)
   })
 
   test('tooltip omits durability warning while durable', async () => {
@@ -265,7 +265,7 @@ describe('RecordingPill', () => {
 
     await user.hover(screen.getByTestId('recording-pill'))
 
-    expect(await screen.findAllByText('Backed recording')).toHaveLength(2)
+    expect(await screen.findAllByText('Backed recording')).toHaveLength(1)
     expect(
       screen.queryAllByText(
         /If this tab refreshes, closes, or crashes, this recording may be lost/
@@ -293,10 +293,10 @@ describe('RecordingPill', () => {
 
     await user.hover(screen.getByTestId('recording-pill-remote'))
 
-    expect(await screen.findAllByText('Remote title')).toHaveLength(2)
+    expect(await screen.findAllByText('Remote title')).toHaveLength(1)
     expect(
       screen.getAllByText(/cannot pause, stop, or save/)
-    ).toHaveLength(2)
+    ).toHaveLength(1)
   })
 
   test('active and remote pills navigate, but terminal pills do not', async () => {
