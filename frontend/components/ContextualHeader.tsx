@@ -131,7 +131,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="group h-[30px] w-[30px] rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface"
+                className="group flex h-[30px] w-[30px] items-center justify-center rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface"
                 onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
                 aria-label="Export"
               >

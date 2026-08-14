@@ -30,6 +30,7 @@ import {
   type ReactElement,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
 } from 'react'
 import { getAudioContextConstructor } from '@/lib/recording/audioContext'
@@ -153,6 +154,13 @@ export function LiveAudioVisualizer({
   const analyserRef = useRef<AnalyserNode | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef = useRef<number | null>(null)
+  const resolvedBarColorRef = useRef<string | null>(barColor ?? null)
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    resolvedBarColorRef.current = barColor ?? getComputedStyle(canvas).color
+  }, [barColor, className])
 
   const cancelReportFrame = useCallback(() => {
     if (rafRef.current == null) return
@@ -204,10 +212,11 @@ export function LiveAudioVisualizer({
         barWidth,
         gap
       )
-      const resolvedBarColor = barColor ?? getComputedStyle(canvas).color
+      const resolvedBarColor = resolvedBarColorRef.current
+      if (!resolvedBarColor) return
       draw(dataPoints, canvas, barWidth, gap, backgroundColor, resolvedBarColor)
     },
-    [backgroundColor, barColor, barWidth, gap]
+    [backgroundColor, barWidth, gap]
   )
 
   useEffect(() => {
