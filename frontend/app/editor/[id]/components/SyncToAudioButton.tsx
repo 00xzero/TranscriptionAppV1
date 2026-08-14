@@ -12,7 +12,7 @@ export default function SyncToAudioButton({
   if (!visible) return null
   return (
     <button
-      className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-white/60 dark:bg-black/60 backdrop-blur-md text-ink dark:text-paper border border-ink/10 dark:border-paper/10 rounded-2xl shadow-float flex items-center gap-2 hover:bg-white/80 dark:hover:bg-black/80 transition-colors"
+      className="absolute bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-subtle-border bg-control px-4 py-2 text-foreground shadow-float backdrop-blur-md transition-colors hover:bg-control-hover"
       title="Sync transcript to current audio position"
       onClick={onSync}
     >

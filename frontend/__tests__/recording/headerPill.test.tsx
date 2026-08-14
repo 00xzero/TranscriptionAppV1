@@ -58,7 +58,7 @@ describe('RecordingPill', () => {
     const pill = screen.getByTestId('recording-pill')
 
     expect(pill).toHaveClass(
-      'border-base',
+      'border-border',
       'bg-surface',
       'text-ink',
       'dark:bg-night-surface',

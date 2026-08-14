@@ -91,7 +91,7 @@ function TerminalStatusPill({ terminal }: { terminal: TerminalPill }) {
       className={`inline-flex min-w-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-xs transition-all motion-safe:animate-[fadeIn_150ms_ease-out] ${
         isSaved
           ? 'border-trust-blue/35 bg-trust-blue/10 text-trust-blue dark:bg-trust-blue/15 dark:text-paper'
-          : 'border-base bg-surface text-ink/60 dark:bg-night-surface dark:text-paper/60'
+          : 'border-border bg-surface text-ink/60 dark:bg-night-surface dark:text-paper/60'
       }`}
     >
       <span
@@ -171,7 +171,7 @@ export default function RecordingPill() {
             onClick={() => guardedNav.push('/recording/new')}
             aria-label="A recording is in progress in another tab"
             data-testid="recording-pill-remote"
-            className="inline-flex min-w-0 items-center gap-2 rounded-full border border-base bg-surface px-3 py-1.5 text-xs font-medium text-ink/70 shadow-xs transition-all hover:bg-paper hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/35 active:scale-95 dark:bg-night-surface dark:text-paper/70 dark:hover:bg-night-surface/80"
+            className="inline-flex min-w-0 items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink/70 shadow-xs transition-all hover:bg-paper hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/35 active:scale-95 dark:bg-night-surface dark:text-paper/70 dark:hover:bg-night-surface/80"
           >
             <span
               className="h-2 w-2 shrink-0 rounded-full bg-ink/40 dark:bg-paper/40"
@@ -210,7 +210,7 @@ export default function RecordingPill() {
   let detail: string | undefined
   let action = 'Open the recording page.'
   let toneClass =
-    'border-base bg-surface text-ink hover:bg-paper dark:bg-night-surface dark:text-paper dark:hover:bg-night-surface/80'
+    'border-border bg-surface text-ink hover:bg-paper dark:bg-night-surface dark:text-paper dark:hover:bg-night-surface/80'
   let dotClass = 'bg-ember-red'
 
   if (state === 'recording') {

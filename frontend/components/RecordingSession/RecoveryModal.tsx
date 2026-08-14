@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
 import {
   discardRecovered,
@@ -95,7 +96,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
       >
         <div className="px-6 pt-6 pb-4">
           <DialogTitle>Recovered recording</DialogTitle>
-          <p className="mt-1 text-[10px] font-mono text-ink/50 dark:text-white/50">
+          <p className="mt-1 text-[10px] font-mono text-foreground/50">
             We found an interrupted recording on this device.
             {info.remainingCount > 0 ? ` (1 of ${total})` : ''}
           </p>
@@ -113,7 +114,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               disabled={saving}
               placeholder="Untitled recording"
               aria-label="Recovered recording title"
-              className="w-full rounded-lg border border-base [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 dark:text-paper"
+              className="w-full rounded-lg border border-border [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 dark:text-paper"
             />
           </label>
 
@@ -151,7 +152,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-base [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
           <button
             type="button"
             onClick={handleDiscard}
@@ -160,15 +161,16 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
           >
             Discard
           </button>
-          <button
+          <Button
             type="button"
+            variant="destructive"
             onClick={handleSave}
             disabled={saving || !online}
             title={!online ? 'You are offline' : 'Save and transcribe'}
-            className="rounded-lg bg-ember-red px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-ember-red/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-red/40 disabled:opacity-40"
+            className="rounded-lg px-5 focus-visible:ring-destructive/40 disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save & transcribe'}
-          </button>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -140,6 +140,8 @@ Export shaping is in `core/exports/`.
 
 **Tailwind v4** — there is no `tailwind.config.ts`. Tokens are declared in `@theme` blocks in `app/globals.css`. Colors: `paper`, `ink`, `warm-highlight`, `trust-blue`, `ember-red`, `transcribe`, `night-surface`, `night-border`; plus CSS custom properties (`--bg`, `--surface`, `--border`, `--accent`, `--muted`) for the light/dark palettes. Dark mode is a custom variant driven by the `.dark` class: `@custom-variant dark (&:where(.dark, .dark *))`.
 
+Use semantic role utilities (`text-foreground`, `bg-surface`, `border-border`, and similar) when styling a UI responsibility that should follow the active theme. Use palette utilities (`text-ink`, `bg-ember-red`, and similar) only when the exact color identity is an intentional brand, status, highlight, or inverse treatment. Do not add unlayered helper classes that duplicate Tailwind utilities; expose reusable semantic roles through `@theme inline` instead.
+
 UI primitives in `components/ui/` are Radix-based. Icons are `lucide-react`.
 
 ### Testing

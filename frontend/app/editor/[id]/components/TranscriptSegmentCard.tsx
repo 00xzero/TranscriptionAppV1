@@ -130,7 +130,7 @@ export default function TranscriptSegmentCard({
     <div
       data-testid="segment-card"
       data-segment-id={s.id}
-      className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-ink/5 dark:hover:bg-white/5'}`}
+      className={`group rounded-xl cursor-pointer flex gap-3 transition-colors ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-subtle'}`}
       onClick={() => onSegmentClick(s.id, s.start_ms)}
       onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
         if (e.target !== e.currentTarget) return
@@ -206,7 +206,7 @@ export default function TranscriptSegmentCard({
                   }
                   const highlight = wordText.slice(startIdx, endIdx)
                   pieces.push(
-                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline-solid outline-2 outline-ember-red dark:bg-trust-blue dark:text-white dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-white'}`}>{highlight}</span>
+                    <span key={`h-${m.matchIdx}-${idx2}`} className={`${m.matchIdx === matchIndex ? 'bg-warm-highlight text-ink outline-solid outline-2 outline-ember-red dark:bg-trust-blue dark:text-solid-foreground dark:outline-ember-red' : 'bg-warm-highlight text-ink dark:bg-trust-blue dark:text-solid-foreground'}`}>{highlight}</span>
                   )
                   localPos = endIdx
                 })

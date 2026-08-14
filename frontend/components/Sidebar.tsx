@@ -161,10 +161,10 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     return (
       <nav
         aria-hidden="true"
-        className={`sidebar-initial-shell flex shrink-0 flex-col justify-between overflow-hidden border-r border-[#D1CEC5] bg-[#DFDCD4] dark:border-night-border dark:bg-night-surface ${className}`}
+        className={`sidebar-initial-shell flex shrink-0 flex-col justify-between overflow-hidden border-r border-(--border) bg-(--surface-alt) dark:bg-night-surface ${className}`}
       >
         <div>
-          <div className="sidebar-initial-inline-padding flex h-[56px] items-center justify-between gap-2 overflow-hidden">
+          <div className="sidebar-initial-inline-padding flex h-[var(--header-height)] items-center justify-between gap-2 overflow-hidden">
             <div className="flex min-w-0 items-center">
               <span className="flex w-10 shrink-0 items-center justify-center">
                 <span className="flex items-center gap-1.5">
@@ -187,7 +187,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           </div>
 
           <div className="sidebar-initial-inline-padding space-y-1 pt-3 pb-6">
-            <div className="flex items-center overflow-hidden whitespace-nowrap rounded-md border border-[#D1CEC5] bg-white/50 py-2.5 text-ink shadow-xs dark:border-night-border dark:bg-white/5 dark:text-paper">
+            <div className="flex items-center overflow-hidden whitespace-nowrap rounded-md border border-border bg-field/50 py-2.5 text-foreground shadow-xs dark:bg-subtle">
               <span className="flex w-10 shrink-0 items-center justify-center">
                 <Library className="h-[18px] w-[18px] opacity-60" strokeWidth={1.75} />
               </span>
@@ -223,7 +223,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           </div>
         </div>
 
-        <div className="sidebar-initial-account-padding border-t border-[#D1CEC5] dark:border-night-border">
+        <div className="sidebar-initial-account-padding border-t border-(--border)">
           <div className="flex items-center gap-3 overflow-hidden rounded-md p-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink font-mono text-xs text-paper dark:bg-paper dark:text-ink">?</div>
             <span
@@ -264,7 +264,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     <nav
       className={`
         group/sidebar flex flex-col justify-between shrink-0 z-20
-        bg-[#DFDCD4] dark:bg-night-surface border-r border-[#D1CEC5] dark:border-night-border
+        bg-(--surface-alt) dark:bg-night-surface border-r border-(--border)
         ${navTransitionClass}
         ${isCollapsed ? 'w-16 md:w-14' : 'w-16 md:w-64'}
         ${className}
@@ -272,7 +272,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     >
       <TooltipProvider delayDuration={sidebarTooltipDelay}>
         {/* Logo Area */}
-        <div className={`h-[56px] gap-2 flex items-center justify-between overflow-hidden transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
+        <div className={`h-[var(--header-height)] gap-2 flex items-center justify-between overflow-hidden transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
           {isCollapsed ? (
             <>
               <button
@@ -292,7 +292,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                     type="button"
                     onClick={toggleCollapsed}
                     aria-label="Expand Sidebar"
-                    className="group/header-toggle relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-md text-ink hover:bg-ink/5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50 md:flex dark:text-paper dark:hover:bg-white/10"
+                    className="group/header-toggle relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-subtle focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50 md:flex"
                   >
                     <span className="absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-150 ease-out group-hover/header-toggle:scale-90 group-hover/header-toggle:opacity-0 group-focus-visible/header-toggle:scale-90 group-focus-visible/header-toggle:opacity-0 motion-reduce:transition-none">
                       <span className="flex items-center gap-1.5" aria-hidden="true">
@@ -339,7 +339,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                   <button
                     type="button"
                     onClick={toggleCollapsed}
-                    className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-sm text-ink/40 transition-colors duration-150 hover:bg-ink/5 active:scale-[0.98] motion-reduce:transition-none md:flex dark:text-paper/40 dark:hover:bg-white/10"
+                    className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-sm text-foreground/40 transition-colors duration-150 hover:bg-subtle-hover active:scale-[0.98] motion-reduce:transition-none md:flex"
                     aria-label="Collapse Sidebar"
                   >
                     <PanelLeftClose
@@ -366,8 +366,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                   w-full flex items-center py-2.5 rounded-md overflow-hidden whitespace-nowrap
                   transition-[background-color,border-color,color,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
                   ${isLibraryActive
-                    ? 'bg-white/50 dark:bg-white/5 shadow-xs border border-[#D1CEC5] dark:border-night-border text-ink dark:text-paper'
-                    : 'hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70'
+                    ? 'bg-field/50 dark:bg-subtle shadow-xs border border-border text-foreground'
+                    : 'hover:bg-subtle text-foreground/70'
                   }
                 `}
               >
@@ -393,7 +393,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 type="button"
                 aria-disabled="true"
                 aria-label="Drafts (coming soon)"
-                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-subtle text-foreground/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
               >
                 <span className="w-10 flex items-center justify-center shrink-0">
                   <PenLine className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
@@ -416,7 +416,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 type="button"
                 aria-disabled="true"
                 aria-label="Shared (coming soon)"
-                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-ink/5 dark:hover:bg-white/5 text-ink/70 dark:text-paper/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
+                className="w-full flex items-center py-2.5 rounded-md cursor-not-allowed hover:bg-subtle text-foreground/70 overflow-hidden whitespace-nowrap transition-colors duration-150 motion-reduce:transition-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50"
               >
                 <span className="w-10 flex items-center justify-center shrink-0">
                   <Users className="w-[18px] h-[18px] opacity-60" strokeWidth={1.75} />
@@ -436,7 +436,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
       {/* User / Bottom — full-width account row + upward menu (theme, sign out live inside).
           Rendered unconditionally so theme + sign out stay reachable while `user` is null. */}
-      <div className={`border-t border-[#D1CEC5] dark:border-night-border transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'p-2 md:p-1' : 'p-2'}`}>
+      <div className={`border-t border-(--border) transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'p-2 md:p-1' : 'p-2'}`}>
         <AccountMenu
           user={user}
           isCollapsed={isCollapsed}

@@ -77,7 +77,7 @@ export default function FileDropZone({
   return (
     <div className="space-y-3">
       <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60" htmlFor={fileInputId}>Select File</Label>
-      <p className="text-[10px] text-ink/40 dark:text-white/40 mb-2">
+      <p className="mb-2 text-[10px] text-foreground/40">
         MP3, WAV, M4A, AAC, FLAC, MP4, MOV, WebM, OGG, AVI (up to {maxFileSizeLabel})
       </p>
 
@@ -106,7 +106,7 @@ export default function FileDropZone({
           ? 'border-trust-blue bg-trust-blue/10'
           : selectedFile
             ? 'border-trust-blue/50 bg-trust-blue/5'
-            : 'border-[#D1CEC5] dark:border-[#333] bg-ink/5 dark:bg-white/5 hover:border-trust-blue hover:bg-trust-blue/5'
+            : 'border-border bg-subtle hover:border-trust-blue hover:bg-trust-blue/5'
           } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         {selectedFile ? (
@@ -117,25 +117,25 @@ export default function FileDropZone({
               </svg>
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-ink/80 dark:text-white/80 truncate max-w-[300px]">
+              <p className="max-w-[300px] truncate text-sm font-medium text-foreground/80">
                 {selectedFile.name}
               </p>
-              <p className="text-xs text-ink/40 dark:text-white/40 mt-1">
+              <p className="mt-1 text-xs text-foreground/40">
                 {formatFileSize(selectedFile.size)}
               </p>
             </div>
           </>
         ) : (
           <>
-            <div className="w-10 h-10 rounded-full bg-paper dark:bg-[#222] border border-[#D1CEC5] dark:border-[#444] flex items-center justify-center text-ink/40 dark:text-white/40 group-hover:text-trust-blue group-hover:border-trust-blue transition-colors">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-field text-foreground/40 transition-colors group-hover:border-trust-blue group-hover:text-trust-blue">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12" />
               </svg>
             </div>
             <div className="text-center">
-              <p className="text-sm font-medium text-ink/80 dark:text-white/80">Drop recording here</p>
-              <p className="text-xs text-ink/40 dark:text-white/40 my-1">or</p>
-              <span className="text-xs font-mono border border-[#D1CEC5] dark:border-[#444] px-2 py-1 rounded-sm bg-paper dark:bg-[#222]">Browse Files</span>
+              <p className="text-sm font-medium text-foreground/80">Drop recording here</p>
+              <p className="my-1 text-xs text-foreground/40">or</p>
+              <span className="text-xs font-mono border border-(--border) px-2 py-1 rounded-sm bg-paper dark:bg-(--field)">Browse Files</span>
             </div>
           </>
         )}

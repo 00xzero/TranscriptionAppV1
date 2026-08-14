@@ -208,7 +208,7 @@ export default function Waveform({
         </div>
         <div
           aria-hidden
-          className="absolute inset-y-0 w-0.5 bg-trust-blue shadow-[0_0_10px_rgba(79,99,140,0.8)] pointer-events-none -translate-x-1/2 z-20"
+          className="absolute inset-y-0 w-0.5 bg-trust-blue shadow-glow pointer-events-none -translate-x-1/2 z-20"
           style={{ left: 'var(--waveform-progress)' }}
         >
           <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-trust-blue rounded-full" />

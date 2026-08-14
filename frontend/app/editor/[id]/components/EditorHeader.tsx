@@ -136,7 +136,7 @@ export default function EditorHeader({
           </DropdownMenu>
         </div>
       </div>
-      <Separator decorative={false} className="mt-8 bg-ink/10 dark:bg-white/10" />
+      <Separator decorative={false} className="mt-8 bg-subtle-hover" />
     </div>
   )
 }

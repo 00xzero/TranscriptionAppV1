@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import type { User } from '@supabase/supabase-js'
 
@@ -77,7 +78,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   }, [isAuthRoute])
 
   return (
-    <header className="h-[56px] border-b border-[#D1CEC5] dark:border-night-border bg-paper/45 dark:bg-[#1A1A1A]/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
+    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
       <div className="flex items-center gap-2">
         {isLoading ? (
@@ -130,7 +131,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="group w-[30px] h-[30px] rounded-[6px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 flex items-center justify-center hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-xs transition-all active:scale-95"
+                className="group flex h-[30px] w-[30px] items-center justify-center rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface"
                 onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
                 aria-label="Export"
               >
@@ -156,7 +157,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="group box-border w-[172px] h-[30px] bg-white/10 dark:bg-white/5 border border-ink/10 dark:border-white/10 rounded-[6px] flex items-center justify-between px-[13px] hover:bg-white hover:border-trust-blue/30 dark:hover:bg-[#1D1E18] backdrop-blur-xs shadow-xs transition-all active:scale-95"
+                className="group box-border flex h-[30px] w-[172px] items-center justify-between rounded-md border border-subtle-border bg-field/10 px-[13px] shadow-xs backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface"
                 onClick={() =>
                   window.dispatchEvent(new CustomEvent('open-find-replace'))
                 }
@@ -189,7 +190,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
                     Find & Replace
                   </span>
                 </div>
-                <div className="bg-ink/5 dark:bg-white/5 rounded-[4px] h-[15px] px-[6px] flex items-center justify-center">
+                <div className="flex h-[15px] items-center justify-center rounded px-[6px] bg-subtle">
                   <span className="font-sans text-[8.5px] text-ink/50 dark:text-paper/50 leading-[15px]">
                     {'\u2318'}F
                   </span>
@@ -206,7 +207,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
         <div className="flex items-center gap-6">
           <RecordingPill />
           {/* Global Search - Desktop Only */}
-          <div className="relative hidden md:flex items-center gap-3 bg-white/50 dark:bg-white/5 border border-[#D1CEC5] dark:border-night-border rounded-lg px-3 py-1.5 focus-within:border-trust-blue/50 focus-within:bg-white dark:focus-within:bg-[#1A1A1A] transition-all group">
+          <div className="group relative hidden items-center gap-3 rounded-lg border border-border bg-field/50 px-3 py-1.5 transition-all focus-within:border-trust-blue/50 focus-within:bg-field md:flex dark:bg-subtle dark:focus-within:bg-surface">
             <span className="font-mono text-[10px] text-ink/40 dark:text-paper/40 group-focus-within:text-trust-blue transition-colors">
               ?
             </span>
@@ -221,14 +222,15 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           {/* Capture Button */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
+              <Button
+                variant="destructive"
                 onClick={() => openCaptureModal()}
                 aria-label="Open capture modal"
-                className="cursor-pointer bg-ember-red text-white px-4 py-2 rounded-sm shadow-xs hover:shadow-md active:scale-95 transition-all flex items-center gap-2 font-medium text-sm"
+                className="gap-2 hover:shadow-md"
               >
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                <div className="h-2 w-2 animate-pulse rounded-full bg-solid-foreground" />
                 <span className="hidden md:inline">Capture</span>
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Start new recording</TooltipContent>
           </Tooltip>

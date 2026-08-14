@@ -45,7 +45,7 @@ export default function AuthPage() {
     <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-8 bg-transparent">
       <div
         data-auth-panel
-        className="w-full max-w-[420px] p-8 rounded-[14px] border border-(--border) [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-[0_12px_30px_-12px_rgba(0,0,0,0.15)] backdrop-blur-[14px]"
+        className="w-full max-w-[420px] p-8 rounded-[14px] border border-(--border) [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-elevation backdrop-blur-[14px]"
       >
         <div className="flex items-center justify-center gap-3 mb-2">
           <div className="flex items-center gap-1.5">
@@ -64,7 +64,7 @@ export default function AuthPage() {
               default: {
                 colors: {
                   brand: 'var(--accent)',
-                  brandAccent: '#2563eb',
+                  brandAccent: 'color-mix(in oklab, var(--accent) 85%, black)',
                   inputBackground: 'var(--surface)',
                   inputText: 'var(--text)',
                   inputBorder: 'var(--border)',

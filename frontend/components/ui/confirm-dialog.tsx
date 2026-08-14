@@ -45,7 +45,7 @@ export function ConfirmDialog({
             {description}
           </AlertDialogDescription>
         </div>
-        <div className="flex items-center justify-end gap-3 border-t border-[#D1CEC5] bg-ink/5 px-6 py-4 dark:border-white/10 dark:bg-white/5">
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-subtle px-6 py-4">
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction onClick={() => void onConfirm()}>
             {confirmLabel}

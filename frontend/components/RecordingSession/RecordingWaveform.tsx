@@ -14,8 +14,6 @@ import { getLiveRecorder } from '@/lib/recording/session'
 import type { RecordingState } from '@/lib/recording/session'
 import RecordingWaveformMock from './RecordingWaveformMock'
 
-// Matches `--color-ember-red: #C73E1D` from app/globals.css.
-const EMBER_RED = 'rgb(199, 62, 29)'
 // Matches the `h-32` container height (8rem = 128px).
 const WAVE_HEIGHT = 128
 // Mirror Waveform.tsx's BAR_WIDTH_PX / BAR_GAP_PX for visual consistency.
@@ -78,11 +76,11 @@ function LiveWaveform({
       {width > 0 && (
         <LiveAudioVisualizer
           mediaRecorder={recorder}
+          className="text-ember-red"
           width={width}
           height={WAVE_HEIGHT}
           barWidth={BAR_WIDTH}
           gap={BAR_GAP}
-          barColor={EMBER_RED}
           backgroundColor="transparent"
         />
       )}

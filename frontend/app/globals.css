@@ -12,15 +12,40 @@
   --color-transcribe-hover: #5A2A20;
   --color-night-surface: #1D1E18;
   --color-night-border: #333333;
+  --color-night-highlight: #3A3025;
 
   --shadow-elevation: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
   --shadow-float: 0 20px 50px -10px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 10px color-mix(in oklab, var(--color-trust-blue) 80%, transparent);
 }
 
 @theme inline {
   --font-sans: var(--font-inter), "Inter", sans-serif;
   --font-serif: var(--font-newsreader), "Newsreader", serif;
   --font-mono: var(--font-ibm-plex-mono), "IBM Plex Mono", monospace;
+
+  /* Semantic color utilities. Components should prefer these roles over raw
+     palette colors when the color describes a UI responsibility. */
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-surface: var(--surface);
+  --color-surface-alt: var(--surface-alt);
+  --color-panel: var(--panel);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-soft: color-mix(in oklab, var(--accent) 15%, var(--surface));
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--brand-red);
+  --color-solid-foreground: var(--solid-foreground);
+  --color-muted: var(--muted);
+  --color-field: var(--field);
+  --color-control: var(--control-surface);
+  --color-control-hover: var(--control-surface-hover);
+  --color-subtle: var(--subtle);
+  --color-subtle-hover: var(--subtle-hover);
+  --color-subtle-border: var(--subtle-border);
+  --color-scrim: var(--scrim);
+  --color-scrim-soft: var(--scrim-soft);
 }
 
 /*
@@ -59,41 +84,66 @@ body {
 }
 
 :root {
-  --bg: #E4E1D9;
+  --bg: var(--color-paper);
   /* paper */
-  --text: #1D1E18;
+  --text: var(--color-ink);
   /* ink */
   --surface: #F2EFED;
   /* elevated paper */
   --surface-alt: #DFDCD4;
   /* sidebar/panels */
+  --panel: #FFFFFF;
+  /* opaque content panel */
   --border: #D1CEC5;
   /* primary border */
-  --accent: #4F638C;
+  --accent: var(--color-trust-blue);
   /* trust-blue */
-  --brand-red: #C73E1D;
+  --solid-foreground: #FFFFFF;
+  /* text/icons on saturated color fills */
+  --accent-foreground: var(--solid-foreground);
+  --brand-red: var(--color-ember-red);
   /* olivetti brand red */
   --muted: #6F6B63;
   /* warm gray */
+  --field: var(--panel);
+  /* input/well surface (use at reduced alpha for resting fields) */
+  --control-surface: color-mix(in oklab, var(--field) 60%, transparent);
+  --control-surface-hover: var(--field);
+  --subtle: color-mix(in oklab, var(--text) 5%, transparent);
+  --subtle-hover: color-mix(in oklab, var(--text) 10%, transparent);
+  --subtle-border: color-mix(in oklab, var(--text) 10%, transparent);
+  --scrim: color-mix(in oklab, var(--color-paper) 20%, transparent);
+  --scrim-soft: var(--scrim);
+  --scrollbar-thumb: #6B6760;
+  --scrollbar-thumb-hover: #4A4742;
+  --header-height: 3.5rem;
 }
 
 .dark {
   --bg: #0e0e0c;
   /* night-bg */
-  --text: #E4E1D9;
+  --text: var(--color-paper);
   /* paper text */
-  --surface: #1D1E18;
+  --surface: var(--color-night-surface);
   /* night-surface */
   --surface-alt: #141414;
   /* studio-dark */
-  --border: #333333;
+  --panel: var(--color-night-surface);
+  /* opaque content panel */
+  --border: var(--color-night-border);
   /* night-border */
-  --accent: #4F638C;
+  --accent: var(--color-trust-blue);
   /* trust-blue */
-  --brand-red: #C73E1D;
+  --brand-red: var(--color-ember-red);
   /* olivetti brand red */
   --muted: #B9B4AA;
   /* muted paper */
+  --field: #222222;
+  /* input/well surface */
+  --scrim: rgb(0 0 0 / 60%);
+  --scrim-soft: rgb(0 0 0 / 40%);
+  --scrollbar-thumb: #6B6B6B;
+  --scrollbar-thumb-hover: #888888;
 }
 
 body {
@@ -130,31 +180,6 @@ body {
   }
 }
 
-/* Themed utility helpers */
-.bg-surface {
-  background-color: var(--surface);
-}
-
-.bg-surface-alt {
-  background-color: var(--surface-alt);
-}
-
-.border-base {
-  border-color: var(--border);
-}
-
-.text-muted {
-  color: var(--muted);
-}
-
-.accent {
-  color: var(--accent);
-}
-
-.bg-accent-soft {
-  background-color: color-mix(in oklab, var(--accent) 15%, var(--surface));
-}
-
 /* Paper noise texture */
 .bg-noise {
   position: relative;
@@ -177,11 +202,7 @@ html.dark .bg-noise::before,
 /* Custom scrollbar ("Archive Rail") */
 :root {
   scrollbar-width: auto;
-  scrollbar-color: #6B6760 transparent;
-}
-
-html.dark {
-  scrollbar-color: #6B6B6B transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -195,24 +216,14 @@ html.dark {
 
 ::-webkit-scrollbar-thumb {
   min-height: 40px;
-  background: #6B6760;
+  background: var(--scrollbar-thumb);
   background-clip: padding-box;
   border: 3px solid transparent;
   border-radius: 6px;
 }
 
-html.dark ::-webkit-scrollbar-thumb {
-  background: #6B6B6B;
-  background-clip: padding-box;
-}
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #4A4742;
-  background-clip: padding-box;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
-  background: #888;
+  background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 
@@ -223,11 +234,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #6B6760 transparent;
-}
-
-html.dark .scrollbar-thin {
-  scrollbar-color: #6B6B6B transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .scrollbar-thin::-webkit-scrollbar {
@@ -241,24 +248,14 @@ html.dark .scrollbar-thin {
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
   min-height: 32px;
-  background: #6B6760;
+  background: var(--scrollbar-thumb);
   background-clip: padding-box;
   border: 2px solid transparent;
   border-radius: 4px;
 }
 
-html.dark .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #6B6B6B;
-  background-clip: padding-box;
-}
-
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #4A4742;
-  background-clip: padding-box;
-}
-
-html.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: #888;
+  background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
 

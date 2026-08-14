@@ -3,6 +3,7 @@
 import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { formatClockTime } from '@/lib/utils'
 import { isSafariBrowser } from '@/lib/recording/safariPrewarm'
 
@@ -619,15 +620,16 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       {/* Controls — hidden when FloatingPlayerDeck is active */}
       {!hideControls && (
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="px-3 py-1.5 rounded-sm bg-trust-blue text-white disabled:opacity-50 hover:bg-trust-blue/90 transition-colors"
+            variant="primary"
+            size="sm"
             disabled={!ready}
             onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
             title={playing ? 'Pause' : 'Play'}
           >
             {playing ? 'Pause' : 'Play'}
-          </button>
+          </Button>
           <button
             type="button"
             className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
@@ -664,7 +666,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
                 setPlaybackRateState(rate)
               }}
             >
-              <SelectTrigger className="h-auto w-auto border border-base rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
+              <SelectTrigger className="h-auto w-auto border border-border rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

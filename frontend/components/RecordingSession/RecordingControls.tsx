@@ -9,6 +9,7 @@ import {
 } from '@/lib/recording/session'
 import { meetsEmptyFloor } from '@/lib/recording/sizeBudget'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
+import { Button } from '@/components/ui/button'
 
 export default function RecordingControls() {
   const snapshot = useRecordingSession()
@@ -48,12 +49,13 @@ export default function RecordingControls() {
 
         <div className="flex flex-wrap items-center gap-3">
           {isPaused ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
               onClick={actions.resume}
               aria-label="Resume"
               title="Resume"
-              className="inline-flex items-center justify-center rounded-sm bg-trust-blue px-4 py-2 text-sm font-medium text-white shadow-xs transition-all hover:shadow-md active:scale-95"
+              className="hover:shadow-md"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -64,15 +66,15 @@ export default function RecordingControls() {
               >
                 <path d="M8 5v14l11-7z" />
               </svg>
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="secondary"
               onClick={actions.pause}
               disabled={!isRecording}
               aria-label="Pause"
               title="Pause"
-              className="inline-flex items-center justify-center rounded-sm border border-ink/20 bg-white/60 px-4 py-2 text-sm font-medium text-ink shadow-xs transition-all hover:bg-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -84,28 +86,30 @@ export default function RecordingControls() {
                 <rect x="7" y="5" width="3.5" height="14" rx="1.25" />
                 <rect x="13.5" y="5" width="3.5" height="14" rx="1.25" />
               </svg>
-            </button>
+            </Button>
           )}
 
           {aboveFloor && (
-            <button
+            <Button
               type="button"
+              variant="destructive"
               onClick={handleStop}
               disabled={disabled}
-              className="rounded-sm bg-ember-red px-4 py-2 text-sm font-medium text-white shadow-xs transition-all hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+              className="hover:shadow-md"
             >
               Stop &amp; transcribe
-            </button>
+            </Button>
           )}
 
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setDiscardConfirmOpen(true)}
             disabled={disabled}
-            className="rounded-sm border border-ink/20 bg-transparent px-4 py-2 text-sm font-medium text-ink/70 transition-all hover:text-ink active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:border-night-border dark:text-paper/70 dark:hover:text-paper"
+            className="border border-border"
           >
             Discard
-          </button>
+          </Button>
         </div>
       </div>
       <DiscardRecordingDialog
