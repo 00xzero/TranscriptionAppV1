@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-14] - Explicit Supabase Data API Grants
+
+Adopted Supabase's opt-in Data API permission model before the October 2026 rollout. Public-schema access is now declared in migrations instead of inherited from Supabase's historical default privileges: anonymous clients have no table access, authenticated users can reach only the RLS-protected browser-facing tables, and trusted service-role clients can also reach words and internal processing tables.
+
+### Added
+
+- **`infra/supabase/migrations/20260814000000_explicit_data_api_grants.sql`** — Revokes automatic table, sequence, and function privileges for future `public` objects, clears inherited privileges from the nine active tables, then explicitly grants authenticated CRUD on `transcripts`, `speakers`, `segments`, `watchlist`, and `jobs`, with service-role CRUD also covering `words`, `failed_events`, `job_events`, and `webhook_receipts`.
+- **`AGENTS.md`** — Requires future public-table migrations to define least-privilege Data API grants, RLS, and policies together, including explicit sequence or API-function grants when needed.
+
+### Preserved
+
+- Existing RLS policies, Storage permissions, Realtime configuration, and RPC grants are unchanged.
+- The local migration was applied without resetting the database; the existing `3` transcripts and `180` segments were preserved.
+
+### Tests
+
+- **Local DB** — `supabase migration up`; `information_schema.role_table_grants` and `pg_default_acl` verified against the intended current and future privilege matrix.
+- **Local Data API** — anonymous transcript access returns `42501`; authenticated browser-table CRUD succeeds while `words` and internal-table access return `42501`; service-role word/internal-table access and `transition_job_status` RPC invocation succeed.
+- **Future function ACLs** — a rollback-only probe confirmed newly created `public` functions are not executable by `anon`, `authenticated`, or `service_role` until explicitly granted.
+- **Local waveform permissions** — authenticated server-owned waveform updates return `42501`; service-role updates succeed.
+- **Hosted rollout** — `supabase db push` applied only this migration; remote history is synchronized, and read-only Data API probes confirmed anonymous and authenticated `words` access returns `42501`, authenticated transcript access succeeds, and service-role `words` access succeeds.
+- **Cleanup** — temporary smoke-test rows were deleted and the original transcript/segment counts were restored.
+- **Database lint** — `supabase db lint` reached the running schema and reported only the pre-existing `save_transcript_segments` temporary-table analysis error.
+
 ## [2026-07-08] - Global Browser Security Headers
 
 Added a small global security-header baseline for the Next.js frontend. Every app route now sends browser instructions that prevent clickjacking via third-party framing, stop MIME-type sniffing, reduce referrer leakage when users leave the app, and restrict unused powerful browser features while preserving the in-browser microphone recording flow.

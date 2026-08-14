@@ -115,6 +115,7 @@ Keep these credentials available for UI testing. Do not use them as production c
 - Use `infra/.env.docker` and `frontend/.env.local` for local secrets; never commit API keys, tokens, or generated environment files.
 - `DEEPGRAM_API_KEY` is required for transcription. A public ngrok callback is required when running the webhook flow through local Docker.
 - Supabase local seed and test-account setup are intended for development only.
+- In every migration that creates a table in `public`, include explicit least-privilege Data API grants, enable RLS, and add the required policies together. Grant sequences and API-callable functions explicitly when the object type requires it; do not rely on Supabase default privileges.
 - Before changing Docker, Supabase, storage, or recording behavior, check whether local databases, recordings, volumes, or secrets may be affected.
 
 ## Documentation
