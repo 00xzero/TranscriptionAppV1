@@ -130,7 +130,7 @@ fi
 
 # Step 4: Start Docker services after the callback URL is written
 echo -e "\n${YELLOW}[4/4] Starting Inngest + Frontend...${NC}"
-docker compose -f docker-compose.dev.yml up --build --renew-anon-volumes -d
+docker compose -f docker-compose.dev.yml up --build -d
 
 # Wait for services to be ready
 echo -e "\n${YELLOW}Waiting for services to start...${NC}"

@@ -1,69 +1,123 @@
 # Repository Guidelines
 
+## Product Status
+
+This app is currently in development. We have no users yet and are building toward the MVP. Treat local accounts, test credentials, and development services as non-production resources.
+
 ## Project Structure & Module Organization
-- `frontend/` Next.js 14 app (App Router) with API routes + Inngest functions. UI lives in `frontend/app/`, shared UI in `frontend/components/`, and tests in `frontend/__tests__/`.
-- `infra/` Local dev stack: Supabase CLI config in `infra/supabase/`, Docker Compose in `infra/docker-compose.dev.yml`, and helper scripts `start-local.sh` / `stop-local.sh`.
-- `.docs/` Refactor documentation and architecture references.
-- `backend/` and `worker/` are legacy/archived (FastAPI/Celery). Avoid changes unless a task explicitly targets the legacy stack.
-- Repo docs: `README.md`, `PRD.md`, `CHANGELOG.md`, `.docs/Refactor Documentation/REFACTOR_README.md`.
+
+- `frontend/` is the active Next.js App Router application (Next.js 16.2.1, React 19, TypeScript, Tailwind CSS) with API routes and Inngest functions.
+  - `frontend/app/`: pages, layouts, and API routes.
+  - `frontend/components/`: shared React UI components.
+  - `frontend/contracts/`: Zod schemas and shared runtime-validated contracts.
+  - `frontend/core/`: domain logic and application services.
+  - `frontend/infra/`: external-service adapters, including Supabase, Deepgram, and Inngest integrations.
+  - `frontend/lib/`: cross-cutting utilities, recording logic, hooks, and shared helpers.
+  - `frontend/__tests__/`: Jest tests.
+- `infra/` contains the local development stack: Supabase CLI configuration, Docker Compose, and `start-local.sh` / `stop-local.sh`.
+- `.docs/` contains architecture, refactor, and supporting documentation.
+- `soniox-poc/` is a separate proof-of-concept; avoid changing it unless the task explicitly targets it.
+- The old `backend/` and `worker/` stacks are not present in the active repository and should not be recreated unless explicitly requested.
 
 ## Build, Test, and Development Commands
-```bash
-# Modern local stack (Supabase + Docker Compose)
-cd infra && ./start-local.sh
 
-# Stop modern stack
-cd infra && ./stop-local.sh
+The frontend requires Node.js 24 or newer and npm. Run frontend commands from `frontend/`:
+
+```bash
+npm install
+npm run dev          # Next.js development server at http://localhost:3000
+npm run build
+npm run start
+npm run lint
+npm run typecheck
+npm test
+npm run test:ci      # Jest in-band
 ```
-Notes: the primary workflow uses Supabase CLI + Docker Compose via `infra/start-local.sh`. Update `infra/.env.docker` with `DEEPGRAM_API_KEY` and the `DEEPGRAM_CALLBACK_URL` from ngrok. Use `docker compose -f infra/docker-compose.dev.yml logs -f` to tail logs.
 
-### Local Dev (Frontend + Inngest without Docker)
-From `frontend/`:
+### Recommended Local Stack
+
+The primary local workflow uses Supabase CLI plus Docker Compose. Docker Desktop and the Supabase CLI are required; ngrok is needed for Deepgram webhook callbacks.
+
 ```bash
+cd infra
+./start-local.sh
+```
+
+`start-local.sh` starts Supabase, creates `infra/.env.docker` from its example when needed, injects local Supabase keys, starts the frontend and Inngest containers, and starts ngrok when available. Set `DEEPGRAM_API_KEY` and `DEEPGRAM_API_KEY_IDENTIFIER` in `infra/.env.docker`. When ngrok is available, the script updates `DEEPGRAM_CALLBACK_URL` automatically; otherwise configure it manually with `/api/webhooks/deepgram` appended to the public URL.
+
+```bash
+cd infra
+docker compose -f docker-compose.dev.yml logs -f
+./stop-local.sh
+```
+
+Useful local URLs:
+
+- Frontend: `http://localhost:3000`
+- Supabase API: `http://localhost:54321`
+- Supabase Studio: `http://localhost:54323`
+- Inngest: `http://localhost:8288`
+- ngrok Inspector: `http://localhost:4040`
+
+### Local Development Without Docker
+
+Run the frontend and Inngest directly in separate terminals:
+
+```bash
+cd frontend
 npm run dev
+```
+
+```bash
+cd frontend
 npm run inngest
 ```
 
-### Local Dev (Non-Docker helper script)
-At repo root, `dev.sh` can start/stop/restart frontend + inngest (+ optional ngrok). See `dev-sh-readme.md`.
+Set `INNGEST_DEV=1` in `frontend/.env.local` for the non-Docker workflow. The optional root helper script can start or stop these services (and ngrok):
+
 ```bash
 ./dev.sh start
 ./dev.sh stop
 ./dev.sh restart
 ```
 
-### Legacy Stack (Deprecated)
-```bash
-cp env.example .env
-docker compose -f infra/docker-compose.yml up --build
-docker compose -f infra/docker-compose.yml exec api python -m pytest -v
-```
-Notes: the legacy stack will be removed after refactor completion; only use it when explicitly required.
+## App Test Authentication (login)
 
-# App test Authentication (login)
-Use this to login to the app as a test user:
-email address: ui5nvlw97q@mkzaso.com
-password: 4qdGNrheWHR25Js
+Use this development test account to log in to the app:
 
-## Known Issues
-- **TypeScript 6 / typescript-eslint mismatch (issue #54):** The project compiles with TypeScript 6.0.2, but `typescript-eslint@8.57.2` only supports `typescript <6.0.0`. npm nests a separate TS 5.9.3 for the ESLint toolchain. Lint passes but type-aware lint rules run against TS 5.9.3, not 6.0.2. Do not rely on lint alone to validate TS 6-specific features. Update `typescript-eslint` once a TS 6-compatible version ships.
+- Email: `ui5nvlw97q@mkzaso.com`
+- Password: `4qdGNrheWHR25Js`
 
-## Coding Style & Naming Conventions
-- TypeScript/React: 2-space indentation, PascalCase components, and Tailwind CSS utilities for styling.
-- Python (legacy only): 4-space indentation, snake_case functions/variables, type hints in Pydantic models.
-- Keep style consistent with surrounding files; no repo-wide formatter is enforced.
+Keep these credentials available for UI testing. Do not use them as production credentials or move them into committed environment files.
 
 ## Testing Guidelines
-- Frontend: Jest (`frontend/jest.config.js`), test files under `frontend/__tests__/`.
-- Legacy backend: Pytest (`backend/pytest.ini`), test files named `test_*.py`.
-- Prefer targeted tests for new logic (component/integration in frontend; legacy unit tests only when touching backend/worker).
+
+- Frontend tests use Jest 30 with `jest-environment-jsdom`; keep test files under `frontend/__tests__/` and run targeted tests when possible.
+- Use `npm run typecheck` in addition to lint for TypeScript validation.
+- `npm run lint` uses the current flat ESLint configuration in `frontend/eslint.config.mjs`.
+- The project currently uses TypeScript 6.0.2 while the nested `typescript-eslint` 8.57.2 dependency used by `eslint-config-next` declares support for TypeScript versions below 6.0. The current install resolves TypeScript 6.0.2 for ESLint and npm reports that range as invalid; the separate TypeScript 5.9.3 install belongs to `@inngest/ai`. Lint and typecheck are complementary; do not rely on lint alone for TypeScript 6-specific behavior.
+
+## Coding Style & Naming Conventions
+
+- TypeScript/React: 2-space indentation, PascalCase components, and Tailwind CSS utilities for styling.
+- Keep style consistent with surrounding files; no repo-wide formatter is enforced.
+- Legacy Python conventions are not applicable to the active stack. If legacy code is explicitly targeted, use 4-space indentation, snake_case names, and type hints.
 
 ## Commit & Pull Request Guidelines
-- Commit messages follow Conventional Commits (examples from history: `feat: ...`, `fix: ...`, `fix(frontend): ...`).
-- Codex-authored commits should include a rich body when the change is more than trivial: start with a concise narrative summary, then list concrete bullets for the important files, behaviors, tests, and verification, similar to the Claude-authored commits in this repo.
-- PRs should include a short summary, test command(s) run, and screenshots for UI changes when applicable. Link related issues if they exist.
+
+- Commit messages follow Conventional Commits, such as `feat: ...`, `fix: ...`, and `fix(frontend): ...`.
+- Codex-authored commits should include a concise narrative plus concrete bullets covering important files, behavior, tests, and verification when the change is more than trivial.
+- PRs should include a short summary, test commands run, and screenshots for UI changes when applicable. Link related issues when available.
 
 ## Security & Configuration Tips
-- Use `infra/.env.docker` (generated by `start-local.sh`) for local secrets; never commit API keys or tokens.
-- Deepgram API key is required for transcription; ngrok is required for webhook callbacks in local Docker.
-- Supabase local seed expects a test user; create one via Supabase Studio before running seed scripts.
+
+- Use `infra/.env.docker` and `frontend/.env.local` for local secrets; never commit API keys, tokens, or generated environment files.
+- `DEEPGRAM_API_KEY` is required for transcription. A public ngrok callback is required when running the webhook flow through local Docker.
+- Supabase local seed and test-account setup are intended for development only.
+- Before changing Docker, Supabase, storage, or recording behavior, check whether local databases, recordings, volumes, or secrets may be affected.
+
+## Documentation
+
+- Product requirements: `PRD.md`
+- Change history: `CHANGELOG.md`
+- Refactor documentation archive: `.docs/archive/Refactor Documentation/REFACTOR_README.md`

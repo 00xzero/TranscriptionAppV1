@@ -2,7 +2,7 @@ export function buildRecordingMicConstraints(deviceId: string | null): MediaStre
   const audio: MediaTrackConstraints = {
     echoCancellation: false,
     noiseSuppression: false,
-    autoGainControl: true,
+    autoGainControl: false,
     channelCount: 1,
   }
 
