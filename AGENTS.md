@@ -101,6 +101,7 @@ Keep these credentials available for UI testing. Do not use them as production c
 
 - TypeScript/React: 2-space indentation, PascalCase components, and Tailwind CSS utilities for styling.
 - Keep style consistent with surrounding files; no repo-wide formatter is enforced.
+- For theme-aware UI responsibilities, use semantic role utilities such as `text-foreground`, `bg-surface`, and `border-border`. Reserve palette utilities such as `text-ink` and `bg-ember-red` for intentional brand, status, highlight, or inverse treatments. Declare reusable semantic roles through `@theme inline` rather than unlayered helper classes.
 - Legacy Python conventions are not applicable to the active stack. If legacy code is explicitly targeted, use 4-space indentation, snake_case names, and type hints.
 
 ## Commit & Pull Request Guidelines

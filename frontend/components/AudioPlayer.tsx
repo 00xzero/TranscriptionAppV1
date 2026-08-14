@@ -666,7 +666,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
                 setPlaybackRateState(rate)
               }}
             >
-              <SelectTrigger className="h-auto w-auto border border-base rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
+              <SelectTrigger className="h-auto w-auto border border-border rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

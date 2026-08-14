@@ -10,7 +10,7 @@
   --color-ember-red: #C73E1D;
   --color-transcribe: #4A2018;
   --color-transcribe-hover: #5A2A20;
-  --color-night-surface: var(--color-ink);
+  --color-night-surface: #1D1E18;
   --color-night-border: #333333;
   --color-night-highlight: #3A3025;
 
@@ -33,6 +33,7 @@
   --color-panel: var(--panel);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-soft: color-mix(in oklab, var(--accent) 15%, var(--surface));
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--brand-red);
   --color-solid-foreground: var(--solid-foreground);
@@ -179,31 +180,6 @@ body {
   }
 }
 
-/* Themed utility helpers */
-.bg-surface {
-  background-color: var(--surface);
-}
-
-.bg-surface-alt {
-  background-color: var(--surface-alt);
-}
-
-.border-base {
-  border-color: var(--border);
-}
-
-.text-muted {
-  color: var(--muted);
-}
-
-.accent {
-  color: var(--accent);
-}
-
-.bg-accent-soft {
-  background-color: color-mix(in oklab, var(--accent) 15%, var(--surface));
-}
-
 /* Paper noise texture */
 .bg-noise {
   position: relative;
@@ -229,10 +205,6 @@ html.dark .bg-noise::before,
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
-html.dark {
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
@@ -250,17 +222,7 @@ html.dark {
   border-radius: 6px;
 }
 
-html.dark ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  background-clip: padding-box;
-}
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: padding-box;
-}
-
-html.dark ::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }
@@ -272,10 +234,6 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-
-html.dark .scrollbar-thin {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
@@ -296,17 +254,7 @@ html.dark .scrollbar-thin {
   border-radius: 4px;
 }
 
-html.dark .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  background-clip: padding-box;
-}
-
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover);
-  background-clip: padding-box;
-}
-
-html.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);
   background-clip: padding-box;
 }

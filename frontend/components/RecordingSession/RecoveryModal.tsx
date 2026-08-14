@@ -114,7 +114,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               disabled={saving}
               placeholder="Untitled recording"
               aria-label="Recovered recording title"
-              className="w-full rounded-lg border border-base [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 dark:text-paper"
+              className="w-full rounded-lg border border-border [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 dark:text-paper"
             />
           </label>
 
@@ -152,7 +152,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-base [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
           <button
             type="button"
             onClick={handleDiscard}

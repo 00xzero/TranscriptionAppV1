@@ -279,7 +279,7 @@ function TranscriptsPageContent() {
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
 
           return (
-            <li key={p.id} className="bg-surface border border-base rounded-sm p-3">
+            <li key={p.id} className="bg-surface border border-border rounded-sm p-3">
               <div className="flex justify-between items-center">
                 <div>
                   <div className="font-medium">{p.title || p.id}</div>
@@ -305,7 +305,7 @@ function TranscriptsPageContent() {
                       </button>
                     )
                   })()}
-                  <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="accent hover:underline">Open</Link>
+                  <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="text-accent hover:underline">Open</Link>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button

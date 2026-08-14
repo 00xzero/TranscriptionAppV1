@@ -125,7 +125,7 @@ export default function SpeakerPopoverContent({
 
   return (
     <div className="flex max-h-[var(--radix-popover-content-available-height)] min-h-0 flex-col overflow-hidden">
-      <div className="border-b border-base bg-surface-alt px-3 py-2 shrink-0">
+      <div className="border-b border-border bg-surface-alt px-3 py-2 shrink-0">
         <span className="text-xs font-medium text-muted uppercase tracking-wide">
           Suggested Speakers
         </span>
@@ -194,7 +194,7 @@ export default function SpeakerPopoverContent({
         )}
       </div>
 
-      <div className="border-t border-base p-3 space-y-2 shrink-0">
+      <div className="border-t border-border p-3 space-y-2 shrink-0">
         <div className="flex gap-2">
           <Input
             ref={inputRef}
