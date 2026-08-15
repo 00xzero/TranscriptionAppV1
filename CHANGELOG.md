@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-15] - Inline Transcript Editing Refinements
+
+Refined inline transcript editing so entering edit mode preserves the segment's text layout while making the active editing surface, focus state, and playback position easier to distinguish.
+
+### Changed
+
+- **`frontend/app/editor/[id]/components/TranscriptSegmentCard.tsx`** — Replaced the fixed-height editor with a content-sized textarea that reflows when its width changes, aligns read and edit typography, focuses the caret on entry, returns focus on Escape, and keeps card-chrome playback seeking available during editing. The edit control now transitions between pencil and close icons, and the active card uses semantic surface, border, and accent tokens.
+- **Editor transcript state plumbing** — Localized textarea focus and resize lifecycle ownership to each segment card and removed the unused shared textarea-ref registry from `TranscriptList`, `EditorScreen`, and `useTranscriptMutations`.
+
+### Tests
+
+- **`frontend`** — `npm test -- --runInBand` (`81` suites / `735` tests passing)
+- **`frontend`** — `npm run typecheck`
+- **`frontend`** — `npm run lint` (completed with existing warnings only)
+- **Repository** — `git diff --check`
+
 ## [2026-08-14] - Explicit Supabase Data API Grants
 
 Adopted Supabase's opt-in Data API permission model before the October 2026 rollout. Public-schema access is now declared in migrations instead of inherited from Supabase's historical default privileges: anonymous clients have no table access, authenticated users can reach only the RLS-protected browser-facing tables, and trusted service-role clients can also reach words and internal processing tables.

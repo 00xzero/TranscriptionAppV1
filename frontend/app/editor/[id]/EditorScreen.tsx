@@ -266,7 +266,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           editingId={editing.editingId}
           editingTexts={editing.editingTexts}
           saveStatus={editing.saveStatus}
-          textAreaRefs={editing.textAreaRefs}
           onSegmentClick={playback.onSegmentClick}
           onWordClick={playback.onWordClick}
           onSpeakerClick={speakerHook.handleAvatarClick}

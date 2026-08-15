@@ -11,7 +11,6 @@ export function useTranscriptMutations({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
-  const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const saveTimers = useRef<Record<string, number>>({})
   const saveStatusResetTimers = useRef<Record<string, number>>({})
 
@@ -58,7 +57,6 @@ export function useTranscriptMutations({
     editingId, setEditingId,
     editingTexts, setEditingTexts,
     saveStatus,
-    textAreaRefs,
     scheduleSave,
   }
 }
