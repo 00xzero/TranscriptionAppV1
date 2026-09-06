@@ -245,16 +245,18 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   // wired up — otherwise React reuses the SSR placeholder's <nav> node and a
   // collapsed-on-load sidebar would visibly animate 256px -> 64px.
   const navTransitionClass = motionReady
-    ? 'transition-[width] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none'
+    ? 'transition-[width] duration-100 ease-in-out motion-reduce:transition-none'
     : ''
+  // Labels share the nav's duration and no longer wait on a delay, so the whole
+  // sidebar arrives at once instead of the text trailing the edge.
   const labelTransitionClass = motionReady
-    ? 'transition-[opacity,transform] duration-200 motion-reduce:transition-none'
+    ? 'transition-[opacity,transform] duration-100 ease-in-out motion-reduce:transition-none'
     : ''
   const labelStateClass = isCollapsed
-    ? 'opacity-0 -translate-x-1 pointer-events-none delay-0'
-    : 'opacity-100 translate-x-0 delay-100'
+    ? 'opacity-0 -translate-x-1 pointer-events-none'
+    : 'opacity-100 translate-x-0'
   const iconRotateTransitionClass = motionReady
-    ? 'transition-transform duration-300 motion-reduce:transition-none'
+    ? 'transition-transform duration-100 motion-reduce:transition-none'
     : ''
   // Sidebar-scoped tooltip delay: near-instant when collapsed (icons are the
   // only affordance), the app default (700ms, see app/layout.tsx) otherwise.
@@ -262,8 +264,9 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   return (
     <nav
+      data-state={isCollapsed ? 'collapsed' : 'expanded'}
       className={`
-        group/sidebar flex flex-col justify-between shrink-0 z-20
+        group/sidebar flex flex-col justify-between shrink-0 z-20 overflow-hidden
         bg-(--surface-alt) dark:bg-night-surface border-r border-(--border)
         ${navTransitionClass}
         ${isCollapsed ? 'w-16 md:w-14' : 'w-16 md:w-64'}
@@ -272,7 +275,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     >
       <TooltipProvider delayDuration={sidebarTooltipDelay}>
         {/* Logo Area */}
-        <div className={`h-[var(--header-height)] gap-2 flex items-center justify-between overflow-hidden transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
+        <div className={`h-[var(--header-height)] gap-2 flex items-center justify-between overflow-hidden ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
           {isCollapsed ? (
             <>
               <button
@@ -355,7 +358,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         </div>
 
         {/* Primary Nav */}
-        <div className={`flex-1 pt-3 pb-6 space-y-1 transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
+        <div className={`flex-1 pt-3 pb-6 space-y-1 ${isCollapsed ? 'px-3 md:px-2' : 'px-3'}`}>
           {/* Library */}
           <Tooltip disabled={!isCollapsed}>
             <TooltipTrigger asChild>
@@ -436,7 +439,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
       {/* User / Bottom — full-width account row + upward menu (theme, sign out live inside).
           Rendered unconditionally so theme + sign out stay reachable while `user` is null. */}
-      <div className={`border-t border-(--border) transition-[padding] duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1.0)] motion-reduce:transition-none ${isCollapsed ? 'p-2 md:p-1' : 'p-2'}`}>
+      <div className={`border-t border-(--border) ${isCollapsed ? 'p-2 md:p-1' : 'p-2'}`}>
         <AccountMenu
           user={user}
           isCollapsed={isCollapsed}
