@@ -29,7 +29,7 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
 - npm
 - Docker Desktop
 - Supabase CLI
-- ngrok (required for Deepgram webhook callbacks in local Docker)
+- ngrok (required only for Deepgram webhook callbacks in local Docker)
 
 ## Local Development (Recommended)
 
@@ -46,6 +46,29 @@ What `start-local.sh` does:
 - Injects local Supabase keys into `infra/.env.docker`
 - Starts Inngest + frontend containers
 - Starts ngrok and prints the tunnel URL
+
+### Offline startup
+
+Before travelling, prepare the cached images and frontend dependencies while connected:
+
+```bash
+cd infra
+./start-local.sh --prepare-offline
+```
+
+After preparation, the stack can be stopped normally. Start it later without connectivity using:
+
+```bash
+cd infra
+./start-local.sh --offline
+```
+
+Offline mode starts the frontend, Inngest, and local Supabase services without
+building images, pulling images, or refreshing npm dependencies. It skips ngrok,
+the unused Supabase Edge Runtime, and its remote Deno imports, so Deepgram
+transcription and webhook callbacks are unavailable. Run
+`--prepare-offline` again after changing `package-lock.json`, the frontend Docker
+image, the Inngest image, or the Supabase CLI version.
 
 After first start, update `infra/.env.docker`:
 - `DEEPGRAM_API_KEY` (required for transcription)

@@ -84,6 +84,9 @@ body {
 }
 
 :root {
+  --font-inter: "Inter Variable";
+  --font-newsreader: "Newsreader Variable";
+  --font-ibm-plex-mono: "IBM Plex Mono";
   --bg: var(--color-paper);
   /* paper */
   --text: var(--color-ink);

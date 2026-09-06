@@ -11,6 +11,12 @@ if [ -f "$lockfile_hash_file" ]; then
 fi
 
 if [ "$installed_lockfile_hash" != "$current_lockfile_hash" ]; then
+    if [ "${OFFLINE_MODE:-0}" = "1" ]; then
+        echo "Cannot refresh frontend dependencies while offline." >&2
+        echo "Reconnect and run: cd infra && ./start-local.sh --prepare-offline" >&2
+        exit 1
+    fi
+
     echo "package-lock.json changed; refreshing container dependencies..."
     npm ci
     printf '%s\n' "$current_lockfile_hash" > "$lockfile_hash_file"

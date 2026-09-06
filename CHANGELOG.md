@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-08-20] - Offline Local Stack Startup
+
+Added an explicit preparation and offline-start workflow so the local frontend,
+Inngest, and Supabase services can restart without internet connectivity. Ngrok
+and the Deepgram transcription pipeline remain intentionally unavailable offline.
+
+### Added
+
+- **`infra/start-local.sh`** — Added `--prepare-offline` to pull/build and warm required resources while connected, plus `--offline` to require cached images, forbid Compose pulls/builds, skip ngrok, and provide actionable cache-recovery errors.
+- **Frontend dependency cache guard** — Passes offline state into the frontend container and exits before `npm ci` when the lockfile hash is stale, preventing a hidden registry request.
+
+### Changed
+
+- **Frontend fonts** — Replaced `next/font/google` with locked Fontsource packages for Inter, Newsreader, and IBM Plex Mono so route compilation uses self-hosted font files.
+- **Local Supabase startup** — Excludes the unused Edge Runtime, whose remote Deno/JSR bootstrap prevented an otherwise local stack from starting without connectivity, and suppresses Supabase CLI telemetry only during offline startup.
+- **Local development documentation** — Documented preparation, offline startup, limitations, and when cached resources must be refreshed.
+
+### Tests
+
+- **Scripts and Compose** — `bash -n infra/start-local.sh`; `sh -n frontend/scripts/docker-dev-start.sh`; help/invalid-option checks; `docker compose -f infra/docker-compose.dev.yml config --quiet`; `git diff --check`.
+- **Frontend** — Focused ESLint for `app/layout.tsx`; `npm run typecheck`; `npm run build`.
+- **Offline stack** — Completed `./start-local.sh --prepare-offline`, stopped normally, then completed `./start-local.sh --offline` with outbound HTTP(S) routed to an unreachable local proxy. Frontend, Studio, Inngest, and Supabase Auth health endpoints all responded locally; Compose performed no pull/build; frontend logs showed no dependency refresh.
+- **Missing-cache behavior** — A read-only temporary container confirmed offline startup exits with the preparation command before running npm when its dependency hash is absent.
+
 ## [2026-08-15] - Inline Transcript Editing Refinements
 
 Refined inline transcript editing so entering edit mode preserves the segment's text layout while making the active editing surface, focus state, and playback position easier to distinguish.

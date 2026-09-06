@@ -30,6 +30,9 @@ services:
       # Inngest dev mode
       - INNGEST_DEV=1
       - INNGEST_BASE_URL=http://inngest:8288
+      # Prevent dependency refreshes from silently reaching npm in offline mode.
+      - OFFLINE_MODE=${OFFLINE_MODE:-0}
+      - NEXT_TELEMETRY_DISABLED=${NEXT_TELEMETRY_DISABLED:-}
     ports:
       - '3000:3000'
     volumes:

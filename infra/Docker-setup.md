@@ -16,6 +16,16 @@
    cd infra && ./start-local.sh
    ```
 
+   To prepare for travel while connected, then start from cached resources later:
+
+   ```bash
+   cd infra && ./start-local.sh --prepare-offline
+   cd infra && ./start-local.sh --offline
+   ```
+
+   Offline mode skips ngrok and cannot run the Deepgram transcription pipeline.
+   Re-run `--prepare-offline` after dependency, Docker image, or Supabase CLI updates.
+
 3. **Access Services**
    - Frontend: [http://localhost:3000](http://localhost:3000)
    - Studio: [http://localhost:54323](http://localhost:54323)

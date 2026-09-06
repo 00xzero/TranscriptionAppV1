@@ -1,6 +1,11 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter, Newsreader, IBM_Plex_Mono } from 'next/font/google'
+import '@fontsource-variable/inter/wght.css'
+import '@fontsource-variable/newsreader/wght.css'
+import '@fontsource-variable/newsreader/wght-italic.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
+import '@fontsource/ibm-plex-mono/latin-600.css'
 import { ModalProvider } from '@/lib/ModalContext'
 import { RecordingSessionProvider } from '@/lib/recording/RecordingSessionContext'
 import Sidebar from '@/components/Sidebar'
@@ -10,27 +15,6 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
 import { SIDEBAR_COLLAPSED_KEY } from '@/lib/constants'
 import { createThemeInitScript } from '@/lib/theme'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-})
-
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
-  variable: '--font-newsreader',
-  display: 'swap',
-})
-
-const ibmPlexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-ibm-plex-mono',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: 'Olivetti',
@@ -61,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <script dangerouslySetInnerHTML={{ __html: sidebarInitScript }} />
       </head>
-      <body className={`${inter.variable} ${newsreader.variable} ${ibmPlexMono.variable} antialiased bg-noise h-screen flex overflow-hidden`}>
+      <body className="antialiased bg-noise h-screen flex overflow-hidden">
         <TooltipProvider delayDuration={700}>
           <ModalProvider>
             <RecordingSessionProvider>
