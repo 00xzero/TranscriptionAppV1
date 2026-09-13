@@ -20,21 +20,27 @@ jest.mock('@/infra/supabase/client', () => ({
 const { deleteTranscript } = jest.requireActual<typeof import('@/lib/supabase/queries')>(
     '@/lib/supabase/queries'
 )
-type Transcript = {
+type StorageKeys = {
     source_object_key: string | null
     waveform_object_key: string | null
 }
+
+type Transcript = StorageKeys & { user_id: string }
 
 type BuildOpts = {
     transcript?: Transcript | null
     fetchError?: unknown
     mediaRemoveError?: unknown
     waveformRemoveError?: unknown
+    waveformRemoveData?: Array<{ name: string }> | null
     deleteError?: unknown
-    deletedTranscript?: Transcript | null
+    deletedTranscript?: StorageKeys | null
+    mediaInfoError?: unknown
+    waveformInfoError?: unknown
 }
 
 const DEFAULT_TRANSCRIPT: Transcript = {
+    user_id: 'user-1',
     source_object_key: 'user-1/t-1/audio.webm',
     waveform_object_key: 'user-1/t-1/waveform.json',
 }
@@ -45,8 +51,11 @@ function buildClient(opts: BuildOpts = {}) {
         fetchError = null,
         mediaRemoveError = null,
         waveformRemoveError = null,
+        waveformRemoveData,
         deleteError = null,
         deletedTranscript = transcript,
+        mediaInfoError = null,
+        waveformInfoError = null,
     } = opts
 
     const maybeSingle = jest.fn().mockResolvedValue({ data: transcript, error: fetchError })
@@ -64,10 +73,31 @@ function buildClient(opts: BuildOpts = {}) {
     const from = jest.fn(() => ({ select, delete: del }))
 
     const removeByBucket: Record<string, jest.Mock> = {
-        media: jest.fn().mockResolvedValue({ error: mediaRemoveError }),
-        waveforms: jest.fn().mockResolvedValue({ error: waveformRemoveError }),
+        media: jest.fn().mockImplementation(async (keys: string[]) => ({
+            data: mediaRemoveError ? null : keys.map((name) => ({ name })),
+            error: mediaRemoveError,
+        })),
+        waveforms: jest.fn().mockImplementation(async (keys: string[]) => ({
+            data: waveformRemoveError
+                ? null
+                : (waveformRemoveData ?? keys.map((name) => ({ name }))),
+            error: waveformRemoveError,
+        })),
     }
-    const storageFrom = jest.fn((bucket: string) => ({ remove: removeByBucket[bucket] }))
+    const infoByBucket: Record<string, jest.Mock> = {
+        media: jest.fn().mockResolvedValue({
+            data: mediaInfoError ? null : { name: transcript?.source_object_key },
+            error: mediaInfoError,
+        }),
+        waveforms: jest.fn().mockResolvedValue({
+            data: waveformInfoError ? null : { name: transcript?.waveform_object_key },
+            error: waveformInfoError,
+        }),
+    }
+    const storageFrom = jest.fn((bucket: string) => ({
+        info: infoByBucket[bucket],
+        remove: removeByBucket[bucket],
+    }))
 
     const client = { from, storage: { from: storageFrom } }
 
@@ -79,6 +109,7 @@ function buildClient(opts: BuildOpts = {}) {
         deleteSelect,
         deleteMaybeSingle,
         storageFrom,
+        infoByBucket,
         removeByBucket,
     }
 }
@@ -99,7 +130,11 @@ describe('deleteTranscript', () => {
 
     it('skips the waveform bucket when waveform_object_key is null', async () => {
         const h = buildClient({
-            transcript: { source_object_key: 'user-1/t-1/audio.webm', waveform_object_key: null },
+            transcript: {
+                user_id: 'user-1',
+                source_object_key: 'user-1/t-1/audio.webm',
+                waveform_object_key: null,
+            },
         })
         currentClient = h.client
 
@@ -113,7 +148,7 @@ describe('deleteTranscript', () => {
     it('swallows a missing-object error on the waveform and still deletes the row', async () => {
         const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
         const h = buildClient({
-            waveformRemoveError: { message: 'Object not found', error: 'NoSuchKey' },
+            waveformInfoError: { message: 'Object not found', error: 'NoSuchKey' },
         })
         currentClient = h.client
 
@@ -130,6 +165,15 @@ describe('deleteTranscript', () => {
 
         await expect(deleteTranscript('t-1')).rejects.toEqual({ message: 'permission denied' })
         expect(h.del).not.toHaveBeenCalled()
+    })
+
+    it('does not delete the row when storage reports a no-op and the object remains', async () => {
+        const h = buildClient({ waveformRemoveData: [] })
+        currentClient = h.client
+
+        await expect(deleteTranscript('t-1')).rejects.toThrow('Storage did not remove object')
+        expect(h.del).not.toHaveBeenCalled()
+        expect(h.infoByBucket.waveforms).toHaveBeenCalledTimes(2)
     })
 
     it('propagates a row deletion error after the initial storage cleanup', async () => {
@@ -152,7 +196,11 @@ describe('deleteTranscript', () => {
 
     it('sweeps a key linked between the initial read and row deletion', async () => {
         const h = buildClient({
-            transcript: { source_object_key: 'media-old', waveform_object_key: null },
+            transcript: {
+                user_id: 'user-1',
+                source_object_key: 'media-old',
+                waveform_object_key: null,
+            },
             deletedTranscript: { source_object_key: 'media-old', waveform_object_key: 'waveform-late' },
         })
         currentClient = h.client
@@ -164,7 +212,11 @@ describe('deleteTranscript', () => {
 
     it('reports cleanup pending when a post-delete sweep fails', async () => {
         const h = buildClient({
-            transcript: { source_object_key: 'media-old', waveform_object_key: null },
+            transcript: {
+                user_id: 'user-1',
+                source_object_key: 'media-old',
+                waveform_object_key: null,
+            },
             deletedTranscript: { source_object_key: 'media-old', waveform_object_key: 'waveform-late' },
             waveformRemoveError: { message: 'bucket unavailable' },
         })

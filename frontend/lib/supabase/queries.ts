@@ -157,7 +157,7 @@ export async function deleteTranscript(id: string): Promise<DeleteTranscriptResu
     const supabase = createClient()
     const { data: transcript, error: fetchError } = await supabase
         .from('transcripts')
-        .select('source_object_key, waveform_object_key')
+        .select('user_id, source_object_key, waveform_object_key')
         .eq('id', id)
         .maybeSingle()
 
@@ -165,8 +165,18 @@ export async function deleteTranscript(id: string): Promise<DeleteTranscriptResu
     if (!transcript) return { cleanupPendingKeys: [] }
 
     await Promise.all([
-        removeStorageObjectIfPresent(supabase, MEDIA_BUCKET, transcript.source_object_key),
-        removeStorageObjectIfPresent(supabase, WAVEFORM_BUCKET, transcript.waveform_object_key),
+        removeStorageObjectIfPresent(
+            supabase,
+            MEDIA_BUCKET,
+            transcript.source_object_key,
+            transcript.user_id
+        ),
+        removeStorageObjectIfPresent(
+            supabase,
+            WAVEFORM_BUCKET,
+            transcript.waveform_object_key,
+            transcript.user_id
+        ),
     ])
 
     const { data: deletedTranscript, error } = await supabase
@@ -188,7 +198,7 @@ export async function deleteTranscript(id: string): Promise<DeleteTranscriptResu
     ] as const) {
         if (!after || after === before) continue
         try {
-            await removeStorageObjectIfPresent(supabase, bucket, after)
+            await removeStorageObjectIfPresent(supabase, bucket, after, transcript.user_id)
         } catch {
             cleanupPendingKeys.push(after)
         }
