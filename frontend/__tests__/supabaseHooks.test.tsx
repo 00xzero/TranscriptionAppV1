@@ -8,6 +8,7 @@ const mockOnAuthStateChange = jest.fn()
 const mockUnsubscribe = jest.fn()
 const mockRemoveChannel = jest.fn()
 const mockChannelFactory = jest.fn()
+const mockDeleteTranscript = jest.fn()
 
 let channelMock: {
   on: jest.Mock
@@ -16,7 +17,7 @@ let channelMock: {
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchTranscripts: () => mockFetchTranscripts(),
-  deleteTranscript: jest.fn(),
+  deleteTranscript: (...args: unknown[]) => mockDeleteTranscript(...args),
   fetchTranscriptById: jest.fn(),
   fetchTranscriptJobs: jest.fn(),
   fetchSpeakers: jest.fn(),
@@ -162,5 +163,84 @@ describe('useTranscriptsRealtime', () => {
     expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
     expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
+  })
+
+  test('keeps the optimistic removal and returns pending cleanup keys', async () => {
+    const result = { cleanupPendingKeys: ['user/transcript/waveform.json'] }
+    mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-1' }])
+    mockDeleteTranscript.mockResolvedValueOnce(result)
+    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+
+    await waitFor(() => {
+      expect(hook.current.transcripts).toEqual([{ id: 'transcript-1' }])
+    })
+
+    await act(async () => {
+      await expect(hook.current.deleteTranscript('transcript-1')).resolves.toEqual(result)
+    })
+
+    expect(hook.current.transcripts).toEqual([])
+  })
+
+  test('restores the removed transcript locally when the delete fails', async () => {
+    const error = new Error('row delete denied')
+    const transcript = { id: 'transcript-1', created_at: '2026-04-01T12:00:00Z' }
+    // The reconciling refetch never settles, so only the local rollback can restore the row.
+    mockFetchTranscripts
+      .mockResolvedValueOnce([transcript])
+      .mockReturnValue(new Promise(() => undefined))
+    mockDeleteTranscript.mockRejectedValueOnce(error)
+    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+
+    await waitFor(() => {
+      expect(hook.current.transcripts).toEqual([transcript])
+    })
+    const fetchCallsBeforeDelete = mockFetchTranscripts.mock.calls.length
+
+    await act(async () => {
+      await expect(hook.current.deleteTranscript('transcript-1')).rejects.toBe(error)
+    })
+
+    expect(hook.current.transcripts).toEqual([transcript])
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeDelete + 1)
+  })
+
+  test('keeps concurrent realtime changes when rolling back a failed delete', async () => {
+    const oldest = { id: 'transcript-0', created_at: '2026-03-01T12:00:00Z' }
+    const deleted = { id: 'transcript-1', created_at: '2026-04-01T12:00:00Z' }
+    const inserted = { id: 'transcript-2', created_at: '2026-04-02T12:00:00Z' }
+    mockFetchTranscripts
+      .mockResolvedValueOnce([deleted, oldest])
+      .mockReturnValue(new Promise(() => undefined))
+    let rejectDelete!: (reason: unknown) => void
+    mockDeleteTranscript.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectDelete = reject
+      })
+    )
+    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+
+    await waitFor(() => {
+      expect(hook.current.transcripts).toEqual([deleted, oldest])
+      expect(hook.current.connectionStatus).toBe('connected')
+    })
+    const onChange = channelMock.on.mock.calls[0][2] as (payload: unknown) => void
+
+    let deletion!: Promise<unknown>
+    act(() => {
+      deletion = hook.current.deleteTranscript(deleted.id)
+    })
+    expect(hook.current.transcripts).toEqual([oldest])
+
+    act(() => {
+      onChange({ eventType: 'INSERT', new: inserted })
+    })
+
+    await act(async () => {
+      rejectDelete(new Error('row delete denied'))
+      await expect(deletion).rejects.toThrow('row delete denied')
+    })
+
+    expect(hook.current.transcripts).toEqual([inserted, deleted, oldest])
   })
 })

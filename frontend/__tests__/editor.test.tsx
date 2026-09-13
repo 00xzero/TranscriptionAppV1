@@ -5,11 +5,19 @@ import EditorScreen from '../app/editor/[id]/EditorScreen'
 import * as supabaseQueries from '../lib/supabase/queries'
 import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 import { TooltipProvider } from '../components/ui/tooltip'
+import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
+
+const mockRouterReplace = jest.fn()
+const mockToast = jest.fn()
+
+jest.mock('@/components/ui/toaster', () => ({
+  toast: (...args: unknown[]) => mockToast(...args),
+}))
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: jest.fn(),
-    replace: jest.fn(),
+    replace: mockRouterReplace,
   }),
 }))
 
@@ -171,6 +179,25 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(screen.queryByPlaceholderText(/Search text/i)).not.toBeInTheDocument()
     })
+  })
+
+  test('navigates away and reports cleanup pending after the transcript row is deleted', async () => {
+    const user = userEventLib.setup()
+    const deleteTranscriptMock = supabaseQueries.deleteTranscript as jest.Mock
+    deleteTranscriptMock.mockResolvedValueOnce({
+      cleanupPendingKeys: ['user/transcript/waveform.json'],
+    })
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    await user.click(screen.getByRole('button', { name: 'Transcript options' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(mockRouterReplace).toHaveBeenCalledWith('/transcripts')
+    })
+    expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
   })
 
   test('reopens the waveform and scrolls to top via the header custom event', async () => {

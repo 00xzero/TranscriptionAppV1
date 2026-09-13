@@ -4,6 +4,13 @@ import userEventLib from '@testing-library/user-event'
 import TranscriptsPage from '@/app/transcripts/page'
 import type { Transcript } from '@/contracts/db'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
+
+const mockToast = jest.fn()
+
+jest.mock('@/components/ui/toaster', () => ({
+  toast: (...args: unknown[]) => mockToast(...args),
+}))
 
 const mockDeleteTranscript = jest.fn()
 const mockRefetch = jest.fn()
@@ -14,6 +21,7 @@ const mockUseTranscriptsRealtime = jest.fn()
 const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   id: '11111111-1111-1111-1111-111111111111',
   user_id: '22222222-2222-2222-2222-222222222222',
+  project_id: null,
   title: 'Transcript Alpha',
   status: 'completed',
   source_object_key: null,
@@ -69,7 +77,7 @@ describe('TranscriptsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockDeleteTranscript.mockResolvedValue(undefined)
+    mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
     mockUseTranscriptsRealtime.mockReturnValue({
       transcripts: [makeTranscript()],
       isLoading: false,
@@ -121,5 +129,24 @@ describe('TranscriptsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(mockDeleteTranscript).not.toHaveBeenCalled()
+  })
+
+  test('reports cleanup pending as a neutral toast, not a failure', async () => {
+    const user = userEventLib.setup()
+    mockDeleteTranscript.mockResolvedValueOnce({
+      cleanupPendingKeys: ['user/transcript/waveform.json'],
+    })
+    renderTranscriptsPage()
+    await screen.findByText('Transcript Alpha')
+
+    await user.click(
+      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
+    )
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
+    })
+    expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
   })
 })

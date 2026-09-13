@@ -6,8 +6,12 @@ import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
+import { toast } from '@/components/ui/toaster'
 import { useModal } from '@/lib/ModalContext'
-import { DELETE_TRANSCRIPT_ERROR_MESSAGE } from '@/lib/transcripts/deleteErrors'
+import {
+  DELETE_TRANSCRIPT_ERROR_MESSAGE,
+  TRANSCRIPT_CLEANUP_PENDING_TOAST,
+} from '@/lib/transcripts/deleteErrors'
 
 type PendingDelete = {
   id: string
@@ -208,7 +212,8 @@ function TranscriptsPageContent() {
   const handleConfirmDeleteTranscript = async () => {
     if (!pendingDelete) return
     try {
-      await deleteTranscriptAction(pendingDelete.id)
+      const { cleanupPendingKeys } = await deleteTranscriptAction(pendingDelete.id)
+      if (cleanupPendingKeys.length > 0) toast(TRANSCRIPT_CLEANUP_PENDING_TOAST)
       setActionError(null)
     } catch (e) {
       console.error(e)

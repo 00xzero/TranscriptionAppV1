@@ -5,6 +5,7 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
+import { MEDIA_BUCKET, removeStorageObjectIfPresent } from '@/infra/supabase/storage'
 import { WAVEFORM_BUCKET } from '@/lib/audio/compute-peaks'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
@@ -141,41 +142,18 @@ export async function updateTranscript(
     return data
 }
 
-function isMissingStorageObjectError(error: { message?: string; error?: string; code?: string }) {
-    const message = error.message?.toLowerCase() ?? ''
-    const errorName = error.error?.toLowerCase() ?? ''
-    const code = error.code?.toLowerCase() ?? ''
-
-    return (
-        code === 'nosuchkey' ||
-        errorName === 'nosuchkey' ||
-        errorName === 'no such key' ||
-        message.includes('no such key') ||
-        message.includes('nosuchkey') ||
-        message.includes('object not found') ||
-        message.includes('specified key does not exist')
-    )
-}
-
-async function removeStorageObjectIfPresent(
-    supabase: SupabaseClient,
-    bucket: string,
-    objectKey: string | null
-): Promise<void> {
-    if (!objectKey) return
-
-    const { error } = await supabase.storage.from(bucket).remove([objectKey])
-    if (error && !isMissingStorageObjectError(error)) throw error
-
-    if (error) {
-        console.warn(`[deleteTranscript] Storage object already missing in ${bucket}: ${objectKey}`, error.message)
-    }
+export type DeleteTranscriptResult = {
+    /** Keys linked during the delete whose objects could not be removed. */
+    cleanupPendingKeys: string[]
 }
 
 /**
- * Delete a transcript.
+ * Delete a transcript and its storage objects.
+ *
+ * Throws while the row still exists. Once the row is gone it resolves, reporting
+ * any late-linked objects it could not remove.
  */
-export async function deleteTranscript(id: string): Promise<void> {
+export async function deleteTranscript(id: string): Promise<DeleteTranscriptResult> {
     const supabase = createClient()
     const { data: transcript, error: fetchError } = await supabase
         .from('transcripts')
@@ -184,14 +162,39 @@ export async function deleteTranscript(id: string): Promise<void> {
         .maybeSingle()
 
     if (fetchError) throw fetchError
-    if (!transcript) return
+    if (!transcript) return { cleanupPendingKeys: [] }
 
-    await removeStorageObjectIfPresent(supabase, 'media', transcript.source_object_key)
-    await removeStorageObjectIfPresent(supabase, WAVEFORM_BUCKET, transcript.waveform_object_key)
+    await Promise.all([
+        removeStorageObjectIfPresent(supabase, MEDIA_BUCKET, transcript.source_object_key),
+        removeStorageObjectIfPresent(supabase, WAVEFORM_BUCKET, transcript.waveform_object_key),
+    ])
 
-    const { error } = await supabase.from('transcripts').delete().eq('id', id)
+    const { data: deletedTranscript, error } = await supabase
+        .from('transcripts')
+        .delete()
+        .eq('id', id)
+        .select('source_object_key, waveform_object_key')
+        .maybeSingle()
 
     if (error) throw error
+    // Another tab already deleted it.
+    if (!deletedTranscript) return { cleanupPendingKeys: [] }
+
+    // Sweep keys linked between the initial read and the row delete.
+    const cleanupPendingKeys: string[] = []
+    for (const [bucket, before, after] of [
+        [MEDIA_BUCKET, transcript.source_object_key, deletedTranscript.source_object_key],
+        [WAVEFORM_BUCKET, transcript.waveform_object_key, deletedTranscript.waveform_object_key],
+    ] as const) {
+        if (!after || after === before) continue
+        try {
+            await removeStorageObjectIfPresent(supabase, bucket, after)
+        } catch {
+            cleanupPendingKeys.push(after)
+        }
+    }
+
+    return { cleanupPendingKeys }
 }
 
 // ============================================================================

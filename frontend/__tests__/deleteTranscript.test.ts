@@ -20,7 +20,6 @@ jest.mock('@/infra/supabase/client', () => ({
 const { deleteTranscript } = jest.requireActual<typeof import('@/lib/supabase/queries')>(
     '@/lib/supabase/queries'
 )
-
 type Transcript = {
     source_object_key: string | null
     waveform_object_key: string | null
@@ -32,6 +31,7 @@ type BuildOpts = {
     mediaRemoveError?: unknown
     waveformRemoveError?: unknown
     deleteError?: unknown
+    deletedTranscript?: Transcript | null
 }
 
 const DEFAULT_TRANSCRIPT: Transcript = {
@@ -46,13 +46,19 @@ function buildClient(opts: BuildOpts = {}) {
         mediaRemoveError = null,
         waveformRemoveError = null,
         deleteError = null,
+        deletedTranscript = transcript,
     } = opts
 
     const maybeSingle = jest.fn().mockResolvedValue({ data: transcript, error: fetchError })
     const selectEq = jest.fn(() => ({ maybeSingle }))
     const select = jest.fn(() => ({ eq: selectEq }))
 
-    const deleteEq = jest.fn().mockResolvedValue({ error: deleteError })
+    const deleteMaybeSingle = jest.fn().mockResolvedValue({
+        data: deletedTranscript,
+        error: deleteError,
+    })
+    const deleteSelect = jest.fn(() => ({ maybeSingle: deleteMaybeSingle }))
+    const deleteEq = jest.fn(() => ({ select: deleteSelect }))
     const del = jest.fn(() => ({ eq: deleteEq }))
 
     const from = jest.fn(() => ({ select, delete: del }))
@@ -65,7 +71,16 @@ function buildClient(opts: BuildOpts = {}) {
 
     const client = { from, storage: { from: storageFrom } }
 
-    return { client, from, del, deleteEq, storageFrom, removeByBucket }
+    return {
+        client,
+        from,
+        del,
+        deleteEq,
+        deleteSelect,
+        deleteMaybeSingle,
+        storageFrom,
+        removeByBucket,
+    }
 }
 
 describe('deleteTranscript', () => {
@@ -102,7 +117,7 @@ describe('deleteTranscript', () => {
         })
         currentClient = h.client
 
-        await expect(deleteTranscript('t-1')).resolves.toBeUndefined()
+        await expect(deleteTranscript('t-1')).resolves.toEqual({ cleanupPendingKeys: [] })
         expect(h.deleteEq).toHaveBeenCalledWith('id', 't-1')
         expect(warn).toHaveBeenCalled()
 
@@ -117,6 +132,14 @@ describe('deleteTranscript', () => {
         expect(h.del).not.toHaveBeenCalled()
     })
 
+    it('propagates a row deletion error after the initial storage cleanup', async () => {
+        const h = buildClient({ deleteError: { message: 'row delete denied' } })
+        currentClient = h.client
+
+        await expect(deleteTranscript('t-1')).rejects.toEqual({ message: 'row delete denied' })
+        expect(h.deleteMaybeSingle).toHaveBeenCalled()
+    })
+
     it('returns early without touching storage when the transcript does not exist', async () => {
         const h = buildClient({ transcript: null })
         currentClient = h.client
@@ -125,5 +148,37 @@ describe('deleteTranscript', () => {
 
         expect(h.storageFrom).not.toHaveBeenCalled()
         expect(h.del).not.toHaveBeenCalled()
+    })
+
+    it('sweeps a key linked between the initial read and row deletion', async () => {
+        const h = buildClient({
+            transcript: { source_object_key: 'media-old', waveform_object_key: null },
+            deletedTranscript: { source_object_key: 'media-old', waveform_object_key: 'waveform-late' },
+        })
+        currentClient = h.client
+
+        await deleteTranscript('t-1')
+
+        expect(h.removeByBucket.waveforms).toHaveBeenCalledWith(['waveform-late'])
+    })
+
+    it('reports cleanup pending when a post-delete sweep fails', async () => {
+        const h = buildClient({
+            transcript: { source_object_key: 'media-old', waveform_object_key: null },
+            deletedTranscript: { source_object_key: 'media-old', waveform_object_key: 'waveform-late' },
+            waveformRemoveError: { message: 'bucket unavailable' },
+        })
+        currentClient = h.client
+
+        await expect(deleteTranscript('t-1')).resolves.toEqual({
+            cleanupPendingKeys: ['waveform-late'],
+        })
+    })
+
+    it('treats a row already deleted by another caller as success', async () => {
+        const h = buildClient({ deletedTranscript: null })
+        currentClient = h.client
+
+        await expect(deleteTranscript('t-1')).resolves.toEqual({ cleanupPendingKeys: [] })
     })
 })

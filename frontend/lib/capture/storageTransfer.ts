@@ -1,9 +1,8 @@
 import { Upload, type HttpRequest } from 'tus-js-client'
 import { createClient } from '@/infra/supabase/client'
+import { MEDIA_BUCKET } from '@/infra/supabase/storage'
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>
-
-const MEDIA_BUCKET = 'media'
 
 /**
  * Files at or below this size use a single-PUT upload; larger files use the

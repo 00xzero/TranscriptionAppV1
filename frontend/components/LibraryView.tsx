@@ -12,7 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { DELETE_TRANSCRIPT_ERROR_MESSAGE } from '@/lib/transcripts/deleteErrors'
+import { toast } from '@/components/ui/toaster'
+import {
+  DELETE_TRANSCRIPT_ERROR_MESSAGE,
+  TRANSCRIPT_CLEANUP_PENDING_TOAST,
+} from '@/lib/transcripts/deleteErrors'
 import type { User } from '@supabase/supabase-js'
 
 type PendingDelete = {
@@ -32,7 +36,8 @@ export default function LibraryView() {
     if (!pendingDelete) return
     setDeleteError(null)
     try {
-      await deleteTranscript(pendingDelete.id)
+      const { cleanupPendingKeys } = await deleteTranscript(pendingDelete.id)
+      if (cleanupPendingKeys.length > 0) toast(TRANSCRIPT_CLEANUP_PENDING_TOAST)
     } catch (e) {
       console.error('Failed to delete transcript:', e)
       setDeleteError(DELETE_TRANSCRIPT_ERROR_MESSAGE)

@@ -4,14 +4,21 @@ import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
 import type { Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
+import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 
 const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseTranscriptsRealtime = jest.fn()
+const mockToast = jest.fn()
+
+jest.mock('@/components/ui/toaster', () => ({
+  toast: (...args: unknown[]) => mockToast(...args),
+}))
 
 const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   id: '11111111-1111-1111-1111-111111111111',
   user_id: '22222222-2222-2222-2222-222222222222',
+  project_id: null,
   title: 'Transcript Alpha',
   status: 'completed',
   source_object_key: null,
@@ -65,7 +72,7 @@ describe('LibraryView', () => {
       data: { user: null },
       error: null,
     })
-    mockDeleteTranscript.mockResolvedValue(undefined)
+    mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
     mockUseTranscriptsRealtime.mockReturnValue({
       transcripts: [makeTranscript()],
       isLoading: false,
@@ -109,6 +116,24 @@ describe('LibraryView', () => {
       expect(mockDeleteTranscript).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111')
     })
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
+  })
+
+  test('reports cleanup pending as a neutral toast, not a failure', async () => {
+    const user = userEventLib.setup()
+    mockDeleteTranscript.mockResolvedValueOnce({
+      cleanupPendingKeys: ['user/transcript/waveform.json'],
+    })
+    renderLibraryView()
+    await screen.findByText('Transcript Alpha')
+
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
+    await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
+    })
+    expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
   })
 
   test('does not delete and closes the menu when delete is canceled', async () => {

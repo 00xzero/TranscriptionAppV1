@@ -15,6 +15,7 @@ import { deleteTranscript } from '@/lib/supabase/queries'
 import {
   DELETE_TRANSCRIPT_ERROR_DESCRIPTION,
   DELETE_TRANSCRIPT_ERROR_TITLE,
+  TRANSCRIPT_CLEANUP_PENDING_TOAST,
 } from '@/lib/transcripts/deleteErrors'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
@@ -94,7 +95,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   const handleConfirmDelete = useCallback(async () => {
     try {
-      await deleteTranscript(transcriptId)
+      const { cleanupPendingKeys } = await deleteTranscript(transcriptId)
+      if (cleanupPendingKeys.length > 0) toast(TRANSCRIPT_CLEANUP_PENDING_TOAST)
       router.replace('/transcripts')
     } catch (e) {
       console.error('Failed to delete transcript:', e)

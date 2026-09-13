@@ -1,9 +1,21 @@
 /** @jest-environment node */
 
-import { CreateTranscriptBodySchema } from '@/contracts/api'
+import {
+  CreateTranscriptBodySchema,
+  DeleteProjectErrorSchema,
+  DeleteProjectResponseSchema,
+} from '@/contracts/api'
+import { ProjectNameSchema } from '@/contracts/primitives'
 import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/contracts/webhook'
 import { TransitionJobInputSchema } from '@/contracts/state-machine'
-import { JobStatusSchema, TranscriptStatusSchema } from '@/contracts/db'
+import {
+  JobStatusSchema,
+  ProjectInsertSchema,
+  ProjectSchema,
+  ProjectUpdateSchema,
+  TranscriptSchema,
+  TranscriptStatusSchema,
+} from '@/contracts/db'
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111'
 
@@ -38,6 +50,104 @@ describe('CreateTranscriptBodySchema', () => {
   test('accepts body with only filename', () => {
     const result = CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3' })
     expect(result.success).toBe(true)
+  })
+
+  test('accepts a valid project id and rejects an invalid one', () => {
+    expect(
+      CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3', project_id: VALID_UUID }).success
+    ).toBe(true)
+    expect(
+      CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3', project_id: 'not-a-uuid' }).success
+    ).toBe(false)
+  })
+})
+
+describe('project schemas', () => {
+  const row = {
+    id: VALID_UUID,
+    user_id: '22222222-2222-2222-2222-222222222222',
+    parent_id: null,
+    name: 'Work',
+    deleting_at: null,
+    created_at: '2026-09-12T00:00:00Z',
+    updated_at: '2026-09-12T00:00:00Z',
+  }
+
+  test('validates project rows and transcript project membership', () => {
+    expect(ProjectSchema.safeParse(row).success).toBe(true)
+    expect(
+      TranscriptSchema.safeParse({
+        id: VALID_UUID,
+        user_id: row.user_id,
+        project_id: row.id,
+        title: null,
+        status: 'created',
+        source_object_key: null,
+        upload_intent_id: null,
+        duration_seconds: null,
+        waveform_object_key: null,
+        waveform_status: 'skipped',
+        waveform_points_per_second: null,
+        waveform_version: null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }).success
+    ).toBe(true)
+  })
+
+  test('trims project names and enforces the database length bounds', () => {
+    expect(ProjectNameSchema.parse('  Work  ')).toBe('Work')
+    expect(ProjectInsertSchema.parse({
+      user_id: row.user_id,
+      parent_id: null,
+      name: '  Work  ',
+    }).name).toBe('Work')
+    expect(ProjectUpdateSchema.safeParse({ name: '   ' }).success).toBe(false)
+    expect(ProjectNameSchema.safeParse('   ').success).toBe(false)
+    expect(ProjectNameSchema.safeParse('x'.repeat(81)).success).toBe(false)
+  })
+
+  test('validates project deletion response shapes', () => {
+    expect(
+      DeleteProjectResponseSchema.safeParse({ deleted_projects: 2, deleted_transcripts: 3 }).success
+    ).toBe(true)
+    expect(
+      DeleteProjectErrorSchema.safeParse({
+        error: 'project not found',
+        stage: 'begin',
+        gone: true,
+      }).success
+    ).toBe(true)
+    expect(
+      DeleteProjectErrorSchema.safeParse({
+        error: 'storage cleanup failed',
+        stage: 'storage',
+        removed_media: 1,
+        removed_waveforms: 0,
+        remaining_transcripts: 2,
+      }).success
+    ).toBe(true)
+    expect(
+      DeleteProjectErrorSchema.safeParse({
+        error: 'branch changed',
+        stage: 'finish',
+      }).success
+    ).toBe(true)
+    expect(
+      DeleteProjectErrorSchema.safeParse({
+        error: 'missing storage counts',
+        stage: 'storage',
+      }).success
+    ).toBe(false)
+    expect(
+      DeleteProjectErrorSchema.safeParse({
+        error: 'bad stage',
+        stage: 'unknown',
+        removed_media: 0,
+        removed_waveforms: 0,
+        remaining_transcripts: 0,
+      }).success
+    ).toBe(false)
   })
 })
 

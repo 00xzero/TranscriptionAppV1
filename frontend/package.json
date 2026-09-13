@@ -66,6 +66,7 @@
     "@testing-library/user-event": "14.6.1",
     "@types/jest": "30.0.0",
     "@types/node": "26.2.0",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "baseline-browser-mapping": "^2.10.0",
@@ -75,8 +76,10 @@
     "identity-obj-proxy": "3.0.0",
     "jest": "30.4.2",
     "jest-environment-jsdom": "30.4.1",
+    "pg": "^8.23.0",
     "postcss": "8.5.26",
     "tailwindcss": "4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "6.0.2"
   }
 }
