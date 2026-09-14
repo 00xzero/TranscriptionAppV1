@@ -7,6 +7,8 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 
+export const MEDIA_BUCKET = 'media'
+
 // Maximum file size - configurable via environment variable
 // Default: 50MB (Supabase Free plan limit)
 // Pro plan: Set NEXT_PUBLIC_MAX_FILE_SIZE_MB=1500 for 1.5GB
@@ -105,7 +107,7 @@ export async function uploadTranscriptMedia(
     }
 
     const { error } = await supabase.storage
-        .from('media')
+        .from(MEDIA_BUCKET)
         .upload(path, file, {
             cacheControl: '3600',
             upsert: false, // Don't overwrite existing files
@@ -132,7 +134,7 @@ export async function getSignedMediaUrl(
     supabase: SupabaseClient,
     path: string,
     expiresIn: number = 3600,
-    bucket: string = 'media'
+    bucket: string = MEDIA_BUCKET
 ): Promise<{ url: string; error: null } | { url: null; error: string }> {
     const { data, error } = await supabase.storage
         .from(bucket)
@@ -201,25 +203,86 @@ export async function getMediaUrlForDeepgram(
     return { url: mediaUrl, error: null }
 }
 
-/**
- * Delete a media file from storage.
- *
- * @param supabase - Supabase client instance
- * @param path - Storage path to delete
- * @returns Object with error on failure, null error on success
- */
-export async function deleteTranscriptMedia(
-    supabase: SupabaseClient,
-    path: string
-): Promise<{ error: string | null }> {
-    const { error } = await supabase.storage
-        .from('media')
-        .remove([path])
+type StorageError = {
+    message?: string
+    error?: string
+    code?: string
+}
 
-    if (error) {
-        console.error('[storage] Delete error:', error)
-        return { error: error.message }
+export function isMissingStorageObjectError(error: StorageError): boolean {
+    const errorName = error.error?.toLowerCase() ?? ''
+    const code = error.code?.toLowerCase() ?? ''
+
+    return (
+        code === 'nosuchkey' ||
+        errorName === 'nosuchkey' ||
+        errorName === 'no such key'
+    )
+}
+
+export async function removeStorageObjectIfPresent(
+    supabase: SupabaseClient,
+    bucket: string,
+    objectKey: string | null,
+    ownerId: string
+): Promise<void> {
+    if (!objectKey) return
+
+    const storage = supabase.storage.from(bucket)
+    const belongsToOwner = objectKey.startsWith(`${ownerId}/`)
+    const before = await storage.info(objectKey)
+
+    if (before.error) {
+        if (belongsToOwner && isMissingStorageObjectError(before.error)) {
+            console.warn(
+                `[storage] Object already missing in ${bucket}: ${objectKey}`,
+                before.error.message
+            )
+            return
+        }
+        throw before.error
     }
 
-    return { error: null }
+    const removed = await storage.remove([objectKey])
+    if (!removed.error && (removed.data?.length ?? 0) > 0) return
+
+    // Storage can report an empty successful delete when RLS matched no rows.
+    // Re-read before accepting an ambiguous result as a concurrent removal.
+    const after = await storage.info(objectKey)
+    if (belongsToOwner && after.error && isMissingStorageObjectError(after.error)) {
+        return
+    }
+
+    if (removed.error) throw removed.error
+    if (after.error) throw after.error
+    throw new Error(`Storage did not remove object from ${bucket}: ${objectKey}`)
+}
+
+export async function removeStorageObjectsBatched(
+    supabase: SupabaseClient,
+    bucket: string,
+    keys: string[],
+    batchSize = 100
+): Promise<{ removed: number; failed: string[] }> {
+    if (!Number.isInteger(batchSize) || batchSize < 1) {
+        throw new RangeError('batchSize must be a positive integer')
+    }
+
+    let removed = 0
+    const failed: string[] = []
+    const uniqueKeys = [...new Set(keys.filter(Boolean))]
+
+    for (let offset = 0; offset < uniqueKeys.length; offset += batchSize) {
+        const batch = uniqueKeys.slice(offset, offset + batchSize)
+        const { data, error } = await supabase.storage.from(bucket).remove(batch)
+        if (!error) {
+            removed += data?.length ?? 0
+        } else if (isMissingStorageObjectError(error)) {
+            continue
+        } else {
+            failed.push(...batch)
+        }
+    }
+
+    return { removed, failed }
 }

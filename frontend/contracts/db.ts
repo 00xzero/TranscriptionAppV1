@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { UuidSchema } from './primitives'
+import { ProjectNameSchema, UuidSchema } from './primitives'
 
 // Status enums — canonical, imported by state-machine.ts and transition.ts
 export const JobStatusSchema = z.enum(['queued', 'processing', 'completed', 'error'])
@@ -17,6 +17,7 @@ export const WaveformStatusSchema = z.enum(['pending', 'processing', 'ready', 'e
 export const TranscriptSchema = z.object({
   id: UuidSchema,
   user_id: UuidSchema,
+  project_id: UuidSchema.nullable(),
   title: z.string().nullable(),
   status: TranscriptStatusSchema,
   source_object_key: z.string().nullable(),
@@ -26,6 +27,16 @@ export const TranscriptSchema = z.object({
   waveform_status: WaveformStatusSchema,
   waveform_points_per_second: z.number().nullable(),
   waveform_version: z.number().int().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+export const ProjectSchema = z.object({
+  id: UuidSchema,
+  user_id: UuidSchema,
+  parent_id: UuidSchema.nullable(),
+  name: ProjectNameSchema,
+  deleting_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 })
@@ -99,6 +110,17 @@ export const WatchlistTermSchema = z.object({
 export const TranscriptUpdateSchema = z.object({
   title: z.string().nullable().optional(),
   duration_seconds: z.number().nullable().optional(),
+})
+
+export const ProjectInsertSchema = z.object({
+  id: UuidSchema.optional(),
+  user_id: UuidSchema,
+  parent_id: UuidSchema.nullable(),
+  name: ProjectNameSchema,
+})
+
+export const ProjectUpdateSchema = z.object({
+  name: ProjectNameSchema,
 })
 
 // Server-only update schema for waveform fields. Must NOT be used by browser-facing
@@ -181,6 +203,7 @@ export type JobStatus = z.infer<typeof JobStatusSchema>
 export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
 export type WaveformStatus = z.infer<typeof WaveformStatusSchema>
 export type Transcript = z.infer<typeof TranscriptSchema>
+export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>
 export type Speaker = z.infer<typeof SpeakerSchema>
@@ -188,6 +211,8 @@ export type Word = z.infer<typeof WordSchema>
 export type Segment = z.infer<typeof SegmentSchema>
 export type WatchlistTerm = z.infer<typeof WatchlistTermSchema>
 export type TranscriptUpdate = z.infer<typeof TranscriptUpdateSchema>
+export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
+export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type TranscriptWaveformInternalUpdate = z.infer<typeof TranscriptWaveformInternalUpdateSchema>
 export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>

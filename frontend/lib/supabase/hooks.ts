@@ -93,6 +93,17 @@ function useCurrentUserId() {
     return useAuthIdentity().userId
 }
 
+/** Re-insert a transcript in created_at-desc order unless it is already present. */
+function restoreTranscript(transcripts: Transcript[], transcript: Transcript): Transcript[] {
+    if (transcripts.some((t) => t.id === transcript.id)) return transcripts
+
+    const createdAt = Date.parse(transcript.created_at)
+    const index = transcripts.findIndex((t) => Date.parse(t.created_at) < createdAt)
+    return index === -1
+        ? [...transcripts, transcript]
+        : [...transcripts.slice(0, index), transcript, ...transcripts.slice(index)]
+}
+
 /**
  * Hook for fetching and subscribing to the transcripts list.
  * Uses Supabase Realtime with 5s polling fallback.
@@ -117,22 +128,21 @@ export function useTranscriptsRealtime() {
     // Action: Delete transcript with optimistic update
     const deleteTranscript = useCallback(
         async (id: string) => {
-            // Capture previous data for rollback using functional update
-            let previousData: Transcript[] = []
-            mutate((current) => {
-                previousData = current ?? []
-                return previousData.filter((p) => p.id !== id)
-            })
+            // Snapshot synchronously: a state updater may run after the request settles.
+            const removed = data.find((t) => t.id === id)
+            mutate((current) => current.filter((t) => t.id !== id))
 
             try {
-                await deleteTranscriptQuery(id)
+                return await deleteTranscriptQuery(id)
             } catch (err) {
-                // Rollback on error
-                mutate(previousData)
+                // Restore only the removed row so concurrent realtime changes survive.
+                if (removed) mutate((current) => restoreTranscript(current, removed))
+                // A delete can commit and still lose its response; reconcile with the server.
+                void refetch()
                 throw err
             }
         },
-        [mutate]
+        [data, mutate, refetch]
     )
 
     return {
