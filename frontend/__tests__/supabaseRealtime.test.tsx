@@ -123,6 +123,35 @@ describe('useSupabaseRealtime', () => {
     expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
   })
 
+  test('ignores an older fetch that resolves after a newer fetch', async () => {
+    const olderFetch = deferred<Row[]>()
+    const newerFetch = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockReturnValueOnce(olderFetch.promise)
+      .mockReturnValueOnce(newerFetch.promise)
+
+    const { result } = renderHook(() => useSupabaseRealtime<Row>('transcripts', fetchFn))
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+    act(() => {
+      statusHandler?.('SUBSCRIBED')
+    })
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      newerFetch.resolve([{ id: 'new', title: 'New transcript' }])
+      await newerFetch.promise
+    })
+    expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
+
+    await act(async () => {
+      olderFetch.resolve([{ id: 'old', title: 'Old transcript' }])
+      await olderFetch.promise
+    })
+    expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
+  })
+
   test('stops polling after realtime connects and performs one resync fetch', async () => {
     jest.useFakeTimers()
     const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])

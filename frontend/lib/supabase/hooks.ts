@@ -23,6 +23,7 @@ import {
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
 import { buildProjectTree } from '@/core/projects/tree'
+import { randomId } from '@/lib/ids'
 import type {
     Transcript,
     Project,
@@ -58,12 +59,14 @@ export function useAuthIdentity(): AuthIdentity {
 
     useEffect(() => {
         let isMounted = true
+        let authGeneration = 0
         const supabase = createClient()
 
         const loadUserId = async () => {
+            const loadGeneration = authGeneration
             try {
                 const { data: sessionData } = await supabase.auth.getSession()
-                if (!isMounted) return
+                if (!isMounted || authGeneration !== loadGeneration) return
                 const sessionUserId = sessionData.session?.user.id ?? null
                 if (!sessionUserId) {
                     setIdentity({ userId: null, ready: true })
@@ -73,7 +76,7 @@ export function useAuthIdentity(): AuthIdentity {
                 setIdentity({ userId: sessionUserId, ready: false })
 
                 const { data, error } = await supabase.auth.getUser()
-                if (!isMounted) return
+                if (!isMounted || authGeneration !== loadGeneration) return
                 setIdentity({
                     userId: error ? sessionUserId : data.user?.id ?? null,
                     ready: !error,
@@ -96,6 +99,7 @@ export function useAuthIdentity(): AuthIdentity {
                 )
                 return
             }
+            authGeneration += 1
             setIdentity({ userId: session?.user.id ?? null, ready: true })
         })
 
@@ -271,7 +275,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
             if (!userId) throw new Error('You must be signed in to create a project.')
 
             const now = new Date().toISOString()
-            const optimisticId = crypto.randomUUID()
+            const optimisticId = randomId()
             const optimisticProject: Project = {
                 id: optimisticId,
                 user_id: userId,

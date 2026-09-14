@@ -77,7 +77,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     // Fetch data function
     const fetchData = useCallback(async () => {
         if (!enabled) return
-        const fetchGeneration = fetchGenerationRef.current
+        const fetchGeneration = ++fetchGenerationRef.current
         try {
             const result = await fetchFn()
             if (isMountedRef.current && fetchGenerationRef.current === fetchGeneration) {

@@ -15,6 +15,9 @@ const mockAddTranscripts = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockCreateProject = jest.fn()
 const mockRenameProject = jest.fn()
+let authStateHandler:
+  | ((event: string, session: { user: { id: string } } | null) => void)
+  | null = null
 
 let channelMock: {
   on: jest.Mock
@@ -72,11 +75,13 @@ function deferred<T>() {
 describe('useAuthIdentity', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    authStateHandler = null
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-from-session' } } },
     })
-    mockOnAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: mockUnsubscribe } },
+    mockOnAuthStateChange.mockImplementation((handler) => {
+      authStateHandler = handler
+      return { data: { subscription: { unsubscribe: mockUnsubscribe } } }
     })
     makeChannel()
   })
@@ -135,6 +140,38 @@ describe('useAuthIdentity', () => {
     })
     expect(mockGetUser).not.toHaveBeenCalled()
   })
+
+  test.each([
+    ['sign-out', 'SIGNED_OUT', null, null],
+    ['account switch', 'SIGNED_IN', { user: { id: 'user-b' } }, 'user-b'],
+  ])(
+    'ignores stale verification after an auth %s',
+    async (_label, event, session, expectedUserId) => {
+      const verified = deferred<{
+        data: { user: { id: string } | null }
+        error: Error | null
+      }>()
+      mockGetUser.mockReturnValueOnce(verified.promise)
+
+      const { result } = renderHook(() => useAuthIdentity())
+
+      await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
+      act(() => {
+        authStateHandler?.(event, session)
+      })
+      expect(result.current).toEqual({ userId: expectedUserId, ready: true })
+
+      await act(async () => {
+        verified.resolve({
+          data: { user: { id: 'user-from-session' } },
+          error: null,
+        })
+        await verified.promise
+      })
+
+      expect(result.current).toEqual({ userId: expectedUserId, ready: true })
+    }
+  )
 })
 
 describe('useTranscriptsRealtime', () => {
@@ -216,6 +253,7 @@ describe('useTranscriptsRealtime', () => {
     // The reconciling refetch never settles, so only the local rollback can restore the row.
     mockFetchTranscripts
       .mockResolvedValueOnce([transcript])
+      .mockResolvedValueOnce([transcript])
       .mockReturnValue(new Promise(() => undefined))
     mockDeleteTranscript.mockRejectedValueOnce(error)
     const { result: hook } = renderHook(() =>
@@ -240,6 +278,7 @@ describe('useTranscriptsRealtime', () => {
     const deleted = { id: 'transcript-1', created_at: '2026-04-01T12:00:00Z' }
     const inserted = { id: 'transcript-2', created_at: '2026-04-02T12:00:00Z' }
     mockFetchTranscripts
+      .mockResolvedValueOnce([deleted, oldest])
       .mockResolvedValueOnce([deleted, oldest])
       .mockReturnValue(new Promise(() => undefined))
     let rejectDelete!: (reason: unknown) => void

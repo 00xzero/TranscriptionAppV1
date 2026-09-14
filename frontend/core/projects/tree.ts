@@ -90,12 +90,12 @@ export function siblingNameTaken(
   name: string,
   excludeId?: string
 ): boolean {
-  const normalizedName = name.trim().toLocaleLowerCase()
+  const normalizedName = name.trim().toLowerCase()
   const siblings = parentId === null ? tree.roots : tree.childrenOf.get(parentId) ?? []
 
   return siblings.some(
     (project) =>
-      project.id !== excludeId && project.name.trim().toLocaleLowerCase() === normalizedName
+      project.id !== excludeId && project.name.trim().toLowerCase() === normalizedName
   )
 }
 
