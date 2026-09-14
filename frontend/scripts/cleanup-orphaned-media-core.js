@@ -103,6 +103,7 @@ async function listStorageObjectsFromMetadata(supabase, bucket) {
       .from('objects')
       .select('name, metadata, updated_at')
       .eq('bucket_id', bucket)
+      .order('name', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1)
 
     if (error) throw error

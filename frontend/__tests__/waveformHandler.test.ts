@@ -6,6 +6,7 @@ import { InngestTestEngine } from '@inngest/test'
 
 const finalizeSingleMock = jest.fn()
 const reconcileMaybeSingleMock = jest.fn()
+const reconcileSelectMock = jest.fn()
 const uploadMock = jest.fn()
 const removeMock = jest.fn()
 const computePeaksMock = jest.fn()
@@ -51,9 +52,12 @@ jest.mock('@/infra/supabase/admin', () => ({
           in: jest.fn(async () => ({ error: null })),
         }),
       }),
-      select: () => ({
+      select: (...args: unknown[]) => {
+        reconcileSelectMock(...args)
+        return {
         eq: () => ({ maybeSingle: reconcileMaybeSingleMock }),
-      }),
+        }
+      },
     }),
   }),
 }))
@@ -96,7 +100,12 @@ describe('waveform finalization reconciliation', () => {
     removeMock.mockResolvedValue({ data: [{ name: waveformObjectKey }], error: null })
     finalizeSingleMock.mockResolvedValue({ data: { id: transcriptId }, error: null })
     reconcileMaybeSingleMock.mockResolvedValue({
-      data: { waveform_object_key: waveformObjectKey },
+      data: {
+        waveform_object_key: waveformObjectKey,
+        waveform_status: 'ready',
+        waveform_points_per_second: 1,
+        waveform_version: 1,
+      },
       error: null,
     })
   })
@@ -126,7 +135,36 @@ describe('waveform finalization reconciliation', () => {
     expect(error).toBeUndefined()
     expect(result).toMatchObject({ status: 'ready', transcriptId })
     expect(reconcileMaybeSingleMock).toHaveBeenCalled()
+    expect(reconcileSelectMock).toHaveBeenCalledWith(
+      'waveform_object_key, waveform_status, waveform_points_per_second, waveform_version'
+    )
     expect(removeMock).not.toHaveBeenCalled()
+  })
+
+  test.each([
+    ['status', { waveform_status: 'processing' }],
+    ['version', { waveform_version: 2 }],
+    ['points per second', { waveform_points_per_second: 2 }],
+  ])('does not accept a matching key with different %s', async (_field, override) => {
+    finalizeSingleMock.mockResolvedValue({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValue({
+      data: {
+        waveform_object_key: waveformObjectKey,
+        waveform_status: 'ready',
+        waveform_points_per_second: 1,
+        waveform_version: 1,
+        ...override,
+      },
+      error: null,
+    })
+
+    const { error } = await execute()
+
+    expect(getErrorMessage(error)).toContain('response lost')
+    expect(removeMock).toHaveBeenCalledWith([waveformObjectKey])
   })
 
   test('removes the upload and preserves a retriable error when reconciliation differs', async () => {
@@ -135,7 +173,12 @@ describe('waveform finalization reconciliation', () => {
       error: { code: 'ETIMEDOUT', message: 'response lost' },
     })
     reconcileMaybeSingleMock.mockResolvedValue({
-      data: { waveform_object_key: 'different-key' },
+      data: {
+        waveform_object_key: 'different-key',
+        waveform_status: 'ready',
+        waveform_points_per_second: 1,
+        waveform_version: 1,
+      },
       error: null,
     })
 

@@ -157,7 +157,6 @@ export function useProjectsDeleteInvalidation(
     useEffect(() => {
         let active = true
         let channel: RealtimeChannel | null = null
-        let hasSubscribed = false
         const supabase = createClient()
         const refetchQueues: Record<DeleteInvalidationTable, RefetchQueue> = {
             projects: { running: false, queued: false },
@@ -203,12 +202,8 @@ export function useProjectsDeleteInvalidation(
                 })
                 .subscribe((status) => {
                     if (!active || status !== 'SUBSCRIBED') return
-                    if (hasSubscribed) {
-                        queueRefetch('projects')
-                        queueRefetch('transcripts')
-                    } else {
-                        hasSubscribed = true
-                    }
+                    queueRefetch('projects')
+                    queueRefetch('transcripts')
                 })
         }).catch((error) => {
             if (active) {

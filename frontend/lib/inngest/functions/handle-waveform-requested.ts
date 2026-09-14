@@ -207,7 +207,9 @@ export const handleWaveformRequested = inngest.createFunction(
 
                 const { data: reconciledTranscript, error: reconcileError } = await supabase
                     .from('transcripts')
-                    .select('waveform_object_key')
+                    .select(
+                        'waveform_object_key, waveform_status, waveform_points_per_second, waveform_version'
+                    )
                     .eq('id', transcriptId)
                     .maybeSingle()
 
@@ -218,7 +220,19 @@ export const handleWaveformRequested = inngest.createFunction(
                     )
                 }
 
-                if (reconciledTranscript?.waveform_object_key === objectKey) {
+                const reconciledPointsPerSecond =
+                    reconciledTranscript?.waveform_points_per_second
+                const pointsPerSecondMatch =
+                    typeof reconciledPointsPerSecond === 'number' &&
+                    Math.abs(reconciledPointsPerSecond - peaksResult.pointsPerSecond) <=
+                        Math.max(1, Math.abs(peaksResult.pointsPerSecond)) * 1e-6
+                const finalizationCommitted =
+                    reconciledTranscript?.waveform_object_key === objectKey &&
+                    reconciledTranscript.waveform_status === 'ready' &&
+                    reconciledTranscript.waveform_version === WAVEFORM_ARTIFACT_VERSION &&
+                    pointsPerSecondMatch
+
+                if (finalizationCommitted) {
                     console.warn(
                         `[inngest] Waveform link response was ambiguous for ${transcriptId}; ` +
                         'the committed row was recovered by reconciliation'

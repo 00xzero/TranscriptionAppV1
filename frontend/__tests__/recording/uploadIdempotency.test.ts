@@ -3,6 +3,11 @@ type SupabaseMutationResult = {
   error: null | { code?: string; message: string }
 }
 
+type SupabaseReconcileResult = {
+  data: { source_object_key: string } | null
+  error: null | { message: string }
+}
+
 const uploadMock = jest.fn(async () => ({ error: null }))
 const removeMock = jest.fn(async () => ({ error: null }))
 const updateSingleMock = jest.fn(async (): Promise<SupabaseMutationResult> => ({
@@ -16,9 +21,19 @@ const updateSelectMock = jest.fn(() => ({
 }))
 const updateEqMock = jest.fn(() => ({ select: updateSelectMock }))
 const updateMock = jest.fn(() => ({ eq: updateEqMock }))
+const reconcileMaybeSingleMock = jest.fn(async (): Promise<SupabaseReconcileResult> => ({
+  data: { source_object_key: 'u/p1/rec.webm' },
+  error: null,
+}))
+const reconcileEqMock = jest.fn(() => ({ maybeSingle: reconcileMaybeSingleMock }))
+const reconcileSelectMock = jest.fn(() => ({ eq: reconcileEqMock }))
 const deleteEqMock = jest.fn(async () => ({ error: null }))
 const deleteMock = jest.fn(() => ({ eq: deleteEqMock }))
-const fromMock = jest.fn(() => ({ update: updateMock, delete: deleteMock }))
+const fromMock = jest.fn(() => ({
+  update: updateMock,
+  select: reconcileSelectMock,
+  delete: deleteMock,
+}))
 
 jest.mock('@/infra/supabase/client', () => ({
   createClient: () => ({
@@ -62,6 +77,10 @@ describe('runCaptureUpload upload idempotency', () => {
     uploadMock.mockResolvedValue({ error: null })
     removeMock.mockResolvedValue({ error: null })
     updateSingleMock.mockResolvedValue({ data: { id: 'p1' }, error: null })
+    reconcileMaybeSingleMock.mockResolvedValue({
+      data: { source_object_key: 'u/p1/rec.webm' },
+      error: null,
+    })
     deleteEqMock.mockResolvedValue({ error: null })
     ;(global as unknown as { fetch: typeof fetchMock }).fetch = fetchMock
   })
@@ -193,6 +212,7 @@ describe('runCaptureUpload upload idempotency', () => {
       data: null,
       error: { message: 'link failed' },
     })
+    reconcileMaybeSingleMock.mockResolvedValueOnce({ data: null, error: null })
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
         transcript: { id: 'p1' },
@@ -214,6 +234,60 @@ describe('runCaptureUpload upload idempotency', () => {
     })
     expect(uploadMock).toHaveBeenCalledTimes(1)
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  test('continues when an ambiguous link failure reconciles to the uploaded key', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          transcript: { id: 'p1' },
+          storagePath: 'u/p1/rec.webm',
+          deduped: false,
+          sourceObjectKey: null,
+          status: 'created',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toMatchObject({ kind: 'success', outcome: 'started' })
+    expect(reconcileSelectMock).toHaveBeenCalledWith('source_object_key')
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  test('preserves storage and the transcript when ambiguous link reconciliation fails', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'read failed' },
+    })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        transcript: { id: 'p1' },
+        storagePath: 'u/p1/rec.webm',
+        deduped: false,
+        sourceObjectKey: null,
+        status: 'created',
+      })
+    )
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toEqual({
+      kind: 'failure',
+      message: 'Failed to update transcript: response lost; reconciliation failed: read failed',
+    })
+    expect(removeMock).not.toHaveBeenCalled()
     expect(deleteMock).not.toHaveBeenCalled()
   })
 
@@ -240,6 +314,7 @@ describe('runCaptureUpload upload idempotency', () => {
     })
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
     expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -263,5 +338,6 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(result).toEqual({ kind: 'failure', message: 'That project is being deleted.' })
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
     expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
   })
 })

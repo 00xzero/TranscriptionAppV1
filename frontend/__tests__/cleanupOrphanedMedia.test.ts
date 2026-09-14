@@ -5,6 +5,7 @@ export {}
 const {
   findOrphanedObjects,
   listReferencedKeys,
+  listStorageObjectsFromMetadata,
   parseCleanupOptions,
   runCleanup,
 } = jest.requireActual('../scripts/cleanup-orphaned-media-core.js')
@@ -172,6 +173,36 @@ describe('cleanup orphaned media', () => {
     expect(h.transcriptQuery.gt).toHaveBeenCalledWith('id', 'id-0999')
     expect(h.transcriptQuery.range).toHaveBeenCalledTimes(2)
     expect(h.transcriptQuery.range).toHaveBeenCalledWith(0, 999)
+  })
+
+  test('uses deterministic ordering for metadata range pagination', async () => {
+    const pages = [
+      Array.from({ length: 1000 }, (_, index) => ({
+        name: `object-${String(index).padStart(4, '0')}`,
+        metadata: { size: 1 },
+        updated_at: '2026-09-01T00:00:00Z',
+      })),
+      [{
+        name: 'object-1000',
+        metadata: { size: 1 },
+        updated_at: '2026-09-01T00:00:00Z',
+      }],
+    ]
+    let pageIndex = 0
+    const range = jest.fn(async () => ({ data: pages[pageIndex++] ?? [], error: null }))
+    const order = jest.fn(() => ({ range }))
+    const eq = jest.fn(() => ({ order }))
+    const select = jest.fn(() => ({ eq }))
+    const from = jest.fn(() => ({ select }))
+    const schema = jest.fn(() => ({ from }))
+
+    const objects = await listStorageObjectsFromMetadata({ schema }, 'media')
+
+    expect(objects).toHaveLength(1001)
+    expect(order).toHaveBeenCalledTimes(2)
+    expect(order).toHaveBeenCalledWith('name', { ascending: true })
+    expect(range).toHaveBeenNthCalledWith(1, 0, 999)
+    expect(range).toHaveBeenNthCalledWith(2, 1000, 1999)
   })
 
   test('deletes eligible objects from each bucket only in destructive mode', async () => {

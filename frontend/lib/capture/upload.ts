@@ -261,6 +261,7 @@ export async function runCaptureUpload(
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
     let createdFreshTranscript = false
+    let shouldRollbackPartialCapture = true
 
     const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
@@ -370,9 +371,34 @@ export async function runCaptureUpload(
                 if (linkRejection === 'gone') {
                     throw new Error('Failed to update transcript: the transcript is no longer available')
                 }
-                throw new Error(
-                    `Failed to update transcript: ${updateErrorMessage}`
-                )
+                if (!updateError && !linkedTranscript) {
+                    throw new Error('Failed to update transcript: the transcript is no longer available')
+                }
+
+                const { data: reconciledTranscript, error: reconcileError } = await supabase
+                    .from('transcripts')
+                    .select('source_object_key')
+                    .eq('id', transcriptId)
+                    .maybeSingle()
+
+                if (reconcileError) {
+                    shouldRollbackPartialCapture = false
+                    throw new Error(
+                        `Failed to update transcript: ${updateErrorMessage}; ` +
+                        `reconciliation failed: ${reconcileError.message}`
+                    )
+                }
+
+                if (reconciledTranscript?.source_object_key === storagePath) {
+                    console.warn(
+                        `[capture] Media link response was ambiguous for ${transcriptId}; ` +
+                        'the committed row was recovered by reconciliation'
+                    )
+                } else {
+                    throw new Error(
+                        `Failed to update transcript: ${updateErrorMessage}`
+                    )
+                }
             }
             didLinkMediaToTranscript = true
             console.log('[capture] Transcript updated with source_object_key')
@@ -408,7 +434,8 @@ export async function runCaptureUpload(
             transcriptId &&
             didLinkMediaToTranscript &&
             !didDispatchStartRequest &&
-            createdFreshTranscript
+            createdFreshTranscript &&
+            shouldRollbackPartialCapture
         ) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
@@ -443,7 +470,7 @@ export async function runCaptureUpload(
             }
         }
 
-        if (transcriptId) {
+        if (transcriptId && shouldRollbackPartialCapture) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
                 transcriptId,

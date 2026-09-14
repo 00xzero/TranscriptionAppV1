@@ -329,7 +329,7 @@ describe('ProjectsProvider realtime ownership', () => {
     await waitFor(() => expect(mockFetchTranscripts).toHaveBeenCalledTimes(2))
   })
 
-  test('refetches both tables when the private channel resubscribes', async () => {
+  test('refetches both tables on initial subscribe and reconnect', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-a' } } },
     })
@@ -351,11 +351,11 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchTranscripts.mockClear()
 
     act(() => onStatus('SUBSCRIBED'))
-    expect(mockFetchProjects).not.toHaveBeenCalled()
-    expect(mockFetchTranscripts).not.toHaveBeenCalled()
-
-    act(() => onStatus('SUBSCRIBED'))
     await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1))
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+
+    act(() => onStatus('SUBSCRIBED'))
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(2))
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(2)
   })
 })
