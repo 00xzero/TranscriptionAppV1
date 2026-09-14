@@ -3,7 +3,7 @@
  *
  * These hooks wrap the base realtime hook with specific table configurations.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/infra/supabase/client'
 import { useSupabaseRealtime } from './realtime'
 import {
@@ -259,6 +259,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
 
 export function useProjectsRealtime(options: RealtimeHookOptions) {
     const { enabled = true, userId } = options
+    const renameVersionsRef = useRef(new Map<string, number>())
     const fetchFn = useCallback(() => fetchProjects(), [])
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
         useSupabaseRealtime<Project>('projects', fetchFn, {
@@ -312,6 +313,8 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
         async (id: string, name: string) => {
             const previous = data.find((project) => project.id === id)
             const nextName = name.trim()
+            const requestVersion = (renameVersionsRef.current.get(id) ?? 0) + 1
+            renameVersionsRef.current.set(id, requestVersion)
             mutate((current) =>
                 current.map((project) =>
                     project.id === id ? { ...project, name: nextName } : project
@@ -320,21 +323,25 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
 
             try {
                 const renamed = await renameProjectQuery(id, nextName)
-                mutate((current) =>
-                    current.map((project) => (project.id === id ? renamed : project))
-                )
-                return renamed
-            } catch (err) {
-                if (previous) {
+                if (renameVersionsRef.current.get(id) === requestVersion) {
                     mutate((current) =>
-                        current.map((project) =>
-                            project.id === id && project.name === nextName
-                                ? { ...project, name: previous.name }
-                                : project
-                        )
+                        current.map((project) => (project.id === id ? renamed : project))
                     )
                 }
-                void refetch()
+                return renamed
+            } catch (err) {
+                if (renameVersionsRef.current.get(id) === requestVersion) {
+                    if (previous) {
+                        mutate((current) =>
+                            current.map((project) =>
+                                project.id === id && project.name === nextName
+                                    ? { ...project, name: previous.name }
+                                    : project
+                            )
+                        )
+                    }
+                    void refetch()
+                }
                 throw err
             }
         },

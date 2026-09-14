@@ -66,10 +66,12 @@ function makeChannel() {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
     resolve = res
+    reject = rej
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 describe('useAuthIdentity', () => {
@@ -500,5 +502,79 @@ describe('useProjectsRealtime', () => {
     expect(mockRenameProject).toHaveBeenCalledWith(existing.id, 'Changed')
     expect(result.current.projects).toEqual([existing])
     expect(mockFetchProjects).toHaveBeenCalledTimes(fetchCallsBeforeRename + 1)
+  })
+
+  test('does not let an older rename success overwrite a newer rename', async () => {
+    const firstRequest = deferred<Project>()
+    const secondRequest = deferred<Project>()
+    mockRenameProject
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise)
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(result.current.projects).toEqual([existing]))
+
+    let firstRename!: Promise<Project>
+    act(() => {
+      firstRename = result.current.renameProject(existing.id, 'First')
+    })
+    let secondRename!: Promise<Project>
+    act(() => {
+      secondRename = result.current.renameProject(existing.id, 'Second')
+    })
+
+    const secondProject = { ...existing, name: 'Second' }
+    await act(async () => {
+      secondRequest.resolve(secondProject)
+      await expect(secondRename).resolves.toEqual(secondProject)
+    })
+    expect(result.current.projects).toEqual([secondProject])
+
+    const firstProject = { ...existing, name: 'First' }
+    await act(async () => {
+      firstRequest.resolve(firstProject)
+      await expect(firstRename).resolves.toEqual(firstProject)
+    })
+    expect(result.current.projects).toEqual([secondProject])
+  })
+
+  test('does not roll back or refetch for an older failed rename', async () => {
+    const firstRequest = deferred<Project>()
+    const secondRequest = deferred<Project>()
+    mockRenameProject
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(secondRequest.promise)
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(result.current.projects).toEqual([existing]))
+    const fetchCallsBeforeRename = mockFetchProjects.mock.calls.length
+
+    let firstRename!: Promise<Project>
+    act(() => {
+      firstRename = result.current.renameProject(existing.id, 'First')
+    })
+    let secondRename!: Promise<Project>
+    act(() => {
+      secondRename = result.current.renameProject(existing.id, 'Second')
+    })
+
+    const secondProject = { ...existing, name: 'Second' }
+    await act(async () => {
+      secondRequest.resolve(secondProject)
+      await expect(secondRename).resolves.toEqual(secondProject)
+    })
+
+    const firstError = new Error('first rename failed')
+    await act(async () => {
+      firstRequest.reject(firstError)
+      await expect(firstRename).rejects.toBe(firstError)
+    })
+
+    expect(result.current.projects).toEqual([secondProject])
+    expect(mockFetchProjects).toHaveBeenCalledTimes(fetchCallsBeforeRename)
   })
 })
