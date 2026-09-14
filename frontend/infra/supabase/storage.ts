@@ -8,6 +8,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 
 export const MEDIA_BUCKET = 'media'
+export const WAVEFORM_BUCKET = 'waveforms'
 
 // Maximum file size - configurable via environment variable
 // Default: 50MB (Supabase Free plan limit)

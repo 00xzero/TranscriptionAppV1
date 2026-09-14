@@ -1,6 +1,25 @@
-import { isProjectGoneError, mapProjectWriteError } from '@/lib/supabase/project-errors'
+import {
+  classifyProjectLinkWriteRejection,
+  getProjectErrorCode,
+  isProjectGoneError,
+  mapProjectWriteError,
+} from '@/lib/supabase/project-errors'
 
 describe('project write errors', () => {
+  test('reads a driver error code without interpreting messages', () => {
+    expect(getProjectErrorCode({ code: 'PJ004' })).toBe('PJ004')
+    expect(getProjectErrorCode(new Error('PJ004'))).toBeNull()
+  })
+
+  test.each([
+    ['PJ002', 'deleting'],
+    ['PGRST116', 'gone'],
+    ['ETIMEDOUT', null],
+    [undefined, null],
+  ])('classifies link rejection %s as %s', (code, expected) => {
+    expect(classifyProjectLinkWriteRejection(code ? { code } : null)).toBe(expected)
+  })
+
   test.each([
     ['23505', 'A project with that name already exists here.'],
     ['23503', 'That project no longer exists.'],

@@ -403,6 +403,51 @@ BEGIN
 END;
 $$;
 
+-- Filtered Postgres Changes subscriptions cannot safely deliver DELETE events:
+-- the old row has no user_id under the default replica identity, and deleted
+-- rows cannot be checked through table RLS. Emit one compact private
+-- invalidation per affected user and DELETE statement instead. Clients refetch
+-- the named table through its normal user-scoped SELECT policy.
+CREATE POLICY "Users can receive own Projects v1 delete invalidations"
+  ON realtime.messages
+  FOR SELECT
+  TO authenticated
+  USING (
+    extension = 'broadcast'
+    AND realtime.topic() = 'projects-v1:' || (SELECT auth.uid())::text
+  );
+
+CREATE OR REPLACE FUNCTION public.broadcast_projects_v1_deletes()
+RETURNS trigger
+SECURITY DEFINER
+SET search_path = ''
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_user uuid;
+BEGIN
+  FOR v_user IN SELECT DISTINCT user_id FROM deleted_rows LOOP
+    PERFORM realtime.send(
+      jsonb_build_object('table', TG_TABLE_NAME),
+      'DELETE',
+      'projects-v1:' || v_user::text,
+      true
+    );
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER projects_delete_invalidation
+  AFTER DELETE ON public.projects
+  REFERENCING OLD TABLE AS deleted_rows
+  FOR EACH STATEMENT EXECUTE FUNCTION public.broadcast_projects_v1_deletes();
+
+CREATE TRIGGER transcripts_delete_invalidation
+  AFTER DELETE ON public.transcripts
+  REFERENCING OLD TABLE AS deleted_rows
+  FOR EACH STATEMENT EXECUTE FUNCTION public.broadcast_projects_v1_deletes();
+
 REVOKE ALL ON FUNCTION public.projects_before_insert() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.projects_before_update() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.projects_before_delete() FROM PUBLIC;
@@ -413,6 +458,7 @@ REVOKE ALL ON FUNCTION public.project_branch_inventory(uuid, uuid[]) FROM PUBLIC
 REVOKE ALL ON FUNCTION public.project_branch_transcript_count(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.begin_project_delete(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.finish_project_delete(uuid, uuid[], text[], text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.broadcast_projects_v1_deletes() FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION public.project_branch_transcript_count(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.begin_project_delete(uuid) TO authenticated;

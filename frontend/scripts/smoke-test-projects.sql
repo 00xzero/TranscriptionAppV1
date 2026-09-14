@@ -311,5 +311,57 @@ SELECT pg_temp.assert_true(
   'branch inventory must not be capped at 1000 rows'
 );
 
+RESET ROLE;
+INSERT INTO public.projects (id, user_id, name)
+VALUES ('20000000-0000-0000-0000-000000000040', '10000000-0000-0000-0000-000000000001', 'Broadcast');
+INSERT INTO public.transcripts (id, user_id, title, status)
+VALUES ('30000000-0000-0000-0000-000000000040', '10000000-0000-0000-0000-000000000001', 'Broadcast', 'created');
+
+CREATE TEMP TABLE broadcast_counts (table_name text PRIMARY KEY, message_count bigint) ON COMMIT DROP;
+INSERT INTO broadcast_counts (table_name, message_count)
+SELECT 'transcripts', count(*) FROM realtime.messages
+WHERE topic = 'projects-v1:10000000-0000-0000-0000-000000000001'
+  AND event = 'DELETE' AND payload ->> 'table' = 'transcripts';
+INSERT INTO broadcast_counts (table_name, message_count)
+SELECT 'projects', count(*) FROM realtime.messages
+WHERE topic = 'projects-v1:10000000-0000-0000-0000-000000000001'
+  AND event = 'DELETE' AND payload ->> 'table' = 'projects';
+
+DELETE FROM public.transcripts WHERE id = '30000000-0000-0000-0000-000000000040';
+DELETE FROM public.projects WHERE id = '20000000-0000-0000-0000-000000000040';
+
+SELECT pg_temp.assert_true(
+  (SELECT count(*) FROM realtime.messages
+   WHERE topic = 'projects-v1:10000000-0000-0000-0000-000000000001'
+     AND event = 'DELETE' AND private
+     AND payload ->> 'table' = 'transcripts')
+  = (SELECT message_count + 1 FROM broadcast_counts WHERE table_name = 'transcripts'),
+  'one private transcript invalidation per delete statement'
+);
+SELECT pg_temp.assert_true(
+  (SELECT count(*) FROM realtime.messages
+   WHERE topic = 'projects-v1:10000000-0000-0000-0000-000000000001'
+     AND event = 'DELETE' AND private
+     AND payload ->> 'table' = 'projects')
+  = (SELECT message_count + 1 FROM broadcast_counts WHERE table_name = 'projects'),
+  'one private project invalidation per delete statement'
+);
+
+SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL ROLE authenticated;
+SELECT set_config('realtime.topic', 'projects-v1:10000000-0000-0000-0000-000000000001', true);
+SELECT pg_temp.assert_true(
+  EXISTS (
+    SELECT 1 FROM realtime.messages
+    WHERE event = 'DELETE' AND payload ->> 'table' = 'projects'
+  ),
+  'owner can receive own delete invalidations'
+);
+SELECT set_config('realtime.topic', 'projects-v1:10000000-0000-0000-0000-000000000002', true);
+SELECT pg_temp.assert_true(
+  NOT EXISTS (SELECT 1 FROM realtime.messages),
+  'a foreign delete-invalidation topic is not authorized'
+);
+
 ROLLBACK;
 SELECT 'projects smoke test passed' AS result;

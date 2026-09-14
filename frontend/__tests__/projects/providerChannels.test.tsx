@@ -9,6 +9,7 @@ const mockGetUser = jest.fn()
 const mockOnAuthStateChange = jest.fn()
 const mockChannel = jest.fn()
 const mockRemoveChannel = jest.fn()
+const mockSetAuth = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockFetchTranscripts = jest.fn()
 let authStateHandler:
@@ -41,6 +42,7 @@ jest.mock('@/infra/supabase/client', () => ({
     },
     channel: mockChannel,
     removeChannel: mockRemoveChannel,
+    realtime: { setAuth: mockSetAuth },
   }),
 }))
 
@@ -79,6 +81,7 @@ describe('ProjectsProvider realtime ownership', () => {
     jest.clearAllMocks()
     mockFetchProjects.mockResolvedValue([])
     mockFetchTranscripts.mockResolvedValue([])
+    mockSetAuth.mockResolvedValue(undefined)
     authStateHandler = null
     mockOnAuthStateChange.mockImplementation((handler) => {
       authStateHandler = handler
@@ -96,7 +99,7 @@ describe('ProjectsProvider realtime ownership', () => {
     })
   })
 
-  test('opens exactly one projects channel and one transcript channel for any consumer count', async () => {
+  test('opens one channel per table plus one private delete-invalidation channel', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-a' } } },
     })
@@ -109,7 +112,7 @@ describe('ProjectsProvider realtime ownership', () => {
       </ProjectsProvider>
     )
 
-    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
     expect(mockGetSession).toHaveBeenCalledTimes(1)
     expect(mockGetUser).toHaveBeenCalledTimes(1)
     expect(mockOnAuthStateChange).toHaveBeenCalledTimes(1)
@@ -117,8 +120,13 @@ describe('ProjectsProvider realtime ownership', () => {
       expect.arrayContaining([
         expect.stringMatching(/^projects-changes:user_id=eq\.user-a:/),
         expect.stringMatching(/^transcripts-changes:user_id=eq\.user-a:/),
+        'projects-v1:user-a',
       ])
     )
+    expect(mockSetAuth).toHaveBeenCalledTimes(1)
+    expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
+      config: { private: true },
+    })
   })
 
   test('does not remount app content when auth resolves', async () => {
@@ -142,7 +150,7 @@ describe('ProjectsProvider realtime ownership', () => {
       </ProjectsProvider>
     )
 
-    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
     expect(onMount).toHaveBeenCalledTimes(1)
   })
 
@@ -249,5 +257,105 @@ describe('ProjectsProvider realtime ownership', () => {
 
     expect(screen.getByTestId('project-a')).toBeEmptyDOMElement()
     expect(screen.getByTestId('project-b')).toHaveTextContent('transcript-a')
+  })
+
+  test('refetches only the table named by a private delete invalidation', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+
+    render(
+      <ProjectsProvider>
+        <Consumer />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
+    const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+      ([name]) => name === 'projects-v1:user-a'
+    )
+    const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+    const onDelete = invalidationChannel.on.mock.calls[0][2]
+    mockFetchProjects.mockClear()
+    mockFetchTranscripts.mockClear()
+
+    act(() => onDelete({ payload: { table: 'transcripts' } }))
+    await waitFor(() => expect(mockFetchTranscripts).toHaveBeenCalledTimes(1))
+    expect(mockFetchProjects).not.toHaveBeenCalled()
+
+    act(() => onDelete({ payload: { table: 'projects' } }))
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1))
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+  })
+
+  test('coalesces a burst into one in-flight and one trailing refetch per table', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+
+    render(
+      <ProjectsProvider>
+        <Consumer />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
+    const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+      ([name]) => name === 'projects-v1:user-a'
+    )
+    const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+    const onDelete = invalidationChannel.on.mock.calls[0][2]
+    const firstRefetch = deferred<unknown[]>()
+    mockFetchTranscripts.mockReset()
+    mockFetchTranscripts
+      .mockReturnValueOnce(firstRefetch.promise)
+      .mockResolvedValue([])
+
+    act(() => {
+      for (let index = 0; index < 5; index += 1) {
+        onDelete({ payload: { table: 'transcripts' } })
+      }
+    })
+
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      firstRefetch.resolve([])
+      await firstRefetch.promise
+    })
+
+    await waitFor(() => expect(mockFetchTranscripts).toHaveBeenCalledTimes(2))
+  })
+
+  test('refetches both tables when the private channel resubscribes', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+
+    render(
+      <ProjectsProvider>
+        <Consumer />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
+    const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+      ([name]) => name === 'projects-v1:user-a'
+    )
+    const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+    const onStatus = invalidationChannel.subscribe.mock.calls[0][0]
+    mockFetchProjects.mockClear()
+    mockFetchTranscripts.mockClear()
+
+    act(() => onStatus('SUBSCRIBED'))
+    expect(mockFetchProjects).not.toHaveBeenCalled()
+    expect(mockFetchTranscripts).not.toHaveBeenCalled()
+
+    act(() => onStatus('SUBSCRIBED'))
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1))
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
   })
 })

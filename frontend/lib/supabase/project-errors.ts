@@ -7,13 +7,28 @@ const PROJECT_MISSING_MESSAGE = 'That project no longer exists.'
 const PROJECT_DELETING_MESSAGE = 'That project is being deleted.'
 const PROJECT_GENERIC_MESSAGE = 'Something went wrong. Please try again.'
 
-function errorCode(error: unknown): string | null {
+export type ProjectLinkWriteRejection = 'deleting' | 'gone'
+
+export function getProjectErrorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null
   return typeof (error as DatabaseError).code === 'string' ? (error as DatabaseError).code! : null
 }
 
+export function classifyProjectLinkWriteRejection(
+  error: unknown
+): ProjectLinkWriteRejection | null {
+  switch (getProjectErrorCode(error)) {
+    case 'PJ002':
+      return 'deleting'
+    case 'PGRST116':
+      return 'gone'
+    default:
+      return null
+  }
+}
+
 export function mapProjectWriteError(error: unknown): string {
-  switch (errorCode(error)) {
+  switch (getProjectErrorCode(error)) {
     case '23505':
       return PROJECT_DUPLICATE_MESSAGE
     case '23503':
@@ -27,5 +42,5 @@ export function mapProjectWriteError(error: unknown): string {
 }
 
 export function isProjectGoneError(error: unknown): boolean {
-  return ['23503', 'PJ001', 'PJ002'].includes(errorCode(error) ?? '')
+  return ['23503', 'PJ001', 'PJ002'].includes(getProjectErrorCode(error) ?? '')
 }

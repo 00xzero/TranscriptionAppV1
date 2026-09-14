@@ -24,6 +24,7 @@ import {
 } from './queries'
 import { buildProjectTree } from '@/core/projects/tree'
 import { randomId } from '@/lib/ids'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
     Transcript,
     Project,
@@ -130,6 +131,96 @@ function restoreTranscript(transcripts: Transcript[], transcript: Transcript): T
 export type RealtimeHookOptions = {
     enabled?: boolean
     userId: string | null
+}
+
+type DeleteInvalidationPayload = {
+    payload?: { table?: unknown }
+}
+
+type DeleteInvalidationTable = 'projects' | 'transcripts'
+
+type RefetchQueue = {
+    running: boolean
+    queued: boolean
+}
+
+/**
+ * Reconciles DELETEs that user_id-filtered Postgres Changes subscriptions
+ * cannot receive safely. The database sends no row data, only the affected
+ * table name, on a private per-user topic.
+ */
+export function useProjectsDeleteInvalidation(
+    userId: string,
+    refetchProjects: () => Promise<void>,
+    refetchTranscripts: () => Promise<void>
+) {
+    useEffect(() => {
+        let active = true
+        let channel: RealtimeChannel | null = null
+        let hasSubscribed = false
+        const supabase = createClient()
+        const refetchQueues: Record<DeleteInvalidationTable, RefetchQueue> = {
+            projects: { running: false, queued: false },
+            transcripts: { running: false, queued: false },
+        }
+        const refetches = {
+            projects: refetchProjects,
+            transcripts: refetchTranscripts,
+        }
+
+        const queueRefetch = (table: DeleteInvalidationTable) => {
+            const queue = refetchQueues[table]
+            if (queue.running) {
+                queue.queued = true
+                return
+            }
+
+            queue.running = true
+            void (async () => {
+                while (active) {
+                    queue.queued = false
+                    try {
+                        await refetches[table]()
+                    } catch (error) {
+                        console.error(`[projects] Failed to refetch ${table} after delete:`, error)
+                    }
+                    if (!queue.queued) break
+                }
+                queue.running = false
+            })()
+        }
+
+        void supabase.realtime.setAuth().then(() => {
+            if (!active) return
+            channel = supabase
+                .channel(`projects-v1:${userId}`, { config: { private: true } })
+                .on('broadcast', { event: 'DELETE' }, (message: DeleteInvalidationPayload) => {
+                    if (message.payload?.table === 'projects') {
+                        queueRefetch('projects')
+                    } else if (message.payload?.table === 'transcripts') {
+                        queueRefetch('transcripts')
+                    }
+                })
+                .subscribe((status) => {
+                    if (!active || status !== 'SUBSCRIBED') return
+                    if (hasSubscribed) {
+                        queueRefetch('projects')
+                        queueRefetch('transcripts')
+                    } else {
+                        hasSubscribed = true
+                    }
+                })
+        }).catch((error) => {
+            if (active) {
+                console.error('[projects] Failed to authenticate delete invalidation channel:', error)
+            }
+        })
+
+        return () => {
+            active = false
+            if (channel) void supabase.removeChannel(channel)
+        }
+    }, [refetchProjects, refetchTranscripts, userId])
 }
 
 export function useTranscriptsRealtime(options: RealtimeHookOptions) {

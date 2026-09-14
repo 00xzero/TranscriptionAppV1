@@ -11,6 +11,7 @@ import {
 import { buildProjectTree } from '@/core/projects/tree'
 import {
   useAuthIdentity,
+  useProjectsDeleteInvalidation,
   useProjectsRealtime,
   useTranscriptsRealtime,
 } from '@/lib/supabase/hooks'
@@ -27,6 +28,11 @@ const ProjectsDataContext = createContext<ProjectsData | null>(null)
 function useProjectsDataValue(userId: string) {
   const projectData = useProjectsRealtime({ userId, enabled: true })
   const transcriptData = useTranscriptsRealtime({ userId, enabled: true })
+  useProjectsDeleteInvalidation(
+    userId,
+    projectData.refetch,
+    transcriptData.refetch
+  )
 
   return {
     projects: projectData.projects,

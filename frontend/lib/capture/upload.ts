@@ -1,9 +1,14 @@
 import { createClient } from '@/infra/supabase/client'
 import {
+  MEDIA_BUCKET,
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
 import { randomId } from '@/lib/ids'
+import {
+    classifyProjectLinkWriteRejection,
+    mapProjectWriteError,
+} from '@/lib/supabase/project-errors'
 import { transferToStorage } from './storageTransfer'
 
 /**
@@ -136,7 +141,7 @@ async function rollbackPartialCapture(
 
     if (didUploadFile && storagePath) {
         const { error: removeError } = await supabase.storage
-            .from('media')
+            .from(MEDIA_BUCKET)
             .remove([storagePath])
 
         if (removeError) {
@@ -348,13 +353,26 @@ export async function runCaptureUpload(
                 .from('transcripts')
                 .update({ source_object_key: storagePath })
                 .eq('id', transcriptId)
-            const { error: updateError } = await (signal
+                .select('id')
+            const updateWithSignal = signal
                 ? updateQuery.abortSignal(signal)
-                : updateQuery)
+                : updateQuery
+            const { data: linkedTranscript, error: updateError } = await updateWithSignal.single()
 
-            if (updateError) {
+            if (updateError || !linkedTranscript) {
                 console.error('[capture] Failed to update transcript source_object_key:', updateError)
-                throw new Error(`Failed to update transcript: ${updateError.message}`)
+                const linkRejection = classifyProjectLinkWriteRejection(updateError)
+                const updateErrorMessage =
+                    updateError?.message ?? 'the transcript is no longer available'
+                if (linkRejection === 'deleting') {
+                    throw new Error(mapProjectWriteError(updateError))
+                }
+                if (linkRejection === 'gone') {
+                    throw new Error('Failed to update transcript: the transcript is no longer available')
+                }
+                throw new Error(
+                    `Failed to update transcript: ${updateErrorMessage}`
+                )
             }
             didLinkMediaToTranscript = true
             console.log('[capture] Transcript updated with source_object_key')

@@ -81,4 +81,22 @@ describe('projects v1 migration', () => {
     ])
     expect(sql).not.toContain('cancel_project_delete')
   })
+
+  test('broadcasts compact, private, user-scoped delete invalidations', () => {
+    const definition = functionDefinition('broadcast_projects_v1_deletes')
+    expect(definition).toContain('security definer')
+    expect(definition).toContain("set search_path = ''")
+    expect(definition).toContain("jsonb_build_object('table', tg_table_name)")
+    expect(definition).toContain("'projects-v1:' || v_user::text")
+    expect(definition).toMatch(/realtime\.send\([\s\S]*'delete'[\s\S]*true/)
+    expect(sql).toMatch(
+      /after delete on public\.projects\s+referencing old table as deleted_rows\s+for each statement/
+    )
+    expect(sql).toMatch(
+      /after delete on public\.transcripts\s+referencing old table as deleted_rows\s+for each statement/
+    )
+    expect(sql).toContain('on realtime.messages')
+    expect(sql).toContain("realtime.topic() = 'projects-v1:' || (select auth.uid())::text")
+    expect(sql).not.toContain('replica identity full')
+  })
 })

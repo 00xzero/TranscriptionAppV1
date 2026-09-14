@@ -5,10 +5,12 @@
  */
 
 import { once } from 'node:events'
+import { NonRetriableError } from 'inngest'
 import { inngest } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
-import { getSignedMediaUrl } from '@/infra/supabase/storage'
+import { getSignedMediaUrl, WAVEFORM_BUCKET } from '@/infra/supabase/storage'
 import { waveformRequestedTrigger } from '@/lib/inngest/events'
+import { classifyProjectLinkWriteRejection } from '@/lib/supabase/project-errors'
 import { probeMedia, spawnPcmStream } from '@/lib/audio/ffmpeg'
 import {
     buildWaveformArtifact,
@@ -16,10 +18,18 @@ import {
     computePeaks,
     PEAK_COUNT,
     WAVEFORM_ARTIFACT_VERSION,
-    WAVEFORM_BUCKET,
 } from '@/lib/audio/compute-peaks'
 
 const SIGNED_URL_TTL_SECONDS = 6 * 60 * 60 // long enough for multi-hour files
+
+type SupabaseError = {
+    code?: string
+    message?: string
+}
+
+function databaseErrorMessage(error: SupabaseError | null): string {
+    return error?.message ?? 'the transcript is no longer available'
+}
 
 export const handleWaveformRequested = inngest.createFunction(
     {
@@ -160,7 +170,7 @@ export const handleWaveformRequested = inngest.createFunction(
                 throw new Error(`Failed to upload waveform: ${uploadError.message}`)
             }
 
-            const { error: dbError } = await supabase
+            const { data: finalizedTranscript, error: dbError } = await supabase
                 .from('transcripts')
                 .update({
                     waveform_object_key: objectKey,
@@ -169,9 +179,56 @@ export const handleWaveformRequested = inngest.createFunction(
                     waveform_version: WAVEFORM_ARTIFACT_VERSION,
                 })
                 .eq('id', transcriptId)
+                .select('id')
+                .single()
 
-            if (dbError) {
-                throw new Error(`Failed to finalize waveform row: ${dbError.message}`)
+            if (dbError || !finalizedTranscript) {
+                const compensate = async () => {
+                    const { error: removeError } = await supabase.storage
+                        .from(WAVEFORM_BUCKET)
+                        .remove([objectKey])
+                    if (removeError) {
+                        console.error(
+                            `[inngest] Failed to compensate waveform upload for ${transcriptId}:`,
+                            removeError
+                        )
+                    }
+                }
+                const isConfirmedRejectedLink =
+                    classifyProjectLinkWriteRejection(dbError) !== null ||
+                    (!dbError && !finalizedTranscript)
+
+                if (isConfirmedRejectedLink) {
+                    await compensate()
+                    throw new NonRetriableError(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}`
+                    )
+                }
+
+                const { data: reconciledTranscript, error: reconcileError } = await supabase
+                    .from('transcripts')
+                    .select('waveform_object_key')
+                    .eq('id', transcriptId)
+                    .maybeSingle()
+
+                if (reconcileError) {
+                    throw new Error(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}; ` +
+                        `reconciliation failed: ${reconcileError.message}`
+                    )
+                }
+
+                if (reconciledTranscript?.waveform_object_key === objectKey) {
+                    console.warn(
+                        `[inngest] Waveform link response was ambiguous for ${transcriptId}; ` +
+                        'the committed row was recovered by reconciliation'
+                    )
+                } else {
+                    await compensate()
+                    throw new Error(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}`
+                    )
+                }
             }
 
             return {
