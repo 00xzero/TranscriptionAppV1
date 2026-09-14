@@ -3,10 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import ContextualHeader from '../components/ContextualHeader'
 import { TooltipProvider } from '../components/ui/tooltip'
+import { buildProjectTree } from '@/core/projects/tree'
+import { makeProject } from './projects/fixtures'
 
 const usePathnameMock = jest.fn()
 const openCaptureModalMock = jest.fn()
 const getUserMock = jest.fn()
+const useProjectsDataMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
@@ -34,6 +37,10 @@ jest.mock('../infra/supabase/client', () => ({
   }),
 }))
 
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => useProjectsDataMock(),
+}))
+
 describe('ContextualHeader', () => {
   const renderHeader = () =>
     render(
@@ -50,6 +57,7 @@ describe('ContextualHeader', () => {
         user: { id: 'u1' },
       },
     })
+    useProjectsDataMock.mockReturnValue({ tree: buildProjectTree([]) })
   })
 
   test('dispatches editor-scroll-to-top when the transcript breadcrumb is activated', async () => {
@@ -77,5 +85,24 @@ describe('ContextualHeader', () => {
 
     expect(await screen.findByText('olivetti')).toBeInTheDocument()
     expect(getUserMock).not.toHaveBeenCalled()
+  })
+
+  test('renders project breadcrumbs instead of the Library title', async () => {
+    usePathnameMock.mockReturnValue('/projects/child')
+    useProjectsDataMock.mockReturnValue({
+      tree: buildProjectTree([
+        makeProject({ id: 'root', name: 'Root' }),
+        makeProject({ id: 'child', name: 'Child', parent_id: 'root' }),
+      ]),
+    })
+
+    renderHeader()
+
+    expect(await screen.findByRole('link', { name: 'Child' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects')
+    expect(screen.queryByText('Library')).not.toBeInTheDocument()
   })
 })

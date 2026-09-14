@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
+import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/components/ui/toaster'
 import {
@@ -78,56 +79,6 @@ export default function LibraryView() {
     const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'there'
     return name.split(' ')[0]
   }
-
-  // Format relative time
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    if (diffMs < 0) return 'Just now'
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays === 1) return 'Yesterday'
-    return `${diffDays}d ago`
-  }
-
-  // Format duration in seconds to human readable
-  const formatDuration = (seconds: number | null) => {
-    if (seconds === null || seconds === undefined) return null
-    const mins = Math.floor(seconds / 60)
-    if (mins < 1) {
-      const secs = Math.floor(seconds)
-      if (secs < 1) return '< 1 sec'
-      return secs === 1 ? '1 sec' : `${secs} sec`
-    }
-    if (mins < 60) return mins === 1 ? '1 min' : `${mins} mins`
-    const hrs = Math.floor(mins / 60)
-    const remainingMins = mins % 60
-    const hrsLabel = `${hrs} hr`
-    if (remainingMins === 0) return hrsLabel
-    const minsLabel = remainingMins === 1 ? '1 min' : `${remainingMins} mins`
-    return `${hrsLabel} ${minsLabel}`
-  }
-
-  // Get status badge info
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'queued':
-      case 'processing':
-        return { label: 'Processing', className: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700' }
-      case 'error':
-        return { label: 'Error', className: 'text-ember-red bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' }
-      default:
-        return null
-    }
-  }
-
-  const isCompleted = (status: string) => status === 'completed'
 
   return (
     <>
@@ -221,77 +172,44 @@ export default function LibraryView() {
               No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
             </div>
           ) : (
-            transcripts.slice(0, 5).map((transcript) => {
-              const statusBadge = getStatusBadge(transcript.status)
-              const duration = formatDuration(transcript.duration_seconds)
-
-              return (
-                <div
-                  key={transcript.id}
-                  className="group flex items-center justify-between p-4 transition-colors hover:bg-subtle"
-                >
-                  <Link
-                    href={isCompleted(transcript.status) ? `/editor/${transcript.id}` : `/transcripts`}
-                    title={isCompleted(transcript.status) ? `Open ${transcript.title || 'Untitled'}` : `Open transcript list for ${transcript.title || 'Untitled'}`}
-                    className="flex items-center gap-4 flex-1 cursor-pointer"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-surface text-foreground/40 dark:bg-subtle">
-                      <span className="font-mono text-lg">¶</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-sans text-sm font-medium text-ink dark:text-paper group-hover:text-trust-blue transition-colors truncate">
-                          {transcript.title || 'Untitled'}
-                        </h4>
-                        {statusBadge && (
-                          <span className={`font-mono text-[9px] px-1.5 py-0.5 rounded-sm border ${statusBadge.className}`}>
-                            {statusBadge.label}
-                          </span>
-                        )}
-                      </div>
-                      <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
-                        {duration || 'Duration unknown'}
-                      </p>
-                    </div>
-                  </Link>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-ink/60 dark:text-paper/60 font-sans hidden md:block">
-                      {formatRelativeTime(transcript.updated_at)}
-                    </span>
-                    <DropdownMenu>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
-                              aria-label={`More options for ${transcript.title || 'Untitled'}`}
-                            >
-                              <span className="text-lg leading-none">&#8942;</span>
-                            </button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>More options</TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
-                          onSelect={() => {
-                            setPendingDelete({
-                              id: transcript.id,
-                              title: transcript.title || 'Untitled',
-                            })
-                            setDeleteDialogOpen(true)
-                          }}
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              )
-            })
+            transcripts.slice(0, 5).map((transcript) => (
+              <TranscriptRow
+                key={transcript.id}
+                transcript={transcript}
+                actions={(
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
+                            aria-label={`More options for ${transcript.title || 'Untitled'}`}
+                          >
+                            <span className="text-lg leading-none">&#8942;</span>
+                          </button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>More options</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
+                        onSelect={() => {
+                          setPendingDelete({
+                            id: transcript.id,
+                            title: transcript.title || 'Untitled',
+                          })
+                          setDeleteDialogOpen(true)
+                        }}
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              />
+            ))
           )}
         </div>
         </section>
