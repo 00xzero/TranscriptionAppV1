@@ -100,6 +100,10 @@ describe('cleanup orphaned media', () => {
     })
     expect(() => parseCleanupOptions(['--min-age-hours', '-1'])).toThrow('non-negative')
     expect(() => parseCleanupOptions(['--min-age-hours'])).toThrow('non-negative')
+    expect(() => parseCleanupOptions(['--min-age-hours', ''])).toThrow('non-negative')
+    expect(() => parseCleanupOptions(['--min-age-hours', '   '])).toThrow('non-negative')
+    expect(parseCleanupOptions(['--min-age-hours', ' 0 ']).minAgeHours).toBe(0)
+    expect(parseCleanupOptions(['--min-age-hours', ' 2.5 ']).minAgeHours).toBe(2.5)
   })
 
   test('only considers unreferenced objects with a known age at or beyond the cutoff', () => {

@@ -12,8 +12,11 @@ function parseCleanupOptions(args) {
   let minAgeHours = DEFAULT_MIN_AGE_HOURS
   if (minAgeIndex !== -1) {
     const rawValue = args[minAgeIndex + 1]
+    if (rawValue === undefined || rawValue.trim() === '') {
+      throw new Error('--min-age-hours must be a non-negative number')
+    }
     minAgeHours = Number(rawValue)
-    if (rawValue === undefined || !Number.isFinite(minAgeHours) || minAgeHours < 0) {
+    if (!Number.isFinite(minAgeHours) || minAgeHours < 0) {
       throw new Error('--min-age-hours must be a non-negative number')
     }
   }

@@ -35,6 +35,10 @@ export const handleWaveformRequested = inngest.createFunction(
     {
         id: 'handle-waveform-requested',
         triggers: [{ event: waveformRequestedTrigger }],
+        concurrency: {
+            limit: 1,
+            key: 'event.data.transcriptId',
+        },
         retries: 3,
         onFailure: async ({ event }) => {
             const { transcriptId } = event.data.event.data
@@ -184,6 +188,28 @@ export const handleWaveformRequested = inngest.createFunction(
 
             if (dbError || !finalizedTranscript) {
                 const compensate = async () => {
+                    const { data: readyReference, error: referenceError } = await supabase
+                        .from('transcripts')
+                        .select('id')
+                        .eq('waveform_object_key', objectKey)
+                        .eq('waveform_status', 'ready')
+                        .limit(1)
+                        .maybeSingle()
+
+                    if (referenceError) {
+                        console.error(
+                            `[inngest] Could not verify waveform references before compensation for ${transcriptId}:`,
+                            referenceError
+                        )
+                        return
+                    }
+                    if (readyReference) {
+                        console.warn(
+                            `[inngest] Preserving waveform ${objectKey}; a ready transcript still references it`
+                        )
+                        return
+                    }
+
                     const { error: removeError } = await supabase.storage
                         .from(WAVEFORM_BUCKET)
                         .remove([objectKey])

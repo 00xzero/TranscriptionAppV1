@@ -7,6 +7,7 @@ import { InngestTestEngine } from '@inngest/test'
 const finalizeSingleMock = jest.fn()
 const reconcileMaybeSingleMock = jest.fn()
 const reconcileSelectMock = jest.fn()
+const referenceMaybeSingleMock = jest.fn()
 const uploadMock = jest.fn()
 const removeMock = jest.fn()
 const computePeaksMock = jest.fn()
@@ -52,10 +53,19 @@ jest.mock('@/infra/supabase/admin', () => ({
           in: jest.fn(async () => ({ error: null })),
         }),
       }),
-      select: (...args: unknown[]) => {
-        reconcileSelectMock(...args)
+      select: (columns: string) => {
+        if (columns === 'id') {
+          return {
+            eq: () => ({
+              eq: () => ({
+                limit: () => ({ maybeSingle: referenceMaybeSingleMock }),
+              }),
+            }),
+          }
+        }
+        reconcileSelectMock(columns)
         return {
-        eq: () => ({ maybeSingle: reconcileMaybeSingleMock }),
+          eq: () => ({ maybeSingle: reconcileMaybeSingleMock }),
         }
       },
     }),
@@ -98,6 +108,7 @@ describe('waveform finalization reconciliation', () => {
     computePeaksMock.mockResolvedValue({ peaks: new Float32Array([0.1, 0.2]), pointsPerSecond: 1 })
     uploadMock.mockResolvedValue({ error: null })
     removeMock.mockResolvedValue({ data: [{ name: waveformObjectKey }], error: null })
+    referenceMaybeSingleMock.mockResolvedValue({ data: null, error: null })
     finalizeSingleMock.mockResolvedValue({ data: { id: transcriptId }, error: null })
     reconcileMaybeSingleMock.mockResolvedValue({
       data: {
@@ -107,6 +118,13 @@ describe('waveform finalization reconciliation', () => {
         waveform_version: 1,
       },
       error: null,
+    })
+  })
+
+  test('serializes waveform processing per transcript', () => {
+    expect(handleWaveformRequested.opts.concurrency).toEqual({
+      limit: 1,
+      key: 'event.data.transcriptId',
     })
   })
 
@@ -187,6 +205,52 @@ describe('waveform finalization reconciliation', () => {
     expect(getErrorMessage(error)).toContain('response lost')
     expect((error as { name?: string })?.name).not.toBe('NonRetriableError')
     expect(removeMock).toHaveBeenCalledWith([waveformObjectKey])
+  })
+
+  test('preserves a waveform object still referenced by a ready transcript', async () => {
+    finalizeSingleMock.mockResolvedValue({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValue({
+      data: {
+        waveform_object_key: waveformObjectKey,
+        waveform_status: 'ready',
+        waveform_points_per_second: 2,
+        waveform_version: 1,
+      },
+      error: null,
+    })
+    referenceMaybeSingleMock.mockResolvedValue({
+      data: { id: transcriptId },
+      error: null,
+    })
+
+    const { error } = await execute()
+
+    expect(getErrorMessage(error)).toContain('response lost')
+    expect(referenceMaybeSingleMock).toHaveBeenCalled()
+    expect(removeMock).not.toHaveBeenCalled()
+  })
+
+  test('preserves the waveform object when its reference check fails', async () => {
+    finalizeSingleMock.mockResolvedValue({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValue({
+      data: null,
+      error: null,
+    })
+    referenceMaybeSingleMock.mockResolvedValue({
+      data: null,
+      error: { message: 'reference read failed' },
+    })
+
+    const { error } = await execute()
+
+    expect(getErrorMessage(error)).toContain('response lost')
+    expect(removeMock).not.toHaveBeenCalled()
   })
 
   test('does not touch storage when reconciliation itself fails', async () => {
