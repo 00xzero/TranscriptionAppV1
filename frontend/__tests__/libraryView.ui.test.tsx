@@ -8,7 +8,7 @@ import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors
 
 const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
-const mockUseTranscriptsRealtime = jest.fn()
+const mockUseProjectsData = jest.fn()
 const mockToast = jest.fn()
 
 jest.mock('@/components/ui/toaster', () => ({
@@ -41,8 +41,8 @@ jest.mock('@/infra/supabase/client', () => ({
   }),
 }))
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useTranscriptsRealtime: () => mockUseTranscriptsRealtime(),
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
 }))
 
 jest.mock('next/link', () => {
@@ -73,9 +73,9 @@ describe('LibraryView', () => {
       error: null,
     })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
-    mockUseTranscriptsRealtime.mockReturnValue({
+    mockUseProjectsData.mockReturnValue({
       transcripts: [makeTranscript()],
-      isLoading: false,
+      transcriptsLoading: false,
       deleteTranscript: mockDeleteTranscript,
     })
   })

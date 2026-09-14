@@ -2,7 +2,7 @@
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
@@ -30,7 +30,13 @@ function TranscriptsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { openCaptureModal } = useModal()
-  const { transcripts, isLoading, connectionStatus, deleteTranscript: deleteTranscriptAction, refetch } = useTranscriptsRealtime()
+  const {
+    transcripts,
+    transcriptsLoading: isLoading,
+    transcriptConnectionStatus: connectionStatus,
+    deleteTranscript: deleteTranscriptAction,
+    refetchTranscripts: refetch,
+  } = useProjectsData()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per transcript - reused until request completes to prevent double-click issues
   const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})

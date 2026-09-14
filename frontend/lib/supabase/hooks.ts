@@ -3,7 +3,7 @@
  *
  * These hooks wrap the base realtime hook with specific table configurations.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/infra/supabase/client'
 import { useSupabaseRealtime } from './realtime'
 import {
@@ -12,12 +12,26 @@ import {
     fetchTranscriptJobs,
     fetchSpeakers,
     deleteTranscript as deleteTranscriptQuery,
+    fetchProjects,
+    createProject as createProjectQuery,
+    renameProject as renameProjectQuery,
+    moveTranscriptToProject,
+    addTranscriptsToProject,
     updateTranscript as updateTranscriptQuery,
     createSpeaker as createSpeakerQuery,
     updateSpeaker as updateSpeakerQuery,
     deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
-import type { Transcript, JobSummary, Speaker, SpeakerUpdate, TranscriptUpdate } from '@/contracts/db'
+import { buildProjectTree } from '@/core/projects/tree'
+import type {
+    Transcript,
+    Project,
+    JobSummary,
+    Speaker,
+    SpeakerUpdate,
+    TranscriptUpdate,
+} from '@/contracts/db'
+import type { CreateProjectInput } from './queries'
 
 // ============================================================================
 // Transcripts Hook
@@ -51,6 +65,11 @@ export function useAuthIdentity(): AuthIdentity {
                 const { data: sessionData } = await supabase.auth.getSession()
                 if (!isMounted) return
                 const sessionUserId = sessionData.session?.user.id ?? null
+                if (!sessionUserId) {
+                    setIdentity({ userId: null, ready: true })
+                    return
+                }
+
                 setIdentity({ userId: sessionUserId, ready: false })
 
                 const { data, error } = await supabase.auth.getUser()
@@ -89,10 +108,6 @@ export function useAuthIdentity(): AuthIdentity {
     return identity
 }
 
-function useCurrentUserId() {
-    return useAuthIdentity().userId
-}
-
 /** Re-insert a transcript in created_at-desc order unless it is already present. */
 function restoreTranscript(transcripts: Transcript[], transcript: Transcript): Transcript[] {
     if (transcripts.some((t) => t.id === transcript.id)) return transcripts
@@ -108,22 +123,25 @@ function restoreTranscript(transcripts: Transcript[], transcript: Transcript): T
  * Hook for fetching and subscribing to the transcripts list.
  * Uses Supabase Realtime with 5s polling fallback.
  */
-export function useTranscriptsRealtime() {
-    const userId = useCurrentUserId()
+export type RealtimeHookOptions = {
+    enabled?: boolean
+    userId: string | null
+}
+
+export function useTranscriptsRealtime(options: RealtimeHookOptions) {
+    const { enabled = true } = options
+    const { userId } = options
     const fetchFn = useCallback(() => fetchTranscripts(), [])
 
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
         useSupabaseRealtime<Transcript>('transcripts', fetchFn, {
+            enabled,
             realtimeFilter: userId ? `user_id=eq.${userId}` : null,
             subscriptionEnabled: Boolean(userId),
             enablePollingFallback: true,
             pollingInterval: 5000,
             insertPosition: 'prepend',
         })
-
-    useEffect(() => {
-        if (!userId) mutate([])
-    }, [userId, mutate])
 
     // Action: Delete transcript with optimistic update
     const deleteTranscript = useCallback(
@@ -145,6 +163,71 @@ export function useTranscriptsRealtime() {
         [data, mutate, refetch]
     )
 
+    const moveTranscript = useCallback(
+        async (id: string, projectId: string | null) => {
+            const previous = data.find((transcript) => transcript.id === id)
+            mutate((current) =>
+                current.map((transcript) =>
+                    transcript.id === id ? { ...transcript, project_id: projectId } : transcript
+                )
+            )
+
+            try {
+                await moveTranscriptToProject(id, projectId)
+            } catch (err) {
+                if (previous) {
+                    mutate((current) =>
+                        current.map((transcript) =>
+                            transcript.id === id && transcript.project_id === projectId
+                                ? { ...transcript, project_id: previous.project_id }
+                                : transcript
+                        )
+                    )
+                }
+                void refetch()
+                throw err
+            }
+        },
+        [data, mutate, refetch]
+    )
+
+    const addTranscripts = useCallback(
+        async (ids: string[], projectId: string) => {
+            if (ids.length === 0) return
+            const idSet = new Set(ids)
+            const previousProjects = new Map(
+                data
+                    .filter((transcript) => idSet.has(transcript.id))
+                    .map((transcript) => [transcript.id, transcript.project_id])
+            )
+
+            mutate((current) =>
+                current.map((transcript) =>
+                    idSet.has(transcript.id)
+                        ? { ...transcript, project_id: projectId }
+                        : transcript
+                )
+            )
+
+            try {
+                await addTranscriptsToProject(ids, projectId)
+            } catch (err) {
+                mutate((current) =>
+                    current.map((transcript) => {
+                        const previousProjectId = previousProjects.get(transcript.id)
+                        return previousProjects.has(transcript.id) &&
+                            transcript.project_id === projectId
+                            ? { ...transcript, project_id: previousProjectId ?? null }
+                            : transcript
+                    })
+                )
+                void refetch()
+                throw err
+            }
+        },
+        [data, mutate, refetch]
+    )
+
     return {
         transcripts: data,
         isLoading,
@@ -153,6 +236,107 @@ export function useTranscriptsRealtime() {
         mutate,
         refetch,
         deleteTranscript,
+        moveTranscript,
+        addTranscripts,
+    }
+}
+
+// ============================================================================
+// Projects Hook
+// ============================================================================
+
+export function useProjectsRealtime(options: RealtimeHookOptions) {
+    const { enabled = true } = options
+    const { userId } = options
+    const fetchFn = useCallback(() => fetchProjects(), [])
+    const { data, isLoading, error, connectionStatus, mutate, refetch } =
+        useSupabaseRealtime<Project>('projects', fetchFn, {
+            enabled,
+            realtimeFilter: userId ? `user_id=eq.${userId}` : null,
+            subscriptionEnabled: Boolean(userId),
+            enablePollingFallback: true,
+            pollingInterval: 5000,
+        })
+    const tree = useMemo(() => buildProjectTree(data), [data])
+
+    const createProject = useCallback(
+        async (input: CreateProjectInput) => {
+            if (!userId) throw new Error('You must be signed in to create a project.')
+
+            const now = new Date().toISOString()
+            const optimisticId = crypto.randomUUID()
+            const optimisticProject: Project = {
+                id: optimisticId,
+                user_id: userId,
+                parent_id: input.parent_id,
+                name: input.name.trim(),
+                deleting_at: null,
+                created_at: now,
+                updated_at: now,
+            }
+            mutate((current) => [...current, optimisticProject])
+
+            try {
+                const created = await createProjectQuery({ ...input, name: optimisticProject.name })
+                mutate((current) => [
+                    ...current.filter(
+                        (project) => project.id !== optimisticId && project.id !== created.id
+                    ),
+                    created,
+                ])
+                return created
+            } catch (err) {
+                mutate((current) => current.filter((project) => project.id !== optimisticId))
+                void refetch()
+                throw err
+            }
+        },
+        [mutate, refetch, userId]
+    )
+
+    const renameProject = useCallback(
+        async (id: string, name: string) => {
+            const previous = data.find((project) => project.id === id)
+            const nextName = name.trim()
+            mutate((current) =>
+                current.map((project) =>
+                    project.id === id ? { ...project, name: nextName } : project
+                )
+            )
+
+            try {
+                const renamed = await renameProjectQuery(id, nextName)
+                mutate((current) =>
+                    current.map((project) => (project.id === id ? renamed : project))
+                )
+                return renamed
+            } catch (err) {
+                if (previous) {
+                    mutate((current) =>
+                        current.map((project) =>
+                            project.id === id && project.name === nextName
+                                ? { ...project, name: previous.name }
+                                : project
+                        )
+                    )
+                }
+                void refetch()
+                throw err
+            }
+        },
+        [data, mutate, refetch]
+    )
+
+    return {
+        projects: data,
+        tree,
+        isLoading,
+        error,
+        connectionStatus,
+        createProject,
+        renameProject,
+        mutate,
+        refetch,
     }
 }
 

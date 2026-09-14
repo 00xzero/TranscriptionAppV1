@@ -10,12 +10,14 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected'
 
-type TableName = 'transcripts' | 'jobs' | 'speakers'
+type TableName = 'transcripts' | 'projects' | 'jobs' | 'speakers'
 type InsertPosition = 'append' | 'prepend'
 let nextSubscriptionId = 0
 const MAX_REALTIME_RETRIES = 5
 
 interface UseRealtimeOptions<T> {
+    /** Disable all fetching, subscriptions, retries, and polling */
+    enabled?: boolean
     /** Initial data to display while loading */
     initialData?: T[]
     /** Optional Postgres Changes filter, e.g. `transcript_id=eq.<uuid>` */
@@ -41,6 +43,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     options: UseRealtimeOptions<T> = {}
 ) {
     const {
+        enabled = true,
         initialData = [],
         realtimeFilter,
         subscriptionEnabled = true,
@@ -50,10 +53,12 @@ export function useSupabaseRealtime<T extends { id: string }>(
         insertPosition = 'append',
     } = options
 
-    const [data, setData] = useState<T[]>(initialData)
-    const [isLoading, setIsLoading] = useState(true)
+    const [data, setData] = useState<T[]>(enabled ? initialData : [])
+    const [isLoading, setIsLoading] = useState(enabled)
     const [error, setError] = useState<Error | null>(null)
-    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
+    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
+        enabled ? 'connecting' : 'disconnected'
+    )
     const [subscriptionNonce, setSubscriptionNonce] = useState(0)
 
     const channelRef = useRef<RealtimeChannel | null>(null)
@@ -61,6 +66,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const retryCountRef = useRef(0)
     const isMountedRef = useRef(true)
+    const fetchGenerationRef = useRef(0)
     const subscriptionIdRef = useRef<number | null>(null)
 
     if (subscriptionIdRef.current === null) {
@@ -70,25 +76,28 @@ export function useSupabaseRealtime<T extends { id: string }>(
 
     // Fetch data function
     const fetchData = useCallback(async () => {
+        if (!enabled) return
+        const fetchGeneration = fetchGenerationRef.current
         try {
             const result = await fetchFn()
-            if (isMountedRef.current) {
+            if (isMountedRef.current && fetchGenerationRef.current === fetchGeneration) {
                 setData(result)
                 setError(null)
             }
         } catch (err) {
-            if (isMountedRef.current) {
+            if (isMountedRef.current && fetchGenerationRef.current === fetchGeneration) {
                 setError(err instanceof Error ? err : new Error(String(err)))
             }
         } finally {
-            if (isMountedRef.current) {
+            if (isMountedRef.current && fetchGenerationRef.current === fetchGeneration) {
                 setIsLoading(false)
             }
         }
-    }, [fetchFn])
+    }, [enabled, fetchFn])
 
     // Mutate function for optimistic updates
     const mutate = useCallback((newData?: T[] | ((prev: T[]) => T[])) => {
+        if (!enabled) return
         if (newData === undefined) {
             // Revalidate from server
             fetchData()
@@ -97,7 +106,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         } else {
             setData(newData)
         }
-    }, [fetchData])
+    }, [enabled, fetchData])
 
     // Start polling fallback
     const startPolling = useCallback(() => {
@@ -136,6 +145,24 @@ export function useSupabaseRealtime<T extends { id: string }>(
     // Setup realtime subscription
     useEffect(() => {
         isMountedRef.current = true
+
+        if (!enabled) {
+            fetchGenerationRef.current += 1
+            retryCountRef.current = 0
+            stopPolling()
+            clearRetryTimeout()
+            setData([])
+            setError(null)
+            setConnectionStatus('disconnected')
+            setIsLoading(true)
+            return () => {
+                isMountedRef.current = false
+                fetchGenerationRef.current += 1
+                stopPolling()
+                clearRetryTimeout()
+            }
+        }
+
         const supabase = createClient()
 
         // Initial fetch
@@ -147,6 +174,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
             clearRetryTimeout()
             return () => {
                 isMountedRef.current = false
+                fetchGenerationRef.current += 1
                 stopPolling()
                 clearRetryTimeout()
             }
@@ -221,6 +249,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
 
         return () => {
             isMountedRef.current = false
+            fetchGenerationRef.current += 1
             stopPolling()
             clearRetryTimeout()
             if (channelRef.current) {
@@ -230,6 +259,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         }
     }, [
         table,
+        enabled,
         realtimeFilter,
         subscriptionEnabled,
         subscriptionNonce,
@@ -244,10 +274,10 @@ export function useSupabaseRealtime<T extends { id: string }>(
     ])
 
     return {
-        data,
-        isLoading,
-        error,
-        connectionStatus,
+        data: enabled ? data : [],
+        isLoading: enabled ? isLoading : false,
+        error: enabled ? error : null,
+        connectionStatus: enabled ? connectionStatus : 'disconnected' as const,
         mutate,
         refetch: fetchData,
     }

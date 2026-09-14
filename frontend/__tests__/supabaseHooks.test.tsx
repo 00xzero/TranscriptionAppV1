@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useAuthIdentity, useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import { useAuthIdentity, useProjectsRealtime, useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import type { Project } from '@/contracts/db'
 
 const mockFetchTranscripts = jest.fn()
 const mockGetSession = jest.fn()
@@ -9,6 +10,11 @@ const mockUnsubscribe = jest.fn()
 const mockRemoveChannel = jest.fn()
 const mockChannelFactory = jest.fn()
 const mockDeleteTranscript = jest.fn()
+const mockMoveTranscript = jest.fn()
+const mockAddTranscripts = jest.fn()
+const mockFetchProjects = jest.fn()
+const mockCreateProject = jest.fn()
+const mockRenameProject = jest.fn()
 
 let channelMock: {
   on: jest.Mock
@@ -18,6 +24,11 @@ let channelMock: {
 jest.mock('@/lib/supabase/queries', () => ({
   fetchTranscripts: () => mockFetchTranscripts(),
   deleteTranscript: (...args: unknown[]) => mockDeleteTranscript(...args),
+  moveTranscriptToProject: (...args: unknown[]) => mockMoveTranscript(...args),
+  addTranscriptsToProject: (...args: unknown[]) => mockAddTranscripts(...args),
+  fetchProjects: () => mockFetchProjects(),
+  createProject: (...args: unknown[]) => mockCreateProject(...args),
+  renameProject: (...args: unknown[]) => mockRenameProject(...args),
   fetchTranscriptById: jest.fn(),
   fetchTranscriptJobs: jest.fn(),
   fetchSpeakers: jest.fn(),
@@ -113,12 +124,25 @@ describe('useAuthIdentity', () => {
     })
     expect(result.current.ready).toBe(false)
   })
+
+  test('settles as signed out without verifying a session that does not exist', async () => {
+    mockGetSession.mockResolvedValueOnce({ data: { session: null } })
+
+    const { result } = renderHook(() => useAuthIdentity())
+
+    await waitFor(() => {
+      expect(result.current).toEqual({ userId: null, ready: true })
+    })
+    expect(mockGetUser).not.toHaveBeenCalled()
+  })
 })
 
 describe('useTranscriptsRealtime', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockFetchTranscripts.mockResolvedValue([])
+    mockMoveTranscript.mockResolvedValue(undefined)
+    mockAddTranscripts.mockResolvedValue(undefined)
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-from-session' } } },
     })
@@ -130,7 +154,9 @@ describe('useTranscriptsRealtime', () => {
   })
 
   test('opens the filtered realtime channel from the browser session before getUser resolves', async () => {
-    const { result } = renderHook(() => useTranscriptsRealtime())
+    const { result } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
 
     await waitFor(() => {
       expect(result.current.connectionStatus).toBe('connected')
@@ -150,8 +176,8 @@ describe('useTranscriptsRealtime', () => {
   })
 
   test('uses separate channel topics for overlapping transcripts subscriptions', async () => {
-    renderHook(() => useTranscriptsRealtime())
-    renderHook(() => useTranscriptsRealtime())
+    renderHook(() => useTranscriptsRealtime({ userId: 'user-from-session' }))
+    renderHook(() => useTranscriptsRealtime({ userId: 'user-from-session' }))
 
     await waitFor(() => {
       expect(mockChannelFactory).toHaveBeenCalledTimes(2)
@@ -169,7 +195,9 @@ describe('useTranscriptsRealtime', () => {
     const result = { cleanupPendingKeys: ['user/transcript/waveform.json'] }
     mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-1' }])
     mockDeleteTranscript.mockResolvedValueOnce(result)
-    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
 
     await waitFor(() => {
       expect(hook.current.transcripts).toEqual([{ id: 'transcript-1' }])
@@ -190,7 +218,9 @@ describe('useTranscriptsRealtime', () => {
       .mockResolvedValueOnce([transcript])
       .mockReturnValue(new Promise(() => undefined))
     mockDeleteTranscript.mockRejectedValueOnce(error)
-    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
 
     await waitFor(() => {
       expect(hook.current.transcripts).toEqual([transcript])
@@ -218,7 +248,9 @@ describe('useTranscriptsRealtime', () => {
         rejectDelete = reject
       })
     )
-    const { result: hook } = renderHook(() => useTranscriptsRealtime())
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
 
     await waitFor(() => {
       expect(hook.current.transcripts).toEqual([deleted, oldest])
@@ -242,5 +274,163 @@ describe('useTranscriptsRealtime', () => {
     })
 
     expect(hook.current.transcripts).toEqual([inserted, deleted, oldest])
+  })
+
+  test('moves a transcript optimistically and rolls back a failed move', async () => {
+    const transcript = { id: 'transcript-1', project_id: 'project-a' }
+    mockFetchTranscripts.mockResolvedValue([transcript])
+    const error = new Error('move denied')
+    mockMoveTranscript.mockRejectedValueOnce(error)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(hook.current.transcripts).toEqual([transcript]))
+    const fetchCallsBeforeMove = mockFetchTranscripts.mock.calls.length
+
+    await act(async () => {
+      await expect(hook.current.moveTranscript('transcript-1', 'project-b')).rejects.toBe(error)
+    })
+
+    expect(mockMoveTranscript).toHaveBeenCalledWith('transcript-1', 'project-b')
+    expect(hook.current.transcripts).toEqual([transcript])
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeMove + 1)
+  })
+
+  test('adds transcripts in one optimistic batch and keeps the update on success', async () => {
+    const first = { id: 'transcript-1', project_id: null }
+    const second = { id: 'transcript-2', project_id: 'project-a' }
+    mockFetchTranscripts.mockResolvedValue([first, second])
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(hook.current.transcripts).toEqual([first, second]))
+
+    await act(async () => {
+      await hook.current.addTranscripts(['transcript-1', 'transcript-2'], 'project-b')
+    })
+
+    expect(mockAddTranscripts).toHaveBeenCalledWith(
+      ['transcript-1', 'transcript-2'],
+      'project-b'
+    )
+    expect(hook.current.transcripts).toEqual([
+      { ...first, project_id: 'project-b' },
+      { ...second, project_id: 'project-b' },
+    ])
+  })
+
+  test('rolls every targeted transcript back when a batched add fails', async () => {
+    const first = { id: 'transcript-1', project_id: null }
+    const second = { id: 'transcript-2', project_id: 'project-a' }
+    const error = new Error('batch denied')
+    mockFetchTranscripts.mockResolvedValue([first, second])
+    mockAddTranscripts.mockRejectedValueOnce(error)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(hook.current.transcripts).toEqual([first, second]))
+    const fetchCallsBeforeAdd = mockFetchTranscripts.mock.calls.length
+
+    await act(async () => {
+      await expect(
+        hook.current.addTranscripts(['transcript-1', 'transcript-2'], 'project-b')
+      ).rejects.toBe(error)
+    })
+
+    expect(hook.current.transcripts).toEqual([first, second])
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeAdd + 1)
+  })
+})
+
+describe('useProjectsRealtime', () => {
+  const existing = {
+    id: '11111111-1111-4111-8111-111111111111',
+    user_id: 'user-from-session',
+    parent_id: null,
+    name: 'Existing',
+    deleting_at: null,
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockFetchProjects.mockResolvedValue([existing])
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-from-session' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    mockOnAuthStateChange.mockReturnValue({
+      data: { subscription: { unsubscribe: mockUnsubscribe } },
+    })
+    makeChannel()
+  })
+
+  test('adds a temporary project immediately and replaces it with the created row', async () => {
+    const created = { ...existing, id: '22222222-2222-4222-8222-222222222222', name: 'New' }
+    const request = deferred<Project>()
+    mockCreateProject.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(result.current.projects).toEqual([existing]))
+
+    let creation!: Promise<Project>
+    act(() => {
+      creation = result.current.createProject({ name: ' New ', parent_id: null })
+    })
+    expect(result.current.projects).toHaveLength(2)
+    expect(result.current.projects[1]).toEqual(
+      expect.objectContaining({ name: 'New', parent_id: null, user_id: 'user-from-session' })
+    )
+
+    await act(async () => {
+      request.resolve(created)
+      await expect(creation).resolves.toEqual(created)
+    })
+    expect(result.current.projects).toEqual([existing, created])
+  })
+
+  test('removes the temporary project when creation fails', async () => {
+    const error = new Error('create denied')
+    mockCreateProject.mockRejectedValueOnce(error)
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(result.current.projects).toEqual([existing]))
+    const fetchCallsBeforeCreate = mockFetchProjects.mock.calls.length
+
+    await act(async () => {
+      await expect(
+        result.current.createProject({ name: 'New', parent_id: null })
+      ).rejects.toBe(error)
+    })
+
+    expect(result.current.projects).toEqual([existing])
+    expect(mockFetchProjects).toHaveBeenCalledTimes(fetchCallsBeforeCreate + 1)
+  })
+
+  test('rolls an optimistic rename back when the query fails', async () => {
+    const error = new Error('rename denied')
+    mockRenameProject.mockRejectedValueOnce(error)
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(result.current.projects).toEqual([existing]))
+    const fetchCallsBeforeRename = mockFetchProjects.mock.calls.length
+
+    await act(async () => {
+      await expect(result.current.renameProject(existing.id, 'Changed')).rejects.toBe(error)
+    })
+
+    expect(mockRenameProject).toHaveBeenCalledWith(existing.id, 'Changed')
+    expect(result.current.projects).toEqual([existing])
+    expect(mockFetchProjects).toHaveBeenCalledTimes(fetchCallsBeforeRename + 1)
   })
 })
