@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { transcriptsInProject } from '@/core/projects/tree'
 import type { Project } from '@/contracts/db'
 
 const mockGetSession = jest.fn()
@@ -120,6 +121,31 @@ describe('ProjectsProvider realtime ownership', () => {
     )
   })
 
+  test('does not remount app content when auth resolves', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    const onMount = jest.fn()
+
+    function MountProbe() {
+      React.useEffect(() => {
+        onMount()
+      }, [])
+      return null
+    }
+
+    render(
+      <ProjectsProvider>
+        <MountProbe />
+        <Consumer />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(2))
+    expect(onMount).toHaveBeenCalledTimes(1)
+  })
+
   test('does not fetch or open channels while signed out', async () => {
     mockGetSession.mockResolvedValue({ data: { session: null } })
 
@@ -174,5 +200,54 @@ describe('ProjectsProvider realtime ownership', () => {
       expect(screen.getByTestId('project-ids')).toHaveTextContent('project-b')
     })
     expect(screen.getByTestId('project-ids')).not.toHaveTextContent('project-a')
+  })
+
+  test('derived project lists follow a realtime move in the shared transcript list', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    const transcript = {
+      id: 'transcript-a',
+      user_id: 'user-a',
+      project_id: 'project-a',
+      updated_at: '2026-09-01T00:00:00Z',
+    }
+    mockFetchTranscripts.mockResolvedValue([transcript])
+
+    function ProjectTranscripts({ projectId }: { projectId: string }) {
+      const { transcripts } = useProjectsData()
+      return (
+        <span data-testid={projectId}>
+          {transcriptsInProject(transcripts, projectId)
+            .map((item) => item.id)
+            .join(',')}
+        </span>
+      )
+    }
+
+    render(
+      <ProjectsProvider>
+        <ProjectTranscripts projectId="project-a" />
+        <ProjectTranscripts projectId="project-b" />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-a')).toHaveTextContent('transcript-a')
+    })
+
+    const transcriptChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('transcripts-changes:')
+    )
+    const transcriptChannel = mockChannel.mock.results[transcriptChannelIndex].value
+    const onChange = transcriptChannel.on.mock.calls[0][2]
+
+    act(() => {
+      onChange({ eventType: 'UPDATE', new: { ...transcript, project_id: 'project-b' } })
+    })
+
+    expect(screen.getByTestId('project-a')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('project-b')).toHaveTextContent('transcript-a')
   })
 })

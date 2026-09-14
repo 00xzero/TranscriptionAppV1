@@ -138,13 +138,13 @@ describe('project list queries', () => {
         ['transcript-a', 'transcript-b', 'transcript-a'],
         'project-a'
       )
-    ).resolves.toEqual(['transcript-a', 'transcript-b'])
+    ).resolves.toEqual({ addedIds: ['transcript-a', 'transcript-b'], missingIds: [] })
     expect(addBuilder.update).toHaveBeenCalledWith({ project_id: 'project-a' })
     expect(addBuilder.in).toHaveBeenCalledWith('id', ['transcript-a', 'transcript-b'])
     expect(addBuilder.select).toHaveBeenCalledWith('id')
   })
 
-  test('rejects missing or partially updated transcript assignments', async () => {
+  test('rejects a missing move and reports transcripts a batched add could not find', async () => {
     const moveBuilder: Record<string, jest.Mock> = {}
     moveBuilder.update = jest.fn(() => moveBuilder)
     moveBuilder.eq = jest.fn(() => moveBuilder)
@@ -167,7 +167,7 @@ describe('project list queries', () => {
 
     await expect(
       addTranscriptsToProject(['transcript-a', 'transcript-b'], 'project-a')
-    ).rejects.toThrow('Some transcripts could not be added')
+    ).resolves.toEqual({ addedIds: ['transcript-a'], missingIds: ['transcript-b'] })
   })
 
   test('reads the recursive branch count RPC result', async () => {

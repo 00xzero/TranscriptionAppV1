@@ -142,7 +142,7 @@ describe('useTranscriptsRealtime', () => {
     jest.clearAllMocks()
     mockFetchTranscripts.mockResolvedValue([])
     mockMoveTranscript.mockResolvedValue(undefined)
-    mockAddTranscripts.mockResolvedValue(undefined)
+    mockAddTranscripts.mockImplementation(async (ids: string[]) => ({ addedIds: ids, missingIds: [] }))
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-from-session' } } },
     })
@@ -343,6 +343,31 @@ describe('useTranscriptsRealtime', () => {
     expect(hook.current.transcripts).toEqual([first, second])
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeAdd + 1)
   })
+
+  test('keeps added transcripts, drops ones the batched add could not find, and reconciles', async () => {
+    const first = { id: 'transcript-1', project_id: null }
+    const gone = { id: 'transcript-2', project_id: null }
+    const result = { addedIds: ['transcript-1'], missingIds: ['transcript-2'] }
+    mockFetchTranscripts.mockResolvedValue([first, gone])
+    mockAddTranscripts.mockResolvedValueOnce(result)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    await waitFor(() => expect(hook.current.transcripts).toEqual([first, gone]))
+    // The reconciling refetch never settles, so only the local update can drop the row.
+    mockFetchTranscripts.mockReturnValue(new Promise(() => undefined))
+    const fetchCallsBeforeAdd = mockFetchTranscripts.mock.calls.length
+
+    await act(async () => {
+      await expect(
+        hook.current.addTranscripts(['transcript-1', 'transcript-2'], 'project-b')
+      ).resolves.toEqual(result)
+    })
+
+    expect(hook.current.transcripts).toEqual([{ ...first, project_id: 'project-b' }])
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeAdd + 1)
+  })
 })
 
 describe('useProjectsRealtime', () => {
@@ -391,6 +416,10 @@ describe('useProjectsRealtime', () => {
     await act(async () => {
       request.resolve(created)
       await expect(creation).resolves.toEqual(created)
+    })
+    expect(mockCreateProject).toHaveBeenCalledWith({
+      name: 'New',
+      parent_id: null,
     })
     expect(result.current.projects).toEqual([existing, created])
   })

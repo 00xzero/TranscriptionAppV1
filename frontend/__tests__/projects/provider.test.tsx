@@ -104,18 +104,29 @@ describe('ProjectsProvider', () => {
     expect(mockUseProjectsRealtime).toHaveBeenCalledTimes(1)
     expect(mockUseTranscriptsRealtime).toHaveBeenCalledTimes(1)
     expect(mockUseProjectsRealtime).toHaveBeenCalledWith({
-      enabled: true,
       userId: 'user-a',
+      enabled: true,
     })
     expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({
-      enabled: true,
       userId: 'user-a',
+      enabled: true,
     })
   })
 
-  test('fully disables both data owners without a user', () => {
+  test('publishes the owner data to consumers', () => {
+    render(
+      <ProjectsProvider>
+        <Consumer projectId="project-a" />
+      </ProjectsProvider>
+    )
+
+    expect(screen.getByText('settled')).toBeInTheDocument()
+    expect(screen.getByText('project-a')).toBeInTheDocument()
+    expect(screen.getByText('transcript-a')).toBeInTheDocument()
+  })
+
+  test('starts no table hooks and settles empty without a user', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: true })
-    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -123,13 +134,13 @@ describe('ProjectsProvider', () => {
       </ProjectsProvider>
     )
 
-    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ enabled: false, userId: null })
-    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ enabled: false, userId: null })
+    expect(screen.getByText('settled')).toBeInTheDocument()
+    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
+    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
   })
 
-  test('reports loading while authentication is unresolved without starting data hooks', () => {
+  test('reports loading while authentication is unresolved without starting table hooks', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: false })
-    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -138,27 +149,7 @@ describe('ProjectsProvider', () => {
     )
 
     expect(screen.getByText('loading')).toBeInTheDocument()
-    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ enabled: false, userId: null })
-    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ enabled: false, userId: null })
-  })
-
-  test('derived lists reflect moves in the one shared transcript list', () => {
-    const { rerender } = render(
-      <ProjectsProvider>
-        <Consumer projectId="project-a" />
-      </ProjectsProvider>
-    )
-    expect(screen.getByText('transcript-a')).toBeInTheDocument()
-
-    mockData([project('project-a'), project('project-b')], [
-      transcript('transcript-a', 'project-b'),
-    ])
-    rerender(
-      <ProjectsProvider>
-        <Consumer projectId="project-a" />
-      </ProjectsProvider>
-    )
-
-    expect(screen.queryByText('transcript-a')).not.toBeInTheDocument()
+    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
+    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
   })
 })

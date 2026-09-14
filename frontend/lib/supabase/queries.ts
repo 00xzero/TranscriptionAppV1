@@ -136,12 +136,23 @@ export async function moveTranscriptToProject(
     return data.id
 }
 
+export type AddTranscriptsResult = {
+    addedIds: string[]
+    missingIds: string[]
+}
+
+/**
+ * Adds transcripts to a project in one update. Database errors (a missing or
+ * marked project) reject the whole statement, so ids absent from the result are
+ * rows RLS cannot see: in practice, transcripts deleted after they were selected.
+ * The visible rows have already committed, so missing ids are reported, not thrown.
+ */
 export async function addTranscriptsToProject(
     ids: string[],
     projectId: string
-): Promise<string[]> {
+): Promise<AddTranscriptsResult> {
     const uniqueIds = [...new Set(ids)]
-    if (uniqueIds.length === 0) return []
+    if (uniqueIds.length === 0) return { addedIds: [], missingIds: [] }
 
     const supabase = createClient()
     const { data, error } = await supabase
@@ -152,13 +163,10 @@ export async function addTranscriptsToProject(
 
     if (error) throw error
     const updatedIds = new Set((data ?? []).map((row) => row.id))
-    if (
-        updatedIds.size !== uniqueIds.length ||
-        uniqueIds.some((id) => !updatedIds.has(id))
-    ) {
-        throw new Error('Some transcripts could not be added because they are no longer available.')
+    return {
+        addedIds: uniqueIds.filter((id) => updatedIds.has(id)),
+        missingIds: uniqueIds.filter((id) => !updatedIds.has(id)),
     }
-    return uniqueIds
 }
 
 export async function fetchProjectBranchTranscriptCount(id: string): Promise<number> {

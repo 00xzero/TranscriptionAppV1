@@ -31,7 +31,7 @@ import type {
     SpeakerUpdate,
     TranscriptUpdate,
 } from '@/contracts/db'
-import type { CreateProjectInput } from './queries'
+import type { AddTranscriptsResult, CreateProjectInput } from './queries'
 
 // ============================================================================
 // Transcripts Hook
@@ -129,8 +129,7 @@ export type RealtimeHookOptions = {
 }
 
 export function useTranscriptsRealtime(options: RealtimeHookOptions) {
-    const { enabled = true } = options
-    const { userId } = options
+    const { enabled = true, userId } = options
     const fetchFn = useCallback(() => fetchTranscripts(), [])
 
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
@@ -192,9 +191,9 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
     )
 
     const addTranscripts = useCallback(
-        async (ids: string[], projectId: string) => {
-            if (ids.length === 0) return
+        async (ids: string[], projectId: string): Promise<AddTranscriptsResult> => {
             const idSet = new Set(ids)
+            if (idSet.size === 0) return { addedIds: [], missingIds: [] }
             const previousProjects = new Map(
                 data
                     .filter((transcript) => idSet.has(transcript.id))
@@ -209,8 +208,9 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 )
             )
 
+            let result: AddTranscriptsResult
             try {
-                await addTranscriptsToProject(ids, projectId)
+                result = await addTranscriptsToProject(ids, projectId)
             } catch (err) {
                 mutate((current) =>
                     current.map((transcript) => {
@@ -224,6 +224,14 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 void refetch()
                 throw err
             }
+
+            if (result.missingIds.length > 0) {
+                // Deleted since they were selected; the DELETE event may not reach this tab.
+                const missingIds = new Set(result.missingIds)
+                mutate((current) => current.filter((transcript) => !missingIds.has(transcript.id)))
+                void refetch()
+            }
+            return result
         },
         [data, mutate, refetch]
     )
@@ -246,8 +254,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
 // ============================================================================
 
 export function useProjectsRealtime(options: RealtimeHookOptions) {
-    const { enabled = true } = options
-    const { userId } = options
+    const { enabled = true, userId } = options
     const fetchFn = useCallback(() => fetchProjects(), [])
     const { data, isLoading, error, connectionStatus, mutate, refetch } =
         useSupabaseRealtime<Project>('projects', fetchFn, {
@@ -277,7 +284,10 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
             mutate((current) => [...current, optimisticProject])
 
             try {
-                const created = await createProjectQuery({ ...input, name: optimisticProject.name })
+                const created = await createProjectQuery({
+                    ...input,
+                    name: optimisticProject.name,
+                })
                 mutate((current) => [
                     ...current.filter(
                         (project) => project.id !== optimisticId && project.id !== created.id
