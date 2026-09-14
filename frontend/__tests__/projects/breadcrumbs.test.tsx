@@ -1,9 +1,8 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import type { Project } from '@/contracts/db'
 import { Breadcrumbs } from '@/components/Projects/Breadcrumbs'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { makeProject } from './fixtures'
 
 let narrow = false
 
@@ -12,40 +11,23 @@ beforeAll(() => {
     writable: true,
     value: jest.fn().mockImplementation(() => ({
       matches: narrow,
-      media: '(max-width: 767px)',
-      onchange: null,
       addEventListener: jest.fn(),
       removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
     })),
   })
 })
 
-const makeProject = (id: string, name: string, parentId: string | null): Project => ({
-  id,
-  user_id: 'user-1',
-  parent_id: parentId,
-  name,
-  deleting_at: null,
-  created_at: '2026-09-01T12:00:00Z',
-  updated_at: '2026-09-01T12:00:00Z',
-})
-
 const projects = [
-  makeProject('one', 'One', null),
-  makeProject('two', 'Two', 'one'),
-  makeProject('three', 'Three', 'two'),
-  makeProject('four', 'Four', 'three'),
-  makeProject('five', 'Five', 'four'),
-  makeProject('six', 'Six', 'five'),
+  makeProject({ id: 'one', name: 'One' }),
+  makeProject({ id: 'two', name: 'Two', parent_id: 'one' }),
+  makeProject({ id: 'three', name: 'Three', parent_id: 'two' }),
+  makeProject({ id: 'four', name: 'Four', parent_id: 'three' }),
+  makeProject({ id: 'five', name: 'Five', parent_id: 'four' }),
+  makeProject({ id: 'six', name: 'Six', parent_id: 'five' }),
 ]
 
 const renderBreadcrumbs = () =>
-  render(
-    <TooltipProvider delayDuration={0}>
-      <Breadcrumbs ancestors={projects.slice(0, -1)} current={projects.at(-1)!} />
-    </TooltipProvider>
-  )
+  render(<Breadcrumbs ancestors={projects.slice(0, -1)} current={projects.at(-1)!} />)
 
 describe('Breadcrumbs', () => {
   beforeEach(() => {
@@ -76,13 +58,11 @@ describe('Breadcrumbs', () => {
     )
   })
 
-  test('shows the root and final two crumbs below the md breakpoint', async () => {
+  test('shows the root and final two crumbs below the md breakpoint', () => {
     narrow = true
     renderBreadcrumbs()
 
-    await waitFor(() => {
-      expect(screen.queryByRole('link', { name: 'Three' })).not.toBeInTheDocument()
-    })
+    expect(screen.queryByRole('link', { name: 'Three' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Five' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Six' })).toHaveAttribute('aria-current', 'page')

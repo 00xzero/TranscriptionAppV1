@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { FolderClock } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
+import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
@@ -14,22 +15,13 @@ import {
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 
 function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) {
   return (
     <div className="px-6 pb-10 pt-[80px] md:px-10" aria-label={label}>
       <div className="mb-6 h-8 w-52 animate-pulse rounded-sm bg-subtle" />
-      <div className="divide-y divide-border rounded-sm border border-border bg-panel">
-        {[0, 1, 2].map((row) => (
-          <div key={row} className="flex min-h-18 animate-pulse items-center gap-4 p-4">
-            <div className="h-10 w-10 rounded-sm bg-subtle" />
-            <div className="space-y-2">
-              <div className="h-3 w-36 rounded-sm bg-subtle" />
-              <div className="h-2 w-52 rounded-sm bg-subtle" />
-            </div>
-          </div>
-        ))}
-      </div>
+      <ProjectListSkeleton />
     </div>
   )
 }
@@ -42,16 +34,8 @@ export default function ProjectPage() {
 
 function ProjectPageContent({ projectId }: { projectId: string }) {
   const router = useRouter()
-  const {
-    tree,
-    projectsLoading,
-    projectError,
-    refetchProjects,
-    transcripts,
-    transcriptsLoading,
-    transcriptError,
-    refetchTranscripts,
-  } = useProjectsData()
+  const { tree, transcripts } = useProjectsData()
+  const { isLoading, loadError, retry } = useProjectsLoadState()
   const project = tree.byId.get(projectId)
   const currentAncestorIds = project
     ? (ancestorsOf(tree, projectId) ?? []).map((ancestor) => ancestor.id)
@@ -69,9 +53,6 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
     setLastKnownAncestorIds(currentAncestorIds)
   }
 
-  const isLoading = projectsLoading || transcriptsLoading
-  const loadError = projectError || transcriptError
-
   useEffect(() => {
     if (isLoading || loadError || project || lastKnownAncestorIds === null) return
 
@@ -84,9 +65,6 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   if (isLoading) return <ProjectLoadingState />
 
   if (loadError) {
-    const retry = () => {
-      void Promise.all([refetchProjects(), refetchTranscripts()])
-    }
     return (
       <ErrorFallback
         title="We couldn't load this project"
@@ -128,25 +106,22 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         <h1 className="font-serif text-3xl text-foreground">{project.name}</h1>
       </div>
 
-      {children.length === 0 && directTranscripts.length === 0 ? (
-        <div className="rounded-sm border border-border bg-panel">
+      <ProjectList>
+        {children.length === 0 && directTranscripts.length === 0 && (
           <ProjectsEmptyState variant="empty-project" />
-        </div>
-      ) : (
-        <div className="divide-y divide-border rounded-sm border border-border bg-panel">
-          {children.map((child) => (
-            <ProjectRow
-              key={child.id}
-              project={child}
-              directTranscriptCount={counts.get(child.id) ?? 0}
-              nestedProjectCount={descendantCount(tree, child.id)}
-            />
-          ))}
-          {directTranscripts.map((transcript) => (
-            <TranscriptRow key={transcript.id} transcript={transcript} />
-          ))}
-        </div>
-      )}
+        )}
+        {children.map((child) => (
+          <ProjectRow
+            key={child.id}
+            project={child}
+            directTranscriptCount={counts.get(child.id) ?? 0}
+            nestedProjectCount={descendantCount(tree, child.id)}
+          />
+        ))}
+        {directTranscripts.map((transcript) => (
+          <TranscriptRow key={transcript.id} transcript={transcript} />
+        ))}
+      </ProjectList>
     </div>
   )
 }

@@ -42,48 +42,50 @@ export function Breadcrumbs({ ancestors, current }: BreadcrumbsProps) {
   ]
 
   return (
-    <nav aria-label="Project breadcrumbs" className="min-w-0 max-w-full overflow-hidden">
-      <ol className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-sans text-xs">
-        {visible.map((item, index) => (
-          <li
-            key={item === 'collapsed' ? 'collapsed' : item.id}
-            className="flex min-w-0 shrink items-center gap-1.5"
-          >
-            {index > 0 && <span className="text-muted" aria-hidden="true">/</span>}
-            {item === 'collapsed' ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="Show hidden breadcrumbs"
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60"
-                  >
-                    <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {collapsed.collapsed.map((crumb) => (
-                    <DropdownMenuItem key={crumb.id} asChild>
-                      <Link href={crumb.href}>{crumb.label}</Link>
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Link
-                href={item.href}
-                aria-current={item.id === current.id ? 'page' : undefined}
-                className={`block max-w-24 min-w-0 truncate rounded-sm hover:text-trust-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60 sm:max-w-40 lg:max-w-56 ${
-                  item.id === current.id
-                    ? 'font-medium text-foreground'
-                    : 'text-muted'
-                }`}
-              >
-                {item.label}
-              </Link>
-            )}
-          </li>
-        ))}
+    <nav aria-label="Project breadcrumbs" className="min-w-0 overflow-hidden">
+      <ol className="flex items-center gap-1.5 font-sans text-xs">
+        {visible.map((item, index) => {
+          const isCurrent = item !== 'collapsed' && item.id === current.id
+
+          return (
+            <li
+              key={item === 'collapsed' ? 'collapsed' : item.id}
+              className="flex min-w-0 items-center gap-1.5"
+            >
+              {index > 0 && <span className="text-muted" aria-hidden="true">/</span>}
+              {item === 'collapsed' ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Show hidden breadcrumbs"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60"
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {collapsed.collapsed.map((crumb) => (
+                      <DropdownMenuItem key={crumb.id} asChild>
+                        <Link href={crumb.href}>{crumb.label}</Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Link
+                  href={item.href}
+                  aria-current={isCurrent ? 'page' : undefined}
+                  className={`block max-w-24 truncate rounded-sm hover:text-trust-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60 sm:max-w-40 lg:max-w-56 ${
+                    isCurrent ? 'font-medium text-foreground' : 'text-muted'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )}
+            </li>
+          )
+        })}
       </ol>
     </nav>
   )

@@ -1,57 +1,32 @@
 'use client'
 
 import { ErrorFallback } from '@/components/ErrorFallback'
+import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
+import { countLabel } from '@/components/Projects/format'
 import {
   descendantCount,
   transcriptCountsByProject,
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
-
-function ProjectsLoadingState() {
-  return (
-    <div aria-label="Loading projects" className="divide-y divide-border rounded-sm border border-border bg-panel">
-      {[0, 1, 2].map((row) => (
-        <div key={row} className="flex min-h-18 animate-pulse items-center gap-4 p-4">
-          <div className="h-10 w-10 rounded-sm bg-subtle" />
-          <div className="space-y-2">
-            <div className="h-3 w-36 rounded-sm bg-subtle" />
-            <div className="h-2 w-52 rounded-sm bg-subtle" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 
 export default function ProjectsPage() {
-  const {
-    tree,
-    projectsLoading,
-    projectError,
-    refetchProjects,
-    transcripts,
-    transcriptsLoading,
-    transcriptError,
-    refetchTranscripts,
-  } = useProjectsData()
+  const { tree, transcripts } = useProjectsData()
+  const { isLoading, loadError, retry } = useProjectsLoadState()
 
-  const retry = () => {
-    void Promise.all([refetchProjects(), refetchTranscripts()])
-  }
-
-  if (projectsLoading || transcriptsLoading) {
+  if (isLoading) {
     return (
-      <div className="px-6 pb-10 pt-[80px] md:px-10">
-        <ProjectsLoadingState />
+      <div aria-label="Loading projects" className="px-6 pb-10 pt-[80px] md:px-10">
+        <ProjectListSkeleton />
       </div>
     )
   }
 
-  if (projectError || transcriptError) {
+  if (loadError) {
     return (
       <ErrorFallback
         title="We couldn't load your projects"
@@ -62,30 +37,26 @@ export default function ProjectsPage() {
     )
   }
 
+  const hasProjects = tree.roots.length > 0
   const unfiled = transcriptsInProject(transcripts, null)
-  if (tree.roots.length === 0 && unfiled.length === 0) {
-    return (
-      <div className="px-6 pb-10 pt-[80px] md:px-10">
-        <h1 className="sr-only">Projects</h1>
-        <div className="rounded-sm border border-border bg-panel">
-          <ProjectsEmptyState variant="no-projects" />
-        </div>
-      </div>
-    )
-  }
-
+  const isEmpty = !hasProjects && unfiled.length === 0
   const counts = transcriptCountsByProject(transcripts)
 
   return (
     <div className="space-y-8 px-6 pb-10 pt-[80px] md:px-10">
-      {tree.roots.length > 0 ? (
-        <section aria-labelledby="projects-heading">
-          <div className="mb-3 border-b border-border pb-2">
-            <h1 id="projects-heading" className="font-serif text-2xl text-foreground">
-              Projects
-            </h1>
-          </div>
-          <div className="divide-y divide-border rounded-sm border border-border bg-panel">
+      <section aria-labelledby="projects-heading">
+        <h1
+          id="projects-heading"
+          className={
+            hasProjects
+              ? 'mb-3 border-b border-border pb-2 font-serif text-2xl text-foreground'
+              : 'sr-only'
+          }
+        >
+          Projects
+        </h1>
+        {hasProjects && (
+          <ProjectList>
             {tree.roots.map((project) => (
               <ProjectRow
                 key={project.id}
@@ -94,31 +65,36 @@ export default function ProjectsPage() {
                 nestedProjectCount={descendantCount(tree, project.id)}
               />
             ))}
-          </div>
-        </section>
-      ) : (
-        <h1 className="sr-only">Projects</h1>
-      )}
-
-      <section aria-labelledby="unfiled-heading">
-        <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
-          <h2 id="unfiled-heading" className="font-serif text-2xl text-foreground">
-            Unfiled
-          </h2>
-          <span className="font-mono text-xs text-muted">
-            {unfiled.length} {unfiled.length === 1 ? 'transcript' : 'transcripts'}
-          </span>
-        </div>
-        <div className="divide-y divide-border rounded-sm border border-border bg-panel">
-          {unfiled.length === 0 ? (
-            <ProjectsEmptyState variant="empty-unfiled" />
-          ) : (
-            unfiled.map((transcript) => (
-              <TranscriptRow key={transcript.id} transcript={transcript} />
-            ))
-          )}
-        </div>
+          </ProjectList>
+        )}
+        {isEmpty && (
+          <ProjectList>
+            <ProjectsEmptyState variant="no-projects" />
+          </ProjectList>
+        )}
       </section>
+
+      {!isEmpty && (
+        <section aria-labelledby="unfiled-heading">
+          <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
+            <h2 id="unfiled-heading" className="font-serif text-2xl text-foreground">
+              Unfiled
+            </h2>
+            <span className="font-mono text-xs text-muted">
+              {countLabel(unfiled.length, 'transcript', 'transcripts')}
+            </span>
+          </div>
+          <ProjectList>
+            {unfiled.length === 0 ? (
+              <ProjectsEmptyState variant="empty-unfiled" />
+            ) : (
+              unfiled.map((transcript) => (
+                <TranscriptRow key={transcript.id} transcript={transcript} />
+              ))
+            )}
+          </ProjectList>
+        </section>
+      )}
     </div>
   )
 }

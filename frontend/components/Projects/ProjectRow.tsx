@@ -3,18 +3,14 @@
 import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
 import type { Project } from '@/contracts/db'
-import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { formatRelativeTime } from './format'
+import { ListRow } from './ProjectList'
+import { countLabel } from './format'
 
 interface ProjectRowProps {
   project: Project
   directTranscriptCount: number
   nestedProjectCount: number
   actions?: ReactNode
-}
-
-function countLabel(count: number, singular: string, plural: string) {
-  return `${count} ${count === 1 ? singular : plural}`
 }
 
 export function ProjectRow({
@@ -24,8 +20,15 @@ export function ProjectRow({
   actions,
 }: ProjectRowProps) {
   const isDeleting = project.deleting_at !== null
-  const content = (
-    <>
+
+  return (
+    <ListRow
+      testId={`project-row-${project.id}`}
+      href={isDeleting ? undefined : `/projects/${project.id}`}
+      title={`Open ${project.name}`}
+      updatedAt={project.updated_at}
+      actions={actions}
+    >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-warm-highlight/60 text-ink/55 dark:bg-night-border dark:text-paper/60">
         <Folder className="h-5 w-5" aria-hidden="true" />
       </div>
@@ -45,33 +48,6 @@ export function ProjectRow({
           {countLabel(nestedProjectCount, 'nested project', 'nested projects')}
         </p>
       </div>
-    </>
-  )
-
-  return (
-    <div
-      data-testid={`project-row-${project.id}`}
-      className="group flex min-h-18 items-center justify-between p-4 transition-colors hover:bg-subtle"
-    >
-      {isDeleting ? (
-        <div className="flex min-w-0 flex-1 items-center gap-4">
-          {content}
-        </div>
-      ) : (
-        <Link
-          href={`/projects/${project.id}`}
-          title={`Open ${project.name}`}
-          className="flex min-w-0 flex-1 items-center gap-4"
-        >
-          {content}
-        </Link>
-      )}
-      <div className="flex items-center gap-4">
-        <span className="hidden font-sans text-xs text-ink/60 md:block dark:text-paper/60">
-          {formatRelativeTime(project.updated_at)}
-        </span>
-        {actions}
-      </div>
-    </div>
+    </ListRow>
   )
 }

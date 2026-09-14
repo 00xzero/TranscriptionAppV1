@@ -1,3 +1,7 @@
+export function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 export function formatRelativeTime(dateString: string): string {
   const timestamp = Date.parse(dateString)
   if (!Number.isFinite(timestamp)) return 'Unknown'

@@ -2,8 +2,8 @@
 
 import type { ReactNode } from 'react'
 import type { Transcript } from '@/contracts/db'
-import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { formatDuration, formatRelativeTime } from './format'
+import { ListRow } from './ProjectList'
+import { formatDuration } from './format'
 
 interface TranscriptRowProps {
   transcript: Transcript
@@ -34,45 +34,35 @@ export function TranscriptRow({ transcript, actions }: TranscriptRowProps) {
   const title = transcript.title || 'Untitled'
   const isCompleted = transcript.status === 'completed'
   const badge = statusBadge(transcript.status)
-  const duration = formatDuration(transcript.duration_seconds)
 
   return (
-    <div
-      data-testid={`transcript-row-${transcript.id}`}
-      className="group flex min-h-18 items-center justify-between p-4 transition-colors hover:bg-subtle"
+    <ListRow
+      testId={`transcript-row-${transcript.id}`}
+      href={isCompleted ? `/editor/${transcript.id}` : '/transcripts'}
+      title={isCompleted ? `Open ${title}` : `Open transcript list for ${title}`}
+      updatedAt={transcript.updated_at}
+      actions={actions}
     >
-      <Link
-        href={isCompleted ? `/editor/${transcript.id}` : '/transcripts'}
-        title={isCompleted ? `Open ${title}` : `Open transcript list for ${title}`}
-        className="flex min-w-0 flex-1 cursor-pointer items-center gap-4"
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-surface text-foreground/40 dark:bg-subtle">
-          <span className="font-mono text-lg">¶</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate font-sans text-sm font-medium text-ink transition-colors group-hover:text-trust-blue dark:text-paper">
-              {title}
-            </p>
-            {badge && (
-              <span
-                className={`rounded-sm border px-1.5 py-0.5 font-mono text-[9px] ${badge.className}`}
-              >
-                {badge.label}
-              </span>
-            )}
-          </div>
-          <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
-            {duration || 'Duration unknown'}
-          </p>
-        </div>
-      </Link>
-      <div className="flex items-center gap-4">
-        <span className="hidden font-sans text-xs text-ink/60 md:block dark:text-paper/60">
-          {formatRelativeTime(transcript.updated_at)}
-        </span>
-        {actions}
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-surface text-foreground/40 dark:bg-subtle">
+        <span className="font-mono text-lg">¶</span>
       </div>
-    </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate font-sans text-sm font-medium text-ink transition-colors group-hover:text-trust-blue dark:text-paper">
+            {title}
+          </p>
+          {badge && (
+            <span
+              className={`rounded-sm border px-1.5 py-0.5 font-mono text-[9px] ${badge.className}`}
+            >
+              {badge.label}
+            </span>
+          )}
+        </div>
+        <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
+          {formatDuration(transcript.duration_seconds) || 'Duration unknown'}
+        </p>
+      </div>
+    </ListRow>
   )
 }

@@ -7,10 +7,7 @@ import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
-import { Breadcrumbs } from '@/components/Projects/Breadcrumbs'
-import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { ancestorsOf } from '@/core/projects/tree'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
@@ -25,12 +22,6 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   const pathname = usePathname()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
-  const { tree } = useProjectsData()
-  const projectId = isProjectsRoute ? pathname?.split('/')[2] : undefined
-  const currentProject = projectId ? tree.byId.get(projectId) : undefined
-  const projectAncestors = currentProject
-    ? ancestorsOf(tree, currentProject.id) ?? []
-    : []
 
   // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
@@ -106,17 +97,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
             </span>
           </div>
         ) : isProjectsRoute ? (
-          currentProject ? (
-            <Breadcrumbs ancestors={projectAncestors} current={currentProject} />
-          ) : (
-            <Link
-              href="/projects"
-              aria-current={pathname === '/projects' ? 'page' : undefined}
-              className="truncate rounded-sm font-serif text-xl italic text-ink hover:text-trust-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60 dark:text-paper"
-            >
-              Projects
-            </Link>
-          )
+          <ProjectsHeaderTitle pathname={pathname} />
         ) : effectiveViewType === 'library' ? (
           <span className="font-serif text-xl italic text-ink dark:text-paper">
             Library

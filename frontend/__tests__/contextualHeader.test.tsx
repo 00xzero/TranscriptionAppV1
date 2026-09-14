@@ -4,6 +4,7 @@ import userEventLib from '@testing-library/user-event'
 import ContextualHeader from '../components/ContextualHeader'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { buildProjectTree } from '@/core/projects/tree'
+import { makeProject } from './projects/fixtures'
 
 const usePathnameMock = jest.fn()
 const openCaptureModalMock = jest.fn()
@@ -90,24 +91,8 @@ describe('ContextualHeader', () => {
     usePathnameMock.mockReturnValue('/projects/child')
     useProjectsDataMock.mockReturnValue({
       tree: buildProjectTree([
-        {
-          id: 'root',
-          user_id: 'user-1',
-          parent_id: null,
-          name: 'Root',
-          deleting_at: null,
-          created_at: '2026-09-01T12:00:00Z',
-          updated_at: '2026-09-01T12:00:00Z',
-        },
-        {
-          id: 'child',
-          user_id: 'user-1',
-          parent_id: 'root',
-          name: 'Child',
-          deleting_at: null,
-          created_at: '2026-09-01T12:00:00Z',
-          updated_at: '2026-09-01T12:00:00Z',
-        },
+        makeProject({ id: 'root', name: 'Root' }),
+        makeProject({ id: 'child', name: 'Child', parent_id: 'root' }),
       ]),
     })
 
