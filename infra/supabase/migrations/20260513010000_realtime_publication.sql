@@ -9,16 +9,11 @@
 -- payloads, so the Library/Projects UI never sees newly-created projects
 -- or status transitions until the user manually refreshes.
 --
--- Scope of this fix is INSERT and UPDATE only. Per the Supabase docs
--- (https://supabase.com/docs/guides/realtime/postgres-changes), filters
--- are not applied to DELETE events, and with RLS enabled the DELETE
--- payload's `old` record is restricted to primary keys regardless of
--- REPLICA IDENTITY. The client compensates by handling deletions
--- optimistically in `useProjectsRealtime.deleteProject` and
--- `useSpeakersRealtime.deleteSpeaker`, so the publication add is enough
--- to restore live updates for the two reported symptoms (project INSERT
--- not appearing in the list; project `status` UPDATE not flipping the
--- processing badge).
+-- Scope of this fix is INSERT and UPDATE delivery. Publication membership is
+-- necessary but does not make user_id-filtered DELETE events reliable: without
+-- REPLICA IDENTITY FULL the old row contains only its primary key, while RLS
+-- cannot authorize a row after it is deleted. Callers that need cross-client
+-- deletion delivery must use a separate, authorized reconciliation signal.
 -- =========================================================================
 
 DO $$

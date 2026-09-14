@@ -33,6 +33,7 @@ export const DeleteProjectErrorSchema = z.discriminatedUnion('stage', [
   z.object({
     error: z.string(),
     stage: z.literal('finish'),
+    gone: z.literal(true).optional(),
     remaining_transcripts: z.number().int().nonnegative().optional(),
   }),
 ])

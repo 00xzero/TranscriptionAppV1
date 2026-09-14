@@ -1,12 +1,39 @@
-type SupabaseMutationResult = { error: null | { message: string } }
+type SupabaseMutationResult = {
+  data: { id: string } | null
+  error: null | { code?: string; message: string }
+}
+
+type SupabaseReconcileResult = {
+  data: { source_object_key: string } | null
+  error: null | { message: string }
+}
 
 const uploadMock = jest.fn(async () => ({ error: null }))
 const removeMock = jest.fn(async () => ({ error: null }))
-const updateEqMock = jest.fn(async (): Promise<SupabaseMutationResult> => ({ error: null }))
+const updateSingleMock = jest.fn(async (): Promise<SupabaseMutationResult> => ({
+  data: { id: 'p1' },
+  error: null,
+}))
+const updateAbortSignalMock = jest.fn(() => ({ single: updateSingleMock }))
+const updateSelectMock = jest.fn(() => ({
+  single: updateSingleMock,
+  abortSignal: updateAbortSignalMock,
+}))
+const updateEqMock = jest.fn(() => ({ select: updateSelectMock }))
 const updateMock = jest.fn(() => ({ eq: updateEqMock }))
+const reconcileMaybeSingleMock = jest.fn(async (): Promise<SupabaseReconcileResult> => ({
+  data: { source_object_key: 'u/p1/rec.webm' },
+  error: null,
+}))
+const reconcileEqMock = jest.fn(() => ({ maybeSingle: reconcileMaybeSingleMock }))
+const reconcileSelectMock = jest.fn(() => ({ eq: reconcileEqMock }))
 const deleteEqMock = jest.fn(async () => ({ error: null }))
 const deleteMock = jest.fn(() => ({ eq: deleteEqMock }))
-const fromMock = jest.fn(() => ({ update: updateMock, delete: deleteMock }))
+const fromMock = jest.fn(() => ({
+  update: updateMock,
+  select: reconcileSelectMock,
+  delete: deleteMock,
+}))
 
 jest.mock('@/infra/supabase/client', () => ({
   createClient: () => ({
@@ -49,7 +76,11 @@ describe('runCaptureUpload upload idempotency', () => {
     jest.clearAllMocks()
     uploadMock.mockResolvedValue({ error: null })
     removeMock.mockResolvedValue({ error: null })
-    updateEqMock.mockResolvedValue({ error: null })
+    updateSingleMock.mockResolvedValue({ data: { id: 'p1' }, error: null })
+    reconcileMaybeSingleMock.mockResolvedValue({
+      data: { source_object_key: 'u/p1/rec.webm' },
+      error: null,
+    })
     deleteEqMock.mockResolvedValue({ error: null })
     ;(global as unknown as { fetch: typeof fetchMock }).fetch = fetchMock
   })
@@ -149,9 +180,6 @@ describe('runCaptureUpload upload idempotency', () => {
   })
 
   test('cancel after linking a fresh transcript but before start rolls back media and transcript', async () => {
-    updateEqMock.mockReturnValueOnce({
-      abortSignal: jest.fn(async () => ({ error: null })),
-    } as never)
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
         transcript: { id: 'p1' },
@@ -180,7 +208,11 @@ describe('runCaptureUpload upload idempotency', () => {
   })
 
   test('dedup hit without linked media does not delete the canonical transcript on rollback', async () => {
-    updateEqMock.mockResolvedValueOnce({ error: { message: 'link failed' } })
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'link failed' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValueOnce({ data: null, error: null })
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
         transcript: { id: 'p1' },
@@ -196,9 +228,116 @@ describe('runCaptureUpload upload idempotency', () => {
       allowUpsert: true,
     })
 
-    expect(result.kind).toBe('failure')
+    expect(result).toEqual({
+      kind: 'failure',
+      message: 'Failed to update transcript: link failed',
+    })
     expect(uploadMock).toHaveBeenCalledTimes(1)
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
     expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  test('continues when an ambiguous link failure reconciles to the uploaded key', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          transcript: { id: 'p1' },
+          storagePath: 'u/p1/rec.webm',
+          deduped: false,
+          sourceObjectKey: null,
+          status: 'created',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toMatchObject({ kind: 'success', outcome: 'started' })
+    expect(reconcileSelectMock).toHaveBeenCalledWith('source_object_key')
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  test('preserves storage and the transcript when ambiguous link reconciliation fails', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'ETIMEDOUT', message: 'response lost' },
+    })
+    reconcileMaybeSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'read failed' },
+    })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        transcript: { id: 'p1' },
+        storagePath: 'u/p1/rec.webm',
+        deduped: false,
+        sourceObjectKey: null,
+        status: 'created',
+      })
+    )
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toEqual({
+      kind: 'failure',
+      message: 'Failed to update transcript: response lost; reconciliation failed: read failed',
+    })
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(deleteMock).not.toHaveBeenCalled()
+  })
+
+  test('zero affected rows enters rollback after upload', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+    })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        transcript: { id: 'p1' },
+        storagePath: 'u/p1/rec.webm',
+        deduped: false,
+        sourceObjectKey: null,
+        status: 'created',
+      })
+    )
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toEqual({
+      kind: 'failure',
+      message: 'Failed to update transcript: the transcript is no longer available',
+    })
+    expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
+    expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('reports the project-deleting message and enters rollback on PJ002', async () => {
+    updateSingleMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PJ002', message: 'project is being deleted' },
+    })
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        transcript: { id: 'p1' },
+        storagePath: 'u/p1/rec.webm',
+        deduped: false,
+        sourceObjectKey: null,
+        status: 'created',
+      })
+    )
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [])
+
+    expect(result).toEqual({ kind: 'failure', message: 'That project is being deleted.' })
+    expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
+    expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
   })
 })

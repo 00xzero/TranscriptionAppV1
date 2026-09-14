@@ -101,7 +101,6 @@ export type WaveformArtifact = {
 }
 
 export const WAVEFORM_ARTIFACT_VERSION = 1
-export const WAVEFORM_BUCKET = 'waveforms'
 
 export function buildWaveformObjectKey(userId: string, transcriptId: string): string {
     return `${userId}/${transcriptId}/waveform.json`

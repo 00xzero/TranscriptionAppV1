@@ -7,11 +7,14 @@ import type { Project, Transcript } from '@/contracts/db'
 const mockUseAuthIdentity = jest.fn()
 const mockUseProjectsRealtime = jest.fn()
 const mockUseTranscriptsRealtime = jest.fn()
+const mockUseProjectsDeleteInvalidation = jest.fn()
 
 jest.mock('@/lib/supabase/hooks', () => ({
   useAuthIdentity: () => mockUseAuthIdentity(),
   useProjectsRealtime: (...args: unknown[]) => mockUseProjectsRealtime(...args),
   useTranscriptsRealtime: (...args: unknown[]) => mockUseTranscriptsRealtime(...args),
+  useProjectsDeleteInvalidation: (...args: unknown[]) =>
+    mockUseProjectsDeleteInvalidation(...args),
 }))
 
 const project = (id: string, userId = 'user-a'): Project => ({
@@ -111,6 +114,11 @@ describe('ProjectsProvider', () => {
       userId: 'user-a',
       enabled: true,
     })
+    expect(mockUseProjectsDeleteInvalidation).toHaveBeenCalledWith(
+      'user-a',
+      projectActions.refetch,
+      transcriptActions.refetch
+    )
   })
 
   test('publishes the owner data to consumers', () => {
@@ -137,6 +145,7 @@ describe('ProjectsProvider', () => {
     expect(screen.getByText('settled')).toBeInTheDocument()
     expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
     expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
+    expect(mockUseProjectsDeleteInvalidation).not.toHaveBeenCalled()
   })
 
   test('reports loading while authentication is unresolved without starting table hooks', () => {

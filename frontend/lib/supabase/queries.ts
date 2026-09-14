@@ -5,8 +5,11 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
-import { MEDIA_BUCKET, removeStorageObjectIfPresent } from '@/infra/supabase/storage'
-import { WAVEFORM_BUCKET } from '@/lib/audio/compute-peaks'
+import {
+    MEDIA_BUCKET,
+    removeStorageObjectIfPresent,
+    WAVEFORM_BUCKET,
+} from '@/infra/supabase/storage'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Transcript,
