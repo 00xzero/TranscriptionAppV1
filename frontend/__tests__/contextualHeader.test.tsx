@@ -3,10 +3,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import ContextualHeader from '../components/ContextualHeader'
 import { TooltipProvider } from '../components/ui/tooltip'
+import { buildProjectTree } from '@/core/projects/tree'
 
 const usePathnameMock = jest.fn()
 const openCaptureModalMock = jest.fn()
 const getUserMock = jest.fn()
+const useProjectsDataMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
@@ -34,6 +36,10 @@ jest.mock('../infra/supabase/client', () => ({
   }),
 }))
 
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => useProjectsDataMock(),
+}))
+
 describe('ContextualHeader', () => {
   const renderHeader = () =>
     render(
@@ -50,6 +56,7 @@ describe('ContextualHeader', () => {
         user: { id: 'u1' },
       },
     })
+    useProjectsDataMock.mockReturnValue({ tree: buildProjectTree([]) })
   })
 
   test('dispatches editor-scroll-to-top when the transcript breadcrumb is activated', async () => {
@@ -77,5 +84,40 @@ describe('ContextualHeader', () => {
 
     expect(await screen.findByText('olivetti')).toBeInTheDocument()
     expect(getUserMock).not.toHaveBeenCalled()
+  })
+
+  test('renders project breadcrumbs instead of the Library title', async () => {
+    usePathnameMock.mockReturnValue('/projects/child')
+    useProjectsDataMock.mockReturnValue({
+      tree: buildProjectTree([
+        {
+          id: 'root',
+          user_id: 'user-1',
+          parent_id: null,
+          name: 'Root',
+          deleting_at: null,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
+        {
+          id: 'child',
+          user_id: 'user-1',
+          parent_id: 'root',
+          name: 'Child',
+          deleting_at: null,
+          created_at: '2026-09-01T12:00:00Z',
+          updated_at: '2026-09-01T12:00:00Z',
+        },
+      ]),
+    })
+
+    renderHeader()
+
+    expect(await screen.findByRole('link', { name: 'Child' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects')
+    expect(screen.queryByText('Library')).not.toBeInTheDocument()
   })
 })

@@ -7,6 +7,10 @@ import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
+import { Breadcrumbs } from '@/components/Projects/Breadcrumbs'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { ancestorsOf } from '@/core/projects/tree'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
@@ -20,6 +24,13 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
+  const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
+  const { tree } = useProjectsData()
+  const projectId = isProjectsRoute ? pathname?.split('/')[2] : undefined
+  const currentProject = projectId ? tree.byId.get(projectId) : undefined
+  const projectAncestors = currentProject
+    ? ancestorsOf(tree, currentProject.id) ?? []
+    : []
 
   // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
@@ -78,9 +89,9 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   }, [isAuthRoute])
 
   return (
-    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
+    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between gap-4 px-6 z-10 transition-colors duration-300">
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {isLoading ? (
           <div className="h-6 w-28" aria-hidden="true" />
         ) : !user ? (
@@ -94,6 +105,18 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
               olivetti
             </span>
           </div>
+        ) : isProjectsRoute ? (
+          currentProject ? (
+            <Breadcrumbs ancestors={projectAncestors} current={currentProject} />
+          ) : (
+            <Link
+              href="/projects"
+              aria-current={pathname === '/projects' ? 'page' : undefined}
+              className="truncate rounded-sm font-serif text-xl italic text-ink hover:text-trust-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60 dark:text-paper"
+            >
+              Projects
+            </Link>
+          )
         ) : effectiveViewType === 'library' ? (
           <span className="font-serif text-xl italic text-ink dark:text-paper">
             Library
@@ -125,7 +148,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
 
       {/* Right: Editor actions (Find/Replace + Export) */}
       {user && effectiveViewType === 'editor' && (
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <RecordingPill />
           {/* Export icon button */}
           <Tooltip>
@@ -204,7 +227,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
 
       {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
       {user && effectiveViewType !== 'editor' && (
-        <div className="flex items-center gap-6">
+        <div className="flex shrink-0 items-center gap-6">
           <RecordingPill />
           {/* Global Search - Desktop Only */}
           <div className="group relative hidden items-center gap-3 rounded-lg border border-border bg-field/50 px-3 py-1.5 transition-all focus-within:border-trust-blue/50 focus-within:bg-field md:flex dark:bg-subtle dark:focus-within:bg-surface">

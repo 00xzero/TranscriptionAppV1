@@ -85,4 +85,20 @@ describe('proxy', () => {
     expect(response.headers.get('expires')).toBe('0')
     expect(response.headers.get('pragma')).toBe('no-cache')
   })
+
+  test.each(['/projects', '/projects/11111111-1111-1111-1111-111111111111'])(
+    'redirects an unauthenticated request for %s to auth',
+    async (path) => {
+      mockCreateServerClient.mockReturnValue({
+        auth: {
+          getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
+        },
+      })
+
+      const response = await proxy(new NextRequest(`https://app.example.test${path}`))
+
+      expect(response.status).toBe(307)
+      expect(response.headers.get('location')).toBe('https://app.example.test/auth')
+    }
+  )
 })
