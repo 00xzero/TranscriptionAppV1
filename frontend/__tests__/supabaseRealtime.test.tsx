@@ -40,6 +40,14 @@ function makeChannel() {
   })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 describe('useSupabaseRealtime', () => {
   beforeEach(() => {
     jest.useRealTimers()
@@ -80,6 +88,68 @@ describe('useSupabaseRealtime', () => {
       { id: 'new', title: 'Updated title' },
       { id: 'old', title: 'Old transcript' },
     ])
+  })
+
+  test('retains settled data without returning to loading during a refetch', async () => {
+    const refresh = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 'old', title: 'Old transcript' }])
+      .mockReturnValueOnce(refresh.promise)
+
+    const { result } = renderHook(() =>
+      useSupabaseRealtime<Row>('transcripts', fetchFn, {
+        subscriptionEnabled: false,
+      })
+    )
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual([{ id: 'old', title: 'Old transcript' }])
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    act(() => {
+      void result.current.refetch()
+    })
+
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.data).toEqual([{ id: 'old', title: 'Old transcript' }])
+
+    await act(async () => {
+      refresh.resolve([{ id: 'new', title: 'New transcript' }])
+      await refresh.promise
+    })
+
+    expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
+  })
+
+  test('ignores an older fetch that resolves after a newer fetch', async () => {
+    const olderFetch = deferred<Row[]>()
+    const newerFetch = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockReturnValueOnce(olderFetch.promise)
+      .mockReturnValueOnce(newerFetch.promise)
+
+    const { result } = renderHook(() => useSupabaseRealtime<Row>('transcripts', fetchFn))
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+    act(() => {
+      statusHandler?.('SUBSCRIBED')
+    })
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      newerFetch.resolve([{ id: 'new', title: 'New transcript' }])
+      await newerFetch.promise
+    })
+    expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
+
+    await act(async () => {
+      olderFetch.resolve([{ id: 'old', title: 'Old transcript' }])
+      await olderFetch.promise
+    })
+    expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
   })
 
   test('stops polling after realtime connects and performs one resync fetch', async () => {
@@ -130,6 +200,77 @@ describe('useSupabaseRealtime', () => {
 
     expect(result.current.connectionStatus).toBe('connecting')
     expect(channelFactoryMock).not.toHaveBeenCalled()
+  })
+
+  test('does no work and exposes empty settled data when fully disabled', async () => {
+    jest.useFakeTimers()
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
+
+    const { result } = renderHook(() =>
+      useSupabaseRealtime<Row>('transcripts', fetchFn, {
+        enabled: false,
+        initialData: [{ id: 'cached', title: 'Cached transcript' }],
+        pollingInterval: 10,
+      })
+    )
+
+    expect(result.current.data).toEqual([])
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.connectionStatus).toBe('disconnected')
+    expect(fetchFn).not.toHaveBeenCalled()
+    expect(channelFactoryMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      jest.advanceTimersByTime(100)
+      await Promise.resolve()
+    })
+    expect(fetchFn).not.toHaveBeenCalled()
+    jest.useRealTimers()
+  })
+
+  test('invalidates an in-flight fetch and starts clean after re-enabling', async () => {
+    const staleFetch = deferred<Row[]>()
+    const freshFetch = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockReturnValueOnce(staleFetch.promise)
+      .mockReturnValueOnce(freshFetch.promise)
+
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, {
+          enabled,
+          subscriptionEnabled: false,
+        }),
+      { initialProps: { enabled: true } }
+    )
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+
+    rerender({ enabled: false })
+    expect(result.current.data).toEqual([])
+    expect(result.current.error).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.connectionStatus).toBe('disconnected')
+
+    await act(async () => {
+      staleFetch.resolve([{ id: 'stale', title: 'Stale transcript' }])
+      await staleFetch.promise
+    })
+    expect(result.current.data).toEqual([])
+
+    rerender({ enabled: true })
+    expect(result.current.data).toEqual([])
+    expect(result.current.isLoading).toBe(true)
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      freshFetch.resolve([{ id: 'fresh', title: 'Fresh transcript' }])
+      await freshFetch.promise
+    })
+
+    expect(result.current.data).toEqual([{ id: 'fresh', title: 'Fresh transcript' }])
+    expect(result.current.isLoading).toBe(false)
   })
 
   test('retries a channel error instead of parking disconnected', async () => {

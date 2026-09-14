@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
-import { useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,7 +27,7 @@ type PendingDelete = {
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
-  const { transcripts, isLoading, deleteTranscript } = useTranscriptsRealtime()
+  const { transcripts, transcriptsLoading: isLoading, deleteTranscript } = useProjectsData()
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)

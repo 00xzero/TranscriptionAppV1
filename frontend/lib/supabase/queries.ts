@@ -10,6 +10,7 @@ import { WAVEFORM_BUCKET } from '@/lib/audio/compute-peaks'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Transcript,
+    Project,
     JobSummary,
     Speaker,
     SegmentUpdate,
@@ -18,6 +19,34 @@ import type {
     TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
+
+const PAGE_SIZE = 1000
+
+type PageResult<T> = {
+    data: T[] | null
+    error: unknown
+}
+
+async function paginateRows<T extends { id: string }>(
+    fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>
+): Promise<T[]> {
+    const rowsById = new Map<string, T>()
+    let offset = 0
+
+    while (true) {
+        const { data, error } = await fetchPage(offset, offset + PAGE_SIZE - 1)
+        if (error) throw error
+        if (!data || data.length === 0) break
+
+        for (const row of data) {
+            if (!rowsById.has(row.id)) rowsById.set(row.id, row)
+        }
+        if (data.length < PAGE_SIZE) break
+        offset += PAGE_SIZE
+    }
+
+    return [...rowsById.values()]
+}
 
 // ============================================================================
 // Transcripts
@@ -28,13 +57,124 @@ import type {
  */
 export async function fetchTranscripts(): Promise<Transcript[]> {
     const supabase = createClient()
+    return paginateRows<Transcript>((from, to) =>
+        supabase
+            .from('transcripts')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true })
+            .range(from, to)
+    )
+}
+
+// ============================================================================
+// Projects
+// ============================================================================
+
+export type CreateProjectInput = {
+    name: string
+    parent_id: string | null
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+    const supabase = createClient()
+    return paginateRows<Project>((from, to) =>
+        supabase
+            .from('projects')
+            .select('*')
+            .order('name', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to)
+    )
+}
+
+export async function createProject(input: CreateProjectInput): Promise<Project> {
+    const supabase = createClient()
+    const { data: authData, error: authError } = await supabase.auth.getUser()
+    if (authError) throw authError
+    if (!authData.user) throw new Error('You must be signed in to create a project.')
+
     const { data, error } = await supabase
-        .from('transcripts')
-        .select('*')
-        .order('created_at', { ascending: false })
+        .from('projects')
+        .insert({ ...input, user_id: authData.user.id })
+        .select()
+        .single()
 
     if (error) throw error
-    return data || []
+    return data
+}
+
+export async function renameProject(id: string, name: string): Promise<Project> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('projects')
+        .update({ name })
+        .eq('id', id)
+        .select()
+        .single()
+
+    if (error) throw error
+    return data
+}
+
+export async function moveTranscriptToProject(
+    transcriptId: string,
+    projectId: string | null
+): Promise<string> {
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('transcripts')
+        .update({ project_id: projectId })
+        .eq('id', transcriptId)
+        .select('id')
+        .single()
+
+    if (error) throw error
+    if (!data || data.id !== transcriptId) {
+        throw new Error('The transcript could not be moved because it is no longer available.')
+    }
+    return data.id
+}
+
+export type AddTranscriptsResult = {
+    addedIds: string[]
+    missingIds: string[]
+}
+
+/**
+ * Adds transcripts to a project in one update. Database errors (a missing or
+ * marked project) reject the whole statement, so ids absent from the result are
+ * rows RLS cannot see: in practice, transcripts deleted after they were selected.
+ * The visible rows have already committed, so missing ids are reported, not thrown.
+ */
+export async function addTranscriptsToProject(
+    ids: string[],
+    projectId: string
+): Promise<AddTranscriptsResult> {
+    const uniqueIds = [...new Set(ids)]
+    if (uniqueIds.length === 0) return { addedIds: [], missingIds: [] }
+
+    const supabase = createClient()
+    const { data, error } = await supabase
+        .from('transcripts')
+        .update({ project_id: projectId })
+        .in('id', uniqueIds)
+        .select('id')
+
+    if (error) throw error
+    const updatedIds = new Set((data ?? []).map((row) => row.id))
+    return {
+        addedIds: uniqueIds.filter((id) => updatedIds.has(id)),
+        missingIds: uniqueIds.filter((id) => !updatedIds.has(id)),
+    }
+}
+
+export async function fetchProjectBranchTranscriptCount(id: string): Promise<number> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('project_branch_transcript_count', { p_id: id })
+
+    if (error) throw error
+    return data ?? 0
 }
 
 /**
@@ -217,33 +357,21 @@ const FETCH_ALL_ROWS_SUPPORTED_TABLES = new Set(['segments'])
  * Fetch all rows from a table with pagination to avoid PostgREST's
  * default 1000-row limit which silently truncates large result sets.
  */
-export async function paginateAllRows<T>(
+export async function paginateAllRows<T extends { id: string }>(
     supabase: SupabaseClient,
     table: string,
     transcriptId: string,
     orderColumn: string = 'start_ms'
 ): Promise<T[]> {
-    const PAGE_SIZE = 1000
-    const allRows: T[] = []
-    let offset = 0
-
-    while (true) {
-        const { data: page, error } = await supabase
+    return paginateRows<T>((from, to) =>
+        supabase
             .from(table)
             .select('*')
             .eq('transcript_id', transcriptId)
             .order(orderColumn, { ascending: true })
             .order('id', { ascending: true }) // tie-breaker for deterministic pagination
-            .range(offset, offset + PAGE_SIZE - 1)
-
-        if (error) throw error
-        if (!page || page.length === 0) break
-        allRows.push(...(page as T[]))
-        if (page.length < PAGE_SIZE) break
-        offset += PAGE_SIZE
-    }
-
-    return allRows
+            .range(from, to) as unknown as PromiseLike<PageResult<T>>
+    )
 }
 
 /**
@@ -256,7 +384,7 @@ export async function paginateAllRows<T>(
  * - This helper only supports `segments`; use `paginateAllRows`
  *   directly for other tables with an explicit order column.
  */
-async function fetchAllRows<T>(
+async function fetchAllRows<T extends { id: string }>(
     table: string,
     transcriptId: string,
     orderColumn: string = 'start_ms'

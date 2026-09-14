@@ -15,6 +15,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
 import { SIDEBAR_COLLAPSED_KEY } from '@/lib/constants'
 import { createThemeInitScript } from '@/lib/theme'
+import { ProjectsProvider } from '@/lib/projects/ProjectsProvider'
 
 export const metadata: Metadata = {
   title: 'Olivetti',
@@ -48,19 +49,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased bg-noise h-screen flex overflow-hidden">
         <TooltipProvider delayDuration={700}>
           <ModalProvider>
-            <RecordingSessionProvider>
-              <Sidebar />
-              <main className="flex-1 relative overflow-hidden z-[1]">
-                <div className="absolute top-0 left-0 right-3 z-40">
-                  <ContextualHeader />
-                </div>
-                <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-                  {children}
-                </div>
-              </main>
-              <CaptureModal />
-              <Toaster />
-            </RecordingSessionProvider>
+            <ProjectsProvider>
+              <RecordingSessionProvider>
+                <Sidebar />
+                <main className="flex-1 relative overflow-hidden z-[1]">
+                  <div className="absolute top-0 left-0 right-3 z-40">
+                    <ContextualHeader />
+                  </div>
+                  <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
+                    {children}
+                  </div>
+                </main>
+                <CaptureModal />
+                <Toaster />
+              </RecordingSessionProvider>
+            </ProjectsProvider>
           </ModalProvider>
         </TooltipProvider>
       </body>

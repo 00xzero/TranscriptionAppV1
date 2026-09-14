@@ -16,7 +16,7 @@ const mockDeleteTranscript = jest.fn()
 const mockRefetch = jest.fn()
 const mockReplace = jest.fn()
 const mockOpenCaptureModal = jest.fn()
-const mockUseTranscriptsRealtime = jest.fn()
+const mockUseProjectsData = jest.fn()
 
 const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   id: '11111111-1111-1111-1111-111111111111',
@@ -63,8 +63,8 @@ jest.mock('@/lib/ModalContext', () => ({
   }),
 }))
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useTranscriptsRealtime: () => mockUseTranscriptsRealtime(),
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
 }))
 
 describe('TranscriptsPage', () => {
@@ -78,12 +78,12 @@ describe('TranscriptsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
-    mockUseTranscriptsRealtime.mockReturnValue({
+    mockUseProjectsData.mockReturnValue({
       transcripts: [makeTranscript()],
-      isLoading: false,
-      connectionStatus: 'connected',
+      transcriptsLoading: false,
+      transcriptConnectionStatus: 'connected',
       deleteTranscript: mockDeleteTranscript,
-      refetch: mockRefetch,
+      refetchTranscripts: mockRefetch,
     })
   })
 

@@ -38,28 +38,31 @@ Settled by the code rather than by discussion: the sidebar entry sits between Li
 
 | | Estimate |
 |---|---|
-| PRs | 6, landing sequentially on `main` |
+| PRs | 6, landing sequentially on `implement-projects`; one final integration merge to `main` after PR 6 |
 | Migration | 1 file |
 | New API route | 1 (`POST /api/projects/[id]/delete`) |
 | New pages | 2 (`/projects`, `/projects/[projectId]`) |
 | New shared components | ~9 |
 | Modified subsystems | capture upload, waveform worker, orphan cleanup tool, single-transcript delete, recording session, Library, sidebar, proxy, editor header, confirm dialog |
 
-Each PR leaves `main` shippable. The sidebar entry and the `/projects` routes stay unreachable until PR 5, so nothing half-wired is exposed.
+Each PR leaves `implement-projects` shippable. `main` does not receive this work until the final integration merge after PR 6. The sidebar entry and the `/projects` routes stay unreachable until PR 5, so nothing half-wired is exposed.
 
 ## Branch strategy
 
 ```text
 main
- ├── PR 1: schema + contracts + storage helper extraction
- ├── PR 2: core tree helpers + queries + provider
- ├── PR 3: delete route (two-phase) + writer fixes + cleanup tool repair
- ├── PR 4: pages + breadcrumbs (routes exist, not yet linked from the sidebar)
- ├── PR 5: dialogs + shared actions menu + sidebar entry   ← feature becomes reachable
- └── PR 6: creation inside a project + Library integration
+ └── implement-projects (integration branch)
+      ├── PR1 → merge
+      ├── PR2 → merge
+      ├── PR3 → merge
+      ├── PR4 → merge
+      ├── PR5 → merge   ← feature becomes reachable
+      └── PR6 → merge
+
+implement-projects → main (once, after PR 6; not part of a PR thread)
 ```
 
-PRs 2 and 3 depend only on PR 1 and can be built in parallel. PR 4 needs PR 2. PR 5 needs PR 3 and PR 4. PR 6 needs PR 5.
+Each `PRn` branch is cut from the current tip of `implement-projects` and targets `implement-projects`. After it merges, the next PR branch is cut from the new integration tip, so delivery is sequential even where code dependencies would otherwise permit parallel work. The logical dependencies remain: PRs 2 and 3 require PR 1; PR 4 requires PR 2; PR 5 requires PRs 3 and 4; PR 6 requires PR 5.
 
 ---
 
@@ -285,32 +288,36 @@ Browser-client queries:
 
 - `fetchProjects()`: paginated with the same range-loop shape as `paginateAllRows`, ordered by `name`, then `id` for a stable cursor. Generalise `paginateAllRows` to accept a query builder rather than a transcript id if that is cleaner than a second loop.
 - `fetchTranscripts()` already exists and is not paginated; add pagination to it in this PR too, since the Projects pages derive every list from it and the same cap applies.
-- `createProject({ name, parent_id })`: insert, `select().single()`.
+- `createProject({ name, parent_id })`: resolve the authenticated user inside the query, insert with that user id, then `select().single()`. The caller does not supply identity.
 - `renameProject(id, name)`.
-- `moveTranscriptToProject(transcriptId, projectId | null)`: single update.
-- `addTranscriptsToProject(ids, projectId)`: one `update().in('id', ids)`.
+- `moveTranscriptToProject(transcriptId, projectId | null)`: single update returning the affected id; zero affected rows is a failure rather than a successful no-op.
+- `addTranscriptsToProject(ids, projectId)`: de-duplicate ids, issue one `update().in('id', ids)` returning affected ids, and resolve `{ addedIds, missingIds }`. Database errors (a missing or marked project) reject the whole statement, so the only ids that can be absent are rows RLS cannot see, in practice transcripts deleted after they were selected. The visible rows have committed, so this is reported rather than thrown; the hook drops missing rows and reconciles with a refetch.
 - `fetchProjectBranchTranscriptCount(id)`: `rpc('project_branch_transcript_count', …)`.
 
 ### `lib/supabase/realtime.ts`
 
-Add `'projects'` to the `TableName` union. Add an `enabled` option (default `true`): when false, the hook performs no initial fetch, opens no channel, starts no polling, and reports `isLoading: false` with empty data. Today the hook fetches unconditionally before it checks `subscriptionEnabled`, so without this option the provider would issue a fetch on auth pages and on every signed-out render.
+Add `'projects'` to the `TableName` union. Add an `enabled` option (default `true`): when false, the hook performs no initial fetch, opens no channel, starts no polling, clears stored data/error/connection state, and reports `isLoading: false` with empty data. Disabling or replacing the subscription invalidates fetches started by the previous lifecycle so they cannot restore stale state; the internal loading state is prepared for a clean next enable cycle. Only the initial fetch reports `isLoading`; background refetches keep settled data on screen.
 
 ### `lib/supabase/hooks.ts`
 
-- `useProjectsRealtime()`: same shape as `useTranscriptsRealtime`, filter `user_id=eq.<id>`, returning `{ projects, tree, isLoading, error, createProject, renameProject, mutate, refetch }`. `tree` is memoised via `buildProjectTree`. Create and rename are optimistic with rollback, matching the existing `deleteTranscript` pattern.
-- Extend `useTranscriptsRealtime()` with `moveTranscript(id, projectId | null)` and `addTranscripts(ids, projectId)`, both optimistic with rollback. No per-project hook exists: a filtered subscription cannot receive the update that moves a row out of its filter, so derived lists over the user-scoped subscription are the only correct source.
+- `useAuthIdentity()` owns the browser auth lookup. A missing cached session is a resolved signed-out state (`{ userId: null, ready: true }`) and does not call `getUser()`; a cached user id remains unverified until `getUser()` succeeds.
+- `useProjectsRealtime({ userId, enabled = true })`: same shape as `useTranscriptsRealtime`, filter `user_id=eq.<id>`, returning `{ projects, tree, isLoading, error, createProject, renameProject, mutate, refetch }`. `tree` is memoised via `buildProjectTree`. Create and rename are optimistic with rollback, matching the existing `deleteTranscript` pattern.
+- Extend `useTranscriptsRealtime({ userId, enabled = true })` with `moveTranscript(id, projectId | null)` and `addTranscripts(ids, projectId)`, both optimistic with rollback. `addTranscripts` resolves the query's `{ addedIds, missingIds }`, removing missing rows locally and refetching when any are reported. The provider supplies the user id to both table hooks, so they do not create duplicate auth listeners. No per-project hook exists: a filtered subscription cannot receive the update that moves a row out of its filter, so derived lists over the user-scoped subscription are the only correct source.
 
 ### `lib/projects/ProjectsProvider.tsx`
 
-A context provider mounted once in `app/layout.tsx` inside the existing providers. It reads the current user id and renders an inner component, keyed by that id, which holds one `useProjectsRealtime()` and one `useTranscriptsRealtime()` with `enabled: Boolean(userId)`. Keying by user id means a sign-out or account switch unmounts and remounts the inner component, so no data from one identity survives into another. Exposes `useProjectsData()` returning both hooks' values plus `error` for each. Every Projects page, dialog, the Library, and the sidebar read from this context; none of them call the hooks directly. The Library and Transcripts pages migrate from their own `useTranscriptsRealtime()` call to the context in this PR, so the app holds exactly one transcripts channel and one projects channel per tab.
+A context provider mounted once in `app/layout.tsx` inside the existing providers. It owns one `useAuthIdentity()` call for the Projects data layer. While a user is signed in it renders a data owner, keyed by user id, which holds one `useProjectsRealtime({ userId, enabled: true })` and one `useTranscriptsRealtime({ userId, enabled: true })` and publishes their values to the provider. The owner renders nothing and sits beside `children`, not around them: a keyed component that wraps the app would remount the entire app whenever the user id changes, including on every page load when the session resolves. Keying the owner alone means a sign-out or account switch discards the table state without touching the app tree, and the provider never exposes a published value whose user id differs from the current one, so no data from one identity survives into another. Without a user id the context holds a fixed placeholder: loading while auth is unresolved, settled and empty once the absence of a session is known. Exposes `useProjectsData()` returning both hooks' values plus `error` for each. Every Projects page, dialog, the Library, and the sidebar read from this context; none of them call the hooks directly. The Library and Transcripts pages migrate from their own `useTranscriptsRealtime()` call to the context in this PR, so the Projects data layer holds exactly one auth listener, one transcripts channel, and one projects channel per tab. Other app subsystems retain their pre-existing auth lookups and listeners.
 
-With `enabled` false and no user, the provider issues no fetch and opens no channel; the provider test asserts that.
+With no user, the provider mounts no table hooks, so it issues no fetch and opens no channel; the provider tests assert that.
 
 ### Tests
 
 - `__tests__/projects/tree.test.ts`, `activity.test.ts`, `validate.test.ts`, `projectErrors.test.ts`.
-- `__tests__/projects/provider.test.tsx`: exactly one channel per table regardless of how many consumers mount; no fetch and no channel with no user; data resets on user id change; derived lists update when a transcript's `project_id` changes in the shared list; a moved-out transcript leaves the old project's derived list.
-- `__tests__/supabaseHooks.test.tsx`: extend for `moveTranscript`, `addTranscripts`, and pagination of `fetchTranscripts`.
+- `__tests__/projects/provider.test.tsx`: one data owner regardless of how many consumers mount; the owner's data reaches consumers; pending-auth loading; no table hooks with no user.
+- `__tests__/projects/providerChannels.test.tsx`: exactly one Projects-data auth listener and one channel per table regardless of consumer count; app content is not remounted when auth resolves; no fetch or channel while signed out; a real identity transition immediately discards the previous user's data before the next fetch settles; a realtime move updates both projects' derived lists.
+- `__tests__/supabaseHooks.test.tsx`: extend for signed-out identity resolution, `moveTranscript`, `addTranscripts` (including missing ids), and optimistic rollback followed by server reconciliation.
+- `__tests__/supabaseRealtime.test.tsx`: cover initial-only loading, the fully disabled state, and stale-fetch invalidation across disable/re-enable.
+- `__tests__/projects/queries.test.ts`: cover paginated project/transcript reads, deterministic range progression, duplicate ids at page boundaries, de-duplicated bulk assignment, a rejected missing move, and missing ids reported from a batched add.
 
 ### Ship criteria
 
@@ -321,6 +328,10 @@ Tests green. Library and Transcripts pages behave identically to before, now fed
 ## PR 3: Delete route and deletion prerequisites
 
 **Goal:** `POST /api/projects/[id]/delete` implements decision 8, with a stable deletion scope and truthful partial-failure reporting. This PR also lands the three fixes that make deleting existing transcripts safe: the capture and waveform affected-row checks, waveform reconciliation before compensation, and the orphan cleanup tool repair. They are needed whether or not a transcript was created inside a project, so they ship before deletion is exposed, not with the creation work in PR 6.
+
+**Cross-tab DELETE delivery prerequisite discovered during PR 2.** Both shared realtime subscriptions are filtered by `user_id`, but Supabase only supports filtering Postgres Changes `DELETE` events when the table uses `REPLICA IDENTITY FULL`; Supabase also documents that RLS policies are not applied to `DELETE` events. Before implementing this PR, choose and test a secure reconciliation mechanism for deleted `projects` and `transcripts` rather than assuming the current filtered subscriptions will remove rows in other tabs. Do not enable full replica identity without accounting for that authorization constraint. The initiating tab's optimistic mutation is not sufficient for the two-tab acceptance cases below.
+
+**PR 2 follow-ups owned here.** When adding the route's `PJ001`/`PJ004` handling, keep project SQLSTATE classification in one source inside `lib/supabase/project-errors.ts`; driver-error interpretation does not move into `contracts/`. As part of the DELETE-delivery work, update the stale comment in `20260513010000_realtime_publication.sql` that refers to the removed `useProjectsRealtime.deleteProject` action.
 
 ### `app/api/projects/[id]/delete/route.ts`
 
@@ -484,6 +495,12 @@ Replace the inline menus in `components/LibraryView.tsx`, `app/transcripts/page.
 - `/projects/[projectId]` page: New Project with `parentId: projectId`; Add Transcripts opens `AddTranscriptsDialog`; header menu is `ProjectActionsMenu`; row menus feed the page's single pair of dialogs.
 - Pending states: every dialog disables its primary action during the request. Project rows never optimistically disappear on delete; the route's success response is the only signal, after which the realtime DELETE events and the optimistic `mutate` remove the rows.
 
+### PR 2 performance and consistency checkpoint
+
+Before the sidebar and dialogs broaden use of the shared provider, profile it with a realistic large transcript set. Measure the initial fetch plus the reconciliation fetch after realtime connects, polling-fallback traffic, and whether the flat context causes material cross-domain re-renders. Preserve the settled one-provider, one-subscription-per-table and `useProjectsData()` interfaces; optimise only from evidence, for example with narrower list projections or internal context partitioning that does not change the consumer API.
+
+Add Unicode/case edge cases for `siblingNameTaken` alongside the dialog tests and compare them with the database's `lower(name)` uniqueness behaviour. Keep `ProjectNameSchema` as the trimming and length source of truth; do not introduce a client helper that claims to reproduce database collation without evidence.
+
 ### Tests
 
 - `__tests__/confirmDialog.test.tsx`: awaited confirm, pending state, stays open on error, closes on resolve.
@@ -560,3 +577,5 @@ cd frontend && npx tsx scripts/smoke-test-projects-concurrency.ts
 ## Open items deliberately left out of v1
 
 Per spec section 14 and the review: drag-and-drop, moving a project branch (would replace the immutability trigger with a recursive cycle check), sharing, multi-project membership, colours and icons, smart projects, trash or undo. A CI database harness that would promote the smoke and concurrency scripts to automated tests is its own piece of work. An admin path to unstick a branch whose owner never retries is deferred; pre-MVP, a database operator can clear `deleting_at` by hand as `postgres`. Scheduling the orphan cleanup script as an Inngest cron is a small follow-up once it covers both buckets.
+
+App-wide auth ownership remains separate from Projects v1: `ProjectsProvider` de-duplicates Projects consumers, while recording, presence, capture, sidebar, header, and Library retain pre-existing identity listeners or lookups. Consider one app-level identity provider after v1. If repeated deferred-promise helpers, full row fixtures, or optimistic list transforms continue to spread, consolidate them only when reuse reduces maintenance without hiding test intent or moving React-specific behavior into `core/` prematurely.
