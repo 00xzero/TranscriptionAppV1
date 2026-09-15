@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { projectIdFromPathname } from '@/lib/projects/routes'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
@@ -24,7 +25,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   const { tree } = useProjectsData()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
-  const routeProjectId = isProjectsRoute ? pathname?.split('/')[2] : undefined
+  const routeProjectId = projectIdFromPathname(pathname)
   const hideCapture = Boolean(routeProjectId && tree.byId.get(routeProjectId)?.deleting_at)
 
   // Auto-detect editor mode from pathname if viewType not explicitly set

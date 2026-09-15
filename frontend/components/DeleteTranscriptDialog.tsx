@@ -7,8 +7,8 @@ const DELETE_TRANSCRIPT_DESCRIPTION =
 
 type DeleteTranscriptDialogProps = {
   open: boolean
-  /** Transcript title shown in the heading; null while closed. */
-  title: string | null
+  /** Transcript title shown in the heading. */
+  title: string
   onOpenChange: (open: boolean) => void
   onConfirm: () => void | Promise<void>
 }
@@ -27,7 +27,7 @@ export function DeleteTranscriptDialog({
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      heading={title ? `Delete "${title}"?` : undefined}
+      heading={`Delete "${title}"?`}
       description={DELETE_TRANSCRIPT_DESCRIPTION}
       onConfirm={onConfirm}
       confirmLabel="Delete"

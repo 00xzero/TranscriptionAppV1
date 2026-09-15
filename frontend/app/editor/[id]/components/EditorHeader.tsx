@@ -5,8 +5,7 @@ import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { formatTranscriptDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
-  transcriptId,
-  transcriptTitle,
+  displayTitle,
   transcriptCreatedAt,
   transcriptDurationSecs,
   uniqueSpeakerCount,
@@ -22,8 +21,7 @@ export default function EditorHeader({
   onDeleteClick,
   onMoveClick,
 }: {
-  transcriptId: string
-  transcriptTitle: string | null
+  displayTitle: string
   transcriptCreatedAt: string | null
   transcriptDurationSecs: number | null
   uniqueSpeakerCount: number
@@ -73,7 +71,7 @@ export default function EditorHeader({
                   role="button"
                   aria-label="Edit title"
                 >
-                  {transcriptTitle || `Untitled (${transcriptId.slice(0, 8)}...)`}
+                  {displayTitle}
                 </h1>
               </TooltipTrigger>
               <TooltipContent>Click to edit title</TooltipContent>
@@ -108,7 +106,7 @@ export default function EditorHeader({
             )}
           </div>
           <TranscriptActionsMenu
-            title={transcriptTitle || `Untitled (${transcriptId.slice(0, 8)}...)`}
+            title={displayTitle}
             onMove={onMoveClick}
             onDelete={onDeleteClick}
           />

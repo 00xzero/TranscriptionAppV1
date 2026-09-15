@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useModal } from '@/lib/ModalContext'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
-import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 export default function TranscriptsPage() {
   return (

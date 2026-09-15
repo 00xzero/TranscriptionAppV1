@@ -39,13 +39,14 @@ export function ProjectNameDialog({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const reset = () => {
+    setName(initialName)
+    setError(null)
+  }
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (pending && !nextOpen) return
-    if (!nextOpen) {
-      setName(initialName)
-      setPending(false)
-      setError(null)
-    }
+    if (!nextOpen) reset()
     onOpenChange(nextOpen)
   }
 
@@ -65,11 +66,11 @@ export function ProjectNameDialog({
     setError(null)
     try {
       await onSubmit(validated.name)
-      setPending(false)
-      setName(initialName)
+      reset()
       onOpenChange(false)
     } catch (caught) {
       setError(mapProjectWriteError(caught))
+    } finally {
       setPending(false)
     }
   }

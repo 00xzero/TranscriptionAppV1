@@ -7,7 +7,6 @@ import { ancestorsOf, type ProjectTree } from '@/core/projects/tree'
 import { Input } from '@/components/ui/input'
 
 type VisibleNode = { project: Project; depth: number }
-type ExpansionState = { value: string | null; ids: Set<string> }
 
 function selectedAncestorIds(tree: ProjectTree, value: string | null): string[] {
   if (!value) return []
@@ -24,29 +23,32 @@ export function ProjectTreePicker({
   onChange: (projectId: string | null) => void
 }) {
   const [query, setQuery] = useState('')
-  const [expansion, setExpansion] = useState<ExpansionState>(() => ({
-    value,
-    ids: new Set(selectedAncestorIds(tree, value)),
-  }))
+  const [expanded, setExpanded] = useState(() => new Set(selectedAncestorIds(tree, value)))
+  const [revealedValue, setRevealedValue] = useState(value)
   const [focusId, setFocusId] = useState(value ?? 'unfiled')
   const itemRefs = useRef(new Map<string, HTMLButtonElement>())
 
-  if (expansion.value !== value) {
-    setExpansion({
-      value,
-      ids: new Set([...expansion.ids, ...selectedAncestorIds(tree, value)]),
-    })
+  // Reveal a newly selected project once, leaving the user free to collapse its ancestors afterwards.
+  if (revealedValue !== value) {
+    setRevealedValue(value)
+    setExpanded(new Set([...expanded, ...selectedAncestorIds(tree, value)]))
   }
 
-  const expanded = expansion.ids
-  const setExpanded = (update: (current: Set<string>) => Set<string>) => {
-    setExpansion((current) => ({ ...current, ids: update(current.ids) }))
+  const setNodeExpanded = (id: string, next: boolean | 'toggle') => {
+    setExpanded((current) => {
+      const updated = new Set(current)
+      if (next === true || (next === 'toggle' && !current.has(id))) updated.add(id)
+      else updated.delete(id)
+      return updated
+    })
   }
 
   const available = useMemo(
     () => new Set([...tree.byId.values()].filter((project) => !project.deleting_at).map((project) => project.id)),
     [tree]
   )
+  const availableChildren = (id: string) =>
+    (tree.childrenOf.get(id) ?? []).filter((child) => available.has(child.id))
   const normalizedQuery = query.trim().toLowerCase()
   const searchVisible = useMemo(() => {
     if (!normalizedQuery) return null
@@ -92,20 +94,16 @@ export function ProjectTreePicker({
       event.preventDefault()
       onChange(id === 'unfiled' ? null : id)
     } else if (id !== 'unfiled' && event.key === 'ArrowRight') {
-      const children = (tree.childrenOf.get(id) ?? []).filter((child) => available.has(child.id))
+      const children = availableChildren(id)
       if (children.length > 0) {
         event.preventDefault()
-        if (!expanded.has(id)) setExpanded((current) => new Set(current).add(id))
+        if (!expanded.has(id)) setNodeExpanded(id, true)
         else focusItem(children[0].id)
       }
     } else if (id !== 'unfiled' && event.key === 'ArrowLeft') {
       event.preventDefault()
       if (expanded.has(id)) {
-        setExpanded((current) => {
-          const next = new Set(current)
-          next.delete(id)
-          return next
-        })
+        setNodeExpanded(id, false)
       } else {
         const parentId = tree.byId.get(id)?.parent_id
         focusItem(parentId && available.has(parentId) ? parentId : 'unfiled')
@@ -140,8 +138,7 @@ export function ProjectTreePicker({
           Unfiled
         </button>
         {nodes.map(({ project, depth }) => {
-          const children = (tree.childrenOf.get(project.id) ?? []).filter((child) => available.has(child.id))
-          const hasChildren = children.length > 0
+          const hasChildren = availableChildren(project.id).length > 0
           const isExpanded = Boolean(searchVisible) || expanded.has(project.id)
           return (
             <button
@@ -156,7 +153,7 @@ export function ProjectTreePicker({
               style={{ paddingLeft: `${12 + depth * 20}px` }}
               onFocus={() => setFocusId(project.id)}
               onClick={() => onChange(project.id)}
-              onDoubleClick={() => hasChildren && setExpanded((current) => new Set(current).add(project.id))}
+              onDoubleClick={() => hasChildren && setNodeExpanded(project.id, true)}
               onKeyDown={(event) => handleKeyDown(event, project.id)}
             >
               {hasChildren ? (
@@ -164,12 +161,7 @@ export function ProjectTreePicker({
                   aria-hidden="true"
                   onClick={(event) => {
                     event.stopPropagation()
-                    setExpanded((current) => {
-                      const next = new Set(current)
-                      if (next.has(project.id)) next.delete(project.id)
-                      else next.add(project.id)
-                      return next
-                    })
+                    setNodeExpanded(project.id, 'toggle')
                   }}
                 >
                   {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}

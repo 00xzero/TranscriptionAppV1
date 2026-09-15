@@ -40,10 +40,7 @@ export function ConfirmDialog({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (pending && !nextOpen) return
-    if (!nextOpen) {
-      setPending(false)
-      setError(null)
-    }
+    if (!nextOpen) setError(null)
     onOpenChange(nextOpen)
   }
 
@@ -54,11 +51,10 @@ export function ConfirmDialog({
     setError(null)
     try {
       await onConfirm()
-      setPending(false)
-      setError(null)
       onOpenChange(false)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Something went wrong. Please try again.')
+    } finally {
       setPending(false)
     }
   }

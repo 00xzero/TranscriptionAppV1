@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MoveTranscriptDialog } from '@/components/Projects/MoveTranscriptDialog'
 import { buildProjectTree } from '@/core/projects/tree'
-import { makeProject } from './fixtures'
+import { makeProject, makeTranscript } from './fixtures'
 
 const mockUseProjectsData = jest.fn()
 jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
@@ -21,6 +21,7 @@ describe('MoveTranscriptDialog', () => {
     createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Created' }))
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([current, destination, deleting]),
+      transcripts: [],
       moveTranscript,
       createProject,
     })
@@ -28,7 +29,7 @@ describe('MoveTranscriptDialog', () => {
 
   test('preselects the current location, disables unchanged moves, and moves to Unfiled', async () => {
     const user = userEvent.setup()
-    render(<MoveTranscriptDialog open onOpenChange={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+    render(<MoveTranscriptDialog onClose={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
 
     expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
     expect(screen.queryByRole('treeitem', { name: /Deleting/ })).not.toBeInTheDocument()
@@ -39,13 +40,42 @@ describe('MoveTranscriptDialog', () => {
 
   test('creates under the selected node and selects the new project', async () => {
     const user = userEvent.setup()
-    render(<MoveTranscriptDialog open onOpenChange={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+    render(<MoveTranscriptDialog onClose={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
     await user.click(screen.getByRole('treeitem', { name: /Destination/ }))
     await user.click(screen.getByRole('button', { name: 'New Project' }))
     await user.type(await screen.findByLabelText('Project name'), 'Created')
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(createProject).toHaveBeenCalledWith({ name: 'Created', parent_id: 'destination' }))
+    expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
+  })
+
+  test('follows a live move made elsewhere while the selection is untouched', () => {
+    const data = mockUseProjectsData()
+    const target = { id: 't1', title: 'Alpha', project_id: 'current' }
+    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
+    const view = render(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
+    expect(screen.getByRole('treeitem', { name: /Current/ })).toHaveAttribute('aria-selected', 'true')
+
+    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
+    view.rerender(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
+
+    expect(screen.getByRole('treeitem', { name: /Destination/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
+  })
+
+  test('keeps a destination the user picked when the transcript moves elsewhere', async () => {
+    const user = userEvent.setup()
+    const data = mockUseProjectsData()
+    const target = { id: 't1', title: 'Alpha', project_id: 'current' }
+    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
+    const view = render(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
+    await user.click(screen.getByRole('treeitem', { name: 'Unfiled' }))
+
+    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
+    view.rerender(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
+
+    expect(screen.getByRole('treeitem', { name: 'Unfiled' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
   })
 })

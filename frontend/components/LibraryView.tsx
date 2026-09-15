@@ -5,9 +5,10 @@ import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
-import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import type { User } from '@supabase/supabase-js'
 
 export default function LibraryView() {

@@ -20,39 +20,33 @@ function deleteErrorMessage(error: unknown): string {
 }
 
 export function DeleteProjectDialog({
-  open,
-  onOpenChange,
   project,
+  onClose,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  project: Project | null
+  project: Project
+  onClose: () => void
 }) {
   const { tree, mutateProjects, mutateTranscripts } = useProjectsData()
   const [transcriptCount, setTranscriptCount] = useState<number | null>(null)
   const [countError, setCountError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
-  const projectId = project?.id
 
   useEffect(() => {
-    if (!open || !projectId) return
     let active = true
-    void fetchProjectBranchTranscriptCount(projectId).then(
+    void fetchProjectBranchTranscriptCount(project.id).then(
       (count) => active && setTranscriptCount(count),
       () => active && setCountError('The transcript count could not be loaded. Close this dialog and try again.')
     )
     return () => { active = false }
-  }, [open, projectId])
+  }, [project.id])
 
   const completeLocally = () => {
-    if (!project) return
     const deletedIds = new Set(branchIds(tree, project.id))
     mutateProjects((current) => current.filter((item) => !deletedIds.has(item.id)))
     mutateTranscripts((current) => current.filter((item) => !item.project_id || !deletedIds.has(item.project_id)))
   }
 
   const handleConfirm = async () => {
-    if (!project) return
     try {
       await deleteProjectRequest(project.id)
       completeLocally()
@@ -66,22 +60,21 @@ export function DeleteProjectDialog({
     }
   }
 
-  const nestedCount = project ? descendantCount(tree, project.id) : 0
+  const nestedCount = descendantCount(tree, project.id)
   const description = countError ?? (transcriptCount === null
     ? 'Loading the number of transcripts in this project…'
-    : `This will permanently delete ${nestedCount} nested ${nestedCount === 1 ? 'project' : 'projects'} and ${transcriptCount} ${transcriptCount === 1 ? 'transcript' : 'transcripts'}, including their media. This cannot be undone.`)
+    : `This will permanently delete ${countLabel(nestedCount, 'nested project', 'nested projects')} and ${countLabel(transcriptCount, 'transcript', 'transcripts')}, including their media. This cannot be undone.`)
 
   return (
     <ConfirmDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      heading={project ? `Delete “${project.name}”?` : 'Delete project?'}
+      open
+      onOpenChange={(open) => !open && onClose()}
+      heading={`Delete “${project.name}”?`}
       description={description}
       onConfirm={handleConfirm}
-      cancelLabel="Cancel"
       confirmLabel={attempts > 0 ? 'Retry Delete' : 'Delete Project'}
       pendingLabel="Deleting…"
-      confirmDisabled={!project || transcriptCount === null || Boolean(countError)}
+      confirmDisabled={transcriptCount === null || Boolean(countError)}
     />
   )
 }

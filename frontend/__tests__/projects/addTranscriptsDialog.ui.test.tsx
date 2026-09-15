@@ -29,7 +29,7 @@ describe('AddTranscriptsDialog', () => {
       addTranscripts,
     })
 
-    render(<AddTranscriptsDialog open onOpenChange={jest.fn()} projectId="target" />)
+    render(<AddTranscriptsDialog projectId="target" onClose={jest.fn()} />)
     expect(screen.queryByText('Already here')).not.toBeInTheDocument()
     expect(screen.queryByText('Deletion in progress')).not.toBeInTheDocument()
     expect(screen.getByText(/Source/)).toBeInTheDocument()

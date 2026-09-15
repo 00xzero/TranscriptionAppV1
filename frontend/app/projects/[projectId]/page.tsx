@@ -5,6 +5,7 @@ import { notFound, useParams, useRouter } from 'next/navigation'
 import { FolderClock } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
 import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
@@ -24,7 +25,7 @@ import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
-import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) {
   return (
@@ -96,6 +97,10 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
     notFound()
   }
 
+  const deleteProjectDialog = deleteProjectTarget && (
+    <DeleteProjectDialog project={deleteProjectTarget} onClose={() => setDeleteProjectTarget(null)} />
+  )
+
   if (project.deleting_at) {
     return (
       <>
@@ -111,11 +116,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
             </Button>
           </div>
         </div>
-        {deleteProjectTarget && <DeleteProjectDialog
-          open
-          onOpenChange={(open) => !open && setDeleteProjectTarget(null)}
-          project={deleteProjectTarget}
-        />}
+        {deleteProjectDialog}
       </>
     )
   }
@@ -190,12 +191,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         initialName={renameProjectTarget.name}
         onSubmit={(name) => renameProject(renameProjectTarget.id, name)}
       />}
-      {deleteProjectTarget && <DeleteProjectDialog
-        open
-        onOpenChange={(open) => !open && setDeleteProjectTarget(null)}
-        project={deleteProjectTarget}
-      />}
-      {addOpen && <AddTranscriptsDialog open onOpenChange={setAddOpen} projectId={project.id} />}
+      {deleteProjectDialog}
+      {addOpen && <AddTranscriptsDialog projectId={project.id} onClose={() => setAddOpen(false)} />}
       <TranscriptActionDialogs actions={transcriptActions} />
     </div>
   )

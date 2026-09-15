@@ -9,9 +9,9 @@ import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/Collapsi
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
-import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
@@ -29,19 +29,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   // 1. Data layer
   const data = useEditorData(transcriptId)
-  const { transcripts } = useProjectsData()
-  const providerTranscript = transcripts.find((transcript) => transcript.id === transcriptId)
-  const transcriptProjectId = providerTranscript
-    ? providerTranscript.project_id
-    : data.transcriptProjectId
   const actionTarget = transcriptActionTarget({
     id: transcriptId,
     title: data.transcriptTitle,
-    project_id: transcriptProjectId,
+    project_id: data.transcriptProjectId,
   }, `Untitled (${transcriptId.slice(0, 8)}...)`)
-  const transcriptActions = useTranscriptActions({
-    onDeleted: () => router.replace('/transcripts'),
-  })
+  const transcriptActions = useTranscriptActions()
 
   // 2. Mutation hooks
   const editing = useTranscriptMutations({
@@ -228,8 +221,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         </CollapsibleWaveform>
 
         <EditorHeader
-          transcriptId={transcriptId}
-          transcriptTitle={data.transcriptTitle}
+          displayTitle={actionTarget.title}
           transcriptCreatedAt={data.transcriptCreatedAt}
           transcriptDurationSecs={data.transcriptDurationSecs}
           uniqueSpeakerCount={uniqueSpeakerCount}
@@ -292,7 +284,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         />
       )}
 
-      <TranscriptActionDialogs actions={transcriptActions} />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => router.replace('/transcripts')} />
 
       <Popover
         open={!!speakerHook.speakerPopover}

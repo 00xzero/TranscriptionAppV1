@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
 import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
@@ -21,7 +22,7 @@ import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
-import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 export default function ProjectsPage() {
   const { tree, transcripts, createProject, renameProject } = useProjectsData()
@@ -138,11 +139,9 @@ export default function ProjectsPage() {
         initialName={renameProjectTarget.name}
         onSubmit={(name) => renameProject(renameProjectTarget.id, name)}
       />}
-      {deleteProjectTarget && <DeleteProjectDialog
-        open
-        onOpenChange={(open) => !open && setDeleteProjectTarget(null)}
-        project={deleteProjectTarget}
-      />}
+      {deleteProjectTarget && (
+        <DeleteProjectDialog project={deleteProjectTarget} onClose={() => setDeleteProjectTarget(null)} />
+      )}
       <TranscriptActionDialogs actions={transcriptActions} />
     </div>
   )

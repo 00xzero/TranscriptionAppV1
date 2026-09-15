@@ -40,7 +40,7 @@ describe('DeleteProjectDialog', () => {
 
   test('shows branch counts and removes the completed branch from provider state', async () => {
     const user = userEvent.setup()
-    render(<DeleteProjectDialog open onOpenChange={jest.fn()} project={current} />)
+    render(<DeleteProjectDialog project={current} onClose={jest.fn()} />)
     expect(await screen.findByText(/1 nested project and 2 transcripts/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Delete Project' }))
 
@@ -58,7 +58,7 @@ describe('DeleteProjectDialog', () => {
       removed_waveforms: 2,
       remaining_transcripts: 3,
     }))
-    render(<DeleteProjectDialog open onOpenChange={jest.fn()} project={current} />)
+    render(<DeleteProjectDialog project={current} onClose={jest.fn()} />)
     await screen.findByText(/2 transcripts/)
     await user.click(screen.getByRole('button', { name: 'Delete Project' }))
 
@@ -70,15 +70,15 @@ describe('DeleteProjectDialog', () => {
 
   test('treats gone as success even on the first attempt', async () => {
     const user = userEvent.setup()
-    const onOpenChange = jest.fn()
+    const onClose = jest.fn()
     mockDeleteProjectRequest.mockRejectedValueOnce(
       new DeleteProjectRequestError(404, { stage: 'begin', error: 'Gone', gone: true })
     )
-    render(<DeleteProjectDialog open onOpenChange={onOpenChange} project={current} />)
+    render(<DeleteProjectDialog project={current} onClose={onClose} />)
     await screen.findByText(/2 transcripts/)
     await user.click(screen.getByRole('button', { name: 'Delete Project' }))
     await waitFor(() => expect(mutateProjects).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onClose).toHaveBeenCalled()
   })
 })
