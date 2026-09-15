@@ -62,6 +62,11 @@ export function ProjectTreePicker({
     }
     return ids
   }, [available, normalizedQuery, tree])
+  const visibleChildren = (id: string) =>
+    availableChildren(id).filter((child) => !searchVisible || searchVisible.has(child.id))
+  const visibleRoots = tree.roots.filter(
+    (project) => available.has(project.id) && (!searchVisible || searchVisible.has(project.id))
+  )
   const nodes = useMemo(() => {
     const result: VisibleNode[] = []
     const visit = (project: Project, depth: number) => {
@@ -94,10 +99,11 @@ export function ProjectTreePicker({
       event.preventDefault()
       onChange(id === 'unfiled' ? null : id)
     } else if (id !== 'unfiled' && event.key === 'ArrowRight') {
-      const children = availableChildren(id)
+      const children = visibleChildren(id)
       if (children.length > 0) {
         event.preventDefault()
-        if (!expanded.has(id)) setNodeExpanded(id, true)
+        const isExpanded = Boolean(searchVisible) || expanded.has(id)
+        if (!isExpanded) setNodeExpanded(id, true)
         else focusItem(children[0].id)
       }
     } else if (id !== 'unfiled' && event.key === 'ArrowLeft') {
@@ -127,6 +133,9 @@ export function ProjectTreePicker({
           ref={(node) => { if (node) itemRefs.current.set('unfiled', node) }}
           type="button"
           role="treeitem"
+          aria-level={1}
+          aria-posinset={1}
+          aria-setsize={visibleRoots.length + 1}
           aria-selected={value === null}
           tabIndex={tabStopId === 'unfiled' ? 0 : -1}
           className={itemClass(value === null)}
@@ -138,14 +147,20 @@ export function ProjectTreePicker({
           Unfiled
         </button>
         {nodes.map(({ project, depth }) => {
-          const hasChildren = availableChildren(project.id).length > 0
+          const children = visibleChildren(project.id)
+          const hasChildren = children.length > 0
           const isExpanded = Boolean(searchVisible) || expanded.has(project.id)
+          const siblings = project.parent_id ? visibleChildren(project.parent_id) : visibleRoots
+          const position = siblings.findIndex((sibling) => sibling.id === project.id) + 1
           return (
             <button
               key={project.id}
               ref={(node) => { if (node) itemRefs.current.set(project.id, node) }}
               type="button"
               role="treeitem"
+              aria-level={depth + 1}
+              aria-posinset={project.parent_id ? position : position + 1}
+              aria-setsize={project.parent_id ? siblings.length : siblings.length + 1}
               aria-expanded={hasChildren ? isExpanded : undefined}
               aria-selected={value === project.id}
               tabIndex={tabStopId === project.id ? 0 : -1}

@@ -19,6 +19,13 @@ describe('ProjectTreePicker', () => {
     expect(screen.queryByRole('treeitem', { name: /Deleting/ })).not.toBeInTheDocument()
     const unfiled = screen.getByRole('treeitem', { name: 'Unfiled' })
     expect(unfiled).toHaveAttribute('aria-selected', 'true')
+    expect(unfiled).toHaveAttribute('aria-level', '1')
+    expect(unfiled).toHaveAttribute('aria-posinset', '1')
+    expect(unfiled).toHaveAttribute('aria-setsize', '2')
+    const rootItem = screen.getByRole('treeitem', { name: /Root/ })
+    expect(rootItem).toHaveAttribute('aria-level', '1')
+    expect(rootItem).toHaveAttribute('aria-posinset', '2')
+    expect(rootItem).toHaveAttribute('aria-setsize', '2')
     unfiled.focus()
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{ArrowRight}')
@@ -32,7 +39,30 @@ describe('ProjectTreePicker', () => {
     render(<ProjectTreePicker tree={buildProjectTree([root, child])} value={null} onChange={jest.fn()} />)
     await user.type(screen.getByLabelText('Search projects'), 'needle')
     expect(screen.getByRole('treeitem', { name: /Root/ })).toBeInTheDocument()
-    expect(screen.getByRole('treeitem', { name: /Needle/ })).toBeInTheDocument()
+    const childItem = screen.getByRole('treeitem', { name: /Needle/ })
+    expect(childItem).toBeInTheDocument()
+    expect(childItem).toHaveAttribute('aria-level', '2')
+    expect(childItem).toHaveAttribute('aria-posinset', '1')
+    expect(childItem).toHaveAttribute('aria-setsize', '1')
+  })
+
+  test('ArrowRight during search focuses the first visible child', async () => {
+    const user = userEvent.setup()
+    const hiddenChild = makeProject({ id: 'hidden', name: 'Other', parent_id: 'root' })
+    render(
+      <ProjectTreePicker
+        tree={buildProjectTree([root, hiddenChild, child])}
+        value={null}
+        onChange={jest.fn()}
+      />
+    )
+    await user.type(screen.getByLabelText('Search projects'), 'needle')
+
+    const rootItem = screen.getByRole('treeitem', { name: /Root/ })
+    rootItem.focus()
+    await user.keyboard('{ArrowRight}')
+
+    expect(screen.getByRole('treeitem', { name: /Needle/ })).toHaveFocus()
   })
 
   test('allows a selected project ancestor to be collapsed', async () => {
