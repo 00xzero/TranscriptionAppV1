@@ -31,8 +31,7 @@ import { RemotePresenceProvider } from './RemotePresenceContext'
 import { clearPresenceForSession } from './presence'
 import { useAuthIdentity } from '@/lib/supabase/hooks'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
-import { toast } from '@/components/ui/toaster'
-import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/supabase/project-errors'
+import { showCaptureWarning } from '@/lib/capture/warnings'
 export { RecordingAlreadyActiveError } from './session'
 
 interface RecordingActions {
@@ -90,7 +89,7 @@ export function RecordingSessionProvider({
     }
 
     warnedTranscriptIdRef.current = result.transcriptId
-    toast({ title: PROJECT_MISSING_WARNING_MESSAGE })
+    showCaptureWarning(result.warning)
   }, [snapshot.state, snapshot.submissionResult])
 
   // Phase 4: derive same-browser remote-presence status once, here, and share it

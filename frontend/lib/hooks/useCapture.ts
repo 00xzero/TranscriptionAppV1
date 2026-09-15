@@ -1,19 +1,22 @@
 "use client"
 
 import { useCallback, useState } from 'react'
-import { runCaptureUpload, validateFile } from '@/lib/capture/upload'
-import type { CreateTranscriptWarning } from '@/contracts/api'
+import {
+    runCaptureUpload,
+    validateFile,
+    type CaptureUploadSuccess,
+} from '@/lib/capture/upload'
 
 type UseCapture = {
     isUploading: boolean
     error: string | null
     progress: 'idle' | 'creating' | 'uploading' | 'starting' | 'done'
-    upload: (file: File, title: string, keyTerms: string[]) => Promise<{
-        transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
-        message?: string
-        warning?: CreateTranscriptWarning
-    } | null>
+    upload: (
+        file: File,
+        title: string,
+        keyTerms: string[],
+        projectId?: string | null
+    ) => Promise<CaptureUploadSuccess | null>
     resetError: () => void
     validateFile: (file: File) => string | null
 }
@@ -26,7 +29,7 @@ type UseCapture = {
  * 2. Upload file to Supabase storage
  * 3. Start transcription via /api/transcripts/{id}/start
  */
-export function useCapture(projectId?: string | null): UseCapture {
+export function useCapture(): UseCapture {
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [progress, setProgress] = useState<UseCapture['progress']>('idle')
@@ -39,13 +42,9 @@ export function useCapture(projectId?: string | null): UseCapture {
     const upload = useCallback(async (
         file: File,
         title: string,
-        keyTerms: string[]
-    ): Promise<{
-        transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
-        message?: string
-        warning?: CreateTranscriptWarning
-    } | null> => {
+        keyTerms: string[],
+        projectId?: string | null
+    ): Promise<CaptureUploadSuccess | null> => {
         setError(null)
         setIsUploading(true)
         setProgress('creating')
@@ -76,7 +75,7 @@ export function useCapture(projectId?: string | null): UseCapture {
         } finally {
             setIsUploading(false)
         }
-    }, [projectId])
+    }, [])
 
     return {
         isUploading,

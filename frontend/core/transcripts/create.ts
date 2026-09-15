@@ -114,16 +114,14 @@ export async function createTranscript(
 
     // Idempotency pre-check: a prior create with the same (user_id, upload_intent_id)
     // returns the canonical transcript so a recovery retry never duplicates.
-    if (upload_intent_id) {
-        const existing = await findExistingTranscript()
-        if (existing) {
-            return buildResult(existing, true)
-        }
+    const existing = await findExistingTranscript()
+    if (existing) {
+        return buildResult(existing, true)
     }
 
     let insertResult = await insertTranscript(project_id)
 
-    if (project_id && insertResult.error && isProjectGoneError(insertResult.error)) {
+    if (project_id && isProjectGoneError(insertResult.error)) {
         insertResult = await insertTranscript(null)
     }
 

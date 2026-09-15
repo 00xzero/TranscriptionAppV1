@@ -32,14 +32,16 @@ export default function LibraryView() {
     transcriptsLoading: isLoading,
   } = useProjectsData()
   const transcriptActions = useTranscriptActions()
-  const recentProjects = useMemo(
-    () => rankProjectsByActivity(projects, transcripts, 3),
-    [projects, transcripts]
-  )
-  const projectTranscriptCounts = useMemo(
-    () => transcriptCountsByProject(transcripts),
-    [transcripts]
-  )
+  const recentProjectCards = useMemo(() => {
+    const transcriptCounts = transcriptCountsByProject(transcripts)
+    return rankProjectsByActivity(projects, transcripts, 3).map(({ project, lastActivityAt }) => ({
+      project,
+      lastActivityAt,
+      parentPath: project.parent_id ? pathLabel(tree, project.parent_id) : null,
+      directTranscriptCount: transcriptCounts.get(project.id) ?? 0,
+      nestedProjectCount: descendantCount(tree, project.id),
+    }))
+  }, [projects, transcripts, tree])
   const projectsAreLoading = projectsLoading || isLoading
 
   // Fetch user for greeting
@@ -93,7 +95,7 @@ export default function LibraryView() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {projectsAreLoading ? (
             [0, 1, 2].map((item) => <RecentProjectCardSkeleton key={item} />)
-          ) : recentProjects.length === 0 ? (
+          ) : recentProjectCards.length === 0 ? (
             <Link
               href="/projects"
               title="Create a project"
@@ -103,15 +105,8 @@ export default function LibraryView() {
               <span className="font-serif text-sm italic">Create your first project</span>
             </Link>
           ) : (
-            recentProjects.map(({ project, lastActivityAt }) => (
-              <RecentProjectCard
-                key={project.id}
-                project={project}
-                parentPath={project.parent_id ? pathLabel(tree, project.parent_id) : null}
-                lastActivityAt={lastActivityAt}
-                directTranscriptCount={projectTranscriptCounts.get(project.id) ?? 0}
-                nestedProjectCount={descendantCount(tree, project.id)}
-              />
+            recentProjectCards.map((card) => (
+              <RecentProjectCard key={card.project.id} {...card} />
             ))
           )}
         </div>

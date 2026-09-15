@@ -4,14 +4,7 @@ import { useCaptureForm } from '@/components/CaptureModal/useCaptureForm'
 const pushMock = jest.fn()
 const uploadMock = jest.fn()
 const resetErrorMock = jest.fn()
-const toastMock = jest.fn()
-const useCaptureMock = jest.fn((_projectId?: string | null) => ({
-  upload: uploadMock,
-  isUploading: false,
-  error: null,
-  progress: 'idle',
-  resetError: resetErrorMock,
-}))
+const showCaptureWarningMock = jest.fn()
 
 jest.mock('@/lib/recording/guardedNavigation', () => ({
   useGuardedNavigate: () => ({
@@ -20,7 +13,13 @@ jest.mock('@/lib/recording/guardedNavigation', () => ({
 }))
 
 jest.mock('@/lib/hooks/useCapture', () => ({
-  useCapture: (projectId?: string | null) => useCaptureMock(projectId),
+  useCapture: () => ({
+    upload: uploadMock,
+    isUploading: false,
+    error: null,
+    progress: 'idle',
+    resetError: resetErrorMock,
+  }),
 }))
 
 jest.mock('@/lib/capture/upload', () => ({
@@ -28,70 +27,59 @@ jest.mock('@/lib/capture/upload', () => ({
   validateFile: jest.fn(() => null),
 }))
 
-jest.mock('@/components/ui/toaster', () => ({
-  toast: (...args: unknown[]) => toastMock(...args),
+jest.mock('@/lib/capture/warnings', () => ({
+  showCaptureWarning: (...args: unknown[]) => showCaptureWarningMock(...args),
 }))
+
+async function submitFile(projectId?: string | null) {
+  const closeCaptureModal = jest.fn()
+  const file = new File(['audio'], 'sample.wav', { type: 'audio/wav' })
+  const { result } = renderHook(() =>
+    useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal, projectId })
+  )
+
+  act(() => {
+    result.current.handleFileSelect(file)
+  })
+  await act(async () => {
+    await result.current.handleSubmit()
+  })
+
+  return closeCaptureModal
+}
 
 describe('useCaptureForm', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
-  test('routes warned retry outcomes through guarded navigation and shows the warning', async () => {
+  test('routes non-started upload outcomes through guarded navigation', async () => {
     uploadMock.mockResolvedValue({
       outcome: 'saved_needs_retry',
       transcriptId: 'transcript-1',
       message: 'Specific retry guidance.',
-      warning: 'project_missing',
-    })
-    const closeCaptureModal = jest.fn()
-    const file = new File(['audio'], 'sample.wav', { type: 'audio/wav' })
-    const { result } = renderHook(() =>
-      useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal })
-    )
-
-    act(() => {
-      result.current.handleFileSelect(file)
     })
 
-    await act(async () => {
-      await result.current.handleSubmit()
-    })
+    const closeCaptureModal = await submitFile()
 
     expect(closeCaptureModal).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith(
       '/transcripts?capture=saved_needs_retry&transcriptId=transcript-1&captureMessage=Specific+retry+guidance.'
     )
-    expect(toastMock).toHaveBeenCalledTimes(1)
-    expect(toastMock).toHaveBeenCalledWith({
-      title: 'Saved to Unfiled: the project is no longer available',
-    })
   })
 
-  test('threads project intent into capture and shows the Unfiled warning', async () => {
+  test('uploads into the intent project and surfaces the creation warning', async () => {
     uploadMock.mockResolvedValue({
       outcome: 'started',
       transcriptId: 'transcript-1',
       warning: 'project_missing',
     })
-    const closeCaptureModal = jest.fn()
-    const file = new File(['audio'], 'sample.wav', { type: 'audio/wav' })
-    const { result } = renderHook(() =>
-      useCaptureForm({
-        isCaptureModalOpen: true,
-        closeCaptureModal,
-        projectId: 'project-1',
-      })
-    )
 
-    act(() => result.current.handleFileSelect(file))
-    await act(async () => result.current.handleSubmit())
+    await submitFile('project-1')
 
-    expect(useCaptureMock).toHaveBeenCalledWith('project-1')
-    expect(toastMock).toHaveBeenCalledWith({
-      title: 'Saved to Unfiled: the project is no longer available',
-    })
-    expect(toastMock).toHaveBeenCalledTimes(1)
+    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], 'project-1')
+    expect(showCaptureWarningMock).toHaveBeenCalledTimes(1)
+    expect(showCaptureWarningMock).toHaveBeenCalledWith('project_missing')
     expect(pushMock).not.toHaveBeenCalled()
   })
 })

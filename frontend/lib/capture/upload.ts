@@ -100,6 +100,8 @@ export type CaptureUploadResult =
     | { kind: 'validation_error'; message: string }
     | { kind: 'failure'; message: string }
 
+export type CaptureUploadSuccess = Omit<Extract<CaptureUploadResult, { kind: 'success' }>, 'kind'>
+
 /**
  * Get MIME type for upload - normalizes aliases and infers from extension if needed.
  * Ensures the returned MIME type is compatible with Supabase bucket allowlist.

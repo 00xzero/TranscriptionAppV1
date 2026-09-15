@@ -35,6 +35,7 @@ export const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript 
 /** The subset of `useProjectsData()` the Projects pages read, settled and error-free. */
 export function providerData(projects: Project[], transcripts: Transcript[]) {
   return {
+    projects,
     tree: buildProjectTree(projects),
     projectsLoading: false,
     projectError: null,

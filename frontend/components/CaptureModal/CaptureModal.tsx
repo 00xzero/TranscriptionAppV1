@@ -125,6 +125,7 @@ export default function CaptureModal() {
     restoreFocus()
   }
 
+  const intentProjectId = captureModalIntent?.projectId ?? null
   const {
     selectedFile,
     handleFileSelect,
@@ -146,7 +147,7 @@ export default function CaptureModal() {
   } = useCaptureForm({
     isCaptureModalOpen,
     closeCaptureModal: handleClose,
-    projectId: captureModalIntent?.projectId ?? null,
+    projectId: intentProjectId,
   })
 
   const isRecordTab = activeTab === 'record' && !isUploading
@@ -224,7 +225,7 @@ export default function CaptureModal() {
           codec,
           title: title.trim() ? title.trim() : null,
           keyTerms,
-          projectId: captureModalIntent?.projectId ?? null,
+          projectId: intentProjectId,
           deviceId: deviceId ?? null,
           maxBytes: MAX_FILE_SIZE_BYTES,
         })

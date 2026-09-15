@@ -12,6 +12,26 @@ jest.mock('@/infra/supabase/server', () => ({
 
 import { POST } from '../app/api/transcripts/route'
 
+const PROJECT_ID = '00000000-0000-0000-0000-000000000003'
+const INTENT_BODY = {
+  filename: 'audio.mp3',
+  upload_intent_id: 'intent-1',
+  project_id: PROJECT_ID,
+}
+
+function makeRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: '00000000-0000-0000-0000-000000000002',
+    status: 'created',
+    title: 'audio.mp3',
+    project_id: null,
+    source_object_key: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
 function makeTranscriptTable(options: {
   insertResults: Array<{ data: unknown; error: null | { code?: string; message: string } }>
   existingResults?: unknown[]
@@ -32,6 +52,19 @@ function makeTranscriptTable(options: {
     select: existingSelectMock,
     insertMock,
   }
+}
+
+/** Route `from()` to the transcript table mock (plus a no-op watchlist) and POST the body. */
+function postTranscript(
+  transcripts: ReturnType<typeof makeTranscriptTable>,
+  body: Record<string, unknown>
+) {
+  fromMock.mockImplementation((table: string) => {
+    if (table === 'transcripts') return transcripts
+    if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
+    return {}
+  })
+  return POST({ json: async () => body } as any)
 }
 
 describe('POST /api/transcripts', () => {
@@ -62,25 +95,11 @@ describe('POST /api/transcripts', () => {
   })
 
   test('valid body returns 200 with transcript and storagePath', async () => {
-    const transcriptData = {
-      id: '00000000-0000-0000-0000-000000000002',
-      status: 'created',
-      title: 'audio.mp3',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    }
     const transcripts = makeTranscriptTable({
-      insertResults: [{ data: transcriptData, error: null }],
-    })
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'transcripts') return transcripts
-      if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
-      return {}
+      insertResults: [{ data: makeRow(), error: null }],
     })
 
-    const req = { json: async () => ({ filename: 'audio.mp3' }) } as any
-
-    const res = await POST(req)
+    const res = await postTranscript(transcripts, { filename: 'audio.mp3' })
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.transcript).toBeDefined()
@@ -90,40 +109,19 @@ describe('POST /api/transcripts', () => {
   test.each(['PJ001', 'PJ002', '23503'])(
     'falls back to Unfiled when project insert fails with %s',
     async (code) => {
-      const transcriptData = {
-        id: '00000000-0000-0000-0000-000000000002',
-        status: 'created',
-        title: 'audio.mp3',
-        project_id: null,
-        source_object_key: null,
-        created_at: '2026-01-01T00:00:00Z',
-        updated_at: '2026-01-01T00:00:00Z',
-      }
       const transcripts = makeTranscriptTable({
         insertResults: [
           { data: null, error: { code, message: 'project unavailable' } },
-          { data: transcriptData, error: null },
+          { data: makeRow(), error: null },
         ],
       })
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'transcripts') return transcripts
-        if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
-        return {}
-      })
 
-      const req = {
-        json: async () => ({
-          filename: 'audio.mp3',
-          project_id: '00000000-0000-0000-0000-000000000003',
-        }),
-      } as any
-
-      const res = await POST(req)
+      const res = await postTranscript(transcripts, { filename: 'audio.mp3', project_id: PROJECT_ID })
       expect(res.status).toBe(200)
       expect(await res.json()).toMatchObject({ warning: 'project_missing' })
       expect(transcripts.insertMock).toHaveBeenNthCalledWith(
         1,
-        expect.objectContaining({ project_id: '00000000-0000-0000-0000-000000000003' })
+        expect.objectContaining({ project_id: PROJECT_ID })
       )
       expect(transcripts.insertMock).toHaveBeenNthCalledWith(
         2,
@@ -133,15 +131,7 @@ describe('POST /api/transcripts', () => {
   )
 
   test('preserves upload-intent dedupe when the Unfiled retry loses a race', async () => {
-    const raced = {
-      id: '00000000-0000-0000-0000-000000000002',
-      status: 'created',
-      title: 'audio.mp3',
-      project_id: null,
-      source_object_key: null,
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    }
+    const raced = makeRow()
     const transcripts = makeTranscriptTable({
       existingResults: [null, raced],
       insertResults: [
@@ -149,20 +139,8 @@ describe('POST /api/transcripts', () => {
         { data: null, error: { code: '23505', message: 'duplicate intent' } },
       ],
     })
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'transcripts') return transcripts
-      return {}
-    })
 
-    const req = {
-      json: async () => ({
-        filename: 'audio.mp3',
-        upload_intent_id: 'intent-1',
-        project_id: '00000000-0000-0000-0000-000000000003',
-      }),
-    } as any
-
-    const res = await POST(req)
+    const res = await postTranscript(transcripts, INTENT_BODY)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({
       deduped: true,
@@ -172,33 +150,13 @@ describe('POST /api/transcripts', () => {
   })
 
   test('restores the Unfiled warning when a retry finds the canonical row up front', async () => {
-    const existing = {
-      id: '00000000-0000-0000-0000-000000000002',
-      status: 'created',
-      title: 'audio.mp3',
-      project_id: null,
-      source_object_key: 'user/transcript/audio.mp3',
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    }
+    const existing = makeRow({ source_object_key: 'user/transcript/audio.mp3' })
     const transcripts = makeTranscriptTable({
       existingResults: [existing],
       insertResults: [],
     })
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'transcripts') return transcripts
-      return {}
-    })
 
-    const req = {
-      json: async () => ({
-        filename: 'audio.mp3',
-        upload_intent_id: 'intent-1',
-        project_id: '00000000-0000-0000-0000-000000000003',
-      }),
-    } as any
-
-    const res = await POST(req)
+    const res = await postTranscript(transcripts, INTENT_BODY)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({
       deduped: true,
@@ -209,36 +167,15 @@ describe('POST /api/transcripts', () => {
   })
 
   test('does not claim Unfiled when a fallback race resolves to the requested project', async () => {
-    const raced = {
-      id: '00000000-0000-0000-0000-000000000002',
-      status: 'created',
-      title: 'audio.mp3',
-      project_id: '00000000-0000-0000-0000-000000000003',
-      source_object_key: null,
-      created_at: '2026-01-01T00:00:00Z',
-      updated_at: '2026-01-01T00:00:00Z',
-    }
     const transcripts = makeTranscriptTable({
-      existingResults: [null, raced],
+      existingResults: [null, makeRow({ project_id: PROJECT_ID })],
       insertResults: [
         { data: null, error: { code: 'PJ002', message: 'project deleting' } },
         { data: null, error: { code: '23505', message: 'duplicate intent' } },
       ],
     })
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'transcripts') return transcripts
-      return {}
-    })
 
-    const req = {
-      json: async () => ({
-        filename: 'audio.mp3',
-        upload_intent_id: 'intent-1',
-        project_id: raced.project_id,
-      }),
-    } as any
-
-    const res = await POST(req)
+    const res = await postTranscript(transcripts, INTENT_BODY)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual(expect.not.objectContaining({ warning: expect.anything() }))
   })
@@ -249,19 +186,8 @@ describe('POST /api/transcripts', () => {
         { data: null, error: { code: 'XX000', message: 'database unavailable' } },
       ],
     })
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'transcripts') return transcripts
-      return {}
-    })
 
-    const req = {
-      json: async () => ({
-        filename: 'audio.mp3',
-        project_id: '00000000-0000-0000-0000-000000000003',
-      }),
-    } as any
-
-    const res = await POST(req)
+    const res = await postTranscript(transcripts, { filename: 'audio.mp3', project_id: PROJECT_ID })
     expect(res.status).toBe(500)
     expect(transcripts.insertMock).toHaveBeenCalledTimes(1)
   })

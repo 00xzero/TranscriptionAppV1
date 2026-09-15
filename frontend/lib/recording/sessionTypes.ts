@@ -1,5 +1,5 @@
 import type { CodecSelection } from './codecs'
-import type { CreateTranscriptWarning } from '@/contracts/api'
+import type { CaptureUploadSuccess } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 
@@ -69,11 +69,7 @@ export interface SessionSnapshot {
   captureHealthWarning: string | null
   // Populated only in the `recoverable` state; null otherwise.
   recoverable: RecoverableInfo | null
-  submissionResult: {
-    transcriptId: string
-    outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
-    warning?: CreateTranscriptWarning
-  } | null
+  submissionResult: Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> | null
 }
 
 export interface FinalizedRecording {

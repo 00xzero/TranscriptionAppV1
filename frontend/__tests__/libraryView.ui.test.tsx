@@ -2,16 +2,27 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
-import type { Transcript } from '../contracts/db'
+import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
-import { buildProjectTree } from '@/core/projects/tree'
-import { makeProject } from './projects/fixtures'
+import { makeProject, providerData } from './projects/fixtures'
 
 const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
 const mockToast = jest.fn()
+
+function mockProjectsData(
+  projects: Project[],
+  transcripts: Transcript[],
+  overrides: { projectsLoading?: boolean } = {}
+) {
+  mockUseProjectsData.mockReturnValue({
+    ...providerData(projects, transcripts),
+    deleteTranscript: mockDeleteTranscript,
+    ...overrides,
+  })
+}
 
 jest.mock('@/components/ui/toaster', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
@@ -75,14 +86,7 @@ describe('LibraryView', () => {
       error: null,
     })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
-    mockUseProjectsData.mockReturnValue({
-      projects: [],
-      tree: buildProjectTree([]),
-      projectsLoading: false,
-      transcripts: [makeTranscript()],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData([], [makeTranscript()])
   })
 
   test('opens dropdown on trigger click and closes on Escape', async () => {
@@ -183,20 +187,9 @@ describe('LibraryView', () => {
       makeProject({ id: 'p3', name: 'Third', updated_at: '2026-09-03T00:00:00Z' }),
       makeProject({ id: 'p4', name: 'Too old', updated_at: '2026-08-01T00:00:00Z' }),
     ]
-    mockUseProjectsData.mockReturnValue({
-      projects,
-      tree: buildProjectTree(projects),
-      projectsLoading: false,
-      transcripts: [
-        makeTranscript({
-          id: 't1',
-          project_id: 'p1',
-          updated_at: '2026-09-05T00:00:00Z',
-        }),
-      ],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData(projects, [
+      makeTranscript({ id: 't1', project_id: 'p1', updated_at: '2026-09-05T00:00:00Z' }),
+    ])
 
     const { container } = renderLibraryView()
 
@@ -215,14 +208,7 @@ describe('LibraryView', () => {
       makeProject({ id: 'child', name: 'Interviews', parent_id: 'root' }),
       makeProject({ id: 'grandchild', name: 'Round Two', parent_id: 'child' }),
     ]
-    mockUseProjectsData.mockReturnValue({
-      projects,
-      tree: buildProjectTree(projects),
-      projectsLoading: false,
-      transcripts: [makeTranscript({ id: 't1', project_id: 'child' })],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData(projects, [makeTranscript({ id: 't1', project_id: 'child' })])
 
     renderLibraryView()
 
@@ -233,14 +219,7 @@ describe('LibraryView', () => {
   })
 
   test('shows project skeletons while either provider list is loading', () => {
-    mockUseProjectsData.mockReturnValue({
-      projects: [],
-      tree: buildProjectTree([]),
-      projectsLoading: true,
-      transcripts: [],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData([], [], { projectsLoading: true })
 
     const { container } = renderLibraryView()
 
@@ -249,14 +228,7 @@ describe('LibraryView', () => {
   })
 
   test('links the no-projects invitation to Projects', () => {
-    mockUseProjectsData.mockReturnValue({
-      projects: [],
-      tree: buildProjectTree([]),
-      projectsLoading: false,
-      transcripts: [],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData([], [])
 
     renderLibraryView()
 
@@ -274,14 +246,7 @@ describe('LibraryView', () => {
         deleting_at: '2026-09-15T00:00:00Z',
       }),
     ]
-    mockUseProjectsData.mockReturnValue({
-      projects,
-      tree: buildProjectTree(projects),
-      projectsLoading: false,
-      transcripts: [],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData(projects, [])
 
     renderLibraryView()
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/components/ui/toaster'
-import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/supabase/project-errors'
+import { showCaptureWarning } from '@/lib/capture/warnings'
 import {
   discardRecovered,
   saveRecovered,
@@ -66,16 +66,9 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
     // effect above), so confirm the just-saved one with a toast — there is no
     // redirect to acknowledge it otherwise.
     if (result.chainedToNext) {
-      if (result.warning === 'project_missing') {
-        toast({
-          title: PROJECT_MISSING_WARNING_MESSAGE,
-          description: `“${savedTitle}” is uploading and will start transcribing.`,
-        })
-      } else {
-        toast({
-          title: 'Recording saved',
-          description: `“${savedTitle}” is uploading and will start transcribing.`,
-        })
+      const description = `“${savedTitle}” is uploading and will start transcribing.`
+      if (!showCaptureWarning(result.warning, description)) {
+        toast({ title: 'Recording saved', description })
       }
     }
   }
