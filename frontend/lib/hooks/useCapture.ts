@@ -1,17 +1,22 @@
 "use client"
 
 import { useCallback, useState } from 'react'
-import { runCaptureUpload, validateFile } from '@/lib/capture/upload'
+import {
+    runCaptureUpload,
+    validateFile,
+    type CaptureUploadSuccess,
+} from '@/lib/capture/upload'
 
 type UseCapture = {
     isUploading: boolean
     error: string | null
     progress: 'idle' | 'creating' | 'uploading' | 'starting' | 'done'
-    upload: (file: File, title: string, keyTerms: string[]) => Promise<{
-        transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
-        message?: string
-    } | null>
+  upload: (
+        file: File,
+        title: string,
+        keyTerms: string[],
+        projectId?: string | null
+    ) => Promise<CaptureUploadSuccess | null>
     resetError: () => void
     validateFile: (file: File) => string | null
 }
@@ -37,12 +42,9 @@ export function useCapture(): UseCapture {
     const upload = useCallback(async (
         file: File,
         title: string,
-        keyTerms: string[]
-    ): Promise<{
-        transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
-        message?: string
-    } | null> => {
+        keyTerms: string[],
+        projectId?: string | null
+    ): Promise<CaptureUploadSuccess | null> => {
         setError(null)
         setIsUploading(true)
         setProgress('creating')
@@ -50,6 +52,7 @@ export function useCapture(): UseCapture {
         try {
             const result = await runCaptureUpload(file, title, keyTerms, {
                 onProgress: setProgress,
+                projectId,
             })
 
             if (result.kind === 'validation_error' || result.kind === 'failure') {
@@ -67,6 +70,7 @@ export function useCapture(): UseCapture {
                 transcriptId: result.transcriptId,
                 outcome: result.outcome,
                 message: result.message,
+                warning: result.warning,
             }
         } finally {
             setIsUploading(false)

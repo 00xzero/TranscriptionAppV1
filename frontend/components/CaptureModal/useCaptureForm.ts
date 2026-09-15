@@ -2,15 +2,21 @@ import { useState, useCallback, useEffect } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
 import { useCapture } from '@/lib/hooks/useCapture'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
+import { showCaptureWarning } from '@/lib/capture/warnings'
 import { formatFileSize } from './shared'
 import { useKeyTermsField } from './useKeyTermsField'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
   closeCaptureModal: () => void
+  projectId?: string | null
 }
 
-export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCaptureFormParams) {
+export function useCaptureForm({
+  isCaptureModalOpen,
+  closeCaptureModal,
+  projectId,
+}: UseCaptureFormParams) {
   const guardedNav = useGuardedNavigate()
   const { upload, isUploading, error, progress, resetError } = useCapture()
 
@@ -60,10 +66,11 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
   const handleSubmit = useCallback(async () => {
     if (!selectedFile || isUploading) return
 
-    const result = await upload(selectedFile, title || selectedFile.name, keyTerms)
+    const result = await upload(selectedFile, title || selectedFile.name, keyTerms, projectId)
     if (!result) return
 
     closeCaptureModal()
+    showCaptureWarning(result.warning)
 
     if (result.outcome !== 'started') {
       const params = new URLSearchParams({
@@ -75,7 +82,7 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
       }
       guardedNav.push(`/transcripts?${params.toString()}`)
     }
-  }, [selectedFile, title, keyTerms, isUploading, upload, closeCaptureModal, guardedNav])
+  }, [selectedFile, title, keyTerms, projectId, isUploading, upload, closeCaptureModal, guardedNav])
 
   const canSubmit = Boolean(selectedFile && !isUploading && !fileError)
   const displayError = fileError ?? error ?? null

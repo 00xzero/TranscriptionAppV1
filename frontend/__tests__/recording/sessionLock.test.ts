@@ -41,6 +41,7 @@ describe('NoWebLocksSessionLock (degraded fallback)', () => {
       sessionId: 's1',
       userId: 'u1',
       uploadIntentId: 'i1',
+      projectId: null,
       title: null,
       generatedTitle: null,
       keyTerms: [],

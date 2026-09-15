@@ -1,5 +1,5 @@
 import React from 'react'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import CaptureModal from '../components/CaptureModal'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -54,6 +54,7 @@ const mockModalState = {
   captureModalIntent: null as null | {
     initialTab?: 'upload' | 'record'
     message?: string
+    projectId?: string | null
   },
 }
 const mockCaptureFormState = {
@@ -414,6 +415,28 @@ describe('CaptureModal tabs', () => {
     expect(
       await screen.findAllByText('No microphone was found.')
     ).not.toHaveLength(0)
+  })
+
+  test('records the project intent when capture starts from a project', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    mockModalState.captureModalIntent = {
+      initialTab: 'record',
+      projectId: 'project-1',
+    }
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+        enumerateDevices: jest.fn().mockResolvedValue([]),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    await waitFor(() => expect(getSnapshot().state).toBe('recording'))
+    expect(getSnapshot().projectId).toBe('project-1')
   })
 
   test('Record tab disables Start Recording while a microphone request is pending', async () => {

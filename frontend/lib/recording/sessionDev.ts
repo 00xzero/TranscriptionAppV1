@@ -121,6 +121,7 @@ export function forceState(target: RecordingState): void {
         recoverable: {
           sessionId: 'mock-recoverable-session',
           uploadIntentId: null,
+          projectId: snap.projectId,
           title: snap.title ?? null,
           generatedTitle: snap.generatedTitle ?? null,
           keyTerms: snap.keyTerms,

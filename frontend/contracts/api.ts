@@ -12,6 +12,8 @@ export const CreateTranscriptBodySchema = z.object({
   project_id: UuidSchema.optional(),
 })
 
+export const CreateTranscriptWarningSchema = z.literal('project_missing')
+
 export const DeleteProjectResponseSchema = z.object({
   deleted_projects: z.number().int().nonnegative(),
   deleted_transcripts: z.number().int().nonnegative(),
@@ -39,5 +41,6 @@ export const DeleteProjectErrorSchema = z.discriminatedUnion('stage', [
 ])
 
 export type CreateTranscriptBody = z.infer<typeof CreateTranscriptBodySchema>
+export type CreateTranscriptWarning = z.infer<typeof CreateTranscriptWarningSchema>
 export type DeleteProjectResponse = z.infer<typeof DeleteProjectResponseSchema>
 export type DeleteProjectError = z.infer<typeof DeleteProjectErrorSchema>

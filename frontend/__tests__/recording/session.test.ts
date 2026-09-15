@@ -65,6 +65,7 @@ async function attachRecording(
     codec: DEFAULT_CODEC,
     title: null,
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024,
     ...overrides,
@@ -603,6 +604,7 @@ describe('recording session singleton', () => {
     await attachRecording({
       title: 'Retry me',
       keyTerms: ['alpha'],
+      projectId: 'project-1',
       maxBytes: 1024 * 1024,
     })
     recordChunk(new Blob([new Uint8Array(4096)]))
@@ -627,6 +629,8 @@ describe('recording session singleton', () => {
 
     expect(mockRunCaptureUpload).toHaveBeenCalledTimes(2)
     expect(mockRunCaptureUpload.mock.calls[1][0]).toBe(firstFile)
+    expect(mockRunCaptureUpload.mock.calls[0][3]).toMatchObject({ projectId: 'project-1' })
+    expect(mockRunCaptureUpload.mock.calls[1][3]).toMatchObject({ projectId: 'project-1' })
     expect(getSnapshot()).toMatchObject({
       state: 'submitted',
       canRetryUpload: false,
@@ -1015,6 +1019,7 @@ describe('recording session durability mirror', () => {
       sessionId: 'old-orphan',
       userId: 'user-123',
       uploadIntentId: 'intent-old',
+      projectId: null,
       title: 'Old orphan',
       generatedTitle: null,
       keyTerms: [],
@@ -1062,6 +1067,7 @@ describe('recording session durability mirror', () => {
       sessionId: 'old-orphan',
       userId: 'user-123',
       uploadIntentId: 'intent-old',
+      projectId: null,
       title: 'Old orphan',
       generatedTitle: null,
       keyTerms: [],
@@ -1191,6 +1197,7 @@ describe('recording session durability mirror', () => {
       sessionId: 'recoverable-1',
       userId: 'user-123',
       uploadIntentId: 'intent-1',
+      projectId: 'project-recovered',
       title: 'Recovered title',
       generatedTitle: null,
       keyTerms: ['alpha'],
@@ -1215,6 +1222,7 @@ describe('recording session durability mirror', () => {
       kind: 'success',
       transcriptId: 'transcript-recovered',
       outcome: 'started',
+      warning: 'project_missing',
     })
     __setSnapshotForTesting({
       state: 'recoverable',
@@ -1223,6 +1231,7 @@ describe('recording session durability mirror', () => {
       recoverable: {
         sessionId: session.sessionId,
         uploadIntentId: session.uploadIntentId,
+        projectId: session.projectId,
         title: session.title,
         generatedTitle: session.generatedTitle,
         keyTerms: session.keyTerms,
@@ -1238,6 +1247,7 @@ describe('recording session durability mirror', () => {
     await expect(saveRecovered('Recovered title')).resolves.toEqual({
       ok: true,
       chainedToNext: false,
+      warning: 'project_missing',
     })
 
     expect(getSnapshot()).toMatchObject({
@@ -1246,7 +1256,12 @@ describe('recording session durability mirror', () => {
       submissionResult: {
         transcriptId: 'transcript-recovered',
         outcome: 'started',
+        warning: 'project_missing',
       },
+    })
+    expect(mockRunCaptureUpload.mock.calls[0][3]).toMatchObject({
+      projectId: 'project-recovered',
+      allowUpsert: true,
     })
   })
 
@@ -1260,6 +1275,7 @@ describe('recording session durability mirror', () => {
       recoverable: {
         sessionId: 'recoverable-1',
         uploadIntentId: 'intent-1',
+        projectId: null,
         title: 'Recovered title',
         generatedTitle: null,
         keyTerms: [],

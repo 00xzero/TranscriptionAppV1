@@ -18,6 +18,7 @@ function attach() {
     codec: CODEC,
     title: 'Dup',
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,
   })

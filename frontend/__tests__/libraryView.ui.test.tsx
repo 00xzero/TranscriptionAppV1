@@ -2,14 +2,27 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
-import type { Transcript } from '../contracts/db'
+import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
+import { makeProject, providerData } from './projects/fixtures'
 
 const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
 const mockToast = jest.fn()
+
+function mockProjectsData(
+  projects: Project[],
+  transcripts: Transcript[],
+  overrides: { projectsLoading?: boolean } = {}
+) {
+  mockUseProjectsData.mockReturnValue({
+    ...providerData(projects, transcripts),
+    deleteTranscript: mockDeleteTranscript,
+    ...overrides,
+  })
+}
 
 jest.mock('@/components/ui/toaster', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
@@ -73,11 +86,7 @@ describe('LibraryView', () => {
       error: null,
     })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
-    mockUseProjectsData.mockReturnValue({
-      transcripts: [makeTranscript()],
-      transcriptsLoading: false,
-      deleteTranscript: mockDeleteTranscript,
-    })
+    mockProjectsData([], [makeTranscript()])
   })
 
   test('opens dropdown on trigger click and closes on Escape', async () => {
@@ -169,5 +178,82 @@ describe('LibraryView', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete transcript')
     expect(screen.getByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
+  })
+
+  test('renders the three most recently active projects in ranked order', () => {
+    const projects = [
+      makeProject({ id: 'p1', name: 'Transcript activity', updated_at: '2026-09-01T00:00:00Z' }),
+      makeProject({ id: 'p2', name: 'Second', updated_at: '2026-09-04T00:00:00Z' }),
+      makeProject({ id: 'p3', name: 'Third', updated_at: '2026-09-03T00:00:00Z' }),
+      makeProject({ id: 'p4', name: 'Too old', updated_at: '2026-08-01T00:00:00Z' }),
+    ]
+    mockProjectsData(projects, [
+      makeTranscript({ id: 't1', project_id: 'p1', updated_at: '2026-09-05T00:00:00Z' }),
+    ])
+
+    const { container } = renderLibraryView()
+
+    const projectLinks = Array.from(container.querySelectorAll('a[href^="/projects/"]'))
+    expect(projectLinks.map((link) => link.getAttribute('title'))).toEqual([
+      'Open Transcript activity',
+      'Open Second',
+      'Open Third',
+    ])
+    expect(screen.queryByText('Too old')).not.toBeInTheDocument()
+  })
+
+  test('shows a nested project parent path and direct and nested counts', () => {
+    const projects = [
+      makeProject({ id: 'root', name: 'Client Work' }),
+      makeProject({ id: 'child', name: 'Interviews', parent_id: 'root' }),
+      makeProject({ id: 'grandchild', name: 'Round Two', parent_id: 'child' }),
+    ]
+    mockProjectsData(projects, [makeTranscript({ id: 't1', project_id: 'child' })])
+
+    renderLibraryView()
+
+    expect(screen.getByTitle('Client Work')).toHaveTextContent('Client Work')
+    const childCard = screen.getByTitle('Open Interviews')
+    expect(childCard).toHaveTextContent('1 transcript')
+    expect(childCard).toHaveTextContent('1 nested project')
+  })
+
+  test('shows project skeletons while either provider list is loading', () => {
+    mockProjectsData([], [], { projectsLoading: true })
+
+    const { container } = renderLibraryView()
+
+    expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3)
+    expect(screen.queryByRole('link', { name: /Create your first project/i })).not.toBeInTheDocument()
+  })
+
+  test('links the no-projects invitation to Projects', () => {
+    mockProjectsData([], [])
+
+    renderLibraryView()
+
+    expect(screen.getByRole('link', { name: /Create your first project/i })).toHaveAttribute(
+      'href',
+      '/projects'
+    )
+  })
+
+  test('shows the invitation when every project is marked for deletion', () => {
+    const projects = [
+      makeProject({
+        id: 'deleting',
+        name: 'Deleting project',
+        deleting_at: '2026-09-15T00:00:00Z',
+      }),
+    ]
+    mockProjectsData(projects, [])
+
+    renderLibraryView()
+
+    expect(screen.getByRole('link', { name: /Create your first project/i })).toHaveAttribute(
+      'href',
+      '/projects'
+    )
+    expect(screen.queryByText('Deleting project')).not.toBeInTheDocument()
   })
 })

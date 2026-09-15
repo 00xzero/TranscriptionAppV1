@@ -13,7 +13,10 @@ import {
   type SessionPersistence,
 } from '@/lib/recording/persistence'
 import { gcExpiredSessions, SESSION_MAX_AGE_MS } from '@/lib/recording/persistence/gc'
-import type { PersistedSession } from '@/lib/recording/persistence/types'
+import {
+  PersistedSessionSchema,
+  type PersistedSession,
+} from '@/lib/recording/persistence/types'
 
 function makeSession(
   sessionId: string,
@@ -23,6 +26,7 @@ function makeSession(
     sessionId,
     userId: null,
     uploadIntentId: null,
+    projectId: null,
     title: 'Test',
     generatedTitle: null,
     keyTerms: ['alpha'],
@@ -55,12 +59,18 @@ describe('IndexedDBSessionPersistence', () => {
 
   test('persists and reads back a session row', async () => {
     const store = new IndexedDBSessionPersistence()
-    const record = makeSession('s1')
+    const record = makeSession('s1', { projectId: 'project-1' })
     await store.putSession(record)
 
     expect(await store.getSession('s1')).toEqual(record)
     expect(await store.listSessions()).toEqual([record])
     expect(await store.getSession('missing')).toBeNull()
+  })
+
+  test('defaults legacy session rows without a project id to Unfiled', () => {
+    const { projectId: _projectId, ...legacy } = makeSession('legacy')
+
+    expect(PersistedSessionSchema.parse(legacy).projectId).toBeNull()
   })
 
   test('patchSession merges into an existing row', async () => {
