@@ -123,6 +123,7 @@ describe('session metadata edit — persistence & presence', () => {
       codec: CODEC,
       title: 'Original',
       keyTerms: [],
+      projectId: null,
       deviceId: null,
       maxBytes: 1024 * 1024,
     })

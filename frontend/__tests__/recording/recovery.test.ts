@@ -27,6 +27,7 @@ function baseSession(overrides: Partial<PersistedSession> = {}): PersistedSessio
     sessionId: 's1',
     userId: USER,
     uploadIntentId: 'intent-1',
+    projectId: null,
     title: 'A recording',
     generatedTitle: null,
     keyTerms: ['alpha'],
@@ -96,12 +97,17 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
   })
 
   test('claims and returns a valid orphan, taking the lock', async () => {
-    await seed(persistence, baseSession({ sessionId: 's1' }), [0, 1])
+    await seed(
+      persistence,
+      baseSession({ sessionId: 's1', projectId: 'project-1' }),
+      [0, 1]
+    )
 
     const result = await probeRecoverableSessions(persistence, lock, USER, NOW)
 
     expect(result?.info.sessionId).toBe('s1')
     expect(result?.info.uploadIntentId).toBe('intent-1')
+    expect(result?.info.projectId).toBe('project-1')
     expect(result?.info.remainingCount).toBe(0)
     // The probe claimed the lock so another tab can't also recover it.
     expect(await lock.isHeld('s1')).toBe(true)

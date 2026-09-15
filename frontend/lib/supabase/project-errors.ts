@@ -6,6 +6,8 @@ const PROJECT_DUPLICATE_MESSAGE = 'A project with that name already exists here.
 const PROJECT_MISSING_MESSAGE = 'That project no longer exists.'
 const PROJECT_DELETING_MESSAGE = 'That project is being deleted.'
 const PROJECT_GENERIC_MESSAGE = 'Something went wrong. Please try again.'
+export const PROJECT_MISSING_WARNING_MESSAGE =
+  'Saved to Unfiled: the project is no longer available'
 
 export type ProjectLinkWriteRejection = 'deleting' | 'gone'
 

@@ -179,6 +179,34 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(startCallHeaders(1)['x-idempotency-key']).toBeUndefined()
   })
 
+  test('sends the project id and preserves a project-missing warning', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          transcript: { id: 'p1' },
+          storagePath: 'u/p1/rec.webm',
+          deduped: false,
+          sourceObjectKey: null,
+          status: 'created',
+          warning: 'project_missing',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(500, { error: 'start failed' }))
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      projectId: '00000000-0000-0000-0000-000000000003',
+    })
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toMatchObject({
+      project_id: '00000000-0000-0000-0000-000000000003',
+    })
+    expect(result).toMatchObject({
+      kind: 'success',
+      outcome: 'saved_needs_retry',
+      warning: 'project_missing',
+    })
+  })
+
   test('cancel after linking a fresh transcript but before start rolls back media and transcript', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {

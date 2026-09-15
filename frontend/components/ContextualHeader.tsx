@@ -236,7 +236,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
             <TooltipTrigger asChild>
               <Button
                 variant="destructive"
-                onClick={() => openCaptureModal()}
+                onClick={() => openCaptureModal(routeProjectId ? { projectId: routeProjectId } : undefined)}
                 aria-label="Open capture modal"
                 className="gap-2 hover:shadow-md"
               >

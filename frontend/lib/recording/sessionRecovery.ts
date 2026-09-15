@@ -20,6 +20,7 @@ import { getIdentity } from './sessionIdentity'
 import { clearPresenceQuietly } from './sessionPresence'
 import { setSnapshot, store } from './sessionStore'
 import { IDLE_SNAPSHOT, type RecoverableInfo } from './sessionTypes'
+import type { CreateTranscriptWarning } from '@/contracts/api'
 import { recordingMediaFilename } from './sessionUpload'
 import { runCaptureUpload } from '@/lib/capture/upload'
 
@@ -62,6 +63,7 @@ function hydrateRecoverable(info: RecoverableInfo): void {
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recoverable',
+    projectId: info.projectId,
     title: info.title,
     generatedTitle: info.generatedTitle,
     keyTerms: info.keyTerms,
@@ -165,6 +167,7 @@ async function clearRecoveredOrphanAndChain(
 export interface SaveRecoveredResult {
   ok: boolean
   message?: string
+  warning?: CreateTranscriptWarning
   /**
    * True when the save succeeded and another recovered orphan was immediately
    * surfaced. The caller shows a confirmation toast in this case (the next modal
@@ -212,6 +215,7 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
     result = await runCaptureUpload(file, title, info.keyTerms, {
       uploadIntentId: info.uploadIntentId ?? undefined,
       allowUpsert: true,
+      projectId: info.projectId,
     })
   } catch (err) {
     return {
@@ -238,10 +242,18 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
     }
   }
   if (!cleared.chainedToNext) {
-    setSubmissionResult({ transcriptId: result.transcriptId, outcome: result.outcome })
+    setSubmissionResult({
+      transcriptId: result.transcriptId,
+      outcome: result.outcome,
+      warning: result.warning,
+    })
     markSubmitted()
   }
-  return { ok: true, chainedToNext: cleared.chainedToNext }
+  return {
+    ok: true,
+    chainedToNext: cleared.chainedToNext,
+    warning: result.warning,
+  }
 }
 
 export async function discardRecovered(): Promise<void> {

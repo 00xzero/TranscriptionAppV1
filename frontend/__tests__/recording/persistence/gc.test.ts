@@ -13,6 +13,7 @@ function makeSession(
     sessionId,
     userId: null,
     uploadIntentId: null,
+    projectId: null,
     title: null,
     generatedTitle: null,
     keyTerms: [],

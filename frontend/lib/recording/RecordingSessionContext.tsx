@@ -31,6 +31,8 @@ import { RemotePresenceProvider } from './RemotePresenceContext'
 import { clearPresenceForSession } from './presence'
 import { useAuthIdentity } from '@/lib/supabase/hooks'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
+import { toast } from '@/components/ui/toaster'
+import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/supabase/project-errors'
 export { RecordingAlreadyActiveError } from './session'
 
 interface RecordingActions {
@@ -69,12 +71,27 @@ export function RecordingSessionProvider({
   const identity = useAuthIdentity()
   const snapshot = useRecordingSession()
   const probedUserRef = useRef<string | null>(null)
+  const warnedTranscriptIdRef = useRef<string | null>(null)
   const ownerLossHandledSessionRef = useRef<string | null>(null)
   const [ownerLossRetryTick, setOwnerLossRetryTick] = useState(0)
 
   // App-level unload guard: warns on refresh/close/quit while a recording is active
   // (through upload completion), on every route — not just `/recording/new`.
   useBeforeUnloadGuard(isRecordingSessionActive(snapshot))
+
+  useEffect(() => {
+    const result = snapshot.submissionResult
+    if (
+      snapshot.state !== 'submitted' ||
+      result?.warning !== 'project_missing' ||
+      warnedTranscriptIdRef.current === result.transcriptId
+    ) {
+      return
+    }
+
+    warnedTranscriptIdRef.current = result.transcriptId
+    toast({ title: PROJECT_MISSING_WARNING_MESSAGE })
+  }, [snapshot.state, snapshot.submissionResult])
 
   // Phase 4: derive same-browser remote-presence status once, here, and share it
   // via context. `localActive` suppresses remote state when this tab is itself the

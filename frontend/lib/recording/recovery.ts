@@ -198,6 +198,7 @@ export async function probeRecoverableSessions(
     claimed = {
       sessionId: row.sessionId,
       uploadIntentId: row.uploadIntentId,
+      projectId: row.projectId,
       title: row.title,
       generatedTitle: row.generatedTitle,
       keyTerms: row.keyTerms,

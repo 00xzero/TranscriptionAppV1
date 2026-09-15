@@ -62,6 +62,7 @@ export async function submitFinalizedRecording(): Promise<void> {
       {
         signal: abortController.signal,
         uploadIntentId: store.runtime.uploadIntentId ?? undefined,
+        projectId: finalized.projectId,
       }
     )
   } catch (err) {
@@ -83,6 +84,7 @@ export async function submitFinalizedRecording(): Promise<void> {
     setSubmissionResult({
       transcriptId: result.transcriptId,
       outcome: result.outcome,
+      warning: result.warning,
     })
     markSubmitted()
   } else {

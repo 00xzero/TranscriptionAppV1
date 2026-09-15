@@ -143,7 +143,11 @@ export default function CaptureModal() {
     displayError,
     maxFileSizeLabel,
     buttonText,
-  } = useCaptureForm({ isCaptureModalOpen, closeCaptureModal: handleClose })
+  } = useCaptureForm({
+    isCaptureModalOpen,
+    closeCaptureModal: handleClose,
+    projectId: captureModalIntent?.projectId ?? null,
+  })
 
   const isRecordTab = activeTab === 'record' && !isUploading
 
@@ -220,6 +224,7 @@ export default function CaptureModal() {
           codec,
           title: title.trim() ? title.trim() : null,
           keyTerms,
+          projectId: captureModalIntent?.projectId ?? null,
           deviceId: deviceId ?? null,
           maxBytes: MAX_FILE_SIZE_BYTES,
         })

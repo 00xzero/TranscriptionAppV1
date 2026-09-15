@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { runCaptureUpload, validateFile } from '@/lib/capture/upload'
+import type { CreateTranscriptWarning } from '@/contracts/api'
 
 type UseCapture = {
     isUploading: boolean
@@ -11,6 +12,7 @@ type UseCapture = {
         transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
+        warning?: CreateTranscriptWarning
     } | null>
     resetError: () => void
     validateFile: (file: File) => string | null
@@ -24,7 +26,7 @@ type UseCapture = {
  * 2. Upload file to Supabase storage
  * 3. Start transcription via /api/transcripts/{id}/start
  */
-export function useCapture(): UseCapture {
+export function useCapture(projectId?: string | null): UseCapture {
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [progress, setProgress] = useState<UseCapture['progress']>('idle')
@@ -42,6 +44,7 @@ export function useCapture(): UseCapture {
         transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
+        warning?: CreateTranscriptWarning
     } | null> => {
         setError(null)
         setIsUploading(true)
@@ -50,6 +53,7 @@ export function useCapture(): UseCapture {
         try {
             const result = await runCaptureUpload(file, title, keyTerms, {
                 onProgress: setProgress,
+                projectId,
             })
 
             if (result.kind === 'validation_error' || result.kind === 'failure') {
@@ -67,11 +71,12 @@ export function useCapture(): UseCapture {
                 transcriptId: result.transcriptId,
                 outcome: result.outcome,
                 message: result.message,
+                warning: result.warning,
             }
         } finally {
             setIsUploading(false)
         }
-    }, [])
+    }, [projectId])
 
     return {
         isUploading,

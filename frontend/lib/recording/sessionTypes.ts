@@ -1,4 +1,5 @@
 import type { CodecSelection } from './codecs'
+import type { CreateTranscriptWarning } from '@/contracts/api'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 
@@ -21,6 +22,7 @@ export type RecordingState =
 export interface RecoverableInfo {
   sessionId: string
   uploadIntentId: string | null
+  projectId: string | null
   title: string | null
   generatedTitle: string | null
   keyTerms: string[]
@@ -40,6 +42,7 @@ export interface RecoverableInfo {
 
 export interface SessionSnapshot {
   state: RecordingState
+  projectId: string | null
   title: string | null
   generatedTitle: string | null
   startedAt: number | null
@@ -69,6 +72,7 @@ export interface SessionSnapshot {
   submissionResult: {
     transcriptId: string
     outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+    warning?: CreateTranscriptWarning
   } | null
 }
 
@@ -76,6 +80,7 @@ export interface FinalizedRecording {
   file: File
   title: string
   keyTerms: string[]
+  projectId: string | null
 }
 
 export interface Runtime {
@@ -117,6 +122,7 @@ const EMPTY_KEY_TERMS = Object.freeze([]) as unknown as string[]
 
 export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   state: 'idle',
+  projectId: null,
   title: null,
   generatedTitle: null,
   startedAt: null,
@@ -146,6 +152,7 @@ export interface AttachAndStartParams {
   codec: CodecSelection
   title: string | null
   keyTerms: string[]
+  projectId: string | null
   deviceId: string | null
   maxBytes: number
 }

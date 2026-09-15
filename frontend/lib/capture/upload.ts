@@ -6,6 +6,10 @@ import {
 } from '@/infra/supabase/storage'
 import { randomId } from '@/lib/ids'
 import {
+    CreateTranscriptWarningSchema,
+    type CreateTranscriptWarning,
+} from '@/contracts/api'
+import {
     classifyProjectLinkWriteRejection,
     mapProjectWriteError,
 } from '@/lib/supabase/project-errors'
@@ -82,6 +86,7 @@ export interface CaptureUploadOptions {
      * the live capture path leaves this false to keep its stricter guarantee.
      */
     allowUpsert?: boolean
+    projectId?: string | null
 }
 
 export type CaptureUploadResult =
@@ -90,6 +95,7 @@ export type CaptureUploadResult =
         transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
+        warning?: CreateTranscriptWarning
     }
     | { kind: 'validation_error'; message: string }
     | { kind: 'failure'; message: string }
@@ -262,6 +268,7 @@ export async function runCaptureUpload(
     let didReceiveStartResponse = false
     let createdFreshTranscript = false
     let shouldRollbackPartialCapture = true
+    let creationWarning: CreateTranscriptWarning | undefined
 
     const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
@@ -294,7 +301,8 @@ export async function runCaptureUpload(
                 title: title || file.name,
                 filename: file.name,
                 key_terms: keyTerms.length > 0 ? keyTerms : undefined,
-                upload_intent_id: options?.uploadIntentId
+                upload_intent_id: options?.uploadIntentId,
+                ...(options?.projectId ? { project_id: options.projectId } : {}),
             })
         })
 
@@ -305,6 +313,8 @@ export async function runCaptureUpload(
         }
 
         const createData = await createRes.json()
+        const parsedWarning = CreateTranscriptWarningSchema.safeParse(createData?.warning)
+        creationWarning = parsedWarning.success ? parsedWarning.data : undefined
         transcriptId = createData?.transcript?.id ?? null
         storagePath = createData?.storagePath ?? null
         // On a recovery retry the canonical transcript may already have its media
@@ -420,7 +430,8 @@ export async function runCaptureUpload(
         return {
             kind: 'success',
             transcriptId,
-            outcome: 'started'
+            outcome: 'started',
+            warning: creationWarning,
         }
     } catch (err) {
         const wasCanceled =
@@ -458,6 +469,7 @@ export async function runCaptureUpload(
                     transcriptId,
                     outcome: 'saved_status_unknown',
                     message,
+                    warning: creationWarning,
                 }
             }
 
@@ -467,6 +479,7 @@ export async function runCaptureUpload(
                 transcriptId,
                 outcome: 'saved_needs_retry',
                 message,
+                warning: creationWarning,
             }
         }
 

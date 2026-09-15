@@ -12,6 +12,7 @@ interface ModalContextType {
 export interface CaptureModalIntent {
   initialTab?: 'upload' | 'record'
   message?: string
+  projectId?: string | null
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined)

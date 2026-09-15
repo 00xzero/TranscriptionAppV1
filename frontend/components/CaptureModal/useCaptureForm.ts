@@ -2,17 +2,24 @@ import { useState, useCallback, useEffect } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
 import { useCapture } from '@/lib/hooks/useCapture'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
+import { toast } from '@/components/ui/toaster'
+import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/supabase/project-errors'
 import { formatFileSize } from './shared'
 import { useKeyTermsField } from './useKeyTermsField'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
   closeCaptureModal: () => void
+  projectId?: string | null
 }
 
-export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCaptureFormParams) {
+export function useCaptureForm({
+  isCaptureModalOpen,
+  closeCaptureModal,
+  projectId,
+}: UseCaptureFormParams) {
   const guardedNav = useGuardedNavigate()
-  const { upload, isUploading, error, progress, resetError } = useCapture()
+  const { upload, isUploading, error, progress, resetError } = useCapture(projectId)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
@@ -64,6 +71,9 @@ export function useCaptureForm({ isCaptureModalOpen, closeCaptureModal }: UseCap
     if (!result) return
 
     closeCaptureModal()
+    if (result.warning === 'project_missing') {
+      toast({ title: PROJECT_MISSING_WARNING_MESSAGE })
+    }
 
     if (result.outcome !== 'started') {
       const params = new URLSearchParams({

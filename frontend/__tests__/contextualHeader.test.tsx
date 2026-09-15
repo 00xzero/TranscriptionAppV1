@@ -132,4 +132,28 @@ describe('ContextualHeader', () => {
     expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects')
     expect(screen.queryByText('Library')).not.toBeInTheDocument()
   })
+
+  test('opens Capture with the current project id on a project detail route', async () => {
+    const user = userEventLib.setup()
+    usePathnameMock.mockReturnValue('/projects/child')
+    useProjectsDataMock.mockReturnValue({
+      tree: buildProjectTree([makeProject({ id: 'child', name: 'Child' })]),
+      projectsLoading: false,
+    })
+
+    renderHeader()
+    await user.click(await screen.findByRole('button', { name: 'Open capture modal' }))
+
+    expect(openCaptureModalMock).toHaveBeenCalledWith({ projectId: 'child' })
+  })
+
+  test('opens Capture without project intent outside a project detail route', async () => {
+    const user = userEventLib.setup()
+    usePathnameMock.mockReturnValue('/')
+
+    renderHeader()
+    await user.click(await screen.findByRole('button', { name: 'Open capture modal' }))
+
+    expect(openCaptureModalMock).toHaveBeenCalledWith(undefined)
+  })
 })
