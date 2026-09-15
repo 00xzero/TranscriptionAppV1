@@ -1,17 +1,11 @@
 import React from 'react'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { formatTranscriptDate, formatDurationHHMMSS } from '../utils'
 
 export default function EditorHeader({
-  transcriptId,
-  transcriptTitle,
+  displayTitle,
   transcriptCreatedAt,
   transcriptDurationSecs,
   uniqueSpeakerCount,
@@ -25,9 +19,9 @@ export default function EditorHeader({
   onTitleKeyDown,
   onTitleBlur,
   onDeleteClick,
+  onMoveClick,
 }: {
-  transcriptId: string
-  transcriptTitle: string | null
+  displayTitle: string
   transcriptCreatedAt: string | null
   transcriptDurationSecs: number | null
   uniqueSpeakerCount: number
@@ -41,6 +35,7 @@ export default function EditorHeader({
   onTitleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onTitleBlur: () => void
   onDeleteClick: () => void
+  onMoveClick: () => void
 }) {
   const showStatusInMetaRow = status !== 'Ready'
   const isStatusError = status.startsWith('Error:')
@@ -76,7 +71,7 @@ export default function EditorHeader({
                   role="button"
                   aria-label="Edit title"
                 >
-                  {transcriptTitle || `Untitled (${transcriptId.slice(0, 8)}...)`}
+                  {displayTitle}
                 </h1>
               </TooltipTrigger>
               <TooltipContent>Click to edit title</TooltipContent>
@@ -110,30 +105,11 @@ export default function EditorHeader({
               </>
             )}
           </div>
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors shrink-0"
-                    aria-label="Transcript options"
-                  >
-                    <span className="text-lg leading-none">&#8942;</span>
-                  </button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>More options</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
-                onSelect={onDeleteClick}
-              >
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <TranscriptActionsMenu
+            title={displayTitle}
+            onMove={onMoveClick}
+            onDelete={onDeleteClick}
+          />
         </div>
       </div>
       <Separator decorative={false} className="mt-8 bg-subtle-hover" />

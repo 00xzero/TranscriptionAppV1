@@ -94,6 +94,22 @@ describe('project tree helpers', () => {
     expect(siblingNameTaken(tree, 'root', 'CLIENT A', 'child')).toBe(false)
   })
 
+  test('matches PostgreSQL lower(name) behavior for Unicode and case edges', () => {
+    const tree = buildProjectTree([
+      project('ascii', 'I'),
+      project('dotted', 'İ'),
+      project('accented', 'É'),
+      project('eszett', 'ß'),
+      project('sigma', 'Σ'),
+    ])
+
+    expect(siblingNameTaken(tree, null, 'i')).toBe(true)
+    expect(siblingNameTaken(tree, null, 'i̇')).toBe(true)
+    expect(siblingNameTaken(tree, null, 'é')).toBe(true)
+    expect(siblingNameTaken(tree, null, 'SS')).toBe(false)
+    expect(siblingNameTaken(tree, null, 'ς')).toBe(false)
+  })
+
   test('collapses only the middle breadcrumb segment', () => {
     const crumbs = ['root', 'a', 'b', 'c', 'leaf']
     expect(collapseBreadcrumbs(crumbs, 3)).toEqual({

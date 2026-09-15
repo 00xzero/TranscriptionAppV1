@@ -157,4 +157,17 @@ describe('LibraryView', () => {
       expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
     })
   })
+
+  test('keeps a failed delete open with an inline error', async () => {
+    const user = userEventLib.setup()
+    mockDeleteTranscript.mockRejectedValueOnce(new Error('offline'))
+    renderLibraryView()
+    await screen.findByText('Transcript Alpha')
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
+    await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete transcript')
+    expect(screen.getByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
+  })
 })

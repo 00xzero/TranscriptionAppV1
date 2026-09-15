@@ -1,7 +1,4 @@
-export const DELETE_TRANSCRIPT_ERROR_TITLE = 'Failed to delete transcript'
-export const DELETE_TRANSCRIPT_ERROR_DESCRIPTION = 'Please try again.'
-export const DELETE_TRANSCRIPT_ERROR_MESSAGE =
-  `${DELETE_TRANSCRIPT_ERROR_TITLE}. ${DELETE_TRANSCRIPT_ERROR_DESCRIPTION}`
+export const DELETE_TRANSCRIPT_ERROR_MESSAGE = 'Failed to delete transcript. Please try again.'
 
 // The transcript is gone, but storage objects linked during the delete were left
 // for the orphan cleanup tool.

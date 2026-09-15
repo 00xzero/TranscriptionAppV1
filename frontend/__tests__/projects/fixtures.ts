@@ -39,10 +39,17 @@ export function providerData(projects: Project[], transcripts: Transcript[]) {
     projectsLoading: false,
     projectError: null,
     refetchProjects: jest.fn().mockResolvedValue(undefined),
+    createProject: jest.fn(),
+    renameProject: jest.fn(),
+    mutateProjects: jest.fn(),
     transcripts,
     transcriptsLoading: false,
     transcriptError: null,
     refetchTranscripts: jest.fn().mockResolvedValue(undefined),
+    deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
+    moveTranscript: jest.fn(),
+    addTranscripts: jest.fn(),
+    mutateTranscripts: jest.fn(),
   }
 }
 

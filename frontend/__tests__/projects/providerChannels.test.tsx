@@ -2,7 +2,7 @@ import React from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptsInProject } from '@/core/projects/tree'
-import type { Project } from '@/contracts/db'
+import type { Project, Transcript } from '@/contracts/db'
 
 const mockGetSession = jest.fn()
 const mockGetUser = jest.fn()
@@ -357,5 +357,116 @@ describe('ProjectsProvider realtime ownership', () => {
     act(() => onStatus('SUBSCRIBED'))
     await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(2))
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(2)
+  })
+
+  test('profiles realistic initial, reconciliation, realtime, and polling traffic', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    const projects = Array.from({ length: 250 }, (_, index) =>
+      project(`project-${index}`, 'user-a')
+    )
+    const transcripts: Transcript[] = Array.from({ length: 2000 }, (_, index) => ({
+      id: `transcript-${index}`,
+      user_id: 'user-a',
+      project_id: `project-${index % 250}`,
+      title: `Transcript ${index}`,
+      status: 'completed',
+      source_object_key: null,
+      upload_intent_id: null,
+      duration_seconds: 60,
+      waveform_object_key: null,
+      waveform_status: 'skipped',
+      waveform_points_per_second: null,
+      waveform_version: null,
+      created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z',
+    }))
+    mockFetchProjects.mockResolvedValue(projects)
+    mockFetchTranscripts.mockResolvedValue(transcripts)
+    const projectCommits: number[] = []
+    const transcriptCommits: number[] = []
+    const projectRenders: number[] = []
+
+    function LargeProjectConsumer() {
+      const data = useProjectsData()
+      React.useEffect(() => { projectRenders.push(data.projects.length) })
+      return <span data-testid="large-project-count">{data.projects.length}:{data.projects[0]?.name}</span>
+    }
+
+    function LargeTranscriptConsumer() {
+      const data = useProjectsData()
+      return <span data-testid="large-transcript-count">{data.transcripts.length}</span>
+    }
+
+    const { unmount } = render(
+      <ProjectsProvider>
+        <React.Profiler id="large-projects" onRender={(_id, _phase, duration) => projectCommits.push(duration)}>
+          <LargeProjectConsumer />
+        </React.Profiler>
+        <React.Profiler id="large-transcripts" onRender={(_id, _phase, duration) => transcriptCommits.push(duration)}>
+          <LargeTranscriptConsumer />
+        </React.Profiler>
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('large-project-count')).toHaveTextContent('250:project-0'))
+    expect(screen.getByTestId('large-transcript-count')).toHaveTextContent('2000')
+    expect(mockFetchProjects).toHaveBeenCalledTimes(1)
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+    expect(projectCommits).toHaveLength(1)
+    expect(transcriptCommits).toHaveLength(1)
+
+    const projectChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('projects-changes:')
+    )
+    const projectChannel = mockChannel.mock.results[projectChannelIndex].value
+    const projectRendersBeforeRealtime = projectRenders.length
+    // The PR5 checkpoint observed one transcript-only consumer commit for this
+    // project update. That current cost is recorded, not required behavior.
+    await act(async () => {
+      projectChannel.on.mock.calls[0][2]({
+        eventType: 'UPDATE',
+        new: { ...projects[0], name: 'Updated project' },
+      })
+    })
+    await waitFor(() => expect(screen.getByTestId('large-project-count')).toHaveTextContent('Updated project'))
+    expect(projectRenders.length - projectRendersBeforeRealtime).toBe(1)
+
+    const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+      ([name]) => name === 'projects-v1:user-a'
+    )
+    const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+    mockFetchProjects.mockClear()
+    mockFetchTranscripts.mockClear()
+    act(() => invalidationChannel.subscribe.mock.calls[0][0]('SUBSCRIBED'))
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1))
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+
+    const transcriptChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('transcripts-changes:')
+    )
+    const transcriptChannel = mockChannel.mock.results[transcriptChannelIndex].value
+    mockFetchProjects.mockClear()
+    mockFetchTranscripts.mockClear()
+    jest.useFakeTimers()
+    try {
+      act(() => {
+        projectChannel.subscribe.mock.calls[0][0]('TIMED_OUT')
+        transcriptChannel.subscribe.mock.calls[0][0]('TIMED_OUT')
+      })
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(5000)
+      })
+      expect(mockFetchProjects).toHaveBeenCalledTimes(1)
+      expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
+    } finally {
+      try {
+        unmount()
+      } finally {
+        jest.useRealTimers()
+      }
+    }
   })
 })

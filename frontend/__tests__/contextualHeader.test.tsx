@@ -57,7 +57,7 @@ describe('ContextualHeader', () => {
         user: { id: 'u1' },
       },
     })
-    useProjectsDataMock.mockReturnValue({ tree: buildProjectTree([]) })
+    useProjectsDataMock.mockReturnValue({ tree: buildProjectTree([]), projectsLoading: false })
   })
 
   test('dispatches editor-scroll-to-top when the transcript breadcrumb is activated', async () => {
@@ -78,6 +78,32 @@ describe('ContextualHeader', () => {
     expect(button).toHaveTextContent('Transcript')
   })
 
+  test('hides Capture while the viewed project is marked for deletion', async () => {
+    usePathnameMock.mockReturnValue('/projects/deleting')
+    useProjectsDataMock.mockReturnValue({
+      tree: buildProjectTree([
+        makeProject({ id: 'deleting', deleting_at: '2026-09-15T00:00:00Z' }),
+      ]),
+      projectsLoading: false,
+    })
+
+    renderHeader()
+    await waitFor(() => expect(screen.getByText('Project A')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
+  })
+
+  test.each([
+    ['project data is loading', true],
+    ['the viewed project is absent', false],
+  ])('hides Capture while %s', async (_description, projectsLoading) => {
+    usePathnameMock.mockReturnValue('/projects/missing')
+    useProjectsDataMock.mockReturnValue({ tree: buildProjectTree([]), projectsLoading })
+
+    renderHeader()
+    await screen.findByRole('textbox', { name: 'Recall a decision...' })
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
+  })
+
   test('does not query Supabase auth on auth routes', async () => {
     usePathnameMock.mockReturnValue('/auth')
 
@@ -94,6 +120,7 @@ describe('ContextualHeader', () => {
         makeProject({ id: 'root', name: 'Root' }),
         makeProject({ id: 'child', name: 'Child', parent_id: 'root' }),
       ]),
+      projectsLoading: false,
     })
 
     renderHeader()

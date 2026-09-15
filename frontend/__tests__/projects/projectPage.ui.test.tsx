@@ -1,5 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import ProjectPage from '@/app/projects/[projectId]/page'
 import type { Project } from '@/contracts/db'
 import { makeProject, makeTranscript, providerData, rowTestIds } from './fixtures'
@@ -111,6 +112,39 @@ describe('ProjectPage', () => {
     render(<ProjectPage />)
 
     expect(screen.getByText('This project is empty')).toBeInTheDocument()
+  })
+
+  test('creates a nested project and exposes add, project, and transcript actions', async () => {
+    const user = userEvent.setup()
+    const child = makeProject({ id: 'child', name: 'Child', parent_id: 'current' })
+    const transcript = makeTranscript({ id: 'note', title: 'Project note', project_id: 'current' })
+    const data = providerData([makeCurrent(), child], [transcript])
+    data.createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Nested', parent_id: 'current' }))
+    mockUseProjectsData.mockReturnValue(data)
+    render(<ProjectPage />)
+
+    expect(screen.getByRole('button', { name: 'Add Transcripts' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More options for Current' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More options for Child' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More options for Project note' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'New Project' }))
+    await user.type(screen.getByRole('textbox', { name: 'Project name' }), 'Nested')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(data.createProject).toHaveBeenCalledWith({ name: 'Nested', parent_id: 'current' }))
+  })
+
+  test('offers Retry Delete without project capture controls for a deleting branch', () => {
+    mockUseProjectsData.mockReturnValue(
+      providerData([makeCurrent({ deleting_at: '2026-09-14T12:00:00Z' })], [])
+    )
+
+    render(<ProjectPage />)
+
+    expect(screen.getByRole('button', { name: 'Retry Delete' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New Project' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add Transcripts' })).not.toBeInTheDocument()
   })
 
   test('navigates to the nearest surviving ancestor when the project vanishes', async () => {

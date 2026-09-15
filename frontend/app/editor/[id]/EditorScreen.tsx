@@ -5,18 +5,13 @@ import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
-import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
-import { toast } from '@/components/ui/toaster'
-import { deleteTranscript } from '@/lib/supabase/queries'
-import {
-  DELETE_TRANSCRIPT_ERROR_DESCRIPTION,
-  DELETE_TRANSCRIPT_ERROR_TITLE,
-  TRANSCRIPT_CLEANUP_PENDING_TOAST,
-} from '@/lib/transcripts/deleteErrors'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { transcriptActionTarget } from '@/lib/transcripts/actions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
@@ -31,10 +26,15 @@ import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 
 export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
   const router = useRouter()
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // 1. Data layer
   const data = useEditorData(transcriptId)
+  const actionTarget = transcriptActionTarget({
+    id: transcriptId,
+    title: data.transcriptTitle,
+    project_id: data.transcriptProjectId,
+  }, `Untitled (${transcriptId.slice(0, 8)}...)`)
+  const transcriptActions = useTranscriptActions()
 
   // 2. Mutation hooks
   const editing = useTranscriptMutations({
@@ -92,23 +92,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
   })
-
-  const handleConfirmDelete = useCallback(async () => {
-    try {
-      const { cleanupPendingKeys } = await deleteTranscript(transcriptId)
-      if (cleanupPendingKeys.length > 0) toast(TRANSCRIPT_CLEANUP_PENDING_TOAST)
-      router.replace('/transcripts')
-    } catch (e) {
-      console.error('Failed to delete transcript:', e)
-      toast({
-        title: DELETE_TRANSCRIPT_ERROR_TITLE,
-        description: DELETE_TRANSCRIPT_ERROR_DESCRIPTION,
-        variant: 'error',
-      })
-    } finally {
-      setDeleteDialogOpen(false)
-    }
-  }, [transcriptId, router])
 
   const openExportModal = useCallback(() => {
     search.setFindReplaceOpen(false)
@@ -238,8 +221,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         </CollapsibleWaveform>
 
         <EditorHeader
-          transcriptId={transcriptId}
-          transcriptTitle={data.transcriptTitle}
+          displayTitle={actionTarget.title}
           transcriptCreatedAt={data.transcriptCreatedAt}
           transcriptDurationSecs={data.transcriptDurationSecs}
           uniqueSpeakerCount={uniqueSpeakerCount}
@@ -252,7 +234,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           startEditingTitle={title.startEditingTitle}
           onTitleKeyDown={title.onTitleKeyDown}
           onTitleBlur={title.onTitleBlur}
-          onDeleteClick={() => setDeleteDialogOpen(true)}
+          onDeleteClick={() => transcriptActions.openDelete(actionTarget)}
+          onMoveClick={() => transcriptActions.openMove(actionTarget)}
         />
 
         <TranscriptList
@@ -301,12 +284,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         />
       )}
 
-      <DeleteTranscriptDialog
-        open={deleteDialogOpen}
-        title={data.transcriptTitle || 'Untitled'}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleConfirmDelete}
-      />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => router.replace('/transcripts')} />
 
       <Popover
         open={!!speakerHook.speakerPopover}

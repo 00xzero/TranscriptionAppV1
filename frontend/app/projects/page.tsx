@@ -1,6 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { ErrorFallback } from '@/components/ErrorFallback'
+import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { Button } from '@/components/ui/button'
+import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
+import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
+import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
 import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
@@ -13,10 +20,17 @@ import {
 } from '@/core/projects/tree'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
+import type { Project } from '@/contracts/db'
+import { transcriptActionTarget } from '@/lib/transcripts/actions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 export default function ProjectsPage() {
-  const { tree, transcripts } = useProjectsData()
+  const { tree, transcripts, createProject, renameProject } = useProjectsData()
   const { isLoading, loadError, retry } = useProjectsLoadState()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [renameProjectTarget, setRenameProjectTarget] = useState<Project | null>(null)
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState<Project | null>(null)
+  const transcriptActions = useTranscriptActions()
 
   if (isLoading) {
     return (
@@ -45,16 +59,10 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-8 px-6 pb-10 pt-[80px] md:px-10">
       <section aria-labelledby="projects-heading">
-        <h1
-          id="projects-heading"
-          className={
-            hasProjects
-              ? 'mb-3 border-b border-border pb-2 font-serif text-2xl text-foreground'
-              : 'sr-only'
-          }
-        >
-          Projects
-        </h1>
+        <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
+          <h1 id="projects-heading" className="font-serif text-2xl text-foreground">Projects</h1>
+          <Button size="sm" variant="secondary" onClick={() => setCreateOpen(true)}>New Project</Button>
+        </div>
         {hasProjects && (
           <ProjectList>
             {tree.roots.map((project) => (
@@ -63,6 +71,13 @@ export default function ProjectsPage() {
                 project={project}
                 directTranscriptCount={counts.get(project.id) ?? 0}
                 nestedProjectCount={descendantCount(tree, project.id)}
+                actions={(
+                  <ProjectActionsMenu
+                    project={project}
+                    onRename={() => setRenameProjectTarget(project)}
+                    onDelete={() => setDeleteProjectTarget(project)}
+                  />
+                )}
               />
             ))}
           </ProjectList>
@@ -88,13 +103,46 @@ export default function ProjectsPage() {
             {unfiled.length === 0 ? (
               <ProjectsEmptyState variant="empty-unfiled" />
             ) : (
-              unfiled.map((transcript) => (
-                <TranscriptRow key={transcript.id} transcript={transcript} />
-              ))
+              unfiled.map((transcript) => {
+                const target = transcriptActionTarget(transcript)
+                return (
+                  <TranscriptRow
+                    key={transcript.id}
+                    transcript={transcript}
+                    actions={(
+                      <TranscriptActionsMenu
+                        title={target.title}
+                        onMove={() => transcriptActions.openMove(target)}
+                        onDelete={() => transcriptActions.openDelete(target)}
+                      />
+                    )}
+                  />
+                )
+              })
             )}
           </ProjectList>
         </section>
       )}
+      <ProjectNameDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        mode="create"
+        parentId={null}
+        onSubmit={(name) => createProject({ name, parent_id: null })}
+      />
+      {renameProjectTarget && <ProjectNameDialog
+        open
+        onOpenChange={(open) => !open && setRenameProjectTarget(null)}
+        mode="rename"
+        parentId={renameProjectTarget.parent_id}
+        projectId={renameProjectTarget.id}
+        initialName={renameProjectTarget.name}
+        onSubmit={(name) => renameProject(renameProjectTarget.id, name)}
+      />}
+      {deleteProjectTarget && (
+        <DeleteProjectDialog project={deleteProjectTarget} onClose={() => setDeleteProjectTarget(null)} />
+      )}
+      <TranscriptActionDialogs actions={transcriptActions} />
     </div>
   )
 }

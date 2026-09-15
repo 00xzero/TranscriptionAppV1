@@ -2,13 +2,14 @@
 
 import { ancestorsOf } from '@/core/projects/tree'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { projectIdFromPathname } from '@/lib/projects/routes'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Breadcrumbs } from './Breadcrumbs'
 
 /** Header title for `/projects` routes: breadcrumbs once the project resolves, else a Projects link. */
 export function ProjectsHeaderTitle({ pathname }: { pathname: string }) {
   const { tree } = useProjectsData()
-  const projectId = pathname.split('/')[2]
+  const projectId = projectIdFromPathname(pathname)
   const current = projectId ? tree.byId.get(projectId) : undefined
 
   if (current) {

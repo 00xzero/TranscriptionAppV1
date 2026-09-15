@@ -30,6 +30,7 @@ export function DiscardRecordingDialog({
       description={DISCARD_RECORDING_DESCRIPTION}
       onConfirm={onConfirm}
       confirmLabel="Discard"
+      pendingLabel="Discarding…"
     />
   )
 }
