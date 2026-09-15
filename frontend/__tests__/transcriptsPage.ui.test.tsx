@@ -87,14 +87,17 @@ describe('TranscriptsPage', () => {
     })
   })
 
+  const openDeleteDialog = async (user: ReturnType<typeof userEventLib.setup>) => {
+    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+  }
+
   test('deletes a transcript after alert dialog confirmation', async () => {
     const user = userEventLib.setup()
     renderTranscriptsPage()
 
     await screen.findByText('Transcript Alpha')
-    await user.click(
-      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
-    )
+    await openDeleteDialog(user)
 
     expect(await screen.findByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
     expect(
@@ -115,9 +118,7 @@ describe('TranscriptsPage', () => {
     renderTranscriptsPage()
 
     await screen.findByText('Transcript Alpha')
-    await user.click(
-      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
-    )
+    await openDeleteDialog(user)
 
     expect(await screen.findByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
     expect(
@@ -139,14 +140,24 @@ describe('TranscriptsPage', () => {
     renderTranscriptsPage()
     await screen.findByText('Transcript Alpha')
 
-    await user.click(
-      screen.getByRole('button', { name: /Delete transcript Transcript Alpha/i })
-    )
+    await openDeleteDialog(user)
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
 
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
     })
     expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
+  })
+
+  test('keeps a failed delete open with an inline error', async () => {
+    const user = userEventLib.setup()
+    mockDeleteTranscript.mockRejectedValueOnce(new Error('offline'))
+    renderTranscriptsPage()
+    await screen.findByText('Transcript Alpha')
+    await openDeleteDialog(user)
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete transcript')
+    expect(screen.getByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
   })
 })

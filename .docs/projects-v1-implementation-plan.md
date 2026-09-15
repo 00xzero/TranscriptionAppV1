@@ -10,6 +10,8 @@ Revision 5 incorporates the fourth review and is the implementation-ready revisi
 
 Revision 4 incorporated the third review. All trigger functions are now `security invoker`, because a `current_user` role check inside a `security definer` function sees the owner and would have let any client clear the mark. Ordinary transcript deletes inside a marked branch are rejected, so the branch workflow alone owns row deletion once marked and no cleanup key can be lost between retries. `begin_project_delete` marks to a fixed point so a child created during discovery cannot escape the mark. The capture path gains the same affected-row assertion as the waveform worker. Compensation is described as an attempt with a named recovery path, not a guarantee. A pre-existing race in single-transcript deletion is fixed in passing.
 
+PR 5 implementation notes refine revision 5 without changing its deletion guarantees: a visible project returning `gone: true` is treated as an already-completed delete on any attempt; the project detail page is the single owner of nearest-surviving-ancestor navigation; repeated transcript action state and delete handling are shared without hiding each surface's menu or post-delete behavior; and observed cross-domain provider renders are recorded rather than frozen into a regression assertion.
+
 ## Decisions this plan implements
 
 | # | Decision |
@@ -26,7 +28,7 @@ Revision 4 incorporated the third review. All trigger functions are now `securit
 | 10 | The capture modal intent, the create body, and the persisted recording session carry `projectId`. If the project is gone or marked for deletion at insert time, the create logic retries once with `project_id: null` inside the same idempotent path and returns a warning. |
 | 11 | Unfiled is a section on `/projects`, not a route. |
 | 12 | In the Move dialog, the selected node is the parent for inline New Project; the new project becomes the selected destination. |
-| 13 | One shared transcript actions menu (Move to Project, Delete) across Library, Transcripts page, editor header, and project pages. The menu renders items only; each surface owns one Move dialog and one Delete dialog and keeps its own post-delete behaviour. |
+| 13 | One shared transcript actions menu (Move to Project, Delete) across Library, Transcripts page, editor header, and project pages. The menu renders items only; a shared per-surface controller owns one Move dialog and one Delete dialog, while each surface renders its menu explicitly and keeps its own post-delete behaviour. |
 | 14 | Add Transcripts lists everything except transcripts already directly in the project, with location paths. |
 | 15 | After deleting the viewed project or an ancestor, navigate to the nearest surviving ancestor. Not-found is reserved for ids that never load. |
 | 16 | Breadcrumbs collapse the middle into an ellipsis menu: up to five crumbs on desktop, root plus last two on narrow screens. |
@@ -366,7 +368,7 @@ Tests green. Library and Transcripts pages behave identically to before, now fed
 
 The route uses only the user-scoped server client and never the admin client. The RPCs are `security definer` but derive the owner from the caller's JWT, so the user-scoped client is the correct and only caller.
 
-**Retry after a lost response.** If `finish` commits but the HTTP response never reaches the browser, the user sees an error and retries. `begin` then raises `PJ001` because the branch is gone, and the route returns 404 with `gone: true`. The dialog treats a 404 on a retry (that is, when the project was in the tree when the dialog opened and is no longer) as success: it closes and navigates per decision 15. A 404 on the first attempt is a genuine not-found and is shown as such.
+**Retry after a lost response.** If `finish` commits but the HTTP response never reaches the browser, the user sees an error and retries. `begin` then raises `PJ001` because the branch is gone, and the route returns 404 with `gone: true`. The dialog can only be opened for a project already present in the user's RLS-scoped provider state, so `gone: true` is treated as an already-completed delete on any attempt. It removes the stale branch locally; if the viewed project disappeared, the project page navigates per decision 15. Authentication and authorization failures remain errors rather than `gone` success.
 
 ### What the mark means for the rest of the app
 
@@ -476,14 +478,14 @@ The callers must change with it. `LibraryView.handleConfirmDelete` and the Trans
 
 - `ProjectNameDialog.tsx`: one component for create and rename. Props: `mode`, `parentId`, `initialName`, `onSubmit`. Validates with `validateProjectName` and `siblingNameTaken` before submitting; on failure shows `mapProjectWriteError` output inline and stays open. Built on `components/ui/dialog.tsx`.
 - `ProjectActionsMenu.tsx`: Rename and Delete items for a project row and for the page header. Renders items only; the page owns the dialogs.
-- `DeleteProjectDialog.tsx`: built on the extended `ConfirmDialog`. On open, computes nested count from the tree and calls `fetchProjectBranchTranscriptCount`. Copy per spec section 9. Confirm calls `deleteProjectRequest`; on success closes and, if the deleted id is the current page or an ancestor, navigates per decision 15; on failure stays open with the stage-specific message and a Retry label. A 404 with `gone: true` on a retry counts as success (the earlier attempt finished; its response was lost).
+- `DeleteProjectDialog.tsx`: built on the extended `ConfirmDialog`. On open, computes nested count from the tree and calls `fetchProjectBranchTranscriptCount`. Copy per spec section 9. Confirm calls `deleteProjectRequest`; on success closes and removes the completed branch from provider state. The project detail page owns decision 15 navigation when the viewed branch disappears. On failure the dialog stays open with the stage-specific message and a Retry label; `gone: true` counts as already-completed success on any attempt because the dialog target came from the user's provider state.
 - `MoveTranscriptDialog.tsx`: transcript title in the heading; a `ProjectTreePicker` with Unfiled at the top; current location highlighted and pre-selected; Move disabled until the selection differs; inline New Project opens `ProjectNameDialog` with `parentId` set to the selected node (or `null` for Unfiled/root) and selects the new project on success. Marked-deleting projects are excluded from the tree.
 - `ProjectTreePicker.tsx`: expandable tree with a search field. Search filters by name and auto-expands ancestors of matches. Keyboard: arrows move, right/left expand/collapse, Enter selects. Roles: `tree`, `treeitem`, `aria-expanded`, `aria-selected`.
 - `AddTranscriptsDialog.tsx`: searchable list from the provider's transcripts minus those whose `project_id` equals the current project. Each row: title, date, checkbox, and `pathLabel` when filed. Add calls `addTranscripts` once with all selected ids.
 
 ### `components/TranscriptActionsMenu.tsx`
 
-Shared menu rendering Move to Project… and Delete. It takes `onMove` and `onDelete` callbacks and renders nothing else. Each surface owns one `MoveTranscriptDialog` and one `DeleteTranscriptDialog` with a `pendingTranscript` state, the way `LibraryView` already does for delete, so a page with two hundred rows mounts two dialogs, not four hundred. Surfaces keep their own post-delete behaviour: the editor continues to `router.replace('/transcripts')`, the lists simply drop the row.
+Shared menu rendering Move to Project… and Delete. It takes `onMove` and `onDelete` callbacks and renders nothing else. A small shared transcript-actions controller owns each surface's pending targets, delete handling, one `MoveTranscriptDialog`, and one `DeleteTranscriptDialog`, so a page with two hundred rows mounts two dialogs, not four hundred. Each surface still renders the menu explicitly and supplies its own post-delete behaviour: the editor continues to `router.replace('/transcripts')`, while lists simply drop the row.
 
 Replace the inline menus in `components/LibraryView.tsx`, `app/transcripts/page.tsx`, and `app/editor/[id]/components/EditorHeader.tsx`, and use the menu in `TranscriptRow`.
 
@@ -499,6 +501,8 @@ Replace the inline menus in `components/LibraryView.tsx`, `app/transcripts/page.
 
 Before the sidebar and dialogs broaden use of the shared provider, profile it with a realistic large transcript set. Measure the initial fetch plus the reconciliation fetch after realtime connects, polling-fallback traffic, and whether the flat context causes material cross-domain re-renders. Preserve the settled one-provider, one-subscription-per-table and `useProjectsData()` interfaces; optimise only from evidence, for example with narrower list projections or internal context partitioning that does not change the consumer API.
 
+PR 5 checkpoint result: with 250 projects and 2,000 transcripts, the synthetic initial load issued one project fetch and one transcript fetch; realtime reconciliation and polling fallback each issued one additional fetch per table. A project update produced one commit in a transcript-only consumer through the flat context. This was not material enough to change the provider API, and the observed cross-domain commit is recorded rather than asserted as required behavior.
+
 Add Unicode/case edge cases for `siblingNameTaken` alongside the dialog tests and compare them with the database's `lower(name)` uniqueness behaviour. Keep `ProjectNameSchema` as the trimming and length source of truth; do not introduce a client helper that claims to reproduce database collation without evidence.
 
 ### Tests
@@ -508,7 +512,7 @@ Add Unicode/case edge cases for `siblingNameTaken` alongside the dialog tests an
 - `__tests__/projects/projectNameDialog.ui.test.tsx`: validation via the shared schema, duplicate message, stays open on error.
 - `__tests__/projects/moveTranscriptDialog.ui.test.tsx`: Move disabled until changed, Unfiled selection, inline create selects the new node, deleting projects excluded.
 - `__tests__/projects/addTranscriptsDialog.ui.test.tsx`: exclusion rule, search, batched update.
-- `__tests__/projects/deleteProjectDialog.ui.test.tsx`: counts in copy, stage-specific failure messages, no success on failure, navigation on success.
+- `__tests__/projects/deleteProjectDialog.ui.test.tsx`: counts in copy, stage-specific failure messages, no success on failure, and `gone: true` success. Project-page tests own nearest-surviving-ancestor navigation coverage.
 - `__tests__/projects/treePicker.test.tsx`: keyboard navigation and aria attributes.
 - Update `libraryView.ui.test.tsx`, `editor.test.tsx` (editor still navigates after delete), and the sidebar tests.
 

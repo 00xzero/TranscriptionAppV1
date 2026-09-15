@@ -31,6 +31,7 @@ export function DeleteTranscriptDialog({
       description={DELETE_TRANSCRIPT_DESCRIPTION}
       onConfirm={onConfirm}
       confirmLabel="Delete"
+      pendingLabel="Deleting…"
     />
   )
 }

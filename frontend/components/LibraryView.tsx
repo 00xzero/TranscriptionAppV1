@@ -4,48 +4,17 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
+import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { toast } from '@/components/ui/toaster'
-import {
-  DELETE_TRANSCRIPT_ERROR_MESSAGE,
-  TRANSCRIPT_CLEANUP_PENDING_TOAST,
-} from '@/lib/transcripts/deleteErrors'
+import { transcriptActionTarget } from '@/lib/transcripts/actions'
+import { TranscriptActionDialogs, useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import type { User } from '@supabase/supabase-js'
-
-type PendingDelete = {
-  id: string
-  title: string
-}
 
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
-  const { transcripts, transcriptsLoading: isLoading, deleteTranscript } = useProjectsData()
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-
-  const handleConfirmDelete = async () => {
-    if (!pendingDelete) return
-    setDeleteError(null)
-    try {
-      const { cleanupPendingKeys } = await deleteTranscript(pendingDelete.id)
-      if (cleanupPendingKeys.length > 0) toast(TRANSCRIPT_CLEANUP_PENDING_TOAST)
-    } catch (e) {
-      console.error('Failed to delete transcript:', e)
-      setDeleteError(DELETE_TRANSCRIPT_ERROR_MESSAGE)
-    } finally {
-      setDeleteDialogOpen(false)
-    }
-  }
+  const { transcripts, transcriptsLoading: isLoading } = useProjectsData()
+  const transcriptActions = useTranscriptActions()
 
   // Fetch user for greeting
   useEffect(() => {
@@ -91,7 +60,7 @@ export default function LibraryView() {
         {/* Recent Projects Section (future feature: projects group transcripts/files) */}
         <div className="flex items-center justify-between mb-4 border-b border-(--border) pb-2">
           <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Projects</h3>
-          <Link href="/transcripts" title="View all transcripts" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
+          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
             View All
           </Link>
         </div>
@@ -146,22 +115,6 @@ export default function LibraryView() {
           </Link>
         </div>
 
-        {deleteError && (
-          <div className="mb-3 rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
-            <div className="flex items-center justify-between gap-3">
-              <span>{deleteError}</span>
-              <button
-                type="button"
-                className="text-xs font-medium hover:underline"
-                onClick={() => setDeleteError(null)}
-                title="Dismiss"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="divide-y divide-border rounded-sm border border-border bg-panel">
           {isLoading ? (
             <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
@@ -172,54 +125,27 @@ export default function LibraryView() {
               No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
             </div>
           ) : (
-            transcripts.slice(0, 5).map((transcript) => (
-              <TranscriptRow
-                key={transcript.id}
-                transcript={transcript}
-                actions={(
-                  <DropdownMenu>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-warm-highlight/50 dark:hover:bg-night-border/80 text-ink/40 dark:text-paper/40 transition-colors"
-                            aria-label={`More options for ${transcript.title || 'Untitled'}`}
-                          >
-                            <span className="text-lg leading-none">&#8942;</span>
-                          </button>
-                        </DropdownMenuTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>More options</TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="text-ember-red focus:text-ember-red focus:bg-warm-highlight/70 dark:focus:bg-night-border"
-                        onSelect={() => {
-                          setPendingDelete({
-                            id: transcript.id,
-                            title: transcript.title || 'Untitled',
-                          })
-                          setDeleteDialogOpen(true)
-                        }}
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              />
-            ))
+            transcripts.slice(0, 5).map((transcript) => {
+              const target = transcriptActionTarget(transcript)
+              return (
+                <TranscriptRow
+                  key={transcript.id}
+                  transcript={transcript}
+                  actions={(
+                    <TranscriptActionsMenu
+                      title={target.title}
+                      onMove={() => transcriptActions.openMove(target)}
+                      onDelete={() => transcriptActions.openDelete(target)}
+                    />
+                  )}
+                />
+              )
+            })
           )}
         </div>
         </section>
       </div>
-      <DeleteTranscriptDialog
-        open={deleteDialogOpen}
-        title={pendingDelete?.title ?? null}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleConfirmDelete}
-      />
+      <TranscriptActionDialogs actions={transcriptActions} />
     </>
   )
 }

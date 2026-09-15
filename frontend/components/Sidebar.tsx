@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
 import { createClient } from '@/infra/supabase/client'
@@ -200,6 +200,17 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             </div>
             <div className="flex items-center overflow-hidden whitespace-nowrap rounded-md py-2.5 text-ink/70 dark:text-paper/70">
               <span className="flex w-10 shrink-0 items-center justify-center">
+                <FolderOpen className="h-[18px] w-[18px] opacity-60" strokeWidth={1.75} />
+              </span>
+              <span
+                className="hidden pr-3 text-sm font-medium md:block"
+                style={{ opacity: 'var(--sidebar-initial-label-opacity, 1)' }}
+              >
+                Projects
+              </span>
+            </div>
+            <div className="flex items-center overflow-hidden whitespace-nowrap rounded-md py-2.5 text-ink/70 dark:text-paper/70">
+              <span className="flex w-10 shrink-0 items-center justify-center">
                 <PenLine className="h-[18px] w-[18px] opacity-60" strokeWidth={1.75} />
               </span>
               <span
@@ -239,6 +250,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   }
 
   const isLibraryActive = pathname === '/' || pathname === '/transcripts'
+  const isProjectsActive = pathname?.startsWith('/projects') ?? false
 
   // Motion is gated behind `motionReady` (armed one rAF after mount) so the
   // very first real-DOM paint lands at the persisted width with no transition
@@ -386,6 +398,35 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               </button>
             </TooltipTrigger>
             <TooltipContent side="right" align="center" sideOffset={10}>Library</TooltipContent>
+          </Tooltip>
+
+          {/* Projects */}
+          <Tooltip disabled={!isCollapsed}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => navigateTo('/projects')}
+                aria-label="Projects"
+                className={`
+                  w-full flex items-center py-2.5 rounded-md overflow-hidden whitespace-nowrap
+                  transition-[background-color,border-color,color,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
+                  ${isProjectsActive
+                    ? 'bg-field/50 dark:bg-subtle shadow-xs border border-border text-foreground'
+                    : 'hover:bg-subtle text-foreground/70'
+                  }
+                `}
+              >
+                <span className="w-10 flex items-center justify-center shrink-0">
+                  <FolderOpen className="w-[18px] h-[18px] opacity-60 group-hover:opacity-100" strokeWidth={1.75} />
+                </span>
+                <span
+                  aria-hidden={isCollapsed}
+                  className={`hidden md:block pr-3 font-medium text-sm ${labelTransitionClass} ${labelStateClass}`}
+                >
+                  Projects
+                </span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" align="center" sideOffset={10}>Projects</TooltipContent>
           </Tooltip>
 
           {/* Drafts - Coming Soon. `aria-disabled` keeps the real button focusable so

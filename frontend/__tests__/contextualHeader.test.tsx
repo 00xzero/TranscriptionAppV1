@@ -78,6 +78,19 @@ describe('ContextualHeader', () => {
     expect(button).toHaveTextContent('Transcript')
   })
 
+  test('hides Capture while the viewed project is marked for deletion', async () => {
+    usePathnameMock.mockReturnValue('/projects/deleting')
+    useProjectsDataMock.mockReturnValue({
+      tree: buildProjectTree([
+        makeProject({ id: 'deleting', deleting_at: '2026-09-15T00:00:00Z' }),
+      ]),
+    })
+
+    renderHeader()
+    await waitFor(() => expect(screen.getByText('Project A')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
+  })
+
   test('does not query Supabase auth on auth routes', async () => {
     usePathnameMock.mockReturnValue('/auth')
 

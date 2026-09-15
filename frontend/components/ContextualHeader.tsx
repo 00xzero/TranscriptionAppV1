@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import type { User } from '@supabase/supabase-js'
 
 interface ContextualHeaderProps {
@@ -20,8 +21,11 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
+  const { tree } = useProjectsData()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
+  const routeProjectId = isProjectsRoute ? pathname?.split('/')[2] : undefined
+  const hideCapture = Boolean(routeProjectId && tree.byId.get(routeProjectId)?.deleting_at)
 
   // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
@@ -224,7 +228,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           </div>
 
           {/* Capture Button */}
-          <Tooltip>
+          {!hideCapture && <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="destructive"
@@ -237,7 +241,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new recording</TooltipContent>
-          </Tooltip>
+          </Tooltip>}
         </div>
       )}
     </header>
