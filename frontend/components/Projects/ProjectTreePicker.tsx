@@ -74,6 +74,7 @@ export function ProjectTreePicker({
   }, [available, expanded, searchVisible, tree])
 
   const orderedIds = ['unfiled', ...nodes.map(({ project }) => project.id)]
+  const tabStopId = orderedIds.includes(focusId) ? focusId : 'unfiled'
   const focusItem = (id: string) => {
     setFocusId(id)
     itemRefs.current.get(id)?.focus()
@@ -129,7 +130,7 @@ export function ProjectTreePicker({
           type="button"
           role="treeitem"
           aria-selected={value === null}
-          tabIndex={focusId === 'unfiled' ? 0 : -1}
+          tabIndex={tabStopId === 'unfiled' ? 0 : -1}
           className={itemClass(value === null)}
           onFocus={() => setFocusId('unfiled')}
           onClick={() => onChange(null)}
@@ -150,7 +151,7 @@ export function ProjectTreePicker({
               role="treeitem"
               aria-expanded={hasChildren ? isExpanded : undefined}
               aria-selected={value === project.id}
-              tabIndex={focusId === project.id ? 0 : -1}
+              tabIndex={tabStopId === project.id ? 0 : -1}
               className={itemClass(value === project.id)}
               style={{ paddingLeft: `${12 + depth * 20}px` }}
               onFocus={() => setFocusId(project.id)}

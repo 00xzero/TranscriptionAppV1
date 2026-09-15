@@ -49,4 +49,16 @@ describe('ProjectTreePicker', () => {
     expect(rootItem).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('treeitem', { name: /Needle/ })).not.toBeInTheDocument()
   })
+
+  test('keeps a rendered tree item tabbable when filtering removes the focus target', async () => {
+    const user = userEvent.setup()
+    render(<ProjectTreePicker tree={buildProjectTree([root, child])} value="child" onChange={jest.fn()} />)
+
+    await user.type(screen.getByLabelText('Search projects'), 'no match')
+
+    const treeItems = screen.getAllByRole('treeitem')
+    expect(treeItems).toHaveLength(1)
+    expect(treeItems[0]).toHaveAttribute('tabindex', '0')
+    expect(treeItems[0]).toHaveTextContent('Unfiled')
+  })
 })

@@ -41,7 +41,7 @@ describe('ConfirmDialog', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
-  test.each([
+  test.each<[string, React.ReactElement, string, string]>([
     ['delete transcript', <DeleteTranscriptDialog key="delete" open title="Alpha" onOpenChange={jest.fn()} onConfirm={() => Promise.reject(new Error('Delete failed.'))} />, 'Delete', 'Delete failed.'],
     ['discard recording', <DiscardRecordingDialog key="discard" open onOpenChange={jest.fn()} onConfirm={() => Promise.reject(new Error('Discard failed.'))} />, 'Discard', 'Discard failed.'],
   ])('keeps the %s wrapper open on failure', async (_name, dialog, action, message) => {

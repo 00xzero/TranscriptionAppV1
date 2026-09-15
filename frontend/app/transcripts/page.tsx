@@ -33,7 +33,7 @@ function TranscriptsPageContent() {
   const [transcriptErrors, setTranscriptErrors] = useState<Record<string, { error: string; error_type: string }>>({})
   const [transcriptErrorLoadErrors, setTranscriptErrorLoadErrors] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
-  const transcriptActions = useTranscriptActions({ onDeleted: () => setActionError(null) })
+  const transcriptActions = useTranscriptActions()
   const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
   const [captureTranscriptId, setCaptureTranscriptId] = useState<string | null>(null)
 
