@@ -64,7 +64,7 @@ function postTranscript(
     if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
     return {}
   })
-  return POST({ json: async () => body } as any)
+  return POST({ json: async () => body } as unknown as Parameters<typeof POST>[0])
 }
 
 describe('POST /api/transcripts', () => {

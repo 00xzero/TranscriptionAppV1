@@ -11,7 +11,7 @@ type UseCapture = {
     isUploading: boolean
     error: string | null
     progress: 'idle' | 'creating' | 'uploading' | 'starting' | 'done'
-    upload: (
+  upload: (
         file: File,
         title: string,
         keyTerms: string[],

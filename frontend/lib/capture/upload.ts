@@ -86,7 +86,7 @@ export interface CaptureUploadOptions {
      * the live capture path leaves this false to keep its stricter guarantee.
      */
     allowUpsert?: boolean
-    projectId?: string | null
+  projectId?: string | null
 }
 
 export type CaptureUploadResult =

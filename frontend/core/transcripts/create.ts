@@ -27,7 +27,7 @@ export interface CreateTranscriptResult {
     sourceObjectKey: string | null
     /** Canonical transcript status, surfaced for idempotent client resume. */
     status: string
-    warning?: CreateTranscriptWarning
+  warning?: CreateTranscriptWarning
 }
 
 /** Transcript row shape selected for building the canonical result. */
