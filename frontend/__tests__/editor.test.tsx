@@ -239,6 +239,26 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
   })
 
+  test('synchronizes a successfully saved title into the shared transcript provider', async () => {
+    const user = userEventLib.setup()
+    const transcript = makeTranscript({ id: 'p1', title: 'Test Transcript' })
+    const data = providerData([], [transcript])
+    mockUseProjectsData.mockReturnValue(data)
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    await user.click(await screen.findByRole('button', { name: 'Edit title' }))
+    const input = screen.getByRole('textbox', { name: 'Transcript title' })
+    await user.clear(input)
+    await user.type(input, 'Renamed transcript{enter}')
+
+    await waitFor(() => expect(data.mutateTranscripts).toHaveBeenCalledTimes(1))
+    const updateProvider = data.mutateTranscripts.mock.calls[0][0]
+    expect(updateProvider([transcript])).toEqual([
+      expect.objectContaining({ id: 'p1', title: 'Renamed transcript' }),
+    ])
+  })
+
   test('reopens the waveform and scrolls to top via the header custom event', async () => {
     renderEditorScreen()
 
