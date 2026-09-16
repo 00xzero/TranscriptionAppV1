@@ -84,6 +84,8 @@ describe('ProjectsPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Unfiled' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Unfiled' }).closest('section'))
+      .toHaveAttribute('id', 'unfiled')
     expect(screen.queryByRole('heading', { name: 'Transcript A' })).not.toBeInTheDocument()
   })
 

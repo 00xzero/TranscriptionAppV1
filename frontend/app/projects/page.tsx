@@ -90,7 +90,11 @@ export default function ProjectsPage() {
       </section>
 
       {!isEmpty && (
-        <section aria-labelledby="unfiled-heading">
+        <section
+          id="unfiled"
+          aria-labelledby="unfiled-heading"
+          className="scroll-mt-[var(--header-height)]"
+        >
           <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
             <h2 id="unfiled-heading" className="font-serif text-2xl text-foreground">
               Unfiled

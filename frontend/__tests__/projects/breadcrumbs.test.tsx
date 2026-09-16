@@ -1,7 +1,11 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import { Breadcrumbs } from '@/components/Projects/Breadcrumbs'
+import {
+  Breadcrumbs,
+  BreadcrumbTrail,
+  type BreadcrumbTrailItem,
+} from '@/components/Projects/Breadcrumbs'
 import { makeProject } from './fixtures'
 
 let narrow = false
@@ -66,5 +70,45 @@ describe('Breadcrumbs', () => {
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Five' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Six' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  test('renders a collapsed editor trail with its own label and current action', async () => {
+    const user = userEventLib.setup()
+    const onActivate = jest.fn()
+    narrow = true
+    const items: BreadcrumbTrailItem[] = [
+      { id: 'root', label: 'Projects', href: '/projects' },
+      { id: 'one', label: 'One', href: '/projects/one' },
+      { id: 'two', label: 'Two', href: '/projects/two' },
+      { id: 'three', label: 'Three', href: '/projects/three' },
+      { id: 'four', label: 'Four', href: '/projects/four' },
+      {
+        id: 'transcript',
+        label: 'Call notes',
+        onActivate,
+        ariaLabel: 'Call notes, scroll to top',
+      },
+    ]
+
+    render(
+      <BreadcrumbTrail
+        items={items}
+        currentId="transcript"
+        ariaLabel="Editor breadcrumbs"
+      />
+    )
+
+    expect(screen.getByRole('navigation', { name: 'Editor breadcrumbs' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'One' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Three' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Four' })).toBeInTheDocument()
+    const current = screen.getByRole('button', { name: 'Call notes, scroll to top' })
+    expect(current).toHaveAttribute('aria-current', 'page')
+    await user.click(current)
+    expect(onActivate).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Show hidden breadcrumbs' }))
+    expect(screen.getByRole('menuitem', { name: 'One' })).toHaveAttribute('href', '/projects/one')
+    expect(screen.getByRole('menuitem', { name: 'Three' })).toHaveAttribute('href', '/projects/three')
   })
 })

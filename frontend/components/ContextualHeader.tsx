@@ -7,17 +7,13 @@ import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
+import { EditorHeaderTitle } from '@/components/Projects/EditorHeaderTitle'
 import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { projectIdFromPathname } from '@/lib/projects/routes'
 import type { User } from '@supabase/supabase-js'
 
-interface ContextualHeaderProps {
-  viewType?: 'library' | 'editor'
-  transcriptTitle?: string
-}
-
-export default function ContextualHeader({ viewType, transcriptTitle }: ContextualHeaderProps) {
+export default function ContextualHeader() {
   const { openCaptureModal } = useModal()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -31,12 +27,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
     routeProjectId && (projectsLoading || !routeProject || routeProject.deleting_at)
   )
 
-  // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
-  const effectiveViewType = viewType ?? (isEditorRoute ? 'editor' : 'library')
-  const handleEditorTopReset = () => {
-    window.dispatchEvent(new CustomEvent('editor-scroll-to-top'))
-  }
 
   // Check authentication status
   // Create Supabase client inside useEffect to avoid SSR/hydration issues
@@ -106,37 +97,17 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           </div>
         ) : isProjectsRoute ? (
           <ProjectsHeaderTitle pathname={pathname} />
-        ) : effectiveViewType === 'library' ? (
+        ) : isEditorRoute ? (
+          <EditorHeaderTitle pathname={pathname} />
+        ) : (
           <span className="font-serif text-xl italic text-ink dark:text-paper">
             Library
           </span>
-        ) : (
-          <div className="flex items-center gap-[5px]">
-            <span className="font-sans text-[12px] leading-[20px] text-ink/50 dark:text-paper/50">
-              Library
-            </span>
-            <span className="font-sans text-[12px] leading-[20px] text-ink/50 dark:text-paper/50">
-              /
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="font-sans font-medium text-[12px] leading-[20px] text-ink dark:text-paper bg-transparent border-0 p-0 m-0"
-                  onClick={handleEditorTopReset}
-                  aria-label="Scroll to the top of the transcript"
-                >
-                  {transcriptTitle || 'Transcript'}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Scroll to top</TooltipContent>
-            </Tooltip>
-          </div>
         )}
       </div>
 
       {/* Right: Editor actions (Find/Replace + Export) */}
-      {user && effectiveViewType === 'editor' && (
+      {user && isEditorRoute && (
         <div className="flex shrink-0 items-center gap-2">
           <RecordingPill />
           {/* Export icon button */}
@@ -215,7 +186,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
       )}
 
       {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
-      {user && effectiveViewType !== 'editor' && (
+      {user && !isEditorRoute && (
         <div className="flex shrink-0 items-center gap-6">
           <RecordingPill />
           {/* Global Search - Desktop Only */}

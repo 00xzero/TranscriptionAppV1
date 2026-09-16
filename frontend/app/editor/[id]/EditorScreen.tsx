@@ -10,6 +10,7 @@ import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
@@ -26,6 +27,7 @@ import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 
 export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
   const router = useRouter()
+  const { mutateTranscripts } = useProjectsData()
 
   // 1. Data layer
   const data = useEditorData(transcriptId)
@@ -49,10 +51,21 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     reloadTranscript: data.reloadTranscript,
   })
 
+  const handleTitleSaved = useCallback((newTitle: string) => {
+    mutateTranscripts((current) =>
+      current.map((transcript) =>
+        transcript.id === transcriptId
+          ? { ...transcript, title: newTitle }
+          : transcript
+      )
+    )
+  }, [mutateTranscripts, transcriptId])
+
   const title = useTranscriptTitleEditing({
     transcriptId,
     transcriptTitle: data.transcriptTitle,
     setTranscriptTitle: data.setTranscriptTitle,
+    onTitleSaved: handleTitleSaved,
   })
 
   // 3. Sync
