@@ -121,7 +121,7 @@ describe('ProjectsProvider', () => {
     )
   })
 
-  test('publishes the owner data to consumers', () => {
+  test('provides the realtime data directly to consumers', () => {
     render(
       <ProjectsProvider>
         <Consumer projectId="project-a" />
@@ -133,8 +133,9 @@ describe('ProjectsProvider', () => {
     expect(screen.getByText('transcript-a')).toBeInTheDocument()
   })
 
-  test('starts no table hooks and settles empty without a user', () => {
+  test('calls disabled table hooks and settles empty without a user', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: true })
+    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -143,13 +144,18 @@ describe('ProjectsProvider', () => {
     )
 
     expect(screen.getByText('settled')).toBeInTheDocument()
-    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
-    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
-    expect(mockUseProjectsDeleteInvalidation).not.toHaveBeenCalled()
+    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseProjectsDeleteInvalidation).toHaveBeenCalledWith(
+      null,
+      projectActions.refetch,
+      transcriptActions.refetch
+    )
   })
 
-  test('reports loading while authentication is unresolved without starting table hooks', () => {
+  test('reports loading while authentication is unresolved with disabled table hooks', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: false })
+    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -158,7 +164,31 @@ describe('ProjectsProvider', () => {
     )
 
     expect(screen.getByText('loading')).toBeInTheDocument()
-    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
-    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
+    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+  })
+
+  test('passes hook callbacks through without provider wrappers', () => {
+    function CallbackConsumer() {
+      const data = useProjectsData()
+      return (
+        <span data-testid="callbacks-unwrapped">
+          {String(
+            data.createProject === projectActions.createProject &&
+            data.refetchProjects === projectActions.refetch &&
+            data.deleteTranscript === transcriptActions.deleteTranscript &&
+            data.refetchTranscripts === transcriptActions.refetch
+          )}
+        </span>
+      )
+    }
+
+    render(
+      <ProjectsProvider>
+        <CallbackConsumer />
+      </ProjectsProvider>
+    )
+
+    expect(screen.getByTestId('callbacks-unwrapped')).toHaveTextContent('true')
   })
 })

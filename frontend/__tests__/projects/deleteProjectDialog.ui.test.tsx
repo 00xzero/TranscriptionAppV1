@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
 import { buildProjectTree } from '@/core/projects/tree'
@@ -9,6 +9,14 @@ import { makeProject, makeTranscript } from './fixtures'
 const mockDeleteProjectRequest = jest.fn()
 const mockFetchCount = jest.fn()
 const mockUseProjectsData = jest.fn()
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
 
 jest.mock('@/lib/projects/delete-client', () => ({
   ...jest.requireActual('@/lib/projects/delete-client'),
@@ -80,5 +88,35 @@ describe('DeleteProjectDialog', () => {
     await waitFor(() => expect(mutateProjects).toHaveBeenCalledTimes(1))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(onClose).toHaveBeenCalled()
+  })
+
+  test('finishes an account-switched delete without mutating the new scope', async () => {
+    const user = userEvent.setup()
+    const request = deferred<{ deleted_projects: number; deleted_transcripts: number }>()
+    const nextMutateProjects = jest.fn()
+    const nextMutateTranscripts = jest.fn()
+    const onClose = jest.fn()
+    mockDeleteProjectRequest.mockReturnValueOnce(request.promise)
+    const view = render(<DeleteProjectDialog project={current} onClose={onClose} />)
+    await screen.findByText(/2 transcripts/)
+    await user.click(screen.getByRole('button', { name: 'Delete Project' }))
+    await waitFor(() => expect(mockDeleteProjectRequest).toHaveBeenCalledWith('current'))
+
+    mockUseProjectsData.mockReturnValue({
+      tree: buildProjectTree([]),
+      mutateProjects: nextMutateProjects,
+      mutateTranscripts: nextMutateTranscripts,
+      transcripts: [],
+    })
+    view.rerender(<DeleteProjectDialog project={current} onClose={onClose} />)
+
+    await act(async () => {
+      request.resolve({ deleted_projects: 2, deleted_transcripts: 2 })
+      await request.promise
+    })
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(nextMutateProjects).not.toHaveBeenCalled()
+    expect(nextMutateTranscripts).not.toHaveBeenCalled()
   })
 })
