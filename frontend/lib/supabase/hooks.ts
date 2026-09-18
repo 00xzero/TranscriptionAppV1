@@ -12,19 +12,12 @@ import {
 } from './realtime'
 import {
     fetchTranscripts,
-    fetchTranscriptById,
-    fetchTranscriptJobs,
-    fetchSpeakers,
     deleteTranscript as deleteTranscriptQuery,
     fetchProjects,
     createProject as createProjectQuery,
     renameProject as renameProjectQuery,
     moveTranscriptToProject,
     addTranscriptsToProject,
-    updateTranscript as updateTranscriptQuery,
-    createSpeaker as createSpeakerQuery,
-    updateSpeaker as updateSpeakerQuery,
-    deleteSpeaker as deleteSpeakerQuery,
 } from './queries'
 import { buildProjectTree } from '@/core/projects/tree'
 import { randomId } from '@/lib/ids'
@@ -32,10 +25,6 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import type {
     Transcript,
     Project,
-    JobSummary,
-    Speaker,
-    SpeakerUpdate,
-    TranscriptUpdate,
 } from '@/contracts/db'
 import type { AddTranscriptsResult, CreateProjectInput } from './queries'
 
@@ -524,199 +513,5 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
         renameProject,
         mutate,
         refetch,
-    }
-}
-
-// ============================================================================
-// Single Transcript Hook (for Editor)
-// ============================================================================
-
-/**
- * Hook for fetching a single transcript.
- */
-export function useTranscriptRealtime(transcriptId: string | null) {
-    const fetchFn = useCallback(async () => {
-        if (!transcriptId) return []
-        const transcript = await fetchTranscriptById(transcriptId)
-        return transcript ? [transcript] : []
-    }, [transcriptId])
-
-    const { data, isLoading, error, mutate, mutateOptimistically, refetch } =
-        useSupabaseRealtime<Transcript>(
-            'transcripts',
-            fetchFn,
-            {
-                realtimeFilter: transcriptId ? `id=eq.${transcriptId}` : null,
-                subscriptionEnabled: Boolean(transcriptId),
-                enablePollingFallback: true,
-            }
-        )
-
-    // Action: Update transcript
-    const updateTranscript = useCallback(
-        async (updates: TranscriptUpdate) => {
-            if (!transcriptId) return
-
-            const previous = data[0] ?? null
-            if (!previous) return
-            const settleOptimistic = mutateOptimistically([{ ...previous, ...updates }])
-
-            try {
-                const updated = await updateTranscriptQuery(transcriptId, updates)
-                mutate([updated])
-            } catch (err) {
-                // Rollback on error
-                mutate([previous])
-                throw err
-            } finally {
-                settleOptimistic()
-            }
-        },
-        [data, transcriptId, mutate, mutateOptimistically]
-    )
-
-    return {
-        transcript: data[0] || null,
-        isLoading,
-        error,
-        updateTranscript,
-        refetch,
-    }
-}
-
-// ============================================================================
-// Transcript Jobs Hook
-// ============================================================================
-
-/**
- * Hook for fetching jobs for a transcript.
- * Returns JobSummary (excludes payload) to avoid large JSON in browser.
- */
-export function useTranscriptJobsRealtime(transcriptId: string | null) {
-    const fetchFn = useCallback(async () => {
-        if (!transcriptId) return []
-        return fetchTranscriptJobs(transcriptId)
-    }, [transcriptId])
-
-    // Transform realtime payloads to strip the large 'payload' field
-    // Supabase Realtime sends full rows, which would reintroduce multi-MB JSON
-    const transformRealtimePayload = useCallback((row: Record<string, unknown>): JobSummary => {
-        const { payload: _payload, ...rest } = row
-        return rest as JobSummary
-    }, [])
-
-    const { data, isLoading, error, refetch } = useSupabaseRealtime<JobSummary>(
-        'jobs',
-        fetchFn,
-        {
-            realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
-            subscriptionEnabled: Boolean(transcriptId),
-            enablePollingFallback: true,
-            transformRealtimePayload,
-            insertPosition: 'prepend',
-        }
-    )
-
-    return {
-        jobs: data,
-        isLoading,
-        error,
-        refetch,
-    }
-}
-
-// ============================================================================
-// Speakers Hook (for Editor)
-// ============================================================================
-
-/**
- * Hook for fetching and managing speakers.
- */
-export function useSpeakersRealtime(transcriptId: string | null) {
-    const fetchFn = useCallback(async () => {
-        if (!transcriptId) return []
-        return fetchSpeakers(transcriptId)
-    }, [transcriptId])
-
-    const { data, isLoading, error, mutate, mutateOptimistically, refetch } =
-        useSupabaseRealtime<Speaker>(
-            'speakers',
-            fetchFn,
-            {
-                realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
-                subscriptionEnabled: Boolean(transcriptId),
-                enablePollingFallback: true,
-            }
-        )
-
-    // Action: Create speaker
-    const createSpeaker = useCallback(
-        async (label: string) => {
-            if (!transcriptId) throw new Error('No transcript ID')
-            const newSpeaker = await createSpeakerQuery(transcriptId, label)
-            // Use functional mutate to prevent duplicates from Realtime echoes
-            mutate((prev) => {
-                if (!prev) return [newSpeaker]
-                // Check if speaker already exists (from Realtime INSERT echo)
-                if (prev.some((s) => s.id === newSpeaker.id)) return prev
-                return [...prev, newSpeaker]
-            })
-            return newSpeaker
-        },
-        [transcriptId, mutate]
-    )
-
-    // Action: Update speaker with optimistic update
-    const updateSpeaker = useCallback(
-        async (id: string, updates: SpeakerUpdate) => {
-            const previous = data
-            const settleOptimistic = mutateOptimistically((current) =>
-                current.map((speaker) => speaker.id === id ? { ...speaker, ...updates } : speaker)
-            )
-
-            try {
-                const updated = await updateSpeakerQuery(id, updates)
-                mutate((current) => current.map((speaker) =>
-                    speaker.id === id ? updated : speaker
-                ))
-            } catch (err) {
-                mutate(previous)
-                throw err
-            } finally {
-                settleOptimistic()
-            }
-        },
-        [data, mutate, mutateOptimistically]
-    )
-
-    // Action: Delete speaker
-    const deleteSpeaker = useCallback(
-        async (id: string) => {
-            const previous = data
-            const settleOptimistic = mutateOptimistically(
-                (current) => current.filter((speaker) => speaker.id !== id)
-            )
-
-            try {
-                await deleteSpeakerQuery(id)
-                runBackgroundRealtimeRefetch(refetch, 'speaker deletion')
-            } catch (err) {
-                mutate(previous)
-                throw err
-            } finally {
-                settleOptimistic()
-            }
-        },
-        [data, mutate, mutateOptimistically, refetch]
-    )
-
-    return {
-        speakers: data,
-        isLoading,
-        error,
-        createSpeaker,
-        updateSpeaker,
-        deleteSpeaker,
-        mutate,
     }
 }

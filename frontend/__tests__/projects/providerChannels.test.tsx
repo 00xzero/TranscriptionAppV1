@@ -26,13 +26,6 @@ jest.mock('@/lib/supabase/queries', () => ({
   moveTranscriptToProject: jest.fn(),
   addTranscriptsToProject: jest.fn(),
   deleteTranscript: jest.fn(),
-  fetchTranscriptById: jest.fn(),
-  fetchTranscriptJobs: jest.fn(),
-  fetchSpeakers: jest.fn(),
-  updateTranscript: jest.fn(),
-  createSpeaker: jest.fn(),
-  updateSpeaker: jest.fn(),
-  deleteSpeaker: jest.fn(),
 }))
 
 jest.mock('@/infra/supabase/client', () => ({
