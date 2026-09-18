@@ -85,6 +85,7 @@ describe('storage object helpers', () => {
     await expect(
       removeStorageObjectsBatched(
         buildClient(remove),
+        buildClient(jest.fn()),
         'media',
         ['user-1/a', 'user-1/b', 'user-1/b', 'user-1/c', 'user-1/d', 'user-1/e'],
         'user-1',
@@ -107,6 +108,7 @@ describe('storage object helpers', () => {
     await expect(
       removeStorageObjectsBatched(
         buildClient(remove),
+        buildClient(jest.fn()),
         'waveforms',
         ['user-1/a', 'user-1/b', 'user-1/c'],
         'user-1',
@@ -127,7 +129,8 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['user-1/a', 'user-1/already-missing'],
         'user-1'
@@ -145,12 +148,37 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['user-1/still-there'],
         'user-1'
       )
     ).resolves.toEqual({ removed: 0, failed: ['user-1/still-there'] })
+  })
+
+  test('does not trust an authenticated missing response when trusted verification finds the object', async () => {
+    const remove = jest.fn().mockResolvedValue({ data: [], error: null })
+    const authenticatedInfo = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey', message: 'Object not found' },
+    })
+    const trustedInfo = jest.fn().mockResolvedValue({
+      data: { name: 'user-1/rls-hidden' },
+      error: null,
+    })
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, authenticatedInfo),
+        buildClient(jest.fn(), trustedInfo),
+        'media',
+        ['user-1/rls-hidden'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 0, failed: ['user-1/rls-hidden'] })
+    expect(authenticatedInfo).not.toHaveBeenCalled()
+    expect(trustedInfo).toHaveBeenCalledWith('user-1/rls-hidden')
   })
 
   test('verifies every key after an ambiguous missing-object batch response', async () => {
@@ -165,7 +193,8 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['user-1/a', 'user-1/b'],
         'user-1'
@@ -180,7 +209,8 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['another-user/key'],
         'user-1'
@@ -199,7 +229,8 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['user-1/key'],
         'user-1'
@@ -223,7 +254,8 @@ describe('storage object helpers', () => {
 
     await expect(
       removeStorageObjectsBatched(
-        buildClient(remove, info),
+        buildClient(remove),
+        buildClient(jest.fn(), info),
         'media',
         ['user-1/a', 'user-1/b'],
         'user-1'
@@ -246,7 +278,13 @@ describe('storage object helpers', () => {
     const keys = Array.from({ length: 20 }, (_, index) => `user-1/key-${index}`)
 
     await expect(
-      removeStorageObjectsBatched(buildClient(remove, info), 'media', keys, 'user-1')
+      removeStorageObjectsBatched(
+        buildClient(remove),
+        buildClient(jest.fn(), info),
+        'media',
+        keys,
+        'user-1'
+      )
     ).resolves.toEqual({ removed: 0, failed: [] })
     expect(maximumActive).toBeLessThanOrEqual(8)
     expect(info).toHaveBeenCalledTimes(20)
@@ -254,7 +292,14 @@ describe('storage object helpers', () => {
 
   test('rejects an invalid batch size', async () => {
     await expect(
-      removeStorageObjectsBatched(buildClient(jest.fn()), 'media', ['user-1/a'], 'user-1', 0)
+      removeStorageObjectsBatched(
+        buildClient(jest.fn()),
+        buildClient(jest.fn()),
+        'media',
+        ['user-1/a'],
+        'user-1',
+        0
+      )
     ).rejects.toThrow('batchSize must be a positive integer')
   })
 })

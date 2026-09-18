@@ -6,6 +6,7 @@ import {
 } from '@/contracts/api'
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
+import { createAdminClient } from '@/infra/supabase/admin'
 import {
   MEDIA_BUCKET,
   removeStorageObjectsBatched,
@@ -83,9 +84,27 @@ export async function POST(
   const transcriptIds = inventory.transcript_ids ?? []
   const mediaKeys = nonNullKeys(inventory.media_keys)
   const waveformKeys = nonNullKeys(inventory.waveform_keys)
+  let verificationSupabase: ReturnType<typeof createAdminClient>
+  try {
+    verificationSupabase = createAdminClient()
+  } catch (error) {
+    console.error('[projects] Trusted storage verification is unavailable:', error)
+    return errorResponse(
+      {
+        error:
+          'Some files could not be removed. The project is still marked for deletion; nothing was deleted from your library. Try again to finish.',
+        stage: 'storage',
+        removed_media: 0,
+        removed_waveforms: 0,
+        remaining_transcripts: transcriptIds.length,
+      },
+      502
+    )
+  }
   const [mediaResult, waveformResult] = await Promise.all([
     removeStorageObjectsBatched(
       supabase,
+      verificationSupabase,
       MEDIA_BUCKET,
       mediaKeys,
       authData.user.id,
@@ -93,6 +112,7 @@ export async function POST(
     ),
     removeStorageObjectsBatched(
       supabase,
+      verificationSupabase,
       WAVEFORM_BUCKET,
       waveformKeys,
       authData.user.id,

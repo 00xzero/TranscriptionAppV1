@@ -3,6 +3,8 @@
 const getUserMock = jest.fn()
 const rpcMock = jest.fn()
 const storageFromMock = jest.fn()
+const createAdminClientMock = jest.fn()
+const trustedStorageFromMock = jest.fn()
 
 jest.mock('@/infra/supabase/server', () => ({
   createClient: async () => ({
@@ -10,6 +12,10 @@ jest.mock('@/infra/supabase/server', () => ({
     rpc: rpcMock,
     storage: { from: storageFromMock },
   }),
+}))
+
+jest.mock('@/infra/supabase/admin', () => ({
+  createAdminClient: () => createAdminClientMock(),
 }))
 
 import { POST } from '@/app/api/projects/[id]/delete/route'
@@ -54,6 +60,12 @@ describe('project delete route', () => {
       }),
       info: jest.fn(),
     }))
+    trustedStorageFromMock.mockImplementation(() => ({
+      info: jest.fn(async () => ({ data: null, error: { code: 'NoSuchKey' } })),
+    }))
+    createAdminClientMock.mockReturnValue({
+      storage: { from: trustedStorageFromMock },
+    })
   })
 
   test('requires authentication before beginning', async () => {
@@ -114,6 +126,30 @@ describe('project delete route', () => {
     expect(rpcMock).toHaveBeenCalledTimes(1)
   })
 
+  test('fails safely when trusted storage verification is unavailable', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    createAdminClientMock.mockImplementationOnce(() => {
+      throw new Error('Missing service role configuration')
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({
+      stage: 'storage',
+      removed_media: 0,
+      removed_waveforms: 0,
+      remaining_transcripts: 1,
+    })
+    expect(storageFromMock).not.toHaveBeenCalled()
+    expect(rpcMock).toHaveBeenCalledTimes(1)
+    expect(consoleError).toHaveBeenCalledWith(
+      '[projects] Trusted storage verification is unavailable:',
+      expect.any(Error)
+    )
+    consoleError.mockRestore()
+  })
+
   test('reports accurate partial storage counts and never finishes', async () => {
     rpcMock.mockResolvedValueOnce({
       data: [inventory({
@@ -141,6 +177,38 @@ describe('project delete route', () => {
       removed_waveforms: 0,
       remaining_transcripts: 3,
     })
+    expect(rpcMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('does not finish when trusted verification finds an object hidden from the user client', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: [inventory({ media_keys: ['user-1/hidden'], waveform_keys: [] })],
+      error: null,
+    })
+    const authenticatedInfo = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey' },
+    })
+    storageFromMock.mockImplementation(() => ({
+      remove: jest.fn(async () => ({ data: [], error: null })),
+      info: authenticatedInfo,
+    }))
+    const trustedInfo = jest.fn().mockResolvedValue({
+      data: { name: 'user-1/hidden' },
+      error: null,
+    })
+    trustedStorageFromMock.mockImplementation(() => ({ info: trustedInfo }))
+
+    const response = await request()
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toMatchObject({
+      stage: 'storage',
+      removed_media: 0,
+      remaining_transcripts: 1,
+    })
+    expect(authenticatedInfo).not.toHaveBeenCalled()
+    expect(trustedInfo).toHaveBeenCalledWith('user-1/hidden')
     expect(rpcMock).toHaveBeenCalledTimes(1)
   })
 

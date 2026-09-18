@@ -261,6 +261,7 @@ export async function removeStorageObjectIfPresent(
 
 export async function removeStorageObjectsBatched(
     supabase: SupabaseClient,
+    verificationSupabase: SupabaseClient,
     bucket: string,
     keys: string[],
     ownerId: string,
@@ -274,6 +275,7 @@ export async function removeStorageObjectsBatched(
     const failed: string[] = []
     const uniqueKeys = [...new Set(keys.filter(Boolean))]
     const storage = supabase.storage.from(bucket)
+    const verificationStorage = verificationSupabase.storage.from(bucket)
 
     for (let offset = 0; offset < uniqueKeys.length; offset += batchSize) {
         const batch = uniqueKeys.slice(offset, offset + batchSize)
@@ -301,7 +303,10 @@ export async function removeStorageObjectsBatched(
             const verificationResults = await Promise.all(
                 verificationBatch.map(async (key) => {
                     try {
-                        const verification = await storage.info(key)
+                        // The authenticated client may report NoSuchKey for an
+                        // RLS-hidden object. Verify absence through the trusted
+                        // server client before allowing database deletion.
+                        const verification = await verificationStorage.info(key)
                         return verification.error && isMissingStorageObjectError(verification.error)
                             ? null
                             : key
