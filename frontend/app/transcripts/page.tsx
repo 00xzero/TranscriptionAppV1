@@ -9,6 +9,7 @@ import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useModal } from '@/lib/ModalContext'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 export default function TranscriptsPage() {
   return (
@@ -186,7 +187,11 @@ function TranscriptsPageContent() {
         return next
       })
       // Refetch transcripts to get updated status
-      refetch()
+      void refetch().catch((error: unknown) => {
+        if (!isRealtimeScopeAbortError(error)) {
+          console.error('[transcripts] Failed to refresh after starting transcription:', error)
+        }
+      })
       // Clear cached idempotency key only after confirmed success
       setIdempotencyKeys((prev) => {
         const next = { ...prev }

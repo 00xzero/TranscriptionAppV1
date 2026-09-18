@@ -14,7 +14,6 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Transcript,
     Project,
-    JobSummary,
     Speaker,
     SegmentUpdate,
     SpeakerUpdate,
@@ -199,32 +198,8 @@ export async function fetchTranscriptById(id: string): Promise<Transcript | null
 }
 
 /**
- * Columns to select for job summaries (excludes large `payload` field).
- * The payload can be multi-MB for long transcriptions and should only be
- * accessed by backend/Inngest processing, not sent to browsers.
- */
-const JOB_SUMMARY_COLUMNS = 'id, transcript_id, inngest_event_id, idempotency_key, type, status, created_at, started_at, finished_at, updated_at'
-
-/**
- * Fetch jobs for a transcript.
- * Returns JobSummary (excludes payload) to avoid sending large JSON to clients.
- */
-export async function fetchTranscriptJobs(transcriptId: string): Promise<JobSummary[]> {
-    const supabase = createClient()
-    const { data, error } = await supabase
-        .from('jobs')
-        .select(JOB_SUMMARY_COLUMNS)
-        .eq('transcript_id', transcriptId)
-        .order('created_at', { ascending: false })
-
-    if (error) throw error
-    return data || []
-}
-
-/**
  * Fetch error info for a job.
  * Only fetches payload for jobs in error state to get error details.
- * This is separate from fetchTranscriptJobs to avoid sending large Deepgram payloads.
  */
 export async function fetchJobError(transcriptId: string): Promise<{
     error: string

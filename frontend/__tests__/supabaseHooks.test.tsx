@@ -1,5 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useAuthIdentity, useProjectsRealtime, useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import {
+  useAuthIdentity,
+  useProjectsRealtime,
+  useTranscriptsRealtime,
+} from '@/lib/supabase/hooks'
 import type { Project } from '@/contracts/db'
 
 const mockFetchTranscripts = jest.fn()
@@ -32,13 +36,6 @@ jest.mock('@/lib/supabase/queries', () => ({
   fetchProjects: () => mockFetchProjects(),
   createProject: (...args: unknown[]) => mockCreateProject(...args),
   renameProject: (...args: unknown[]) => mockRenameProject(...args),
-  fetchTranscriptById: jest.fn(),
-  fetchTranscriptJobs: jest.fn(),
-  fetchSpeakers: jest.fn(),
-  updateTranscript: jest.fn(),
-  createSpeaker: jest.fn(),
-  updateSpeaker: jest.fn(),
-  deleteSpeaker: jest.fn(),
 }))
 
 jest.mock('@/infra/supabase/client', () => ({
@@ -202,7 +199,7 @@ describe('useTranscriptsRealtime', () => {
     })
 
     expect(mockChannelFactory).toHaveBeenCalledWith(
-      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
     )
     expect(channelMock.on).toHaveBeenCalledWith(
       'postgres_changes',
@@ -225,8 +222,8 @@ describe('useTranscriptsRealtime', () => {
     const firstTopic = mockChannelFactory.mock.calls[0][0]
     const secondTopic = mockChannelFactory.mock.calls[1][0]
 
-    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
-    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
+    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
   })
 
@@ -241,6 +238,7 @@ describe('useTranscriptsRealtime', () => {
     await waitFor(() => {
       expect(hook.current.transcripts).toEqual([{ id: 'transcript-1' }])
     })
+    mockFetchTranscripts.mockResolvedValue([])
 
     await act(async () => {
       await expect(hook.current.deleteTranscript('transcript-1')).resolves.toEqual(result)
@@ -273,6 +271,34 @@ describe('useTranscriptsRealtime', () => {
 
     expect(hook.current.transcripts).toEqual([transcript])
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeDelete + 1)
+  })
+
+  test('logs a non-cancellation failure from delete recovery reconciliation', async () => {
+    const deleteError = new Error('delete response lost')
+    const reconciliationError = new Error('reconciliation unavailable')
+    mockDeleteTranscript.mockRejectedValueOnce(deleteError)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    try {
+      await waitFor(() => expect(hook.current.isLoading).toBe(false))
+      mockFetchTranscripts.mockRejectedValueOnce(reconciliationError)
+
+      await act(async () => {
+        await expect(hook.current.deleteTranscript('missing-transcript')).rejects.toBe(deleteError)
+      })
+
+      await waitFor(() => {
+        expect(errorSpy).toHaveBeenCalledWith(
+          '[realtime] Failed to reconcile after transcript deletion failure:',
+          reconciliationError
+        )
+      })
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   test('keeps concurrent realtime changes when rolling back a failed delete', async () => {
@@ -338,6 +364,48 @@ describe('useTranscriptsRealtime', () => {
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeMove + 1)
   })
 
+  test('does not reconcile an optimistic move before the write settles', async () => {
+    jest.useFakeTimers()
+    const transcript = { id: 'transcript-1', project_id: 'project-a' }
+    const moved = { ...transcript, project_id: 'project-b' }
+    const request = deferred<void>()
+    mockFetchTranscripts.mockResolvedValue([transcript])
+    mockMoveTranscript.mockReturnValueOnce(request.promise)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(hook.current.transcripts).toEqual([transcript])
+    const fetchCallsBeforeMove = mockFetchTranscripts.mock.calls.length
+
+    let move!: Promise<void>
+    act(() => {
+      move = hook.current.moveTranscript('transcript-1', 'project-b')
+    })
+    expect(hook.current.transcripts).toEqual([moved])
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000)
+      await Promise.resolve()
+    })
+    expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeMove)
+    expect(hook.current.transcripts).toEqual([moved])
+
+    mockFetchTranscripts.mockResolvedValue([moved])
+    await act(async () => {
+      request.resolve()
+      await move
+    })
+    await waitFor(() => {
+      expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeMove + 1)
+      expect(hook.current.transcripts).toEqual([moved])
+    })
+    jest.useRealTimers()
+  })
+
   test('adds transcripts in one optimistic batch and keeps the update on success', async () => {
     const first = { id: 'transcript-1', project_id: null }
     const second = { id: 'transcript-2', project_id: 'project-a' }
@@ -347,6 +415,10 @@ describe('useTranscriptsRealtime', () => {
     )
 
     await waitFor(() => expect(hook.current.transcripts).toEqual([first, second]))
+    mockFetchTranscripts.mockResolvedValue([
+      { ...first, project_id: 'project-b' },
+      { ...second, project_id: 'project-b' },
+    ])
 
     await act(async () => {
       await hook.current.addTranscripts(['transcript-1', 'transcript-2'], 'project-b')

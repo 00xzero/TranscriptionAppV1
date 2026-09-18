@@ -1,6 +1,7 @@
 'use client'
 
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 /** Combined load state for surfaces that need both the project and transcript lists. */
 export function useProjectsLoadState() {
@@ -17,7 +18,10 @@ export function useProjectsLoadState() {
     isLoading: projectsLoading || transcriptsLoading,
     loadError: projectError ?? transcriptError,
     retry: () => {
-      void Promise.all([refetchProjects(), refetchTranscripts()])
+      void Promise.all([refetchProjects(), refetchTranscripts()]).catch((error: unknown) => {
+        if (isRealtimeScopeAbortError(error)) return
+        console.error('[projects] Failed to retry project data loading:', error)
+      })
     },
   }
 }

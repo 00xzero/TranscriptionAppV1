@@ -208,16 +208,19 @@ type StorageError = {
     message?: string
     error?: string
     code?: string
+    statusCode?: string
 }
 
 export function isMissingStorageObjectError(error: StorageError): boolean {
     const errorName = error.error?.toLowerCase() ?? ''
     const code = error.code?.toLowerCase() ?? ''
+    const message = error.message?.toLowerCase() ?? ''
 
     return (
         code === 'nosuchkey' ||
         errorName === 'nosuchkey' ||
-        errorName === 'no such key'
+        errorName === 'no such key' ||
+        (error.statusCode === '404' && message === 'object not found')
     )
 }
 
@@ -261,8 +264,10 @@ export async function removeStorageObjectIfPresent(
 
 export async function removeStorageObjectsBatched(
     supabase: SupabaseClient,
+    verificationSupabase: SupabaseClient,
     bucket: string,
     keys: string[],
+    ownerId: string,
     batchSize = 100
 ): Promise<{ removed: number; failed: string[] }> {
     if (!Number.isInteger(batchSize) || batchSize < 1) {
@@ -272,16 +277,50 @@ export async function removeStorageObjectsBatched(
     let removed = 0
     const failed: string[] = []
     const uniqueKeys = [...new Set(keys.filter(Boolean))]
+    const storage = supabase.storage.from(bucket)
+    const verificationStorage = verificationSupabase.storage.from(bucket)
 
     for (let offset = 0; offset < uniqueKeys.length; offset += batchSize) {
         const batch = uniqueKeys.slice(offset, offset + batchSize)
-        const { data, error } = await supabase.storage.from(bucket).remove(batch)
-        if (!error) {
-            removed += data?.length ?? 0
-        } else if (isMissingStorageObjectError(error)) {
+        const trustedBatch = batch.filter((key) => key.startsWith(`${ownerId}/`))
+        failed.push(...batch.filter((key) => !key.startsWith(`${ownerId}/`)))
+        if (trustedBatch.length === 0) continue
+
+        const { data, error } = await storage.remove(trustedBatch)
+        if (error && !isMissingStorageObjectError(error)) {
+            failed.push(...trustedBatch)
             continue
-        } else {
-            failed.push(...batch)
+        }
+
+        const requested = new Set(trustedBatch)
+        const confirmedRemoved = new Set(
+            (data ?? [])
+                .map((object) => object.name)
+                .filter((name): name is string => requested.has(name))
+        )
+        removed += confirmedRemoved.size
+
+        const omitted = trustedBatch.filter((key) => !confirmedRemoved.has(key))
+        for (let verificationOffset = 0; verificationOffset < omitted.length; verificationOffset += 8) {
+            const verificationBatch = omitted.slice(verificationOffset, verificationOffset + 8)
+            const verificationResults = await Promise.all(
+                verificationBatch.map(async (key) => {
+                    try {
+                        // The authenticated client may report NoSuchKey for an
+                        // RLS-hidden object. Verify absence through the trusted
+                        // server client before allowing database deletion.
+                        const verification = await verificationStorage.info(key)
+                        return verification.error && isMissingStorageObjectError(verification.error)
+                            ? null
+                            : key
+                    } catch {
+                        return key
+                    }
+                })
+            )
+            failed.push(
+                ...verificationResults.filter((key): key is string => key !== null)
+            )
         }
     }
 
