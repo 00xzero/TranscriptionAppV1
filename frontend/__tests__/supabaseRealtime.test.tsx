@@ -134,6 +134,72 @@ describe('useSupabaseRealtime', () => {
     expect(result.current.data).toEqual([{ id: 'new', title: 'New transcript' }])
   })
 
+  test('does not refetch an optimistic mutation before its write settles', async () => {
+    jest.useFakeTimers()
+    const preWriteFetch = deferred<Row[]>()
+    const postWriteFetch = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 'row', title: 'Old title' }])
+      .mockReturnValueOnce(preWriteFetch.promise)
+      .mockReturnValueOnce(postWriteFetch.promise)
+    const { result } = renderHook(() => useSupabaseRealtime<Row>('transcripts', fetchFn))
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.data).toEqual([{ id: 'row', title: 'Old title' }])
+
+    let olderRefetch!: Promise<void>
+    act(() => {
+      olderRefetch = result.current.refetch()
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+
+    let settleOptimistic!: () => void
+    act(() => {
+      settleOptimistic = result.current.mutateOptimistically([
+        { id: 'row', title: 'Optimistic title' },
+      ])
+    })
+    act(() => {
+      changeHandler?.({ eventType: 'INSERT', new: { id: 'live', title: 'Realtime row' } })
+    })
+    await act(async () => {
+      preWriteFetch.resolve([{ id: 'row', title: 'Old title' }])
+      await preWriteFetch.promise
+    })
+    expect(result.current.data).toEqual([
+      { id: 'row', title: 'Optimistic title' },
+      { id: 'live', title: 'Realtime row' },
+    ])
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000)
+      await Promise.resolve()
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+
+    let settledRefetch!: Promise<void>
+    act(() => {
+      settleOptimistic()
+      settledRefetch = result.current.refetch()
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(3)
+    await act(async () => {
+      postWriteFetch.resolve([
+        { id: 'row', title: 'Saved title' },
+        { id: 'live', title: 'Realtime row' },
+      ])
+      await Promise.all([postWriteFetch.promise, olderRefetch, settledRefetch])
+    })
+    expect(result.current.data).toEqual([
+      { id: 'row', title: 'Saved title' },
+      { id: 'live', title: 'Realtime row' },
+    ])
+    jest.useRealTimers()
+  })
+
   test('starts explicit refetch after the active fetch and keeps its caller pending', async () => {
     const olderFetch = deferred<Row[]>()
     const newerFetch = deferred<Row[]>()

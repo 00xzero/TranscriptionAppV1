@@ -17,7 +17,12 @@ describe('storage object helpers', () => {
   test('recognises the storage missing-object variants', () => {
     expect(isMissingStorageObjectError({ code: 'NoSuchKey' })).toBe(true)
     expect(isMissingStorageObjectError({ error: 'NoSuchKey' })).toBe(true)
+    expect(isMissingStorageObjectError({
+      statusCode: '404',
+      message: 'Object not found',
+    })).toBe(true)
     expect(isMissingStorageObjectError({ message: 'Object not found' })).toBe(false)
+    expect(isMissingStorageObjectError({ statusCode: '403', message: 'Object not found' })).toBe(false)
     expect(isMissingStorageObjectError({ message: 'permission denied' })).toBe(false)
   })
 

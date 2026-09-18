@@ -269,7 +269,15 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
     const { enabled = true, userId } = options
     const fetchFn = useCallback(() => fetchTranscripts(), [])
 
-    const { data, isLoading, error, connectionStatus, mutate, refetch } =
+    const {
+        data,
+        isLoading,
+        error,
+        connectionStatus,
+        mutate,
+        mutateOptimistically,
+        refetch,
+    } =
         useSupabaseRealtime<Transcript>('transcripts', fetchFn, {
             enabled,
             realtimeFilter: userId ? `user_id=eq.${userId}` : null,
@@ -284,25 +292,31 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
         async (id: string) => {
             // Snapshot synchronously: a state updater may run after the request settles.
             const removed = data.find((t) => t.id === id)
-            mutate((current) => current.filter((t) => t.id !== id))
+            const settleOptimistic = mutateOptimistically(
+                (current) => current.filter((t) => t.id !== id)
+            )
 
             try {
-                return await deleteTranscriptQuery(id)
+                const result = await deleteTranscriptQuery(id)
+                runBackgroundRealtimeRefetch(refetch, 'transcript deletion')
+                return result
             } catch (err) {
                 // Restore only the removed row so concurrent realtime changes survive.
                 if (removed) mutate((current) => restoreTranscript(current, removed))
                 // A delete can commit and still lose its response; reconcile with the server.
                 runBackgroundRealtimeRefetch(refetch, 'transcript deletion failure')
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [data, mutate, refetch]
+        [data, mutate, mutateOptimistically, refetch]
     )
 
     const moveTranscript = useCallback(
         async (id: string, projectId: string | null) => {
             const previous = data.find((transcript) => transcript.id === id)
-            mutate((current) =>
+            const settleOptimistic = mutateOptimistically((current) =>
                 current.map((transcript) =>
                     transcript.id === id ? { ...transcript, project_id: projectId } : transcript
                 )
@@ -310,6 +324,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
 
             try {
                 await moveTranscriptToProject(id, projectId)
+                runBackgroundRealtimeRefetch(refetch, 'transcript move')
             } catch (err) {
                 if (previous) {
                     mutate((current) =>
@@ -322,9 +337,11 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 }
                 runBackgroundRealtimeRefetch(refetch, 'transcript move failure')
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [data, mutate, refetch]
+        [data, mutate, mutateOptimistically, refetch]
     )
 
     const addTranscripts = useCallback(
@@ -337,7 +354,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                     .map((transcript) => [transcript.id, transcript.project_id])
             )
 
-            mutate((current) =>
+            const settleOptimistic = mutateOptimistically((current) =>
                 current.map((transcript) =>
                     idSet.has(transcript.id)
                         ? { ...transcript, project_id: projectId }
@@ -360,17 +377,19 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 )
                 runBackgroundRealtimeRefetch(refetch, 'batch transcript move failure')
                 throw err
+            } finally {
+                settleOptimistic()
             }
 
             if (result.missingIds.length > 0) {
                 // Deleted since they were selected; the DELETE event may not reach this tab.
                 const missingIds = new Set(result.missingIds)
                 mutate((current) => current.filter((transcript) => !missingIds.has(transcript.id)))
-                runBackgroundRealtimeRefetch(refetch, 'missing transcripts in a batch move')
             }
+            runBackgroundRealtimeRefetch(refetch, 'batch transcript move')
             return result
         },
-        [data, mutate, refetch]
+        [data, mutate, mutateOptimistically, refetch]
     )
 
     return {
@@ -394,7 +413,15 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
     const { enabled = true, userId } = options
     const renameVersionsRef = useRef(new Map<string, number>())
     const fetchFn = useCallback(() => fetchProjects(), [])
-    const { data, isLoading, error, connectionStatus, mutate, refetch } =
+    const {
+        data,
+        isLoading,
+        error,
+        connectionStatus,
+        mutate,
+        mutateOptimistically,
+        refetch,
+    } =
         useSupabaseRealtime<Project>('projects', fetchFn, {
             enabled,
             realtimeFilter: userId ? `user_id=eq.${userId}` : null,
@@ -419,7 +446,9 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 created_at: now,
                 updated_at: now,
             }
-            mutate((current) => [...current, optimisticProject])
+            const settleOptimistic = mutateOptimistically(
+                (current) => [...current, optimisticProject]
+            )
 
             try {
                 const created = await createProjectQuery({
@@ -437,9 +466,11 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 mutate((current) => current.filter((project) => project.id !== optimisticId))
                 runBackgroundRealtimeRefetch(refetch, 'project creation failure')
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [mutate, refetch, userId]
+        [mutate, mutateOptimistically, refetch, userId]
     )
 
     const renameProject = useCallback(
@@ -448,7 +479,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
             const nextName = name.trim()
             const requestVersion = (renameVersionsRef.current.get(id) ?? 0) + 1
             renameVersionsRef.current.set(id, requestVersion)
-            mutate((current) =>
+            const settleOptimistic = mutateOptimistically((current) =>
                 current.map((project) =>
                     project.id === id ? { ...project, name: nextName } : project
                 )
@@ -476,9 +507,11 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                     runBackgroundRealtimeRefetch(refetch, 'project rename failure')
                 }
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [data, mutate, refetch]
+        [data, mutate, mutateOptimistically, refetch]
     )
 
     return {
@@ -508,41 +541,38 @@ export function useTranscriptRealtime(transcriptId: string | null) {
         return transcript ? [transcript] : []
     }, [transcriptId])
 
-    const { data, isLoading, error, mutate, refetch } = useSupabaseRealtime<Transcript>(
-        'transcripts',
-        fetchFn,
-        {
-            realtimeFilter: transcriptId ? `id=eq.${transcriptId}` : null,
-            subscriptionEnabled: Boolean(transcriptId),
-            enablePollingFallback: true,
-        }
-    )
+    const { data, isLoading, error, mutate, mutateOptimistically, refetch } =
+        useSupabaseRealtime<Transcript>(
+            'transcripts',
+            fetchFn,
+            {
+                realtimeFilter: transcriptId ? `id=eq.${transcriptId}` : null,
+                subscriptionEnabled: Boolean(transcriptId),
+                enablePollingFallback: true,
+            }
+        )
 
     // Action: Update transcript
     const updateTranscript = useCallback(
         async (updates: TranscriptUpdate) => {
             if (!transcriptId) return
 
-            // Capture previous data for rollback using functional update
-            let previous: Transcript | null = null
-            mutate((current) => {
-                if (!current || current.length === 0) return current
-                previous = current[0]
-                return [{ ...previous, ...updates }]
-            })
-
-            // If there was no data to update, exit early
+            const previous = data[0] ?? null
             if (!previous) return
+            const settleOptimistic = mutateOptimistically([{ ...previous, ...updates }])
 
             try {
-                await updateTranscriptQuery(transcriptId, updates)
+                const updated = await updateTranscriptQuery(transcriptId, updates)
+                mutate([updated])
             } catch (err) {
                 // Rollback on error
-                if (previous) mutate([previous])
+                mutate([previous])
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [transcriptId, mutate]
+        [data, transcriptId, mutate, mutateOptimistically]
     )
 
     return {
@@ -608,15 +638,16 @@ export function useSpeakersRealtime(transcriptId: string | null) {
         return fetchSpeakers(transcriptId)
     }, [transcriptId])
 
-    const { data, isLoading, error, mutate } = useSupabaseRealtime<Speaker>(
-        'speakers',
-        fetchFn,
-        {
-            realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
-            subscriptionEnabled: Boolean(transcriptId),
-            enablePollingFallback: true,
-        }
-    )
+    const { data, isLoading, error, mutate, mutateOptimistically, refetch } =
+        useSupabaseRealtime<Speaker>(
+            'speakers',
+            fetchFn,
+            {
+                realtimeFilter: transcriptId ? `transcript_id=eq.${transcriptId}` : null,
+                subscriptionEnabled: Boolean(transcriptId),
+                enablePollingFallback: true,
+            }
+        )
 
     // Action: Create speaker
     const createSpeaker = useCallback(
@@ -638,41 +669,45 @@ export function useSpeakersRealtime(transcriptId: string | null) {
     // Action: Update speaker with optimistic update
     const updateSpeaker = useCallback(
         async (id: string, updates: SpeakerUpdate) => {
-            // Capture previous data for rollback using functional update
-            let previous: Speaker[] = []
-            mutate((current) => {
-                previous = current ?? []
-                return previous.map((s) => (s.id === id ? { ...s, ...updates } : s))
-            })
+            const previous = data
+            const settleOptimistic = mutateOptimistically((current) =>
+                current.map((speaker) => speaker.id === id ? { ...speaker, ...updates } : speaker)
+            )
 
             try {
-                await updateSpeakerQuery(id, updates)
+                const updated = await updateSpeakerQuery(id, updates)
+                mutate((current) => current.map((speaker) =>
+                    speaker.id === id ? updated : speaker
+                ))
             } catch (err) {
                 mutate(previous)
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [mutate]
+        [data, mutate, mutateOptimistically]
     )
 
     // Action: Delete speaker
     const deleteSpeaker = useCallback(
         async (id: string) => {
-            // Capture previous data for rollback using functional update
-            let previous: Speaker[] = []
-            mutate((current) => {
-                previous = current ?? []
-                return previous.filter((s) => s.id !== id)
-            })
+            const previous = data
+            const settleOptimistic = mutateOptimistically(
+                (current) => current.filter((speaker) => speaker.id !== id)
+            )
 
             try {
                 await deleteSpeakerQuery(id)
+                runBackgroundRealtimeRefetch(refetch, 'speaker deletion')
             } catch (err) {
                 mutate(previous)
                 throw err
+            } finally {
+                settleOptimistic()
             }
         },
-        [mutate]
+        [data, mutate, mutateOptimistically, refetch]
     )
 
     return {

@@ -166,6 +166,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     const fetchSequenceRef = useRef(0)
     const activeFetchRef = useRef<ActiveFetch | null>(null)
     const pendingFetchRef = useRef<PendingFetch | null>(null)
+    const optimisticMutationsRef = useRef(new Set<symbol>())
     const waitersRef = useRef<FetchWaiter[]>([])
     const startFetchRef = useRef<() => void>(() => undefined)
     const subscriptionId = useId().replaceAll(':', '')
@@ -175,6 +176,10 @@ export function useSupabaseRealtime<T extends { id: string }>(
             clearTimeout(trailingTimeoutRef.current)
             trailingTimeoutRef.current = null
         }
+    }, [])
+
+    const clearOptimisticMutations = useCallback(() => {
+        optimisticMutationsRef.current.clear()
     }, [])
 
     const rejectScopeWaiters = useCallback((cancelledScopeKey: string) => {
@@ -234,6 +239,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         if (
             !pending
             || activeFetchRef.current
+            || optimisticMutationsRef.current.size > 0
             || !runtime.enabled
             || pending.scopeKey !== runtime.scopeKey
         ) {
@@ -278,7 +284,11 @@ export function useSupabaseRealtime<T extends { id: string }>(
 
     const startFetch = useCallback(() => {
         const runtime = runtimeRef.current
-        if (!runtime.enabled || activeFetchRef.current) return
+        if (
+            !runtime.enabled
+            || activeFetchRef.current
+            || optimisticMutationsRef.current.size > 0
+        ) return
 
         pendingFetchRef.current = null
         clearTrailingTimeout()
@@ -378,25 +388,25 @@ export function useSupabaseRealtime<T extends { id: string }>(
         return promise
     }, [queueReconciliation])
 
-    const markDataChanged = useCallback(() => {
+    const markDataChanged = useCallback((scheduleReconciliation = true) => {
         revisionRef.current += 1
         const active = activeFetchRef.current
         if (active?.scopeKey === runtimeRef.current.scopeKey) {
             active.superseded = true
         }
-        queueReconciliation(false)
+        if (scheduleReconciliation) {
+            queueReconciliation(false)
+        }
     }, [queueReconciliation])
 
-    const mutate = useCallback((newData?: T[] | ((previous: T[]) => T[])) => {
+    const applyMutation = useCallback((
+        newData: T[] | ((previous: T[]) => T[]),
+        scheduleReconciliation: boolean
+    ) => {
         const runtime = runtimeRef.current
         if (!runtime.enabled) return
 
-        if (newData === undefined) {
-            runBackgroundRealtimeRefetch(refetch, 'manual mutation revalidation')
-            return
-        }
-
-        markDataChanged()
+        markDataChanged(scheduleReconciliation)
         setState((previous) => {
             const previousData = previous.scopeKey === runtime.scopeKey
                 ? previous.data
@@ -416,7 +426,32 @@ export function useSupabaseRealtime<T extends { id: string }>(
                     : null,
             }
         })
-    }, [markDataChanged, refetch])
+    }, [markDataChanged])
+
+    const mutate = useCallback((newData?: T[] | ((previous: T[]) => T[])) => {
+        if (newData === undefined) {
+            runBackgroundRealtimeRefetch(refetch, 'manual mutation revalidation')
+            return
+        }
+
+        applyMutation(newData, true)
+    }, [applyMutation, refetch])
+
+    const mutateOptimistically = useCallback((
+        newData: T[] | ((previous: T[]) => T[])
+    ) => {
+        if (!runtimeRef.current.enabled) return () => undefined
+
+        const token = Symbol('optimistic-mutation')
+        optimisticMutationsRef.current.add(token)
+        // Invalidate older snapshots immediately, but do not fetch until the
+        // caller's write settles; a pre-commit fetch could restore old data.
+        applyMutation(newData, false)
+        return () => {
+            if (!optimisticMutationsRef.current.delete(token)) return
+            queueReconciliation(false)
+        }
+    }, [applyMutation, queueReconciliation])
 
     const stopPolling = useCallback(() => {
         if (pollingRef.current) {
@@ -435,6 +470,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
                 !currentRuntime.enabled
                 || activeFetchRef.current
                 || pendingFetchRef.current
+                || optimisticMutationsRef.current.size > 0
             ) {
                 return
             }
@@ -457,12 +493,19 @@ export function useSupabaseRealtime<T extends { id: string }>(
             currentScopeRef.current = ''
             activeFetchRef.current = null
             pendingFetchRef.current = null
+            clearOptimisticMutations()
             clearTrailingTimeout()
             stopPolling()
             clearRetryTimeout()
             rejectScopeWaiters(cancelledScope)
         }
-    }, [clearRetryTimeout, clearTrailingTimeout, rejectScopeWaiters, stopPolling])
+    }, [
+        clearOptimisticMutations,
+        clearRetryTimeout,
+        clearTrailingTimeout,
+        rejectScopeWaiters,
+        stopPolling,
+    ])
 
     useEffect(() => {
         const previousScope = currentScopeRef.current
@@ -475,6 +518,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
             activeFetchRef.current = null
         }
         pendingFetchRef.current = null
+        clearOptimisticMutations()
         clearTrailingTimeout()
         revisionRef.current = 0
         authoritativeSuccessRef.current = false
@@ -495,6 +539,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         }
     }, [
         clearRetryTimeout,
+        clearOptimisticMutations,
         clearTrailingTimeout,
         enabled,
         rejectScopeWaiters,
@@ -665,6 +710,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
         error: enabled ? exposedState.error : null,
         connectionStatus: enabled ? connectionStatus : 'disconnected' as const,
         mutate,
+        mutateOptimistically,
         refetch,
     }
 }

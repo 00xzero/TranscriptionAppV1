@@ -208,16 +208,19 @@ type StorageError = {
     message?: string
     error?: string
     code?: string
+    statusCode?: string
 }
 
 export function isMissingStorageObjectError(error: StorageError): boolean {
     const errorName = error.error?.toLowerCase() ?? ''
     const code = error.code?.toLowerCase() ?? ''
+    const message = error.message?.toLowerCase() ?? ''
 
     return (
         code === 'nosuchkey' ||
         errorName === 'nosuchkey' ||
-        errorName === 'no such key'
+        errorName === 'no such key' ||
+        (error.statusCode === '404' && message === 'object not found')
     )
 }
 

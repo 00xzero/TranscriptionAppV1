@@ -20,8 +20,7 @@ export function useProjectsLoadState() {
     retry: () => {
       void Promise.all([refetchProjects(), refetchTranscripts()]).catch((error: unknown) => {
         if (isRealtimeScopeAbortError(error)) return
-        // Retry is shown for an initial load error, so another qualifying failure
-        // is already exposed by the underlying hook's load-error state.
+        console.error('[projects] Failed to retry project data loading:', error)
       })
     },
   }
