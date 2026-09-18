@@ -84,8 +84,20 @@ export async function POST(
   const mediaKeys = nonNullKeys(inventory.media_keys)
   const waveformKeys = nonNullKeys(inventory.waveform_keys)
   const [mediaResult, waveformResult] = await Promise.all([
-    removeStorageObjectsBatched(supabase, MEDIA_BUCKET, mediaKeys, DELETE_BATCH_SIZE),
-    removeStorageObjectsBatched(supabase, WAVEFORM_BUCKET, waveformKeys, DELETE_BATCH_SIZE),
+    removeStorageObjectsBatched(
+      supabase,
+      MEDIA_BUCKET,
+      mediaKeys,
+      authData.user.id,
+      DELETE_BATCH_SIZE
+    ),
+    removeStorageObjectsBatched(
+      supabase,
+      WAVEFORM_BUCKET,
+      waveformKeys,
+      authData.user.id,
+      DELETE_BATCH_SIZE
+    ),
   ])
 
   if (mediaResult.failed.length > 0 || waveformResult.failed.length > 0) {

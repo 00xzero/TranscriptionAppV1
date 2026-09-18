@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-18] - Projects Reliability Hardening
+
+Hardened Projects realtime reconciliation and storage-first deletion so stale
+network results cannot silently restore optimistic, realtime, or deleted data.
+
+### Changed
+
+- **Realtime reconciliation** — Added scope-keyed state, revision-aware snapshot application, quiet-window reconciliation with a maximum wait, and stable latest-callback handling across user and transcript changes.
+- **Explicit refreshes and polling** — Explicit refresh callers now wait for a qualifying fetch that starts after their request, while fallback polling remains opportunistic and cannot continually invalidate a long-running fetch.
+- **Delete invalidation** — Private project/transcript delete broadcasts now retry real reconciliation failures with bounded backoff, coalesce bursts per table, and treat scope cancellation as a normal lifecycle event.
+- **Storage-first project deletion** — Batched storage responses are matched to exact requested keys, ambiguous omissions are verified under the authenticated owner prefix with bounded concurrency, and unresolved objects continue to block database deletion.
+
+### Tests
+
+- Added regression coverage for stale snapshots, explicit-refetch sequencing, polling and reconnect behavior, scope changes, shared editor hooks, delete retry/cancellation, and batched storage verification.
+- Validated with focused Jest suites, frontend typecheck and lint, the full Jest suite, and `git diff --check`.
+
 ## [2026-08-20] - Offline Local Stack Startup
 
 Added an explicit preparation and offline-start workflow so the local frontend,

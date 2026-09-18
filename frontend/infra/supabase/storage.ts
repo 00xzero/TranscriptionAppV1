@@ -263,6 +263,7 @@ export async function removeStorageObjectsBatched(
     supabase: SupabaseClient,
     bucket: string,
     keys: string[],
+    ownerId: string,
     batchSize = 100
 ): Promise<{ removed: number; failed: string[] }> {
     if (!Number.isInteger(batchSize) || batchSize < 1) {
@@ -272,16 +273,46 @@ export async function removeStorageObjectsBatched(
     let removed = 0
     const failed: string[] = []
     const uniqueKeys = [...new Set(keys.filter(Boolean))]
+    const storage = supabase.storage.from(bucket)
 
     for (let offset = 0; offset < uniqueKeys.length; offset += batchSize) {
         const batch = uniqueKeys.slice(offset, offset + batchSize)
-        const { data, error } = await supabase.storage.from(bucket).remove(batch)
-        if (!error) {
-            removed += data?.length ?? 0
-        } else if (isMissingStorageObjectError(error)) {
+        const trustedBatch = batch.filter((key) => key.startsWith(`${ownerId}/`))
+        failed.push(...batch.filter((key) => !key.startsWith(`${ownerId}/`)))
+        if (trustedBatch.length === 0) continue
+
+        const { data, error } = await storage.remove(trustedBatch)
+        if (error && !isMissingStorageObjectError(error)) {
+            failed.push(...trustedBatch)
             continue
-        } else {
-            failed.push(...batch)
+        }
+
+        const requested = new Set(trustedBatch)
+        const confirmedRemoved = new Set(
+            (data ?? [])
+                .map((object) => object.name)
+                .filter((name): name is string => requested.has(name))
+        )
+        removed += confirmedRemoved.size
+
+        const omitted = trustedBatch.filter((key) => !confirmedRemoved.has(key))
+        for (let verificationOffset = 0; verificationOffset < omitted.length; verificationOffset += 8) {
+            const verificationBatch = omitted.slice(verificationOffset, verificationOffset + 8)
+            const verificationResults = await Promise.all(
+                verificationBatch.map(async (key) => {
+                    try {
+                        const verification = await storage.info(key)
+                        return verification.error && isMissingStorageObjectError(verification.error)
+                            ? null
+                            : key
+                    } catch {
+                        return key
+                    }
+                })
+            )
+            failed.push(
+                ...verificationResults.filter((key): key is string => key !== null)
+            )
         }
     }
 

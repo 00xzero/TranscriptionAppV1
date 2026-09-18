@@ -1,5 +1,12 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useAuthIdentity, useProjectsRealtime, useTranscriptsRealtime } from '@/lib/supabase/hooks'
+import {
+  useAuthIdentity,
+  useProjectsRealtime,
+  useSpeakersRealtime,
+  useTranscriptJobsRealtime,
+  useTranscriptRealtime,
+  useTranscriptsRealtime,
+} from '@/lib/supabase/hooks'
 import type { Project } from '@/contracts/db'
 
 const mockFetchTranscripts = jest.fn()
@@ -15,6 +22,9 @@ const mockAddTranscripts = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockCreateProject = jest.fn()
 const mockRenameProject = jest.fn()
+const mockFetchTranscriptById = jest.fn()
+const mockFetchTranscriptJobs = jest.fn()
+const mockFetchSpeakers = jest.fn()
 let authStateHandler:
   | ((event: string, session: { user: { id: string } } | null) => void)
   | null = null
@@ -32,9 +42,9 @@ jest.mock('@/lib/supabase/queries', () => ({
   fetchProjects: () => mockFetchProjects(),
   createProject: (...args: unknown[]) => mockCreateProject(...args),
   renameProject: (...args: unknown[]) => mockRenameProject(...args),
-  fetchTranscriptById: jest.fn(),
-  fetchTranscriptJobs: jest.fn(),
-  fetchSpeakers: jest.fn(),
+  fetchTranscriptById: (...args: unknown[]) => mockFetchTranscriptById(...args),
+  fetchTranscriptJobs: (...args: unknown[]) => mockFetchTranscriptJobs(...args),
+  fetchSpeakers: (...args: unknown[]) => mockFetchSpeakers(...args),
   updateTranscript: jest.fn(),
   createSpeaker: jest.fn(),
   updateSpeaker: jest.fn(),
@@ -202,7 +212,7 @@ describe('useTranscriptsRealtime', () => {
     })
 
     expect(mockChannelFactory).toHaveBeenCalledWith(
-      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
     )
     expect(channelMock.on).toHaveBeenCalledWith(
       'postgres_changes',
@@ -225,8 +235,8 @@ describe('useTranscriptsRealtime', () => {
     const firstTopic = mockChannelFactory.mock.calls[0][0]
     const secondTopic = mockChannelFactory.mock.calls[1][0]
 
-    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
-    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:\d+:\d+$/)
+    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
+    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
   })
 
@@ -273,6 +283,34 @@ describe('useTranscriptsRealtime', () => {
 
     expect(hook.current.transcripts).toEqual([transcript])
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeDelete + 1)
+  })
+
+  test('logs a non-cancellation failure from delete recovery reconciliation', async () => {
+    const deleteError = new Error('delete response lost')
+    const reconciliationError = new Error('reconciliation unavailable')
+    mockDeleteTranscript.mockRejectedValueOnce(deleteError)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+
+    try {
+      await waitFor(() => expect(hook.current.isLoading).toBe(false))
+      mockFetchTranscripts.mockRejectedValueOnce(reconciliationError)
+
+      await act(async () => {
+        await expect(hook.current.deleteTranscript('missing-transcript')).rejects.toBe(deleteError)
+      })
+
+      await waitFor(() => {
+        expect(errorSpy).toHaveBeenCalledWith(
+          '[realtime] Failed to reconcile after transcript deletion failure:',
+          reconciliationError
+        )
+      })
+    } finally {
+      errorSpy.mockRestore()
+    }
   })
 
   test('keeps concurrent realtime changes when rolling back a failed delete', async () => {
@@ -408,6 +446,64 @@ describe('useTranscriptsRealtime', () => {
 
     expect(hook.current.transcripts).toEqual([{ ...first, project_id: 'project-b' }])
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(fetchCallsBeforeAdd + 1)
+  })
+})
+
+describe('editor realtime hooks', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    makeChannel()
+    mockFetchTranscriptById.mockImplementation(async (id: string) => ({ id, title: id }))
+    mockFetchTranscriptJobs.mockResolvedValue([])
+    mockFetchSpeakers.mockImplementation(async (id: string) => [{ id: `speaker-${id}` }])
+  })
+
+  test('useTranscriptRealtime hides the previous id synchronously and uses the new id', async () => {
+    const { result, rerender } = renderHook(
+      ({ transcriptId }: { transcriptId: string }) => useTranscriptRealtime(transcriptId),
+      { initialProps: { transcriptId: 'transcript-a' } }
+    )
+
+    await waitFor(() => expect(result.current.transcript?.id).toBe('transcript-a'))
+    rerender({ transcriptId: 'transcript-b' })
+    expect(result.current.transcript).toBeNull()
+    expect(result.current.isLoading).toBe(true)
+    await waitFor(() => expect(result.current.transcript?.id).toBe('transcript-b'))
+    expect(mockFetchTranscriptById).toHaveBeenLastCalledWith('transcript-b')
+  })
+
+  test('useTranscriptJobsRealtime retains its payload transform without channel churn', async () => {
+    const { result, rerender } = renderHook(
+      ({ transcriptId }: { transcriptId: string }) => useTranscriptJobsRealtime(transcriptId),
+      { initialProps: { transcriptId: 'transcript-a' } }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const channelsBefore = mockChannelFactory.mock.calls.length
+    const onChange = channelMock.on.mock.calls[0][2] as (payload: unknown) => void
+    act(() => {
+      onChange({
+        eventType: 'INSERT',
+        new: { id: 'job-a', status: 'processing', payload: { very: 'large' } },
+      })
+    })
+
+    expect(result.current.jobs).toEqual([{ id: 'job-a', status: 'processing' }])
+    rerender({ transcriptId: 'transcript-a' })
+    expect(mockChannelFactory).toHaveBeenCalledTimes(channelsBefore)
+  })
+
+  test('useSpeakersRealtime resets cleanly when its transcript id changes', async () => {
+    const { result, rerender } = renderHook(
+      ({ transcriptId }: { transcriptId: string }) => useSpeakersRealtime(transcriptId),
+      { initialProps: { transcriptId: 'transcript-a' } }
+    )
+
+    await waitFor(() => expect(result.current.speakers).toEqual([{ id: 'speaker-transcript-a' }]))
+    rerender({ transcriptId: 'transcript-b' })
+    expect(result.current.speakers).toEqual([])
+    expect(result.current.isLoading).toBe(true)
+    await waitFor(() => expect(result.current.speakers).toEqual([{ id: 'speaker-transcript-b' }]))
   })
 })
 

@@ -86,14 +86,15 @@ describe('storage object helpers', () => {
       removeStorageObjectsBatched(
         buildClient(remove),
         'media',
-        ['a', 'b', 'b', 'c', 'd', 'e'],
+        ['user-1/a', 'user-1/b', 'user-1/b', 'user-1/c', 'user-1/d', 'user-1/e'],
+        'user-1',
         2
       )
     ).resolves.toEqual({ removed: 5, failed: [] })
     expect(remove.mock.calls.map(([keys]) => keys)).toEqual([
-      ['a', 'b'],
-      ['c', 'd'],
-      ['e'],
+      ['user-1/a', 'user-1/b'],
+      ['user-1/c', 'user-1/d'],
+      ['user-1/e'],
     ])
   })
 
@@ -101,24 +102,159 @@ describe('storage object helpers', () => {
     const remove = jest
       .fn()
       .mockResolvedValueOnce({ error: { message: 'bucket unavailable' } })
-      .mockResolvedValueOnce({ data: [{ name: 'c' }], error: null })
+      .mockResolvedValueOnce({ data: [{ name: 'user-1/c' }], error: null })
 
     await expect(
-      removeStorageObjectsBatched(buildClient(remove), 'waveforms', ['a', 'b', 'c'], 2)
-    ).resolves.toEqual({ removed: 1, failed: ['a', 'b'] })
+      removeStorageObjectsBatched(
+        buildClient(remove),
+        'waveforms',
+        ['user-1/a', 'user-1/b', 'user-1/c'],
+        'user-1',
+        2
+      )
+    ).resolves.toEqual({ removed: 1, failed: ['user-1/a', 'user-1/b'] })
   })
 
-  test('counts only objects the storage API reports as removed', async () => {
-    const remove = jest.fn().mockResolvedValue({ data: [{ name: 'a' }], error: null })
+  test('verifies omitted objects after a partial success without inflating removed count', async () => {
+    const remove = jest.fn().mockResolvedValue({
+      data: [{ name: 'user-1/a' }],
+      error: null,
+    })
+    const info = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey', message: 'Object not found' },
+    })
 
     await expect(
-      removeStorageObjectsBatched(buildClient(remove), 'media', ['a', 'already-missing'])
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['user-1/a', 'user-1/already-missing'],
+        'user-1'
+      )
     ).resolves.toEqual({ removed: 1, failed: [] })
+    expect(info).toHaveBeenCalledWith('user-1/already-missing')
+  })
+
+  test('reports an omitted object that still exists', async () => {
+    const remove = jest.fn().mockResolvedValue({ data: [], error: null })
+    const info = jest.fn().mockResolvedValue({
+      data: { name: 'user-1/still-there' },
+      error: null,
+    })
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['user-1/still-there'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 0, failed: ['user-1/still-there'] })
+  })
+
+  test('verifies every key after an ambiguous missing-object batch response', async () => {
+    const remove = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey', message: 'Object not found' },
+    })
+    const info = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey', message: 'Object not found' },
+    })
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['user-1/a', 'user-1/b'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 0, failed: [] })
+    expect(info).toHaveBeenCalledTimes(2)
+  })
+
+  test('never trusts verified absence outside the authenticated owner prefix', async () => {
+    const remove = jest.fn().mockResolvedValue({ data: [], error: null })
+    const info = jest.fn()
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['another-user/key'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 0, failed: ['another-user/key'] })
+    expect(remove).not.toHaveBeenCalled()
+    expect(info).not.toHaveBeenCalled()
+  })
+
+  test('treats verification errors as unresolved', async () => {
+    const remove = jest.fn().mockResolvedValue({ data: [], error: null })
+    const info = jest.fn().mockResolvedValue({
+      data: null,
+      error: { message: 'storage unavailable' },
+    })
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['user-1/key'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 0, failed: ['user-1/key'] })
+  })
+
+  test('ignores unexpected and duplicate response names', async () => {
+    const remove = jest.fn().mockResolvedValue({
+      data: [
+        { name: 'user-1/a' },
+        { name: 'user-1/a' },
+        { name: 'another-user/unexpected' },
+      ],
+      error: null,
+    })
+    const info = jest.fn().mockResolvedValue({
+      data: null,
+      error: { code: 'NoSuchKey' },
+    })
+
+    await expect(
+      removeStorageObjectsBatched(
+        buildClient(remove, info),
+        'media',
+        ['user-1/a', 'user-1/b'],
+        'user-1'
+      )
+    ).resolves.toEqual({ removed: 1, failed: [] })
+    expect(info).toHaveBeenCalledTimes(1)
+  })
+
+  test('limits omitted-object verification to eight concurrent requests', async () => {
+    let active = 0
+    let maximumActive = 0
+    const remove = jest.fn().mockResolvedValue({ data: [], error: null })
+    const info = jest.fn().mockImplementation(async () => {
+      active += 1
+      maximumActive = Math.max(maximumActive, active)
+      await Promise.resolve()
+      active -= 1
+      return { data: null, error: { code: 'NoSuchKey' } }
+    })
+    const keys = Array.from({ length: 20 }, (_, index) => `user-1/key-${index}`)
+
+    await expect(
+      removeStorageObjectsBatched(buildClient(remove, info), 'media', keys, 'user-1')
+    ).resolves.toEqual({ removed: 0, failed: [] })
+    expect(maximumActive).toBeLessThanOrEqual(8)
+    expect(info).toHaveBeenCalledTimes(20)
   })
 
   test('rejects an invalid batch size', async () => {
     await expect(
-      removeStorageObjectsBatched(buildClient(jest.fn()), 'media', ['a'], 0)
+      removeStorageObjectsBatched(buildClient(jest.fn()), 'media', ['user-1/a'], 'user-1', 0)
     ).rejects.toThrow('batchSize must be a positive integer')
   })
 })

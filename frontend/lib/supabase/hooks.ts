@@ -5,7 +5,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/infra/supabase/client'
-import { useSupabaseRealtime } from './realtime'
+import {
+    isRealtimeScopeAbortError,
+    runBackgroundRealtimeRefetch,
+    useSupabaseRealtime,
+} from './realtime'
 import {
     fetchTranscripts,
     fetchTranscriptById,
@@ -142,7 +146,13 @@ type DeleteInvalidationTable = 'projects' | 'transcripts'
 type RefetchQueue = {
     running: boolean
     queued: boolean
+    retryWait: {
+        timeout: ReturnType<typeof setTimeout>
+        resolve: () => void
+    } | null
 }
+
+const DELETE_REFETCH_RETRY_DELAYS = [250, 500, 1000] as const
 
 /**
  * Reconciles DELETEs that user_id-filtered Postgres Changes subscriptions
@@ -159,8 +169,8 @@ export function useProjectsDeleteInvalidation(
         let channel: RealtimeChannel | null = null
         const supabase = createClient()
         const refetchQueues: Record<DeleteInvalidationTable, RefetchQueue> = {
-            projects: { running: false, queued: false },
-            transcripts: { running: false, queued: false },
+            projects: { running: false, queued: false, retryWait: null },
+            transcripts: { running: false, queued: false, retryWait: null },
         }
         const refetches = {
             projects: refetchProjects,
@@ -178,11 +188,41 @@ export function useProjectsDeleteInvalidation(
             void (async () => {
                 while (active) {
                     queue.queued = false
-                    try {
-                        await refetches[table]()
-                    } catch (error) {
-                        console.error(`[projects] Failed to refetch ${table} after delete:`, error)
+                    let cancelled = false
+
+                    for (let attempt = 0; attempt <= DELETE_REFETCH_RETRY_DELAYS.length; attempt += 1) {
+                        try {
+                            await refetches[table]()
+                            break
+                        } catch (error) {
+                            if (!active || isRealtimeScopeAbortError(error)) {
+                                cancelled = true
+                                break
+                            }
+
+                            const retryDelay = DELETE_REFETCH_RETRY_DELAYS[attempt]
+                            if (retryDelay === undefined) {
+                                console.error(
+                                    `[projects] Failed to refetch ${table} after delete:`,
+                                    error
+                                )
+                                break
+                            }
+
+                            await new Promise<void>((resolve) => {
+                                const timeout = setTimeout(() => {
+                                    queue.retryWait = null
+                                    resolve()
+                                }, retryDelay)
+                                queue.retryWait = { timeout, resolve }
+                            })
+                            if (!active) {
+                                cancelled = true
+                                break
+                            }
+                        }
                     }
+                    if (cancelled) break
                     if (!queue.queued) break
                 }
                 queue.running = false
@@ -213,6 +253,13 @@ export function useProjectsDeleteInvalidation(
 
         return () => {
             active = false
+            for (const queue of Object.values(refetchQueues)) {
+                if (queue.retryWait) {
+                    clearTimeout(queue.retryWait.timeout)
+                    queue.retryWait.resolve()
+                    queue.retryWait = null
+                }
+            }
             if (channel) void supabase.removeChannel(channel)
         }
     }, [refetchProjects, refetchTranscripts, userId])
@@ -245,7 +292,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 // Restore only the removed row so concurrent realtime changes survive.
                 if (removed) mutate((current) => restoreTranscript(current, removed))
                 // A delete can commit and still lose its response; reconcile with the server.
-                void refetch()
+                runBackgroundRealtimeRefetch(refetch, 'transcript deletion failure')
                 throw err
             }
         },
@@ -273,7 +320,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                         )
                     )
                 }
-                void refetch()
+                runBackgroundRealtimeRefetch(refetch, 'transcript move failure')
                 throw err
             }
         },
@@ -311,7 +358,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                             : transcript
                     })
                 )
-                void refetch()
+                runBackgroundRealtimeRefetch(refetch, 'batch transcript move failure')
                 throw err
             }
 
@@ -319,7 +366,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 // Deleted since they were selected; the DELETE event may not reach this tab.
                 const missingIds = new Set(result.missingIds)
                 mutate((current) => current.filter((transcript) => !missingIds.has(transcript.id)))
-                void refetch()
+                runBackgroundRealtimeRefetch(refetch, 'missing transcripts in a batch move')
             }
             return result
         },
@@ -388,7 +435,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 return created
             } catch (err) {
                 mutate((current) => current.filter((project) => project.id !== optimisticId))
-                void refetch()
+                runBackgroundRealtimeRefetch(refetch, 'project creation failure')
                 throw err
             }
         },
@@ -426,7 +473,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                             )
                         )
                     }
-                    void refetch()
+                    runBackgroundRealtimeRefetch(refetch, 'project rename failure')
                 }
                 throw err
             }
@@ -461,7 +508,7 @@ export function useTranscriptRealtime(transcriptId: string | null) {
         return transcript ? [transcript] : []
     }, [transcriptId])
 
-    const { data, isLoading, error, mutate } = useSupabaseRealtime<Transcript>(
+    const { data, isLoading, error, mutate, refetch } = useSupabaseRealtime<Transcript>(
         'transcripts',
         fetchFn,
         {
@@ -503,7 +550,7 @@ export function useTranscriptRealtime(transcriptId: string | null) {
         isLoading,
         error,
         updateTranscript,
-        refetch: () => mutate(),
+        refetch,
     }
 }
 

@@ -52,6 +52,7 @@ describe('project delete route', () => {
         callOrder.push(`storage:${bucket}`)
         return { data: keys.map((name) => ({ name })), error: null }
       }),
+      info: jest.fn(),
     }))
   })
 
@@ -117,8 +118,8 @@ describe('project delete route', () => {
     rpcMock.mockResolvedValueOnce({
       data: [inventory({
         transcript_ids: ['t-1', 't-2', 't-3'],
-        media_keys: ['media-1', 'media-2'],
-        waveform_keys: ['wave-1'],
+        media_keys: ['user-1/media-1', 'user-1/media-2'],
+        waveform_keys: ['user-1/wave-1'],
       })],
       error: null,
     })
@@ -144,7 +145,10 @@ describe('project delete route', () => {
   })
 
   test('tolerates missing objects, filters null keys, and batches at 100', async () => {
-    const mediaKeys = [null, ...Array.from({ length: 205 }, (_, index) => `media-${index}`)]
+    const mediaKeys = [
+      null,
+      ...Array.from({ length: 205 }, (_, index) => `user-1/media-${index}`),
+    ]
     rpcMock.mockResolvedValueOnce({
       data: [inventory({ media_keys: mediaKeys, waveform_keys: [] })],
       error: null,
@@ -157,6 +161,7 @@ describe('project delete route', () => {
       }))
     storageFromMock.mockImplementation((bucket: string) => ({
       remove: bucket === 'media' ? removeMock : jest.fn(async () => ({ data: [], error: null })),
+      info: jest.fn(async () => ({ data: null, error: { code: 'NoSuchKey' } })),
     }))
 
     const response = await request()

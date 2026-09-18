@@ -1,7 +1,9 @@
 import React from 'react'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptsInProject } from '@/core/projects/tree'
+import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project, Transcript } from '@/contracts/db'
 
 const mockGetSession = jest.fn()
@@ -52,6 +54,26 @@ function Consumer() {
     <div>
       <span data-testid="projects-loading">{String(data.projectsLoading)}</span>
       <span data-testid="project-ids">{data.projects.map((project) => project.id).join(',')}</span>
+    </div>
+  )
+}
+
+function MutationConsumer() {
+  const data = useProjectsData()
+  return (
+    <div>
+      <span data-testid="mutation-project-ids">
+        {data.projects.map((project) => project.id).join(',')}
+      </span>
+      <button type="button" onClick={() => data.mutateProjects(() => [])}>
+        Remove locally
+      </button>
+      <button
+        type="button"
+        onClick={() => { void data.refetchProjects().catch(() => undefined) }}
+      >
+        Refetch
+      </button>
     </div>
   )
 }
@@ -289,6 +311,102 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(1)
   })
 
+  test('does not let a pre-delete snapshot restore rows after delete invalidation', async () => {
+    const preDeleteFetch = deferred<Project[]>()
+    const postDeleteFetch = deferred<Project[]>()
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    mockFetchProjects
+      .mockReset()
+      .mockReturnValueOnce(preDeleteFetch.promise)
+      .mockReturnValueOnce(postDeleteFetch.promise)
+
+    render(
+      <ProjectsProvider>
+        <Consumer />
+      </ProjectsProvider>
+    )
+
+    await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(1))
+    const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+      ([name]) => name === 'projects-v1:user-a'
+    )
+    const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+    const onDelete = invalidationChannel.on.mock.calls[0][2]
+
+    act(() => onDelete({ payload: { table: 'projects' } }))
+    expect(mockFetchProjects).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      preDeleteFetch.resolve([project('deleted-project', 'user-a')])
+      await preDeleteFetch.promise
+    })
+    await waitFor(() => expect(mockFetchProjects).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('project-ids')).toBeEmptyDOMElement()
+
+    await act(async () => {
+      postDeleteFetch.resolve([])
+      await postDeleteFetch.promise
+    })
+    expect(screen.getByTestId('project-ids')).toBeEmptyDOMElement()
+  })
+
+  test('provider-exposed mutation invalidates an already-running snapshot', async () => {
+    jest.useFakeTimers()
+    const staleFetch = deferred<Project[]>()
+    const reconciliation = deferred<Project[]>()
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    mockFetchProjects.mockResolvedValueOnce([project('project-a', 'user-a')])
+
+    const { unmount } = render(
+      <ProjectsProvider>
+        <MutationConsumer />
+      </ProjectsProvider>
+    )
+
+    try {
+      await waitFor(() => {
+        expect(screen.getByTestId('mutation-project-ids')).toHaveTextContent('project-a')
+      })
+      mockFetchProjects
+        .mockReset()
+        .mockReturnValueOnce(staleFetch.promise)
+        .mockReturnValueOnce(reconciliation.promise)
+
+      act(() => screen.getByRole('button', { name: 'Refetch' }).click())
+      expect(mockFetchProjects).toHaveBeenCalledTimes(1)
+      act(() => screen.getByRole('button', { name: 'Remove locally' }).click())
+      expect(screen.getByTestId('mutation-project-ids')).toBeEmptyDOMElement()
+
+      await act(async () => {
+        staleFetch.resolve([project('project-a', 'user-a')])
+        await staleFetch.promise
+      })
+      expect(screen.getByTestId('mutation-project-ids')).toBeEmptyDOMElement()
+
+      await act(async () => {
+        jest.advanceTimersByTime(250)
+        await Promise.resolve()
+      })
+      expect(mockFetchProjects).toHaveBeenCalledTimes(2)
+
+      await act(async () => {
+        reconciliation.resolve([])
+        await reconciliation.promise
+      })
+      expect(screen.getByTestId('mutation-project-ids')).toBeEmptyDOMElement()
+    } finally {
+      unmount()
+      jest.useRealTimers()
+    }
+  })
+
   test('coalesces a burst into one in-flight and one trailing refetch per table', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-a' } } },
@@ -327,6 +445,84 @@ describe('ProjectsProvider realtime ownership', () => {
     })
 
     await waitFor(() => expect(mockFetchTranscripts).toHaveBeenCalledTimes(2))
+  })
+
+  test('retries real delete reconciliation failures with bounded backoff', async () => {
+    jest.useFakeTimers()
+    const failure = new Error('temporary failure')
+    const refetchProjects = jest.fn().mockRejectedValue(failure)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { unmount } = renderHook(() =>
+      useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+    )
+
+    try {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+        ([name]) => name === 'projects-v1:user-a'
+      )
+      const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+      const onDelete = invalidationChannel.on.mock.calls[0][2]
+
+      act(() => onDelete({ payload: { table: 'projects' } }))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(refetchProjects).toHaveBeenCalledTimes(1)
+
+      for (const delay of [250, 500, 1000]) {
+        await act(async () => {
+          jest.advanceTimersByTime(delay)
+          await Promise.resolve()
+          await Promise.resolve()
+        })
+      }
+
+      expect(refetchProjects).toHaveBeenCalledTimes(4)
+      expect(errorSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      unmount()
+      errorSpy.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
+  test('treats scope cancellation as a quiet end to delete reconciliation', async () => {
+    jest.useFakeTimers()
+    const refetchProjects = jest.fn().mockRejectedValue(new RealtimeScopeAbortError())
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { unmount } = renderHook(() =>
+      useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+    )
+
+    try {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const invalidationChannelIndex = mockChannel.mock.calls.findIndex(
+        ([name]) => name === 'projects-v1:user-a'
+      )
+      const invalidationChannel = mockChannel.mock.results[invalidationChannelIndex].value
+
+      act(() => invalidationChannel.on.mock.calls[0][2]({ payload: { table: 'projects' } }))
+      await act(async () => {
+        await Promise.resolve()
+        jest.advanceTimersByTime(5000)
+      })
+
+      expect(refetchProjects).toHaveBeenCalledTimes(1)
+      expect(
+        errorSpy.mock.calls.filter(([message]) => String(message).startsWith('[projects]'))
+      ).toHaveLength(0)
+    } finally {
+      unmount()
+      errorSpy.mockRestore()
+      jest.useRealTimers()
+    }
   })
 
   test('refetches both tables on initial subscribe and reconnect', async () => {
