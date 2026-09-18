@@ -7,6 +7,7 @@ import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 import { makeProject, makeTranscript, providerData } from './projects/fixtures'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockRouterReplace = jest.fn()
 const mockToast = jest.fn()
@@ -208,6 +209,25 @@ describe('EditorPage - Phase 7 UI regressions', () => {
       expect(mockRouterReplace).toHaveBeenCalledWith('/transcripts')
     })
     expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
+  })
+
+  test('closes a scope-cancelled delete before cleanup handling or navigation', async () => {
+    const user = userEventLib.setup()
+    const data = providerData([], [makeTranscript({ id: 'p1', title: 'Test Transcript' })])
+    data.deleteTranscript.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    mockUseProjectsData.mockReturnValue(data)
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    await user.click(screen.getByRole('button', { name: /More options for Test Transcript/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Delete "Test Transcript"?')).not.toBeInTheDocument()
+    })
+    expect(mockToast).not.toHaveBeenCalled()
+    expect(mockRouterReplace).not.toHaveBeenCalled()
   })
 
   test('opens Move with the latest project location from the shared provider', async () => {

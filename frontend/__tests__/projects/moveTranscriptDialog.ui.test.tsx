@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MoveTranscriptDialog } from '@/components/Projects/MoveTranscriptDialog'
 import { buildProjectTree } from '@/core/projects/tree'
 import { makeProject, makeTranscript } from './fixtures'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockUseProjectsData = jest.fn()
 jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
@@ -76,6 +77,34 @@ describe('MoveTranscriptDialog', () => {
     view.rerender(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
 
     expect(screen.getByRole('treeitem', { name: 'Unfiled' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
+  })
+
+  test('closes quietly when a move is cancelled by a scope change', async () => {
+    const user = userEvent.setup()
+    const onClose = jest.fn()
+    moveTranscript.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    render(<MoveTranscriptDialog onClose={onClose} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+
+    await user.click(screen.getByRole('treeitem', { name: /Destination/ }))
+    await user.click(screen.getByRole('button', { name: 'Move' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  test('does not select a project whose creation was cancelled by a scope change', async () => {
+    const user = userEvent.setup()
+    createProject.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    render(<MoveTranscriptDialog onClose={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+
+    await user.click(screen.getByRole('treeitem', { name: /Destination/ }))
+    await user.click(screen.getByRole('button', { name: 'New Project' }))
+    await user.type(await screen.findByLabelText('Project name'), 'Cancelled')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(createProject).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('treeitem', { name: /Destination/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
   })
 })

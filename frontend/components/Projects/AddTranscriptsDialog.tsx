@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input'
 import { pathLabel } from '@/core/projects/tree'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 
 const dateFormat = new Intl.DateTimeFormat()
@@ -58,6 +59,10 @@ export function AddTranscriptsDialog({
       await addTranscripts([...selected], projectId)
       onClose()
     } catch (caught) {
+      if (isRealtimeScopeAbortError(caught)) {
+        onClose()
+        return
+      }
       setError(mapProjectWriteError(caught))
     } finally {
       setPending(false)

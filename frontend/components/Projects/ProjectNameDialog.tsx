@@ -5,6 +5,7 @@ import type { Project } from '@/contracts/db'
 import { siblingNameTaken } from '@/core/projects/tree'
 import { validateProjectName } from '@/core/projects/validate'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { Button } from '@/components/ui/button'
 import {
@@ -69,6 +70,10 @@ export function ProjectNameDialog({
       reset()
       onOpenChange(false)
     } catch (caught) {
+      if (isRealtimeScopeAbortError(caught)) {
+        onOpenChange(false)
+        return
+      }
       setError(mapProjectWriteError(caught))
     } finally {
       setPending(false)

@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import React, { startTransition } from 'react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
   RealtimeScopeAbortError,
   runBackgroundRealtimeRefetch,
@@ -377,6 +378,140 @@ describe('useSupabaseRealtime', () => {
     expect(result.current.isLoading).toBe(true)
     await expect(refresh).rejects.toBeInstanceOf(RealtimeScopeAbortError)
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(3))
+  })
+
+  test('isolates repeated A to B to A scope instances and their captured callbacks', async () => {
+    const firstA = deferred<Row[]>()
+    const scopeB = deferred<Row[]>()
+    const secondA = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockReturnValueOnce(firstA.promise)
+      .mockReturnValueOnce(scopeB.promise)
+      .mockReturnValueOnce(secondA.promise)
+    const { result, rerender } = renderHook(
+      ({ filter }: { filter: string }) =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, { realtimeFilter: filter }),
+      { initialProps: { filter: 'user_id=eq.user-a' } }
+    )
+
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+    const firstCallbacks = result.current
+    const firstChannel = channelFactoryMock.mock.results[0].value
+    const firstRealtimeCallback = firstChannel.on.mock.calls[0][2]
+    const firstStatusCallback = firstChannel.subscribe.mock.calls[0][0]
+    const settleFirstOptimistic = firstCallbacks.mutateOptimistically([
+      { id: 'optimistic-a1', title: 'Optimistic A1' },
+    ])
+    const firstRefetch = firstCallbacks.refetch()
+
+    rerender({ filter: 'user_id=eq.user-b' })
+    rerender({ filter: 'user_id=eq.user-a' })
+
+    expect(result.current.data).toEqual([])
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.connectionStatus).toBe('connecting')
+    await expect(firstRefetch).rejects.toBeInstanceOf(RealtimeScopeAbortError)
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(3))
+
+    act(() => {
+      firstCallbacks.mutate([{ id: 'stale-mutation', title: 'Stale mutation' }])
+      settleFirstOptimistic()
+      firstRealtimeCallback({
+        eventType: 'INSERT',
+        new: { id: 'stale-event', title: 'Stale event' },
+      })
+      firstStatusCallback('SUBSCRIBED')
+    })
+
+    await act(async () => {
+      firstA.resolve([{ id: 'stale-fetch', title: 'Stale fetch' }])
+      secondA.resolve([{ id: 'fresh-a2', title: 'Fresh A2' }])
+      await Promise.all([firstA.promise, secondA.promise])
+    })
+
+    expect(result.current.data).toEqual([{ id: 'fresh-a2', title: 'Fresh A2' }])
+    expect(result.current.connectionStatus).toBe('connecting')
+    const epochs = channelFactoryMock.mock.calls.map(([name]) => String(name).split(':').at(-2))
+    expect(epochs).toEqual(['0', '1', '2'])
+  })
+
+  test('resolves current disabled refetches but rejects callbacks from the previous epoch', async () => {
+    const fetchFn = jest.fn().mockResolvedValue([])
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, {
+          enabled,
+          subscriptionEnabled: false,
+        }),
+      { initialProps: { enabled: false } }
+    )
+
+    const disabledRefetch = result.current.refetch
+    await expect(disabledRefetch()).resolves.toBeUndefined()
+    rerender({ enabled: true })
+
+    await expect(disabledRefetch()).rejects.toBeInstanceOf(RealtimeScopeAbortError)
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+  })
+
+  test('invalidates epoch callbacks on unmount and restores them in Strict Mode', async () => {
+    const fetchFn = jest.fn().mockResolvedValue([])
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <React.StrictMode>{children}</React.StrictMode>
+    )
+    const { result, unmount } = renderHook(
+      () => useSupabaseRealtime<Row>('transcripts', fetchFn, { subscriptionEnabled: false }),
+      { wrapper }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(() => result.current.assertCurrentScope()).not.toThrow()
+    const assertCommittedScope = result.current.assertCurrentScope
+    unmount()
+    expect(() => assertCommittedScope()).toThrow(RealtimeScopeAbortError)
+  })
+
+  test('does not advance the committed epoch for an abandoned transition render', async () => {
+    const fetchFn = jest.fn().mockResolvedValue([])
+    const never = new Promise<void>(() => undefined)
+    let setFilter!: React.Dispatch<React.SetStateAction<string>>
+    let committedResult!: ReturnType<typeof useSupabaseRealtime<Row>>
+
+    function SuspendsForB({ filter }: { filter: string }) {
+      if (filter === 'user_id=eq.user-b') throw never
+      return null
+    }
+
+    function Harness() {
+      const [filter, updateFilter] = React.useState('user_id=eq.user-a')
+      const realtime = useSupabaseRealtime<Row>('transcripts', fetchFn, {
+        realtimeFilter: filter,
+        subscriptionEnabled: false,
+      })
+      React.useLayoutEffect(() => {
+        setFilter = updateFilter
+        committedResult = realtime
+      }, [realtime])
+      return (
+        <React.Suspense fallback={null}>
+          <SuspendsForB filter={filter} />
+        </React.Suspense>
+      )
+    }
+
+    const view = render(<Harness />)
+    await waitFor(() => expect(committedResult.isLoading).toBe(false))
+    const committedAssert = committedResult.assertCurrentScope
+    const channelsBefore = channelFactoryMock.mock.calls.length
+
+    act(() => {
+      startTransition(() => setFilter('user_id=eq.user-b'))
+    })
+
+    expect(() => committedAssert()).not.toThrow()
+    expect(channelFactoryMock).toHaveBeenCalledTimes(channelsBefore)
+    view.unmount()
   })
 
   test('keeps first-load data changes and reconciles after the quiet window', async () => {

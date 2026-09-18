@@ -5,6 +5,7 @@ import type { TranscriptActionTarget } from '@/lib/transcripts/actions'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { ProjectNameDialog } from './ProjectNameDialog'
 import { ProjectTreePicker } from './ProjectTreePicker'
@@ -38,6 +39,10 @@ export function MoveTranscriptDialog({
       await moveTranscript(transcript.id, selection)
       onClose()
     } catch (caught) {
+      if (isRealtimeScopeAbortError(caught)) {
+        onClose()
+        return
+      }
       setError(mapProjectWriteError(caught))
     } finally {
       setPending(false)

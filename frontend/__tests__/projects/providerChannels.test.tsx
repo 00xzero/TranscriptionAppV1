@@ -14,6 +14,12 @@ const mockRemoveChannel = jest.fn()
 const mockSetAuth = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockFetchTranscripts = jest.fn()
+type FakeChannel = {
+  topic: string
+  on: jest.Mock
+  subscribe: jest.Mock
+}
+const mockActiveChannels: FakeChannel[] = []
 let authStateHandler:
   | ((event: string, session: { user: { id: string } } | null) => void)
   | null = null
@@ -37,6 +43,7 @@ jest.mock('@/infra/supabase/client', () => ({
     },
     channel: mockChannel,
     removeChannel: mockRemoveChannel,
+    getChannels: () => mockActiveChannels,
     realtime: { setAuth: mockSetAuth },
   }),
 }))
@@ -97,6 +104,7 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchProjects.mockResolvedValue([])
     mockFetchTranscripts.mockResolvedValue([])
     mockSetAuth.mockResolvedValue(undefined)
+    mockActiveChannels.length = 0
     authStateHandler = null
     mockOnAuthStateChange.mockImplementation((handler) => {
       authStateHandler = handler
@@ -104,13 +112,24 @@ describe('ProjectsProvider realtime ownership', () => {
         data: { subscription: { unsubscribe: jest.fn() } },
       }
     })
-    mockChannel.mockImplementation(() => {
-      let channel: { on: jest.Mock; subscribe: jest.Mock }
+    mockChannel.mockImplementation((topic: string) => {
+      const realtimeTopic = `realtime:${topic}`
+      const existing = mockActiveChannels.find((candidate) => candidate.topic === realtimeTopic)
+      if (existing) return existing
+
+      let channel: FakeChannel
       channel = {
+        topic: realtimeTopic,
         on: jest.fn(() => channel),
         subscribe: jest.fn(() => channel),
       }
+      mockActiveChannels.push(channel)
       return channel
+    })
+    mockRemoveChannel.mockImplementation(async (channel: FakeChannel) => {
+      const index = mockActiveChannels.indexOf(channel)
+      if (index !== -1) mockActiveChannels.splice(index, 1)
+      return 'ok'
     })
   })
 
@@ -142,6 +161,120 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
       config: { private: true },
     })
+  })
+
+  test('waits for same-topic removal before installing a fresh A lifecycle', async () => {
+    const delayedRemoval = deferred<'ok' | 'timed out'>()
+    let firstA: FakeChannel | undefined
+    mockRemoveChannel.mockImplementation((channel: FakeChannel) => {
+      const remove = (result: 'ok' | 'timed out') => {
+        const index = mockActiveChannels.indexOf(channel)
+        if (index !== -1) mockActiveChannels.splice(index, 1)
+        return result
+      }
+      if (channel === firstA) return delayedRemoval.promise.then(remove)
+      return Promise.resolve(remove('ok'))
+    })
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const { rerender, unmount } = renderHook(
+      ({ userId }: { userId: string }) =>
+        useProjectsDeleteInvalidation(userId, refetchProjects, refetchTranscripts),
+      { initialProps: { userId: 'user-a' } }
+    )
+
+    await waitFor(() => {
+      expect(mockActiveChannels.some((channel) => channel.topic === 'realtime:projects-v1:user-a')).toBe(true)
+    })
+    firstA = mockActiveChannels.find(
+      (channel) => channel.topic === 'realtime:projects-v1:user-a'
+    )
+    rerender({ userId: 'user-b' })
+    await waitFor(() => {
+      expect(mockActiveChannels.some((channel) => channel.topic === 'realtime:projects-v1:user-b')).toBe(true)
+    })
+    rerender({ userId: 'user-a' })
+
+    await waitFor(() => expect(mockRemoveChannel).toHaveBeenCalledWith(firstA))
+    expect(
+      mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+    ).toHaveLength(1)
+
+    await act(async () => {
+      delayedRemoval.resolve('timed out')
+      await delayedRemoval.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+      ).toHaveLength(2)
+    })
+    const secondA = mockActiveChannels.find(
+      (channel) => channel.topic === 'realtime:projects-v1:user-a'
+    )
+    expect(secondA).toBeDefined()
+    expect(secondA).not.toBe(firstA)
+    unmount()
+    await waitFor(() => expect(mockActiveChannels).toHaveLength(0))
+  })
+
+  test('does not reuse a same-topic channel left listed after a removal error', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    mockRemoveChannel.mockResolvedValue('error')
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+
+    try {
+      const first = renderHook(() =>
+        useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+      )
+      await waitFor(() => {
+        expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
+          config: { private: true },
+        })
+      })
+      const staleChannel = mockActiveChannels[0]
+      first.unmount()
+      await waitFor(() => expect(mockRemoveChannel).toHaveBeenCalledWith(staleChannel))
+
+      renderHook(() =>
+        useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+      )
+      await waitFor(() => expect(mockSetAuth).toHaveBeenCalledTimes(2))
+
+      expect(
+        mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+      ).toHaveLength(1)
+      expect(staleChannel.subscribe).toHaveBeenCalledTimes(1)
+      expect(errorSpy).toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  test('owns exactly one private channel through Strict Mode effect replay', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <React.StrictMode>{children}</React.StrictMode>
+    )
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const { unmount } = renderHook(
+      () => useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts),
+      { wrapper }
+    )
+
+    await waitFor(() => {
+      expect(
+        mockActiveChannels.filter((channel) => channel.topic === 'realtime:projects-v1:user-a')
+      ).toHaveLength(1)
+    })
+    expect(
+      mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+    ).toHaveLength(1)
+
+    unmount()
+    await waitFor(() => expect(mockActiveChannels).toHaveLength(0))
   })
 
   test('does not remount app content when auth resolves', async () => {
