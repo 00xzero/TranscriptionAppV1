@@ -9,6 +9,8 @@ interface ProjectHeaderCardProps {
   directTranscriptCount: number
   nestedProjectCount: number
   actions: ReactNode
+  /** The project's kebab menu, kept flush with the row kebabs below the card. */
+  menu: ReactNode
 }
 
 /** A project's landing header, drawn as a folder with a tab on its top edge. */
@@ -17,28 +19,30 @@ export function ProjectHeaderCard({
   directTranscriptCount,
   nestedProjectCount,
   actions,
+  menu,
 }: ProjectHeaderCardProps) {
   return (
     <section
       aria-labelledby="project-heading"
-      className="relative mt-3 rounded-sm rounded-tl-none border border-border bg-panel px-6 pb-5 pt-6 shadow-xs"
+      className="relative mt-3 rounded-sm rounded-tl-none border border-border bg-panel px-4 pb-5 pt-6 shadow-xs sm:px-6"
     >
       {/* The tab overlaps the card's top border by 1px so the two read as one shape. */}
       <span
         aria-hidden="true"
         className="absolute -left-px -top-3 h-[13px] w-24 rounded-t-md border border-b-0 border-border bg-panel"
       />
-      <div className="flex items-start justify-between gap-6">
+      {/* Below `sm` the timestamp stacks above the title so short names don't wrap early. */}
+      <div className="flex flex-col-reverse items-start gap-1 sm:flex-row sm:justify-between sm:gap-6">
         <h1
           id="project-heading"
-          className="min-w-0 break-words font-serif text-4xl italic leading-tight text-foreground"
+          className="min-w-0 break-words font-serif text-3xl italic leading-tight text-foreground sm:text-4xl"
         >
           {project.name}
         </h1>
         <time
           dateTime={project.updated_at}
           title="Last updated"
-          className="mt-2 shrink-0 font-sans text-xs text-ink/60 dark:text-paper/60"
+          className="shrink-0 font-sans text-xs text-ink/60 sm:mt-2 dark:text-paper/60"
         >
           {formatRelativeTime(project.updated_at)}
         </time>
@@ -48,7 +52,12 @@ export function ProjectHeaderCard({
           {countLabel(directTranscriptCount, 'transcript', 'transcripts')} ·{' '}
           {countLabel(nestedProjectCount, 'nested project', 'nested projects')}
         </p>
-        <div className="flex items-center gap-2">{actions}</div>
+        {/* The kebab keeps to the right edge, and the negative margin cancels the card's
+            wider padding, so it lines up with the row kebabs 16px from the card edge. */}
+        <div className="flex w-full flex-wrap items-center gap-2 whitespace-nowrap sm:-mr-2 sm:w-auto sm:flex-nowrap">
+          {actions}
+          <span className="ml-auto sm:ml-0">{menu}</span>
+        </div>
       </div>
     </section>
   )

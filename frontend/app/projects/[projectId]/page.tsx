@@ -144,12 +144,14 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Add Transcripts
             </Button>
-            <ProjectActionsMenu
-              project={project}
-              onRename={() => setRenameProjectTarget(project)}
-              onDelete={() => setDeleteProjectTarget(project)}
-            />
           </>
+        )}
+        menu={(
+          <ProjectActionsMenu
+            project={project}
+            onRename={() => setRenameProjectTarget(project)}
+            onDelete={() => setDeleteProjectTarget(project)}
+          />
         )}
       />
 
