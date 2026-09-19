@@ -1,7 +1,7 @@
 'use client'
 
 import { ancestorsOf } from '@/core/projects/tree'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptIdFromEditorPathname } from '@/lib/projects/routes'
 import {
   BreadcrumbTrail,
@@ -23,7 +23,8 @@ function transcriptCrumb(
 }
 
 export function EditorHeaderTitle({ pathname }: { pathname: string }) {
-  const { transcripts, tree } = useProjectsData()
+  const { tree } = useProjectsData()
+  const { transcripts } = useTranscriptsData()
   const transcriptId = transcriptIdFromEditorPathname(pathname)
   const transcript = transcriptId
     ? transcripts.find((item) => item.id === transcriptId)

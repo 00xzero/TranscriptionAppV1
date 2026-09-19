@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { createClient } from '@/infra/supabase/client'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
@@ -28,9 +28,8 @@ export default function LibraryView() {
     projects,
     tree,
     projectsLoading,
-    transcripts,
-    transcriptsLoading: isLoading,
   } = useProjectsData()
+  const { transcripts, transcriptsLoading: isLoading } = useTranscriptsData()
   const transcriptActions = useTranscriptActions()
   const recentProjectCards = useMemo(() => {
     const transcriptCounts = transcriptCountsByProject(transcripts)

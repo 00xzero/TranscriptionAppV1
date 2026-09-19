@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { pathLabel } from '@/core/projects/tree'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
 import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 
 const dateFormat = new Intl.DateTimeFormat()
 
@@ -18,7 +18,8 @@ export function AddTranscriptsDialog({
   projectId: string
   onClose: () => void
 }) {
-  const { transcripts, tree, addTranscripts } = useProjectsData()
+  const { tree } = useProjectsData()
+  const { transcripts, addTranscripts } = useTranscriptsData()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [pending, setPending] = useState(false)

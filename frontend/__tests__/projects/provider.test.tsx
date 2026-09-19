@@ -1,6 +1,10 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
+import {
+  ProjectsProvider,
+  useProjectsData,
+  useTranscriptsData,
+} from '@/lib/projects/ProjectsProvider'
 import { buildProjectTree, transcriptsInProject } from '@/core/projects/tree'
 import type { Project, Transcript } from '@/contracts/db'
 
@@ -78,12 +82,13 @@ function mockData(projects: Project[], transcripts: Transcript[]) {
 }
 
 function Consumer({ projectId = null }: { projectId?: string | null }) {
-  const data = useProjectsData()
-  const selected = transcriptsInProject(data.transcripts, projectId)
+  const projectData = useProjectsData()
+  const transcriptData = useTranscriptsData()
+  const selected = transcriptsInProject(transcriptData.transcripts, projectId)
   return (
     <div>
-      <span>{data.projectsLoading || data.transcriptsLoading ? 'loading' : 'settled'}</span>
-      <span>{data.projects.map((item) => item.id).join(',')}</span>
+      <span>{projectData.projectsLoading || transcriptData.transcriptsLoading ? 'loading' : 'settled'}</span>
+      <span>{projectData.projects.map((item) => item.id).join(',')}</span>
       <span>{selected.map((item) => item.id).join(',')}</span>
     </div>
   )
@@ -170,14 +175,15 @@ describe('ProjectsProvider', () => {
 
   test('passes hook callbacks through without provider wrappers', () => {
     function CallbackConsumer() {
-      const data = useProjectsData()
+      const projectData = useProjectsData()
+      const transcriptData = useTranscriptsData()
       return (
         <span data-testid="callbacks-unwrapped">
           {String(
-            data.createProject === projectActions.createProject &&
-            data.refetchProjects === projectActions.refetch &&
-            data.deleteTranscript === transcriptActions.deleteTranscript &&
-            data.refetchTranscripts === transcriptActions.refetch
+            projectData.createProject === projectActions.createProject &&
+            projectData.refetchProjects === projectActions.refetch &&
+            transcriptData.deleteTranscript === transcriptActions.deleteTranscript &&
+            transcriptData.refetchTranscripts === transcriptActions.refetch
           )}
         </span>
       )

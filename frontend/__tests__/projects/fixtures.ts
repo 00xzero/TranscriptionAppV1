@@ -32,20 +32,28 @@ export const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript 
   ...overrides,
 })
 
-/** The subset of `useProjectsData()` the Projects pages read, settled and error-free. */
-export function providerData(projects: Project[], transcripts: Transcript[]) {
+/** A settled, error-free project context slice. */
+export function projectProviderData(projects: Project[]) {
   return {
     projects,
     tree: buildProjectTree(projects),
     projectsLoading: false,
     projectError: null,
+    projectConnectionStatus: 'connected' as const,
     refetchProjects: jest.fn().mockResolvedValue(undefined),
     createProject: jest.fn(),
     renameProject: jest.fn(),
     mutateProjects: jest.fn(),
+  }
+}
+
+/** A settled, error-free transcript context slice. */
+export function transcriptProviderData(transcripts: Transcript[]) {
+  return {
     transcripts,
     transcriptsLoading: false,
     transcriptError: null,
+    transcriptConnectionStatus: 'connected' as const,
     refetchTranscripts: jest.fn().mockResolvedValue(undefined),
     deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
     moveTranscript: jest.fn(),

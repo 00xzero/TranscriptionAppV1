@@ -18,14 +18,15 @@ import {
   transcriptCountsByProject,
   transcriptsInProject,
 } from '@/core/projects/tree'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 export default function ProjectsPage() {
-  const { tree, transcripts, createProject, renameProject } = useProjectsData()
+  const { tree, createProject, renameProject } = useProjectsData()
+  const { transcripts } = useTranscriptsData()
   const { isLoading, loadError, retry } = useProjectsLoadState()
   const [createOpen, setCreateOpen] = useState(false)
   const [renameProjectTarget, setRenameProjectTarget] = useState<Project | null>(null)

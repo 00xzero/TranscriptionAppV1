@@ -9,6 +9,7 @@ import { makeProject, makeTranscript } from './fixtures'
 const mockDeleteProjectRequest = jest.fn()
 const mockFetchCount = jest.fn()
 const mockUseProjectsData = jest.fn()
+const mockUseTranscriptsData = jest.fn()
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -25,7 +26,10 @@ jest.mock('@/lib/projects/delete-client', () => ({
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjectBranchTranscriptCount: (...args: unknown[]) => mockFetchCount(...args),
 }))
-jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
+}))
 
 describe('DeleteProjectDialog', () => {
   const parent = makeProject({ id: 'parent', name: 'Parent' })
@@ -41,6 +45,8 @@ describe('DeleteProjectDialog', () => {
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([parent, current, child]),
       mutateProjects,
+    })
+    mockUseTranscriptsData.mockReturnValue({
       mutateTranscripts,
       transcripts: [makeTranscript({ project_id: 'current' })],
     })
@@ -105,6 +111,8 @@ describe('DeleteProjectDialog', () => {
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([]),
       mutateProjects: nextMutateProjects,
+    })
+    mockUseTranscriptsData.mockReturnValue({
       mutateTranscripts: nextMutateTranscripts,
       transcripts: [],
     })

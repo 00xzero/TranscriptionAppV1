@@ -14,20 +14,15 @@ import {
 } from '@/lib/supabase/hooks'
 
 type ProjectsData = ReturnType<typeof useProjectsDataValue>
+type TranscriptsData = ReturnType<typeof useTranscriptsDataValue>
 
 const ProjectsDataContext = createContext<ProjectsData | null>(null)
+const TranscriptsDataContext = createContext<TranscriptsData | null>(null)
 
-function useProjectsDataValue(userId: string | null, ready: boolean) {
-  const enabled = Boolean(userId)
-  const projectData = useProjectsRealtime({ userId, enabled })
-  const transcriptData = useTranscriptsRealtime({ userId, enabled })
-  useProjectsDeleteInvalidation(
-    userId,
-    projectData.refetch,
-    transcriptData.refetch
-  )
-  const authPending = !ready && !userId
-
+function useProjectsDataValue(
+  projectData: ReturnType<typeof useProjectsRealtime>,
+  authPending: boolean
+) {
   return useMemo(() => ({
     projects: projectData.projects,
     tree: projectData.tree,
@@ -38,6 +33,14 @@ function useProjectsDataValue(userId: string | null, ready: boolean) {
     renameProject: projectData.renameProject,
     mutateProjects: projectData.mutate,
     refetchProjects: projectData.refetch,
+  }), [authPending, projectData])
+}
+
+function useTranscriptsDataValue(
+  transcriptData: ReturnType<typeof useTranscriptsRealtime>,
+  authPending: boolean
+) {
+  return useMemo(() => ({
     transcripts: transcriptData.transcripts,
     transcriptsLoading: authPending || transcriptData.isLoading,
     transcriptError: transcriptData.error,
@@ -47,20 +50,36 @@ function useProjectsDataValue(userId: string | null, ready: boolean) {
     addTranscripts: transcriptData.addTranscripts,
     mutateTranscripts: transcriptData.mutate,
     refetchTranscripts: transcriptData.refetch,
-  }), [authPending, projectData, transcriptData])
+  }), [authPending, transcriptData])
 }
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const { userId, ready } = useAuthIdentity()
-  const value = useProjectsDataValue(userId, ready)
+  const enabled = Boolean(userId)
+  const projectData = useProjectsRealtime({ userId, enabled })
+  const transcriptData = useTranscriptsRealtime({ userId, enabled })
+  useProjectsDeleteInvalidation(userId, projectData.refetch, transcriptData.refetch)
+  const authPending = !ready && !userId
+  const projectsValue = useProjectsDataValue(projectData, authPending)
+  const transcriptsValue = useTranscriptsDataValue(transcriptData, authPending)
 
   return (
-    <ProjectsDataContext.Provider value={value}>{children}</ProjectsDataContext.Provider>
+    <ProjectsDataContext.Provider value={projectsValue}>
+      <TranscriptsDataContext.Provider value={transcriptsValue}>
+        {children}
+      </TranscriptsDataContext.Provider>
+    </ProjectsDataContext.Provider>
   )
 }
 
 export function useProjectsData(): ProjectsData {
   const value = useContext(ProjectsDataContext)
   if (!value) throw new Error('useProjectsData must be used within ProjectsProvider')
+  return value
+}
+
+export function useTranscriptsData(): TranscriptsData {
+  const value = useContext(TranscriptsDataContext)
+  if (!value) throw new Error('useTranscriptsData must be used within ProjectsProvider')
   return value
 }

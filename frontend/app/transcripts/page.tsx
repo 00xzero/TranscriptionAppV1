@@ -2,7 +2,7 @@
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
@@ -28,7 +28,7 @@ function TranscriptsPageContent() {
     transcriptsLoading: isLoading,
     transcriptConnectionStatus: connectionStatus,
     refetchTranscripts: refetch,
-  } = useProjectsData()
+  } = useTranscriptsData()
   const [starting, setStarting] = useState<Record<string, boolean>>({})
   // Cache idempotency keys per transcript - reused until request completes to prevent double-click issues
   const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})

@@ -2,12 +2,28 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ProjectsPage from '@/app/projects/page'
-import { makeProject, makeTranscript, providerData, rowTestIds } from './fixtures'
+import {
+  makeProject,
+  makeTranscript,
+  projectProviderData,
+  rowTestIds,
+  transcriptProviderData,
+} from './fixtures'
 
 const mockUseProjectsData = jest.fn()
+const mockUseTranscriptsData = jest.fn()
+
+function mockData(projects: ReturnType<typeof makeProject>[], transcripts: ReturnType<typeof makeTranscript>[]) {
+  const projectData = projectProviderData(projects)
+  const transcriptData = transcriptProviderData(transcripts)
+  mockUseProjectsData.mockReturnValue(projectData)
+  mockUseTranscriptsData.mockReturnValue(transcriptData)
+  return { projectData, transcriptData }
+}
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
 }))
 
 describe('ProjectsPage', () => {
@@ -26,9 +42,7 @@ describe('ProjectsPage', () => {
       updated_at: '2026-09-01T11:00:00Z',
     })
     const filed = makeTranscript({ id: 'filed', title: 'Filed', project_id: 'alpha' })
-    mockUseProjectsData.mockReturnValue(
-      providerData([zulu, child, alpha], [older, filed, newer])
-    )
+    mockData([zulu, child, alpha], [older, filed, newer])
 
     const { container } = render(<ProjectsPage />)
 
@@ -46,8 +60,9 @@ describe('ProjectsPage', () => {
   })
 
   test('waits for both provider datasets before showing content', () => {
-    mockUseProjectsData.mockReturnValue({
-      ...providerData([], []),
+    mockData([], [])
+    mockUseTranscriptsData.mockReturnValue({
+      ...transcriptProviderData([]),
       transcriptsLoading: true,
     })
 
@@ -58,7 +73,7 @@ describe('ProjectsPage', () => {
   })
 
   test('renders the combined empty state only when projects and Unfiled are empty', () => {
-    mockUseProjectsData.mockReturnValue(providerData([], []))
+    mockData([], [])
 
     render(<ProjectsPage />)
 
@@ -68,9 +83,7 @@ describe('ProjectsPage', () => {
   })
 
   test('renders the empty Unfiled state when projects exist without unfiled transcripts', () => {
-    mockUseProjectsData.mockReturnValue(
-      providerData([makeProject()], [makeTranscript({ project_id: 'project-a' })])
-    )
+    mockData([makeProject()], [makeTranscript({ project_id: 'project-a' })])
 
     render(<ProjectsPage />)
 
@@ -78,7 +91,7 @@ describe('ProjectsPage', () => {
   })
 
   test('keeps a page heading when only Unfiled transcripts exist', () => {
-    mockUseProjectsData.mockReturnValue(providerData([], [makeTranscript()]))
+    mockData([], [makeTranscript()])
 
     render(<ProjectsPage />)
 
@@ -93,9 +106,8 @@ describe('ProjectsPage', () => {
     const user = userEvent.setup()
     const alpha = makeProject({ id: 'alpha', name: 'Alpha' })
     const zulu = makeProject({ id: 'zulu', name: 'Zulu' })
-    const data = providerData([alpha, zulu], [])
-    data.createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Created' }))
-    mockUseProjectsData.mockReturnValue(data)
+    const { projectData } = mockData([alpha, zulu], [])
+    projectData.createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Created' }))
     render(<ProjectsPage />)
 
     expect(screen.getAllByRole('button', { name: /More options for/i })).toHaveLength(2)
@@ -105,13 +117,13 @@ describe('ProjectsPage', () => {
     await user.type(screen.getByRole('textbox', { name: 'Project name' }), 'Created')
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
-    await waitFor(() => expect(data.createProject).toHaveBeenCalledWith({ name: 'Created', parent_id: null }))
+    await waitFor(() => expect(projectData.createProject).toHaveBeenCalledWith({ name: 'Created', parent_id: null }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   test('uses the shared transcript menu for Unfiled rows', async () => {
     const user = userEvent.setup()
-    mockUseProjectsData.mockReturnValue(providerData([], [makeTranscript({ title: 'Unfiled note' })]))
+    mockData([], [makeTranscript({ title: 'Unfiled note' })])
     render(<ProjectsPage />)
 
     await user.click(screen.getByRole('button', { name: 'More options for Unfiled note' }))

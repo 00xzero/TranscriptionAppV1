@@ -7,7 +7,11 @@ import { makeProject, makeTranscript } from './fixtures'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockUseProjectsData = jest.fn()
-jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
+const mockUseTranscriptsData = jest.fn()
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
+}))
 
 describe('AddTranscriptsDialog', () => {
   test('excludes direct members, searches, shows paths, and batches selected ids', async () => {
@@ -21,6 +25,8 @@ describe('AddTranscriptsDialog', () => {
     })
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([source, deleting]),
+    })
+    mockUseTranscriptsData.mockReturnValue({
       transcripts: [
         makeTranscript({ id: 'direct', title: 'Already here', project_id: 'target' }),
         makeTranscript({ id: 'other', title: 'Research call', project_id: 'source' }),
@@ -47,6 +53,8 @@ describe('AddTranscriptsDialog', () => {
     const addTranscripts = jest.fn().mockRejectedValue(new RealtimeScopeAbortError())
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([]),
+    })
+    mockUseTranscriptsData.mockReturnValue({
       transcripts: [makeTranscript({ id: 'other', title: 'Research call' })],
       addTranscripts,
     })

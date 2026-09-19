@@ -10,7 +10,7 @@ import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
@@ -27,7 +27,7 @@ import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 
 export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
   const router = useRouter()
-  const { mutateTranscripts } = useProjectsData()
+  const { mutateTranscripts } = useTranscriptsData()
 
   // 1. Data layer
   const data = useEditorData(transcriptId)

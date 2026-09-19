@@ -21,7 +21,7 @@ import {
   transcriptCountsByProject,
   transcriptsInProject,
 } from '@/core/projects/tree'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
@@ -44,7 +44,8 @@ export default function ProjectPage() {
 
 function ProjectPageContent({ projectId }: { projectId: string }) {
   const router = useRouter()
-  const { tree, transcripts, createProject, renameProject } = useProjectsData()
+  const { tree, createProject, renameProject } = useProjectsData()
+  const { transcripts } = useTranscriptsData()
   const { isLoading, loadError, retry } = useProjectsLoadState()
   const project = tree.byId.get(projectId)
   const currentAncestorIds = project

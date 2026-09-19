@@ -1,6 +1,10 @@
 import React from 'react'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
-import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
+import {
+  ProjectsProvider,
+  useProjectsData,
+  useTranscriptsData,
+} from '@/lib/projects/ProjectsProvider'
 import { transcriptsInProject } from '@/core/projects/tree'
 import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
@@ -372,7 +376,7 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchTranscripts.mockResolvedValue([transcript])
 
     function ProjectTranscripts({ projectId }: { projectId: string }) {
-      const { transcripts } = useProjectsData()
+      const { transcripts } = useTranscriptsData()
       return (
         <span data-testid={projectId}>
           {transcriptsInProject(transcripts, projectId)
@@ -681,6 +685,91 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(2)
   })
 
+  test('isolates project and transcript consumers while mixed consumers follow both', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
+    mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-a', user_id: 'user-a' }])
+    const projectRenders: number[] = []
+    const transcriptRenders: number[] = []
+    const mixedRenders: number[] = []
+
+    function ProjectOnly() {
+      const { projects } = useProjectsData()
+      React.useEffect(() => { projectRenders.push(projects.length) })
+      return <span data-testid="isolated-project">{projects[0]?.name}</span>
+    }
+
+    function TranscriptOnly() {
+      const { transcripts } = useTranscriptsData()
+      React.useEffect(() => { transcriptRenders.push(transcripts.length) })
+      return <span data-testid="isolated-transcript">{transcripts[0]?.id}</span>
+    }
+
+    function Mixed() {
+      const { projects } = useProjectsData()
+      const { transcripts } = useTranscriptsData()
+      React.useEffect(() => { mixedRenders.push(projects.length + transcripts.length) })
+      return <span>{projects.length + transcripts.length}</span>
+    }
+
+    const view = render(
+      <ProjectsProvider>
+        <ProjectOnly />
+        <TranscriptOnly />
+        <Mixed />
+      </ProjectsProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('isolated-project')).toHaveTextContent('project-a'))
+    await waitFor(() => expect(screen.getByTestId('isolated-transcript')).toHaveTextContent('transcript-a'))
+    const projectChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('projects-changes:')
+    )
+    const transcriptChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('transcripts-changes:')
+    )
+    const projectChannel = mockChannel.mock.results[projectChannelIndex].value
+    const transcriptChannel = mockChannel.mock.results[transcriptChannelIndex].value
+
+    jest.useFakeTimers()
+    try {
+      const beforeProject = {
+        projectRenders: projectRenders.length,
+        transcriptRenders: transcriptRenders.length,
+        mixedRenders: mixedRenders.length,
+      }
+      act(() => {
+        projectChannel.on.mock.calls[0][2]({
+          eventType: 'UPDATE',
+          new: { ...project('project-a', 'user-a'), name: 'Updated project' },
+        })
+      })
+      expect(projectRenders.length - beforeProject.projectRenders).toBe(1)
+      expect(transcriptRenders.length - beforeProject.transcriptRenders).toBe(0)
+      expect(mixedRenders.length - beforeProject.mixedRenders).toBe(1)
+
+      const beforeTranscript = {
+        projectRenders: projectRenders.length,
+        transcriptRenders: transcriptRenders.length,
+        mixedRenders: mixedRenders.length,
+      }
+      act(() => {
+        transcriptChannel.on.mock.calls[0][2]({
+          eventType: 'UPDATE',
+          new: { id: 'transcript-a', user_id: 'user-a' },
+        })
+      })
+      expect(projectRenders.length - beforeTranscript.projectRenders).toBe(0)
+      expect(transcriptRenders.length - beforeTranscript.transcriptRenders).toBe(1)
+      expect(mixedRenders.length - beforeTranscript.mixedRenders).toBe(1)
+    } finally {
+      view.unmount()
+      jest.useRealTimers()
+    }
+  })
+
   test('profiles realistic initial, reconciliation, realtime, and polling traffic', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-a' } } },
@@ -718,7 +807,7 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     function LargeTranscriptConsumer() {
-      const data = useProjectsData()
+      const data = useTranscriptsData()
       return <span data-testid="large-transcript-count">{data.transcripts.length}</span>
     }
 
@@ -745,8 +834,6 @@ describe('ProjectsProvider realtime ownership', () => {
     )
     const projectChannel = mockChannel.mock.results[projectChannelIndex].value
     const projectRendersBeforeRealtime = projectRenders.length
-    // The PR5 checkpoint observed one transcript-only consumer commit for this
-    // project update. That current cost is recorded, not required behavior.
     await act(async () => {
       projectChannel.on.mock.calls[0][2]({
         eventType: 'UPDATE',

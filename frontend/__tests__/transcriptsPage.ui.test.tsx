@@ -66,7 +66,7 @@ jest.mock('@/lib/ModalContext', () => ({
 }))
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
-  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseProjectsData(),
 }))
 
 describe('TranscriptsPage', () => {
