@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Folder } from 'lucide-react'
 import type { Project } from '@/contracts/db'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { cn } from '@/lib/utils'
 import { countLabel, formatRelativeTime } from './format'
 
 interface RecentProjectCardProps {
@@ -46,13 +47,10 @@ export function RecentProjectCard({
         <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-warm-highlight/60 text-ink/55 dark:bg-night-border dark:text-paper/60">
           <Folder className="h-4 w-4" aria-hidden="true" />
         </div>
-        <div className="flex items-center gap-1">
-          <span className="font-mono text-xs text-muted">
-            {formatRelativeTime(lastActivityAt)}
-          </span>
-          {/* Above the stretched link so the menu takes its own clicks. */}
-          {actions && <div className="relative z-10">{actions}</div>}
-        </div>
+        {/* h-8 matches the icon and the menu button so all three share a centre line. */}
+        <span className={cn('flex h-8 items-center font-mono text-xs text-muted', actions && 'mr-8')}>
+          {formatRelativeTime(lastActivityAt)}
+        </span>
       </div>
       <h4 className="truncate font-serif text-xl italic text-foreground transition-colors group-hover:text-trust-blue">
         <Link
@@ -72,6 +70,12 @@ export function RecentProjectCard({
         <span>{transcriptLabel}</span>
         <span>{countLabel(nestedProjectCount, 'nested project', 'nested projects')}</span>
       </div>
+      {/*
+        Rendered last so Tab reaches the link before the menu, matching ProjectRow,
+        and positioned rather than in flow so it still sits in the top-right corner.
+        z-10 lifts it above the link's stretched ::after so it takes its own clicks.
+      */}
+      {actions && <div className="absolute right-5 top-5 z-10">{actions}</div>}
     </div>
   )
 }

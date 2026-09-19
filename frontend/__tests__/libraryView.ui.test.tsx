@@ -374,6 +374,9 @@ describe('LibraryView', () => {
     // keyboard activation. The title stays inside the link so activating it navigates.
     expect(link.contains(menu)).toBe(false)
     expect(link).toHaveTextContent('Client Work')
+
+    // Tab order follows DOM order: the link comes first, as it does in ProjectRow.
+    expect(link.compareDocumentPosition(menu)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   test('renames a project from the card menu', async () => {
