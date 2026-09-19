@@ -7,12 +7,14 @@ import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProv
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
-import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
+import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
+import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { RecentProjectsCarousel } from '@/components/Projects/RecentProjectsCarousel'
 import {
   selectRecentProjects,
   type RecentProjectScope,
 } from '@/core/projects/activity'
+import { useProjectActions } from '@/lib/projects/useProjectActions'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import type { User } from '@supabase/supabase-js'
@@ -33,14 +35,9 @@ const CREATE_AFFORDANCE_MAX_ROOTS = 3
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const {
-    projects,
-    tree,
-    projectsLoading,
-    createProject,
-  } = useProjectsData()
+  const { projects, tree, projectsLoading } = useProjectsData()
   const { transcripts, transcriptsLoading: isLoading } = useTranscriptsData()
+  const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
 
   const recentProjectCards = useMemo(
@@ -108,7 +105,14 @@ export default function LibraryView() {
         cards={recentProjectCards}
         loading={projectsAreLoading}
         showCreateTile={showCreateTile}
-        onCreate={() => setCreateOpen(true)}
+        onCreate={() => projectActions.openCreate(null)}
+        renderCardActions={(project) => (
+          <ProjectActionsMenu
+            project={project}
+            onRename={() => projectActions.openRename(project)}
+            onDelete={() => projectActions.openDelete(project)}
+          />
+        )}
       />
 
       {/* Recent Transcripts Section - Using Real Data */}
@@ -150,13 +154,7 @@ export default function LibraryView() {
         </div>
         </section>
       </div>
-      <ProjectNameDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        mode="create"
-        parentId={null}
-        onSubmit={(name) => createProject({ name, parent_id: null })}
-      />
+      <ProjectActionDialogs actions={projectActions} />
       <TranscriptActionDialogs actions={transcriptActions} />
     </>
   )

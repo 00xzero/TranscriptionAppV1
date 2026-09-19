@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import type { Project } from '@/contracts/db'
 import type { RecentProjectCardData } from '@/core/projects/activity'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -70,6 +71,8 @@ type RecentProjectsCarouselProps = {
   loading: boolean
   showCreateTile: boolean
   onCreate: () => void
+  /** Keeps the carousel unaware of dialogs and provider state, as ProjectRow is. */
+  renderCardActions?: (project: Project) => ReactNode
 }
 
 export function RecentProjectsCarousel({
@@ -77,6 +80,7 @@ export function RecentProjectsCarousel({
   loading,
   showCreateTile,
   onCreate,
+  renderCardActions,
 }: RecentProjectsCarouselProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [boundaries, setBoundaries] = useState<CarouselBoundaries>({
@@ -201,7 +205,7 @@ export function RecentProjectsCarousel({
                 aria-label={`${index + 1} of ${cards.length}`}
                 className={SLIDE}
               >
-                <RecentProjectCard {...card} />
+                <RecentProjectCard {...card} actions={renderCardActions?.(card.project)} />
               </div>
             ))}
 

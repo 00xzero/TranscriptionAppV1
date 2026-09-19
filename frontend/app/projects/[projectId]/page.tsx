@@ -8,10 +8,9 @@ import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
-import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
+import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { ProjectHeaderCard } from '@/components/Projects/ProjectHeaderCard'
-import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
 import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
@@ -24,8 +23,8 @@ import {
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectActions } from '@/lib/projects/useProjectActions'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
-import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
@@ -46,7 +45,7 @@ export default function ProjectPage() {
 
 function ProjectPageContent({ projectId }: { projectId: string }) {
   const router = useRouter()
-  const { tree, createProject, renameProject } = useProjectsData()
+  const { tree } = useProjectsData()
   const { transcripts } = useTranscriptsData()
   const { isLoading, loadError, retry } = useProjectsLoadState()
   const project = tree.byId.get(projectId)
@@ -56,10 +55,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   const [lastKnownAncestorIds, setLastKnownAncestorIds] = useState<string[] | null>(
     currentAncestorIds
   )
-  const [createOpen, setCreateOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  const [renameProjectTarget, setRenameProjectTarget] = useState<Project | null>(null)
-  const [deleteProjectTarget, setDeleteProjectTarget] = useState<Project | null>(null)
+  const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
 
   if (
@@ -100,10 +97,6 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
     notFound()
   }
 
-  const deleteProjectDialog = deleteProjectTarget && (
-    <DeleteProjectDialog project={deleteProjectTarget} onClose={() => setDeleteProjectTarget(null)} />
-  )
-
   if (project.deleting_at) {
     return (
       <>
@@ -114,12 +107,12 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
             <p className="mt-3 text-sm leading-relaxed text-muted">
               Its contents are unavailable while deletion finishes.
             </p>
-            <Button className="mt-5" variant="destructive" onClick={() => setDeleteProjectTarget(project)}>
+            <Button className="mt-5" variant="destructive" onClick={() => projectActions.openDelete(project)}>
               Retry Delete
             </Button>
           </div>
         </div>
-        {deleteProjectDialog}
+        <ProjectActionDialogs actions={projectActions} />
       </>
     )
   }
@@ -136,7 +129,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         nestedProjectCount={descendantCount(tree, project.id)}
         actions={(
           <>
-            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => projectActions.openCreate(project.id)}>
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               New Project
             </Button>
@@ -149,8 +142,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         menu={(
           <ProjectActionsMenu
             project={project}
-            onRename={() => setRenameProjectTarget(project)}
-            onDelete={() => setDeleteProjectTarget(project)}
+            onRename={() => projectActions.openRename(project)}
+            onDelete={() => projectActions.openDelete(project)}
           />
         )}
       />
@@ -172,8 +165,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
                 actions={(
                   <ProjectActionsMenu
                     project={child}
-                    onRename={() => setRenameProjectTarget(child)}
-                    onDelete={() => setDeleteProjectTarget(child)}
+                    onRename={() => projectActions.openRename(child)}
+                    onDelete={() => projectActions.openDelete(child)}
                   />
                 )}
               />
@@ -208,23 +201,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
           </ProjectList>
         </section>
       )}
-      <ProjectNameDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        mode="create"
-        parentId={project.id}
-        onSubmit={(name) => createProject({ name, parent_id: project.id })}
-      />
-      {renameProjectTarget && <ProjectNameDialog
-        open
-        onOpenChange={(open) => !open && setRenameProjectTarget(null)}
-        mode="rename"
-        parentId={renameProjectTarget.parent_id}
-        projectId={renameProjectTarget.id}
-        initialName={renameProjectTarget.name}
-        onSubmit={(name) => renameProject(renameProjectTarget.id, name)}
-      />}
-      {deleteProjectDialog}
+      <ProjectActionDialogs actions={projectActions} />
       {addOpen && <AddTranscriptsDialog projectId={project.id} onClose={() => setAddOpen(false)} />}
       <TranscriptActionDialogs actions={transcriptActions} />
     </div>

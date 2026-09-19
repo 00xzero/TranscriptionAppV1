@@ -12,6 +12,8 @@ const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
 const mockUseTranscriptsData = jest.fn()
 const mockCreateProject = jest.fn()
+const mockRenameProject = jest.fn()
+const mockFetchBranchCount = jest.fn()
 const mockToast = jest.fn()
 
 function mockProjectsData(
@@ -22,6 +24,7 @@ function mockProjectsData(
   mockUseProjectsData.mockReturnValue({
     ...projectProviderData(projects),
     createProject: mockCreateProject,
+    renameProject: mockRenameProject,
     ...overrides,
   })
   mockUseTranscriptsData.mockReturnValue({
@@ -29,6 +32,10 @@ function mockProjectsData(
     deleteTranscript: mockDeleteTranscript,
   })
 }
+
+jest.mock('@/lib/supabase/queries', () => ({
+  fetchProjectBranchTranscriptCount: (...args: unknown[]) => mockFetchBranchCount(...args),
+}))
 
 jest.mock('@/components/ui/toaster', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
@@ -94,6 +101,8 @@ describe('LibraryView', () => {
     })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
     mockCreateProject.mockResolvedValue(makeProject({ id: 'created' }))
+    mockRenameProject.mockResolvedValue(makeProject({ id: 'p1', name: 'Renamed' }))
+    mockFetchBranchCount.mockResolvedValue(0)
     mockProjectsData([], [makeTranscript()])
   })
 
@@ -239,7 +248,9 @@ describe('LibraryView', () => {
 
     renderLibraryView()
 
-    const rootCard = screen.getByTitle('Open Client Work')
+    // The link wraps only the title now, so card content is asserted on the card.
+    expect(screen.getByTitle('Open Client Work')).toBeInTheDocument()
+    const rootCard = screen.getByTestId('recent-project-card-root')
     expect(rootCard).toHaveTextContent('2 transcripts total')
     expect(rootCard).toHaveTextContent('2 nested projects')
     expect(screen.queryByTitle('Open Interviews')).not.toBeInTheDocument()
@@ -263,7 +274,7 @@ describe('LibraryView', () => {
 
     renderLibraryView()
 
-    const rootCard = screen.getByTitle('Open Client Work')
+    const rootCard = screen.getByTestId('recent-project-card-root')
     expect(rootCard).toHaveTextContent('1 transcript total')
     expect(rootCard).toHaveTextContent('0 nested projects')
   })
@@ -349,6 +360,62 @@ describe('LibraryView', () => {
     await waitFor(() => {
       expect(mockCreateProject).toHaveBeenCalledWith({ name: 'Second Folder', parent_id: null })
     })
+  })
+
+  test('keeps the card menu outside the card link', () => {
+    mockProjectsData([makeProject({ id: 'p1', name: 'Client Work' })], [])
+
+    renderLibraryView()
+
+    const link = screen.getByTitle('Open Client Work')
+    const menu = screen.getByRole('button', { name: 'More options for Client Work' })
+
+    // A button nested inside the anchor would be invalid HTML and would swallow
+    // keyboard activation. The title stays inside the link so activating it navigates.
+    expect(link.contains(menu)).toBe(false)
+    expect(link).toHaveTextContent('Client Work')
+  })
+
+  test('renames a project from the card menu', async () => {
+    const user = userEventLib.setup()
+    mockProjectsData([makeProject({ id: 'p1', name: 'Client Work' })], [])
+
+    renderLibraryView()
+
+    await user.click(screen.getByRole('button', { name: 'More options for Client Work' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Rename' }))
+
+    const input = await screen.findByLabelText('Project name')
+    expect(input).toHaveValue('Client Work')
+
+    await user.clear(input)
+    await user.type(input, 'Client Archive')
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+
+    await waitFor(() => {
+      expect(mockRenameProject).toHaveBeenCalledWith('p1', 'Client Archive')
+    })
+  })
+
+  test('opens the delete dialog for the right project from the card menu', async () => {
+    const user = userEventLib.setup()
+    mockProjectsData(
+      [
+        makeProject({ id: 'p1', name: 'Client Work' }),
+        makeProject({ id: 'p2', name: 'Other Work' }),
+      ],
+      []
+    )
+
+    renderLibraryView()
+
+    await user.click(screen.getByRole('button', { name: 'More options for Other Work' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /Delete .Other Work.\?/ })
+    ).toBeInTheDocument()
+    expect(mockFetchBranchCount).toHaveBeenCalledWith('p2')
   })
 
   test('shows the invitation when every project is marked for deletion', () => {
