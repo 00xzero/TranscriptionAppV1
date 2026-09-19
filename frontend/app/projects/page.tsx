@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
-import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
+import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
@@ -35,7 +35,7 @@ export default function ProjectsPage() {
 
   if (isLoading) {
     return (
-      <div aria-label="Loading projects" className="px-6 pb-10 pt-[80px] md:px-10">
+      <div aria-label="Loading projects">
         <ProjectListSkeleton />
       </div>
     )
@@ -58,7 +58,7 @@ export default function ProjectsPage() {
   const counts = transcriptCountsByProject(transcripts)
 
   return (
-    <div className="space-y-8 px-6 pb-10 pt-[80px] md:px-10">
+    <div className="space-y-8">
       <section aria-labelledby="projects-heading">
         <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
           <h1 id="projects-heading" className="font-serif text-2xl text-foreground">Projects</h1>
@@ -96,14 +96,11 @@ export default function ProjectsPage() {
           aria-labelledby="unfiled-heading"
           className="scroll-mt-[var(--header-height)]"
         >
-          <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
-            <h2 id="unfiled-heading" className="font-serif text-2xl text-foreground">
-              Unfiled
-            </h2>
-            <span className="font-mono text-xs text-muted">
-              {countLabel(unfiled.length, 'transcript', 'transcripts')}
-            </span>
-          </div>
+          <ListSectionHeading
+            id="unfiled-heading"
+            title="Unfiled"
+            meta={countLabel(unfiled.length, 'transcript', 'transcripts')}
+          />
           <ProjectList>
             {unfiled.length === 0 ? (
               <ProjectsEmptyState variant="empty-unfiled" />

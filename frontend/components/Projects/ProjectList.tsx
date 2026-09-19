@@ -12,6 +12,17 @@ export function ProjectList({ children }: { children: ReactNode }) {
   )
 }
 
+export function ListSectionHeading({ id, title, meta }: { id: string; title: string; meta: string }) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
+      <h2 id={id} className="font-serif text-2xl text-foreground">
+        {title}
+      </h2>
+      <span className="font-mono text-xs text-muted">{meta}</span>
+    </div>
+  )
+}
+
 export function ProjectListSkeleton() {
   return (
     <ProjectList>

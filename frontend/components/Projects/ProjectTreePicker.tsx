@@ -1,17 +1,10 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Folder, Inbox } from 'lucide-react'
-import type { Project } from '@/contracts/db'
-import { ancestorsOf, type ProjectTree } from '@/core/projects/tree'
+import type { ProjectTree } from '@/core/projects/tree'
 import { Input } from '@/components/ui/input'
-
-type VisibleNode = { project: Project; depth: number }
-
-function selectedAncestorIds(tree: ProjectTree, value: string | null): string[] {
-  if (!value) return []
-  return (ancestorsOf(tree, value) ?? []).map((project) => project.id)
-}
+import { useProjectTreeView } from '@/lib/projects/useProjectTreeView'
 
 export function ProjectTreePicker({
   tree,
@@ -22,63 +15,20 @@ export function ProjectTreePicker({
   value: string | null
   onChange: (projectId: string | null) => void
 }) {
-  const [query, setQuery] = useState('')
-  const [expanded, setExpanded] = useState(() => new Set(selectedAncestorIds(tree, value)))
-  const [revealedValue, setRevealedValue] = useState(value)
+  const {
+    query,
+    setQuery,
+    isSearching,
+    nodes,
+    visibleRoots,
+    visibleChildren,
+    isExpanded,
+    isManuallyExpanded,
+    setNodeExpanded,
+    isAvailable,
+  } = useProjectTreeView(tree, value)
   const [focusId, setFocusId] = useState(value ?? 'unfiled')
   const itemRefs = useRef(new Map<string, HTMLButtonElement>())
-
-  // Reveal a newly selected project once, leaving the user free to collapse its ancestors afterwards.
-  if (revealedValue !== value) {
-    setRevealedValue(value)
-    setExpanded(new Set([...expanded, ...selectedAncestorIds(tree, value)]))
-  }
-
-  const setNodeExpanded = (id: string, next: boolean | 'toggle') => {
-    setExpanded((current) => {
-      const updated = new Set(current)
-      if (next === true || (next === 'toggle' && !current.has(id))) updated.add(id)
-      else updated.delete(id)
-      return updated
-    })
-  }
-
-  const available = useMemo(
-    () => new Set([...tree.byId.values()].filter((project) => !project.deleting_at).map((project) => project.id)),
-    [tree]
-  )
-  const availableChildren = (id: string) =>
-    (tree.childrenOf.get(id) ?? []).filter((child) => available.has(child.id))
-  const normalizedQuery = query.trim().toLowerCase()
-  const searchVisible = useMemo(() => {
-    if (!normalizedQuery) return null
-    const ids = new Set<string>()
-    for (const project of tree.byId.values()) {
-      if (!available.has(project.id) || !project.name.toLowerCase().includes(normalizedQuery)) continue
-      ids.add(project.id)
-      for (const ancestor of ancestorsOf(tree, project.id) ?? []) {
-        if (available.has(ancestor.id)) ids.add(ancestor.id)
-      }
-    }
-    return ids
-  }, [available, normalizedQuery, tree])
-  const visibleChildren = (id: string) =>
-    availableChildren(id).filter((child) => !searchVisible || searchVisible.has(child.id))
-  const visibleRoots = tree.roots.filter(
-    (project) => available.has(project.id) && (!searchVisible || searchVisible.has(project.id))
-  )
-  const nodes = useMemo(() => {
-    const result: VisibleNode[] = []
-    const visit = (project: Project, depth: number) => {
-      if (!available.has(project.id) || (searchVisible && !searchVisible.has(project.id))) return
-      result.push({ project, depth })
-      if (searchVisible || expanded.has(project.id)) {
-        for (const child of tree.childrenOf.get(project.id) ?? []) visit(child, depth + 1)
-      }
-    }
-    for (const root of tree.roots) visit(root, 0)
-    return result
-  }, [available, expanded, searchVisible, tree])
 
   const orderedIds = ['unfiled', ...nodes.map(({ project }) => project.id)]
   const tabStopId = orderedIds.includes(focusId) ? focusId : 'unfiled'
@@ -102,17 +52,16 @@ export function ProjectTreePicker({
       const children = visibleChildren(id)
       if (children.length > 0) {
         event.preventDefault()
-        const isExpanded = Boolean(searchVisible) || expanded.has(id)
-        if (!isExpanded) setNodeExpanded(id, true)
+        if (!isExpanded(id)) setNodeExpanded(id, true)
         else focusItem(children[0].id)
       }
     } else if (id !== 'unfiled' && event.key === 'ArrowLeft') {
       event.preventDefault()
-      if (expanded.has(id)) {
+      if (isManuallyExpanded(id)) {
         setNodeExpanded(id, false)
       } else {
         const parentId = tree.byId.get(id)?.parent_id
-        focusItem(parentId && available.has(parentId) ? parentId : 'unfiled')
+        focusItem(parentId && isAvailable(parentId) ? parentId : 'unfiled')
       }
     }
   }
@@ -149,7 +98,7 @@ export function ProjectTreePicker({
         {nodes.map(({ project, depth }) => {
           const children = visibleChildren(project.id)
           const hasChildren = children.length > 0
-          const isExpanded = Boolean(searchVisible) || expanded.has(project.id)
+          const expanded = isExpanded(project.id)
           const siblings = project.parent_id ? visibleChildren(project.parent_id) : visibleRoots
           const position = siblings.findIndex((sibling) => sibling.id === project.id) + 1
           return (
@@ -161,7 +110,7 @@ export function ProjectTreePicker({
               aria-level={depth + 1}
               aria-posinset={project.parent_id ? position : position + 1}
               aria-setsize={project.parent_id ? siblings.length : siblings.length + 1}
-              aria-expanded={hasChildren ? isExpanded : undefined}
+              aria-expanded={hasChildren ? expanded : undefined}
               aria-selected={value === project.id}
               tabIndex={tabStopId === project.id ? 0 : -1}
               className={itemClass(value === project.id)}
@@ -179,7 +128,7 @@ export function ProjectTreePicker({
                     setNodeExpanded(project.id, 'toggle')
                   }}
                 >
-                  {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </span>
               ) : <span className="w-4" />}
               <Folder className="h-4 w-4" aria-hidden="true" />
@@ -187,7 +136,7 @@ export function ProjectTreePicker({
             </button>
           )
         })}
-        {normalizedQuery && nodes.length === 0 && (
+        {isSearching && nodes.length === 0 && (
           <p className="px-3 py-4 text-center text-sm text-muted">No matching projects.</p>
         )}
       </div>

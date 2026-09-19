@@ -70,6 +70,24 @@ describe('ProjectPage', () => {
     ])
   })
 
+  test('summarizes direct transcripts and nested projects in the header', () => {
+    const child = makeProject({ id: 'child', name: 'Child', parent_id: 'current' })
+    mockData(
+      [makeCurrent(), child],
+      [
+        makeTranscript({ id: 'direct', project_id: 'current' }),
+        makeTranscript({ id: 'nested', project_id: 'child' }),
+      ]
+    )
+
+    render(<ProjectPage />)
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Current' })).toBeInTheDocument()
+    expect(screen.getByText('1 transcript · 1 nested project')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Transcripts' })).toBeInTheDocument()
+    expect(screen.getByText('1 transcript')).toBeInTheDocument()
+  })
+
   test('renders row-height skeletons while either dataset loads', () => {
     mockData([], [])
     mockUseProjectsData.mockReturnValue({

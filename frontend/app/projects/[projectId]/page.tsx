@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
-import { FolderClock } from 'lucide-react'
+import { FolderClock, Plus } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
@@ -10,11 +10,13 @@ import { Button } from '@/components/ui/button'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
 import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
+import { ProjectHeaderCard } from '@/components/Projects/ProjectHeaderCard'
 import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
-import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
+import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
+import { countLabel } from '@/components/Projects/format'
 import {
   ancestorsOf,
   descendantCount,
@@ -29,7 +31,7 @@ import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) {
   return (
-    <div className="px-6 pb-10 pt-[80px] md:px-10" aria-label={label}>
+    <div aria-label={label}>
       <div className="mb-6 h-8 w-52 animate-pulse rounded-sm bg-subtle" />
       <ProjectListSkeleton />
     </div>
@@ -105,7 +107,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   if (project.deleting_at) {
     return (
       <>
-        <div className="flex min-h-full items-center justify-center px-6 pb-16 pt-[var(--header-height)] text-center">
+        <div className="flex items-center justify-center px-6 py-16 text-center">
           <div className="max-w-lg">
             <FolderClock className="mx-auto h-10 w-10 text-amber-600" aria-hidden="true" />
             <h1 className="mt-4 font-serif text-4xl text-foreground">This project is being deleted</h1>
@@ -125,57 +127,85 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   const children = tree.childrenOf.get(project.id) ?? []
   const directTranscripts = transcriptsInProject(transcripts, project.id)
   const counts = transcriptCountsByProject(transcripts)
+  const isEmpty = children.length === 0 && directTranscripts.length === 0
   return (
-    <div className="px-6 pb-10 pt-[80px] md:px-10">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-        <h1 className="font-serif text-3xl text-foreground">{project.name}</h1>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setCreateOpen(true)}>New Project</Button>
-          <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>Add Transcripts</Button>
-          <ProjectActionsMenu
-            project={project}
-            onRename={() => setRenameProjectTarget(project)}
-            onDelete={() => setDeleteProjectTarget(project)}
-          />
-        </div>
-      </div>
-
-      <ProjectList>
-        {children.length === 0 && directTranscripts.length === 0 && (
-          <ProjectsEmptyState variant="empty-project" />
-        )}
-        {children.map((child) => (
-          <ProjectRow
-            key={child.id}
-            project={child}
-            directTranscriptCount={counts.get(child.id) ?? 0}
-            nestedProjectCount={descendantCount(tree, child.id)}
-            actions={(
-              <ProjectActionsMenu
-                project={child}
-                onRename={() => setRenameProjectTarget(child)}
-                onDelete={() => setDeleteProjectTarget(child)}
-              />
-            )}
-          />
-        ))}
-        {directTranscripts.map((transcript) => {
-          const target = transcriptActionTarget(transcript)
-          return (
-            <TranscriptRow
-              key={transcript.id}
-              transcript={transcript}
-              actions={(
-                <TranscriptActionsMenu
-                  title={target.title}
-                  onMove={() => transcriptActions.openMove(target)}
-                  onDelete={() => transcriptActions.openDelete(target)}
-                />
-              )}
+    <div className="space-y-6">
+      <ProjectHeaderCard
+        project={project}
+        directTranscriptCount={directTranscripts.length}
+        nestedProjectCount={descendantCount(tree, project.id)}
+        actions={(
+          <>
+            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              New Project
+            </Button>
+            <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setAddOpen(true)}>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add Transcripts
+            </Button>
+            <ProjectActionsMenu
+              project={project}
+              onRename={() => setRenameProjectTarget(project)}
+              onDelete={() => setDeleteProjectTarget(project)}
             />
-          )
-        })}
-      </ProjectList>
+          </>
+        )}
+      />
+
+      {isEmpty && (
+        <ProjectList>
+          <ProjectsEmptyState variant="empty-project" />
+        </ProjectList>
+      )}
+      {children.length > 0 && (
+        <section aria-label="Sub-projects">
+          <ProjectList>
+            {children.map((child) => (
+              <ProjectRow
+                key={child.id}
+                project={child}
+                directTranscriptCount={counts.get(child.id) ?? 0}
+                nestedProjectCount={descendantCount(tree, child.id)}
+                actions={(
+                  <ProjectActionsMenu
+                    project={child}
+                    onRename={() => setRenameProjectTarget(child)}
+                    onDelete={() => setDeleteProjectTarget(child)}
+                  />
+                )}
+              />
+            ))}
+          </ProjectList>
+        </section>
+      )}
+      {directTranscripts.length > 0 && (
+        <section aria-labelledby="project-transcripts-heading">
+          <ListSectionHeading
+            id="project-transcripts-heading"
+            title="Transcripts"
+            meta={countLabel(directTranscripts.length, 'transcript', 'transcripts')}
+          />
+          <ProjectList>
+            {directTranscripts.map((transcript) => {
+              const target = transcriptActionTarget(transcript)
+              return (
+                <TranscriptRow
+                  key={transcript.id}
+                  transcript={transcript}
+                  actions={(
+                    <TranscriptActionsMenu
+                      title={target.title}
+                      onMove={() => transcriptActions.openMove(target)}
+                      onDelete={() => transcriptActions.openDelete(target)}
+                    />
+                  )}
+                />
+              )
+            })}
+          </ProjectList>
+        </section>
+      )}
       <ProjectNameDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
