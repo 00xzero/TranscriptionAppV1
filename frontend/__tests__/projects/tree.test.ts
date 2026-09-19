@@ -1,4 +1,6 @@
 import {
+  activeBranchIds,
+  activeDescendantCount,
   ancestorsOf,
   branchIds,
   buildProjectTree,
@@ -143,5 +145,53 @@ describe('project tree helpers', () => {
         ['project-b', 1],
       ])
     )
+  })
+})
+
+describe('activeBranchIds', () => {
+  const deleting = (p: Project): Project => ({ ...p, deleting_at: '2026-09-15T00:00:00Z' })
+
+  test('walks the whole branch when nothing is being deleted', () => {
+    const tree = buildProjectTree([
+      project('root', 'Root'),
+      project('child', 'Child', 'root'),
+      project('grandchild', 'Grandchild', 'child'),
+    ])
+
+    expect(activeBranchIds(tree, 'root').sort()).toEqual(['child', 'grandchild', 'root'])
+    expect(activeDescendantCount(tree, 'root')).toBe(2)
+  })
+
+  test('returns nothing when the root itself is being deleted', () => {
+    const tree = buildProjectTree([
+      deleting(project('root', 'Root')),
+      project('child', 'Child', 'root'),
+    ])
+
+    expect(activeBranchIds(tree, 'root')).toEqual([])
+    expect(activeDescendantCount(tree, 'root')).toBe(0)
+  })
+
+  test('prunes a deleting subtree rather than only its top node', () => {
+    const tree = buildProjectTree([
+      project('root', 'Root'),
+      deleting(project('child', 'Child', 'root')),
+      project('grandchild', 'Grandchild', 'child'),
+      project('kept', 'Kept', 'root'),
+    ])
+
+    expect(activeBranchIds(tree, 'root').sort()).toEqual(['kept', 'root'])
+    expect(activeDescendantCount(tree, 'root')).toBe(1)
+  })
+
+  test('treats a project whose parent is absent as its own branch root', () => {
+    const tree = buildProjectTree([project('orphan', 'Orphan', 'missing-parent')])
+
+    expect(tree.roots.map((item) => item.id)).toEqual(['orphan'])
+    expect(activeBranchIds(tree, 'orphan')).toEqual(['orphan'])
+  })
+
+  test('returns nothing for an unknown id', () => {
+    expect(activeBranchIds(buildProjectTree([]), 'nope')).toEqual([])
   })
 })

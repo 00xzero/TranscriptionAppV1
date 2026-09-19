@@ -11,6 +11,7 @@ const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
 const mockUseTranscriptsData = jest.fn()
+const mockCreateProject = jest.fn()
 const mockToast = jest.fn()
 
 function mockProjectsData(
@@ -20,6 +21,7 @@ function mockProjectsData(
 ) {
   mockUseProjectsData.mockReturnValue({
     ...projectProviderData(projects),
+    createProject: mockCreateProject,
     ...overrides,
   })
   mockUseTranscriptsData.mockReturnValue({
@@ -91,6 +93,7 @@ describe('LibraryView', () => {
       error: null,
     })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
+    mockCreateProject.mockResolvedValue(makeProject({ id: 'created' }))
     mockProjectsData([], [makeTranscript()])
   })
 
@@ -185,12 +188,15 @@ describe('LibraryView', () => {
     expect(screen.getByText('Delete "Transcript Alpha"?')).toBeInTheDocument()
   })
 
-  test('renders the three most recently active projects in ranked order', () => {
+  test('ranks ground-level projects by branch activity and caps the carousel at six', () => {
     const projects = [
       makeProject({ id: 'p1', name: 'Transcript activity', updated_at: '2026-09-01T00:00:00Z' }),
       makeProject({ id: 'p2', name: 'Second', updated_at: '2026-09-04T00:00:00Z' }),
       makeProject({ id: 'p3', name: 'Third', updated_at: '2026-09-03T00:00:00Z' }),
-      makeProject({ id: 'p4', name: 'Too old', updated_at: '2026-08-01T00:00:00Z' }),
+      makeProject({ id: 'p4', name: 'Fourth', updated_at: '2026-09-02T00:00:00Z' }),
+      makeProject({ id: 'p5', name: 'Fifth', updated_at: '2026-08-05T00:00:00Z' }),
+      makeProject({ id: 'p6', name: 'Sixth', updated_at: '2026-08-04T00:00:00Z' }),
+      makeProject({ id: 'p7', name: 'Too old', updated_at: '2026-08-01T00:00:00Z' }),
     ]
     mockProjectsData(projects, [
       makeTranscript({ id: 't1', project_id: 'p1', updated_at: '2026-09-05T00:00:00Z' }),
@@ -203,24 +209,104 @@ describe('LibraryView', () => {
       'Open Transcript activity',
       'Open Second',
       'Open Third',
+      'Open Fourth',
+      'Open Fifth',
+      'Open Sixth',
     ])
     expect(screen.queryByText('Too old')).not.toBeInTheDocument()
   })
 
-  test('shows a nested project parent path and direct and nested counts', () => {
+  test('rolls nested activity and transcripts into the ground-level card', () => {
     const projects = [
-      makeProject({ id: 'root', name: 'Client Work' }),
-      makeProject({ id: 'child', name: 'Interviews', parent_id: 'root' }),
-      makeProject({ id: 'grandchild', name: 'Round Two', parent_id: 'child' }),
+      makeProject({ id: 'root', name: 'Client Work', updated_at: '2026-09-01T00:00:00Z' }),
+      makeProject({
+        id: 'child',
+        name: 'Interviews',
+        parent_id: 'root',
+        updated_at: '2026-09-02T00:00:00Z',
+      }),
+      makeProject({
+        id: 'grandchild',
+        name: 'Round Two',
+        parent_id: 'child',
+        updated_at: '2026-09-03T00:00:00Z',
+      }),
     ]
-    mockProjectsData(projects, [makeTranscript({ id: 't1', project_id: 'child' })])
+    mockProjectsData(projects, [
+      makeTranscript({ id: 't1', project_id: 'child', updated_at: '2026-09-09T00:00:00Z' }),
+      makeTranscript({ id: 't2', project_id: 'grandchild', updated_at: '2026-09-08T00:00:00Z' }),
+    ])
 
     renderLibraryView()
 
-    expect(screen.getByTitle('Client Work')).toHaveTextContent('Client Work')
-    const childCard = screen.getByTitle('Open Interviews')
-    expect(childCard).toHaveTextContent('1 transcript')
-    expect(childCard).toHaveTextContent('1 nested project')
+    const rootCard = screen.getByTitle('Open Client Work')
+    expect(rootCard).toHaveTextContent('2 transcripts total')
+    expect(rootCard).toHaveTextContent('2 nested projects')
+    expect(screen.queryByTitle('Open Interviews')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Open Round Two')).not.toBeInTheDocument()
+  })
+
+  test('excludes transcripts under a deleting descendant from the branch totals', () => {
+    const projects = [
+      makeProject({ id: 'root', name: 'Client Work' }),
+      makeProject({
+        id: 'child',
+        name: 'Interviews',
+        parent_id: 'root',
+        deleting_at: '2026-09-15T00:00:00Z',
+      }),
+    ]
+    mockProjectsData(projects, [
+      makeTranscript({ id: 't1', project_id: 'root' }),
+      makeTranscript({ id: 't2', project_id: 'child' }),
+    ])
+
+    renderLibraryView()
+
+    const rootCard = screen.getByTitle('Open Client Work')
+    expect(rootCard).toHaveTextContent('1 transcript total')
+    expect(rootCard).toHaveTextContent('0 nested projects')
+  })
+
+  test('gives each slide a position label', () => {
+    mockProjectsData(
+      [makeProject({ id: 'p1', name: 'One' }), makeProject({ id: 'p2', name: 'Two' })],
+      []
+    )
+
+    renderLibraryView()
+
+    expect(screen.getByRole('group', { name: '1 of 2' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '2 of 2' })).toBeInTheDocument()
+  })
+
+  test('offers the creation tile at three roots and withdraws it at four', () => {
+    const roots = (count: number) =>
+      Array.from({ length: count }, (_unused, index) =>
+        makeProject({ id: `p${index}`, name: `Project ${index}` })
+      )
+
+    mockProjectsData(roots(3), [])
+    const { unmount } = renderLibraryView()
+
+    expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
+
+    unmount()
+    mockProjectsData(roots(4), [])
+    renderLibraryView()
+
+    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
+  })
+
+  test('counts every eligible root for the gate, not just the six on screen', () => {
+    const roots = Array.from({ length: 7 }, (_unused, index) =>
+      makeProject({ id: `p${index}`, name: `Project ${index}` })
+    )
+    mockProjectsData(roots, [])
+
+    renderLibraryView()
+
+    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
   })
 
   test('shows project skeletons while either provider list is loading', () => {
@@ -229,18 +315,40 @@ describe('LibraryView', () => {
     const { container } = renderLibraryView()
 
     expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3)
-    expect(screen.queryByRole('link', { name: /Create your first project/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
   })
 
-  test('links the no-projects invitation to Projects', () => {
+  test('creates a ground-level project from the empty-state tile', async () => {
+    const user = userEventLib.setup()
     mockProjectsData([], [])
 
     renderLibraryView()
 
-    expect(screen.getByRole('link', { name: /Create your first project/i })).toHaveAttribute(
-      'href',
-      '/projects'
-    )
+    await user.click(screen.getByRole('button', { name: 'New project folder' }))
+    await user.type(screen.getByLabelText('Project name'), 'Client Work')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenCalledWith({ name: 'Client Work', parent_id: null })
+    })
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Project name')).not.toBeInTheDocument()
+    })
+  })
+
+  test('creates a ground-level project from the tile beside existing cards', async () => {
+    const user = userEventLib.setup()
+    mockProjectsData([makeProject({ id: 'p1', name: 'Existing' })], [])
+
+    renderLibraryView()
+
+    await user.click(screen.getByRole('button', { name: 'New project folder' }))
+    await user.type(screen.getByLabelText('Project name'), 'Second Folder')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => {
+      expect(mockCreateProject).toHaveBeenCalledWith({ name: 'Second Folder', parent_id: null })
+    })
   })
 
   test('shows the invitation when every project is marked for deletion', () => {
@@ -255,10 +363,7 @@ describe('LibraryView', () => {
 
     renderLibraryView()
 
-    expect(screen.getByRole('link', { name: /Create your first project/i })).toHaveAttribute(
-      'href',
-      '/projects'
-    )
+    expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
     expect(screen.queryByText('Deleting project')).not.toBeInTheDocument()
   })
 })

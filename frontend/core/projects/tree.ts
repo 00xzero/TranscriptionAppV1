@@ -141,3 +141,32 @@ export function transcriptCountsByProject(transcripts: Transcript[]): Map<string
   }
   return counts
 }
+
+export function activeBranchIds(tree: ProjectTree, id: string): string[] {
+  const root = tree.byId.get(id)
+  if (!root || root.deleting_at) return []
+
+  const ids: string[] = []
+  const pending = [id]
+  const visited = new Set<string>()
+
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
+    ids.push(current)
+
+    const children = tree.childrenOf.get(current) ?? []
+    for (let index = children.length - 1; index >= 0; index -= 1) {
+      const child = children[index]
+      if (child.deleting_at) continue
+      pending.push(child.id)
+    }
+  }
+
+  return ids
+}
+
+export function activeDescendantCount(tree: ProjectTree, id: string): number {
+  return Math.max(0, activeBranchIds(tree, id).length - 1)
+}

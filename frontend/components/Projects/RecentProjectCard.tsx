@@ -9,22 +9,32 @@ interface RecentProjectCardProps {
   project: Project
   parentPath: string | null
   lastActivityAt: string
-  directTranscriptCount: number
+  transcriptCount: number
   nestedProjectCount: number
+  /**
+   * Branch rollups are labelled "total" so the dashboard never silently disagrees with
+   * the direct per-project counts the Projects page shows for the same folder.
+   */
+  countsAreBranchTotals: boolean
 }
 
 export function RecentProjectCard({
   project,
   parentPath,
   lastActivityAt,
-  directTranscriptCount,
+  transcriptCount,
   nestedProjectCount,
+  countsAreBranchTotals,
 }: RecentProjectCardProps) {
+  const transcriptLabel = countsAreBranchTotals
+    ? countLabel(transcriptCount, 'transcript total', 'transcripts total')
+    : countLabel(transcriptCount, 'transcript', 'transcripts')
+
   return (
     <Link
       href={`/projects/${project.id}`}
       title={`Open ${project.name}`}
-      className="group relative rounded-lg border border-border bg-panel p-5 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-elevation"
+      className="group relative block h-full min-h-44 rounded-lg border border-border bg-panel p-5 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-elevation"
     >
       <div className="absolute -top-2.5 left-4 h-4 w-16 rounded-t-sm border-x border-t border-border bg-warm-highlight dark:bg-night-border" />
       <div className="relative z-10">
@@ -45,7 +55,7 @@ export function RecentProjectCard({
           </p>
         )}
         <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 border-t border-border pt-3 text-xs text-muted">
-          <span>{countLabel(directTranscriptCount, 'transcript', 'transcripts')}</span>
+          <span>{transcriptLabel}</span>
           <span>{countLabel(nestedProjectCount, 'nested project', 'nested projects')}</span>
         </div>
       </div>
@@ -57,7 +67,7 @@ export function RecentProjectCardSkeleton() {
   return (
     <div
       aria-hidden="true"
-      className="min-h-44 animate-pulse rounded-lg border border-border bg-panel p-5"
+      className="h-full min-h-44 animate-pulse rounded-lg border border-border bg-panel p-5"
     >
       <div className="h-8 w-8 rounded-sm bg-subtle" />
       <div className="mt-4 h-5 w-2/3 rounded-sm bg-subtle" />

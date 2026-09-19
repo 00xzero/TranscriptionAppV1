@@ -8,6 +8,11 @@ if (typeof window !== 'undefined') {
     writable: true,
     value: jest.fn(),
   })
+  // jsdom implements no scrolling, so the carousel's paging calls would throw.
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollBy', {
+    writable: true,
+    value: jest.fn(),
+  })
   // Radix menus/dropdowns driven by userEvent call the Pointer Capture APIs,
   // which jsdom does not implement. Stub them so components can open in tests.
   for (const method of ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture'] as const) {
