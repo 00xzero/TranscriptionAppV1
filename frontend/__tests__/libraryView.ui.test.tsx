@@ -5,11 +5,12 @@ import LibraryView from '../components/LibraryView'
 import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
-import { makeProject, providerData } from './projects/fixtures'
+import { makeProject, projectProviderData, transcriptProviderData } from './projects/fixtures'
 
 const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
+const mockUseTranscriptsData = jest.fn()
 const mockToast = jest.fn()
 
 function mockProjectsData(
@@ -18,9 +19,12 @@ function mockProjectsData(
   overrides: { projectsLoading?: boolean } = {}
 ) {
   mockUseProjectsData.mockReturnValue({
-    ...providerData(projects, transcripts),
-    deleteTranscript: mockDeleteTranscript,
+    ...projectProviderData(projects),
     ...overrides,
+  })
+  mockUseTranscriptsData.mockReturnValue({
+    ...transcriptProviderData(transcripts),
+    deleteTranscript: mockDeleteTranscript,
   })
 }
 
@@ -56,6 +60,7 @@ jest.mock('@/infra/supabase/client', () => ({
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
 }))
 
 jest.mock('next/link', () => {

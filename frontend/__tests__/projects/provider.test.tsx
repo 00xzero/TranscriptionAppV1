@@ -1,6 +1,10 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
+import {
+  ProjectsProvider,
+  useProjectsData,
+  useTranscriptsData,
+} from '@/lib/projects/ProjectsProvider'
 import { buildProjectTree, transcriptsInProject } from '@/core/projects/tree'
 import type { Project, Transcript } from '@/contracts/db'
 
@@ -78,12 +82,13 @@ function mockData(projects: Project[], transcripts: Transcript[]) {
 }
 
 function Consumer({ projectId = null }: { projectId?: string | null }) {
-  const data = useProjectsData()
-  const selected = transcriptsInProject(data.transcripts, projectId)
+  const projectData = useProjectsData()
+  const transcriptData = useTranscriptsData()
+  const selected = transcriptsInProject(transcriptData.transcripts, projectId)
   return (
     <div>
-      <span>{data.projectsLoading || data.transcriptsLoading ? 'loading' : 'settled'}</span>
-      <span>{data.projects.map((item) => item.id).join(',')}</span>
+      <span>{projectData.projectsLoading || transcriptData.transcriptsLoading ? 'loading' : 'settled'}</span>
+      <span>{projectData.projects.map((item) => item.id).join(',')}</span>
       <span>{selected.map((item) => item.id).join(',')}</span>
     </div>
   )
@@ -121,7 +126,7 @@ describe('ProjectsProvider', () => {
     )
   })
 
-  test('publishes the owner data to consumers', () => {
+  test('provides the realtime data directly to consumers', () => {
     render(
       <ProjectsProvider>
         <Consumer projectId="project-a" />
@@ -133,8 +138,9 @@ describe('ProjectsProvider', () => {
     expect(screen.getByText('transcript-a')).toBeInTheDocument()
   })
 
-  test('starts no table hooks and settles empty without a user', () => {
+  test('calls disabled table hooks and settles empty without a user', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: true })
+    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -143,13 +149,18 @@ describe('ProjectsProvider', () => {
     )
 
     expect(screen.getByText('settled')).toBeInTheDocument()
-    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
-    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
-    expect(mockUseProjectsDeleteInvalidation).not.toHaveBeenCalled()
+    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseProjectsDeleteInvalidation).toHaveBeenCalledWith(
+      null,
+      projectActions.refetch,
+      transcriptActions.refetch
+    )
   })
 
-  test('reports loading while authentication is unresolved without starting table hooks', () => {
+  test('reports loading while authentication is unresolved with disabled table hooks', () => {
     mockUseAuthIdentity.mockReturnValue({ userId: null, ready: false })
+    mockData([], [])
 
     render(
       <ProjectsProvider>
@@ -158,7 +169,32 @@ describe('ProjectsProvider', () => {
     )
 
     expect(screen.getByText('loading')).toBeInTheDocument()
-    expect(mockUseProjectsRealtime).not.toHaveBeenCalled()
-    expect(mockUseTranscriptsRealtime).not.toHaveBeenCalled()
+    expect(mockUseProjectsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+    expect(mockUseTranscriptsRealtime).toHaveBeenCalledWith({ userId: null, enabled: false })
+  })
+
+  test('passes hook callbacks through without provider wrappers', () => {
+    function CallbackConsumer() {
+      const projectData = useProjectsData()
+      const transcriptData = useTranscriptsData()
+      return (
+        <span data-testid="callbacks-unwrapped">
+          {String(
+            projectData.createProject === projectActions.createProject &&
+            projectData.refetchProjects === projectActions.refetch &&
+            transcriptData.deleteTranscript === transcriptActions.deleteTranscript &&
+            transcriptData.refetchTranscripts === transcriptActions.refetch
+          )}
+        </span>
+      )
+    }
+
+    render(
+      <ProjectsProvider>
+        <CallbackConsumer />
+      </ProjectsProvider>
+    )
+
+    expect(screen.getByTestId('callbacks-unwrapped')).toHaveTextContent('true')
   })
 })

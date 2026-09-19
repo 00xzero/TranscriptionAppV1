@@ -6,14 +6,22 @@ import * as supabaseQueries from '../lib/supabase/queries'
 import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
-import { makeProject, makeTranscript, providerData } from './projects/fixtures'
+import {
+  makeProject,
+  makeTranscript,
+  projectProviderData,
+  transcriptProviderData,
+} from './projects/fixtures'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockRouterReplace = jest.fn()
 const mockToast = jest.fn()
 const mockUseProjectsData = jest.fn()
+const mockUseTranscriptsData = jest.fn()
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
 }))
 
 jest.mock('@/components/ui/toaster', () => ({
@@ -156,8 +164,9 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
     mockFetch()
     jest.clearAllMocks()
-    mockUseProjectsData.mockReturnValue(
-      providerData([], [makeTranscript({ id: 'p1', title: 'Test Transcript' })])
+    mockUseProjectsData.mockReturnValue(projectProviderData([]))
+    mockUseTranscriptsData.mockReturnValue(
+      transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
     )
     scrollToIndexMock.mockClear()
     rangeChangedMock.mockClear()
@@ -192,11 +201,11 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
   test('navigates away and reports cleanup pending after the transcript row is deleted', async () => {
     const user = userEventLib.setup()
-    const data = providerData([], [makeTranscript({ id: 'p1', title: 'Test Transcript' })])
+    const data = transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
     data.deleteTranscript.mockResolvedValueOnce({
       cleanupPendingKeys: ['user/transcript/waveform.json'],
     })
-    mockUseProjectsData.mockReturnValue(data)
+    mockUseTranscriptsData.mockReturnValue(data)
     renderEditorScreen()
     await waitForEditorContent()
 
@@ -210,22 +219,40 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
   })
 
+  test('closes a scope-cancelled delete before cleanup handling or navigation', async () => {
+    const user = userEventLib.setup()
+    const data = transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
+    data.deleteTranscript.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    mockUseTranscriptsData.mockReturnValue(data)
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    await user.click(screen.getByRole('button', { name: /More options for Test Transcript/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Delete "Test Transcript"?')).not.toBeInTheDocument()
+    })
+    expect(mockToast).not.toHaveBeenCalled()
+    expect(mockRouterReplace).not.toHaveBeenCalled()
+  })
+
   test('opens Move with the latest project location from the shared provider', async () => {
     const user = userEventLib.setup()
     const projectA = makeProject({ id: 'project-a', name: 'Project A' })
     const projectB = makeProject({ id: 'project-b', name: 'Project B' })
-    let data = providerData(
-      [projectA, projectB],
-      [makeTranscript({ id: 'p1', title: 'Test Transcript', project_id: 'project-a' })]
-    )
-    mockUseProjectsData.mockImplementation(() => data)
+    mockUseProjectsData.mockReturnValue(projectProviderData([projectA, projectB]))
+    let data = transcriptProviderData([
+      makeTranscript({ id: 'p1', title: 'Test Transcript', project_id: 'project-a' }),
+    ])
+    mockUseTranscriptsData.mockImplementation(() => data)
     const view = renderEditorScreen()
     await waitForEditorContent()
 
-    data = providerData(
-      [projectA, projectB],
-      [makeTranscript({ id: 'p1', title: 'Test Transcript', project_id: 'project-b' })]
-    )
+    data = transcriptProviderData([
+      makeTranscript({ id: 'p1', title: 'Test Transcript', project_id: 'project-b' }),
+    ])
     view.rerender(
       <TooltipProvider delayDuration={0}>
         <EditorScreen transcriptId="p1" />
@@ -242,8 +269,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('synchronizes a successfully saved title into the shared transcript provider', async () => {
     const user = userEventLib.setup()
     const transcript = makeTranscript({ id: 'p1', title: 'Test Transcript' })
-    const data = providerData([], [transcript])
-    mockUseProjectsData.mockReturnValue(data)
+    const data = transcriptProviderData([transcript])
+    mockUseTranscriptsData.mockReturnValue(data)
     renderEditorScreen()
     await waitForEditorContent()
 

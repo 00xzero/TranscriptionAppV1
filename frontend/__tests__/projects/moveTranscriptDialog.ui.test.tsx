@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { MoveTranscriptDialog } from '@/components/Projects/MoveTranscriptDialog'
 import { buildProjectTree } from '@/core/projects/tree'
 import { makeProject, makeTranscript } from './fixtures'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockUseProjectsData = jest.fn()
-jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
+const mockUseTranscriptsData = jest.fn()
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
+}))
 
 describe('MoveTranscriptDialog', () => {
   const moveTranscript = jest.fn()
@@ -21,10 +26,9 @@ describe('MoveTranscriptDialog', () => {
     createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Created' }))
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([current, destination, deleting]),
-      transcripts: [],
-      moveTranscript,
       createProject,
     })
+    mockUseTranscriptsData.mockReturnValue({ transcripts: [], moveTranscript })
   })
 
   test('preselects the current location, disables unchanged moves, and moves to Unfiled', async () => {
@@ -51,13 +55,13 @@ describe('MoveTranscriptDialog', () => {
   })
 
   test('follows a live move made elsewhere while the selection is untouched', () => {
-    const data = mockUseProjectsData()
+    const data = mockUseTranscriptsData()
     const target = { id: 't1', title: 'Alpha', project_id: 'current' }
-    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
+    mockUseTranscriptsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
     const view = render(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
     expect(screen.getByRole('treeitem', { name: /Current/ })).toHaveAttribute('aria-selected', 'true')
 
-    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
+    mockUseTranscriptsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
     view.rerender(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
 
     expect(screen.getByRole('treeitem', { name: /Destination/ })).toHaveAttribute('aria-selected', 'true')
@@ -66,16 +70,44 @@ describe('MoveTranscriptDialog', () => {
 
   test('keeps a destination the user picked when the transcript moves elsewhere', async () => {
     const user = userEvent.setup()
-    const data = mockUseProjectsData()
+    const data = mockUseTranscriptsData()
     const target = { id: 't1', title: 'Alpha', project_id: 'current' }
-    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
+    mockUseTranscriptsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'current' })] })
     const view = render(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
     await user.click(screen.getByRole('treeitem', { name: 'Unfiled' }))
 
-    mockUseProjectsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
+    mockUseTranscriptsData.mockReturnValue({ ...data, transcripts: [makeTranscript({ id: 't1', project_id: 'destination' })] })
     view.rerender(<MoveTranscriptDialog onClose={jest.fn()} transcript={target} />)
 
     expect(screen.getByRole('treeitem', { name: 'Unfiled' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
+  })
+
+  test('closes quietly when a move is cancelled by a scope change', async () => {
+    const user = userEvent.setup()
+    const onClose = jest.fn()
+    moveTranscript.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    render(<MoveTranscriptDialog onClose={onClose} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+
+    await user.click(screen.getByRole('treeitem', { name: /Destination/ }))
+    await user.click(screen.getByRole('button', { name: 'Move' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  test('does not select a project whose creation was cancelled by a scope change', async () => {
+    const user = userEvent.setup()
+    createProject.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    render(<MoveTranscriptDialog onClose={jest.fn()} transcript={{ id: 't1', title: 'Alpha', project_id: 'current' }} />)
+
+    await user.click(screen.getByRole('treeitem', { name: /Destination/ }))
+    await user.click(screen.getByRole('button', { name: 'New Project' }))
+    await user.type(await screen.findByLabelText('Project name'), 'Cancelled')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() => expect(createProject).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('treeitem', { name: /Destination/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled()
   })
 })

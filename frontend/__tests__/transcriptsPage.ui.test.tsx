@@ -5,6 +5,7 @@ import TranscriptsPage from '@/app/transcripts/page'
 import type { Transcript } from '@/contracts/db'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockToast = jest.fn()
 
@@ -65,7 +66,7 @@ jest.mock('@/lib/ModalContext', () => ({
 }))
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
-  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseProjectsData(),
 }))
 
 describe('TranscriptsPage', () => {
@@ -153,6 +154,23 @@ describe('TranscriptsPage', () => {
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
     })
+    expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
+  })
+
+  test('closes a cancelled delete without cleanup effects or an error', async () => {
+    const user = userEventLib.setup()
+    mockDeleteTranscript.mockRejectedValueOnce(new RealtimeScopeAbortError())
+    renderTranscriptsPage()
+    await screen.findByText('Transcript Alpha')
+
+    await openDeleteDialog(user)
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Delete "Transcript Alpha"?')).not.toBeInTheDocument()
+    })
+    expect(mockToast).not.toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled()
     expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
   })
 

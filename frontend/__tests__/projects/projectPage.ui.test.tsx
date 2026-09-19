@@ -3,9 +3,16 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ProjectPage from '@/app/projects/[projectId]/page'
 import type { Project } from '@/contracts/db'
-import { makeProject, makeTranscript, providerData, rowTestIds } from './fixtures'
+import {
+  makeProject,
+  makeTranscript,
+  projectProviderData,
+  rowTestIds,
+  transcriptProviderData,
+} from './fixtures'
 
 const mockUseProjectsData = jest.fn()
+const mockUseTranscriptsData = jest.fn()
 const mockReplace = jest.fn()
 const mockNotFound = jest.fn(() => {
   throw new Error('NEXT_NOT_FOUND')
@@ -13,6 +20,7 @@ const mockNotFound = jest.fn(() => {
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
 }))
 
 jest.mock('next/navigation', () => ({
@@ -23,6 +31,14 @@ jest.mock('next/navigation', () => ({
 
 const makeCurrent = (overrides: Partial<Project> = {}) =>
   makeProject({ id: 'current', name: 'Current', ...overrides })
+
+function mockData(projects: Project[], transcripts: ReturnType<typeof makeTranscript>[]) {
+  const projectData = projectProviderData(projects)
+  const transcriptData = transcriptProviderData(transcripts)
+  mockUseProjectsData.mockReturnValue(projectData)
+  mockUseTranscriptsData.mockReturnValue(transcriptData)
+  return { projectData, transcriptData }
+}
 
 describe('ProjectPage', () => {
   beforeEach(() => {
@@ -42,9 +58,7 @@ describe('ProjectPage', () => {
       project_id: 'current',
       updated_at: '2026-09-01T11:00:00Z',
     })
-    mockUseProjectsData.mockReturnValue(
-      providerData([zulu, makeCurrent(), alpha], [older, newer])
-    )
+    mockData([zulu, makeCurrent(), alpha], [older, newer])
 
     const { container } = render(<ProjectPage />)
 
@@ -57,8 +71,9 @@ describe('ProjectPage', () => {
   })
 
   test('renders row-height skeletons while either dataset loads', () => {
+    mockData([], [])
     mockUseProjectsData.mockReturnValue({
-      ...providerData([], []),
+      ...projectProviderData([]),
       projectsLoading: true,
     })
 
@@ -73,32 +88,32 @@ describe('ProjectPage', () => {
 
   test('renders a retryable load error and never falls through to not-found', async () => {
     const data = {
-      ...providerData([], []),
+      ...projectProviderData([]),
       projectError: new Error('offline'),
     }
     mockUseProjectsData.mockReturnValue(data)
+    const transcriptData = transcriptProviderData([])
+    mockUseTranscriptsData.mockReturnValue(transcriptData)
 
     render(<ProjectPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
     await waitFor(() => {
       expect(data.refetchProjects).toHaveBeenCalled()
-      expect(data.refetchTranscripts).toHaveBeenCalled()
+      expect(transcriptData.refetchTranscripts).toHaveBeenCalled()
     })
     expect(mockNotFound).not.toHaveBeenCalled()
   })
 
   test('calls notFound only after a clean load confirms the id is absent', () => {
-    mockUseProjectsData.mockReturnValue(providerData([], []))
+    mockData([], [])
 
     expect(() => render(<ProjectPage />)).toThrow('NEXT_NOT_FOUND')
     expect(mockNotFound).toHaveBeenCalled()
   })
 
   test('renders the deleting state instead of project contents', () => {
-    mockUseProjectsData.mockReturnValue(
-      providerData([makeCurrent({ deleting_at: '2026-09-14T12:00:00Z' })], [])
-    )
+    mockData([makeCurrent({ deleting_at: '2026-09-14T12:00:00Z' })], [])
 
     render(<ProjectPage />)
 
@@ -107,7 +122,7 @@ describe('ProjectPage', () => {
   })
 
   test('renders the empty-project state when there are no children or direct transcripts', () => {
-    mockUseProjectsData.mockReturnValue(providerData([makeCurrent()], []))
+    mockData([makeCurrent()], [])
 
     render(<ProjectPage />)
 
@@ -118,9 +133,8 @@ describe('ProjectPage', () => {
     const user = userEvent.setup()
     const child = makeProject({ id: 'child', name: 'Child', parent_id: 'current' })
     const transcript = makeTranscript({ id: 'note', title: 'Project note', project_id: 'current' })
-    const data = providerData([makeCurrent(), child], [transcript])
-    data.createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Nested', parent_id: 'current' }))
-    mockUseProjectsData.mockReturnValue(data)
+    const { projectData } = mockData([makeCurrent(), child], [transcript])
+    projectData.createProject.mockResolvedValue(makeProject({ id: 'created', name: 'Nested', parent_id: 'current' }))
     render(<ProjectPage />)
 
     expect(screen.getByRole('button', { name: 'Add Transcripts' })).toBeInTheDocument()
@@ -132,13 +146,11 @@ describe('ProjectPage', () => {
     await user.type(screen.getByRole('textbox', { name: 'Project name' }), 'Nested')
     await user.click(screen.getByRole('button', { name: 'Create' }))
 
-    await waitFor(() => expect(data.createProject).toHaveBeenCalledWith({ name: 'Nested', parent_id: 'current' }))
+    await waitFor(() => expect(projectData.createProject).toHaveBeenCalledWith({ name: 'Nested', parent_id: 'current' }))
   })
 
   test('offers Retry Delete without project capture controls for a deleting branch', () => {
-    mockUseProjectsData.mockReturnValue(
-      providerData([makeCurrent({ deleting_at: '2026-09-14T12:00:00Z' })], [])
-    )
+    mockData([makeCurrent({ deleting_at: '2026-09-14T12:00:00Z' })], [])
 
     render(<ProjectPage />)
 
@@ -150,13 +162,14 @@ describe('ProjectPage', () => {
   test('navigates to the nearest surviving ancestor when the project vanishes', async () => {
     const root = makeProject({ id: 'root', name: 'Root' })
     const parent = makeProject({ id: 'parent', name: 'Parent', parent_id: 'root' })
-    let data = providerData([root, parent, makeCurrent({ parent_id: 'parent' })], [])
+    let data = projectProviderData([root, parent, makeCurrent({ parent_id: 'parent' })])
     mockUseProjectsData.mockImplementation(() => data)
+    mockUseTranscriptsData.mockReturnValue(transcriptProviderData([]))
     const view = render(<ProjectPage />)
 
     await screen.findByRole('heading', { name: 'Current' })
     await act(async () => {})
-    data = providerData([root, parent], [])
+    data = projectProviderData([root, parent])
     view.rerender(<ProjectPage />)
 
     await waitFor(() => {
@@ -166,13 +179,14 @@ describe('ProjectPage', () => {
   })
 
   test('falls back to the Projects root when no ancestor survives', async () => {
-    let data = providerData([makeCurrent()], [])
+    let data = projectProviderData([makeCurrent()])
     mockUseProjectsData.mockImplementation(() => data)
+    mockUseTranscriptsData.mockReturnValue(transcriptProviderData([]))
     const view = render(<ProjectPage />)
 
     await screen.findByRole('heading', { name: 'Current' })
     await act(async () => {})
-    data = providerData([], [])
+    data = projectProviderData([])
     view.rerender(<ProjectPage />)
 
     await waitFor(() => {

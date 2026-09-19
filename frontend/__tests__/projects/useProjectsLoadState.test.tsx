@@ -1,26 +1,27 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 
 const useProjectsDataMock = jest.fn()
+const useTranscriptsDataMock = jest.fn()
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => useProjectsDataMock(),
+  useTranscriptsData: () => useTranscriptsDataMock(),
 }))
 
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
-function projectsData(
-  refetchProjects: () => Promise<void>,
-  refetchTranscripts: () => Promise<void>
-) {
-  return {
+function mockData(refetchProjects: () => Promise<void>, refetchTranscripts: () => Promise<void>) {
+  useProjectsDataMock.mockReturnValue({
     projectsLoading: false,
-    transcriptsLoading: false,
     projectError: null,
-    transcriptError: null,
     refetchProjects,
+  })
+  useTranscriptsDataMock.mockReturnValue({
+    transcriptsLoading: false,
+    transcriptError: null,
     refetchTranscripts,
-  }
+  })
 }
 
 describe('useProjectsLoadState', () => {
@@ -31,10 +32,10 @@ describe('useProjectsLoadState', () => {
   test('logs a non-cancellation retry failure', async () => {
     const error = new Error('retry unavailable')
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined)
-    useProjectsDataMock.mockReturnValue(projectsData(
+    mockData(
       jest.fn().mockResolvedValue(undefined),
       jest.fn().mockRejectedValue(error)
-    ))
+    )
     const { result } = renderHook(() => useProjectsLoadState())
 
     act(() => result.current.retry())
@@ -50,10 +51,10 @@ describe('useProjectsLoadState', () => {
 
   test('keeps scope cancellation silent', async () => {
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined)
-    useProjectsDataMock.mockReturnValue(projectsData(
+    mockData(
       jest.fn().mockRejectedValue(new RealtimeScopeAbortError()),
       jest.fn().mockResolvedValue(undefined)
-    ))
+    )
     const { result } = renderHook(() => useProjectsLoadState())
 
     act(() => result.current.retry())

@@ -4,6 +4,7 @@ import {
   useProjectsRealtime,
   useTranscriptsRealtime,
 } from '@/lib/supabase/hooks'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project } from '@/contracts/db'
 
 const mockFetchTranscripts = jest.fn()
@@ -199,7 +200,7 @@ describe('useTranscriptsRealtime', () => {
     })
 
     expect(mockChannelFactory).toHaveBeenCalledWith(
-      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
+      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
     )
     expect(channelMock.on).toHaveBeenCalledWith(
       'postgres_changes',
@@ -222,9 +223,24 @@ describe('useTranscriptsRealtime', () => {
     const firstTopic = mockChannelFactory.mock.calls[0][0]
     const secondTopic = mockChannelFactory.mock.calls[1][0]
 
-    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
-    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+$/)
+    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
+    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
+  })
+
+  test('rejects signed-out writes without issuing queries', async () => {
+    const { result } = renderHook(() =>
+      useTranscriptsRealtime({ userId: null, enabled: false })
+    )
+
+    await expect(result.current.deleteTranscript('transcript-1')).rejects.toThrow('signed in')
+    await expect(result.current.moveTranscript('transcript-1', null)).rejects.toThrow('signed in')
+    await expect(result.current.addTranscripts(['transcript-1'], 'project-1')).rejects.toThrow(
+      'signed in'
+    )
+    expect(mockDeleteTranscript).not.toHaveBeenCalled()
+    expect(mockMoveTranscript).not.toHaveBeenCalled()
+    expect(mockAddTranscripts).not.toHaveBeenCalled()
   })
 
   test('keeps the optimistic removal and returns pending cleanup keys', async () => {
@@ -505,6 +521,101 @@ describe('useProjectsRealtime', () => {
       data: { subscription: { unsubscribe: mockUnsubscribe } },
     })
     makeChannel()
+  })
+
+  test('rejects signed-out writes without issuing queries', async () => {
+    const { result } = renderHook(() =>
+      useProjectsRealtime({ userId: null, enabled: false })
+    )
+
+    await expect(
+      result.current.createProject({ name: 'Project', parent_id: null })
+    ).rejects.toThrow('signed in')
+    await expect(result.current.renameProject('project-1', 'Renamed')).rejects.toThrow('signed in')
+    expect(mockCreateProject).not.toHaveBeenCalled()
+    expect(mockRenameProject).not.toHaveBeenCalled()
+  })
+
+  test('rejects a stale action before issuing its query', async () => {
+    mockFetchProjects.mockResolvedValue([])
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string }) => useProjectsRealtime({ userId }),
+      { initialProps: { userId: 'user-a' } }
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    const staleCreate = result.current.createProject
+    rerender({ userId: 'user-b' })
+
+    await expect(
+      staleCreate({ name: 'Stale project', parent_id: null })
+    ).rejects.toBeInstanceOf(RealtimeScopeAbortError)
+    expect(mockCreateProject).not.toHaveBeenCalled()
+  })
+
+  test('rejects an in-flight action when its query settles in a later epoch', async () => {
+    const renameRequest = deferred<Project>()
+    const original: Project = {
+      id: 'project-1',
+      user_id: 'user-a',
+      parent_id: null,
+      name: 'Original',
+      deleting_at: null,
+      created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z',
+    }
+    mockFetchProjects
+      .mockResolvedValueOnce([original])
+      .mockResolvedValueOnce([original])
+      .mockReturnValue(new Promise(() => undefined))
+    mockRenameProject.mockReturnValueOnce(renameRequest.promise)
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string }) => useProjectsRealtime({ userId }),
+      { initialProps: { userId: 'user-a' } }
+    )
+
+    await waitFor(() => expect(result.current.projects).toHaveLength(1))
+    let rename!: Promise<Project>
+    act(() => {
+      rename = result.current.renameProject('project-1', 'Renamed')
+    })
+    const renameOutcome = rename.catch((error) => error)
+    await waitFor(() => expect(mockRenameProject).toHaveBeenCalledTimes(1))
+    rerender({ userId: 'user-b' })
+    expect(result.current.projects).toEqual([])
+
+    await act(async () => {
+      renameRequest.resolve({
+        ...original,
+        name: 'Renamed',
+      })
+      await renameRequest.promise
+    })
+    await expect(renameOutcome).resolves.toBeInstanceOf(RealtimeScopeAbortError)
+    expect(result.current.projects).toEqual([])
+  })
+
+  test('memoizes project and transcript hook results within an epoch', async () => {
+    mockFetchProjects.mockResolvedValue([])
+    mockFetchTranscripts.mockResolvedValue([])
+    const { result, rerender } = renderHook(
+      ({ userId }: { userId: string }) => ({
+        projects: useProjectsRealtime({ userId }),
+        transcripts: useTranscriptsRealtime({ userId }),
+      }),
+      { initialProps: { userId: 'user-a' } }
+    )
+
+    await waitFor(() => {
+      expect(result.current.projects.isLoading).toBe(false)
+      expect(result.current.transcripts.isLoading).toBe(false)
+    })
+    const projects = result.current.projects
+    const transcripts = result.current.transcripts
+    rerender({ userId: 'user-a' })
+
+    expect(result.current.projects).toBe(projects)
+    expect(result.current.transcripts).toBe(transcripts)
   })
 
   test('adds a temporary project immediately and replaces it with the created row', async () => {

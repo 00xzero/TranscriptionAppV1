@@ -1,6 +1,10 @@
 import React from 'react'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
-import { ProjectsProvider, useProjectsData } from '@/lib/projects/ProjectsProvider'
+import {
+  ProjectsProvider,
+  useProjectsData,
+  useTranscriptsData,
+} from '@/lib/projects/ProjectsProvider'
 import { transcriptsInProject } from '@/core/projects/tree'
 import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
@@ -14,6 +18,12 @@ const mockRemoveChannel = jest.fn()
 const mockSetAuth = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockFetchTranscripts = jest.fn()
+type FakeChannel = {
+  topic: string
+  on: jest.Mock
+  subscribe: jest.Mock
+}
+const mockActiveChannels: FakeChannel[] = []
 let authStateHandler:
   | ((event: string, session: { user: { id: string } } | null) => void)
   | null = null
@@ -37,6 +47,7 @@ jest.mock('@/infra/supabase/client', () => ({
     },
     channel: mockChannel,
     removeChannel: mockRemoveChannel,
+    getChannels: () => mockActiveChannels,
     realtime: { setAuth: mockSetAuth },
   }),
 }))
@@ -97,6 +108,7 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchProjects.mockResolvedValue([])
     mockFetchTranscripts.mockResolvedValue([])
     mockSetAuth.mockResolvedValue(undefined)
+    mockActiveChannels.length = 0
     authStateHandler = null
     mockOnAuthStateChange.mockImplementation((handler) => {
       authStateHandler = handler
@@ -104,13 +116,24 @@ describe('ProjectsProvider realtime ownership', () => {
         data: { subscription: { unsubscribe: jest.fn() } },
       }
     })
-    mockChannel.mockImplementation(() => {
-      let channel: { on: jest.Mock; subscribe: jest.Mock }
+    mockChannel.mockImplementation((topic: string) => {
+      const realtimeTopic = `realtime:${topic}`
+      const existing = mockActiveChannels.find((candidate) => candidate.topic === realtimeTopic)
+      if (existing) return existing
+
+      let channel: FakeChannel
       channel = {
+        topic: realtimeTopic,
         on: jest.fn(() => channel),
         subscribe: jest.fn(() => channel),
       }
+      mockActiveChannels.push(channel)
       return channel
+    })
+    mockRemoveChannel.mockImplementation(async (channel: FakeChannel) => {
+      const index = mockActiveChannels.indexOf(channel)
+      if (index !== -1) mockActiveChannels.splice(index, 1)
+      return 'ok'
     })
   })
 
@@ -142,6 +165,120 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
       config: { private: true },
     })
+  })
+
+  test('waits for same-topic removal before installing a fresh A lifecycle', async () => {
+    const delayedRemoval = deferred<'ok' | 'timed out'>()
+    let firstA: FakeChannel | undefined
+    mockRemoveChannel.mockImplementation((channel: FakeChannel) => {
+      const remove = (result: 'ok' | 'timed out') => {
+        const index = mockActiveChannels.indexOf(channel)
+        if (index !== -1) mockActiveChannels.splice(index, 1)
+        return result
+      }
+      if (channel === firstA) return delayedRemoval.promise.then(remove)
+      return Promise.resolve(remove('ok'))
+    })
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const { rerender, unmount } = renderHook(
+      ({ userId }: { userId: string }) =>
+        useProjectsDeleteInvalidation(userId, refetchProjects, refetchTranscripts),
+      { initialProps: { userId: 'user-a' } }
+    )
+
+    await waitFor(() => {
+      expect(mockActiveChannels.some((channel) => channel.topic === 'realtime:projects-v1:user-a')).toBe(true)
+    })
+    firstA = mockActiveChannels.find(
+      (channel) => channel.topic === 'realtime:projects-v1:user-a'
+    )
+    rerender({ userId: 'user-b' })
+    await waitFor(() => {
+      expect(mockActiveChannels.some((channel) => channel.topic === 'realtime:projects-v1:user-b')).toBe(true)
+    })
+    rerender({ userId: 'user-a' })
+
+    await waitFor(() => expect(mockRemoveChannel).toHaveBeenCalledWith(firstA))
+    expect(
+      mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+    ).toHaveLength(1)
+
+    await act(async () => {
+      delayedRemoval.resolve('timed out')
+      await delayedRemoval.promise
+    })
+
+    await waitFor(() => {
+      expect(
+        mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+      ).toHaveLength(2)
+    })
+    const secondA = mockActiveChannels.find(
+      (channel) => channel.topic === 'realtime:projects-v1:user-a'
+    )
+    expect(secondA).toBeDefined()
+    expect(secondA).not.toBe(firstA)
+    unmount()
+    await waitFor(() => expect(mockActiveChannels).toHaveLength(0))
+  })
+
+  test('does not reuse a same-topic channel left listed after a removal error', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    mockRemoveChannel.mockResolvedValue('error')
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+
+    try {
+      const first = renderHook(() =>
+        useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+      )
+      await waitFor(() => {
+        expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
+          config: { private: true },
+        })
+      })
+      const staleChannel = mockActiveChannels[0]
+      first.unmount()
+      await waitFor(() => expect(mockRemoveChannel).toHaveBeenCalledWith(staleChannel))
+
+      renderHook(() =>
+        useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts)
+      )
+      await waitFor(() => expect(mockSetAuth).toHaveBeenCalledTimes(2))
+
+      expect(
+        mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+      ).toHaveLength(1)
+      expect(staleChannel.subscribe).toHaveBeenCalledTimes(1)
+      expect(errorSpy).toHaveBeenCalled()
+    } finally {
+      errorSpy.mockRestore()
+    }
+  })
+
+  test('owns exactly one private channel through Strict Mode effect replay', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <React.StrictMode>{children}</React.StrictMode>
+    )
+    const refetchProjects = jest.fn().mockResolvedValue(undefined)
+    const refetchTranscripts = jest.fn().mockResolvedValue(undefined)
+    const { unmount } = renderHook(
+      () => useProjectsDeleteInvalidation('user-a', refetchProjects, refetchTranscripts),
+      { wrapper }
+    )
+
+    await waitFor(() => {
+      expect(
+        mockActiveChannels.filter((channel) => channel.topic === 'realtime:projects-v1:user-a')
+      ).toHaveLength(1)
+    })
+    expect(
+      mockChannel.mock.calls.filter(([topic]) => topic === 'projects-v1:user-a')
+    ).toHaveLength(1)
+
+    unmount()
+    await waitFor(() => expect(mockActiveChannels).toHaveLength(0))
   })
 
   test('does not remount app content when auth resolves', async () => {
@@ -239,7 +376,7 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchTranscripts.mockResolvedValue([transcript])
 
     function ProjectTranscripts({ projectId }: { projectId: string }) {
-      const { transcripts } = useProjectsData()
+      const { transcripts } = useTranscriptsData()
       return (
         <span data-testid={projectId}>
           {transcriptsInProject(transcripts, projectId)
@@ -548,6 +685,91 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockFetchTranscripts).toHaveBeenCalledTimes(2)
   })
 
+  test('isolates project and transcript consumers while mixed consumers follow both', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'user-a' } } },
+    })
+    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
+    mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-a', user_id: 'user-a' }])
+    const projectRenders: number[] = []
+    const transcriptRenders: number[] = []
+    const mixedRenders: number[] = []
+
+    function ProjectOnly() {
+      const { projects } = useProjectsData()
+      React.useEffect(() => { projectRenders.push(projects.length) })
+      return <span data-testid="isolated-project">{projects[0]?.name}</span>
+    }
+
+    function TranscriptOnly() {
+      const { transcripts } = useTranscriptsData()
+      React.useEffect(() => { transcriptRenders.push(transcripts.length) })
+      return <span data-testid="isolated-transcript">{transcripts[0]?.id}</span>
+    }
+
+    function Mixed() {
+      const { projects } = useProjectsData()
+      const { transcripts } = useTranscriptsData()
+      React.useEffect(() => { mixedRenders.push(projects.length + transcripts.length) })
+      return <span>{projects.length + transcripts.length}</span>
+    }
+
+    const view = render(
+      <ProjectsProvider>
+        <ProjectOnly />
+        <TranscriptOnly />
+        <Mixed />
+      </ProjectsProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('isolated-project')).toHaveTextContent('project-a'))
+    await waitFor(() => expect(screen.getByTestId('isolated-transcript')).toHaveTextContent('transcript-a'))
+    const projectChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('projects-changes:')
+    )
+    const transcriptChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
+      String(name).startsWith('transcripts-changes:')
+    )
+    const projectChannel = mockChannel.mock.results[projectChannelIndex].value
+    const transcriptChannel = mockChannel.mock.results[transcriptChannelIndex].value
+
+    jest.useFakeTimers()
+    try {
+      const beforeProject = {
+        projectRenders: projectRenders.length,
+        transcriptRenders: transcriptRenders.length,
+        mixedRenders: mixedRenders.length,
+      }
+      act(() => {
+        projectChannel.on.mock.calls[0][2]({
+          eventType: 'UPDATE',
+          new: { ...project('project-a', 'user-a'), name: 'Updated project' },
+        })
+      })
+      expect(projectRenders.length - beforeProject.projectRenders).toBe(1)
+      expect(transcriptRenders.length - beforeProject.transcriptRenders).toBe(0)
+      expect(mixedRenders.length - beforeProject.mixedRenders).toBe(1)
+
+      const beforeTranscript = {
+        projectRenders: projectRenders.length,
+        transcriptRenders: transcriptRenders.length,
+        mixedRenders: mixedRenders.length,
+      }
+      act(() => {
+        transcriptChannel.on.mock.calls[0][2]({
+          eventType: 'UPDATE',
+          new: { id: 'transcript-a', user_id: 'user-a' },
+        })
+      })
+      expect(projectRenders.length - beforeTranscript.projectRenders).toBe(0)
+      expect(transcriptRenders.length - beforeTranscript.transcriptRenders).toBe(1)
+      expect(mixedRenders.length - beforeTranscript.mixedRenders).toBe(1)
+    } finally {
+      view.unmount()
+      jest.useRealTimers()
+    }
+  })
+
   test('profiles realistic initial, reconciliation, realtime, and polling traffic', async () => {
     mockGetSession.mockResolvedValue({
       data: { session: { user: { id: 'user-a' } } },
@@ -585,7 +807,7 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     function LargeTranscriptConsumer() {
-      const data = useProjectsData()
+      const data = useTranscriptsData()
       return <span data-testid="large-transcript-count">{data.transcripts.length}</span>
     }
 
@@ -612,8 +834,6 @@ describe('ProjectsProvider realtime ownership', () => {
     )
     const projectChannel = mockChannel.mock.results[projectChannelIndex].value
     const projectRendersBeforeRealtime = projectRenders.length
-    // The PR5 checkpoint observed one transcript-only consumer commit for this
-    // project update. That current cost is recorded, not required behavior.
     await act(async () => {
       projectChannel.on.mock.calls[0][2]({
         eventType: 'UPDATE',

@@ -5,7 +5,8 @@ import type { TranscriptActionTarget } from '@/lib/transcripts/actions'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { ProjectNameDialog } from './ProjectNameDialog'
 import { ProjectTreePicker } from './ProjectTreePicker'
 
@@ -16,7 +17,8 @@ export function MoveTranscriptDialog({
   transcript: TranscriptActionTarget
   onClose: () => void
 }) {
-  const { tree, transcripts, createProject, moveTranscript } = useProjectsData()
+  const { tree, createProject } = useProjectsData()
+  const { transcripts, moveTranscript } = useTranscriptsData()
   // The live row wins over the target snapshot, so a move made elsewhere is respected.
   const liveTranscript = transcripts.find((row) => row.id === transcript.id)
   const currentProjectId = liveTranscript ? liveTranscript.project_id : transcript.project_id
@@ -38,6 +40,10 @@ export function MoveTranscriptDialog({
       await moveTranscript(transcript.id, selection)
       onClose()
     } catch (caught) {
+      if (isRealtimeScopeAbortError(caught)) {
+        onClose()
+        return
+      }
       setError(mapProjectWriteError(caught))
     } finally {
       setPending(false)

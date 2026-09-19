@@ -1,18 +1,16 @@
 'use client'
 
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 /** Combined load state for surfaces that need both the project and transcript lists. */
 export function useProjectsLoadState() {
   const {
     projectsLoading,
-    transcriptsLoading,
     projectError,
-    transcriptError,
     refetchProjects,
-    refetchTranscripts,
   } = useProjectsData()
+  const { transcriptsLoading, transcriptError, refetchTranscripts } = useTranscriptsData()
 
   return {
     isLoading: projectsLoading || transcriptsLoading,

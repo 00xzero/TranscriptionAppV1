@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
 import { buildProjectTree } from '@/core/projects/tree'
 import { makeProject, makeTranscript } from './fixtures'
+import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockUseProjectsData = jest.fn()
-jest.mock('@/lib/projects/ProjectsProvider', () => ({ useProjectsData: () => mockUseProjectsData() }))
+const mockUseTranscriptsData = jest.fn()
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
+  useTranscriptsData: () => mockUseTranscriptsData(),
+}))
 
 describe('AddTranscriptsDialog', () => {
   test('excludes direct members, searches, shows paths, and batches selected ids', async () => {
@@ -20,6 +25,8 @@ describe('AddTranscriptsDialog', () => {
     })
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([source, deleting]),
+    })
+    mockUseTranscriptsData.mockReturnValue({
       transcripts: [
         makeTranscript({ id: 'direct', title: 'Already here', project_id: 'target' }),
         makeTranscript({ id: 'other', title: 'Research call', project_id: 'source' }),
@@ -38,5 +45,25 @@ describe('AddTranscriptsDialog', () => {
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(addTranscripts).toHaveBeenCalledWith(['other'], 'target'))
+  })
+
+  test('closes quietly when adding is cancelled by a scope change', async () => {
+    const user = userEvent.setup()
+    const onClose = jest.fn()
+    const addTranscripts = jest.fn().mockRejectedValue(new RealtimeScopeAbortError())
+    mockUseProjectsData.mockReturnValue({
+      tree: buildProjectTree([]),
+    })
+    mockUseTranscriptsData.mockReturnValue({
+      transcripts: [makeTranscript({ id: 'other', title: 'Research call' })],
+      addTranscripts,
+    })
+    render(<AddTranscriptsDialog projectId="target" onClose={onClose} />)
+
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

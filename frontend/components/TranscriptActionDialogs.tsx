@@ -3,7 +3,8 @@
 import { DeleteTranscriptDialog } from '@/components/DeleteTranscriptDialog'
 import { MoveTranscriptDialog } from '@/components/Projects/MoveTranscriptDialog'
 import { toast } from '@/components/ui/toaster'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import {
   DELETE_TRANSCRIPT_ERROR_MESSAGE,
   TRANSCRIPT_CLEANUP_PENDING_TOAST,
@@ -21,7 +22,7 @@ export function TranscriptActionDialogs({
   actions: TranscriptActions
   onDeleted?: () => void
 }) {
-  const { deleteTranscript } = useProjectsData()
+  const { deleteTranscript } = useTranscriptsData()
   const { moveTarget, deleteTarget } = actions
 
   const confirmDelete = async (id: string) => {
@@ -29,6 +30,10 @@ export function TranscriptActionDialogs({
     try {
       ({ cleanupPendingKeys } = await deleteTranscript(id))
     } catch (error) {
+      if (isRealtimeScopeAbortError(error)) {
+        actions.closeDelete()
+        return
+      }
       console.error('Failed to delete transcript:', error)
       throw new Error(DELETE_TRANSCRIPT_ERROR_MESSAGE)
     }

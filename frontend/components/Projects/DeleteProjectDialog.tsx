@@ -6,7 +6,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { countLabel } from '@/components/Projects/format'
 import { branchIds, descendantCount } from '@/core/projects/tree'
 import { deleteProjectRequest, DeleteProjectRequestError } from '@/lib/projects/delete-client'
-import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { fetchProjectBranchTranscriptCount } from '@/lib/supabase/queries'
 
 function deleteErrorMessage(error: unknown): string {
@@ -26,7 +26,8 @@ export function DeleteProjectDialog({
   project: Project
   onClose: () => void
 }) {
-  const { tree, mutateProjects, mutateTranscripts } = useProjectsData()
+  const { tree, mutateProjects } = useProjectsData()
+  const { mutateTranscripts } = useTranscriptsData()
   const [transcriptCount, setTranscriptCount] = useState<number | null>(null)
   const [countError, setCountError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)

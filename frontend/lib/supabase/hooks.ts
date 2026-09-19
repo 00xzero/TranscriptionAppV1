@@ -142,6 +142,26 @@ type RefetchQueue = {
 }
 
 const DELETE_REFETCH_RETRY_DELAYS = [250, 500, 1000] as const
+const privateChannelLifecycles = new Map<string, Promise<void>>()
+
+function channelHasTopic(channel: RealtimeChannel, topic: string): boolean {
+    return channel.topic === topic || channel.topic === `realtime:${topic}`
+}
+
+function enqueuePrivateChannelLifecycle(
+    topic: string,
+    operation: () => Promise<void>
+): Promise<void> {
+    const previous = privateChannelLifecycles.get(topic) ?? Promise.resolve()
+    const current = previous.catch(() => undefined).then(operation)
+    privateChannelLifecycles.set(topic, current)
+    void current.finally(() => {
+        if (privateChannelLifecycles.get(topic) === current) {
+            privateChannelLifecycles.delete(topic)
+        }
+    }).catch(() => undefined)
+    return current
+}
 
 /**
  * Reconciles DELETEs that user_id-filtered Postgres Changes subscriptions
@@ -149,14 +169,20 @@ const DELETE_REFETCH_RETRY_DELAYS = [250, 500, 1000] as const
  * table name, on a private per-user topic.
  */
 export function useProjectsDeleteInvalidation(
-    userId: string,
+    userId: string | null,
     refetchProjects: () => Promise<void>,
     refetchTranscripts: () => Promise<void>
 ) {
     useEffect(() => {
+        if (!userId) return
+
         let active = true
         let channel: RealtimeChannel | null = null
         const supabase = createClient()
+        const topic = `projects-v1:${userId}`
+        const lifecycle = Symbol(topic)
+        let currentLifecycle = lifecycle
+        let loggedLifecycleFailure = false
         const refetchQueues: Record<DeleteInvalidationTable, RefetchQueue> = {
             projects: { running: false, queued: false, retryWait: null },
             transcripts: { running: false, queued: false, retryWait: null },
@@ -218,11 +244,46 @@ export function useProjectsDeleteInvalidation(
             })()
         }
 
-        void supabase.realtime.setAuth().then(() => {
-            if (!active) return
-            channel = supabase
-                .channel(`projects-v1:${userId}`, { config: { private: true } })
+        const logLifecycleFailure = (message: string, error?: unknown) => {
+            if (loggedLifecycleFailure) return
+            loggedLifecycleFailure = true
+            if (error === undefined) console.error(message)
+            else console.error(message, error)
+        }
+
+        const setup = enqueuePrivateChannelLifecycle(topic, async () => {
+            await supabase.realtime.setAuth()
+            if (!active || currentLifecycle !== lifecycle) return
+
+            const existing = supabase.getChannels().filter((candidate) =>
+                channelHasTopic(candidate, topic)
+            )
+            if (existing.length > 0) {
+                logLifecycleFailure(
+                    `[projects] Could not replace the delete invalidation channel for ${topic}.`
+                )
+                return
+            }
+
+            const freshChannel = supabase.channel(topic, { config: { private: true } })
+            const matching = supabase.getChannels().filter((candidate) =>
+                channelHasTopic(candidate, topic)
+            )
+            if (
+                !active
+                || currentLifecycle !== lifecycle
+                || matching.length !== 1
+                || matching[0] !== freshChannel
+            ) {
+                if (matching.includes(freshChannel)) {
+                    await supabase.removeChannel(freshChannel)
+                }
+                return
+            }
+
+            channel = freshChannel
                 .on('broadcast', { event: 'DELETE' }, (message: DeleteInvalidationPayload) => {
+                    if (!active || currentLifecycle !== lifecycle) return
                     if (message.payload?.table === 'projects') {
                         queueRefetch('projects')
                     } else if (message.payload?.table === 'transcripts') {
@@ -230,18 +291,27 @@ export function useProjectsDeleteInvalidation(
                     }
                 })
                 .subscribe((status) => {
-                    if (!active || status !== 'SUBSCRIBED') return
+                    if (
+                        !active
+                        || currentLifecycle !== lifecycle
+                        || status !== 'SUBSCRIBED'
+                    ) return
                     queueRefetch('projects')
                     queueRefetch('transcripts')
                 })
-        }).catch((error) => {
-            if (active) {
-                console.error('[projects] Failed to authenticate delete invalidation channel:', error)
+        })
+        void setup.catch((error) => {
+            if (active && currentLifecycle === lifecycle) {
+                logLifecycleFailure(
+                    '[projects] Failed to authenticate delete invalidation channel:',
+                    error
+                )
             }
         })
 
         return () => {
             active = false
+            currentLifecycle = Symbol('cancelled-projects-invalidation')
             for (const queue of Object.values(refetchQueues)) {
                 if (queue.retryWait) {
                     clearTimeout(queue.retryWait.timeout)
@@ -249,7 +319,32 @@ export function useProjectsDeleteInvalidation(
                     queue.retryWait = null
                 }
             }
-            if (channel) void supabase.removeChannel(channel)
+
+            const cleanup = enqueuePrivateChannelLifecycle(topic, async () => {
+                const ownedChannel = channel
+                channel = null
+                if (!ownedChannel) return
+
+                const result = await supabase.removeChannel(ownedChannel)
+                const remains = supabase.getChannels().some((candidate) =>
+                    channelHasTopic(candidate, topic)
+                )
+                if (result === 'error' && remains) {
+                    logLifecycleFailure(
+                        `[projects] Failed to remove the delete invalidation channel for ${topic}.`
+                    )
+                } else if (remains) {
+                    logLifecycleFailure(
+                        `[projects] Delete invalidation channel ${topic} remained after removal.`
+                    )
+                }
+            })
+            void cleanup.catch((error) => {
+                logLifecycleFailure(
+                    `[projects] Failed to remove the delete invalidation channel for ${topic}:`,
+                    error
+                )
+            })
         }
     }, [refetchProjects, refetchTranscripts, userId])
 }
@@ -266,6 +361,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
         mutate,
         mutateOptimistically,
         refetch,
+        assertCurrentScope,
     } =
         useSupabaseRealtime<Transcript>('transcripts', fetchFn, {
             enabled,
@@ -279,6 +375,9 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
     // Action: Delete transcript with optimistic update
     const deleteTranscript = useCallback(
         async (id: string) => {
+            assertCurrentScope()
+            if (!userId) throw new Error('You must be signed in to delete a transcript.')
+
             // Snapshot synchronously: a state updater may run after the request settles.
             const removed = data.find((t) => t.id === id)
             const settleOptimistic = mutateOptimistically(
@@ -287,9 +386,11 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
 
             try {
                 const result = await deleteTranscriptQuery(id)
+                assertCurrentScope()
                 runBackgroundRealtimeRefetch(refetch, 'transcript deletion')
                 return result
             } catch (err) {
+                assertCurrentScope()
                 // Restore only the removed row so concurrent realtime changes survive.
                 if (removed) mutate((current) => restoreTranscript(current, removed))
                 // A delete can commit and still lose its response; reconcile with the server.
@@ -299,11 +400,14 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 settleOptimistic()
             }
         },
-        [data, mutate, mutateOptimistically, refetch]
+        [assertCurrentScope, data, mutate, mutateOptimistically, refetch, userId]
     )
 
     const moveTranscript = useCallback(
         async (id: string, projectId: string | null) => {
+            assertCurrentScope()
+            if (!userId) throw new Error('You must be signed in to move a transcript.')
+
             const previous = data.find((transcript) => transcript.id === id)
             const settleOptimistic = mutateOptimistically((current) =>
                 current.map((transcript) =>
@@ -313,8 +417,10 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
 
             try {
                 await moveTranscriptToProject(id, projectId)
+                assertCurrentScope()
                 runBackgroundRealtimeRefetch(refetch, 'transcript move')
             } catch (err) {
+                assertCurrentScope()
                 if (previous) {
                     mutate((current) =>
                         current.map((transcript) =>
@@ -330,11 +436,14 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 settleOptimistic()
             }
         },
-        [data, mutate, mutateOptimistically, refetch]
+        [assertCurrentScope, data, mutate, mutateOptimistically, refetch, userId]
     )
 
     const addTranscripts = useCallback(
         async (ids: string[], projectId: string): Promise<AddTranscriptsResult> => {
+            assertCurrentScope()
+            if (!userId) throw new Error('You must be signed in to add transcripts.')
+
             const idSet = new Set(ids)
             if (idSet.size === 0) return { addedIds: [], missingIds: [] }
             const previousProjects = new Map(
@@ -355,6 +464,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
             try {
                 result = await addTranscriptsToProject(ids, projectId)
             } catch (err) {
+                assertCurrentScope()
                 mutate((current) =>
                     current.map((transcript) => {
                         const previousProjectId = previousProjects.get(transcript.id)
@@ -370,6 +480,8 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
                 settleOptimistic()
             }
 
+            assertCurrentScope()
+
             if (result.missingIds.length > 0) {
                 // Deleted since they were selected; the DELETE event may not reach this tab.
                 const missingIds = new Set(result.missingIds)
@@ -378,10 +490,10 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
             runBackgroundRealtimeRefetch(refetch, 'batch transcript move')
             return result
         },
-        [data, mutate, mutateOptimistically, refetch]
+        [assertCurrentScope, data, mutate, mutateOptimistically, refetch, userId]
     )
 
-    return {
+    return useMemo(() => ({
         transcripts: data,
         isLoading,
         error,
@@ -391,7 +503,17 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
         deleteTranscript,
         moveTranscript,
         addTranscripts,
-    }
+    }), [
+        addTranscripts,
+        connectionStatus,
+        data,
+        deleteTranscript,
+        error,
+        isLoading,
+        moveTranscript,
+        mutate,
+        refetch,
+    ])
 }
 
 // ============================================================================
@@ -410,6 +532,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
         mutate,
         mutateOptimistically,
         refetch,
+        assertCurrentScope,
     } =
         useSupabaseRealtime<Project>('projects', fetchFn, {
             enabled,
@@ -422,6 +545,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
 
     const createProject = useCallback(
         async (input: CreateProjectInput) => {
+            assertCurrentScope()
             if (!userId) throw new Error('You must be signed in to create a project.')
 
             const now = new Date().toISOString()
@@ -444,6 +568,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                     ...input,
                     name: optimisticProject.name,
                 })
+                assertCurrentScope()
                 mutate((current) => [
                     ...current.filter(
                         (project) => project.id !== optimisticId && project.id !== created.id
@@ -452,6 +577,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 ])
                 return created
             } catch (err) {
+                assertCurrentScope()
                 mutate((current) => current.filter((project) => project.id !== optimisticId))
                 runBackgroundRealtimeRefetch(refetch, 'project creation failure')
                 throw err
@@ -459,11 +585,14 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 settleOptimistic()
             }
         },
-        [mutate, mutateOptimistically, refetch, userId]
+        [assertCurrentScope, mutate, mutateOptimistically, refetch, userId]
     )
 
     const renameProject = useCallback(
         async (id: string, name: string) => {
+            assertCurrentScope()
+            if (!userId) throw new Error('You must be signed in to rename a project.')
+
             const previous = data.find((project) => project.id === id)
             const nextName = name.trim()
             const requestVersion = (renameVersionsRef.current.get(id) ?? 0) + 1
@@ -476,6 +605,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
 
             try {
                 const renamed = await renameProjectQuery(id, nextName)
+                assertCurrentScope()
                 if (renameVersionsRef.current.get(id) === requestVersion) {
                     mutate((current) =>
                         current.map((project) => (project.id === id ? renamed : project))
@@ -483,6 +613,7 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 }
                 return renamed
             } catch (err) {
+                assertCurrentScope()
                 if (renameVersionsRef.current.get(id) === requestVersion) {
                     if (previous) {
                         mutate((current) =>
@@ -500,10 +631,10 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
                 settleOptimistic()
             }
         },
-        [data, mutate, mutateOptimistically, refetch]
+        [assertCurrentScope, data, mutate, mutateOptimistically, refetch, userId]
     )
 
-    return {
+    return useMemo(() => ({
         projects: data,
         tree,
         isLoading,
@@ -513,5 +644,15 @@ export function useProjectsRealtime(options: RealtimeHookOptions) {
         renameProject,
         mutate,
         refetch,
-    }
+    }), [
+        connectionStatus,
+        createProject,
+        data,
+        error,
+        isLoading,
+        mutate,
+        refetch,
+        renameProject,
+        tree,
+    ])
 }
