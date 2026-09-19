@@ -71,6 +71,7 @@ export function ProjectNameDialog({
       onOpenChange(false)
     } catch (caught) {
       if (isRealtimeScopeAbortError(caught)) {
+        reset()
         onOpenChange(false)
         return
       }

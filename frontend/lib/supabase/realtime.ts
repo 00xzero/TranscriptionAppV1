@@ -90,6 +90,16 @@ interface PendingFetch {
     lastChangeAt: number
 }
 
+interface ScopedTimeout {
+    epoch: number
+    timeout: ReturnType<typeof setTimeout>
+}
+
+interface ScopedRevision {
+    epoch: number
+    value: number
+}
+
 interface RuntimeOptions<T> {
     epoch: number
     scopeKey: string
@@ -142,7 +152,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
     }
     const [state, setState] = useState<RealtimeState<T>>(() => ({
         epoch: scopeEpoch,
-        data: enabled ? initialData : [],
+        data: enabled ? initialData : EMPTY_REALTIME_DATA,
         isLoading: enabled,
         error: null,
     }))
@@ -179,14 +189,16 @@ export function useSupabaseRealtime<T extends { id: string }>(
     })
 
     const channelRef = useRef<RealtimeChannel | null>(null)
+    const subscriptionLifecycleRef = useRef<symbol | null>(null)
+    const subscriptionRunRef = useRef(0)
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const trailingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const trailingTimeoutRef = useRef<ScopedTimeout | null>(null)
     const retryCountRef = useRef(0)
     const isMountedRef = useRef(false)
     const initializedEpochRef = useRef(scopeEpoch)
-    const revisionRef = useRef(0)
-    const authoritativeSuccessRef = useRef(false)
+    const revisionRef = useRef<ScopedRevision>({ epoch: scopeEpoch, value: 0 })
+    const authoritativeSuccessRef = useRef({ epoch: scopeEpoch, value: false })
     const fetchSequenceRef = useRef(0)
     const activeFetchRef = useRef<ActiveFetch | null>(null)
     const pendingFetchRef = useRef<PendingFetch | null>(null)
@@ -195,15 +207,25 @@ export function useSupabaseRealtime<T extends { id: string }>(
     const startFetchRef = useRef<() => void>(() => undefined)
     const subscriptionId = useId().replaceAll(':', '')
 
-    const clearTrailingTimeout = useCallback(() => {
-        if (trailingTimeoutRef.current) {
-            clearTimeout(trailingTimeoutRef.current)
-            trailingTimeoutRef.current = null
-        }
+    const clearTrailingTimeout = useCallback((expectedEpoch?: number) => {
+        const trailing = trailingTimeoutRef.current
+        if (!trailing || (expectedEpoch !== undefined && trailing.epoch !== expectedEpoch)) return
+
+        clearTimeout(trailing.timeout)
+        trailingTimeoutRef.current = null
     }, [])
 
-    const clearOptimisticMutations = useCallback(() => {
-        optimisticMutationsRef.current.clear()
+    const clearOptimisticMutations = useCallback((preservedEpoch?: number) => {
+        if (preservedEpoch === undefined) {
+            optimisticMutationsRef.current.clear()
+            return
+        }
+
+        for (const [token, tokenEpoch] of optimisticMutationsRef.current) {
+            if (tokenEpoch !== preservedEpoch) {
+                optimisticMutationsRef.current.delete(token)
+            }
+        }
     }, [])
 
     const rejectScopeWaiters = useCallback((cancelledEpoch: number) => {
@@ -256,8 +278,6 @@ export function useSupabaseRealtime<T extends { id: string }>(
     }, [])
 
     const schedulePendingFetch = useCallback(() => {
-        clearTrailingTimeout()
-
         const pending = pendingFetchRef.current
         const runtime = runtimeRef.current
         if (
@@ -272,6 +292,8 @@ export function useSupabaseRealtime<T extends { id: string }>(
             return
         }
 
+        clearTrailingTimeout()
+
         if (pending.freshnessRequired) {
             startFetchRef.current()
             return
@@ -282,10 +304,16 @@ export function useSupabaseRealtime<T extends { id: string }>(
             pending.firstChangeAt + RECONCILIATION_MAX_WAIT_MS
         )
         const delay = Math.max(0, deadline - Date.now())
-        trailingTimeoutRef.current = setTimeout(() => {
+        const timeout = setTimeout(() => {
+            if (trailingTimeoutRef.current?.timeout !== timeout) return
             trailingTimeoutRef.current = null
+            if (
+                runtimeRef.current?.epoch !== pending.epoch
+                || committedEpochRef.current !== pending.epoch
+            ) return
             startFetchRef.current()
         }, delay)
+        trailingTimeoutRef.current = { epoch: pending.epoch, timeout }
     }, [clearTrailingTimeout])
 
     const queueReconciliation = useCallback((
@@ -330,10 +358,15 @@ export function useSupabaseRealtime<T extends { id: string }>(
         pendingFetchRef.current = null
         clearTrailingTimeout()
 
+        const revision = revisionRef.current.epoch === runtime.epoch
+            ? revisionRef.current.value
+            : 0
+        revisionRef.current = { epoch: runtime.epoch, value: revision }
+
         const active: ActiveFetch = {
             epoch: runtime.epoch,
             sequence: ++fetchSequenceRef.current,
-            revision: revisionRef.current,
+            revision,
             superseded: false,
         }
         activeFetchRef.current = active
@@ -348,12 +381,13 @@ export function useSupabaseRealtime<T extends { id: string }>(
                     && currentRuntime.enabled
                     && currentRuntime.epoch === active.epoch
                     && committedEpochRef.current === active.epoch
-                    && revisionRef.current === active.revision
+                    && revisionRef.current.epoch === active.epoch
+                    && revisionRef.current.value === active.revision
                     && !active.superseded
 
                 if (!mayApply) return
 
-                authoritativeSuccessRef.current = true
+                authoritativeSuccessRef.current = { epoch: active.epoch, value: true }
                 setState({
                     epoch: active.epoch,
                     data: result,
@@ -371,12 +405,16 @@ export function useSupabaseRealtime<T extends { id: string }>(
                     && currentRuntime.enabled
                     && currentRuntime.epoch === active.epoch
                     && committedEpochRef.current === active.epoch
-                    && revisionRef.current === active.revision
+                    && revisionRef.current.epoch === active.epoch
+                    && revisionRef.current.value === active.revision
                     && !active.superseded
 
                 if (!isQualifyingFailure) return
 
-                if (!authoritativeSuccessRef.current) {
+                if (
+                    authoritativeSuccessRef.current.epoch !== active.epoch
+                    || !authoritativeSuccessRef.current.value
+                ) {
                     setState((previous) => ({
                         epoch: active.epoch,
                         data: previous.epoch === active.epoch ? previous.data : currentRuntime.initialData,
@@ -447,7 +485,12 @@ export function useSupabaseRealtime<T extends { id: string }>(
         scheduleReconciliation = true
     ) => {
         if (committedEpochRef.current !== expectedEpoch) return
-        revisionRef.current += 1
+        revisionRef.current = {
+            epoch: expectedEpoch,
+            value: revisionRef.current.epoch === expectedEpoch
+                ? revisionRef.current.value + 1
+                : 1,
+        }
         const active = activeFetchRef.current
         if (active?.epoch === expectedEpoch) {
             active.superseded = true
@@ -598,30 +641,43 @@ export function useSupabaseRealtime<T extends { id: string }>(
 
         rejectScopeWaiters(previousEpoch)
         const active = activeFetchRef.current
-        if (active?.epoch === previousEpoch) {
+        if (active && active.epoch !== scopeEpoch) {
             active.superseded = true
             activeFetchRef.current = null
         }
-        pendingFetchRef.current = null
-        clearOptimisticMutations()
-        clearTrailingTimeout()
-        revisionRef.current = 0
-        authoritativeSuccessRef.current = false
+        if (pendingFetchRef.current && pendingFetchRef.current.epoch !== scopeEpoch) {
+            pendingFetchRef.current = null
+        }
+        clearOptimisticMutations(scopeEpoch)
+        const trailing = trailingTimeoutRef.current
+        if (trailing && trailing.epoch !== scopeEpoch) {
+            clearTrailingTimeout(trailing.epoch)
+        }
+        if (revisionRef.current.epoch !== scopeEpoch) {
+            revisionRef.current = { epoch: scopeEpoch, value: 0 }
+        }
+        if (authoritativeSuccessRef.current.epoch !== scopeEpoch) {
+            authoritativeSuccessRef.current = { epoch: scopeEpoch, value: false }
+        }
         initializedEpochRef.current = scopeEpoch
         retryCountRef.current = 0
         stopPolling()
         clearRetryTimeout()
-        setConnectionState({
-            epoch: scopeEpoch,
-            status: enabled ? 'connecting' : 'disconnected',
-        })
+        setConnectionState((previous) => previous.epoch === scopeEpoch
+            ? previous
+            : {
+                epoch: scopeEpoch,
+                status: enabled ? 'connecting' : 'disconnected',
+            })
         const runtime = runtimeRef.current
-        setState({
-            epoch: scopeEpoch,
-            data: enabled ? runtime?.initialData ?? initialData : EMPTY_REALTIME_DATA,
-            isLoading: enabled,
-            error: null,
-        })
+        setState((previous) => previous.epoch === scopeEpoch
+            ? previous
+            : {
+                epoch: scopeEpoch,
+                data: enabled ? runtime?.initialData ?? initialData : EMPTY_REALTIME_DATA,
+                isLoading: enabled,
+                error: null,
+            })
 
         if (enabled) {
             startFetchRef.current()
@@ -641,7 +697,10 @@ export function useSupabaseRealtime<T extends { id: string }>(
         if (
             enabled
             && committedEpochRef.current === scopeEpoch
-            && !authoritativeSuccessRef.current
+            && (
+                authoritativeSuccessRef.current.epoch !== scopeEpoch
+                || !authoritativeSuccessRef.current.value
+            )
             && !activeFetchRef.current
         ) {
             startFetchRef.current()
@@ -663,6 +722,9 @@ export function useSupabaseRealtime<T extends { id: string }>(
         }
 
         const subscriptionEpoch = scopeEpoch
+        const subscriptionRun = ++subscriptionRunRef.current
+        const subscriptionLifecycle = Symbol('realtime-subscription')
+        subscriptionLifecycleRef.current = subscriptionLifecycle
         const supabase = createClient()
         const changesFilter = {
             event: '*',
@@ -670,7 +732,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
             table,
             ...(realtimeFilter ? { filter: realtimeFilter } : {}),
         } as const
-        const channelName = `${table}-changes:${realtimeFilter ?? 'all'}:${subscriptionId}:${subscriptionEpoch}:${subscriptionNonce}`
+        const channelName = `${table}-changes:${realtimeFilter ?? 'all'}:${subscriptionId}:${subscriptionEpoch}:${subscriptionNonce}:${subscriptionRun}`
         const channel = supabase
             .channel(channelName)
             .on<T>(
@@ -680,6 +742,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
                     const runtime = runtimeRef.current
                     if (
                         !isMountedRef.current
+                        || subscriptionLifecycleRef.current !== subscriptionLifecycle
                         || !runtime
                         || !runtime.enabled
                         || runtime.epoch !== subscriptionEpoch
@@ -731,6 +794,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
             .subscribe((status) => {
                 if (
                     !isMountedRef.current
+                    || subscriptionLifecycleRef.current !== subscriptionLifecycle
                     || runtimeRef.current?.epoch !== subscriptionEpoch
                     || committedEpochRef.current !== subscriptionEpoch
                 ) {
@@ -756,6 +820,7 @@ export function useSupabaseRealtime<T extends { id: string }>(
                         retryTimeoutRef.current = setTimeout(() => {
                             if (
                                 !isMountedRef.current
+                                || subscriptionLifecycleRef.current !== subscriptionLifecycle
                                 || runtimeRef.current?.epoch !== subscriptionEpoch
                                 || committedEpochRef.current !== subscriptionEpoch
                             ) return
@@ -778,6 +843,9 @@ export function useSupabaseRealtime<T extends { id: string }>(
             if (channelRef.current === channel) {
                 channelRef.current = null
             }
+            if (subscriptionLifecycleRef.current === subscriptionLifecycle) {
+                subscriptionLifecycleRef.current = null
+            }
             void supabase.removeChannel(channel)
         }
     }, [
@@ -799,13 +867,13 @@ export function useSupabaseRealtime<T extends { id: string }>(
         ? state
         : {
             epoch: scopeEpoch,
-            data: enabled ? initialData : [],
+            data: enabled ? initialData : EMPTY_REALTIME_DATA,
             isLoading: enabled,
             error: null,
         }
 
     return {
-        data: enabled ? exposedState.data : [],
+        data: enabled ? exposedState.data : EMPTY_REALTIME_DATA,
         isLoading: enabled ? exposedState.isLoading : false,
         error: enabled ? exposedState.error : null,
         connectionStatus: enabled

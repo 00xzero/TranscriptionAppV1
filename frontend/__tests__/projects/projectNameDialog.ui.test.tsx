@@ -44,7 +44,7 @@ describe('ProjectNameDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
-  test('closes quietly on scope cancellation without applying success reset', async () => {
+  test('closes quietly and resets local state on scope cancellation', async () => {
     const user = userEvent.setup()
     const onOpenChange = jest.fn()
     const onSubmit = jest.fn().mockRejectedValue(new RealtimeScopeAbortError())
@@ -66,7 +66,7 @@ describe('ProjectNameDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Rename' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(input).toHaveValue('Renamed')
+    expect(input).toHaveValue('Existing')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

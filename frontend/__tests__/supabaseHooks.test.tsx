@@ -200,7 +200,7 @@ describe('useTranscriptsRealtime', () => {
     })
 
     expect(mockChannelFactory).toHaveBeenCalledWith(
-      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+$/)
+      expect.stringMatching(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
     )
     expect(channelMock.on).toHaveBeenCalledWith(
       'postgres_changes',
@@ -223,8 +223,8 @@ describe('useTranscriptsRealtime', () => {
     const firstTopic = mockChannelFactory.mock.calls[0][0]
     const secondTopic = mockChannelFactory.mock.calls[1][0]
 
-    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+$/)
-    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+$/)
+    expect(firstTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
+    expect(secondTopic).toMatch(/^transcripts-changes:user_id=eq\.user-from-session:[^:]+:\d+:\d+:\d+$/)
     expect(firstTopic).not.toBe(secondTopic)
   })
 

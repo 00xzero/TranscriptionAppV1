@@ -380,6 +380,85 @@ describe('useSupabaseRealtime', () => {
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(3))
   })
 
+  test('preserves optimistic work started by a child effect in the new epoch', async () => {
+    const oldScopeFetch = deferred<Row[]>()
+    const newScopeFetch = deferred<Row[]>()
+    const fetchFn = jest
+      .fn()
+      .mockReturnValueOnce(oldScopeFetch.promise)
+      .mockReturnValueOnce(newScopeFetch.promise)
+    let current!: ReturnType<typeof useSupabaseRealtime<Row>>
+    let settleOptimistic!: () => void
+
+    function StartsNewScopeAction({
+      filter,
+      mutateOptimistically,
+    }: {
+      filter: string
+      mutateOptimistically: ReturnType<typeof useSupabaseRealtime<Row>>['mutateOptimistically']
+    }) {
+      React.useEffect(() => {
+        if (filter !== 'user_id=eq.user-b') return
+        settleOptimistic = mutateOptimistically([
+          { id: 'optimistic-b', title: 'Optimistic B' },
+        ])
+      }, [filter, mutateOptimistically])
+      return null
+    }
+
+    function Harness({ filter }: { filter: string }) {
+      current = useSupabaseRealtime<Row>('transcripts', fetchFn, {
+        realtimeFilter: filter,
+        subscriptionEnabled: false,
+      })
+      return (
+        <StartsNewScopeAction
+          filter={filter}
+          mutateOptimistically={current.mutateOptimistically}
+        />
+      )
+    }
+
+    const view = render(<Harness filter="user_id=eq.user-a" />)
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1))
+
+    view.rerender(<Harness filter="user_id=eq.user-b" />)
+
+    await waitFor(() => {
+      expect(current.data).toEqual([{ id: 'optimistic-b', title: 'Optimistic B' }])
+    })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+
+    act(() => settleOptimistic())
+    await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      newScopeFetch.resolve([{ id: 'saved-b', title: 'Saved B' }])
+      oldScopeFetch.resolve([{ id: 'stale-a', title: 'Stale A' }])
+      await Promise.all([newScopeFetch.promise, oldScopeFetch.promise])
+    })
+    expect(current.data).toEqual([{ id: 'saved-b', title: 'Saved B' }])
+  })
+
+  test('keeps disabled data identity stable across rerenders', () => {
+    const fetchFn = jest.fn().mockResolvedValue([])
+    const { result, rerender } = renderHook(
+      ({ renderCount }: { renderCount: number }) => {
+        void renderCount
+        return useSupabaseRealtime<Row>('transcripts', fetchFn, {
+          enabled: false,
+          subscriptionEnabled: false,
+        })
+      },
+      { initialProps: { renderCount: 0 } }
+    )
+    const disabledData = result.current.data
+
+    rerender({ renderCount: 1 })
+
+    expect(result.current.data).toBe(disabledData)
+  })
+
   test('isolates repeated A to B to A scope instances and their captured callbacks', async () => {
     const firstA = deferred<Row[]>()
     const scopeB = deferred<Row[]>()
@@ -432,7 +511,7 @@ describe('useSupabaseRealtime', () => {
 
     expect(result.current.data).toEqual([{ id: 'fresh-a2', title: 'Fresh A2' }])
     expect(result.current.connectionStatus).toBe('connecting')
-    const epochs = channelFactoryMock.mock.calls.map(([name]) => String(name).split(':').at(-2))
+    const epochs = channelFactoryMock.mock.calls.map(([name]) => String(name).split(':').at(-3))
     expect(epochs).toEqual(['0', '1', '2'])
   })
 
@@ -470,6 +549,38 @@ describe('useSupabaseRealtime', () => {
     const assertCommittedScope = result.current.assertCurrentScope
     unmount()
     expect(() => assertCommittedScope()).toThrow(RealtimeScopeAbortError)
+  })
+
+  test('uses a fresh table channel lifecycle when the effect restarts within an epoch', async () => {
+    jest.useFakeTimers()
+    const fetchFn = jest.fn().mockResolvedValue([])
+    const { rerender, unmount } = renderHook(
+      ({ subscriptionEnabled }: { subscriptionEnabled: boolean }) =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, { subscriptionEnabled }),
+      { initialProps: { subscriptionEnabled: true } }
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(channelFactoryMock).toHaveBeenCalledTimes(1)
+
+    rerender({ subscriptionEnabled: false })
+    rerender({ subscriptionEnabled: true })
+
+    expect(channelFactoryMock).toHaveBeenCalledTimes(2)
+    const firstChannelName = channelFactoryMock.mock.calls[0][0]
+    const secondChannelName = channelFactoryMock.mock.calls[1][0]
+    expect(secondChannelName).not.toBe(firstChannelName)
+
+    act(() => {
+      statusHandlers[0]?.('CHANNEL_ERROR')
+      jest.runOnlyPendingTimers()
+    })
+    expect(channelFactoryMock).toHaveBeenCalledTimes(2)
+
+    unmount()
+    jest.useRealTimers()
   })
 
   test('does not advance the committed epoch for an abandoned transition render', async () => {
