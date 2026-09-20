@@ -12,7 +12,7 @@ interface TranscriptRowProps {
    * Only surfaces that mix projects pass this. On a single project's page, or the
    * Unfiled list, every row would carry the same label and it would be noise.
    */
-  projectPath?: TranscriptProjectLabel
+  projectPath?: TranscriptProjectLabel | null
 }
 
 function statusBadge(status: Transcript['status']) {

@@ -331,12 +331,15 @@ describe('LibraryView', () => {
     expect(screen.getByTestId('transcript-row-t1')).toHaveTextContent(expected)
   })
 
-  test('falls back to Unfiled when the project is missing from the tree', () => {
+  test('does not misclassify a missing project as Unfiled', () => {
     mockProjectsData([], [makeTranscript({ id: 't1', title: 'Orphan', project_id: 'gone' })])
 
     renderLibraryView()
 
-    expect(screen.getByTestId('transcript-row-t1')).toHaveTextContent('Unfiled')
+    const row = screen.getByTestId('transcript-row-t1')
+    expect(row).toHaveTextContent('4 mins')
+    expect(row).not.toHaveTextContent('Unfiled')
+    expect(row).not.toHaveTextContent('•')
   })
 
   test('keeps the card menu outside the card link', () => {

@@ -7,16 +7,16 @@ export type TranscriptProjectLabel = { label: string; full: string }
 const UNFILED: TranscriptProjectLabel = { label: 'Unfiled', full: 'Unfiled' }
 
 /**
- * Transcripts with no project -- and those whose project is missing from the
- * fetched tree -- read as Unfiled, matching the Projects page's own section name.
+ * Only a null project id means Unfiled. A non-null id missing from the fetched
+ * tree is unresolved, so omit the label rather than misclassifying the transcript.
  */
 export function transcriptProjectLabel(
   tree: ProjectTree,
   projectId: string | null
-): TranscriptProjectLabel {
-  if (!projectId) return UNFILED
+): TranscriptProjectLabel | null {
+  if (projectId === null) return UNFILED
   const label = collapsedPathLabel(tree, projectId)
-  if (!label) return UNFILED
+  if (!label) return null
   return { label, full: pathLabel(tree, projectId) }
 }
 
