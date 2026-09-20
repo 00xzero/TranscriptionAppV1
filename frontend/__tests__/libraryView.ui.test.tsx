@@ -311,6 +311,34 @@ describe('LibraryView', () => {
     expect(screen.queryAllByTestId(/^recent-project-card-/)).toHaveLength(Math.min(count, 6))
   })
 
+  test.each([
+    ['a ground-level project', 'root', 'Client Work'],
+    ['one level of nesting', 'child', 'Client Work / Interviews'],
+    ['deeper nesting, with the middle elided', 'grandchild', 'Client Work / … / Round Two'],
+    ['no project at all', null, 'Unfiled'],
+  ])('labels a recent transcript sitting in %s', (_label, projectId, expected) => {
+    const projects = [
+      makeProject({ id: 'root', name: 'Client Work' }),
+      makeProject({ id: 'child', name: 'Interviews', parent_id: 'root' }),
+      makeProject({ id: 'grandchild', name: 'Round Two', parent_id: 'child' }),
+    ]
+    mockProjectsData(projects, [
+      makeTranscript({ id: 't1', title: 'Kickoff', project_id: projectId }),
+    ])
+
+    renderLibraryView()
+
+    expect(screen.getByTestId('transcript-row-t1')).toHaveTextContent(expected)
+  })
+
+  test('falls back to Unfiled when the project is missing from the tree', () => {
+    mockProjectsData([], [makeTranscript({ id: 't1', title: 'Orphan', project_id: 'gone' })])
+
+    renderLibraryView()
+
+    expect(screen.getByTestId('transcript-row-t1')).toHaveTextContent('Unfiled')
+  })
+
   test('keeps the card menu outside the card link', () => {
     mockProjectsData([makeProject({ id: 'p1', name: 'Client Work' })], [])
 

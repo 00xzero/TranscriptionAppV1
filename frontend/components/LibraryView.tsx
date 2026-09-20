@@ -15,6 +15,7 @@ import {
   type RecentProjectScope,
 } from '@/core/projects/activity'
 import { useProjectActions } from '@/lib/projects/useProjectActions'
+import { transcriptProjectLabel } from '@/components/Projects/format'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import type { User } from '@supabase/supabase-js'
@@ -129,6 +130,7 @@ export default function LibraryView() {
                 <TranscriptRow
                   key={transcript.id}
                   transcript={transcript}
+                  projectPath={transcriptProjectLabel(tree, transcript.project_id)}
                   actions={(
                     <TranscriptActionsMenu
                       title={target.title}

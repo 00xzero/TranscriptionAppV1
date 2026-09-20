@@ -3,6 +3,7 @@ import {
   activeDescendantCount,
   ancestorsOf,
   branchIds,
+  collapsedPathLabel,
   buildProjectTree,
   collapseBreadcrumbs,
   descendantCount,
@@ -193,5 +194,31 @@ describe('activeBranchIds', () => {
 
   test('returns nothing for an unknown id', () => {
     expect(activeBranchIds(buildProjectTree([]), 'nope')).toEqual([])
+  })
+})
+
+describe('collapsedPathLabel', () => {
+  const deepTree = buildProjectTree([
+    project('a', 'Alpha'),
+    project('b', 'Beta', 'a'),
+    project('c', 'Gamma', 'b'),
+    project('d', 'Delta', 'c'),
+  ])
+
+  test('a ground-level project is just its own name', () => {
+    expect(collapsedPathLabel(deepTree, 'a')).toBe('Alpha')
+  })
+
+  test('one level of nesting shows both names', () => {
+    expect(collapsedPathLabel(deepTree, 'b')).toBe('Alpha / Beta')
+  })
+
+  test('deeper nesting elides the middle', () => {
+    expect(collapsedPathLabel(deepTree, 'c')).toBe('Alpha / … / Gamma')
+    expect(collapsedPathLabel(deepTree, 'd')).toBe('Alpha / … / Delta')
+  })
+
+  test('an unknown id has no path', () => {
+    expect(collapsedPathLabel(deepTree, 'missing')).toBe('')
   })
 })

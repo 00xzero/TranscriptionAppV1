@@ -170,3 +170,21 @@ export function activeBranchIds(tree: ProjectTree, id: string): string[] {
 export function activeDescendantCount(tree: ProjectTree, id: string): number {
   return Math.max(0, activeBranchIds(tree, id).length - 1)
 }
+
+/**
+ * A project's path with the middle elided: "Parent", "Parent / Child", or
+ * "Parent / … / Leaf" once it runs deeper than `maxVisible`.
+ */
+export function collapsedPathLabel(
+  tree: ProjectTree,
+  id: string,
+  maxVisible = 2
+): string {
+  const project = tree.byId.get(id)
+  if (!project) return ''
+
+  const names = [...(ancestorsOf(tree, id) ?? []), project].map((item) => item.name)
+  const { leading, collapsed, trailing } = collapseBreadcrumbs(names, maxVisible)
+
+  return [...leading, ...(collapsed.length > 0 ? ['…'] : []), ...trailing].join(' / ')
+}
