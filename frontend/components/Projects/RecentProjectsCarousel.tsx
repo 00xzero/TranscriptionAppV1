@@ -69,7 +69,6 @@ const SLIDE = 'snap-start shrink-0 basis-(--slide-basis)'
 type RecentProjectsCarouselProps = {
   cards: RecentProjectCardData[]
   loading: boolean
-  showCreateTile: boolean
   onCreate: () => void
   /** Keeps the carousel unaware of dialogs and provider state, as ProjectRow is. */
   renderCardActions?: (project: Project) => ReactNode
@@ -78,7 +77,6 @@ type RecentProjectsCarouselProps = {
 export function RecentProjectsCarousel({
   cards,
   loading,
-  showCreateTile,
   onCreate,
   renderCardActions,
 }: RecentProjectsCarouselProps) {
@@ -114,7 +112,7 @@ export function RecentProjectsCarousel({
       track.removeEventListener('scroll', measure)
       observer.disconnect()
     }
-  }, [measure, cards.length, showCreateTile, loading])
+  }, [measure, cards.length, loading])
 
   // Paging by the track's own width advances exactly the number of slides on screen at
   // every breakpoint; snap alignment absorbs the peek offset.
@@ -124,7 +122,7 @@ export function RecentProjectsCarousel({
     track.scrollBy({ left: direction * track.clientWidth })
   }
 
-  const slideCount = loading ? 3 : cards.length + (showCreateTile ? 1 : 0)
+  const slideCount = loading ? 3 : cards.length + 1
   const showControls = !loading && !boundaries.fits
 
   return (
@@ -209,7 +207,7 @@ export function RecentProjectsCarousel({
               </div>
             ))}
 
-        {!loading && showCreateTile && (
+        {!loading && (
           <button
             type="button"
             onClick={onCreate}

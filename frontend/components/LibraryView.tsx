@@ -29,9 +29,6 @@ const RECENT_PROJECT_SCOPE: RecentProjectScope = 'top-level'
 /** Cards in the carousel. The creation control is extra and never counts against it. */
 const RECENT_PROJECT_LIMIT = 6
 
-/** Above this many ground-level projects the dashboard stops offering folder creation. */
-const CREATE_AFFORDANCE_MAX_ROOTS = 3
-
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
@@ -52,14 +49,7 @@ export default function LibraryView() {
     [projects, transcripts, tree]
   )
 
-  // Gate on every eligible root, not just the ones that made the six-card cut.
-  const activeRootCount = useMemo(
-    () => tree.roots.filter((project) => !project.deleting_at).length,
-    [tree]
-  )
-
   const projectsAreLoading = projectsLoading || isLoading
-  const showCreateTile = activeRootCount <= CREATE_AFFORDANCE_MAX_ROOTS
 
   // Fetch user for greeting
   useEffect(() => {
@@ -104,7 +94,6 @@ export default function LibraryView() {
       <RecentProjectsCarousel
         cards={recentProjectCards}
         loading={projectsAreLoading}
-        showCreateTile={showCreateTile}
         onCreate={() => projectActions.openCreate(null)}
         renderCardActions={(project) => (
           <ProjectActionsMenu

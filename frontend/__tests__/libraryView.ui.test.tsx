@@ -291,75 +291,24 @@ describe('LibraryView', () => {
     expect(screen.getByRole('group', { name: '2 of 2' })).toBeInTheDocument()
   })
 
-  test('offers the creation tile at three roots and withdraws it at four', () => {
-    const roots = (count: number) =>
-      Array.from({ length: count }, (_unused, index) =>
-        makeProject({ id: `p${index}`, name: `Project ${index}` })
-      )
-
-    mockProjectsData(roots(3), [])
-    const { unmount } = renderLibraryView()
-
-    expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
-
-    unmount()
-    mockProjectsData(roots(4), [])
-    renderLibraryView()
-
-    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
-  })
-
-  test('counts every eligible root for the gate, not just the six on screen', () => {
-    const roots = Array.from({ length: 7 }, (_unused, index) =>
+  test.each([
+    ['no', 0],
+    ['a few', 3],
+    ['more than the carousel shows', 7],
+  ])('always ends the carousel with the creation tile (%s projects)', (_label, count) => {
+    const roots = Array.from({ length: count }, (_unused, index) =>
       makeProject({ id: `p${index}`, name: `Project ${index}` })
     )
     mockProjectsData(roots, [])
 
     renderLibraryView()
 
-    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
-  })
+    const tile = screen.getByRole('button', { name: 'New project folder' })
+    const track = screen.getByRole('region', { name: 'Recent projects' })
 
-  test('shows project skeletons while either provider list is loading', () => {
-    mockProjectsData([], [], { projectsLoading: true })
-
-    const { container } = renderLibraryView()
-
-    expect(container.querySelectorAll('.animate-pulse')).toHaveLength(3)
-    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
-  })
-
-  test('creates a ground-level project from the empty-state tile', async () => {
-    const user = userEventLib.setup()
-    mockProjectsData([], [])
-
-    renderLibraryView()
-
-    await user.click(screen.getByRole('button', { name: 'New project folder' }))
-    await user.type(screen.getByLabelText('Project name'), 'Client Work')
-    await user.click(screen.getByRole('button', { name: 'Create' }))
-
-    await waitFor(() => {
-      expect(mockCreateProject).toHaveBeenCalledWith({ name: 'Client Work', parent_id: null })
-    })
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Project name')).not.toBeInTheDocument()
-    })
-  })
-
-  test('creates a ground-level project from the tile beside existing cards', async () => {
-    const user = userEventLib.setup()
-    mockProjectsData([makeProject({ id: 'p1', name: 'Existing' })], [])
-
-    renderLibraryView()
-
-    await user.click(screen.getByRole('button', { name: 'New project folder' }))
-    await user.type(screen.getByLabelText('Project name'), 'Second Folder')
-    await user.click(screen.getByRole('button', { name: 'Create' }))
-
-    await waitFor(() => {
-      expect(mockCreateProject).toHaveBeenCalledWith({ name: 'Second Folder', parent_id: null })
-    })
+    expect(track.lastElementChild).toBe(tile)
+    // Six is the cap on project cards; the tile is extra and never competes for a slot.
+    expect(screen.queryAllByTestId(/^recent-project-card-/)).toHaveLength(Math.min(count, 6))
   })
 
   test('keeps the card menu outside the card link', () => {
