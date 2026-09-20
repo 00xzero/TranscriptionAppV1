@@ -4,10 +4,13 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import type { Project } from '@/contracts/db'
-import type { RecentProjectCardData } from '@/core/projects/activity'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { RecentProjectCard, RecentProjectCardSkeleton } from './RecentProjectCard'
+import {
+  RecentProjectCard,
+  RecentProjectCardSkeleton,
+  type RecentProjectCardViewData,
+} from './RecentProjectCard'
 
 export type CarouselBoundaries = {
   atStart: boolean
@@ -67,7 +70,7 @@ function slideWidthClasses(slideCount: number): string {
 const SLIDE = 'snap-start shrink-0 basis-(--slide-basis)'
 
 type RecentProjectsCarouselProps = {
-  cards: RecentProjectCardData[]
+  cards: RecentProjectCardViewData[]
   loading: boolean
   onCreate: () => void
   /** Keeps the carousel unaware of dialogs and provider state, as ProjectRow is. */
@@ -214,7 +217,9 @@ export function RecentProjectsCarousel({
             aria-label="New project folder"
             className={cn(
               SLIDE,
-              'group flex min-h-44 flex-col items-center justify-center gap-2 rounded-lg',
+              // Tracks RecentProjectCard's min-height; if one changes so must
+              // the other, or the last slide stands shorter than the rest.
+              'group flex min-h-52 flex-col items-center justify-center gap-2 rounded-lg',
               'border-2 border-dashed border-border text-muted transition-all',
               'hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue'
             )}

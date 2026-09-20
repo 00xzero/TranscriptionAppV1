@@ -198,6 +198,27 @@ export const SaveTranscriptSegmentsResultSchema = z.object({
   duration_ms: z.number().int().nonnegative(),
 })
 
+// project_speaker_summaries RPC. Row columns stay snake_case like every other
+// row shape here; the preview entries are camelCase because they are a synthetic
+// view-model — paletteIndex has no table counterpart — consumed straight by
+// SpeakerAvatarGroup with no mapping layer.
+export const ProjectSpeakerPreviewSchema = z.object({
+  id: UuidSchema,
+  transcriptId: UuidSchema,
+  label: z.string(),
+  color: z.string().nullable(),
+  paletteIndex: z.number().int().nonnegative(),
+})
+
+export const ProjectSpeakerSummarySchema = z.object({
+  project_id: UuidSchema,
+  speaker_count: z.number().int().nonnegative(),
+  preview: z.array(ProjectSpeakerPreviewSchema),
+})
+
+// RETURNS TABLE means PostgREST hands back an array of rows even for one id.
+export const ProjectSpeakerSummariesResultSchema = z.array(ProjectSpeakerSummarySchema)
+
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
@@ -219,6 +240,8 @@ export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
 export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
 export type SaveTranscriptSegmentsPayload = z.infer<typeof SaveTranscriptSegmentsPayloadSchema>
 export type SaveTranscriptSegmentsResult = z.infer<typeof SaveTranscriptSegmentsResultSchema>
+export type ProjectSpeakerPreview = z.infer<typeof ProjectSpeakerPreviewSchema>
+export type ProjectSpeakerSummary = z.infer<typeof ProjectSpeakerSummarySchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)
 export type Json =

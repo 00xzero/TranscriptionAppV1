@@ -11,6 +11,12 @@ import {
   transcriptProviderData,
 } from './fixtures'
 
+const mockFetchSpeakerSummaries = jest.fn()
+
+jest.mock('@/lib/supabase/queries', () => ({
+  fetchProjectSpeakerSummaries: (...args: unknown[]) => mockFetchSpeakerSummaries(...args),
+}))
+
 const mockUseProjectsData = jest.fn()
 const mockUseTranscriptsData = jest.fn()
 const mockReplace = jest.fn()
@@ -43,6 +49,81 @@ function mockData(projects: Project[], transcripts: ReturnType<typeof makeTransc
 describe('ProjectPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Left pending by default: these tests assert synchronously, and a summary
+    // resolving after the test body would settle state outside act(). Tests that
+    // care about speakers resolve it themselves.
+    mockFetchSpeakerSummaries.mockReturnValue(new Promise(() => {}))
+  })
+
+  describe('speakers', () => {
+    test('asks only for this project, not its branch', async () => {
+      mockData([makeCurrent(), makeProject({ id: 'child', parent_id: 'current' })], [])
+
+      render(<ProjectPage />)
+
+      // Direct scope, matching directTranscriptCount: the nested project's
+      // speakers are reported on that project's own page.
+      await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(1))
+      expect(mockFetchSpeakerSummaries).toHaveBeenCalledWith(['current'], {
+        includeDescendants: false,
+      })
+    })
+
+    test('does not ask until the project has resolved', async () => {
+      // Provider still loading: the route id is not yet known to be a real,
+      // active project, and may not even be a uuid.
+      mockUseProjectsData.mockReturnValue({
+        ...projectProviderData([]),
+        projectsLoading: true,
+      })
+      mockUseTranscriptsData.mockReturnValue({
+        ...transcriptProviderData([]),
+        transcriptsLoading: true,
+      })
+
+      render(<ProjectPage />)
+
+      await waitFor(() => expect(screen.getByLabelText('Loading project')).toBeInTheDocument())
+      expect(mockFetchSpeakerSummaries).not.toHaveBeenCalled()
+    })
+
+    test('does not ask for a project that is being deleted', async () => {
+      mockData([makeCurrent({ deleting_at: '2026-09-15T00:00:00Z' })], [])
+
+      render(<ProjectPage />)
+
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument())
+      expect(mockFetchSpeakerSummaries).not.toHaveBeenCalled()
+    })
+
+    test('shows the speaker group beside the counts', async () => {
+      mockFetchSpeakerSummaries.mockResolvedValue(
+        new Map([
+          [
+            'current',
+            {
+              project_id: 'current',
+              speaker_count: 5,
+              preview: [
+                { id: 's1', transcriptId: 't1', label: 'Kate', color: null, paletteIndex: 0 },
+                { id: 's2', transcriptId: 't1', label: 'John', color: null, paletteIndex: 1 },
+                { id: 's3', transcriptId: 't1', label: 'Sarah', color: null, paletteIndex: 2 },
+                { id: 's4', transcriptId: 't1', label: 'Mark', color: null, paletteIndex: 3 },
+              ],
+            },
+          ],
+        ])
+      )
+      mockData([makeCurrent()], [])
+
+      render(<ProjectPage />)
+
+      // Five speakers do not fit five circles, so the last slot is the badge.
+      expect(
+        await screen.findByRole('img', { name: '5 speakers: Kate, John, Sarah and 2 more' })
+      ).toBeInTheDocument()
+      expect(screen.getByText('+2')).toBeInTheDocument()
+    })
   })
 
   test('renders child projects before direct transcripts in their defined order', () => {

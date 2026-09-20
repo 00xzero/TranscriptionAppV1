@@ -16,6 +16,11 @@ import {
   type RecentProjectScope,
 } from '@/core/projects/activity'
 import { useProjectActions } from '@/lib/projects/useProjectActions'
+import {
+  transcriptRevision,
+  useProjectSpeakerSummaries,
+} from '@/lib/projects/useProjectSpeakerSummaries'
+import type { RecentProjectCardViewData } from '@/components/Projects/RecentProjectCard'
 import { transcriptProjectLabel } from '@/components/Projects/format'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
@@ -49,6 +54,31 @@ export default function LibraryView() {
         limit: RECENT_PROJECT_LIMIT,
       }),
     [projects, transcripts, tree]
+  )
+
+  // One RPC for the whole rail. The scope has to track the card counts: at
+  // 'top-level' those are branch rollups, so the speakers are the branch's too.
+  const recentProjectIds = useMemo(
+    () => recentProjectCards.map((card) => card.project.id),
+    [recentProjectCards]
+  )
+  // Stamped over every transcript, not just the rail's: at 'top-level' the cards
+  // roll up whole branches, so a transcript anywhere can change what they show.
+  const transcriptsRevision = useMemo(() => transcriptRevision(transcripts), [transcripts])
+  const speakers = useProjectSpeakerSummaries(
+    recentProjectIds,
+    RECENT_PROJECT_SCOPE === 'top-level',
+    transcriptsRevision
+  )
+
+  const recentProjectCardsWithSpeakers = useMemo<RecentProjectCardViewData[]>(
+    () =>
+      recentProjectCards.map((card) => ({
+        ...card,
+        speakerSummary: speakers.summaries.get(card.project.id),
+        speakersLoading: speakers.loading,
+      })),
+    [recentProjectCards, speakers.loading, speakers.summaries]
   )
 
   const projectsAreLoading = projectsLoading || isLoading
@@ -94,7 +124,7 @@ export default function LibraryView() {
       </h2>
 
       <RecentProjectsCarousel
-        cards={recentProjectCards}
+        cards={recentProjectCardsWithSpeakers}
         loading={projectsAreLoading}
         onCreate={() => projectActions.openCreate(null)}
         renderCardActions={(project) => (

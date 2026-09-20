@@ -75,4 +75,8 @@ jest.mock('./lib/supabase/queries', () => ({
   updateTranscript: jest.fn().mockResolvedValue({}),
   updateSegment: jest.fn().mockResolvedValue({}),
   deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
+  // Any surface rendering a project card or header reaches for this. Defaulting
+  // it to an empty map keeps those tests from hitting an undefined export and
+  // silently exercising the hook's error path.
+  fetchProjectSpeakerSummaries: jest.fn().mockResolvedValue(new Map()),
 }))

@@ -14,6 +14,7 @@ const mockUseTranscriptsData = jest.fn()
 const mockCreateProject = jest.fn()
 const mockRenameProject = jest.fn()
 const mockFetchBranchCount = jest.fn()
+const mockFetchSpeakerSummaries = jest.fn()
 const mockToast = jest.fn()
 
 function mockProjectsData(
@@ -36,6 +37,7 @@ function mockProjectsData(
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjectBranchTranscriptCount: (...args: unknown[]) => mockFetchBranchCount(...args),
+  fetchProjectSpeakerSummaries: (...args: unknown[]) => mockFetchSpeakerSummaries(...args),
 }))
 
 jest.mock('@/components/ui/toaster', () => ({
@@ -104,6 +106,7 @@ describe('LibraryView', () => {
     mockCreateProject.mockResolvedValue(makeProject({ id: 'created' }))
     mockRenameProject.mockResolvedValue(makeProject({ id: 'p1', name: 'Renamed' }))
     mockFetchBranchCount.mockResolvedValue(0)
+    mockFetchSpeakerSummaries.mockResolvedValue(new Map())
     mockProjectsData([], [makeTranscript()])
   })
 
@@ -297,6 +300,71 @@ describe('LibraryView', () => {
     const rootCard = screen.getByTestId('recent-project-card-root')
     expect(rootCard).toHaveTextContent('1 transcript total')
     expect(rootCard).toHaveTextContent('0 nested projects')
+  })
+
+  test('asks for branch speakers once for every card on the rail', async () => {
+    mockFetchSpeakerSummaries.mockResolvedValue(new Map())
+    mockProjectsData(
+      [makeProject({ id: 'p1', name: 'One' }), makeProject({ id: 'p2', name: 'Two' })],
+      []
+    )
+
+    renderLibraryView()
+
+    // One request for the whole rail, never one per card, and branch-scoped to
+    // match the "N transcripts total" rollups the cards show.
+    await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(1))
+    expect(mockFetchSpeakerSummaries).toHaveBeenCalledWith(['p1', 'p2'], {
+      includeDescendants: true,
+    })
+  })
+
+  test('renders the speakers a card was given', async () => {
+    mockFetchSpeakerSummaries.mockResolvedValue(
+      new Map([
+        [
+          'p1',
+          {
+            project_id: 'p1',
+            speaker_count: 2,
+            preview: [
+              { id: 's1', transcriptId: 't1', label: 'Kate', color: null, paletteIndex: 0 },
+              { id: 's2', transcriptId: 't1', label: 'John Smith', color: null, paletteIndex: 1 },
+            ],
+          },
+        ],
+      ])
+    )
+    mockProjectsData([makeProject({ id: 'p1', name: 'One' })], [])
+
+    renderLibraryView()
+
+    const group = await screen.findByRole('img', { name: '2 speakers: Kate and John Smith' })
+    expect(group).toBeInTheDocument()
+    expect(screen.getByTitle('John Smith')).toHaveTextContent('JS')
+  })
+
+  test('leaves the card intact when the speaker summary cannot be loaded', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
+    mockFetchSpeakerSummaries.mockRejectedValue(new Error('rpc down'))
+    mockProjectsData([makeProject({ id: 'p1', name: 'One' })], [])
+
+    renderLibraryView()
+
+    // Wait on the log rather than the absent group: the group is absent from the
+    // first render too, so asserting it alone would pass before the rejection.
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        '[projects] Failed to load speaker summaries:',
+        expect.any(Error)
+      )
+    )
+    // Omitted rather than shown as "0 speakers", which would be a false claim.
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Open One')).toBeInTheDocument()
+    expect(screen.getByTestId('recent-project-card-p1')).toHaveTextContent('0 transcripts total')
+
+    consoleError.mockRestore()
   })
 
   test('gives each slide a position label', () => {

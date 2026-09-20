@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { FolderClock, Plus } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
@@ -24,6 +24,10 @@ import {
 } from '@/core/projects/tree'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { useProjectActions } from '@/lib/projects/useProjectActions'
+import {
+  transcriptRevision,
+  useProjectSpeakerSummaries,
+} from '@/lib/projects/useProjectSpeakerSummaries'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
@@ -58,6 +62,29 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false)
   const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
+  // Direct scope, to match directTranscriptCount below: a nested project's
+  // speakers are reported on that project's own page.
+  //
+  // Gated on a resolved, active project. The hook itself must be called
+  // unconditionally — the early returns below would otherwise skip it — so the
+  // gate is an empty id set instead, which the hook short-circuits without a
+  // request. Asking earlier would fire against a route id that may not be a uuid
+  // at all, or against a project that turns out to be missing or mid-deletion,
+  // and Postgres would reject the cast noisily for nothing.
+  const speakerProject = !isLoading && !loadError && project && !project.deleting_at ? project : null
+  const speakerIds = useMemo(
+    () => (speakerProject ? [speakerProject.id] : []),
+    [speakerProject]
+  )
+  // Only this project's own transcripts can change a direct-scope answer.
+  const speakersRevision = useMemo(
+    () =>
+      speakerProject
+        ? transcriptRevision(transcripts.filter((t) => t.project_id === speakerProject.id))
+        : '',
+    [transcripts, speakerProject]
+  )
+  const speakers = useProjectSpeakerSummaries(speakerIds, false, speakersRevision)
 
   if (
     currentAncestorIds &&
@@ -127,6 +154,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         project={project}
         directTranscriptCount={directTranscripts.length}
         nestedProjectCount={descendantCount(tree, project.id)}
+        speakerSummary={speakers.summaries.get(project.id)}
+        speakersLoading={speakers.loading}
         actions={(
           <>
             <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => projectActions.openCreate(project.id)}>

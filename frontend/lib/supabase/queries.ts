@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     Transcript,
     Project,
+    ProjectSpeakerSummary,
     Speaker,
     SegmentUpdate,
     SpeakerUpdate,
@@ -21,6 +22,7 @@ import type {
     TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
+import { ProjectSpeakerSummariesResultSchema } from '@/contracts/db'
 
 const PAGE_SIZE = 1000
 
@@ -177,6 +179,39 @@ export async function fetchProjectBranchTranscriptCount(id: string): Promise<num
 
     if (error) throw error
     return data ?? 0
+}
+
+/**
+ * Speaker avatar summaries for a set of projects, in one request.
+ *
+ * Deliberately uncapped: the Library asks for at most RECENT_PROJECT_LIMIT ids
+ * and the project header for one, so a cap would guard nothing — and silently
+ * truncating the input would return incomplete results that look complete.
+ *
+ * Returns a Map because absent is not the same as zero: a missing key means the
+ * project is not the caller's, is being deleted, or is gone, while a present
+ * entry with speaker_count 0 means it simply has no speakers yet.
+ */
+export async function fetchProjectSpeakerSummaries(
+    projectIds: string[],
+    options: { includeDescendants: boolean; previewLimit?: number }
+): Promise<Map<string, ProjectSpeakerSummary>> {
+    if (projectIds.length === 0) return new Map()
+
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('project_speaker_summaries', {
+        p_project_ids: projectIds,
+        p_include_descendants: options.includeDescendants,
+        p_preview_limit: options.previewLimit ?? 4,
+    })
+
+    if (error) throw error
+
+    const parsed = ProjectSpeakerSummariesResultSchema.safeParse(data ?? [])
+    if (!parsed.success) {
+        throw new Error('Malformed project_speaker_summaries response')
+    }
+    return new Map(parsed.data.map((row) => [row.project_id, row]))
 }
 
 /**
@@ -439,7 +474,13 @@ export async function fetchSpeakers(transcriptId: string): Promise<Speaker[]> {
         .from('speakers')
         .select('*')
         .eq('transcript_id', transcriptId)
+        // save_transcript_segments inserts every speaker of a transcript in one
+        // statement, so they all share the transaction's now() and created_at is
+        // a total tie. id is the only deterministic key, and without it a rename
+        // (which rewrites the tuple) can silently reshuffle palette colors.
+        // project_speaker_summaries orders on the same two columns.
         .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
 
     if (error) throw error
     return data || []
