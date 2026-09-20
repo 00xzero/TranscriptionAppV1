@@ -52,7 +52,14 @@ export function RecentProjectCard({
           {formatRelativeTime(lastActivityAt)}
         </span>
       </div>
-      <h4 className="truncate font-serif text-xl italic text-foreground transition-colors group-hover:text-trust-blue">
+      {/*
+        Newsreader's italic descenders lean backwards, so a title starting with g,
+        y or j paints ~1.3px to the LEFT of the text origin -- which truncate's
+        overflow:hidden slices off at the content edge. The padding gives that
+        overhang somewhere to land and the negative margin cancels it, so the
+        title stays aligned with the icon and the counts below it.
+      */}
+      <h4 className="-ml-1 truncate pl-1 font-serif text-xl italic text-foreground transition-colors group-hover:text-trust-blue">
         <Link
           href={`/projects/${project.id}`}
           title={`Open ${project.name}`}
