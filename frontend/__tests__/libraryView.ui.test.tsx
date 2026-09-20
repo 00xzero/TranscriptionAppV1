@@ -19,17 +19,18 @@ const mockToast = jest.fn()
 function mockProjectsData(
   projects: Project[],
   transcripts: Transcript[],
-  overrides: { projectsLoading?: boolean } = {}
+  overrides: { projectsLoading?: boolean; transcriptsLoading?: boolean } = {}
 ) {
   mockUseProjectsData.mockReturnValue({
     ...projectProviderData(projects),
     createProject: mockCreateProject,
     renameProject: mockRenameProject,
-    ...overrides,
+    projectsLoading: overrides.projectsLoading ?? false,
   })
   mockUseTranscriptsData.mockReturnValue({
     ...transcriptProviderData(transcripts),
     deleteTranscript: mockDeleteTranscript,
+    transcriptsLoading: overrides.transcriptsLoading ?? false,
   })
 }
 
@@ -104,6 +105,25 @@ describe('LibraryView', () => {
     mockRenameProject.mockResolvedValue(makeProject({ id: 'p1', name: 'Renamed' }))
     mockFetchBranchCount.mockResolvedValue(0)
     mockProjectsData([], [makeTranscript()])
+  })
+
+  test('renders row-shaped placeholders while recent transcripts load', () => {
+    mockProjectsData([], [makeTranscript()], { transcriptsLoading: true })
+
+    renderLibraryView()
+
+    const loadingState = screen.getByRole('status')
+    const rows = loadingState.querySelectorAll('.animate-pulse.p-4')
+    expect(loadingState).toHaveTextContent('Loading recent transcripts…')
+    expect(rows).toHaveLength(3)
+    rows.forEach((row) => {
+      expect(row).toHaveClass('min-h-18')
+      expect(row).toHaveAttribute('aria-hidden', 'true')
+    })
+    const projectCarousel = screen.getByRole('region', { name: 'Recent projects' })
+    expect(projectCarousel.querySelectorAll('.animate-pulse')).toHaveLength(3)
+    expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
+    expect(screen.queryByText(/No transcripts yet/)).not.toBeInTheDocument()
   })
 
   test('opens dropdown on trigger click and closes on Escape', async () => {

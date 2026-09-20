@@ -6,6 +6,7 @@ import { createClient } from '@/infra/supabase/client'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { ListRowSkeleton, ProjectList } from '@/components/Projects/ProjectList'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
@@ -114,36 +115,43 @@ export default function LibraryView() {
           </Link>
         </div>
 
-        <div className="divide-y divide-border rounded-sm border border-border bg-panel">
-          {isLoading ? (
-            <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              Loading transcripts...
-            </div>
-          ) : transcripts.length === 0 ? (
-            <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
-            </div>
-          ) : (
-            transcripts.slice(0, 5).map((transcript) => {
-              const target = transcriptActionTarget(transcript)
-              return (
-                <TranscriptRow
-                  key={transcript.id}
-                  transcript={transcript}
-                  projectPath={transcriptProjectLabel(tree, transcript.project_id)}
-                  actions={(
-                    <TranscriptActionsMenu
-                      title={target.title}
-                      onMove={() => transcriptActions.openMove(target)}
-                      onDelete={() => transcriptActions.openDelete(target)}
-                    />
-                  )}
-                />
-              )
-            })
-          )}
-        </div>
-        </section>
+        {isLoading ? (
+          <div role="status">
+            <span className="sr-only">Loading recent transcripts…</span>
+            <ProjectList>
+              {[0, 1, 2].map((row) => (
+                <ListRowSkeleton key={row} />
+              ))}
+            </ProjectList>
+          </div>
+        ) : (
+          <ProjectList>
+            {transcripts.length === 0 ? (
+              <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
+                No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
+              </div>
+            ) : (
+              transcripts.slice(0, 5).map((transcript) => {
+                const target = transcriptActionTarget(transcript)
+                return (
+                  <TranscriptRow
+                    key={transcript.id}
+                    transcript={transcript}
+                    projectPath={transcriptProjectLabel(tree, transcript.project_id)}
+                    actions={(
+                      <TranscriptActionsMenu
+                        title={target.title}
+                        onMove={() => transcriptActions.openMove(target)}
+                        onDelete={() => transcriptActions.openDelete(target)}
+                      />
+                    )}
+                  />
+                )
+              })
+            )}
+          </ProjectList>
+        )}
+      </section>
       </div>
       <ProjectActionDialogs actions={projectActions} />
       <TranscriptActionDialogs actions={transcriptActions} />
