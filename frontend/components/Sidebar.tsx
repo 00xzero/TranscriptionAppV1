@@ -103,7 +103,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     try {
       await signOut()
     } catch (error) {
+      // Still signed in locally: stay put rather than show /auth over a live session.
       console.error('Sign-out failed:', error)
+      toast({
+        title: 'Could not sign out',
+        description: 'Please check your connection and try again.',
+        variant: 'error',
+      })
+      return
     }
     router.push('/auth')
     router.refresh()

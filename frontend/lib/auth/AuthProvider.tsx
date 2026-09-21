@@ -28,8 +28,9 @@ interface AuthIdentity {
 
 export interface AuthContextValue extends AuthIdentity {
   /**
-   * Sign out and clear identity immediately, without waiting for the
-   * SIGNED_OUT event. Rethrows a Supabase sign-out error after clearing.
+   * Sign out and clear identity once Supabase has removed the local session.
+   * Rejects only when the local session is still present (identity retained);
+   * a failed server-side revoke after local removal resolves normally.
    */
   signOut: () => Promise<void>
 }
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [identity, setIdentity] = useState<AuthIdentity>(INITIAL_IDENTITY)
   const generationRef = useRef(0)
   const mountedRef = useRef(false)
+  const signedOutEventsRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -96,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
         return
       }
+      if (event === 'SIGNED_OUT') signedOutEventsRef.current += 1
       generationRef.current += 1
       const user = session?.user ?? null
       setIdentity({ user, userId: user?.id ?? null, ready: true })
@@ -109,12 +112,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   const signOut = useCallback(async () => {
+    const signedOutEventsBefore = signedOutEventsRef.current
     const { error } = await supabase.auth.signOut()
+    // supabase-js emits SIGNED_OUT exactly when it removes the local session,
+    // which it also does when only the server-side revoke fails. An error with
+    // no SIGNED_OUT means the local session survived: keep identity and fail.
+    if (error && signedOutEventsRef.current === signedOutEventsBefore) throw error
+    if (error) console.warn('Server-side sign-out failed after local sign-out:', error)
     if (mountedRef.current) {
       generationRef.current += 1
       setIdentity(SIGNED_OUT_IDENTITY)
     }
-    if (error) throw error
   }, [supabase])
 
   const value = useMemo<AuthContextValue>(

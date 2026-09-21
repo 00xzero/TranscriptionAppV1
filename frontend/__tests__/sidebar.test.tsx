@@ -13,6 +13,7 @@ import {
 
 const usePathnameMock = jest.fn()
 const routerPushMock = jest.fn()
+const toastMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
@@ -22,6 +23,10 @@ jest.mock('next/navigation', () => ({
 jest.mock('../lib/recording/session', () => ({
   ...jest.requireActual('../lib/recording/session'),
   hasUnresolvedRecordingArtifact: () => false,
+}))
+
+jest.mock('@/components/ui/toaster', () => ({
+  toast: (...args: unknown[]) => toastMock(...args),
 }))
 
 jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
@@ -125,17 +130,22 @@ describe('Sidebar', () => {
 
   // The recording guard and the happy-path sign-out are covered in
   // __tests__/recording/signOutGuard.test.tsx.
-  it('still routes to /auth when provider sign-out rejects', async () => {
+  it('stays on the page and reports the failure when provider sign-out rejects', async () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
-    mockSignOut.mockRejectedValueOnce(new Error('network down'))
+    mockSignOut.mockRejectedValueOnce(new Error('session load failed'))
     setTestAuth({ userId: 'user-a', ready: true, user: testUser('user-a') })
     await renderSidebar()
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(await screen.findByText('Sign out'))
 
-    await waitFor(() => expect(routerPushMock).toHaveBeenCalledWith('/auth'))
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Could not sign out', variant: 'error' })
+      )
+    })
     expect(mockSignOut).toHaveBeenCalledTimes(1)
+    expect(routerPushMock).not.toHaveBeenCalled()
     errorSpy.mockRestore()
   })
 })

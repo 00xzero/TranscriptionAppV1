@@ -205,12 +205,33 @@ describe('AuthProvider', () => {
     expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
   })
 
-  test('signOut clears identity and rethrows when Supabase reports an error', async () => {
+  test('signOut resolves and clears identity when only the server revoke fails', async () => {
     mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-a' } }, error: null })
-    const failure = new Error('network down')
-    mockSignOut.mockResolvedValueOnce({ error: failure })
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
+    // supabase-js removes the local session (emitting SIGNED_OUT) and still returns the error.
+    mockSignOut.mockImplementationOnce(async () => {
+      authStateHandler?.('SIGNED_OUT', null)
+      return { error: new Error('revoke failed') }
+    })
     const { result } = renderAuth()
     await waitFor(() => expect(result.current.userId).toBe('user-a'))
+
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  test('signOut rejects and keeps identity when the local session survives', async () => {
+    const verifiedUser = { id: 'user-a' }
+    mockGetUser.mockResolvedValueOnce({ data: { user: verifiedUser }, error: null })
+    const failure = new Error('session load failed')
+    mockSignOut.mockResolvedValueOnce({ error: failure })
+    const { result } = renderAuth()
+    await waitFor(() => expect(result.current.ready).toBe(true))
 
     let thrown: unknown
     await act(async () => {
@@ -218,7 +239,7 @@ describe('AuthProvider', () => {
     })
 
     expect(thrown).toBe(failure)
-    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
+    expect(identityOf(result.current)).toEqual({ user: verifiedUser, userId: 'user-a', ready: true })
   })
 
   test('signOut invalidates an in-flight verification', async () => {
