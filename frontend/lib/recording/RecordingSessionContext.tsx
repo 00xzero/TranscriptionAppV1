@@ -29,7 +29,7 @@ import { useBeforeUnloadGuard } from './useBeforeUnloadGuard'
 import { useRemotePresence } from './useRemotePresence'
 import { RemotePresenceProvider } from './RemotePresenceContext'
 import { clearPresenceForSession } from './presence'
-import { useAuthIdentity } from '@/lib/supabase/hooks'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 import { showCaptureWarning } from '@/lib/capture/warnings'
 export { RecordingAlreadyActiveError } from './session'
@@ -67,7 +67,7 @@ export function RecordingSessionProvider({
 }: {
   children: React.ReactNode
 }) {
-  const identity = useAuthIdentity()
+  const identity = useAuth()
   const snapshot = useRecordingSession()
   const probedUserRef = useRef<string | null>(null)
   const warnedTranscriptIdRef = useRef<string | null>(null)

@@ -7,14 +7,15 @@ import {
 } from '@/lib/projects/ProjectsProvider'
 import { buildProjectTree, transcriptsInProject } from '@/core/projects/tree'
 import type { Project, Transcript } from '@/contracts/db'
+import { setTestAuth } from '@/__tests__/helpers/auth'
 
-const mockUseAuthIdentity = jest.fn()
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
+
 const mockUseProjectsRealtime = jest.fn()
 const mockUseTranscriptsRealtime = jest.fn()
 const mockUseProjectsDeleteInvalidation = jest.fn()
 
 jest.mock('@/lib/supabase/hooks', () => ({
-  useAuthIdentity: () => mockUseAuthIdentity(),
   useProjectsRealtime: (...args: unknown[]) => mockUseProjectsRealtime(...args),
   useTranscriptsRealtime: (...args: unknown[]) => mockUseTranscriptsRealtime(...args),
   useProjectsDeleteInvalidation: (...args: unknown[]) =>
@@ -97,7 +98,7 @@ function Consumer({ projectId = null }: { projectId?: string | null }) {
 describe('ProjectsProvider', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockUseAuthIdentity.mockReturnValue({ userId: 'user-a', ready: true })
+    setTestAuth({ userId: 'user-a', ready: true })
     mockData([project('project-a')], [transcript('transcript-a', 'project-a')])
   })
 
@@ -139,7 +140,7 @@ describe('ProjectsProvider', () => {
   })
 
   test('calls disabled table hooks and settles empty without a user', () => {
-    mockUseAuthIdentity.mockReturnValue({ userId: null, ready: true })
+    setTestAuth({ userId: null, ready: true })
     mockData([], [])
 
     render(
@@ -159,7 +160,7 @@ describe('ProjectsProvider', () => {
   })
 
   test('reports loading while authentication is unresolved with disabled table hooks', () => {
-    mockUseAuthIdentity.mockReturnValue({ userId: null, ready: false })
+    setTestAuth({ userId: null, ready: false })
     mockData([], [])
 
     render(

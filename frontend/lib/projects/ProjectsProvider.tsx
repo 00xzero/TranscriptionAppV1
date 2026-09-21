@@ -6,8 +6,8 @@ import {
   useMemo,
   type ReactNode,
 } from 'react'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import {
-  useAuthIdentity,
   useProjectsDeleteInvalidation,
   useProjectsRealtime,
   useTranscriptsRealtime,
@@ -54,7 +54,7 @@ function useTranscriptsDataValue(
 }
 
 export function ProjectsProvider({ children }: { children: ReactNode }) {
-  const { userId, ready } = useAuthIdentity()
+  const { userId, ready } = useAuth()
   const enabled = Boolean(userId)
   const projectData = useProjectsRealtime({ userId, enabled })
   const transcriptData = useTranscriptsRealtime({ userId, enabled })

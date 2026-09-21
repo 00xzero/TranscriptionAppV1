@@ -1,14 +1,11 @@
 import React from 'react'
 import { act, render } from '@testing-library/react'
 
-let identityValue: { userId: string | null; ready: boolean } = {
-  userId: 'u1',
-  ready: true,
-}
+import { setTestAuth } from '@/__tests__/helpers/auth'
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useAuthIdentity: () => identityValue,
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
+
+setTestAuth({ userId: 'u1', ready: true })
 
 jest.mock('@/lib/recording/session', () => ({
   ...jest.requireActual('@/lib/recording/session'),
@@ -54,7 +51,7 @@ describe('owner-loss → recovery probe (provider)', () => {
 
   beforeEach(() => {
     __resetForTesting()
-    identityValue = { userId: 'u1', ready: true }
+    setTestAuth({ userId: 'u1', ready: true })
     mockProbe.mockClear()
     mockProbe.mockResolvedValue(false)
     channel = new FakeRecordingPresence()

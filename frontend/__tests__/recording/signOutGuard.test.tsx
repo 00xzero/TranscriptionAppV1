@@ -9,10 +9,10 @@ import {
   hasUnresolvedRecordingArtifact,
   startMock,
 } from '@/lib/recording/session'
+import { mockSignOut, resetTestAuth, setTestAuth, testUser } from '@/__tests__/helpers/auth'
 
 const pushMock = jest.fn()
 const refreshMock = jest.fn()
-const signOutMock = jest.fn().mockResolvedValue(undefined)
 const toastMock = jest.fn()
 
 jest.mock('next/navigation', () => ({
@@ -24,23 +24,11 @@ jest.mock('@/components/ui/toaster', () => ({
   toast: (opts: unknown) => toastMock(opts),
 }))
 
-jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getUser: jest.fn().mockResolvedValue({
-        data: { user: { id: 'u1', email: 'a@b.com', user_metadata: {} } },
-      }),
-      onAuthStateChange: jest.fn().mockReturnValue({
-        data: { subscription: { unsubscribe: jest.fn() } },
-      }),
-      signOut: signOutMock,
-    },
-  }),
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
-// Sign out now lives inside the account dropdown, so we render, wait for the
-// async user fetch to resolve (its email appears in the account trigger), open
-// the menu, and activate the "Sign out" menu item.
+// Sign out now lives inside the account dropdown, so we render, confirm the
+// provider user is shown (its email appears in the account trigger), open the
+// menu, and activate the "Sign out" menu item.
 async function renderAndClickSignOut() {
   const user = userEvent.setup()
   render(
@@ -58,7 +46,12 @@ describe('sign-out auth-boundary guard', () => {
     __resetForTesting()
     pushMock.mockReset()
     refreshMock.mockReset()
-    signOutMock.mockClear()
+    resetTestAuth()
+    setTestAuth({
+      userId: 'u1',
+      ready: true,
+      user: testUser('u1', { email: 'a@b.com' }),
+    })
     toastMock.mockReset()
   })
 
@@ -89,7 +82,7 @@ describe('sign-out auth-boundary guard', () => {
     startMock()
     await renderAndClickSignOut()
 
-    expect(signOutMock).not.toHaveBeenCalled()
+    expect(mockSignOut).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalledTimes(1)
     expect(pushMock).not.toHaveBeenCalledWith('/auth')
   })
@@ -97,7 +90,7 @@ describe('sign-out auth-boundary guard', () => {
   test('signs out normally when idle', async () => {
     await renderAndClickSignOut()
 
-    await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
     expect(toastMock).not.toHaveBeenCalled()
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/auth'))
   })

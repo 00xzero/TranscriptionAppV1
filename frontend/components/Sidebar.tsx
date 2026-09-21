@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
-import { createClient } from '@/infra/supabase/client'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import AccountMenu from '@/components/AccountMenu'
@@ -18,7 +18,6 @@ import {
   supportsSystemThemePreference,
   systemPrefersDark,
 } from '@/lib/theme'
-import type { User } from '@supabase/supabase-js'
 import type { AppTheme } from '@/types/theme'
 
 interface SidebarProps {
@@ -32,7 +31,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
   const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
-  const [user, setUser] = useState<User | null>(null)
+  const { user, signOut } = useAuth()
   const [mounted, setMounted] = useState(false)
   // Gates transition classes so the first real-DOM paint (at the persisted
   // width) never animates in from the SSR placeholder width. Flipped a frame
@@ -60,46 +59,6 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const raf = requestAnimationFrame(() => setMotionReady(true))
     return () => cancelAnimationFrame(raf)
   }, [mounted])
-
-  // Fetch user
-  useEffect(() => {
-    if (isAuthRoute) {
-      setUser(null)
-      return
-    }
-
-    const supabase = createClient()
-    let isMounted = true
-
-    const getUser = async () => {
-      try {
-        const { data: { user }, error } = await supabase.auth.getUser()
-        if (error) {
-          console.error('Failed to fetch authenticated user in Sidebar:', error)
-          return
-        }
-
-        if (isMounted) {
-          setUser(user)
-        }
-      } catch (error) {
-        console.error('Unexpected error fetching authenticated user in Sidebar:', error)
-      }
-    }
-
-    getUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) {
-        setUser(session?.user ?? null)
-      }
-    })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-    }
-  }, [isAuthRoute])
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed(prev => {
@@ -141,8 +100,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       })
       return
     }
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Sign-out failed:', error)
+    }
     router.push('/auth')
     router.refresh()
   }

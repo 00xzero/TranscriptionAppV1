@@ -11,6 +11,7 @@ import {
   startMock,
 } from '@/lib/recording/session'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
+import { setTestAuth } from '@/__tests__/helpers/auth'
 
 class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
@@ -60,10 +61,6 @@ const mockModalState = {
 const mockCaptureFormState = {
   isUploading: false,
 }
-const mockAuthIdentity = {
-  userId: 'user-1' as string | null,
-  ready: true,
-}
 const originalUserAgent = navigator.userAgent
 const originalVendor = navigator.vendor
 const originalNavigatorMediaDevices = navigator.mediaDevices
@@ -98,9 +95,7 @@ jest.mock('../components/CaptureModal/useCaptureForm', () => ({
   }),
 }))
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useAuthIdentity: () => mockAuthIdentity,
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
 function renderModal() {
   return render(
@@ -132,8 +127,7 @@ function resetModalTestState(): void {
   jest.useRealTimers()
   __resetForTesting()
   setIdentity({ userId: 'user-1', ready: true })
-  mockAuthIdentity.userId = 'user-1'
-  mockAuthIdentity.ready = true
+  setTestAuth({ userId: 'user-1', ready: true })
   mockModalState.isCaptureModalOpen = true
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
