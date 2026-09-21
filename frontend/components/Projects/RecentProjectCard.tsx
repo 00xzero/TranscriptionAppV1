@@ -89,14 +89,22 @@ export function RecentProjectCard({
         "0 speakers" for a failed fetch would state something false. The card's
         min-height reserves the space either way, so nothing reflows.
 
-        Statically positioned on purpose — see the note above the card root: a
-        positioned element here would become the containing block for the title
-        link's ::after and shrink the card's click target to this row.
+        The note above the card root is about ANCESTORS of the title link. This
+        row is the link's sibling, so the group positioning its own circles
+        (see SpeakerAvatarGroup) cannot retarget the ::after — measured: the
+        pseudo-element still covers the full card.
+
+        It does mean the circles sit above the stretched hit area and take
+        their own clicks, which is what makes their tooltips reachable. `href`
+        hands them the same destination so the row is not a dead patch in the
+        middle of a clickable card — it must stay in sync with the title link
+        above.
       */}
       {(speakersLoading || speakerSummary) && (
         <SpeakerAvatarGroup
           className="mt-3"
           size="card"
+          href={`/projects/${project.id}`}
           loading={speakersLoading}
           speakers={speakerSummary?.preview ?? []}
           totalCount={speakerSummary?.speaker_count ?? 0}

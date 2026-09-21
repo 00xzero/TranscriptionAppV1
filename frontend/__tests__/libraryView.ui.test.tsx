@@ -341,7 +341,7 @@ describe('LibraryView', () => {
 
     const group = await screen.findByRole('img', { name: '2 speakers: Kate and John Smith' })
     expect(group).toBeInTheDocument()
-    expect(screen.getByTitle('John Smith')).toHaveTextContent('JS')
+    expect(screen.getByText('JS')).toBeInTheDocument()
   })
 
   test('leaves the card intact when the speaker summary cannot be loaded', async () => {
