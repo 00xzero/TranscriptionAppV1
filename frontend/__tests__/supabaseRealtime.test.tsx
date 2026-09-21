@@ -936,6 +936,40 @@ describe('useSupabaseRealtime', () => {
     expect(result.current.data).toEqual([{ id: 'latest', title: 'Latest' }])
   })
 
+  test('keeps one channel and one fetch across rerenders with inline options', async () => {
+    const fetchFn = jest.fn().mockResolvedValue([{ id: 'old', title: 'Old transcript' }])
+    const { result, rerender } = renderHook(
+      ({ render }: { render: number }) =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, {
+          initialData: [],
+          realtimeFilter: 'id=eq.old',
+          insertPosition: 'prepend',
+          transformRealtimePayload: (row) => ({
+            id: String(row.id),
+            title: `${String(row.title)} (${render})`,
+          }),
+        }),
+      { initialProps: { render: 0 } }
+    )
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual([{ id: 'old', title: 'Old transcript' }])
+    })
+
+    for (let render = 1; render <= 3; render += 1) {
+      rerender({ render })
+    }
+
+    act(() => {
+      changeHandler?.({ eventType: 'UPDATE', new: { id: 'old', title: 'Updated' } })
+    })
+
+    expect(result.current.data).toEqual([{ id: 'old', title: 'Updated (3)' }])
+    expect(channelFactoryMock).toHaveBeenCalledTimes(1)
+    expect(removeChannelMock).not.toHaveBeenCalled()
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
   test('uses the latest callback when scope and callback change in the same commit', async () => {
     const firstFetch = jest.fn().mockResolvedValue([{ id: 'first', title: 'First' }])
     const secondRequest = deferred<Row[]>()
