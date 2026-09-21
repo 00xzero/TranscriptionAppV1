@@ -57,7 +57,7 @@ export function ProjectTreePicker({
       }
     } else if (id !== 'unfiled' && event.key === 'ArrowLeft') {
       event.preventDefault()
-      if (isManuallyExpanded(id)) {
+      if (!isSearching && isManuallyExpanded(id)) {
         setNodeExpanded(id, false)
       } else {
         const parentId = tree.byId.get(id)?.parent_id
@@ -137,7 +137,9 @@ export function ProjectTreePicker({
           )
         })}
         {isSearching && nodes.length === 0 && (
-          <p className="px-3 py-4 text-center text-sm text-muted">No matching projects.</p>
+          <p role="status" className="px-3 py-4 text-center text-sm text-muted">
+            No matching projects.
+          </p>
         )}
       </div>
     </div>

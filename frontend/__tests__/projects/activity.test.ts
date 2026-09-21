@@ -172,4 +172,17 @@ describe('selectRecentProjects', () => {
     expect(cards[1].transcriptCount).toBe(0)
     expect(cards[1].nestedProjectCount).toBe(1)
   })
+
+  test("'all' excludes deleting descendants from nested project counts", () => {
+    const deletingAt = '2026-09-15T00:00:00Z'
+    const projects = [
+      root('parent', '2026-09-01T00:00:00Z'),
+      root('kept-child', '2026-09-02T00:00:00Z', 'parent'),
+      { ...root('doomed-child', '2026-09-03T00:00:00Z', 'parent'), deleting_at: deletingAt },
+    ]
+
+    const cards = select('all', projects, [])
+
+    expect(cards.find((card) => card.project.id === 'parent')?.nestedProjectCount).toBe(1)
+  })
 })

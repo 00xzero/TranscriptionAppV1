@@ -125,6 +125,7 @@ describe('LibraryView', () => {
     })
     const projectCarousel = screen.getByRole('region', { name: 'Recent projects' })
     expect(projectCarousel.querySelectorAll('.animate-pulse')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
     expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
     expect(screen.queryByText(/No transcripts yet/)).not.toBeInTheDocument()
   })

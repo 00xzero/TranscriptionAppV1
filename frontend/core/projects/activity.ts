@@ -1,7 +1,7 @@
 import type { Project, Transcript } from '@/contracts/db'
 import {
   activeBranchIds,
-  descendantCount,
+  activeDescendantCount,
   pathLabel,
   transcriptCountsByProject,
   type ProjectTree,
@@ -137,7 +137,7 @@ export function selectRecentProjects({
       project,
       lastActivityAt,
       transcriptCount: transcriptCounts.get(project.id) ?? 0,
-      nestedProjectCount: descendantCount(tree, project.id),
+      nestedProjectCount: activeDescendantCount(tree, project.id),
       parentPath: project.parent_id ? pathLabel(tree, project.parent_id) : null,
       countsAreBranchTotals: false,
     })

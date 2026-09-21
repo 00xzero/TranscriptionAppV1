@@ -125,7 +125,7 @@ export function RecentProjectsCarousel({
     track.scrollBy({ left: direction * track.clientWidth })
   }
 
-  const slideCount = loading ? 3 : cards.length + 1
+  const slideCount = (loading ? 3 : cards.length) + 1
   const showControls = !loading && !boundaries.fits
 
   return (
@@ -210,24 +210,22 @@ export function RecentProjectsCarousel({
               </div>
             ))}
 
-        {!loading && (
-          <button
-            type="button"
-            onClick={onCreate}
-            aria-label="New project folder"
-            className={cn(
-              SLIDE,
-              // Tracks RecentProjectCard's min-height; if one changes so must
-              // the other, or the last slide stands shorter than the rest.
-              'group flex min-h-52 flex-col items-center justify-center gap-2 rounded-lg',
-              'border-2 border-dashed border-border text-muted transition-all',
-              'hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue'
-            )}
-          >
-            <Plus className="h-6 w-6" aria-hidden="true" />
-            <span className="font-serif text-sm italic">New Project Folder</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onCreate}
+          aria-label="New project folder"
+          className={cn(
+            SLIDE,
+            // Tracks RecentProjectCard's min-height; if one changes so must
+            // the other, or the last slide stands shorter than the rest.
+            'group flex min-h-52 flex-col items-center justify-center gap-2 rounded-lg',
+            'border-2 border-dashed border-border text-muted transition-all',
+            'hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue'
+          )}
+        >
+          <Plus className="h-6 w-6" aria-hidden="true" />
+          <span className="font-serif text-sm italic">New Project Folder</span>
+        </button>
       </div>
     </section>
   )

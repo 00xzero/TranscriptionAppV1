@@ -180,7 +180,7 @@ describe('ProjectArchivePanel', () => {
 
     await user.clear(screen.getByRole('textbox', { name: 'Search project archive' }))
     await user.type(screen.getByRole('textbox', { name: 'Search project archive' }), 'zzz')
-    expect(screen.getByText('No matching projects.')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('No matching projects.')
   })
 
   test('renders nothing when the page is showing a load error', () => {

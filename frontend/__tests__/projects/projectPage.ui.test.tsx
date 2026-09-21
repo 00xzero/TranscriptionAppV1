@@ -165,6 +165,8 @@ describe('ProjectPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Current' })).toBeInTheDocument()
     expect(screen.getByText('1 transcript · 1 nested project')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Sub-projects' })).toBeInTheDocument()
+    expect(screen.getByText('1 project')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Transcripts' })).toBeInTheDocument()
     expect(screen.getByText('1 transcript')).toBeInTheDocument()
   })

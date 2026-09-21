@@ -370,10 +370,14 @@ export function ProjectArchivePanel() {
                     )
                   })}
                   {view.isSearching && view.nodes.length === 0 && (
-                    <li className="px-3 py-4 text-center text-sm text-muted">No matching projects.</li>
+                    <li role="status" className="px-3 py-4 text-center text-sm text-muted">
+                      No matching projects.
+                    </li>
                   )}
                   {!view.isSearching && view.visibleRoots.length === 0 && (
-                    <li className="px-3 py-4 text-center text-sm text-muted">No projects yet.</li>
+                    <li role="status" className="px-3 py-4 text-center text-sm text-muted">
+                      No projects yet.
+                    </li>
                   )}
                 </>
               ))}

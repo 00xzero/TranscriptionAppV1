@@ -183,7 +183,12 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         </ProjectList>
       )}
       {children.length > 0 && (
-        <section aria-label="Sub-projects">
+        <section aria-labelledby="project-subprojects-heading">
+          <ListSectionHeading
+            id="project-subprojects-heading"
+            title="Sub-projects"
+            meta={countLabel(children.length, 'project', 'projects')}
+          />
           <ProjectList>
             {children.map((child) => (
               <ProjectRow
