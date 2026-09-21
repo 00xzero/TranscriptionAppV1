@@ -2,6 +2,8 @@ import React from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProjectArchivePanel } from '@/components/Projects/ProjectArchivePanel'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { PROJECT_ARCHIVE_COLLAPSED_KEY } from '@/lib/constants'
 import {
   makeProject,
   makeTranscript,
@@ -46,12 +48,20 @@ function setup(pathname: string, overrides: { projectError?: Error } = {}) {
     projectError: overrides.projectError ?? null,
   })
   mockUseTranscriptsData.mockReturnValue(transcriptProviderData(transcripts))
-  return render(<ProjectArchivePanel />)
+  return render(
+    <TooltipProvider>
+      <ProjectArchivePanel />
+    </TooltipProvider>
+  )
 }
 
 const link = (name: RegExp) => screen.getByRole('link', { name })
 
 describe('ProjectArchivePanel', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   test('shows pinned rows and direct transcript counts, hiding projects being deleted', () => {
     setup('/projects')
 
@@ -88,6 +98,72 @@ describe('ProjectArchivePanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Collapse Client Research' }))
     expect(screen.queryByRole('link', { name: /Discovery Calls/ })).not.toBeInTheDocument()
+  })
+
+  test('collapses to a compact control and persists the preference', async () => {
+    const user = userEvent.setup()
+    setup('/projects')
+
+    await user.click(screen.getByRole('button', { name: 'Collapse project archive' }))
+
+    expect(screen.getByRole('navigation', { name: 'Project archive' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand project archive' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(screen.queryByRole('textbox', { name: 'Search project archive' })).not.toBeInTheDocument()
+    expect(localStorage.getItem(PROJECT_ARCHIVE_COLLAPSED_KEY)).toBe('true')
+  })
+
+  test('keeps pinned destinations reachable from the collapsed rail', () => {
+    localStorage.setItem(PROJECT_ARCHIVE_COLLAPSED_KEY, 'true')
+    setup('/projects')
+
+    expect(screen.getByRole('link', { name: 'All Transcripts, 5' })).toHaveAttribute('href', '/transcripts')
+    expect(screen.getByRole('link', { name: 'Unfiled, 1' })).toHaveAttribute('href', '/projects#unfiled')
+    expect(screen.queryByRole('link', { name: /Client Research/ })).not.toBeInTheDocument()
+  })
+
+  test('keeps collapsed rail links named while counts are loading', () => {
+    localStorage.setItem(PROJECT_ARCHIVE_COLLAPSED_KEY, 'true')
+    mockPathname = '/projects'
+    mockUseProjectsData.mockReturnValue({ ...projectProviderData(projects), projectsLoading: true })
+    mockUseTranscriptsData.mockReturnValue(transcriptProviderData(transcripts))
+    render(
+      <TooltipProvider>
+        <ProjectArchivePanel />
+      </TooltipProvider>
+    )
+
+    expect(screen.getByRole('link', { name: 'All Transcripts' })).toHaveAttribute('href', '/transcripts')
+    expect(screen.getByRole('link', { name: 'Unfiled' })).toHaveAttribute('href', '/projects#unfiled')
+  })
+
+  test('the rail search button expands the archive and focuses search', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(PROJECT_ARCHIVE_COLLAPSED_KEY, 'true')
+    setup('/projects')
+
+    await user.click(screen.getByRole('button', { name: 'Search projects' }))
+
+    expect(screen.getByRole('textbox', { name: 'Search project archive' })).toHaveFocus()
+    expect(localStorage.getItem(PROJECT_ARCHIVE_COLLAPSED_KEY)).toBe('false')
+  })
+
+  test('restores and updates a persisted collapsed preference', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(PROJECT_ARCHIVE_COLLAPSED_KEY, 'true')
+    setup('/projects')
+
+    expect(screen.getByRole('button', { name: 'Expand project archive' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Expand project archive' }))
+
+    expect(screen.getByRole('button', { name: 'Collapse project archive' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByRole('textbox', { name: 'Search project archive' })).toBeInTheDocument()
+    expect(localStorage.getItem(PROJECT_ARCHIVE_COLLAPSED_KEY)).toBe('false')
   })
 
   test('search reveals matches with their ancestors and hides pinned rows', async () => {
