@@ -6,8 +6,8 @@ import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
 import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 import { makeProject, projectProviderData, transcriptProviderData } from './projects/fixtures'
+import { setTestAuth, testUser } from '@/__tests__/helpers/auth'
 
-const mockGetUser = jest.fn()
 const mockDeleteTranscript = jest.fn()
 const mockUseProjectsData = jest.fn()
 const mockUseTranscriptsData = jest.fn()
@@ -62,13 +62,7 @@ const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript => ({
   ...overrides,
 })
 
-jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getUser: mockGetUser,
-    },
-  }),
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => mockUseProjectsData(),
@@ -98,16 +92,42 @@ describe('LibraryView', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockGetUser.mockResolvedValue({
-      data: { user: null },
-      error: null,
-    })
+    setTestAuth({ userId: null, ready: true })
     mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
     mockCreateProject.mockResolvedValue(makeProject({ id: 'created' }))
     mockRenameProject.mockResolvedValue(makeProject({ id: 'p1', name: 'Renamed' }))
     mockFetchBranchCount.mockResolvedValue(0)
     mockFetchSpeakerSummaries.mockResolvedValue(new Map())
     mockProjectsData([], [makeTranscript()])
+  })
+
+  test('greets the provider user and follows an account switch without remounting', () => {
+    setTestAuth({
+      userId: 'user-a',
+      ready: true,
+      user: testUser('user-a', { user_metadata: { full_name: 'Ada Lovelace' } }),
+    })
+    const { rerender } = renderLibraryView()
+    expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, Ada\.$/)
+
+    setTestAuth({
+      userId: 'user-b',
+      ready: true,
+      user: testUser('user-b', { email: 'grace@example.com' }),
+    })
+    rerender(
+      <TooltipProvider delayDuration={0}>
+        <LibraryView />
+      </TooltipProvider>
+    )
+    expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, grace\.$/)
+    expect(screen.getByRole('heading', { level: 2, name: /^Good / })).not.toHaveTextContent('Ada')
+  })
+
+  test('greets generically while a cached identity is unverified', () => {
+    setTestAuth({ userId: 'user-a', ready: false, user: null })
+    renderLibraryView()
+    expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, there\.$/)
   })
 
   test('renders row-shaped placeholders while recent transcripts load', () => {

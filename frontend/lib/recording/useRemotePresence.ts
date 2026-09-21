@@ -8,7 +8,7 @@ import {
   type RecordingPresence,
 } from './presence'
 import { getOwnerLock } from './lock'
-import { useAuthIdentity } from '@/lib/supabase/hooks'
+import { useAuth } from '@/lib/auth/AuthProvider'
 
 /**
  * Derived same-browser remote-recording status for the current tab. This is a
@@ -76,7 +76,7 @@ function presenceKey(presence: RecordingPresence | null): string {
 }
 
 export function useRemotePresence(localActive: boolean): RemotePresenceStatus {
-  const identity = useAuthIdentity()
+  const identity = useAuth()
   // Keep the first render SSR/hydration-stable while telling route effects not to
   // make "no remote owner" decisions until the browser-only read below completes.
   const [presence, setPresence] = useState<RecordingPresence | null>(null)

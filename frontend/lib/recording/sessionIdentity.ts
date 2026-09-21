@@ -11,7 +11,7 @@
 export interface RecordingIdentity {
   /** Authenticated user id, or null when signed out / not yet known. */
   userId: string | null
-  /** True once the first auth check has resolved (see useAuthIdentity). */
+  /** True once the first auth check has resolved (see useAuth). */
   ready: boolean
 }
 

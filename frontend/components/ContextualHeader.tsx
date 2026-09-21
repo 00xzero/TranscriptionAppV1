@@ -1,9 +1,9 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
-import { createClient } from '@/infra/supabase/client'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
@@ -11,12 +11,10 @@ import { EditorHeaderTitle } from '@/components/Projects/EditorHeaderTitle'
 import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { projectIdFromPathname } from '@/lib/projects/routes'
-import type { User } from '@supabase/supabase-js'
 
 export default function ContextualHeader() {
   const { openCaptureModal } = useModal()
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { userId, ready } = useAuth()
   const pathname = usePathname()
   const { tree, projectsLoading } = useProjectsData()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
@@ -29,54 +27,9 @@ export default function ContextualHeader() {
 
   const isEditorRoute = pathname?.startsWith('/editor/')
 
-  // Check authentication status
-  // Create Supabase client inside useEffect to avoid SSR/hydration issues
-  useEffect(() => {
-    if (isAuthRoute) {
-      setUser(null)
-      setIsLoading(false)
-      return
-    }
-
-    const supabase = createClient()
-    let isMounted = true
-
-    const getUser = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (isMounted) {
-          setUser(user)
-        }
-      } catch {
-        if (isMounted) {
-          setUser(null)
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-    void getUser()
-
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) {
-        setUser(session?.user ?? null)
-        setIsLoading(false)
-      }
-    })
-
-    return () => {
-      isMounted = false
-      subscription.unsubscribe()
-    }
-  }, [isAuthRoute])
+  // Auth routes always render the unauthenticated chrome, regardless of identity.
+  const isAuthenticated = !isAuthRoute && Boolean(userId)
+  const isLoading = !isAuthRoute && !ready && !userId
 
   return (
     <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between gap-4 px-6 z-10 transition-colors duration-300">
@@ -84,7 +37,7 @@ export default function ContextualHeader() {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {isLoading ? (
           <div className="h-6 w-28" aria-hidden="true" />
-        ) : !user ? (
+        ) : !isAuthenticated ? (
           // Olivetti Logo - shown when not authenticated
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -107,7 +60,7 @@ export default function ContextualHeader() {
       </div>
 
       {/* Right: Editor actions (Find/Replace + Export) */}
-      {user && isEditorRoute && (
+      {isAuthenticated && isEditorRoute && (
         <div className="flex shrink-0 items-center gap-2">
           <RecordingPill />
           {/* Export icon button */}
@@ -186,7 +139,7 @@ export default function ContextualHeader() {
       )}
 
       {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
-      {user && !isEditorRoute && (
+      {isAuthenticated && !isEditorRoute && (
         <div className="flex shrink-0 items-center gap-6">
           <RecordingPill />
           {/* Global Search - Desktop Only */}

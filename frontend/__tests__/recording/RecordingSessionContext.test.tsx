@@ -9,9 +9,7 @@ import { mockRecordingSession } from '@/__mocks__/recording-session'
 
 const toastMock = jest.fn()
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useAuthIdentity: () => ({ userId: null, ready: false }),
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
 jest.mock('@/lib/recording/useRemotePresence', () => ({
   useRemotePresence: () => ({ kind: 'none' }),

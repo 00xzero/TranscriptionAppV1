@@ -18,7 +18,7 @@ import {
 } from '@/lib/recording/RemotePresenceContext'
 import { useMicTest } from '@/lib/hooks/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
-import { useAuthIdentity } from '@/lib/supabase/hooks'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'
 import { useCaptureForm } from './useCaptureForm'
 import UploadAudioPanel from './UploadAudioPanel'
@@ -63,7 +63,7 @@ export default function CaptureModal() {
   const remoteStatus = useRemotePresenceStatus()
   const remoteRecordingActive = isRemoteRecordingBlocking(remoteStatus)
   const anyRecordingActive = recordingActive || remoteRecordingActive
-  const authIdentity = useAuthIdentity()
+  const authIdentity = useAuth()
   const canScopeRecordingToUser = authIdentity.ready && Boolean(authIdentity.userId)
   const micTest = useMicTest()
   const { captureFocus, restoreFocus } = useDialogFocusRestore()

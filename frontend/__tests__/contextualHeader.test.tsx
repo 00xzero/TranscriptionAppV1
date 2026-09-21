@@ -10,10 +10,10 @@ import {
   projectProviderData,
   transcriptProviderData,
 } from './projects/fixtures'
+import { setTestAuth } from '@/__tests__/helpers/auth'
 
 const usePathnameMock = jest.fn()
 const openCaptureModalMock = jest.fn()
-const getUserMock = jest.fn()
 const useProjectsDataMock = jest.fn()
 const useTranscriptsDataMock = jest.fn()
 
@@ -28,20 +28,7 @@ jest.mock('../lib/ModalContext', () => ({
   }),
 }))
 
-jest.mock('../infra/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getUser: getUserMock,
-      onAuthStateChange: () => ({
-        data: {
-          subscription: {
-            unsubscribe: jest.fn(),
-          },
-        },
-      }),
-    },
-  }),
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
 jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useProjectsData: () => useProjectsDataMock(),
@@ -59,11 +46,7 @@ describe('ContextualHeader', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     usePathnameMock.mockReturnValue('/editor/p1')
-    getUserMock.mockResolvedValue({
-      data: {
-        user: { id: 'u1' },
-      },
-    })
+    setTestAuth({ userId: 'u1', ready: true })
     useProjectsDataMock.mockReturnValue(projectProviderData([]))
     useTranscriptsDataMock.mockReturnValue(transcriptProviderData([]))
   })
@@ -226,13 +209,43 @@ describe('ContextualHeader', () => {
     expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
   })
 
-  test('does not query Supabase auth on auth routes', async () => {
+  test('renders unauthenticated chrome on auth routes even with a signed-in identity', () => {
     usePathnameMock.mockReturnValue('/auth')
 
     renderHeader()
 
-    expect(await screen.findByText('olivetti')).toBeInTheDocument()
-    expect(getUserMock).not.toHaveBeenCalled()
+    expect(screen.getByText('olivetti')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
+  })
+
+  test('renders only the placeholder while identity is unresolved', () => {
+    usePathnameMock.mockReturnValue('/')
+    setTestAuth({ userId: null, ready: false })
+
+    renderHeader()
+
+    expect(screen.queryByText('olivetti')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
+  })
+
+  test('renders authenticated chrome from a cached user id before verification', () => {
+    usePathnameMock.mockReturnValue('/')
+    setTestAuth({ userId: 'u1', ready: false })
+
+    renderHeader()
+
+    expect(screen.queryByText('olivetti')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open capture modal' })).toBeInTheDocument()
+  })
+
+  test('renders the logo once identity settles as signed out', () => {
+    usePathnameMock.mockReturnValue('/')
+    setTestAuth({ userId: null, ready: true })
+
+    renderHeader()
+
+    expect(screen.getByText('olivetti')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
   })
 
   test('renders project breadcrumbs instead of the Library title', async () => {

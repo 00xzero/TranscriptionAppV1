@@ -6,6 +6,7 @@ import {
   useTranscriptsData,
 } from '@/lib/projects/ProjectsProvider'
 import { transcriptsInProject } from '@/core/projects/tree'
+import { AuthProvider } from '@/lib/auth/AuthProvider'
 import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project, Transcript } from '@/contracts/db'
@@ -51,6 +52,14 @@ jest.mock('@/infra/supabase/client', () => ({
     realtime: { setAuth: mockSetAuth },
   }),
 }))
+
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <ProjectsProvider>{children}</ProjectsProvider>
+    </AuthProvider>
+  )
+}
 
 function Consumer() {
   const data = useProjectsData()
@@ -144,10 +153,10 @@ describe('ProjectsProvider realtime ownership', () => {
     mockGetUser.mockReturnValue(new Promise(() => undefined))
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -296,10 +305,10 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <MountProbe />
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -310,9 +319,9 @@ describe('ProjectsProvider realtime ownership', () => {
     mockGetSession.mockResolvedValue({ data: { session: null } })
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => {
@@ -335,9 +344,9 @@ describe('ProjectsProvider realtime ownership', () => {
       .mockReturnValueOnce(nextProjects.promise)
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => {
@@ -387,10 +396,10 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <ProjectTranscripts projectId="project-a" />
         <ProjectTranscripts projectId="project-b" />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => {
@@ -418,9 +427,9 @@ describe('ProjectsProvider realtime ownership', () => {
     mockGetUser.mockReturnValue(new Promise(() => undefined))
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -454,9 +463,9 @@ describe('ProjectsProvider realtime ownership', () => {
       .mockReturnValueOnce(postDeleteFetch.promise)
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -495,9 +504,9 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchProjects.mockResolvedValueOnce([project('project-a', 'user-a')])
 
     const { unmount } = render(
-      <ProjectsProvider>
+      <AppProviders>
         <MutationConsumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     try {
@@ -544,9 +553,9 @@ describe('ProjectsProvider realtime ownership', () => {
     mockGetUser.mockReturnValue(new Promise(() => undefined))
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -662,9 +671,9 @@ describe('ProjectsProvider realtime ownership', () => {
     mockGetUser.mockReturnValue(new Promise(() => undefined))
 
     render(
-      <ProjectsProvider>
+      <AppProviders>
         <Consumer />
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
@@ -716,11 +725,11 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     const view = render(
-      <ProjectsProvider>
+      <AppProviders>
         <ProjectOnly />
         <TranscriptOnly />
         <Mixed />
-      </ProjectsProvider>
+      </AppProviders>
     )
     await waitFor(() => expect(screen.getByTestId('isolated-project')).toHaveTextContent('project-a'))
     await waitFor(() => expect(screen.getByTestId('isolated-transcript')).toHaveTextContent('transcript-a'))
@@ -812,14 +821,14 @@ describe('ProjectsProvider realtime ownership', () => {
     }
 
     const { unmount } = render(
-      <ProjectsProvider>
+      <AppProviders>
         <React.Profiler id="large-projects" onRender={(_id, _phase, duration) => projectCommits.push(duration)}>
           <LargeProjectConsumer />
         </React.Profiler>
         <React.Profiler id="large-transcripts" onRender={(_id, _phase, duration) => transcriptCommits.push(duration)}>
           <LargeTranscriptConsumer />
         </React.Profiler>
-      </ProjectsProvider>
+      </AppProviders>
     )
 
     await waitFor(() => expect(screen.getByTestId('large-project-count')).toHaveTextContent('250:project-0'))

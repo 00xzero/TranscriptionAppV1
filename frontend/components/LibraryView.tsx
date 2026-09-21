@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { createClient } from '@/infra/supabase/client'
+import { useAuth } from '@/lib/auth/AuthProvider'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
@@ -24,7 +24,6 @@ import type { RecentProjectCardViewData } from '@/components/Projects/RecentProj
 import { transcriptProjectLabel } from '@/components/Projects/format'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
-import type { User } from '@supabase/supabase-js'
 
 /**
  * Escape hatch. `'top-level'` shows ground-level folders only, with branch rollups.
@@ -37,8 +36,7 @@ const RECENT_PROJECT_SCOPE: RecentProjectScope = 'top-level'
 const RECENT_PROJECT_LIMIT = 6
 
 export default function LibraryView() {
-  const supabase = useMemo(() => createClient(), [])
-  const [user, setUser] = useState<User | null>(null)
+  const { user } = useAuth()
   const { projects, tree, projectsLoading } = useProjectsData()
   const { transcripts, transcriptsLoading: isLoading } = useTranscriptsData()
   const projectActions = useProjectActions()
@@ -82,25 +80,6 @@ export default function LibraryView() {
   )
 
   const projectsAreLoading = projectsLoading || isLoading
-
-  // Fetch user for greeting
-  useEffect(() => {
-    const getUser = async () => {
-      try {
-        const { data, error } = await supabase.auth.getUser()
-        if (error) {
-          console.error('Failed to fetch user:', error)
-          setUser(null)
-          return
-        }
-        setUser(data.user ?? null)
-      } catch (error) {
-        console.error('Unexpected error fetching user:', error)
-        setUser(null)
-      }
-    }
-    void getUser()
-  }, [supabase])
 
   // Get greeting based on time of day
   const getGreeting = () => {

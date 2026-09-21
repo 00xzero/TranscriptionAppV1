@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import {
-  useAuthIdentity,
   useProjectsRealtime,
   useTranscriptsRealtime,
 } from '@/lib/supabase/hooks'
@@ -8,10 +7,6 @@ import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project } from '@/contracts/db'
 
 const mockFetchTranscripts = jest.fn()
-const mockGetSession = jest.fn()
-const mockGetUser = jest.fn()
-const mockOnAuthStateChange = jest.fn()
-const mockUnsubscribe = jest.fn()
 const mockRemoveChannel = jest.fn()
 const mockChannelFactory = jest.fn()
 const mockDeleteTranscript = jest.fn()
@@ -20,9 +15,6 @@ const mockAddTranscripts = jest.fn()
 const mockFetchProjects = jest.fn()
 const mockCreateProject = jest.fn()
 const mockRenameProject = jest.fn()
-let authStateHandler:
-  | ((event: string, session: { user: { id: string } } | null) => void)
-  | null = null
 
 let channelMock: {
   on: jest.Mock
@@ -41,11 +33,6 @@ jest.mock('@/lib/supabase/queries', () => ({
 
 jest.mock('@/infra/supabase/client', () => ({
   createClient: () => ({
-    auth: {
-      getSession: mockGetSession,
-      getUser: mockGetUser,
-      onAuthStateChange: mockOnAuthStateChange,
-    },
     channel: mockChannelFactory,
     removeChannel: mockRemoveChannel,
   }),
@@ -72,121 +59,12 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-describe('useAuthIdentity', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-    authStateHandler = null
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-from-session' } } },
-    })
-    mockOnAuthStateChange.mockImplementation((handler) => {
-      authStateHandler = handler
-      return { data: { subscription: { unsubscribe: mockUnsubscribe } } }
-    })
-    makeChannel()
-  })
-
-  test('exposes the cached user id without marking identity ready before verification', async () => {
-    const verified = deferred<{
-      data: { user: { id: string } | null }
-      error: Error | null
-    }>()
-    mockGetUser.mockReturnValueOnce(verified.promise)
-
-    const { result } = renderHook(() => useAuthIdentity())
-
-    await waitFor(() => {
-      expect(result.current.userId).toBe('user-from-session')
-    })
-    expect(result.current.ready).toBe(false)
-
-    await act(async () => {
-      verified.resolve({
-        data: { user: { id: 'verified-user' } },
-        error: null,
-      })
-      await verified.promise
-    })
-
-    await waitFor(() => {
-      expect(result.current).toEqual({
-        userId: 'verified-user',
-        ready: true,
-      })
-    })
-  })
-
-  test('keeps the cached user id but does not mark identity ready when verification fails', async () => {
-    mockGetUser.mockResolvedValueOnce({
-      data: { user: null },
-      error: new Error('invalid session'),
-    })
-
-    const { result } = renderHook(() => useAuthIdentity())
-
-    await waitFor(() => {
-      expect(result.current.userId).toBe('user-from-session')
-    })
-    expect(result.current.ready).toBe(false)
-  })
-
-  test('settles as signed out without verifying a session that does not exist', async () => {
-    mockGetSession.mockResolvedValueOnce({ data: { session: null } })
-
-    const { result } = renderHook(() => useAuthIdentity())
-
-    await waitFor(() => {
-      expect(result.current).toEqual({ userId: null, ready: true })
-    })
-    expect(mockGetUser).not.toHaveBeenCalled()
-  })
-
-  test.each([
-    ['sign-out', 'SIGNED_OUT', null, null],
-    ['account switch', 'SIGNED_IN', { user: { id: 'user-b' } }, 'user-b'],
-  ])(
-    'ignores stale verification after an auth %s',
-    async (_label, event, session, expectedUserId) => {
-      const verified = deferred<{
-        data: { user: { id: string } | null }
-        error: Error | null
-      }>()
-      mockGetUser.mockReturnValueOnce(verified.promise)
-
-      const { result } = renderHook(() => useAuthIdentity())
-
-      await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-      act(() => {
-        authStateHandler?.(event, session)
-      })
-      expect(result.current).toEqual({ userId: expectedUserId, ready: true })
-
-      await act(async () => {
-        verified.resolve({
-          data: { user: { id: 'user-from-session' } },
-          error: null,
-        })
-        await verified.promise
-      })
-
-      expect(result.current).toEqual({ userId: expectedUserId, ready: true })
-    }
-  )
-})
-
 describe('useTranscriptsRealtime', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockFetchTranscripts.mockResolvedValue([])
     mockMoveTranscript.mockResolvedValue(undefined)
     mockAddTranscripts.mockImplementation(async (ids: string[]) => ({ addedIds: ids, missingIds: [] }))
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-from-session' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
-    mockOnAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: mockUnsubscribe } },
-    })
     makeChannel()
   })
 
@@ -513,13 +391,6 @@ describe('useProjectsRealtime', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockFetchProjects.mockResolvedValue([existing])
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-from-session' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
-    mockOnAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: mockUnsubscribe } },
-    })
     makeChannel()
   })
 

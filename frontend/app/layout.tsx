@@ -6,6 +6,7 @@ import '@fontsource-variable/newsreader/wght-italic.css'
 import '@fontsource/ibm-plex-mono/latin-400.css'
 import '@fontsource/ibm-plex-mono/latin-500.css'
 import '@fontsource/ibm-plex-mono/latin-600.css'
+import { AuthProvider } from '@/lib/auth/AuthProvider'
 import { ModalProvider } from '@/lib/ModalContext'
 import { RecordingSessionProvider } from '@/lib/recording/RecordingSessionContext'
 import Sidebar from '@/components/Sidebar'
@@ -54,23 +55,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased bg-noise h-screen flex overflow-hidden">
         <TooltipProvider delayDuration={700}>
-          <ModalProvider>
-            <ProjectsProvider>
-              <RecordingSessionProvider>
-                <Sidebar />
-                <main className="flex-1 relative overflow-hidden z-[1]">
-                  <div className="absolute top-0 left-0 right-3 z-40">
-                    <ContextualHeader />
-                  </div>
-                  <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-                    {children}
-                  </div>
-                </main>
-                <CaptureModal />
-                <Toaster />
-              </RecordingSessionProvider>
-            </ProjectsProvider>
-          </ModalProvider>
+          <AuthProvider>
+            <ModalProvider>
+              <ProjectsProvider>
+                <RecordingSessionProvider>
+                  <Sidebar />
+                  <main className="flex-1 relative overflow-hidden z-[1]">
+                    <div className="absolute top-0 left-0 right-3 z-40">
+                      <ContextualHeader />
+                    </div>
+                    <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
+                      {children}
+                    </div>
+                  </main>
+                  <CaptureModal />
+                  <Toaster />
+                </RecordingSessionProvider>
+              </ProjectsProvider>
+            </ModalProvider>
+          </AuthProvider>
         </TooltipProvider>
       </body>
     </html>

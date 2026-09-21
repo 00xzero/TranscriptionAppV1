@@ -11,35 +11,23 @@ import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { createClient } from '@/infra/supabase/client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { AuthChangeEvent } from '@supabase/supabase-js'
+import { useAuth } from '@/lib/auth/AuthProvider'
 
-// Create client at module scope to prevent subscription churn on re-renders
+// Module-scope client used only by the third-party Auth UI below.
 const supabase = createClient()
 
 export default function AuthPage() {
   const router = useRouter()
+  const { userId } = useAuth()
 
+  // Redirect once any identity (cached or verified) appears. Not gated on
+  // `ready`: a failed verification must not strand the user here. proxy.ts is
+  // the primary server-side redirect; this is the client backstop.
   useEffect(() => {
-    // Check for existing session on mount
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        router.push('/')
-        router.refresh()
-      }
-    }
-    checkSession()
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        router.push('/')
-        router.refresh()
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [router])
+    if (!userId) return
+    router.push('/')
+    router.refresh()
+  }, [router, userId])
 
   return (
     <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-8 bg-transparent">

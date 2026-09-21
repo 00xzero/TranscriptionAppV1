@@ -2,14 +2,11 @@ import { act, renderHook } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import type { BrowserOwnerLock } from '@/lib/recording/lock'
 
-let identityValue: { userId: string | null; ready: boolean } = {
-  userId: 'u1',
-  ready: true,
-}
+import { setTestAuth } from '@/__tests__/helpers/auth'
 
-jest.mock('@/lib/supabase/hooks', () => ({
-  useAuthIdentity: () => identityValue,
-}))
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
+
+setTestAuth({ userId: 'u1', ready: true })
 
 import { useRemotePresence } from '@/lib/recording/useRemotePresence'
 import {
@@ -52,7 +49,7 @@ describe('useRemotePresence', () => {
   let ownerLock: FakeOwnerLock
 
   beforeEach(() => {
-    identityValue = { userId: 'u1', ready: true }
+    setTestAuth({ userId: 'u1', ready: true })
     channel = new FakeRecordingPresence()
     ownerLock = new FakeOwnerLock(false)
     __setPresenceForTesting(channel)
@@ -80,7 +77,7 @@ describe('useRemotePresence', () => {
   })
 
   test('cached same-user identity is not usable until auth verification is ready', async () => {
-    identityValue = { userId: 'u1', ready: false }
+    setTestAuth({ userId: 'u1', ready: false })
     channel.publish(presence())
     const { result } = await renderStatus()
     expect(result.current.kind).toBe('lock-only')
