@@ -1,3 +1,25 @@
+import type { ProjectTree } from '@/core/projects/tree'
+import { collapsedPathLabel, pathLabel } from '@/core/projects/tree'
+
+/** What a transcript row shows for its project: the elided path, plus the full one for a tooltip. */
+export type TranscriptProjectLabel = { label: string; full: string }
+
+const UNFILED: TranscriptProjectLabel = { label: 'Unfiled', full: 'Unfiled' }
+
+/**
+ * Only a null project id means Unfiled. A non-null id missing from the fetched
+ * tree is unresolved, so omit the label rather than misclassifying the transcript.
+ */
+export function transcriptProjectLabel(
+  tree: ProjectTree,
+  projectId: string | null
+): TranscriptProjectLabel | null {
+  if (projectId === null) return UNFILED
+  const label = collapsedPathLabel(tree, projectId)
+  if (!label) return null
+  return { label, full: pathLabel(tree, projectId) }
+}
+
 export function countLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`
 }

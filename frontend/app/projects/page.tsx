@@ -1,14 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
-import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
+import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
-import { ProjectNameDialog } from '@/components/Projects/ProjectNameDialog'
-import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
+import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
@@ -19,23 +17,21 @@ import {
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { useProjectActions } from '@/lib/projects/useProjectActions'
 import { useProjectsLoadState } from '@/lib/projects/useProjectsLoadState'
-import type { Project } from '@/contracts/db'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 export default function ProjectsPage() {
-  const { tree, createProject, renameProject } = useProjectsData()
+  const { tree } = useProjectsData()
   const { transcripts } = useTranscriptsData()
   const { isLoading, loadError, retry } = useProjectsLoadState()
-  const [createOpen, setCreateOpen] = useState(false)
-  const [renameProjectTarget, setRenameProjectTarget] = useState<Project | null>(null)
-  const [deleteProjectTarget, setDeleteProjectTarget] = useState<Project | null>(null)
+  const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
 
   if (isLoading) {
     return (
-      <div aria-label="Loading projects" className="px-6 pb-10 pt-[80px] md:px-10">
+      <div aria-label="Loading projects">
         <ProjectListSkeleton />
       </div>
     )
@@ -58,11 +54,11 @@ export default function ProjectsPage() {
   const counts = transcriptCountsByProject(transcripts)
 
   return (
-    <div className="space-y-8 px-6 pb-10 pt-[80px] md:px-10">
+    <div className="space-y-8">
       <section aria-labelledby="projects-heading">
         <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
           <h1 id="projects-heading" className="font-serif text-2xl text-foreground">Projects</h1>
-          <Button size="sm" variant="secondary" onClick={() => setCreateOpen(true)}>New Project</Button>
+          <Button size="sm" variant="secondary" onClick={() => projectActions.openCreate(null)}>New Project</Button>
         </div>
         {hasProjects && (
           <ProjectList>
@@ -75,8 +71,8 @@ export default function ProjectsPage() {
                 actions={(
                   <ProjectActionsMenu
                     project={project}
-                    onRename={() => setRenameProjectTarget(project)}
-                    onDelete={() => setDeleteProjectTarget(project)}
+                    onRename={() => projectActions.openRename(project)}
+                    onDelete={() => projectActions.openDelete(project)}
                   />
                 )}
               />
@@ -96,14 +92,11 @@ export default function ProjectsPage() {
           aria-labelledby="unfiled-heading"
           className="scroll-mt-[var(--header-height)]"
         >
-          <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
-            <h2 id="unfiled-heading" className="font-serif text-2xl text-foreground">
-              Unfiled
-            </h2>
-            <span className="font-mono text-xs text-muted">
-              {countLabel(unfiled.length, 'transcript', 'transcripts')}
-            </span>
-          </div>
+          <ListSectionHeading
+            id="unfiled-heading"
+            title="Unfiled"
+            meta={countLabel(unfiled.length, 'transcript', 'transcripts')}
+          />
           <ProjectList>
             {unfiled.length === 0 ? (
               <ProjectsEmptyState variant="empty-unfiled" />
@@ -128,25 +121,7 @@ export default function ProjectsPage() {
           </ProjectList>
         </section>
       )}
-      <ProjectNameDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        mode="create"
-        parentId={null}
-        onSubmit={(name) => createProject({ name, parent_id: null })}
-      />
-      {renameProjectTarget && <ProjectNameDialog
-        open
-        onOpenChange={(open) => !open && setRenameProjectTarget(null)}
-        mode="rename"
-        parentId={renameProjectTarget.parent_id}
-        projectId={renameProjectTarget.id}
-        initialName={renameProjectTarget.name}
-        onSubmit={(name) => renameProject(renameProjectTarget.id, name)}
-      />}
-      {deleteProjectTarget && (
-        <DeleteProjectDialog project={deleteProjectTarget} onClose={() => setDeleteProjectTarget(null)} />
-      )}
+      <ProjectActionDialogs actions={projectActions} />
       <TranscriptActionDialogs actions={transcriptActions} />
     </div>
   )

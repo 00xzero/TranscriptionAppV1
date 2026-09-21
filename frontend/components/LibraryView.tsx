@@ -6,41 +6,81 @@ import { createClient } from '@/infra/supabase/client'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { ListRowSkeleton, ProjectList } from '@/components/Projects/ProjectList'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
+import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
+import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
+import { RecentProjectsCarousel } from '@/components/Projects/RecentProjectsCarousel'
 import {
-  RecentProjectCard,
-  RecentProjectCardSkeleton,
-} from '@/components/Projects/RecentProjectCard'
-import { rankProjectsByActivity } from '@/core/projects/activity'
+  selectRecentProjects,
+  type RecentProjectScope,
+} from '@/core/projects/activity'
+import { useProjectActions } from '@/lib/projects/useProjectActions'
 import {
-  descendantCount,
-  pathLabel,
-  transcriptCountsByProject,
-} from '@/core/projects/tree'
+  transcriptRevision,
+  useProjectSpeakerSummaries,
+} from '@/lib/projects/useProjectSpeakerSummaries'
+import type { RecentProjectCardViewData } from '@/components/Projects/RecentProjectCard'
+import { transcriptProjectLabel } from '@/components/Projects/format'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import type { User } from '@supabase/supabase-js'
 
+/**
+ * Escape hatch. `'top-level'` shows ground-level folders only, with branch rollups.
+ * Switch to `'all'` to restore the previous mixed parent/nested cards with direct
+ * counts and parent-path labels; nothing else needs to change.
+ */
+const RECENT_PROJECT_SCOPE: RecentProjectScope = 'top-level'
+
+/** Cards in the carousel. The creation control is extra and never counts against it. */
+const RECENT_PROJECT_LIMIT = 6
+
 export default function LibraryView() {
   const supabase = useMemo(() => createClient(), [])
   const [user, setUser] = useState<User | null>(null)
-  const {
-    projects,
-    tree,
-    projectsLoading,
-  } = useProjectsData()
+  const { projects, tree, projectsLoading } = useProjectsData()
   const { transcripts, transcriptsLoading: isLoading } = useTranscriptsData()
+  const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
-  const recentProjectCards = useMemo(() => {
-    const transcriptCounts = transcriptCountsByProject(transcripts)
-    return rankProjectsByActivity(projects, transcripts, 3).map(({ project, lastActivityAt }) => ({
-      project,
-      lastActivityAt,
-      parentPath: project.parent_id ? pathLabel(tree, project.parent_id) : null,
-      directTranscriptCount: transcriptCounts.get(project.id) ?? 0,
-      nestedProjectCount: descendantCount(tree, project.id),
-    }))
-  }, [projects, transcripts, tree])
+
+  const recentProjectCards = useMemo(
+    () =>
+      selectRecentProjects({
+        scope: RECENT_PROJECT_SCOPE,
+        tree,
+        projects,
+        transcripts,
+        limit: RECENT_PROJECT_LIMIT,
+      }),
+    [projects, transcripts, tree]
+  )
+
+  // One RPC for the whole rail. The scope has to track the card counts: at
+  // 'top-level' those are branch rollups, so the speakers are the branch's too.
+  const recentProjectIds = useMemo(
+    () => recentProjectCards.map((card) => card.project.id),
+    [recentProjectCards]
+  )
+  // Stamped over every transcript, not just the rail's: at 'top-level' the cards
+  // roll up whole branches, so a transcript anywhere can change what they show.
+  const transcriptsRevision = useMemo(() => transcriptRevision(transcripts), [transcripts])
+  const speakers = useProjectSpeakerSummaries(
+    recentProjectIds,
+    RECENT_PROJECT_SCOPE === 'top-level',
+    transcriptsRevision
+  )
+
+  const recentProjectCardsWithSpeakers = useMemo<RecentProjectCardViewData[]>(
+    () =>
+      recentProjectCards.map((card) => ({
+        ...card,
+        speakerSummary: speakers.summaries.get(card.project.id),
+        speakersLoading: speakers.loading,
+      })),
+    [recentProjectCards, speakers.loading, speakers.summaries]
+  )
+
   const projectsAreLoading = projectsLoading || isLoading
 
   // Fetch user for greeting
@@ -79,37 +119,22 @@ export default function LibraryView() {
   return (
     <>
       <div className="pt-[80px] px-6 pb-6 md:pt-[80px] md:px-10 md:pb-10 space-y-10 scroll-smooth">
-      <section>
-        <h2 className="font-serif text-3xl text-ink dark:text-paper mb-6">
-          {getGreeting()}, {getUserFirstName()}.
-        </h2>
+      <h2 className="font-serif text-3xl text-ink dark:text-paper mb-6">
+        {getGreeting()}, {getUserFirstName()}.
+      </h2>
 
-        <div className="flex items-center justify-between mb-4 border-b border-(--border) pb-2">
-          <h3 className="font-serif text-xl text-ink dark:text-paper">Recent Projects</h3>
-          <Link href="/projects" title="View all projects" className="text-xs font-mono text-trust-blue hover:underline uppercase tracking-wide">
-            View All
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {projectsAreLoading ? (
-            [0, 1, 2].map((item) => <RecentProjectCardSkeleton key={item} />)
-          ) : recentProjectCards.length === 0 ? (
-            <Link
-              href="/projects"
-              title="Create a project"
-              className="group flex min-h-44 flex-col items-center justify-center rounded-lg border-2 border-dashed border-border p-5 text-muted transition-all hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue"
-            >
-              <span className="mb-2 text-3xl font-light">+</span>
-              <span className="font-serif text-sm italic">Create your first project</span>
-            </Link>
-          ) : (
-            recentProjectCards.map((card) => (
-              <RecentProjectCard key={card.project.id} {...card} />
-            ))
-          )}
-        </div>
-      </section>
+      <RecentProjectsCarousel
+        cards={recentProjectCardsWithSpeakers}
+        loading={projectsAreLoading}
+        onCreate={() => projectActions.openCreate(null)}
+        renderCardActions={(project) => (
+          <ProjectActionsMenu
+            project={project}
+            onRename={() => projectActions.openRename(project)}
+            onDelete={() => projectActions.openDelete(project)}
+          />
+        )}
+      />
 
       {/* Recent Transcripts Section - Using Real Data */}
       <section className="mt-8">
@@ -120,36 +145,45 @@ export default function LibraryView() {
           </Link>
         </div>
 
-        <div className="divide-y divide-border rounded-sm border border-border bg-panel">
-          {isLoading ? (
-            <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              Loading transcripts...
-            </div>
-          ) : transcripts.length === 0 ? (
-            <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-              No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
-            </div>
-          ) : (
-            transcripts.slice(0, 5).map((transcript) => {
-              const target = transcriptActionTarget(transcript)
-              return (
-                <TranscriptRow
-                  key={transcript.id}
-                  transcript={transcript}
-                  actions={(
-                    <TranscriptActionsMenu
-                      title={target.title}
-                      onMove={() => transcriptActions.openMove(target)}
-                      onDelete={() => transcriptActions.openDelete(target)}
-                    />
-                  )}
-                />
-              )
-            })
-          )}
-        </div>
-        </section>
+        {isLoading ? (
+          <div role="status">
+            <span className="sr-only">Loading recent transcripts…</span>
+            <ProjectList>
+              {[0, 1, 2].map((row) => (
+                <ListRowSkeleton key={row} />
+              ))}
+            </ProjectList>
+          </div>
+        ) : (
+          <ProjectList>
+            {transcripts.length === 0 ? (
+              <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
+                No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
+              </div>
+            ) : (
+              transcripts.slice(0, 5).map((transcript) => {
+                const target = transcriptActionTarget(transcript)
+                return (
+                  <TranscriptRow
+                    key={transcript.id}
+                    transcript={transcript}
+                    projectPath={transcriptProjectLabel(tree, transcript.project_id)}
+                    actions={(
+                      <TranscriptActionsMenu
+                        title={target.title}
+                        onMove={() => transcriptActions.openMove(target)}
+                        onDelete={() => transcriptActions.openDelete(target)}
+                      />
+                    )}
+                  />
+                )
+              })
+            )}
+          </ProjectList>
+        )}
+      </section>
       </div>
+      <ProjectActionDialogs actions={projectActions} />
       <TranscriptActionDialogs actions={transcriptActions} />
     </>
   )

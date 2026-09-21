@@ -3,11 +3,16 @@
 import type { ReactNode } from 'react'
 import type { Transcript } from '@/contracts/db'
 import { ListRow } from './ProjectList'
-import { formatDuration } from './format'
+import { formatDuration, type TranscriptProjectLabel } from './format'
 
 interface TranscriptRowProps {
   transcript: Transcript
   actions?: ReactNode
+  /**
+   * Only surfaces that mix projects pass this. On a single project's page, or the
+   * Unfiled list, every row would carry the same label and it would be noise.
+   */
+  projectPath?: TranscriptProjectLabel | null
 }
 
 function statusBadge(status: Transcript['status']) {
@@ -30,7 +35,7 @@ function statusBadge(status: Transcript['status']) {
   }
 }
 
-export function TranscriptRow({ transcript, actions }: TranscriptRowProps) {
+export function TranscriptRow({ transcript, actions, projectPath }: TranscriptRowProps) {
   const title = transcript.title || 'Untitled'
   const isCompleted = transcript.status === 'completed'
   const badge = statusBadge(transcript.status)
@@ -59,8 +64,14 @@ export function TranscriptRow({ transcript, actions }: TranscriptRowProps) {
             </span>
           )}
         </div>
-        <p className="font-mono text-[10px] text-ink/50 dark:text-paper/50">
+        <p className="truncate font-mono text-[10px] text-ink/50 dark:text-paper/50">
           {formatDuration(transcript.duration_seconds) || 'Duration unknown'}
+          {projectPath && (
+            <>
+              {' • '}
+              <span title={projectPath.full}>{projectPath.label}</span>
+            </>
+          )}
         </p>
       </div>
     </ListRow>

@@ -65,6 +65,28 @@ describe('ProjectTreePicker', () => {
     expect(screen.getByRole('treeitem', { name: /Needle/ })).toHaveFocus()
   })
 
+  test('ArrowLeft during search moves to the parent without changing manual expansion', async () => {
+    const user = userEvent.setup()
+    render(
+      <ProjectTreePicker
+        tree={buildProjectTree([root, child])}
+        value="child"
+        onChange={jest.fn()}
+      />
+    )
+    const search = screen.getByLabelText('Search projects')
+    await user.type(search, 'needle')
+
+    const rootItem = screen.getByRole('treeitem', { name: /Root/ })
+    rootItem.focus()
+    await user.keyboard('{ArrowLeft}')
+
+    expect(screen.getByRole('treeitem', { name: 'Unfiled' })).toHaveFocus()
+    await user.clear(search)
+    expect(rootItem).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('treeitem', { name: /Needle/ })).toBeInTheDocument()
+  })
+
   test('allows a selected project ancestor to be collapsed', async () => {
     const user = userEvent.setup()
     render(<ProjectTreePicker tree={buildProjectTree([root, child])} value="child" onChange={jest.fn()} />)
@@ -90,5 +112,6 @@ describe('ProjectTreePicker', () => {
     expect(treeItems).toHaveLength(1)
     expect(treeItems[0]).toHaveAttribute('tabindex', '0')
     expect(treeItems[0]).toHaveTextContent('Unfiled')
+    expect(screen.getByRole('status')).toHaveTextContent('No matching projects.')
   })
 })

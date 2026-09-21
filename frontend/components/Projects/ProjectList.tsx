@@ -12,19 +12,45 @@ export function ProjectList({ children }: { children: ReactNode }) {
   )
 }
 
+export function ListSectionHeading({ id, title, meta }: { id: string; title: string; meta: string }) {
+  return (
+    <div className="mb-3 flex items-baseline justify-between border-b border-border pb-2">
+      <h2 id={id} className="font-serif text-2xl text-foreground">
+        {title}
+      </h2>
+      <span className="font-mono text-xs text-muted">{meta}</span>
+    </div>
+  )
+}
+
 export function ProjectListSkeleton() {
   return (
     <ProjectList>
       {[0, 1, 2].map((row) => (
-        <div key={row} className="flex min-h-18 animate-pulse items-center gap-4 p-4">
-          <div className="h-10 w-10 rounded-sm bg-subtle" />
-          <div className="space-y-2">
-            <div className="h-3 w-36 rounded-sm bg-subtle" />
-            <div className="h-2 w-52 rounded-sm bg-subtle" />
-          </div>
-        </div>
+        <ListRowSkeleton key={row} />
       ))}
     </ProjectList>
+  )
+}
+
+export function ListRowSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex min-h-18 animate-pulse items-center justify-between p-4"
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="h-10 w-10 shrink-0 rounded-sm bg-subtle" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-3 w-36 max-w-full rounded-sm bg-subtle" />
+          <div className="h-2 w-52 max-w-full rounded-sm bg-subtle" />
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="hidden h-2 w-16 rounded-sm bg-subtle md:block" />
+        <div className="h-8 w-8 rounded-full bg-subtle" />
+      </div>
+    </div>
   )
 }
 
