@@ -7,26 +7,27 @@ import { createClient } from '@/infra/supabase/client'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
+import { EditorHeaderTitle } from '@/components/Projects/EditorHeaderTitle'
+import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { projectIdFromPathname } from '@/lib/projects/routes'
 import type { User } from '@supabase/supabase-js'
 
-interface ContextualHeaderProps {
-  viewType?: 'library' | 'editor'
-  transcriptTitle?: string
-}
-
-export default function ContextualHeader({ viewType, transcriptTitle }: ContextualHeaderProps) {
+export default function ContextualHeader() {
   const { openCaptureModal } = useModal()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
+  const { tree, projectsLoading } = useProjectsData()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
+  const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
+  const routeProjectId = projectIdFromPathname(pathname)
+  const routeProject = routeProjectId ? tree.byId.get(routeProjectId) : null
+  const hideCapture = Boolean(
+    routeProjectId && (projectsLoading || !routeProject || routeProject.deleting_at)
+  )
 
-  // Auto-detect editor mode from pathname if viewType not explicitly set
   const isEditorRoute = pathname?.startsWith('/editor/')
-  const effectiveViewType = viewType ?? (isEditorRoute ? 'editor' : 'library')
-  const handleEditorTopReset = () => {
-    window.dispatchEvent(new CustomEvent('editor-scroll-to-top'))
-  }
 
   // Check authentication status
   // Create Supabase client inside useEffect to avoid SSR/hydration issues
@@ -78,9 +79,9 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
   }, [isAuthRoute])
 
   return (
-    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between px-6 z-10 transition-colors duration-300">
+    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between gap-4 px-6 z-10 transition-colors duration-300">
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {isLoading ? (
           <div className="h-6 w-28" aria-hidden="true" />
         ) : !user ? (
@@ -94,38 +95,20 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
               olivetti
             </span>
           </div>
-        ) : effectiveViewType === 'library' ? (
+        ) : isProjectsRoute ? (
+          <ProjectsHeaderTitle pathname={pathname} />
+        ) : isEditorRoute ? (
+          <EditorHeaderTitle pathname={pathname} />
+        ) : (
           <span className="font-serif text-xl italic text-ink dark:text-paper">
             Library
           </span>
-        ) : (
-          <div className="flex items-center gap-[5px]">
-            <span className="font-sans text-[12px] leading-[20px] text-ink/50 dark:text-paper/50">
-              Library
-            </span>
-            <span className="font-sans text-[12px] leading-[20px] text-ink/50 dark:text-paper/50">
-              /
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="font-sans font-medium text-[12px] leading-[20px] text-ink dark:text-paper bg-transparent border-0 p-0 m-0"
-                  onClick={handleEditorTopReset}
-                  aria-label="Scroll to the top of the transcript"
-                >
-                  {transcriptTitle || 'Transcript'}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Scroll to top</TooltipContent>
-            </Tooltip>
-          </div>
         )}
       </div>
 
       {/* Right: Editor actions (Find/Replace + Export) */}
-      {user && effectiveViewType === 'editor' && (
-        <div className="flex items-center gap-2">
+      {user && isEditorRoute && (
+        <div className="flex shrink-0 items-center gap-2">
           <RecordingPill />
           {/* Export icon button */}
           <Tooltip>
@@ -203,8 +186,8 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
       )}
 
       {/* Right: Search + Capture Button - Only show when authenticated and on library route */}
-      {user && effectiveViewType !== 'editor' && (
-        <div className="flex items-center gap-6">
+      {user && !isEditorRoute && (
+        <div className="flex shrink-0 items-center gap-6">
           <RecordingPill />
           {/* Global Search - Desktop Only */}
           <div className="group relative hidden items-center gap-3 rounded-lg border border-border bg-field/50 px-3 py-1.5 transition-all focus-within:border-trust-blue/50 focus-within:bg-field md:flex dark:bg-subtle dark:focus-within:bg-surface">
@@ -220,11 +203,11 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
           </div>
 
           {/* Capture Button */}
-          <Tooltip>
+          {!hideCapture && <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="destructive"
-                onClick={() => openCaptureModal()}
+                onClick={() => openCaptureModal(routeProjectId ? { projectId: routeProjectId } : undefined)}
                 aria-label="Open capture modal"
                 className="gap-2 hover:shadow-md"
               >
@@ -233,7 +216,7 @@ export default function ContextualHeader({ viewType, transcriptTitle }: Contextu
               </Button>
             </TooltipTrigger>
             <TooltipContent>Start new recording</TooltipContent>
-          </Tooltip>
+          </Tooltip>}
         </div>
       )}
     </header>

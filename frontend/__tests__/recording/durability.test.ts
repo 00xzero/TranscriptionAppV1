@@ -33,6 +33,7 @@ async function attach(): Promise<void> {
     codec: CODEC,
     title: 'D',
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,
   })

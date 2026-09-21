@@ -216,6 +216,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recording',
+    projectId: params.projectId,
     title: params.title,
     generatedTitle,
     startedAt: now,
@@ -235,6 +236,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     sessionId,
     userId: identity.userId,
     uploadIntentId,
+    projectId: params.projectId,
     title: params.title,
     generatedTitle,
     keyTerms: params.keyTerms,
@@ -335,6 +337,7 @@ export async function stopAndFinalize(): Promise<void> {
     file,
     title: persistedTitle,
     keyTerms: store.snapshot.keyTerms,
+    projectId: store.snapshot.projectId,
   }
   store.runtime.chunks = []
   store.runtime.bytesSoFar = 0

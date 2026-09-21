@@ -30,6 +30,7 @@ function attach() {
     codec: CODEC,
     title: 'HB',
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,
   })

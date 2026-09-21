@@ -1,9 +1,18 @@
 import { createClient } from '@/infra/supabase/client'
 import {
+  MEDIA_BUCKET,
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
 import { randomId } from '@/lib/ids'
+import {
+    CreateTranscriptWarningSchema,
+    type CreateTranscriptWarning,
+} from '@/contracts/api'
+import {
+    classifyProjectLinkWriteRejection,
+    mapProjectWriteError,
+} from '@/lib/supabase/project-errors'
 import { transferToStorage } from './storageTransfer'
 
 /**
@@ -77,6 +86,7 @@ export interface CaptureUploadOptions {
      * the live capture path leaves this false to keep its stricter guarantee.
      */
     allowUpsert?: boolean
+  projectId?: string | null
 }
 
 export type CaptureUploadResult =
@@ -85,9 +95,12 @@ export type CaptureUploadResult =
         transcriptId: string
         outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
         message?: string
+        warning?: CreateTranscriptWarning
     }
     | { kind: 'validation_error'; message: string }
     | { kind: 'failure'; message: string }
+
+export type CaptureUploadSuccess = Omit<Extract<CaptureUploadResult, { kind: 'success' }>, 'kind'>
 
 /**
  * Get MIME type for upload - normalizes aliases and infers from extension if needed.
@@ -136,7 +149,7 @@ async function rollbackPartialCapture(
 
     if (didUploadFile && storagePath) {
         const { error: removeError } = await supabase.storage
-            .from('media')
+            .from(MEDIA_BUCKET)
             .remove([storagePath])
 
         if (removeError) {
@@ -256,6 +269,8 @@ export async function runCaptureUpload(
     let didDispatchStartRequest = false
     let didReceiveStartResponse = false
     let createdFreshTranscript = false
+    let shouldRollbackPartialCapture = true
+    let creationWarning: CreateTranscriptWarning | undefined
 
     const canceledResult = (message = 'Upload canceled.'): CaptureUploadResult => ({
         kind: 'failure',
@@ -288,7 +303,8 @@ export async function runCaptureUpload(
                 title: title || file.name,
                 filename: file.name,
                 key_terms: keyTerms.length > 0 ? keyTerms : undefined,
-                upload_intent_id: options?.uploadIntentId
+                upload_intent_id: options?.uploadIntentId,
+                ...(options?.projectId ? { project_id: options.projectId } : {}),
             })
         })
 
@@ -299,6 +315,8 @@ export async function runCaptureUpload(
         }
 
         const createData = await createRes.json()
+        const parsedWarning = CreateTranscriptWarningSchema.safeParse(createData?.warning)
+        creationWarning = parsedWarning.success ? parsedWarning.data : undefined
         transcriptId = createData?.transcript?.id ?? null
         storagePath = createData?.storagePath ?? null
         // On a recovery retry the canonical transcript may already have its media
@@ -348,13 +366,51 @@ export async function runCaptureUpload(
                 .from('transcripts')
                 .update({ source_object_key: storagePath })
                 .eq('id', transcriptId)
-            const { error: updateError } = await (signal
+                .select('id')
+            const updateWithSignal = signal
                 ? updateQuery.abortSignal(signal)
-                : updateQuery)
+                : updateQuery
+            const { data: linkedTranscript, error: updateError } = await updateWithSignal.single()
 
-            if (updateError) {
+            if (updateError || !linkedTranscript) {
                 console.error('[capture] Failed to update transcript source_object_key:', updateError)
-                throw new Error(`Failed to update transcript: ${updateError.message}`)
+                const linkRejection = classifyProjectLinkWriteRejection(updateError)
+                const updateErrorMessage =
+                    updateError?.message ?? 'the transcript is no longer available'
+                if (linkRejection === 'deleting') {
+                    throw new Error(mapProjectWriteError(updateError))
+                }
+                if (linkRejection === 'gone') {
+                    throw new Error('Failed to update transcript: the transcript is no longer available')
+                }
+                if (!updateError && !linkedTranscript) {
+                    throw new Error('Failed to update transcript: the transcript is no longer available')
+                }
+
+                const { data: reconciledTranscript, error: reconcileError } = await supabase
+                    .from('transcripts')
+                    .select('source_object_key')
+                    .eq('id', transcriptId)
+                    .maybeSingle()
+
+                if (reconcileError) {
+                    shouldRollbackPartialCapture = false
+                    throw new Error(
+                        `Failed to update transcript: ${updateErrorMessage}; ` +
+                        `reconciliation failed: ${reconcileError.message}`
+                    )
+                }
+
+                if (reconciledTranscript?.source_object_key === storagePath) {
+                    console.warn(
+                        `[capture] Media link response was ambiguous for ${transcriptId}; ` +
+                        'the committed row was recovered by reconciliation'
+                    )
+                } else {
+                    throw new Error(
+                        `Failed to update transcript: ${updateErrorMessage}`
+                    )
+                }
             }
             didLinkMediaToTranscript = true
             console.log('[capture] Transcript updated with source_object_key')
@@ -376,7 +432,8 @@ export async function runCaptureUpload(
         return {
             kind: 'success',
             transcriptId,
-            outcome: 'started'
+            outcome: 'started',
+            warning: creationWarning,
         }
     } catch (err) {
         const wasCanceled =
@@ -390,7 +447,8 @@ export async function runCaptureUpload(
             transcriptId &&
             didLinkMediaToTranscript &&
             !didDispatchStartRequest &&
-            createdFreshTranscript
+            createdFreshTranscript &&
+            shouldRollbackPartialCapture
         ) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
@@ -413,6 +471,7 @@ export async function runCaptureUpload(
                     transcriptId,
                     outcome: 'saved_status_unknown',
                     message,
+                    warning: creationWarning,
                 }
             }
 
@@ -422,10 +481,11 @@ export async function runCaptureUpload(
                 transcriptId,
                 outcome: 'saved_needs_retry',
                 message,
+                warning: creationWarning,
             }
         }
 
-        if (transcriptId) {
+        if (transcriptId && shouldRollbackPartialCapture) {
             const rollbackMessage = await rollbackPartialCapture(
                 supabase,
                 transcriptId,

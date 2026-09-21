@@ -42,6 +42,7 @@ describe('recording page entry conditions', () => {
         codec: CODEC,
         title: 'Live session',
         keyTerms: [],
+        projectId: null,
         deviceId: null,
         maxBytes: 1024 * 1024,
       })

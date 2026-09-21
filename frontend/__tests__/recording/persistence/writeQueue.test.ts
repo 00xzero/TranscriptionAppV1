@@ -13,6 +13,7 @@ function makeRecord(): PersistedSession {
     sessionId: SESSION_ID,
     userId: null,
     uploadIntentId: null,
+    projectId: null,
     title: 'Test',
     generatedTitle: null,
     keyTerms: [],

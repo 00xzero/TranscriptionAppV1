@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-21] - Projects v1
+
+Added recursive project folders for organizing transcripts, with project-aware
+capture, navigation, management, realtime synchronization, and deletion. The
+Library and Projects surfaces now expose the hierarchy consistently while
+preserving Unfiled as the home for transcripts without a project.
+
+### Added
+
+- **Projects database foundation** — Added the user-owned `projects` hierarchy, nullable `transcripts.project_id` membership, sibling-name uniqueness, RLS and explicit Data API grants, recursive branch helpers, guarded project/transcript writes, and private per-user delete invalidations.
+- **Safe recursive deletion** — Added the authenticated two-phase project deletion workflow: mark and inventory the branch, remove and verify media/waveform objects in bounded batches, then atomically delete the matching transcripts and projects. Concurrent moves, child creation, object-key linking, and ordinary deletion are blocked or reconciled so retries remain safe.
+- **Project browsing and management** — Added `/projects` and `/projects/[projectId]`, recursive breadcrumbs, sub-project and transcript lists, Unfiled, create/rename/delete dialogs, transcript move/add dialogs, shared row action menus, loading/error/deleting states, and nearest-ancestor recovery when a viewed project disappears.
+- **Project archive navigation** — Added a searchable hierarchy panel with transcript counts, expandable branches, active-route state, persisted expanded/collapsed rail modes, and responsive hiding on narrow layouts.
+- **Library project experience** — Added a dependency-free CSS scroll-snap carousel of recent ground-level projects, branch-aware activity/count rollups, card actions, a trailing New Project Folder tile, transcript project-path labels, and consistent loading skeletons.
+- **Project speaker summaries** — Added a batched, RLS-protected `project_speaker_summaries` RPC plus accessible avatar groups for recent-project cards and project headers, using the editor's canonical speaker palette and deletion-aware direct/descendant scopes.
+- **Project-aware capture and recovery** — Added project selection to uploads and recordings, persisted project membership across interrupted recording recovery, and an idempotent Unfiled fallback with a warning when the destination project no longer exists or is being deleted.
+
+### Changed
+
+- **Shared project data ownership** — Added a layout-scoped provider with separate project and transcript contexts, paginated full-list reads, user-scoped realtime subscriptions, optimistic mutations, account-scope epochs, reconnect/polling fallback, mutation fences, and trailing authoritative reconciliation.
+- **Editor and app navigation** — Added project-aware editor breadcrumbs and move actions, reused shared transcript/project dialogs across Library, Projects, and editor surfaces, and protected capture controls while a destination project is unavailable or being deleted.
+- **Transcript and waveform cleanup** — Hardened storage deletion against missing, RLS-hidden, partial, and ambiguous Storage responses; late-linked keys are swept or reported for orphan cleanup, and waveform/upload writers now detect rows removed during project deletion.
+- **Speaker colours** — Moved the shared speaker palette out of the editor-specific module so editor speakers and project summaries resolve colours identically.
+
+### Fixed
+
+- Stale initial fetches, reconnect fetches, realtime bursts, or failed optimistic writes can no longer overwrite newer project/transcript state or lose the required trailing reconciliation.
+- Filtered realtime DELETE limitations no longer leave deleted projects or transcripts visible in other tabs; private invalidations trigger user-scoped authoritative refetches with bounded retries.
+- A non-null project reference that is absent from the fetched tree is no longer mislabeled as Unfiled.
+- Deleting descendants no longer inflate recent-project activity, transcript totals, nested-project totals, or speaker summaries.
+- Recent-project stretched links, menus, speaker tooltips, keyboard order, and focus treatment no longer interfere with one another.
+- Project-header speaker avatars no longer increase the compact header height on constrained desktop or mobile layouts.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`115` suites / `1,160` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, existing warnings only); `npm run build`; `git diff --check`.
+- **Local database** — Rollback-only Projects and project-speaker SQL smoke suites passed, covering schema constraints, RLS/privileges, recursive branch deletion, more than 1,000 transcripts, private delete invalidations, speaker ordering/counts, descendant pruning, and malformed/foreign inputs.
+- **Concurrency** — The five-scenario local harness passed for moves before/after marking, object-key links, late child creation, and transcript deletion racing with project deletion.
+- **Browser** — Verified Library, Projects index/detail navigation, hierarchy/archive presentation, breadcrumbs, speaker summaries, and the compact project header at desktop and 390px mobile widths with no console warnings or errors.
+
 ## [2026-08-20] - Offline Local Stack Startup
 
 Added an explicit preparation and offline-start workflow so the local frontend,

@@ -5,7 +5,7 @@ import {
   updateSpeaker,
   deleteSpeaker,
 } from '@/lib/supabase/queries'
-import { SPEAKER_COLORS, SPEAKER_COLOR_FALLBACK } from '@/lib/editor/speaker-palette'
+import { buildSpeakerColorMap, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 import type { Seg, Speaker } from '../types'
 
 type Measurable = {
@@ -57,19 +57,10 @@ export function useSpeakerAssignments({
     return m
   }, [speakers])
 
-  const speakerColorPalette = SPEAKER_COLORS
-
-  const speakerColorMap = useMemo(() => {
-    const map = new Map<string, string>()
-    speakers.forEach((sp, idx) => {
-      if (sp.color) {
-        map.set(sp.id, sp.color)
-      } else {
-        map.set(sp.id, speakerColorPalette[idx % speakerColorPalette.length])
-      }
-    })
-    return map
-  }, [speakers, speakerColorPalette])
+  // Array position is the palette index, so `speakers` must stay in
+  // fetchSpeakers' (created_at, id) order for these colors to match the ones
+  // project_speaker_summaries computes for the same transcript.
+  const speakerColorMap = useMemo(() => buildSpeakerColorMap(speakers), [speakers])
 
   const colorForSpeaker = useCallback((sp?: Speaker) => {
     if (!sp) return SPEAKER_COLOR_FALLBACK
@@ -190,7 +181,6 @@ export function useSpeakerAssignments({
     lastTriggerElementRef,
     anchorRef,
     speakersMap,
-    speakerColorPalette,
     speakerColorMap,
     colorForSpeaker,
     handleAvatarClick,

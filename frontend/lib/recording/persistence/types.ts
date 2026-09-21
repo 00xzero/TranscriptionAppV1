@@ -15,6 +15,7 @@ export const PersistedSessionSchema = z.object({
   // Reserved for Phase 2 (recovery scoping + upload idempotency). Null in Phase 1.
   userId: z.string().nullable(),
   uploadIntentId: z.string().nullable(),
+  projectId: z.string().nullable().default(null),
   title: z.string().nullable(),
   generatedTitle: z.string().nullable(),
   keyTerms: z.array(z.string()),

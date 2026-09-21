@@ -20,6 +20,7 @@ function makeInfo(overrides: Partial<RecoverableInfo> = {}): RecoverableInfo {
   return {
     sessionId: 's1',
     uploadIntentId: 'i1',
+    projectId: null,
     title: 'My recovered title',
     generatedTitle: null,
     keyTerms: [],
@@ -99,6 +100,26 @@ describe('RecoveryModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
     expect(await screen.findByText(/Recording saved/)).toBeInTheDocument()
     expect(screen.getByText(/First clip/)).toBeInTheDocument()
+  })
+
+  test('a warned chained save shows the exact Unfiled warning', async () => {
+    mockSave.mockResolvedValueOnce({
+      ok: true,
+      chainedToNext: true,
+      warning: 'project_missing',
+    })
+    render(
+      <>
+        <RecoveryModal info={makeInfo({ title: 'First clip', remainingCount: 1 })} />
+        <Toaster />
+      </>
+    )
+    fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
+    expect(
+      await screen.findByText('Saved to Unfiled: the project is no longer available')
+    ).toBeInTheDocument()
+    expect(screen.getByText(/“First clip” is uploading and will start transcribing/)).toBeInTheDocument()
+    expect(screen.queryByText('Recording saved')).not.toBeInTheDocument()
   })
 
   test('shows the truncation caution only when mayBeTruncated', () => {

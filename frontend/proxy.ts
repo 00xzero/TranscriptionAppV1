@@ -9,7 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getServerSupabaseCookieName } from '@/infra/supabase/cookie'
 
 // Routes that require authentication
-const PROTECTED_ROUTES = ['/transcripts', '/editor', '/recording']
+const PROTECTED_ROUTES = ['/transcripts', '/editor', '/recording', '/projects']
 
 // Routes that should redirect to / if already authenticated
 const AUTH_ROUTES = ['/auth']

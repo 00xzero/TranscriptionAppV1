@@ -8,6 +8,11 @@ if (typeof window !== 'undefined') {
     writable: true,
     value: jest.fn(),
   })
+  // jsdom implements no scrolling, so the carousel's paging calls would throw.
+  Object.defineProperty(window.HTMLElement.prototype, 'scrollBy', {
+    writable: true,
+    value: jest.fn(),
+  })
   // Radix menus/dropdowns driven by userEvent call the Pointer Capture APIs,
   // which jsdom does not implement. Stub them so components can open in tests.
   for (const method of ['hasPointerCapture', 'setPointerCapture', 'releasePointerCapture'] as const) {
@@ -67,6 +72,11 @@ jest.mock('./lib/supabase/queries', () => ({
   fetchSpeakers: jest.fn().mockResolvedValue([]),
   fetchTranscriptById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Transcript', status: 'created' }),
   fetchSegments: jest.fn().mockResolvedValue([]),
+  updateTranscript: jest.fn().mockResolvedValue({}),
   updateSegment: jest.fn().mockResolvedValue({}),
-  deleteTranscript: jest.fn().mockResolvedValue(undefined),
+  deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
+  // Any surface rendering a project card or header reaches for this. Defaulting
+  // it to an empty map keeps those tests from hitting an undefined export and
+  // silently exercising the hook's error path.
+  fetchProjectSpeakerSummaries: jest.fn().mockResolvedValue(new Map()),
 }))

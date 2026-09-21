@@ -5,10 +5,12 @@ export function useTranscriptTitleEditing({
   transcriptId,
   transcriptTitle,
   setTranscriptTitle,
+  onTitleSaved,
 }: {
   transcriptId: string
   transcriptTitle: string | null
   setTranscriptTitle: (title: string | null) => void
+  onTitleSaved: (title: string) => void
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
@@ -38,6 +40,7 @@ export function useTranscriptTitleEditing({
 
     try {
       await updateTranscript(transcriptId, { title: newTitle })
+      onTitleSaved(newTitle)
       setTranscriptTitle(newTitle)
       setEditingTitle(false)
     } catch (err) {
@@ -46,7 +49,7 @@ export function useTranscriptTitleEditing({
     } finally {
       isSavingTitleRef.current = false
     }
-  }, [titleInput, transcriptId, setTranscriptTitle])
+  }, [onTitleSaved, setTranscriptTitle, titleInput, transcriptId])
 
   const onTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {

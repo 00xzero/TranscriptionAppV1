@@ -29,6 +29,7 @@ async function attach(stream: MediaStream): Promise<void> {
     codec: CODEC,
     title: 'Health',
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,
   })

@@ -81,4 +81,17 @@ describe('Sidebar', () => {
     const { container } = render(<Sidebar />)
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('renders Projects between Library and Drafts and marks project routes active', async () => {
+    usePathnameMock.mockReturnValue('/projects/project-a')
+    await renderSidebar()
+
+    const library = screen.getByRole('button', { name: 'Library' })
+    const projects = screen.getByRole('button', { name: 'Projects' })
+    const drafts = screen.getByRole('button', { name: 'Drafts (coming soon)' })
+    expect(library.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(projects.compareDocumentPosition(drafts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(projects).toHaveClass('border')
+    expect(library).not.toHaveClass('border')
+  })
 })

@@ -31,6 +31,7 @@ async function attachLiveRecorder(): Promise<void> {
     codec: CODEC,
     title: 't',
     keyTerms: [],
+    projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,
   })

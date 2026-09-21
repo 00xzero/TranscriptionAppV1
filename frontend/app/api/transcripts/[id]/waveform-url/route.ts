@@ -7,8 +7,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
-import { getSignedMediaUrl, localizeSignedUrl } from '@/infra/supabase/storage'
-import { WAVEFORM_BUCKET, buildWaveformObjectKey } from '@/lib/audio/compute-peaks'
+import {
+    getSignedMediaUrl,
+    localizeSignedUrl,
+    WAVEFORM_BUCKET,
+} from '@/infra/supabase/storage'
+import { buildWaveformObjectKey } from '@/lib/audio/compute-peaks'
 
 function makeNotFound() {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })

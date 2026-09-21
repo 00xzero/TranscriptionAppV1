@@ -41,6 +41,7 @@ export function useEditorData(transcriptId: string) {
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
   const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
   const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
+  const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(null)
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
@@ -100,6 +101,7 @@ export function useEditorData(transcriptId: string) {
       setTranscriptTitle(transcriptData.title || null)
       setTranscriptCreatedAt(transcriptData.created_at)
       setTranscriptDurationSecs(transcriptData.duration_seconds)
+      setTranscriptProjectId(transcriptData.project_id)
 
       const statusParsed = WaveformStatusSchema.safeParse(transcriptData.waveform_status)
       const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
@@ -208,6 +210,7 @@ export function useEditorData(transcriptId: string) {
     transcriptTitle, setTranscriptTitle,
     transcriptCreatedAt,
     transcriptDurationSecs: chooseEditorDuration(transcriptDurationSecs, waveformDurationSecs),
+    transcriptProjectId,
     waveformDurationSecs,
     peaks,
     waveformStatus,

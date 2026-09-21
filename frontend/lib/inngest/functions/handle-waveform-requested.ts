@@ -5,10 +5,12 @@
  */
 
 import { once } from 'node:events'
+import { NonRetriableError } from 'inngest'
 import { inngest } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
-import { getSignedMediaUrl } from '@/infra/supabase/storage'
+import { getSignedMediaUrl, WAVEFORM_BUCKET } from '@/infra/supabase/storage'
 import { waveformRequestedTrigger } from '@/lib/inngest/events'
+import { classifyProjectLinkWriteRejection } from '@/lib/supabase/project-errors'
 import { probeMedia, spawnPcmStream } from '@/lib/audio/ffmpeg'
 import {
     buildWaveformArtifact,
@@ -16,15 +18,27 @@ import {
     computePeaks,
     PEAK_COUNT,
     WAVEFORM_ARTIFACT_VERSION,
-    WAVEFORM_BUCKET,
 } from '@/lib/audio/compute-peaks'
 
 const SIGNED_URL_TTL_SECONDS = 6 * 60 * 60 // long enough for multi-hour files
+
+type SupabaseError = {
+    code?: string
+    message?: string
+}
+
+function databaseErrorMessage(error: SupabaseError | null): string {
+    return error?.message ?? 'the transcript is no longer available'
+}
 
 export const handleWaveformRequested = inngest.createFunction(
     {
         id: 'handle-waveform-requested',
         triggers: [{ event: waveformRequestedTrigger }],
+        concurrency: {
+            limit: 1,
+            key: 'event.data.transcriptId',
+        },
         retries: 3,
         onFailure: async ({ event }) => {
             const { transcriptId } = event.data.event.data
@@ -160,7 +174,7 @@ export const handleWaveformRequested = inngest.createFunction(
                 throw new Error(`Failed to upload waveform: ${uploadError.message}`)
             }
 
-            const { error: dbError } = await supabase
+            const { data: finalizedTranscript, error: dbError } = await supabase
                 .from('transcripts')
                 .update({
                     waveform_object_key: objectKey,
@@ -169,9 +183,92 @@ export const handleWaveformRequested = inngest.createFunction(
                     waveform_version: WAVEFORM_ARTIFACT_VERSION,
                 })
                 .eq('id', transcriptId)
+                .select('id')
+                .single()
 
-            if (dbError) {
-                throw new Error(`Failed to finalize waveform row: ${dbError.message}`)
+            if (dbError || !finalizedTranscript) {
+                const compensate = async () => {
+                    const { data: readyReference, error: referenceError } = await supabase
+                        .from('transcripts')
+                        .select('id')
+                        .eq('waveform_object_key', objectKey)
+                        .eq('waveform_status', 'ready')
+                        .limit(1)
+                        .maybeSingle()
+
+                    if (referenceError) {
+                        console.error(
+                            `[inngest] Could not verify waveform references before compensation for ${transcriptId}:`,
+                            referenceError
+                        )
+                        return
+                    }
+                    if (readyReference) {
+                        console.warn(
+                            `[inngest] Preserving waveform ${objectKey}; a ready transcript still references it`
+                        )
+                        return
+                    }
+
+                    const { error: removeError } = await supabase.storage
+                        .from(WAVEFORM_BUCKET)
+                        .remove([objectKey])
+                    if (removeError) {
+                        console.error(
+                            `[inngest] Failed to compensate waveform upload for ${transcriptId}:`,
+                            removeError
+                        )
+                    }
+                }
+                const isConfirmedRejectedLink =
+                    classifyProjectLinkWriteRejection(dbError) !== null ||
+                    (!dbError && !finalizedTranscript)
+
+                if (isConfirmedRejectedLink) {
+                    await compensate()
+                    throw new NonRetriableError(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}`
+                    )
+                }
+
+                const { data: reconciledTranscript, error: reconcileError } = await supabase
+                    .from('transcripts')
+                    .select(
+                        'waveform_object_key, waveform_status, waveform_points_per_second, waveform_version'
+                    )
+                    .eq('id', transcriptId)
+                    .maybeSingle()
+
+                if (reconcileError) {
+                    throw new Error(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}; ` +
+                        `reconciliation failed: ${reconcileError.message}`
+                    )
+                }
+
+                const reconciledPointsPerSecond =
+                    reconciledTranscript?.waveform_points_per_second
+                const pointsPerSecondMatch =
+                    typeof reconciledPointsPerSecond === 'number' &&
+                    Math.abs(reconciledPointsPerSecond - peaksResult.pointsPerSecond) <=
+                        Math.max(1, Math.abs(peaksResult.pointsPerSecond)) * 1e-6
+                const finalizationCommitted =
+                    reconciledTranscript?.waveform_object_key === objectKey &&
+                    reconciledTranscript.waveform_status === 'ready' &&
+                    reconciledTranscript.waveform_version === WAVEFORM_ARTIFACT_VERSION &&
+                    pointsPerSecondMatch
+
+                if (finalizationCommitted) {
+                    console.warn(
+                        `[inngest] Waveform link response was ambiguous for ${transcriptId}; ` +
+                        'the committed row was recovered by reconciliation'
+                    )
+                } else {
+                    await compensate()
+                    throw new Error(
+                        `Failed to finalize waveform row: ${databaseErrorMessage(dbError)}`
+                    )
+                }
             }
 
             return {

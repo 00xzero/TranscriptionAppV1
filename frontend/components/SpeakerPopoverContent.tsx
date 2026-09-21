@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type { Speaker } from '@/contracts/db'
-import { SPEAKER_COLORS } from '@/lib/editor/speaker-palette'
+import { speakerInitials } from '@/lib/speakers/palette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -13,26 +13,13 @@ type SpeakerPopoverContentProps = {
   onCreateSpeaker: (label: string) => void
   onRenameSpeaker: (speaker: Speaker, newLabel: string) => void
   onUntag: (speaker: Speaker) => void
-  getColorForSpeaker?: (speaker?: Speaker) => string
-}
-
-const COLORS = SPEAKER_COLORS
-
-function getColorForSpeaker(speaker?: Speaker): string {
-  if (speaker?.color) return speaker.color
-  const key = speaker?.id || speaker?.label || 'unknown'
-  let hash = 0
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash * 31 + key.charCodeAt(i)) >>> 0
-  }
-  return COLORS[hash % COLORS.length]
-}
-
-function getInitials(name: string): string {
-  const parts = (name || 'U').trim().split(/\s+/)
-  const first = parts[0]?.[0] || ''
-  const second = parts[1]?.[0] || ''
-  return (first + second || 'U').toUpperCase()
+  /**
+   * Required, not optional: the transcript's palette positions live in
+   * useSpeakerAssignments, and a local default here would be a second, divergent
+   * color rule. Keeping it mandatory means the popover cannot be rendered
+   * without the transcript-wide map.
+   */
+  getColorForSpeaker: (speaker?: Speaker) => string
 }
 
 export default function SpeakerPopoverContent({
@@ -42,9 +29,8 @@ export default function SpeakerPopoverContent({
   onCreateSpeaker,
   onRenameSpeaker,
   onUntag,
-  getColorForSpeaker: getColorForSpeakerProp,
+  getColorForSpeaker,
 }: SpeakerPopoverContentProps) {
-  const getSpeakerColor = getColorForSpeakerProp || getColorForSpeaker
   const [searchValue, setSearchValue] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -139,8 +125,8 @@ export default function SpeakerPopoverContent({
         ) : (
           filteredSpeakers.map(sp => {
             const isCurrentSp = sp.id === currentSpeaker?.id
-            const color = getSpeakerColor(sp)
-            const initials = getInitials(sp.label)
+            const color = getColorForSpeaker(sp)
+            const initials = speakerInitials(sp.label)
             const isEditing = editingId === sp.id
 
             return (
