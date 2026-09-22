@@ -13,7 +13,7 @@ import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 export default function TranscriptsPage() {
   return (
-    <Suspense fallback={<div className="text-muted">Loading...</div>}>
+    <Suspense fallback={<div role="status" aria-live="polite" className="text-muted">Loading transcripts…</div>}>
       <TranscriptsPageContent />
     </Suspense>
   )
@@ -262,7 +262,7 @@ function TranscriptsPageContent() {
           </div>
         </div>
       )}
-      {isLoading && <div className="text-muted">Loading...</div>}
+      {isLoading && <div role="status" aria-live="polite" className="text-muted">Loading transcripts…</div>}
       {!isLoading && transcripts.length === 0 && <div className="text-muted">No transcripts yet.</div>}
       <ul className="space-y-2">
         {transcripts.map((p) => {

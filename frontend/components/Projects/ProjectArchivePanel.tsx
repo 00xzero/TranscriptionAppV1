@@ -317,7 +317,10 @@ export function ProjectArchivePanel() {
             )}
             {!isCollapsed &&
               (isLoading ? (
-                <li aria-label="Loading project archive" className="space-y-2 p-2">
+                <li className="space-y-2 p-2">
+                  <div role="status" aria-live="polite" className="sr-only">
+                    Loading project archive…
+                  </div>
                   {[0, 1, 2, 3].map((row) => (
                     <div key={row} className="h-5 animate-pulse rounded-sm bg-subtle" />
                   ))}

@@ -100,6 +100,21 @@ describe('TranscriptsPage', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
   }
 
+  test('announces transcript loading without showing the empty state', () => {
+    mockUseProjectsData.mockReturnValue({
+      transcripts: [],
+      transcriptsLoading: true,
+      transcriptConnectionStatus: 'connected',
+      deleteTranscript: mockDeleteTranscript,
+      refetchTranscripts: mockRefetch,
+    })
+
+    renderTranscriptsPage()
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading transcripts…')
+    expect(screen.queryByText('No transcripts yet.')).not.toBeInTheDocument()
+  })
+
   test('deletes a transcript after alert dialog confirmation', async () => {
     const user = userEventLib.setup()
     renderTranscriptsPage()

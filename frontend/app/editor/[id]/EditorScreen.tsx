@@ -227,7 +227,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               ) : null}
             </>
           ) : (
-            <div className="h-12 flex items-center justify-center text-muted">
+            <div role="status" aria-live="polite" className="h-12 flex items-center justify-center text-muted">
               Loading audio...
             </div>
           )}

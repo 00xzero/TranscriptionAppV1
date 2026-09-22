@@ -83,7 +83,7 @@ describe('ProjectPage', () => {
 
       render(<ProjectPage />)
 
-      await waitFor(() => expect(screen.getByLabelText('Loading project')).toBeInTheDocument())
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Loading project…'))
       expect(mockFetchSpeakerSummaries).not.toHaveBeenCalled()
     })
 
@@ -180,7 +180,8 @@ describe('ProjectPage', () => {
 
     render(<ProjectPage />)
 
-    const skeleton = screen.getByLabelText('Loading project')
+    const skeleton = screen.getByRole('status')
+    expect(skeleton).toHaveTextContent('Loading project…')
     const rows = skeleton.querySelectorAll('.animate-pulse.p-4')
     expect(rows).toHaveLength(3)
     rows.forEach((row) => expect(row).toHaveClass('min-h-18'))

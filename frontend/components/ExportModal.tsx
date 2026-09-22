@@ -168,23 +168,27 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
         </RadioGroup>
 
         <div className="px-6">
-          {isExporting && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg border border-trust-blue/20 bg-trust-blue/5 p-3 text-sm dark:bg-trust-blue/10">
-              <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-trust-blue" />
-              <span className="font-mono text-xs text-ink/80 dark:text-paper/70">
-                Preparing your export...
-              </span>
-            </div>
-          )}
+          {/* Stays mounted while the modal is open so progress → success is a content
+              change inside an existing live region, which screen readers announce reliably. */}
+          <div role="status" aria-live="polite">
+            {isExporting && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-trust-blue/20 bg-trust-blue/5 p-3 text-sm dark:bg-trust-blue/10">
+                <div aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin rounded-full border-b-2 border-trust-blue" />
+                <span className="font-mono text-xs text-ink/80 dark:text-paper/70">
+                  Preparing your export...
+                </span>
+              </div>
+            )}
 
-          {showSuccess && (
-            <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 font-mono text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-              Download started successfully.
-            </div>
-          )}
+            {showSuccess && (
+              <div className="mb-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 font-mono text-xs text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                Download started successfully.
+              </div>
+            )}
+          </div>
 
           {exportError && (
-            <div className="mb-4 rounded-lg border border-ember-red/20 bg-ember-red/5 p-3 font-mono text-xs text-ember-red dark:bg-ember-red/10 dark:text-ember-red/80">
+            <div role="alert" className="mb-4 rounded-lg border border-ember-red/20 bg-ember-red/5 p-3 font-mono text-xs text-ember-red dark:bg-ember-red/10 dark:text-ember-red/80">
               {exportError}
             </div>
           )}

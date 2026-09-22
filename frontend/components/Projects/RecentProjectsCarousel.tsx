@@ -174,6 +174,12 @@ export function RecentProjectsCarousel({
         </div>
       </div>
 
+      {loading && (
+        <div role="status" aria-live="polite" className="sr-only">
+          Loading recent projects…
+        </div>
+      )}
+
       <div
         ref={trackRef}
         role="region"

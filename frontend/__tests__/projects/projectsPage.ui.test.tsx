@@ -68,7 +68,7 @@ describe('ProjectsPage', () => {
 
     render(<ProjectsPage />)
 
-    expect(screen.getByLabelText('Loading projects')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading projects…')
     expect(screen.queryByText('No projects yet')).not.toBeInTheDocument()
   })
 

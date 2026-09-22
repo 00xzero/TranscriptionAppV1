@@ -72,6 +72,7 @@ export function DeleteProjectDialog({
       onOpenChange={(open) => !open && onClose()}
       heading={`Delete “${project.name}”?`}
       description={description}
+      descriptionLive
       onConfirm={handleConfirm}
       confirmLabel={attempts > 0 ? 'Retry Delete' : 'Delete Project'}
       pendingLabel="Deleting…"
