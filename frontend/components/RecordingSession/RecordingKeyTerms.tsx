@@ -6,7 +6,7 @@ import {
   useRecordingSession,
 } from '@/lib/recording/RecordingSessionContext'
 import KeyTermsInput from '@/components/CaptureModal/KeyTermsInput'
-import { useKeyTermsField } from '@/components/CaptureModal/useKeyTermsField'
+import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
 
 const KEY_TERMS_PANEL_ID = 'recording-key-terms-panel'
 const KEY_TERMS_INPUT_ID = 'recording-key-terms-input'

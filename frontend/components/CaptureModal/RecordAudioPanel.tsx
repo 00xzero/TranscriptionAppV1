@@ -3,7 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CaptureMetadataFields from './CaptureMetadataFields'
-import type { MicTestApi } from '@/lib/hooks/useMicTest'
+import type { MicTestApi } from '@/lib/recording/useMicTest'
 
 const micSelectId = 'capture-mic-select'
 

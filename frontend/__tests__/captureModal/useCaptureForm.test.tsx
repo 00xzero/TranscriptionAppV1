@@ -12,7 +12,7 @@ jest.mock('@/lib/recording/guardedNavigation', () => ({
   }),
 }))
 
-jest.mock('@/lib/hooks/useCapture', () => ({
+jest.mock('@/lib/capture/useCapture', () => ({
   useCapture: () => ({
     upload: uploadMock,
     isUploading: false,

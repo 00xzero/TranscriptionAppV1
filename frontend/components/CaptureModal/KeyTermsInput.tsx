@@ -1,7 +1,7 @@
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { MAX_KEY_TERMS } from './shared'
+import { MAX_KEY_TERMS } from '@/contracts/api'
 
 const DEFAULT_KEY_TERMS_INPUT_ID = 'capture-key-terms-input'
 

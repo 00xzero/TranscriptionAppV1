@@ -16,7 +16,7 @@ import {
   isRemoteRecordingBlocking,
   useRemotePresenceStatus,
 } from '@/lib/recording/RemotePresenceContext'
-import { useMicTest } from '@/lib/hooks/useMicTest'
+import { useMicTest } from '@/lib/recording/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'

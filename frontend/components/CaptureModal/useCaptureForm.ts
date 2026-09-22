@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
-import { useCapture } from '@/lib/hooks/useCapture'
+import { useCapture } from '@/lib/capture/useCapture'
+import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { showCaptureWarning } from '@/lib/capture/warnings'
 import { formatFileSize } from './shared'
-import { useKeyTermsField } from './useKeyTermsField'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean

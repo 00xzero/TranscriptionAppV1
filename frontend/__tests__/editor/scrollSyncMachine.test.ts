@@ -1,7 +1,7 @@
 import {
   createInitialScrollSyncState,
   transitionScrollSyncState,
-} from '@/app/editor/[id]/hooks/scrollSyncMachine'
+} from '@/app/editor/[id]/scrollSyncMachine'
 
 describe('scrollSyncMachine', () => {
   it('moves from following to userScrolling on user scroll', () => {

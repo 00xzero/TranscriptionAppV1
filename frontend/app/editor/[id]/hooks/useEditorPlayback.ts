@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { AudioPlayerRef } from '@/components/AudioPlayer'
-import { useAudioSessionRecovery } from '@/hooks/useAudioSessionRecovery'
+import { useAudioSessionRecovery } from './useAudioSessionRecovery'
 
 export function useEditorPlayback({
   transcriptId,

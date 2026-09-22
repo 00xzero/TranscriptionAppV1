@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { MAX_KEY_TERMS } from './shared'
+import { MAX_KEY_TERMS } from '@/contracts/api'
 
 interface UseKeyTermsFieldParams {
   /** The current committed list of key terms (controlled by the caller). */
