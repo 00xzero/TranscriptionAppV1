@@ -53,8 +53,9 @@ What `start-local.sh` does:
 - Starts ngrok when it is installed and writes the callback URL into `.env.docker`.
 
 Set `DEEPGRAM_API_KEY` in `infra/.env.docker` before starting transcription. The
-local script generates a `MEDIA_PROXY_SECRET` and enables the media proxy for
-the Docker workflow. If ngrok is unavailable, the app still starts, but
+local script generates a `MEDIA_PROXY_SECRET` and, when `DEEPGRAM_USE_PROXY` is
+absent, sets it to `true` for the Docker workflow; an existing value such as
+`DEEPGRAM_USE_PROXY=false` is left unchanged. If ngrok is unavailable, the app still starts, but
 Deepgram callbacks and transcription will not complete.
 
 ### Offline startup
