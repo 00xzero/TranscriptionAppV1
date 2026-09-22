@@ -2,6 +2,100 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-22] - Compact Shared Transcript Index
+
+Narrowed the app-wide transcript state from full database rows to a validated
+seven-field summary. The shared index still covers every transcript, but the
+list fetch and in-memory state are smaller and list data now has a clear
+boundary. Full-row reads for the editor, deletion, storage, and waveforms are
+unchanged.
+
+### Added
+
+- **`frontend/contracts/db.ts`** — Added `TranscriptSummarySchema` via `TranscriptSchema.pick(...)` (`id`, `project_id`, `title`, `status`, `duration_seconds`, `created_at`, `updated_at`) and the derived `TranscriptSummary` type.
+
+### Changed
+
+- **`frontend/lib/supabase/queries.ts`** — Replaced `fetchTranscripts` with `fetchTranscriptSummaries`, which selects exactly the summary columns, keeps the 1,000-row pagination and `created_at DESC, id ASC` ordering, and validates the result with Zod. The column list stays a string literal for Supabase's type-level `select` parsing; a test pins it to the schema's keys.
+- **`frontend/lib/supabase/hooks.ts`** — Realtime INSERT/UPDATE payloads are stripped to summaries by a module-level transformer.
+- **Summary consumers** — `restoreTranscript` and `TranscriptRow` take `TranscriptSummary`; `core/projects` activity and tree helpers take the smallest `Pick` they need, and `transcriptsInProject` is generic so callers keep their row type.
+
+### Fixed
+
+- **`frontend/lib/supabase/realtime/reconciliation.ts`** — A throwing `transformRealtimePayload` no longer escapes the Supabase change callback and silently drops the update. The failure is logged, the row is skipped, and the already-queued reconciliation refetch restores authoritative state.
+
+### Notes
+
+- Measured against a 62-transcript dev library, the uncompressed list response dropped from `42,533` B (`686` B/row) to `16,815` B (`271` B/row), a `60.5%` reduction. Postgres Changes payloads still carry full rows over the wire.
+- A rejected row in the initial fetch surfaces `transcriptError`; a rejected later realtime payload is skipped and reconciled; if that refetch also fails validation, the hook keeps its last good data.
+- Follow-up: opening a deleted transcript's editor URL still shows a half-empty editor with a media-URL 404 instead of a not-found state.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`1,193` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, no warnings in changed files); `npm run build`; `git diff --check`.
+- **New coverage** — Summary schema stripping/rejection, exact query columns and malformed-row rejection, throwing-transformer skip-and-reconcile (confirmed failing without the fix), and full-row realtime INSERT/UPDATE stored as summaries.
+- **Browser** — Verified the list request selects only the seven columns; Library recents/counts, Projects tree, Unfiled, project page, and `/transcripts` render; a move and an editor title rename synced live (then reverted); a deleted test transcript disappeared immediately and stayed gone after reload; no console errors.
+
+## [2026-09-21] - Realtime Hook Modularization
+
+Split the 892-line `lib/supabase/realtime.ts` into internal modules with no
+runtime behavior change. The public API and the `@/lib/supabase/realtime`
+import path are unchanged.
+
+### Changed
+
+- **`frontend/lib/supabase/realtime/index.ts`** — The façade now owns scope identity, epoch refs, both layout effects, and all four passive effects in their original order, calling explicit phase functions on the modules.
+- **`frontend/lib/supabase/realtime/reconciliation.ts`** — The only module that changes epoch-scoped data: authoritative fetches, refetch waiters, revisions, trailing reconciliation, optimistic fencing, mutations, and realtime payload application.
+- **`frontend/lib/supabase/realtime/subscription.ts`** — Owns the channel, connection status, polling fallback, and bounded retries.
+- **`frontend/lib/supabase/realtime/types.ts`** — Internal types plus the public `ConnectionStatus`.
+- **Module boundaries** — Each module owns its own refs and reads façade state only through a memoized, read-only `scopeAccess`; every cross-module function is a stable `useCallback`, so the subscription effect re-runs exactly when it did before.
+
+### Notes
+
+- Removed one `react-hooks/set-state-in-effect` suppression that ESLint reported unused once the setter moved into `connect()`.
+- `connectionStatus` intentionally still reports `'connecting'` while `subscriptionEnabled` is false.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`117` suites / `1,186` tests passing; existing assertions unchanged); `npm run typecheck`; `npm run lint` (`0` errors, `58` warnings, matching baseline); `npm run build`. Each of the four commits passes these checks on its own.
+- **New coverage** — `supabaseRealtime.test.tsx` pins channel stability across rerenders with inline options; it fails (6 channels instead of 1) if a cross-module callback becomes unstable.
+- **Browser** — Not run; nothing in the UI changes.
+
+## [2026-09-21] - Centralized Client Auth Provider
+
+Replaced scattered client-side auth ownership with one root `AuthProvider`.
+Previously `useAuthIdentity()` ran its own session lookup and listener per
+consumer, and Sidebar, ContextualHeader, LibraryView, and the auth page each did
+their own lookup; Sidebar and the header had no stale-result guard, and the
+Library greeting went stale on account switch.
+
+### Added
+
+- **`frontend/lib/auth/AuthProvider.tsx`** — One provider mounted above `ModalProvider`, `ProjectsProvider`, and `RecordingSessionProvider`, exposing `useAuth(): { user, userId, ready, signOut }` with a single app-owned `onAuthStateChange` subscription. A cached session exposes `userId` early; `ready` becomes true only after `getUser()` verifies, and a failed verification keeps `userId` with `ready: false`. `INITIAL_SESSION` never downgrades a verified identity, and every other auth event atomically sets identity and invalidates in-flight verification, so in-app sign-in and `USER_UPDATED` reach the chrome without a remount.
+- **`frontend/__tests__/helpers/auth.tsx`** — Shared auth test helper replacing per-suite `useAuthIdentity` mocks.
+
+### Changed
+
+- **Auth consumers** — Projects, recording recovery, presence, and capture use `useAuth()`; Sidebar and Library read `user`; ContextualHeader renders authenticated chrome from the cached `userId` and keeps unauthenticated chrome on `/auth`.
+- **`frontend/components/Sidebar.tsx`** — Signs out through the provider behind the existing recording-artifact guard.
+- **`frontend/app/auth/page.tsx`** — Redirects on `userId` rather than `ready`, so a failed verification cannot strand a signed-in user; `proxy.ts` remains the primary redirect.
+- Server routes, mutation-time ownership checks, exports, and upload-token refresh keep their direct Supabase auth calls.
+
+### Removed
+
+- **`frontend/lib/supabase/hooks.ts`** — Deleted `useAuthIdentity` with no compatibility shim.
+
+### Fixed
+
+- `signOut()` clears identity once Supabase has removed the local session, including when only the server-side revoke fails. When sign-out errors without a `SIGNED_OUT` event (local session intact), it keeps identity and rejects; Sidebar then stays on the page with an error toast instead of routing to `/auth` over a live session.
+- Account switches no longer leave the Library greeting or header chrome showing a stale identity.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`117` suites / `1,185` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, warnings `60` → `58` after removing two `set-state-in-effect` cases); `npm run build`; `git diff --check`.
+- **New coverage** — `authProvider.test.tsx` (19 cases covering cached/verified/failed/signed-out identity, stale verification, post-mount sign-in, `USER_UPDATED`, `INITIAL_SESSION` no-downgrade, revoke-only failure vs. surviving local session, single subscription across remount, and outside-provider use) and `authPage.test.tsx`; the `providerChannels` account-switch test now runs through the real provider.
+- **Browser** — Verified signed-out `/auth`, in-app sign-in updating the Library greeting/avatar without reload, capture and Record tab enabled, cached-session startup, and sign-out to `/auth` with identity cleared immediately; no console errors.
+
 ## [2026-09-21] - Projects v1
 
 Added recursive project folders for organizing transcripts, with project-aware
