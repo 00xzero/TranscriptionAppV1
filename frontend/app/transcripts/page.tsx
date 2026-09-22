@@ -6,6 +6,7 @@ import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { Button } from '@/components/ui/button'
 import { useModal } from '@/lib/ModalContext'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
@@ -284,18 +285,17 @@ function TranscriptsPageContent() {
                     const isTranscribing = !!starting[p.id] || ['queued', 'processing'].includes(p.status)
                     const canTranscribe = !isCompleted && !isTranscribing && ['created', 'error'].includes(p.status)
                     const label = isCompleted ? 'Transcribed' : isTranscribing ? 'Transcribing...' : 'Transcribe'
-                    const className = isCompleted
-                      ? 'px-3 py-1.5 rounded-sm bg-blue-600 text-white disabled:opacity-50'
-                      : 'px-3 py-1.5 rounded-sm bg-emerald-600 text-white disabled:opacity-50'
                     return (
-                      <button
-                        className={className}
+                      <Button
+                        variant={isCompleted ? 'secondary' : 'transcribe'}
+                        size="sm"
+                        className="text-sm"
                         onClick={() => startTranscript(p.id)}
                         disabled={!canTranscribe}
                         title={label}
                       >
                         {label}
-                      </button>
+                      </Button>
                     )
                   })()}
                   <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="text-accent hover:underline">Open</Link>
@@ -323,7 +323,7 @@ function TranscriptsPageContent() {
                       {!errorInfo && (
                         <button
                           onClick={() => fetchTranscriptErrorInfo(p.id)}
-                          className="mt-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                          className="mt-2 text-sm font-medium text-accent hover:underline"
                           title="Retry loading error details"
                         >
                           Retry loading error details

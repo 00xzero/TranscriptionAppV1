@@ -115,6 +115,29 @@ describe('TranscriptsPage', () => {
     expect(screen.queryByText('No transcripts yet.')).not.toBeInTheDocument()
   })
 
+  test('uses shared semantic styling for transcript actions without changing behavior', () => {
+    mockUseProjectsData.mockReturnValue({
+      transcripts: [
+        makeTranscript({ id: 'complete-id', status: 'completed' }),
+        makeTranscript({ id: 'ready-id', title: 'Ready', status: 'created' }),
+      ],
+      transcriptsLoading: false,
+      transcriptConnectionStatus: 'connected',
+      deleteTranscript: mockDeleteTranscript,
+      refetchTranscripts: mockRefetch,
+    })
+
+    renderTranscriptsPage()
+
+    const completed = screen.getByRole('button', { name: 'Transcribed' })
+    expect(completed).toBeDisabled()
+    expect(completed).toHaveClass('bg-control', 'px-3', 'py-1.5', 'text-sm')
+
+    const ready = screen.getByRole('button', { name: 'Transcribe' })
+    expect(ready).toBeEnabled()
+    expect(ready).toHaveClass('bg-transcribe', 'px-3', 'py-1.5', 'text-sm')
+  })
+
   test('deletes a transcript after alert dialog confirmation', async () => {
     const user = userEventLib.setup()
     renderTranscriptsPage()
