@@ -668,6 +668,57 @@ describe('useSupabaseRealtime', () => {
     jest.useRealTimers()
   })
 
+  test('skips a row its transformer rejects and reconciles with the server', async () => {
+    jest.useFakeTimers()
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const fetchFn = jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'kept', title: 'Kept' }])
+        .mockResolvedValueOnce([{ id: 'kept', title: 'Server truth' }])
+      const transformRealtimePayload = jest.fn((row: Record<string, unknown>): Row => {
+        if (typeof row.title !== 'string') throw new Error('malformed row')
+        return { id: String(row.id), title: row.title }
+      })
+      const { result } = renderHook(() =>
+        useSupabaseRealtime<Row>('transcripts', fetchFn, { transformRealtimePayload })
+      )
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(result.current.data).toEqual([{ id: 'kept', title: 'Kept' }])
+
+      expect(() => {
+        act(() => {
+          changeHandler?.({
+            eventType: 'UPDATE',
+            new: { id: 'kept', title: 42 } as unknown as Row,
+          })
+        })
+      }).not.toThrow()
+
+      expect(transformRealtimePayload).toHaveBeenCalledTimes(1)
+      expect(result.current.data).toEqual([{ id: 'kept', title: 'Kept' }])
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[realtime] Skipped a malformed realtime row; awaiting reconciliation:',
+        expect.any(Error)
+      )
+      expect(fetchFn).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        jest.advanceTimersByTime(250)
+        await Promise.resolve()
+      })
+      expect(fetchFn).toHaveBeenCalledTimes(2)
+      await waitFor(() => {
+        expect(result.current.data).toEqual([{ id: 'kept', title: 'Server truth' }])
+      })
+    } finally {
+      errorSpy.mockRestore()
+      jest.useRealTimers()
+    }
+  })
+
   test('uses a two-second maximum wait under continuous realtime changes', async () => {
     jest.useFakeTimers()
     const fetchFn = jest.fn().mockResolvedValue([])

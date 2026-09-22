@@ -467,9 +467,16 @@ export function useRealtimeReconciliation<T extends { id: string }>({
             return
         }
 
-        const item = runtime.transformRealtimePayload
-            ? runtime.transformRealtimePayload(payload.new as Record<string, unknown>)
-            : payload.new as T
+        let item: T
+        try {
+            item = runtime.transformRealtimePayload
+                ? runtime.transformRealtimePayload(payload.new as Record<string, unknown>)
+                : payload.new as T
+        } catch (error) {
+            // The change is already marked, so the queued refetch reconciles this row.
+            console.error('[realtime] Skipped a malformed realtime row; awaiting reconciliation:', error)
+            return
+        }
         setState((previous) => {
             const previousData = previous.epoch === epoch
                 ? previous.data

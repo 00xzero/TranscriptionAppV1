@@ -4,7 +4,8 @@ import {
   useTranscriptsRealtime,
 } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
-import type { Project } from '@/contracts/db'
+import type { Project, TranscriptSummary } from '@/contracts/db'
+import { makeTranscript } from './projects/fixtures'
 
 const mockFetchTranscripts = jest.fn()
 const mockRemoveChannel = jest.fn()
@@ -22,7 +23,7 @@ let channelMock: {
 }
 
 jest.mock('@/lib/supabase/queries', () => ({
-  fetchTranscripts: () => mockFetchTranscripts(),
+  fetchTranscriptSummaries: () => mockFetchTranscripts(),
   deleteTranscript: (...args: unknown[]) => mockDeleteTranscript(...args),
   moveTranscriptToProject: (...args: unknown[]) => mockMoveTranscript(...args),
   addTranscriptsToProject: (...args: unknown[]) => mockAddTranscripts(...args),
@@ -48,6 +49,16 @@ function makeChannel() {
   }
   mockChannelFactory.mockReturnValue(channelMock)
 }
+
+const summary = (overrides: Partial<TranscriptSummary> & Pick<TranscriptSummary, 'id'>): TranscriptSummary => ({
+  project_id: null,
+  title: 'Transcript',
+  status: 'completed',
+  duration_seconds: 60,
+  created_at: '2026-04-01T12:00:00Z',
+  updated_at: '2026-04-01T12:00:00Z',
+  ...overrides,
+})
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -195,10 +206,43 @@ describe('useTranscriptsRealtime', () => {
     }
   })
 
+  test('stores full-row realtime INSERT and UPDATE payloads as summaries', async () => {
+    mockFetchTranscripts.mockResolvedValue([])
+    const { result: hook } = renderHook(() =>
+      useTranscriptsRealtime({ userId: 'user-from-session' })
+    )
+    await waitFor(() => expect(hook.current.connectionStatus).toBe('connected'))
+    const onChange = channelMock.on.mock.calls[0][2] as (payload: unknown) => void
+    const id = '00000000-0000-4000-8000-000000000010'
+    const row = makeTranscript({ id, status: 'processing', source_object_key: 'user/media.webm' })
+    const expected = summary({
+      id,
+      title: row.title,
+      status: 'processing',
+      duration_seconds: row.duration_seconds,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    })
+
+    act(() => {
+      onChange({ eventType: 'INSERT', new: row })
+    })
+    expect(hook.current.transcripts).toEqual([expected])
+
+    act(() => {
+      onChange({ eventType: 'UPDATE', new: { ...row, status: 'completed' } })
+    })
+    expect(hook.current.transcripts).toEqual([{ ...expected, status: 'completed' }])
+    expect(Object.keys(hook.current.transcripts[0])).toHaveLength(7)
+  })
+
   test('keeps concurrent realtime changes when rolling back a failed delete', async () => {
     const oldest = { id: 'transcript-0', created_at: '2026-03-01T12:00:00Z' }
     const deleted = { id: 'transcript-1', created_at: '2026-04-01T12:00:00Z' }
-    const inserted = { id: 'transcript-2', created_at: '2026-04-02T12:00:00Z' }
+    const inserted = summary({
+      id: '00000000-0000-4000-8000-000000000002',
+      created_at: '2026-04-02T12:00:00Z',
+    })
     mockFetchTranscripts
       .mockResolvedValueOnce([deleted, oldest])
       .mockResolvedValueOnce([deleted, oldest])

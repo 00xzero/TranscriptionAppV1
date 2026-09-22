@@ -1,4 +1,4 @@
-import type { Project, Transcript } from '@/contracts/db'
+import type { Project, TranscriptSummary } from '@/contracts/db'
 
 export type ProjectTree = {
   byId: Map<string, Project>
@@ -121,10 +121,12 @@ export function collapseBreadcrumbs<T>(
   }
 }
 
-export function transcriptsInProject(
-  transcripts: Transcript[],
+export function transcriptsInProject<
+  T extends Pick<TranscriptSummary, 'id' | 'project_id' | 'updated_at'>,
+>(
+  transcripts: T[],
   projectId: string | null
-): Transcript[] {
+): T[] {
   return transcripts
     .filter((transcript) => transcript.project_id === projectId)
     .sort((a, b) => {
@@ -133,7 +135,9 @@ export function transcriptsInProject(
     })
 }
 
-export function transcriptCountsByProject(transcripts: Transcript[]): Map<string, number> {
+export function transcriptCountsByProject(
+  transcripts: Pick<TranscriptSummary, 'project_id'>[]
+): Map<string, number> {
   const counts = new Map<string, number>()
   for (const transcript of transcripts) {
     if (!transcript.project_id) continue
