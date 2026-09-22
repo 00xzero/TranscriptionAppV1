@@ -19,10 +19,12 @@ import type {
     SegmentUpdate,
     SpeakerUpdate,
     SpeakerInsert,
+    TranscriptSummary,
     TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
-import { ProjectSpeakerSummariesResultSchema } from '@/contracts/db'
+import { ProjectSpeakerSummariesResultSchema, TranscriptSummarySchema } from '@/contracts/db'
+import { z } from 'zod'
 
 const PAGE_SIZE = 1000
 
@@ -56,19 +58,25 @@ async function paginateRows<T extends { id: string }>(
 // Transcripts
 // ============================================================================
 
+// A literal so Supabase can type the projection; tests pin it to the schema's keys.
+const TRANSCRIPT_SUMMARY_COLUMNS =
+    'id, project_id, title, status, duration_seconds, created_at, updated_at'
+const TranscriptSummariesSchema = z.array(TranscriptSummarySchema)
+
 /**
- * Fetch all transcripts for the current user.
+ * Fetch the compact transcript index for the current user.
  */
-export async function fetchTranscripts(): Promise<Transcript[]> {
+export async function fetchTranscriptSummaries(): Promise<TranscriptSummary[]> {
     const supabase = createClient()
-    return paginateRows<Transcript>((from, to) =>
+    const rows = await paginateRows<{ id: string }>((from, to) =>
         supabase
             .from('transcripts')
-            .select('*')
+            .select(TRANSCRIPT_SUMMARY_COLUMNS)
             .order('created_at', { ascending: false })
             .order('id', { ascending: true })
             .range(from, to)
     )
+    return TranscriptSummariesSchema.parse(rows)
 }
 
 // ============================================================================

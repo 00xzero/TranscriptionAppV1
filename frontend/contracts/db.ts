@@ -31,6 +31,17 @@ export const TranscriptSchema = z.object({
   updated_at: z.string(),
 })
 
+/** The app-wide transcript index keeps only the fields list surfaces read. */
+export const TranscriptSummarySchema = TranscriptSchema.pick({
+  id: true,
+  project_id: true,
+  title: true,
+  status: true,
+  duration_seconds: true,
+  created_at: true,
+  updated_at: true,
+})
+
 export const ProjectSchema = z.object({
   id: UuidSchema,
   user_id: UuidSchema,
@@ -224,6 +235,7 @@ export type JobStatus = z.infer<typeof JobStatusSchema>
 export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
 export type WaveformStatus = z.infer<typeof WaveformStatusSchema>
 export type Transcript = z.infer<typeof TranscriptSchema>
+export type TranscriptSummary = z.infer<typeof TranscriptSummarySchema>
 export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>

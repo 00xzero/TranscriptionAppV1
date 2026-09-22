@@ -1,4 +1,4 @@
-import type { Project, Transcript } from '@/contracts/db'
+import type { Project, TranscriptSummary } from '@/contracts/db'
 import {
   activeBranchIds,
   activeDescendantCount,
@@ -6,6 +6,8 @@ import {
   transcriptCountsByProject,
   type ProjectTree,
 } from './tree'
+
+type TranscriptActivity = Pick<TranscriptSummary, 'project_id' | 'updated_at'>
 
 export type ProjectActivity = {
   project: Project
@@ -27,7 +29,7 @@ export type RecentProjectCardData = {
 
 const newest = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a)
 
-function latestTranscriptActivityByProject(transcripts: Transcript[]): Map<string, string> {
+function latestTranscriptActivityByProject(transcripts: TranscriptActivity[]): Map<string, string> {
   const latest = new Map<string, string>()
   for (const transcript of transcripts) {
     if (!transcript.project_id) continue
@@ -47,7 +49,7 @@ const byActivityThenId = (a: RecentProjectCardData, b: RecentProjectCardData) =>
 
 export function rankProjectsByActivity(
   projects: Project[],
-  transcripts: Transcript[],
+  transcripts: TranscriptActivity[],
   limit: number
 ): ProjectActivity[] {
   if (limit <= 0) return []
@@ -80,7 +82,7 @@ export function rankProjectsByActivity(
  */
 function rankRootsByBranchActivity(
   tree: ProjectTree,
-  transcripts: Transcript[],
+  transcripts: TranscriptActivity[],
   limit: number
 ): RecentProjectCardData[] {
   const latestTranscriptActivity = latestTranscriptActivityByProject(transcripts)
@@ -125,7 +127,7 @@ export function selectRecentProjects({
   scope: RecentProjectScope
   tree: ProjectTree
   projects: Project[]
-  transcripts: Transcript[]
+  transcripts: TranscriptActivity[]
   limit: number
 }): RecentProjectCardData[] {
   if (limit <= 0) return []

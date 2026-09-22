@@ -11,7 +11,7 @@ import {
     useSupabaseRealtime,
 } from './realtime'
 import {
-    fetchTranscripts,
+    fetchTranscriptSummaries,
     deleteTranscript as deleteTranscriptQuery,
     fetchProjects,
     createProject as createProjectQuery,
@@ -22,8 +22,9 @@ import {
 import { buildProjectTree } from '@/core/projects/tree'
 import { randomId } from '@/lib/ids'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { TranscriptSummarySchema } from '@/contracts/db'
 import type {
-    Transcript,
+    TranscriptSummary,
     Project,
 } from '@/contracts/db'
 import type { AddTranscriptsResult, CreateProjectInput } from './queries'
@@ -33,7 +34,10 @@ import type { AddTranscriptsResult, CreateProjectInput } from './queries'
 // ============================================================================
 
 /** Re-insert a transcript in created_at-desc order unless it is already present. */
-function restoreTranscript(transcripts: Transcript[], transcript: Transcript): Transcript[] {
+function restoreTranscript(
+    transcripts: TranscriptSummary[],
+    transcript: TranscriptSummary
+): TranscriptSummary[] {
     if (transcripts.some((t) => t.id === transcript.id)) return transcripts
 
     const createdAt = Date.parse(transcript.created_at)
@@ -275,9 +279,14 @@ export function useProjectsDeleteInvalidation(
     }, [refetchProjects, refetchTranscripts, userId])
 }
 
+/** Realtime rows carry every column; the shared index keeps only the summary. */
+function toTranscriptSummary(row: Record<string, unknown>): TranscriptSummary {
+    return TranscriptSummarySchema.parse(row)
+}
+
 export function useTranscriptsRealtime(options: RealtimeHookOptions) {
     const { enabled = true, userId } = options
-    const fetchFn = useCallback(() => fetchTranscripts(), [])
+    const fetchFn = useCallback(() => fetchTranscriptSummaries(), [])
 
     const {
         data,
@@ -289,12 +298,13 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
         refetch,
         assertCurrentScope,
     } =
-        useSupabaseRealtime<Transcript>('transcripts', fetchFn, {
+        useSupabaseRealtime<TranscriptSummary>('transcripts', fetchFn, {
             enabled,
             realtimeFilter: userId ? `user_id=eq.${userId}` : null,
             subscriptionEnabled: Boolean(userId),
             enablePollingFallback: true,
             pollingInterval: 5000,
+            transformRealtimePayload: toTranscriptSummary,
             insertPosition: 'prepend',
         })
 

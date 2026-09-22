@@ -1,4 +1,4 @@
-import type { Project, Transcript } from '@/contracts/db'
+import type { Project, Transcript, TranscriptSummary } from '@/contracts/db'
 import { buildProjectTree } from '@/core/projects/tree'
 
 const TIMESTAMP = '2026-09-01T12:00:00Z'
@@ -48,7 +48,7 @@ export function projectProviderData(projects: Project[]) {
 }
 
 /** A settled, error-free transcript context slice. */
-export function transcriptProviderData(transcripts: Transcript[]) {
+export function transcriptProviderData(transcripts: TranscriptSummary[]) {
   return {
     transcripts,
     transcriptsLoading: false,

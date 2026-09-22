@@ -1,12 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { Transcript } from '@/contracts/db'
+import type { TranscriptSummary } from '@/contracts/db'
 import { ListRow } from './ProjectList'
 import { formatDuration, type TranscriptProjectLabel } from './format'
 
 interface TranscriptRowProps {
-  transcript: Transcript
+  transcript: TranscriptSummary
   actions?: ReactNode
   /**
    * Only surfaces that mix projects pass this. On a single project's page, or the
@@ -15,7 +15,7 @@ interface TranscriptRowProps {
   projectPath?: TranscriptProjectLabel | null
 }
 
-function statusBadge(status: Transcript['status']) {
+function statusBadge(status: TranscriptSummary['status']) {
   switch (status) {
     case 'queued':
     case 'processing':

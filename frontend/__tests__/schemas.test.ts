@@ -15,9 +15,49 @@ import {
   ProjectUpdateSchema,
   TranscriptSchema,
   TranscriptStatusSchema,
+  TranscriptSummarySchema,
 } from '@/contracts/db'
 
 const VALID_UUID = '11111111-1111-1111-1111-111111111111'
+
+describe('TranscriptSummarySchema', () => {
+  const fullRow = {
+    id: VALID_UUID,
+    user_id: '22222222-2222-2222-2222-222222222222',
+    project_id: null,
+    title: 'Standup',
+    status: 'completed',
+    source_object_key: 'user/media.webm',
+    upload_intent_id: 'intent-1',
+    duration_seconds: 90,
+    waveform_object_key: null,
+    waveform_status: 'ready',
+    waveform_points_per_second: 50,
+    waveform_version: 1,
+    created_at: '2026-09-12T00:00:00Z',
+    updated_at: '2026-09-12T00:00:00Z',
+  }
+
+  test('reduces a complete transcript row to the seven summary fields', () => {
+    expect(TranscriptSummarySchema.parse(fullRow)).toEqual({
+      id: VALID_UUID,
+      project_id: null,
+      title: 'Standup',
+      status: 'completed',
+      duration_seconds: 90,
+      created_at: '2026-09-12T00:00:00Z',
+      updated_at: '2026-09-12T00:00:00Z',
+    })
+  })
+
+  test('rejects missing or invalid required fields', () => {
+    const withoutStatus: Record<string, unknown> = { ...fullRow }
+    delete withoutStatus.status
+    expect(TranscriptSummarySchema.safeParse(withoutStatus).success).toBe(false)
+    expect(TranscriptSummarySchema.safeParse({ ...fullRow, status: 'archived' }).success).toBe(false)
+    expect(TranscriptSummarySchema.safeParse({ ...fullRow, id: 'transcript-a' }).success).toBe(false)
+  })
+})
 
 describe('CreateTranscriptBodySchema', () => {
   test('rejects missing filename', () => {

@@ -9,7 +9,23 @@ import { transcriptsInProject } from '@/core/projects/tree'
 import { AuthProvider } from '@/lib/auth/AuthProvider'
 import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
-import type { Project, Transcript } from '@/contracts/db'
+import type { Project, Transcript, TranscriptSummary } from '@/contracts/db'
+
+// Realtime transcript rows are validated, so these ids must be real UUIDs.
+const TRANSCRIPT_A = '00000000-0000-4000-8000-00000000000a'
+const PROJECT_A = '00000000-0000-4000-8000-0000000000a1'
+const PROJECT_B = '00000000-0000-4000-8000-0000000000b1'
+
+const transcriptSummary = (overrides: Partial<TranscriptSummary> = {}): TranscriptSummary => ({
+  id: TRANSCRIPT_A,
+  project_id: null,
+  title: 'Transcript A',
+  status: 'completed',
+  duration_seconds: 60,
+  created_at: '2026-09-01T00:00:00Z',
+  updated_at: '2026-09-01T00:00:00Z',
+  ...overrides,
+})
 
 const mockGetSession = jest.fn()
 const mockGetUser = jest.fn()
@@ -31,7 +47,7 @@ let authStateHandler:
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjects: () => mockFetchProjects(),
-  fetchTranscripts: () => mockFetchTranscripts(),
+  fetchTranscriptSummaries: () => mockFetchTranscripts(),
   createProject: jest.fn(),
   renameProject: jest.fn(),
   moveTranscriptToProject: jest.fn(),
@@ -376,12 +392,7 @@ describe('ProjectsProvider realtime ownership', () => {
       data: { session: { user: { id: 'user-a' } } },
     })
     mockGetUser.mockReturnValue(new Promise(() => undefined))
-    const transcript = {
-      id: 'transcript-a',
-      user_id: 'user-a',
-      project_id: 'project-a',
-      updated_at: '2026-09-01T00:00:00Z',
-    }
+    const transcript = transcriptSummary({ project_id: PROJECT_A })
     mockFetchTranscripts.mockResolvedValue([transcript])
 
     function ProjectTranscripts({ projectId }: { projectId: string }) {
@@ -397,13 +408,13 @@ describe('ProjectsProvider realtime ownership', () => {
 
     render(
       <AppProviders>
-        <ProjectTranscripts projectId="project-a" />
-        <ProjectTranscripts projectId="project-b" />
+        <ProjectTranscripts projectId={PROJECT_A} />
+        <ProjectTranscripts projectId={PROJECT_B} />
       </AppProviders>
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId('project-a')).toHaveTextContent('transcript-a')
+      expect(screen.getByTestId(PROJECT_A)).toHaveTextContent(TRANSCRIPT_A)
     })
 
     const transcriptChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
@@ -413,11 +424,11 @@ describe('ProjectsProvider realtime ownership', () => {
     const onChange = transcriptChannel.on.mock.calls[0][2]
 
     act(() => {
-      onChange({ eventType: 'UPDATE', new: { ...transcript, project_id: 'project-b' } })
+      onChange({ eventType: 'UPDATE', new: { ...transcript, project_id: PROJECT_B } })
     })
 
-    expect(screen.getByTestId('project-a')).toBeEmptyDOMElement()
-    expect(screen.getByTestId('project-b')).toHaveTextContent('transcript-a')
+    expect(screen.getByTestId(PROJECT_A)).toBeEmptyDOMElement()
+    expect(screen.getByTestId(PROJECT_B)).toHaveTextContent(TRANSCRIPT_A)
   })
 
   test('refetches only the table named by a private delete invalidation', async () => {
@@ -700,7 +711,7 @@ describe('ProjectsProvider realtime ownership', () => {
     })
     mockGetUser.mockReturnValue(new Promise(() => undefined))
     mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
-    mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-a', user_id: 'user-a' }])
+    mockFetchTranscripts.mockResolvedValue([transcriptSummary()])
     const projectRenders: number[] = []
     const transcriptRenders: number[] = []
     const mixedRenders: number[] = []
@@ -732,7 +743,7 @@ describe('ProjectsProvider realtime ownership', () => {
       </AppProviders>
     )
     await waitFor(() => expect(screen.getByTestId('isolated-project')).toHaveTextContent('project-a'))
-    await waitFor(() => expect(screen.getByTestId('isolated-transcript')).toHaveTextContent('transcript-a'))
+    await waitFor(() => expect(screen.getByTestId('isolated-transcript')).toHaveTextContent(TRANSCRIPT_A))
     const projectChannelIndex = mockChannel.mock.calls.findIndex(([name]) =>
       String(name).startsWith('projects-changes:')
     )
@@ -767,7 +778,7 @@ describe('ProjectsProvider realtime ownership', () => {
       act(() => {
         transcriptChannel.on.mock.calls[0][2]({
           eventType: 'UPDATE',
-          new: { id: 'transcript-a', user_id: 'user-a' },
+          new: { ...transcriptSummary({ title: 'Updated transcript' }), user_id: 'user-a' },
         })
       })
       expect(projectRenders.length - beforeTranscript.projectRenders).toBe(0)
