@@ -1,14 +1,15 @@
-# Lightweight Transcription Web App
+# TranscriptionAppV1
 
-A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and Deepgram. It supports upload, async transcription, speaker diarization, inline transcript editing, watchlist corrections, and exports (DOCX, VTT).
+A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and Deepgram. It supports uploads and browser recording, asynchronous transcription, speaker diarization, inline transcript editing, project organization, watchlist corrections, and exports (DOCX, VTT, Markdown, and plain text).
 
 ## Current Stack
 
-- Frontend + API routes: Next.js 14 (App Router), TypeScript, Tailwind
+- Frontend and API routes: Next.js 16.3.1 App Router, React 19, TypeScript 6, Tailwind CSS 4
+- Runtime: Node.js 24 or newer and npm
 - Data/Auth/Storage: Supabase (Postgres, Auth, Storage)
 - Background jobs: Inngest
 - Speech-to-text: Deepgram Nova 3
-- Local infrastructure: Supabase CLI + Docker Compose
+- Local infrastructure: Supabase CLI, Docker Compose, and optional ngrok
 
 ## Repository Layout
 
@@ -16,24 +17,26 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
   - `contracts/`: Zod schemas — single source of truth for all runtime-validated types
   - `core/`: Domain logic and application services (transcription, transcripts, exports, rate limiting)
   - `infra/`: External service adapters (Supabase client factories, Deepgram, Inngest)
-  - `lib/`: Cross-cutting utilities (Inngest function handlers, Supabase hooks/queries, ModalContext)
+  - `lib/`: Cross-cutting utilities, recording state, Supabase queries/realtime, and shared hooks
   - `components/`: React UI components
   - `app/`: Next.js App Router pages and API routes
+  - `__tests__/`: Jest and Testing Library tests
+  - `scripts/`: Local smoke tests, maintenance scripts, and result inspection tools
 - `infra/`: local stack scripts (`start-local.sh`, `stop-local.sh`), Supabase config, Docker Compose
 - `.docs/`: architecture and refactor docs
-- Legacy backend/worker components were removed from the repo during the overhaul and are not part of the active workflow
+- `soniox-poc/`: separate proof of concept; it is not part of the active application
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 24+
 - npm
 - Docker Desktop
 - Supabase CLI
-- ngrok (required only for Deepgram webhook callbacks in local Docker)
+- ngrok (required for Deepgram callbacks when using the local Docker workflow)
 
 ## Local Development (Recommended)
 
-Use the modern local stack (Supabase + Docker Compose):
+Use the full local stack (Supabase + Docker Compose + optional ngrok):
 
 ```bash
 cd infra
@@ -41,11 +44,18 @@ cd infra
 ```
 
 What `start-local.sh` does:
-- Starts Supabase (`infra/supabase`)
-- Creates `infra/.env.docker` from `infra/.env.docker.example` if missing
-- Injects local Supabase keys into `infra/.env.docker`
-- Starts Inngest + frontend containers
-- Starts ngrok and prints the tunnel URL
+
+- Starts Supabase from `infra/supabase`.
+- Creates `infra/.env.docker` from `infra/.env.docker.example` if missing.
+- Injects the local Supabase keys into `infra/.env.docker`.
+- Ensures the local media proxy settings exist.
+- Starts the Inngest and frontend containers.
+- Starts ngrok when it is installed and writes the callback URL into `.env.docker`.
+
+Set `DEEPGRAM_API_KEY` in `infra/.env.docker` before starting transcription. The
+local script generates a `MEDIA_PROXY_SECRET` and enables the media proxy for
+the Docker workflow. If ngrok is unavailable, the app still starts, but
+Deepgram callbacks and transcription will not complete.
 
 ### Offline startup
 
@@ -70,10 +80,11 @@ transcription and webhook callbacks are unavailable. Run
 `--prepare-offline` again after changing `package-lock.json`, the frontend Docker
 image, the Inngest image, or the Supabase CLI version.
 
-After first start, update `infra/.env.docker`:
-- `DEEPGRAM_API_KEY` (required for transcription)
-- `DEEPGRAM_API_KEY_IDENTIFIER` (used for webhook verification)
-- `DEEPGRAM_CALLBACK_URL` (set to `https://<your-ngrok-domain>/api/webhooks/deepgram`)
+After first start, update `infra/.env.docker` with:
+
+- `DEEPGRAM_API_KEY` (required for transcription).
+- `DEEPGRAM_API_KEY_IDENTIFIER` (used for webhook verification).
+- `DEEPGRAM_CALLBACK_URL` if you are supplying an ngrok URL manually.
 
 Restart frontend after env updates so changes are picked up:
 
@@ -102,15 +113,20 @@ cd infra
 
 ## Local Development (Without Docker)
 
-Run frontend and Inngest directly:
+This workflow starts the frontend and Inngest directly. Supabase must already be
+running separately, for example with `supabase start` from `infra/`.
+
+Create the local frontend environment and install dependencies:
 
 ```bash
 cd frontend
-npm install
+cp .env.example .env.local
+npm ci
 npm run dev
 ```
 
-Make sure `frontend/.env.local` includes `INNGEST_DEV=1`. Inngest v4 defaults to cloud mode unless dev mode is explicitly enabled for local work.
+Set the Supabase URL and anon key in `frontend/.env.local` from `supabase status`.
+Keep `INNGEST_DEV=1`; otherwise the Inngest v4 CLI can default to cloud mode.
 
 In another terminal:
 
@@ -119,7 +135,8 @@ cd frontend
 npm run inngest
 ```
 
-Optional helper script from repo root:
+The optional root helper script starts only the frontend, Inngest, and ngrok. It
+does not start Supabase or Docker:
 
 ```bash
 ./dev.sh start
@@ -134,19 +151,17 @@ Use these templates:
 - Non-Docker frontend local: `frontend/.env.example` -> `frontend/.env.local`
 
 Commonly used vars:
+
 - `INNGEST_DEV=1` for non-Docker local development with Inngest v4
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DEEPGRAM_API_KEY`
-- `DEEPGRAM_API_KEY_IDENTIFIER`
-- `DEEPGRAM_CALLBACK_URL`
-- `NEXT_PUBLIC_APP_URL` (defaults to `http://localhost:3000` for local)
-- `DEEPGRAM_USE_PROXY` and `MEDIA_PROXY_SECRET` (recommended for local Docker callbacks)
-- `DEEPGRAM_CONCURRENCY_LIMIT`, `DEEPGRAM_MODEL`
-- `TRANSCRIPTION_TIMEOUT_MINUTES`
-- `RATE_LIMIT_MODE`
-- `WEBHOOK_HEALTHCHECK_SECRET`
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` for trusted maintenance/smoke scripts
+- `NEXT_PUBLIC_APP_URL` (normally `http://localhost:3000` locally)
+- `DEEPGRAM_API_KEY` and `DEEPGRAM_API_KEY_IDENTIFIER`
+- `DEEPGRAM_CALLBACK_URL` for the public Deepgram webhook URL
+- `DEEPGRAM_USE_PROXY` and `MEDIA_PROXY_SECRET` for the local media proxy
+- `DEEPGRAM_CONCURRENCY_LIMIT` and `DEEPGRAM_MODEL`
+- `TRANSCRIPTION_TIMEOUT_MINUTES` and `RATE_LIMIT_MODE`
+- `WEBHOOK_HEALTHCHECK_SECRET` for the webhook health endpoint
 
 ## Testing
 
@@ -155,6 +170,15 @@ From `frontend/`:
 ```bash
 npm test
 npm run test:ci
+npm run typecheck
+npm run lint
+npm run build
+```
+
+For a one-off coverage report:
+
+```bash
+npm run test:ci -- --coverage --coverageReporters=text-summary
 ```
 
 ## Useful Commands
@@ -177,4 +201,5 @@ supabase db reset
 
 - Product requirements: `PRD.md`
 - Change history: `CHANGELOG.md`
-- Refactor docs: `.docs/Refactor Documentation/REFACTOR_README.md`
+- Active architecture and implementation docs: `.docs/`
+- Historical plans and completed migrations: `.docs/archive/`
