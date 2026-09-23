@@ -7,6 +7,7 @@ import { fetchJobError } from '@/lib/supabase/queries'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { useModal } from '@/lib/ModalContext'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
@@ -14,7 +15,11 @@ import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 export default function TranscriptsPage() {
   return (
-    <Suspense fallback={<div role="status" aria-live="polite" className="text-muted">Loading transcripts…</div>}>
+    <Suspense fallback={
+      <LoadingStatus message="Loading transcripts…" className="text-muted">
+        <span aria-hidden="true">Loading transcripts…</span>
+      </LoadingStatus>
+    }>
       <TranscriptsPageContent />
     </Suspense>
   )
@@ -263,7 +268,11 @@ function TranscriptsPageContent() {
           </div>
         </div>
       )}
-      {isLoading && <div role="status" aria-live="polite" className="text-muted">Loading transcripts…</div>}
+      {isLoading && (
+        <LoadingStatus message="Loading transcripts…" className="text-muted">
+          <span aria-hidden="true">Loading transcripts…</span>
+        </LoadingStatus>
+      )}
       {!isLoading && transcripts.length === 0 && <div className="text-muted">No transcripts yet.</div>}
       <ul className="space-y-2">
         {transcripts.map((p) => {

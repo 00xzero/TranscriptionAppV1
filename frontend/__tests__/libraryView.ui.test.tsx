@@ -130,7 +130,7 @@ describe('LibraryView', () => {
     expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, there\.$/)
   })
 
-  test('renders row-shaped placeholders while recent transcripts load', () => {
+  test('renders row-shaped placeholders while recent transcripts load', async () => {
     mockProjectsData([], [makeTranscript()], { transcriptsLoading: true })
 
     renderLibraryView()
@@ -138,12 +138,12 @@ describe('LibraryView', () => {
     const loadingStates = screen.getAllByRole('status')
     expect(loadingStates).toHaveLength(2)
     const loadingState = loadingStates.find((state) =>
-      state.textContent?.includes('Loading recent transcripts…')
+      state.querySelectorAll('.animate-pulse.p-4').length === 3
     )
     expect(loadingState).toBeDefined()
     if (!loadingState) throw new Error('Missing recent transcripts loading state')
     const rows = loadingState.querySelectorAll('.animate-pulse.p-4')
-    expect(loadingState).toHaveTextContent('Loading recent transcripts…')
+    await waitFor(() => expect(loadingState).toHaveTextContent('Loading recent transcripts…'))
     expect(rows).toHaveLength(3)
     rows.forEach((row) => {
       expect(row).toHaveClass('min-h-18')
@@ -151,7 +151,7 @@ describe('LibraryView', () => {
     })
     const projectCarousel = screen.getByRole('region', { name: 'Recent projects' })
     expect(projectCarousel.querySelectorAll('.animate-pulse')).toHaveLength(3)
-    expect(screen.getByText('Loading recent projects…')).toHaveAttribute('role', 'status')
+    expect((await screen.findByText('Loading recent projects…')).closest('[role="status"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
     expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
     expect(screen.queryByText(/No transcripts yet/)).not.toBeInTheDocument()

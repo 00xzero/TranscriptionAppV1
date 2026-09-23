@@ -171,7 +171,7 @@ describe('ProjectPage', () => {
     expect(screen.getByText('1 transcript')).toBeInTheDocument()
   })
 
-  test('renders row-height skeletons while either dataset loads', () => {
+  test('renders row-height skeletons while either dataset loads', async () => {
     mockData([], [])
     mockUseProjectsData.mockReturnValue({
       ...projectProviderData([]),
@@ -181,7 +181,7 @@ describe('ProjectPage', () => {
     render(<ProjectPage />)
 
     const skeleton = screen.getByRole('status')
-    expect(skeleton).toHaveTextContent('Loading project…')
+    await waitFor(() => expect(skeleton).toHaveTextContent('Loading project…'))
     const rows = skeleton.querySelectorAll('.animate-pulse.p-4')
     expect(rows).toHaveLength(3)
     rows.forEach((row) => expect(row).toHaveClass('min-h-18'))

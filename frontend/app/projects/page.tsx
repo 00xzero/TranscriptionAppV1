@@ -4,6 +4,7 @@ import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
@@ -31,10 +32,9 @@ export default function ProjectsPage() {
 
   if (isLoading) {
     return (
-      <div role="status" aria-live="polite">
-        <span className="sr-only">Loading projects…</span>
+      <LoadingStatus message="Loading projects…">
         <ProjectListSkeleton />
-      </div>
+      </LoadingStatus>
     )
   }
 

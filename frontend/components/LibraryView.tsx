@@ -11,6 +11,7 @@ import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { RecentProjectsCarousel } from '@/components/Projects/RecentProjectsCarousel'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import {
   selectRecentProjects,
   type RecentProjectScope,
@@ -125,14 +126,13 @@ export default function LibraryView() {
         </div>
 
         {isLoading ? (
-          <div role="status">
-            <span className="sr-only">Loading recent transcripts…</span>
+          <LoadingStatus message="Loading recent transcripts…">
             <ProjectList>
               {[0, 1, 2].map((row) => (
                 <ListRowSkeleton key={row} />
               ))}
             </ProjectList>
-          </div>
+          </LoadingStatus>
         ) : (
           <ProjectList>
             {transcripts.length === 0 ? (

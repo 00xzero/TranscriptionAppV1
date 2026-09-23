@@ -22,6 +22,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { transcriptCountsByProject, transcriptsInProject } from '@/core/projects/tree'
 import { PROJECT_ARCHIVE_COLLAPSED_KEY } from '@/lib/constants'
@@ -318,9 +319,7 @@ export function ProjectArchivePanel() {
             {!isCollapsed &&
               (isLoading ? (
                 <li className="space-y-2 p-2">
-                  <div role="status" aria-live="polite" className="sr-only">
-                    Loading project archive…
-                  </div>
+                  <LoadingStatus message="Loading project archive…" className="sr-only" />
                   {[0, 1, 2, 3].map((row) => (
                     <div key={row} className="h-5 animate-pulse rounded-sm bg-subtle" />
                   ))}

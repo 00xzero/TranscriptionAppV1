@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import type { Project } from '@/contracts/db'
 import { Button } from '@/components/ui/button'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { cn } from '@/lib/utils'
 import {
   RecentProjectCard,
@@ -178,9 +179,7 @@ export function RecentProjectsCarousel({
       </div>
 
       {loading && (
-        <div role="status" aria-live="polite" className="sr-only">
-          Loading recent projects…
-        </div>
+        <LoadingStatus message="Loading recent projects…" className="sr-only" />
       )}
 
       <div

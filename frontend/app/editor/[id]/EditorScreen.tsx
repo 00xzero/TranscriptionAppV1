@@ -9,6 +9,7 @@ import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/Collapsi
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
@@ -227,9 +228,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               ) : null}
             </>
           ) : (
-            <div role="status" aria-live="polite" className="h-12 flex items-center justify-center text-muted">
-              Loading audio...
-            </div>
+            <LoadingStatus message="Loading audio..." className="h-12 flex items-center justify-center text-muted">
+              <span aria-hidden="true">Loading audio...</span>
+            </LoadingStatus>
           )}
         </CollapsibleWaveform>
 

@@ -59,7 +59,7 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('2 transcripts')).toBeInTheDocument()
   })
 
-  test('waits for both provider datasets before showing content', () => {
+  test('waits for both provider datasets before showing content', async () => {
     mockData([], [])
     mockUseTranscriptsData.mockReturnValue({
       ...transcriptProviderData([]),
@@ -68,7 +68,7 @@ describe('ProjectsPage', () => {
 
     render(<ProjectsPage />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Loading projects…')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Loading projects…'))
     expect(screen.queryByText('No projects yet')).not.toBeInTheDocument()
   })
 

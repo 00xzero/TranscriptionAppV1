@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ProjectArchivePanel } from '@/components/Projects/ProjectArchivePanel'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -139,7 +139,7 @@ describe('ProjectArchivePanel', () => {
     expect(screen.getByRole('link', { name: 'Unfiled' })).toHaveAttribute('href', '/projects#unfiled')
   })
 
-  test('announces the expanded archive loading state once', () => {
+  test('announces the expanded archive loading state once', async () => {
     mockPathname = '/projects'
     mockUseProjectsData.mockReturnValue({ ...projectProviderData(projects), projectsLoading: true })
     mockUseTranscriptsData.mockReturnValue(transcriptProviderData(transcripts))
@@ -151,7 +151,7 @@ describe('ProjectArchivePanel', () => {
 
     expect(screen.getAllByRole('status')).toHaveLength(1)
     const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Loading project archive…')
+    await waitFor(() => expect(status).toHaveTextContent('Loading project archive…'))
     // The status sits inside a plain list item so the archive <ul> keeps only listitem children.
     expect(status.tagName).toBe('DIV')
     expect(status.parentElement?.tagName).toBe('LI')

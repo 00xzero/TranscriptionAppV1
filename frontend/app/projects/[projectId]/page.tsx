@@ -7,6 +7,7 @@ import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { Button } from '@/components/ui/button'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
@@ -34,11 +35,10 @@ import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) {
   return (
-    <div role="status" aria-live="polite">
-      <span className="sr-only">{label}…</span>
+    <LoadingStatus message={`${label}…`}>
       <div className="mb-6 h-8 w-52 animate-pulse rounded-sm bg-subtle" />
       <ProjectListSkeleton />
-    </div>
+    </LoadingStatus>
   )
 }
 
