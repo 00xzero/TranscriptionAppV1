@@ -28,6 +28,21 @@ describe('ProjectNameDialog', () => {
     view.unmount()
   })
 
+  test('shows the character count and flags when the name hits the cap', async () => {
+    const user = userEvent.setup()
+    render(<ProjectNameDialog open onOpenChange={jest.fn()} mode="create" parentId={null} onSubmit={jest.fn()} />)
+    const input = screen.getByLabelText('Project name')
+    expect(input).toHaveAccessibleDescription('0/80')
+
+    await user.type(input, 'Dechra')
+    expect(input).toHaveAccessibleDescription('6/80')
+
+    await user.clear(input)
+    await user.type(input, 'x'.repeat(85))
+    expect(input).toHaveValue('x'.repeat(80))
+    expect(input).toHaveAccessibleDescription('Character limit reached · 80/80')
+  })
+
   test('maps write errors inline and stays open', async () => {
     const user = userEvent.setup()
     const onOpenChange = jest.fn()

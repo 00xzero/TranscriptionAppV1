@@ -67,7 +67,10 @@ function slideWidthClasses(slideCount: number): string {
   )
 }
 
-const SLIDE = 'snap-start shrink-0 basis-(--slide-basis)'
+// min-w-0 overrides the flex default of min-width:auto, which sizes a slide to fit its
+// content's min-content width -- so a long project title would widen its card instead of
+// truncating inside it.
+const SLIDE = 'min-w-0 snap-start shrink-0 basis-(--slide-basis)'
 
 type RecentProjectsCarouselProps = {
   cards: RecentProjectCardViewData[]

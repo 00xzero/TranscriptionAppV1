@@ -1,4 +1,4 @@
-import { ProjectNameSchema } from '@/contracts/primitives'
+import { PROJECT_NAME_MAX_LENGTH, ProjectNameSchema } from '@/contracts/primitives'
 
 export type ProjectNameValidation =
   | { valid: true; name: string }
@@ -11,7 +11,7 @@ export function validateProjectName(name: string): ProjectNameValidation {
   const issue = result.error.issues[0]
   if (issue?.code === 'too_small') return { valid: false, error: 'Enter a project name.' }
   if (issue?.code === 'too_big') {
-    return { valid: false, error: 'Project names must be 80 characters or fewer.' }
+    return { valid: false, error: `Project names must be ${PROJECT_NAME_MAX_LENGTH} characters or fewer.` }
   }
   return { valid: false, error: 'Enter a valid project name.' }
 }
