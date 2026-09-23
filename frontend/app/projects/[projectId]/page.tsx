@@ -34,7 +34,8 @@ import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 
 function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) {
   return (
-    <div aria-label={label}>
+    <div role="status" aria-live="polite">
+      <span className="sr-only">{label}…</span>
       <div className="mb-6 h-8 w-52 animate-pulse rounded-sm bg-subtle" />
       <ProjectListSkeleton />
     </div>

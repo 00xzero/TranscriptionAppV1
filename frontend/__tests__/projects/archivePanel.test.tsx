@@ -139,6 +139,24 @@ describe('ProjectArchivePanel', () => {
     expect(screen.getByRole('link', { name: 'Unfiled' })).toHaveAttribute('href', '/projects#unfiled')
   })
 
+  test('announces the expanded archive loading state once', () => {
+    mockPathname = '/projects'
+    mockUseProjectsData.mockReturnValue({ ...projectProviderData(projects), projectsLoading: true })
+    mockUseTranscriptsData.mockReturnValue(transcriptProviderData(transcripts))
+    render(
+      <TooltipProvider>
+        <ProjectArchivePanel />
+      </TooltipProvider>
+    )
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Loading project archive…')
+    // The status sits inside a plain list item so the archive <ul> keeps only listitem children.
+    expect(status.tagName).toBe('DIV')
+    expect(status.parentElement?.tagName).toBe('LI')
+  })
+
   test('the rail search button expands the archive and focuses search', async () => {
     const user = userEvent.setup()
     localStorage.setItem(PROJECT_ARCHIVE_COLLAPSED_KEY, 'true')

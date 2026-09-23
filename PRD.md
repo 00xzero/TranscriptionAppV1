@@ -135,9 +135,9 @@ Planned:
 
 ### Frontend and API
 
-- Next.js 14 App Router with TypeScript.
+- Next.js 16.3.1 App Router with React 19, TypeScript 6, and Node.js 24+.
 - Tailwind-based UI (Olivetti design system).
-- API routes in the same Next.js app for transcript creation/start/export/webhooks. Route handlers are thin shells: auth → Zod parse → call `core/` service → return response.
+- API routes in the same Next.js app for transcript creation/start/export/webhooks. Route handlers are intended to be thin shells: authenticate, validate where a contract exists, call a `core/` service, and return the response.
 - Client data layer uses Supabase SDK + realtime subscriptions with polling fallback.
 
 ### Layer Boundaries (`frontend/`)

@@ -63,6 +63,22 @@ describe('DeleteProjectDialog', () => {
     expect(mutateTranscripts).toHaveBeenCalledTimes(1)
   })
 
+  test('politely announces the transcript count while it loads and when it settles', async () => {
+    const request = deferred<number>()
+    mockFetchCount.mockReturnValueOnce(request.promise)
+    render(<DeleteProjectDialog project={current} onClose={jest.fn()} />)
+
+    const description = screen.getByText('Loading the number of transcripts in this project…')
+    expect(description).toHaveAttribute('aria-live', 'polite')
+
+    await act(async () => {
+      request.resolve(2)
+      await request.promise
+    })
+
+    expect(description).toHaveTextContent(/1 nested project and 2 transcripts/)
+  })
+
   test('keeps failures open with stage-specific details and changes the action to Retry', async () => {
     const user = userEvent.setup()
     mockDeleteProjectRequest.mockRejectedValueOnce(new DeleteProjectRequestError(502, {

@@ -135,7 +135,13 @@ describe('LibraryView', () => {
 
     renderLibraryView()
 
-    const loadingState = screen.getByRole('status')
+    const loadingStates = screen.getAllByRole('status')
+    expect(loadingStates).toHaveLength(2)
+    const loadingState = loadingStates.find((state) =>
+      state.textContent?.includes('Loading recent transcripts…')
+    )
+    expect(loadingState).toBeDefined()
+    if (!loadingState) throw new Error('Missing recent transcripts loading state')
     const rows = loadingState.querySelectorAll('.animate-pulse.p-4')
     expect(loadingState).toHaveTextContent('Loading recent transcripts…')
     expect(rows).toHaveLength(3)
@@ -145,6 +151,7 @@ describe('LibraryView', () => {
     })
     const projectCarousel = screen.getByRole('region', { name: 'Recent projects' })
     expect(projectCarousel.querySelectorAll('.animate-pulse')).toHaveLength(3)
+    expect(screen.getByText('Loading recent projects…')).toHaveAttribute('role', 'status')
     expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
     expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
     expect(screen.queryByText(/No transcripts yet/)).not.toBeInTheDocument()

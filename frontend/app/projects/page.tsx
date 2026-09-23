@@ -31,7 +31,8 @@ export default function ProjectsPage() {
 
   if (isLoading) {
     return (
-      <div aria-label="Loading projects">
+      <div role="status" aria-live="polite">
+        <span className="sr-only">Loading projects…</span>
         <ProjectListSkeleton />
       </div>
     )

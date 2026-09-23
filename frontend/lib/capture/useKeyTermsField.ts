@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { MAX_KEY_TERMS } from './shared'
+import { MAX_KEY_TERMS } from '@/contracts/api'
 
 interface UseKeyTermsFieldParams {
   /** The current committed list of key terms (controlled by the caller). */
@@ -18,13 +18,14 @@ export function useKeyTermsField({ keyTerms, onKeyTermsChange }: UseKeyTermsFiel
   const [keyTermInput, setKeyTermInput] = useState('')
   const [keyTermsError, setKeyTermsError] = useState<string | null>(null)
 
-  const parseAndAddTerms = useCallback((input: string) => {
+  /** Returns false when the terms were rejected, so callers keep the input for editing. */
+  const parseAndAddTerms = useCallback((input: string): boolean => {
     const newTerms = input
       .split(/[,\n\t]+/)
       .map(t => t.trim().replace(/\s+/g, ' '))
       .filter(t => t.length > 0)
 
-    if (newTerms.length === 0) return
+    if (newTerms.length === 0) return true
 
     const seen = new Map<string, string>()
     for (const t of keyTerms) {
@@ -42,25 +43,24 @@ export function useKeyTermsField({ keyTerms, onKeyTermsChange }: UseKeyTermsFiel
     if (allTerms.length <= MAX_KEY_TERMS) {
       onKeyTermsChange(allTerms)
       setKeyTermsError(null)
-      return
+      return true
     }
 
     setKeyTermsError(
       `Could not add ${uniqueIncomingCount} term${uniqueIncomingCount === 1 ? '' : 's'} because that would exceed the ${MAX_KEY_TERMS}-term limit.`
     )
+    return false
   }, [keyTerms, onKeyTermsChange])
 
   const handleKeyTermKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      parseAndAddTerms(keyTermInput)
-      setKeyTermInput('')
+      if (parseAndAddTerms(keyTermInput)) setKeyTermInput('')
     }
   }, [keyTermInput, parseAndAddTerms])
 
   const handleAddTermClick = useCallback(() => {
-    parseAndAddTerms(keyTermInput)
-    setKeyTermInput('')
+    if (parseAndAddTerms(keyTermInput)) setKeyTermInput('')
   }, [keyTermInput, parseAndAddTerms])
 
   const removeTerm = useCallback((index: number) => {

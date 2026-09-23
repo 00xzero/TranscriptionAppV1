@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-22] - Accessibility and Consistency Cleanup
+
+Standardized asynchronous feedback, transcript controls, and hook ownership
+without changing business logic or request shapes. Completed transcript actions
+now intentionally use the neutral secondary treatment instead of a bespoke blue
+button.
+
+### Changed
+
+- **Loading feedback** — Projects, transcripts, editor audio, export progress/results, and project deletion counts now expose one appropriately scoped status or alert region while decorative skeletons remain hidden from assistive technology.
+- **Transcript actions** — Replaced bespoke action-button and retry-link colors with shared semantic roles while retaining the existing compact sizing, labels, disabled states, and click behavior.
+- **Module ownership** — Colocated editor recovery and scroll-sync modules, grouped capture and microphone hooks by domain, removed the empty top-level hooks directory, and kept the generic media-query hook in `lib/hooks`.
+- **Key-term contract** — Exported `MAX_KEY_TERMS` from `contracts/api.ts` so API validation and both key-term editors share the same limit.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`117` suites / `1,200` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, existing `58` warnings); `npm run build`; `git diff --check`.
+- **Browser** — Verified dashboard, Projects index/detail, transcripts, editor audio loading, and export dialog in dark and light themes; loading announcements were exposed, transcript controls retained their compact layout, and the browser console remained clean. Restored the original dark theme afterward.
+
 ## [2026-09-22] - Compact Shared Transcript Index
 
 Narrowed the app-wide transcript state from full database rows to a validated

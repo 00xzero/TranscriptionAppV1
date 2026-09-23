@@ -7,7 +7,7 @@ import {
   type ScrollSyncEvent,
   type ScrollSyncState,
   transitionScrollSyncState,
-} from './scrollSyncMachine'
+} from '../scrollSyncMachine'
 
 const replaceReducer = (_state: ScrollSyncState, nextState: ScrollSyncState) => nextState
 

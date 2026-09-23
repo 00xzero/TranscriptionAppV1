@@ -14,6 +14,7 @@ type ConfirmDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   description: string
+  descriptionLive?: boolean
   onConfirm: () => void | Promise<void>
   title?: string
   heading?: string
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   open,
   onOpenChange,
   description,
+  descriptionLive = false,
   onConfirm,
   title = 'Confirm action',
   heading,
@@ -70,7 +72,10 @@ export function ConfirmDialog({
           ) : (
             <AlertDialogTitle className="sr-only">{title}</AlertDialogTitle>
           )}
-          <AlertDialogDescription className="text-sm leading-relaxed text-ink/80 dark:text-paper/80">
+          <AlertDialogDescription
+            aria-live={descriptionLive ? 'polite' : undefined}
+            className="text-sm leading-relaxed text-ink/80 dark:text-paper/80"
+          >
             {description}
           </AlertDialogDescription>
           {error && (

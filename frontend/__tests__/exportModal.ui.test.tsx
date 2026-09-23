@@ -50,8 +50,9 @@ describe('ExportModal - Phase 7 UI regressions', () => {
       expect(fetchMock).toHaveBeenCalledWith('/api/transcripts/p1/export/vtt')
     })
     await waitFor(() => {
-      expect(screen.getByText(/Download started successfully/i)).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveTextContent('Download started successfully.')
     })
+    expect(screen.getAllByRole('status')).toHaveLength(1)
 
     act(() => {
       jest.advanceTimersByTime(1500)
@@ -59,6 +60,45 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledTimes(1)
     })
+  })
+
+  test('announces progress and success through one persistent live region', async () => {
+    const user = userEventLib.setup()
+    let resolveExport: (response: ReturnType<typeof makeExportResponse>) => void = () => {}
+    ;(global as any).fetch = jest.fn().mockReturnValue(
+      new Promise((resolve) => { resolveExport = resolve })
+    )
+
+    render(<ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={jest.fn()} />)
+
+    // The region exists before the export starts, so later text changes are announced.
+    const status = screen.getByRole('status')
+    expect(status).toBeEmptyDOMElement()
+
+    await user.click(screen.getByRole('button', { name: /^Export$/i }))
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status).toHaveTextContent('Preparing your export...')
+
+    await act(async () => {
+      resolveExport(makeExportResponse())
+    })
+    await waitFor(() => {
+      expect(status).toHaveTextContent('Download started successfully.')
+    })
+    expect(screen.getByRole('status')).toBe(status)
+  })
+
+  test('uses one alert and leaves the status region empty when export fails', async () => {
+    const user = userEventLib.setup()
+    ;(global as any).fetch = jest.fn().mockResolvedValue(makeExportResponse(500))
+
+    render(<ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={jest.fn()} />)
+    await user.click(screen.getByRole('button', { name: /^Export$/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Export failed: 500')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
   test('exports TXT via the txt endpoint', async () => {

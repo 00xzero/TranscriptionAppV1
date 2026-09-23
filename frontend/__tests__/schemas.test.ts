@@ -4,6 +4,7 @@ import {
   CreateTranscriptBodySchema,
   DeleteProjectErrorSchema,
   DeleteProjectResponseSchema,
+  MAX_KEY_TERMS,
 } from '@/contracts/api'
 import { ProjectNameSchema } from '@/contracts/primitives'
 import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/contracts/webhook'
@@ -85,6 +86,19 @@ describe('CreateTranscriptBodySchema', () => {
     if (result.success) {
       expect(result.data.filename).toBe('audio.mp3')
     }
+  })
+
+  test('enforces the exported key-term limit', () => {
+    const atLimit = Array.from({ length: MAX_KEY_TERMS }, (_, index) => `term-${index}`)
+    expect(
+      CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3', key_terms: atLimit }).success
+    ).toBe(true)
+    expect(
+      CreateTranscriptBodySchema.safeParse({
+        filename: 'audio.mp3',
+        key_terms: [...atLimit, 'one-too-many'],
+      }).success
+    ).toBe(false)
   })
 
   test('accepts body with only filename', () => {
