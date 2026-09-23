@@ -132,7 +132,9 @@ fi
 
 # Ensure media proxy settings are present for local Deepgram proxy usage
 if [ -f ".env.docker" ]; then
-    if ! grep -q '^MEDIA_PROXY_SECRET=' .env.docker; then
+    # Counts as set only with a real value: an empty or quoted-empty line ("" or '')
+    # would leave the media proxy rejecting every request.
+    if ! grep -Eq "^MEDIA_PROXY_SECRET=[\"']?[^\"'[:space:]]" .env.docker; then
         if command -v uuidgen &> /dev/null; then
             PROXY_SECRET=$(uuidgen | tr '[:upper:]' '[:lower:]')
         elif command -v openssl &> /dev/null; then
@@ -140,8 +142,8 @@ if [ -f ".env.docker" ]; then
         else
             PROXY_SECRET=$(date +%s%N)
         fi
-        echo "MEDIA_PROXY_SECRET=${PROXY_SECRET}" >> .env.docker
-        echo -e "${YELLOW}Added MEDIA_PROXY_SECRET to .env.docker${NC}"
+        upsert_env_var ".env.docker" "MEDIA_PROXY_SECRET" "$PROXY_SECRET"
+        echo -e "${YELLOW}Generated MEDIA_PROXY_SECRET in .env.docker${NC}"
     fi
 
     if ! grep -q '^DEEPGRAM_USE_PROXY=' .env.docker; then
