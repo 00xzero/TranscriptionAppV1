@@ -2,17 +2,22 @@
  * Shared data-fetching logic for export routes.
  *
  * Centralizes authentication, transcript/segments/speakers fetching,
- * and speaker map building for DOCX and VTT exports.
+ * and speaker label resolution for every export format.
  */
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Segment, Transcript } from '@/contracts/db'
-import type { ExportSegment, SpeakersMap } from '@/core/exports'
+import type { ExportSegment } from '@/core/exports'
+import {
+    resolveSpeakerLabels,
+    type LabelledSpeaker,
+    type SpeakerLabels,
+} from '@/core/speakers/labels'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {
     transcript: Transcript
     exportSegments: ExportSegment[]
-    speakersMap: SpeakersMap
+    speakerLabels: SpeakerLabels
 }
 
 export interface ExportError {
@@ -87,7 +92,7 @@ export async function fetchExportData(
     // Fetch speakers
     const { data: speakers, error: speakersError } = await supabase
         .from('speakers')
-        .select('*')
+        .select('id, ordinal, custom_label')
         .eq('transcript_id', transcriptId)
 
     if (speakersError) {
@@ -98,14 +103,12 @@ export async function fetchExportData(
         }
     }
 
-    // Build speakers map
-    const speakersMap: SpeakersMap = {}
-    for (const speaker of speakers || []) {
-        speakersMap[speaker.id] = {
-            label: speaker.label,
-            color: speaker.color,
-        }
-    }
+    // Segments arrive in transcript order, which the resolver needs to decide
+    // which of two identically labelled speakers is numbered.
+    const speakerLabels = resolveSpeakerLabels(
+        (speakers ?? []) as LabelledSpeaker[],
+        segments
+    )
 
     // Convert DB segments to the lean export view model.
     const exportSegments: ExportSegment[] = segments.map((segment: Segment) => ({
@@ -120,7 +123,7 @@ export async function fetchExportData(
         data: {
             transcript: transcript as Transcript,
             exportSegments,
-            speakersMap,
+            speakerLabels,
         },
     }
 }

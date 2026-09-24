@@ -3,22 +3,40 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const migrationPath = path.resolve(
-  __dirname,
-  '../../infra/supabase/migrations/20260920000000_project_speaker_summaries.sql'
-)
-const sql = fs.readFileSync(migrationPath, 'utf8').toLowerCase()
+const migrationsDir = path.resolve(__dirname, '../../infra/supabase/migrations')
+const readMigration = (file: string) =>
+  fs.readFileSync(path.join(migrationsDir, file), 'utf8').toLowerCase()
 
-function functionDefinition(name: string): string {
-  const marker = `create or replace function public.${name}(`
-  const start = sql.indexOf(marker)
-  if (start === -1) throw new Error(`Missing function definition: ${name}`)
-  const next = sql.indexOf('create or replace function public.', start + marker.length)
-  return sql.slice(start, next === -1 ? sql.length : next)
+// The original migration owns the grants and the index; the function body is
+// checked in whichever migration defines it last, since later migrations
+// replace it.
+const sql = readMigration('20260920000000_project_speaker_summaries.sql')
+const MARKER = 'create or replace function public.project_speaker_summaries('
+const latestDefiningMigration = fs
+  .readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort()
+  .filter((file) => readMigration(file).includes(MARKER))
+  .at(-1)!
+
+function functionDefinition(source: string): string {
+  const start = source.indexOf(MARKER)
+  if (start === -1) throw new Error('Missing function definition: project_speaker_summaries')
+  const next = source.indexOf('create or replace function public.', start + MARKER.length)
+  return source.slice(start, next === -1 ? source.length : next)
 }
 
 describe('project_speaker_summaries migration', () => {
-  const definition = functionDefinition('project_speaker_summaries')
+  const definition = functionDefinition(readMigration(latestDefiningMigration))
+
+  test('the latest definition is the speaker identity rewrite of the preview', () => {
+    expect(latestDefiningMigration).toBe('20260924000000_speaker_identity_foundations.sql')
+    // speakers.label and speakers.color were dropped; the client resolves labels.
+    expect(definition).not.toMatch(/\bsp\.label\b/)
+    expect(definition).not.toMatch(/\bsp\.color\b/)
+    expect(definition).toContain("'ordinal',      o.ordinal")
+    expect(definition).toContain("'customlabel',  o.custom_label")
+  })
 
   test('is a read-only invoker-rights function', () => {
     expect(definition).toContain('stable')

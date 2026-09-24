@@ -63,8 +63,9 @@ describe('text limits apply to writes only', () => {
       duration_seconds: 60, created_at: stamp, updated_at: stamp,
     }).success).toBe(true)
     expect(SpeakerSchema.safeParse({
-      id, transcript_id: id, label: 'y'.repeat(TEXT_LIMITS.speakerName + 50),
-      color: null, created_at: stamp, updated_at: stamp,
+      id, transcript_id: id, user_id: id, ordinal: 0,
+      custom_label: 'y'.repeat(TEXT_LIMITS.speakerName + 50),
+      diarization_index: null, created_at: stamp, updated_at: stamp,
     }).success).toBe(true)
     expect(TranscriptUpdateSchema.safeParse({ title: longTitle }).success).toBe(false)
   })

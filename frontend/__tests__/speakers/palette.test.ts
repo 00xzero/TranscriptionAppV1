@@ -2,7 +2,6 @@
 
 import {
   buildSpeakerColorMap,
-  resolveSpeakerColor,
   speakerInitials,
   speakerPaletteColor,
   SPEAKER_COLORS,
@@ -27,48 +26,18 @@ describe('speakerPaletteColor', () => {
   })
 })
 
-describe('resolveSpeakerColor', () => {
-  test('prefers a stored color over the palette position', () => {
-    expect(resolveSpeakerColor({ color: '#FF0000' }, 0)).toBe('#FF0000')
-  })
-
-  test('uses the palette position when no color is stored', () => {
-    expect(resolveSpeakerColor({ color: null }, 1)).toBe(SPEAKER_COLORS[1])
-  })
-
-  test('falls back without a speaker or without a position', () => {
-    expect(resolveSpeakerColor(undefined, 0)).toBe(SPEAKER_COLOR_FALLBACK)
-    expect(resolveSpeakerColor(null, 0)).toBe(SPEAKER_COLOR_FALLBACK)
-    expect(resolveSpeakerColor({ color: null }, null)).toBe(SPEAKER_COLOR_FALLBACK)
-  })
-
-  // The editor has always treated a whitespace color as stored; trimming here
-  // would silently repaint those speakers grey.
-  test('treats a whitespace color as stored, and an empty one as absent', () => {
-    expect(resolveSpeakerColor({ color: '   ' }, 0)).toBe('   ')
-    expect(resolveSpeakerColor({ color: '' }, 0)).toBe(SPEAKER_COLORS[0])
-  })
-})
-
 describe('buildSpeakerColorMap', () => {
-  test('maps array position to palette position, honouring stored colors', () => {
-    const map = buildSpeakerColorMap([
-      { id: 'a', color: null },
-      { id: 'b', color: '#123456' },
-      { id: 'c', color: null },
-    ])
+  test('maps array position to palette position', () => {
+    const map = buildSpeakerColorMap([{ id: 'a' }, { id: 'b' }, { id: 'c' }])
 
     expect(map.get('a')).toBe(SPEAKER_COLORS[0])
-    expect(map.get('b')).toBe('#123456')
-    // 'b' still occupies palette slot 1, so 'c' is slot 2 — a stored color must
-    // not shift the speakers after it.
+    expect(map.get('b')).toBe(SPEAKER_COLORS[1])
     expect(map.get('c')).toBe(SPEAKER_COLORS[2])
   })
 
   test('wraps for a transcript with more speakers than palette entries', () => {
     const speakers = Array.from({ length: SPEAKER_COLORS.length + 1 }, (_, index) => ({
       id: `speaker-${index}`,
-      color: null,
     }))
 
     const map = buildSpeakerColorMap(speakers)

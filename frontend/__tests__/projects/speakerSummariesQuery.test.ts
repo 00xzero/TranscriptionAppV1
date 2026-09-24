@@ -24,8 +24,8 @@ const row = (projectId: string, speakerCount: number, preview: unknown[] = []) =
 const speaker = {
   id: '11111111-1111-1111-1111-111111111111',
   transcriptId: '22222222-2222-2222-2222-222222222222',
-  label: 'Kate',
-  color: null,
+  ordinal: 0,
+  customLabel: 'Kate',
   paletteIndex: 0,
 }
 

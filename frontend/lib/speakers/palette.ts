@@ -24,24 +24,6 @@ export function speakerPaletteColor(paletteIndex: number): string {
 }
 
 /**
- * Stored color wins; otherwise the palette position. Pass `paletteIndex` null
- * when the caller has no position for the speaker (unknown or untagged).
- *
- * The bare truthiness check on `color` is deliberate: a whitespace-only color
- * has always been treated as a stored value here, and trimming would silently
- * repaint those speakers grey.
- */
-export function resolveSpeakerColor(
-  speaker: { color?: string | null } | null | undefined,
-  paletteIndex: number | null | undefined
-): string {
-  if (!speaker) return SPEAKER_COLOR_FALLBACK
-  if (speaker.color) return speaker.color
-  if (paletteIndex == null) return SPEAKER_COLOR_FALLBACK
-  return speakerPaletteColor(paletteIndex)
-}
-
-/**
  * Color per speaker id for an ordered speaker list — the editor's shape.
  *
  * Array position IS the palette index, so the list must already be sorted by
@@ -49,10 +31,10 @@ export function resolveSpeakerColor(
  * orders on exactly those two columns.
  */
 export function buildSpeakerColorMap(
-  speakers: readonly { id: string; color: string | null }[]
+  speakers: readonly { id: string }[]
 ): Map<string, string> {
   const map = new Map<string, string>()
-  speakers.forEach((speaker, index) => map.set(speaker.id, resolveSpeakerColor(speaker, index)))
+  speakers.forEach((speaker, index) => map.set(speaker.id, speakerPaletteColor(index)))
   return map
 }
 

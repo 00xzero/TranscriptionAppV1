@@ -13,6 +13,7 @@ export type TranscriptListProps = {
   matchIndex: number
   speakersMap: Map<string, Speaker>
   colorForSpeaker: (sp: Speaker | undefined) => string
+  labelForSpeaker: (speakerId: string | null) => string
   editingId: string | null
   editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
@@ -34,6 +35,7 @@ export default function TranscriptList({
   matchIndex,
   speakersMap,
   colorForSpeaker,
+  labelForSpeaker,
   editingId,
   editingTexts,
   saveStatus,
@@ -64,7 +66,7 @@ export default function TranscriptList({
               isActive={activeSegId === s.id}
               matchesForSeg={matchesForSeg}
               matchIndex={matchIndex}
-              speakerLabel={sp?.label || 'Unknown'}
+              speakerLabel={labelForSpeaker(s.speaker_id ?? null)}
               avatarBg={colorForSpeaker(sp)}
               needHeader={needHeader}
               editingId={editingId}

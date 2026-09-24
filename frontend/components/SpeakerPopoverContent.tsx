@@ -3,6 +3,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Speaker } from '@/contracts/db'
 import { speakerInitials } from '@/lib/speakers/palette'
+import { speakerBaseLabel } from '@/core/speakers/labels'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CharacterCount } from '@/components/ui/character-count'
@@ -28,6 +29,8 @@ type SpeakerPopoverContentProps = {
    * without the transcript-wide map.
    */
   getColorForSpeaker: (speaker?: Speaker) => string
+  /** The transcript's resolved speaker labels (core/speakers/labels.ts). */
+  labelForSpeaker: (speakerId: string) => string
   /**
    * Reports whether a typed name is over the length limit, so the popover can
    * refuse to close on an outside click and discard it. Escape still cancels.
@@ -43,6 +46,7 @@ export default function SpeakerPopoverContent({
   onRenameSpeaker,
   onUntag,
   getColorForSpeaker,
+  labelForSpeaker,
   onHoldOpenChange,
 }: SpeakerPopoverContentProps) {
   const [searchValue, setSearchValue] = useState('')
@@ -61,18 +65,17 @@ export default function SpeakerPopoverContent({
   const filteredSpeakers = useMemo(() => {
     if (!searchValue.trim()) return speakers
     const needle = searchValue.toLowerCase()
-    return speakers.filter(sp => sp.label.toLowerCase().includes(needle))
-  }, [speakers, searchValue])
+    return speakers.filter(sp => labelForSpeaker(sp.id).toLowerCase().includes(needle))
+  }, [speakers, searchValue, labelForSpeaker])
 
   const exactMatch = useMemo(() => {
     const needle = searchValue.trim().toLowerCase()
-    return speakers.find(sp => sp.label.toLowerCase() === needle)
-  }, [speakers, searchValue])
+    return speakers.find(sp => labelForSpeaker(sp.id).toLowerCase() === needle)
+  }, [speakers, searchValue, labelForSpeaker])
 
-  const isCurrentSpeakerNamed = useMemo(() => {
-    if (!currentSpeaker) return false
-    return !/^Speaker\s+\d+$/i.test(currentSpeaker.label)
-  }, [currentSpeaker])
+  // Named means it carries a transcript-local label; generic speakers show
+  // `Speaker {ordinal}` and have nothing to reset.
+  const isCurrentSpeakerNamed = currentSpeaker?.custom_label != null
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -104,10 +107,14 @@ export default function SpeakerPopoverContent({
     }
   }
 
+  // Renames edit the speaker's own name. The resolved label may carry a
+  // display-only suffix, as in `Paul (2)`, which must never be saved.
+  const ownName = (speaker: Speaker) => speakerBaseLabel(speaker.ordinal, speaker.custom_label)
+
   const handleSpeakerClick = (speaker: Speaker) => {
     if (speaker.id === currentSpeaker?.id) {
       setEditingId(speaker.id)
-      setEditValue(speaker.label)
+      setEditValue(ownName(speaker))
       setRenameBlocked(false)
     } else {
       onSelectSpeaker(speaker)
@@ -121,7 +128,7 @@ export default function SpeakerPopoverContent({
       setRenameBlocked(true)
       return
     }
-    if (trimmed && trimmed !== speaker.label) {
+    if (trimmed && trimmed !== ownName(speaker)) {
       onRenameSpeaker(speaker, trimmed)
     }
     setEditingId(null)
@@ -161,7 +168,8 @@ export default function SpeakerPopoverContent({
           filteredSpeakers.map(sp => {
             const isCurrentSp = sp.id === currentSpeaker?.id
             const color = getColorForSpeaker(sp)
-            const initials = speakerInitials(sp.label)
+            const label = labelForSpeaker(sp.id)
+            const initials = speakerInitials(label)
             const isEditing = editingId === sp.id
 
             return (
@@ -169,8 +177,8 @@ export default function SpeakerPopoverContent({
                 <div
                   role="button"
                   tabIndex={isEditing ? -1 : 0}
-                  aria-label={isCurrentSp ? `Current speaker ${sp.label}. Activate to rename` : `Assign speaker ${sp.label}`}
-                  title={isCurrentSp ? `Rename ${sp.label}` : `Assign ${sp.label}`}
+                  aria-label={isCurrentSp ? `Current speaker ${label}. Activate to rename` : `Assign speaker ${label}`}
+                  title={isCurrentSp ? `Rename ${label}` : `Assign ${label}`}
                   className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
                     }`}
                   onClick={() => !isEditing && handleSpeakerClick(sp)}
@@ -199,14 +207,14 @@ export default function SpeakerPopoverContent({
                         onChange={e => setEditValue(e.target.value)}
                         onBlur={() => handleRenameSubmit(sp)}
                         onKeyDown={e => handleRenameKeyDown(e, sp)}
-                        aria-label={`Rename speaker ${sp.label}`}
+                        aria-label={`Rename speaker ${label}`}
                         autoFocus
                         onClick={e => e.stopPropagation()}
                       />
                       <CharacterCount id={renameCountId} length={editValue.trim().length} max={TEXT_LIMITS.speakerName} />
                     </>
                   ) : (
-                    <span className="flex-1 text-sm truncate">{sp.label}</span>
+                    <span className="flex-1 text-sm truncate">{label}</span>
                   )}
 
                   {isCurrentSp && !isEditing && (

@@ -356,8 +356,8 @@ describe('LibraryView', () => {
             project_id: 'p1',
             speaker_count: 2,
             preview: [
-              { id: 's1', transcriptId: 't1', label: 'Kate', color: null, paletteIndex: 0 },
-              { id: 's2', transcriptId: 't1', label: 'John Smith', color: null, paletteIndex: 1 },
+              { id: 's1', transcriptId: 't1', ordinal: 0, customLabel: 'Kate', paletteIndex: 0 },
+              { id: 's2', transcriptId: 't1', ordinal: 0, customLabel: 'John Smith', paletteIndex: 1 },
             ],
           },
         ],

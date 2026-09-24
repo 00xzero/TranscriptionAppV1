@@ -63,16 +63,17 @@ INSERT INTO public.transcripts (id, user_id, project_id, title, status, updated_
 -- T1 carries the palette-stability case: 'Unused' sits at index 1 with no
 -- segments, so 'John Smith' must still come out at index 2.
 -- T2 carries the tie case: Sarah and Zed share a created_at, so only id breaks it.
-INSERT INTO public.speakers (id, transcript_id, label, color, created_at) VALUES
-  ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'Kate',       null,      '2026-01-01T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', 'Unused',     null,      '2026-01-01T00:00:01Z'),
-  ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', 'John Smith', '#FF0000', '2026-01-01T00:00:02Z'),
-  ('80000000-0000-0000-0000-000000000010', '70000000-0000-0000-0000-000000000002', 'Sarah',      null,      '2026-01-02T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000011', '70000000-0000-0000-0000-000000000002', 'Zed',        null,      '2026-01-02T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000020', '70000000-0000-0000-0000-000000000003', 'Mark',       null,      '2026-01-03T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000030', '70000000-0000-0000-0000-000000000004', 'Hidden',     null,      '2026-01-04T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000040', '70000000-0000-0000-0000-000000000005', 'AlsoHidden', null,      '2026-01-05T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000050', '70000000-0000-0000-0000-000000000006', 'Foreign',    null,      '2026-01-06T00:00:00Z');
+-- T3's speaker is generic: no custom label, so it displays as Speaker 3.
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, created_at) VALUES
+  ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 0, 'Kate',       '2026-01-01T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 1, 'Unused',     '2026-01-01T00:00:01Z'),
+  ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 2, 'John Smith', '2026-01-01T00:00:02Z'),
+  ('80000000-0000-0000-0000-000000000010', '70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 0, 'Sarah',      '2026-01-02T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000011', '70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 1, 'Zed',        '2026-01-02T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000020', '70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 3, null,         '2026-01-03T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000030', '70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 0, 'Hidden',     '2026-01-04T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000040', '70000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 0, 'AlsoHidden', '2026-01-05T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000050', '70000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', 0, 'Foreign',    '2026-01-06T00:00:00Z');
 
 -- Kate gets two segments (must still count once); one T1 segment is unassigned.
 INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) VALUES
@@ -114,7 +115,7 @@ SELECT pg_temp.assert_true(
     FROM public.project_speaker_summaries(
       ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], true) AS s,
       LATERAL jsonb_array_elements(s.preview) AS p
-    WHERE p ->> 'label' IN ('Hidden', 'AlsoHidden')
+    WHERE p ->> 'customLabel' IN ('Hidden', 'AlsoHidden')
   ),
   'a deleting project takes its whole subtree out of the branch'
 );
@@ -162,7 +163,7 @@ SELECT pg_temp.assert_true(
     FROM public.project_speaker_summaries(
       ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
       LATERAL jsonb_array_elements(s.preview) AS p
-    WHERE p ->> 'label' = 'Unused'
+    WHERE p ->> 'customLabel' = 'Unused'
   ),
   'a speaker row with no segments is not counted'
 );
@@ -175,24 +176,26 @@ SELECT pg_temp.assert_true(
   'repeated segments from one speaker count once and unassigned segments count for nobody'
 );
 
--- --------------------------------------------------------------- colour ----
+-- ---------------------------------------------------------- label data ----
 
+-- The preview carries the fields the client's label resolver needs, and no
+-- longer the dropped label and color columns.
 SELECT pg_temp.assert_true(
-  (SELECT p ->> 'color'
+  (SELECT p ->> 'ordinal' = '2' AND p ->> 'customLabel' = 'John Smith'
+          AND NOT p ? 'label' AND NOT p ? 'color'
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'John Smith') = '#FF0000',
-  'a stored colour is returned as stored'
+   WHERE p ->> 'customLabel' = 'John Smith'),
+  'a preview entry carries ordinal and customLabel, not label or color'
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT p -> 'color'
+  (SELECT p -> 'customLabel' = 'null'::jsonb AND (p ->> 'ordinal')::int = 3
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Kate') = 'null'::jsonb,
-  'a speaker with no stored colour returns null, not an empty string'
+     ARRAY['60000000-0000-0000-0000-000000000003']::uuid[], false) AS s,
+     LATERAL jsonb_array_elements(s.preview) AS p),
+  'a generic speaker has a null customLabel and its ordinal'
 );
 
 -- The palette index is computed before unused speakers are dropped, so 'Unused'
@@ -203,7 +206,7 @@ SELECT pg_temp.assert_true(
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'John Smith') = 2,
+   WHERE p ->> 'customLabel' = 'John Smith') = 2,
   'an unused speaker still occupies its palette slot'
 );
 
@@ -212,7 +215,7 @@ SELECT pg_temp.assert_true(
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Kate') = 0,
+   WHERE p ->> 'customLabel' = 'Kate') = 0,
   'the first speaker of a transcript is palette index 0'
 );
 
@@ -222,13 +225,13 @@ SELECT pg_temp.assert_true(
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Sarah') = 0
+   WHERE p ->> 'customLabel' = 'Sarah') = 0
   AND
   (SELECT (p ->> 'paletteIndex')::int
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Zed') = 1,
+   WHERE p ->> 'customLabel' = 'Zed') = 1,
   'speakers created in the same statement are ordered by id'
 );
 
@@ -237,7 +240,7 @@ SELECT pg_temp.assert_true(
 -- Transcript updated_at descending, then speaker created_at: T1 before T2
 -- before T3, Kate before John Smith.
 SELECT pg_temp.assert_true(
-  (SELECT array_agg(p ->> 'label' ORDER BY ord)
+  (SELECT array_agg(p ->> 'customLabel' ORDER BY ord)
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], true) AS s,
      LATERAL jsonb_array_elements(s.preview) WITH ORDINALITY AS t(p, ord))

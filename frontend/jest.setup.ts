@@ -72,8 +72,12 @@ jest.mock('./lib/supabase/queries', () => ({
   fetchSpeakers: jest.fn().mockResolvedValue([]),
   fetchTranscriptById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Transcript', status: 'created' }),
   fetchSegments: jest.fn().mockResolvedValue([]),
+  fetchSegmentSpeakerAssignments: jest.fn().mockResolvedValue([]),
   updateTranscript: jest.fn().mockResolvedValue({}),
   updateSegment: jest.fn().mockResolvedValue({}),
+  reassignSegments: jest.fn().mockResolvedValue([]),
+  assignSegmentsToNewSpeaker: jest.fn(),
+  setSpeakerCustomLabel: jest.fn(),
   deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
   // Any surface rendering a project card or header reaches for this. Defaulting
   // it to an empty map keeps those tests from hitting an undefined export and

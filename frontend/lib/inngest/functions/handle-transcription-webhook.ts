@@ -40,8 +40,10 @@ type AlternativeForPayload = {
  * - Runs the canonical normalize → buildSegments pipeline (same as before).
  * - Pre-generates a UUID per segment so the RPC can persist segments + words
  *   without a round-trip to discover inserted ids.
- * - Collects unique speakers into a deduped `speakers` array — the RPC upserts
- *   these and resolves segment.speaker_id by joining on `speaker_num`.
+ * - Collects Deepgram's speaker numbers into a deduped `speakers` array — the
+ *   RPC keys transcript speakers on them (diarization index) and resolves
+ *   segment.speaker_id by joining on `speaker_num`. No labels are sent: a new
+ *   speaker displays as `Speaker {ordinal}`.
  * - Falls back to a single empty segment when Deepgram returned no words,
  *   matching the pre-refactor behavior.
  */
@@ -101,7 +103,7 @@ function buildRpcPayload(
 
     const speakers = Array.from(speakerNums)
         .sort((a, b) => a - b)
-        .map((num) => ({ num, label: `Speaker ${num}` }));
+        .map((num) => ({ num }));
 
     return { speakers, segments };
 }
@@ -205,8 +207,8 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         }
 
         // Step 2: Parse Deepgram payload, build canonical transcript, and persist
-        //         via a single atomic RPC call. The RPC replaces segments/words/
-        //         speaker upserts inside one Postgres transaction, so a mid-write
+        //         via a single atomic RPC call. The RPC replaces segments/words and
+        //         creates missing speakers inside one Postgres transaction, so a mid-write
         //         failure cannot leave the transcript with partial data.
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();

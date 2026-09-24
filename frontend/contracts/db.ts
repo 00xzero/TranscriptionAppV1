@@ -68,11 +68,17 @@ export const JobSchema = z.object({
   updated_at: z.string(),
 })
 
+// A transcript speaker: one local voice in one transcript. It displays its
+// custom_label, or `Speaker {ordinal}` without one; core/speakers/labels.ts is
+// the only place that turns these fields into a label.
+// Source of truth: infra/supabase/migrations/20260924000000_speaker_identity_foundations.sql
 export const SpeakerSchema = z.object({
   id: UuidSchema,
   transcript_id: UuidSchema,
-  label: z.string(),
-  color: z.string().nullable(),
+  user_id: UuidSchema,
+  ordinal: z.number().int().nonnegative(),
+  custom_label: z.string().nullable(),
+  diarization_index: z.number().int().nonnegative().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 })
@@ -147,23 +153,36 @@ export const TranscriptWaveformInternalUpdateSchema = z.object({
   waveform_version: z.number().int().nullable().optional(),
 })
 
-export const SpeakerInsertSchema = z.object({
-  id: UuidSchema.optional(),
-  transcript_id: UuidSchema,
-  label: z.string().min(1).max(TEXT_LIMITS.speakerName).optional(),
-  color: z.string().nullish(),
-})
-
+// Only text is directly writable; a segment's speaker changes through the
+// guarded speaker functions below.
 export const SegmentUpdateSchema = z.object({
   text: z.string().optional(),
-  speaker_id: UuidSchema.nullable().optional(),
   is_edited: z.boolean().optional(),
 })
 
-export const SpeakerUpdateSchema = z.object({
-  label: z.string().min(1).max(TEXT_LIMITS.speakerName).optional(),
-  color: z.string().nullable().optional(),
+// === RPC: guarded speaker writes ===
+// Each call carries the values it expects to replace; the database refuses a
+// write whose expectation no longer holds (SQLSTATE SP002). See:
+//   infra/supabase/migrations/20260924000000_speaker_identity_foundations.sql
+
+// One segment of a reassign_segments call. speaker_id null means Unknown.
+export const SegmentSpeakerChangeSchema = z.object({
+  segment_id: UuidSchema,
+  expected_speaker_id: UuidSchema.nullable(),
+  speaker_id: UuidSchema.nullable(),
 })
+
+// One segment of an assign_segments_to_new_speaker call; the target is the
+// speaker that call creates.
+export const NewSpeakerSegmentChangeSchema = SegmentSpeakerChangeSchema.omit({ speaker_id: true })
+
+export const SegmentSpeakerAssignmentSchema = z.object({
+  segment_id: UuidSchema,
+  speaker_id: UuidSchema.nullable(),
+})
+
+// RETURNS TABLE, so PostgREST hands back an array of rows.
+export const ReassignSegmentsResultSchema = z.array(SegmentSpeakerAssignmentSchema)
 
 // === RPC: save_transcript_segments ===
 // The webhook handler builds the full transcript in TypeScript (segment-builder) and
@@ -195,9 +214,9 @@ const SaveTranscriptSegmentsSegmentSchema = z.object({
   words: z.array(SaveTranscriptSegmentsWordSchema),
 })
 
+// num is Deepgram's speaker number; the RPC keys transcript speakers on it.
 const SaveTranscriptSegmentsSpeakerSchema = z.object({
-  num: z.number().int(),
-  label: z.string(),
+  num: z.number().int().nonnegative(),
 })
 
 export const SaveTranscriptSegmentsPayloadSchema = z.object({
@@ -218,8 +237,8 @@ export const SaveTranscriptSegmentsResultSchema = z.object({
 export const ProjectSpeakerPreviewSchema = z.object({
   id: UuidSchema,
   transcriptId: UuidSchema,
-  label: z.string(),
-  color: z.string().nullable(),
+  ordinal: z.number().int().nonnegative(),
+  customLabel: z.string().nullable(),
   paletteIndex: z.number().int().nonnegative(),
 })
 
@@ -249,9 +268,10 @@ export type TranscriptUpdate = z.infer<typeof TranscriptUpdateSchema>
 export type ProjectInsert = z.infer<typeof ProjectInsertSchema>
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type TranscriptWaveformInternalUpdate = z.infer<typeof TranscriptWaveformInternalUpdateSchema>
-export type SpeakerInsert = z.infer<typeof SpeakerInsertSchema>
 export type SegmentUpdate = z.infer<typeof SegmentUpdateSchema>
-export type SpeakerUpdate = z.infer<typeof SpeakerUpdateSchema>
+export type SegmentSpeakerChange = z.infer<typeof SegmentSpeakerChangeSchema>
+export type NewSpeakerSegmentChange = z.infer<typeof NewSpeakerSegmentChangeSchema>
+export type SegmentSpeakerAssignment = z.infer<typeof SegmentSpeakerAssignmentSchema>
 export type SaveTranscriptSegmentsPayload = z.infer<typeof SaveTranscriptSegmentsPayloadSchema>
 export type SaveTranscriptSegmentsResult = z.infer<typeof SaveTranscriptSegmentsResultSchema>
 export type ProjectSpeakerPreview = z.infer<typeof ProjectSpeakerPreviewSchema>

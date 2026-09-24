@@ -8,8 +8,8 @@ import { SPEAKER_COLORS } from '@/lib/speakers/palette'
 const preview = (overrides: Partial<ProjectSpeakerPreview> = {}): ProjectSpeakerPreview => ({
   id: '11111111-1111-1111-1111-111111111111',
   transcriptId: '22222222-2222-2222-2222-222222222222',
-  label: 'Kate',
-  color: null,
+  ordinal: 0,
+  customLabel: 'Kate',
   paletteIndex: 0,
   ...overrides,
 })
@@ -18,7 +18,7 @@ const previews = (labels: string[]): ProjectSpeakerPreview[] =>
   labels.map((label, index) =>
     preview({
       id: `speaker-${index}`,
-      label,
+      customLabel: label,
       paletteIndex: index,
     })
   )
@@ -114,7 +114,7 @@ describe('SpeakerAvatarGroup', () => {
     test('uses the palette position from the RPC', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', paletteIndex: 2 })]}
+          speakers={[preview({ customLabel: 'Kate', paletteIndex: 2 })]}
           totalCount={1}
           size="card"
         />
@@ -123,22 +123,10 @@ describe('SpeakerAvatarGroup', () => {
       expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[2] })
     })
 
-    test('a stored color overrides the palette position', () => {
-      render(
-        <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', color: '#FF0000', paletteIndex: 2 })]}
-          totalCount={1}
-          size="card"
-        />
-      )
-
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: '#FF0000' })
-    })
-
     test('wraps past the end of the palette', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', paletteIndex: SPEAKER_COLORS.length })]}
+          speakers={[preview({ customLabel: 'Kate', paletteIndex: SPEAKER_COLORS.length })]}
           totalCount={1}
           size="card"
         />
@@ -190,17 +178,17 @@ describe('SpeakerAvatarGroup', () => {
       expect(container.querySelectorAll('button, a, [tabindex]')).toHaveLength(0)
     })
 
-    test('names an unlabelled speaker rather than leaving a gap', () => {
+    test('names a speaker without a custom label by its ordinal', () => {
       const { container } = render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: '  ' })]}
+          speakers={[preview({ ordinal: 3, customLabel: null })]}
           totalCount={1}
           size="card"
         />
       )
 
-      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Unnamed speaker')
-      expect(circles(container)[0]).toHaveTextContent('?')
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Speaker 3')
+      expect(circles(container)[0]).toHaveTextContent('S3')
     })
   })
 
@@ -252,13 +240,19 @@ describe('SpeakerAvatarGroup', () => {
       await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('John Smith'))
     })
 
-    test('falls back to a name rather than opening an empty chip', async () => {
+    test('names a generic speaker Speaker {ordinal} on hover', async () => {
       const user = userEvent.setup()
-      render(<SpeakerAvatarGroup speakers={previews(['   '])} totalCount={1} size="card" />)
+      render(
+        <SpeakerAvatarGroup
+          speakers={[preview({ ordinal: 0, customLabel: null })]}
+          totalCount={1}
+          size="card"
+        />
+      )
 
-      await user.hover(circleFor('?'))
+      await user.hover(circleFor('S0'))
 
-      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Unnamed speaker'))
+      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Speaker 0'))
     })
 
     test('the overflow badge counts the hidden speakers instead of naming them', async () => {

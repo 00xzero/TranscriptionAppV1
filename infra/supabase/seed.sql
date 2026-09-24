@@ -46,10 +46,11 @@ BEGIN
         test_user_id || '/' || transcript_1_id || '/interview.mp3'
     ) ON CONFLICT (id) DO NOTHING;
 
-    -- Speakers for Transcript 1
-    INSERT INTO speakers (id, transcript_id, label, color) VALUES
-        (speaker_1_id, transcript_1_id, 'Interviewer', '#3B82F6'),
-        (speaker_2_id, transcript_1_id, 'Guest', '#10B981')
+    -- Speakers for Transcript 1: one with a transcript-local label, one generic
+    -- ("Speaker 1"), as diarized voices would be.
+    INSERT INTO speakers (id, transcript_id, user_id, ordinal, custom_label, diarization_index) VALUES
+        (speaker_1_id, transcript_1_id, test_user_id, 0, 'Interviewer', 0),
+        (speaker_2_id, transcript_1_id, test_user_id, 1, NULL, 1)
     ON CONFLICT (id) DO NOTHING;
 
     -- Segments for Transcript 1

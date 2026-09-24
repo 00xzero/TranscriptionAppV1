@@ -17,13 +17,21 @@ import type {
     ProjectSpeakerSummary,
     Speaker,
     SegmentUpdate,
-    SpeakerUpdate,
-    SpeakerInsert,
+    SegmentSpeakerChange,
+    SegmentSpeakerAssignment,
+    NewSpeakerSegmentChange,
     TranscriptSummary,
     TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
-import { ProjectSpeakerSummariesResultSchema, TranscriptSummarySchema } from '@/contracts/db'
+import {
+    NewSpeakerSegmentChangeSchema,
+    ProjectSpeakerSummariesResultSchema,
+    ReassignSegmentsResultSchema,
+    SegmentSpeakerChangeSchema,
+    SpeakerSchema,
+    TranscriptSummarySchema,
+} from '@/contracts/db'
 import { z } from 'zod'
 
 const PAGE_SIZE = 1000
@@ -436,6 +444,25 @@ export async function fetchSegments(transcriptId: string): Promise<Segment[]> {
 }
 
 /**
+ * Fetch each segment's speaker assignment only: the columns a speaker refresh
+ * needs, without re-downloading every segment's text.
+ */
+export async function fetchSegmentSpeakerAssignments(
+    transcriptId: string
+): Promise<Pick<Segment, 'id' | 'speaker_id'>[]> {
+    const supabase = createClient()
+    return paginateRows<Pick<Segment, 'id' | 'speaker_id'>>((from, to) =>
+        supabase
+            .from('segments')
+            .select('id, speaker_id')
+            .eq('transcript_id', transcriptId)
+            .order('start_ms', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to)
+    )
+}
+
+/**
  * Fetch transcript data for editor display.
  * Returns normalized data structure compatible with editor.
  */
@@ -447,7 +474,7 @@ export async function fetchTranscriptData(transcriptId: string): Promise<{
 }
 
 /**
- * Update a segment (text, speaker, etc).
+ * Update a segment's text. Its speaker changes only through reassignSegments.
  */
 export async function updateSegment(
     id: string,
@@ -483,7 +510,7 @@ export async function fetchSpeakers(transcriptId: string): Promise<Speaker[]> {
         .select('*')
         .eq('transcript_id', transcriptId)
         // save_transcript_segments inserts every speaker of a transcript in one
-        // statement, so they all share the transaction's now() and created_at is
+        // transaction, so they all share the transaction's now() and created_at is
         // a total tie. id is the only deterministic key, and without it a rename
         // (which rewrites the tuple) can silently reshuffle palette colors.
         // project_speaker_summaries orders on the same two columns.
@@ -495,53 +522,60 @@ export async function fetchSpeakers(transcriptId: string): Promise<Speaker[]> {
 }
 
 /**
- * Create a new speaker.
+ * Set or clear a speaker's transcript-local label (null clears it back to
+ * `Speaker {ordinal}`). `expectedCustomLabel` is the value last read; the
+ * database refuses the write if it has changed since.
  */
-export async function createSpeaker(
+export async function setSpeakerCustomLabel(
+    speakerId: string,
+    expectedCustomLabel: string | null,
+    customLabel: string | null
+): Promise<Speaker> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('set_speaker_custom_label', {
+        p_speaker_id: speakerId,
+        p_expected_custom_label: expectedCustomLabel,
+        p_custom_label: customLabel,
+    })
+
+    if (error) throw error
+    return SpeakerSchema.parse(data)
+}
+
+/**
+ * Reassign segments of one transcript, all or nothing. Each change names the
+ * speaker the segment is expected to hold and its new speaker (null = Unknown).
+ */
+export async function reassignSegments(
     transcriptId: string,
-    label: string
-): Promise<Speaker> {
+    changes: SegmentSpeakerChange[]
+): Promise<SegmentSpeakerAssignment[]> {
     const supabase = createClient()
-    const insert: SpeakerInsert = {
-        transcript_id: transcriptId,
-        label,
-    }
-
-    const { data, error } = await supabase
-        .from('speakers')
-        .insert(insert)
-        .select()
-        .single()
+    const { data, error } = await supabase.rpc('reassign_segments', {
+        p_transcript_id: transcriptId,
+        p_changes: z.array(SegmentSpeakerChangeSchema).parse(changes),
+    })
 
     if (error) throw error
-    return data
+    return ReassignSegmentsResultSchema.parse(data ?? [])
 }
 
 /**
- * Update a speaker.
+ * Create a transcript speaker with a local label and move the given segments
+ * to it, as one operation. Returns the new speaker.
  */
-export async function updateSpeaker(
-    id: string,
-    updates: SpeakerUpdate
+export async function assignSegmentsToNewSpeaker(
+    transcriptId: string,
+    customLabel: string,
+    changes: NewSpeakerSegmentChange[]
 ): Promise<Speaker> {
     const supabase = createClient()
-    const { data, error } = await supabase
-        .from('speakers')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
+    const { data, error } = await supabase.rpc('assign_segments_to_new_speaker', {
+        p_transcript_id: transcriptId,
+        p_custom_label: customLabel,
+        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
+    })
 
     if (error) throw error
-    return data
-}
-
-/**
- * Delete a speaker.
- */
-export async function deleteSpeaker(id: string): Promise<void> {
-    const supabase = createClient()
-    const { error } = await supabase.from('speakers').delete().eq('id', id)
-
-    if (error) throw error
+    return SpeakerSchema.parse(data)
 }
