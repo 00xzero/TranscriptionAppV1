@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
 import { useCapture } from '@/lib/capture/useCapture'
 import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
@@ -26,6 +26,9 @@ export function useCaptureForm({
   const [keyTerms, setKeyTerms] = useState<string[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [titleSubmitBlocked, setTitleSubmitBlocked] = useState(false)
+  // The last title filled in from a filename. While the field still holds it, the
+  // user has not made the title their own, so picking another file may replace it.
+  const autoTitleRef = useRef<string | null>(null)
 
   const {
     keyTermInput,
@@ -47,6 +50,7 @@ export function useCaptureForm({
       setKeyTermsError(null)
       setFileError(null)
       setTitleSubmitBlocked(false)
+      autoTitleRef.current = null
       resetError()
     }
   }, [isCaptureModalOpen, resetError, setKeyTermInput, setKeyTermsError])
@@ -61,8 +65,11 @@ export function useCaptureForm({
       setSelectedFile(file)
       // Prefilled in full, even over the title limit: the user sees it in the field
       // and is asked to shorten it on submit, rather than having it cut for them.
-      if (!title) {
+      // A title the user typed or edited is kept; only an untouched prefill follows
+      // the newly picked file.
+      if (!title || title === autoTitleRef.current) {
         const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
+        autoTitleRef.current = nameWithoutExt
         setTitle(nameWithoutExt)
       }
     }

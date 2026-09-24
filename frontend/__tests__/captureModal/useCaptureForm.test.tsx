@@ -127,4 +127,36 @@ describe('useCaptureForm', () => {
 
     expect(uploadMock).toHaveBeenCalledWith(expect.any(File), '', [], null)
   })
+
+  describe('title prefill when the file changes', () => {
+    function renderForm() {
+      return renderHook(() =>
+        useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal: jest.fn(), projectId: null })
+      )
+    }
+    const fileNamed = (name: string) => new File(['audio'], name, { type: 'audio/wav' })
+
+    test('replaces an untouched automatic title', () => {
+      const { result } = renderForm()
+      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
+      act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
+      expect(result.current.title).toBe('interview-b')
+    })
+
+    test('keeps a title the user edited', () => {
+      const { result } = renderForm()
+      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
+      act(() => result.current.setTitle('Client call'))
+      act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
+      expect(result.current.title).toBe('Client call')
+    })
+
+    test('fills a cleared title from the next file', () => {
+      const { result } = renderForm()
+      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
+      act(() => result.current.setTitle(''))
+      act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
+      expect(result.current.title).toBe('interview-b')
+    })
+  })
 })

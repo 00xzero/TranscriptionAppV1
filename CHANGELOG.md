@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-09-24] - Text Length Limits and Character Count
+
+Capped transcript titles and speaker names, which previously had no limit and
+broke layouts when very long (the editor title ran off-screen and speaker names
+pushed timestamps out of their cards). All three text limits now live in one
+file, and every capped input shares one character counter that follows the
+GOV.UK character count pattern.
+
+### Added
+
+- **`frontend/contracts/limits.ts`** — `TEXT_LIMITS` (project name `80`, transcript title `120`, speaker name `50`) and `CHARACTER_COUNT_THRESHOLD` (`0.75`). Every input, counter, validation message, and API check reads from here, so each limit is a one-line change.
+- **`frontend/components/ui/character-count.tsx`** — Shared counter, hidden until 75% of the limit is used. It fades in and out, rolls its digits with NumberFlow (`@number-flow/react`, 180ms), turns red with a single pulse when the count crosses the limit, and tells screen readers "N characters remaining" or "N characters too many" once typing pauses.
+- **`frontend/core/transcripts/title.ts`** — Shared transcript-title length check and message, plus `fitTranscriptTitle` for filename fallbacks only (never splitting a surrogate pair).
+
+### Changed
+
+- **Capped inputs** — Project name, Capture title, recovered-recording title, editor title, live recording title, and the speaker popover's new-name and rename fields. Users can type or paste past the limit (no `maxLength`), and saving is blocked with an error until the value fits:
+  - Forms show the error on submit and clear it once the value is edited or fits.
+  - Inline editors stay open with the typed text on Enter or blur. Escape cancels.
+  - The speaker popover does not close on an outside click while a name is over the limit.
+- **Capture title prefill** — Filenames are prefilled in full, even over the limit, and the user is asked to shorten them. Picking a different file replaces an untouched automatic title but keeps one the user edited. A cleared title falls back to the filename, fitted to the limit.
+- **Explicit titles are never changed silently** — Only a hidden filename fallback is fitted to the limit, in both the client upload and `core/transcripts/create.ts`.
+- **`POST /api/transcripts`** — Titles are validated against the shared limit (previously `500`).
+- **`frontend/contracts/db.ts`** — Limits apply to insert and update schemas only. Read schemas (`TranscriptSchema`, `SpeakerSchema`, `ProjectSchema.name`) stay unconstrained, so lowering a limit never hides existing rows.
+- **`frontend/components/ui/input.tsx`** — `aria-invalid` inputs now show the error border.
+
+### Notes
+
+- Editor title and speaker writes go straight from the browser to Supabase, so their limits are enforced in the UI only. Closing that gap needs a database check or moving those writes behind API routes, and both need a migration, which was deliberately left out.
+- CodeRabbit review: the reduced-motion finding was a false positive (the global `prefers-reduced-motion` rule in `globals.css` already covers the counter), and the recovery-modal fallback finding was skipped because no pre-limit recordings exist. Separately, clearing the recovery title still restores the previous title rather than the generated one; parked as a minor follow-up.
+
+### Tests
+
+- **Frontend** — `npm test` (`121` suites / `1,223` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, no new warnings).
+- **New coverage** — Counter threshold, colour, and announcements; blocked saves in the project dialog, editor title, and speaker popover; Capture prefill, file-switch, and cleared-title fallback; explicit titles passed through unchanged; filename fallback fitting, including surrogate pairs; over-limit rows still loading.
+- **Browser** — Not yet verified in the browser. The fade, pulse, and digit roll need a manual look.
+
 ## [2026-09-22] - Accessibility and Consistency Cleanup
 
 Standardized asynchronous feedback, transcript controls, and hook ownership
