@@ -10,6 +10,7 @@ import {
     AlignmentType,
     Packer,
 } from 'docx'
+import { speakerLabelFor, type SpeakerLabels } from '@/core/speakers/labels'
 
 // ============================================================================
 // Types
@@ -21,13 +22,6 @@ export interface ExportSegment {
     end_ms: number
     text: string
 }
-
-export interface ExportSpeaker {
-    label: string
-    color?: string | null
-}
-
-export type SpeakersMap = Record<string, ExportSpeaker>
 
 // ============================================================================
 // Time Formatting Helpers
@@ -119,12 +113,12 @@ export interface SpeakerTurn {
 /**
  * Group consecutive segments into speaker turns. A new turn starts whenever the
  * speaker changes; consecutive null-speaker segments collapse into a single turn
- * via a stable key. Shared by the DOCX, TXT, and Markdown generators.
+ * via a stable key. Labels come from the shared resolver, so an unassigned turn
+ * reads `Unknown speaker`. Shared by the DOCX, TXT, and Markdown generators.
  */
 export function groupSegmentsBySpeaker(
     segments: ExportSegment[],
-    speakersMap: SpeakersMap,
-    fallbackLabel = 'Unknown Speaker'
+    speakerLabels: SpeakerLabels
 ): SpeakerTurn[] {
     const turns: SpeakerTurn[] = []
     let currentKey: string | null = null
@@ -134,8 +128,7 @@ export function groupSegmentsBySpeaker(
         if (key !== currentKey) {
             currentKey = key
             turns.push({
-                speakerLabel:
-                    speakersMap[segment.speaker_id ?? '']?.label ?? fallbackLabel,
+                speakerLabel: speakerLabelFor(speakerLabels, segment.speaker_id),
                 segments: [],
             })
         }
@@ -178,7 +171,7 @@ function normalizeSegmentText(text: string): string {
 
 export interface GenerateVttParams {
     segments: ExportSegment[]
-    speakersMap: SpeakersMap
+    speakerLabels: SpeakerLabels
     transcriptId: string
 }
 
@@ -191,21 +184,28 @@ function escapeVttText(text: string): string {
 }
 
 /**
+ * Escape a speaker label for a WebVTT voice tag, `<v LABEL>`. On top of cue-text
+ * escaping, `>` would close the tag early and a line break would split the cue,
+ * so both are neutralised.
+ */
+function escapeVttVoice(label: string): string {
+    return escapeVttText(label).replace(/>/g, '&gt;').replace(/[\r\n]+/g, ' ')
+}
+
+/**
  * Generate a WebVTT file from transcript segments.
  *
  * @returns VTT content as string
  */
 export function generateVtt({
     segments,
-    speakersMap,
+    speakerLabels,
     transcriptId,
 }: GenerateVttParams): string {
     const lines: string[] = ['WEBVTT', '']
 
     segments.forEach((segment, idx) => {
-        const rawLabel =
-            speakersMap[segment.speaker_id ?? '']?.label ?? 'Speaker'
-        const speakerLabel = escapeVttText(rawLabel)
+        const speakerLabel = escapeVttVoice(speakerLabelFor(speakerLabels, segment.speaker_id))
         const text = escapeVttText(segment.text)
 
         const startVtt = msToVttTimestamp(segment.start_ms)
@@ -230,7 +230,7 @@ export function generateVtt({
 export interface GenerateDocxParams {
     transcriptTitle: string
     segments: ExportSegment[]
-    speakersMap: SpeakersMap
+    speakerLabels: SpeakerLabels
     transcriptionDate: Date
     durationSeconds?: number | null
 }
@@ -243,7 +243,7 @@ export interface GenerateDocxParams {
 export async function generateDocx({
     transcriptTitle,
     segments,
-    speakersMap,
+    speakerLabels,
     transcriptionDate,
     durationSeconds,
 }: GenerateDocxParams): Promise<Buffer> {
@@ -303,7 +303,7 @@ export async function generateDocx({
     children.push(new Paragraph({ children: [] }))
 
     // Transcript body - group segments into speaker turns
-    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
         // Speaker header at the start of each turn
         children.push(
             new Paragraph({
@@ -366,7 +366,7 @@ export async function generateDocx({
 export interface GenerateTextExportParams {
     transcriptTitle: string
     segments: ExportSegment[]
-    speakersMap: SpeakersMap
+    speakerLabels: SpeakerLabels
     transcriptionDate: Date
     durationSeconds?: number | null
 }
@@ -380,7 +380,7 @@ export interface GenerateTextExportParams {
 export function generateTxt({
     transcriptTitle,
     segments,
-    speakersMap,
+    speakerLabels,
     transcriptionDate,
     durationSeconds,
 }: GenerateTextExportParams): string {
@@ -389,7 +389,7 @@ export function generateTxt({
         buildExportMetaLine(transcriptionDate, durationSeconds),
     ]
 
-    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
         lines.push('', turn.speakerLabel)
         for (const segment of turn.segments) {
             lines.push(
@@ -429,7 +429,7 @@ function escapeMarkdown(text: string): string {
 export function generateMarkdown({
     transcriptTitle,
     segments,
-    speakersMap,
+    speakerLabels,
     transcriptionDate,
     durationSeconds,
 }: GenerateTextExportParams): string {
@@ -438,7 +438,7 @@ export function generateMarkdown({
         `_${buildExportMetaLine(transcriptionDate, durationSeconds)}_`,
     ]
 
-    for (const turn of groupSegmentsBySpeaker(segments, speakersMap)) {
+    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
         lines.push('', `**${escapeMarkdown(turn.speakerLabel)}**`)
         for (const segment of turn.segments) {
             lines.push(

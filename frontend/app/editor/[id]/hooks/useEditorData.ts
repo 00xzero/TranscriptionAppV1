@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import {
   fetchTranscriptData,
+  fetchSegmentSpeakerAssignments,
   fetchSpeakers,
   fetchTranscriptById,
 } from '@/lib/supabase/queries'
@@ -33,6 +34,21 @@ export function chooseEditorDuration(
   return Math.max(...durations)
 }
 
+/**
+ * Takes each segment's speaker_id from `fetched` and keeps everything else as
+ * the editor holds it — above all the text, which may carry an edit whose
+ * debounced save has not reached the database yet.
+ */
+export function mergeSpeakerAssignments(
+  current: Seg[],
+  fetched: readonly { id: string; speaker_id: string | null }[]
+): Seg[] {
+  const speakerIdBySegment = new Map(fetched.map((s) => [s.id, s.speaker_id]))
+  return current.map((s) =>
+    speakerIdBySegment.has(s.id) ? { ...s, speaker_id: speakerIdBySegment.get(s.id) ?? null } : s
+  )
+}
+
 export function useEditorData(transcriptId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
@@ -46,15 +62,22 @@ export function useEditorData(transcriptId: string) {
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
 
-  const reloadTranscript = async () => {
+  // Refreshes speakers and each segment's speaker_id only. Segment text stays as
+  // the editor holds it, so a text edit still waiting on its debounced save is
+  // never replaced by the older text in the database. Resolves false when the
+  // refresh itself fails, so the caller can undo its optimistic change instead.
+  const reloadSpeakerAssignments = async (): Promise<boolean> => {
     try {
-      const { items: segs } = await fetchTranscriptData(transcriptId)
-      setSegments(computeWordsForSegments(segs) as Seg[])
-
-      const speakerData = await fetchSpeakers(transcriptId)
+      const [assignments, speakerData] = await Promise.all([
+        fetchSegmentSpeakerAssignments(transcriptId),
+        fetchSpeakers(transcriptId),
+      ])
+      setSegments((prev) => mergeSpeakerAssignments(prev, assignments))
       setSpeakers(speakerData)
+      return true
     } catch (error) {
-      console.error(`Failed to reload transcript for transcript ${transcriptId} while fetching transcript data or speakers:`, error)
+      console.error(`Failed to reload speaker assignments for transcript ${transcriptId}:`, error)
+      return false
     }
   }
 
@@ -214,6 +237,6 @@ export function useEditorData(transcriptId: string) {
     waveformDurationSecs,
     peaks,
     waveformStatus,
-    reloadTranscript,
+    reloadSpeakerAssignments,
   }
 }

@@ -7,8 +7,10 @@ import type { Speaker } from '@/contracts/db'
 const speaker: Speaker = {
   id: '00000000-0000-4000-8000-000000000001',
   transcript_id: '00000000-0000-4000-8000-000000000002',
-  label: 'Georgina Carter',
-  color: null,
+  user_id: '00000000-0000-4000-8000-000000000003',
+  ordinal: 0,
+  custom_label: 'Georgina Carter',
+  diarization_index: 0,
   created_at: '2026-09-23T00:00:00Z',
   updated_at: '2026-09-23T00:00:00Z',
 }
@@ -22,6 +24,7 @@ function renderPopover(overrides: Partial<React.ComponentProps<typeof SpeakerPop
     onRenameSpeaker: jest.fn(),
     onUntag: jest.fn(),
     getColorForSpeaker: () => '#000',
+    labelForSpeaker: () => 'Georgina Carter',
     onHoldOpenChange: jest.fn(),
     ...overrides,
   }

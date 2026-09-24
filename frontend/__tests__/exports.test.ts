@@ -15,6 +15,7 @@ import {
     groupSegmentsBySpeaker,
     buildExportMetaLine,
 } from '../core/exports'
+import { UNKNOWN_SPEAKER_LABEL } from '../core/speakers/labels'
 
 describe('formatDuration', () => {
     it('formats hours, minutes, and seconds', () => {
@@ -125,15 +126,15 @@ describe('generateVtt', () => {
         },
     ]
 
-    const sampleSpeakers = {
-        s1: { label: 'Speaker One' },
-        s2: { label: 'Speaker Two' },
-    }
+    const sampleSpeakers = new Map([
+        ['s1', 'Speaker One'],
+        ['s2', 'Speaker Two'],
+    ])
 
     it('returns a string', () => {
         const result = generateVtt({
             segments: sampleSegments,
-            speakersMap: sampleSpeakers,
+            speakerLabels: sampleSpeakers,
             transcriptId: 'test-transcript',
         })
         expect(typeof result).toBe('string')
@@ -142,7 +143,7 @@ describe('generateVtt', () => {
     it('starts with WEBVTT header', () => {
         const result = generateVtt({
             segments: sampleSegments,
-            speakersMap: sampleSpeakers,
+            speakerLabels: sampleSpeakers,
             transcriptId: 'test-transcript',
         })
         expect(result.startsWith('WEBVTT')).toBe(true)
@@ -151,7 +152,7 @@ describe('generateVtt', () => {
     it('contains speaker voice tags', () => {
         const result = generateVtt({
             segments: sampleSegments,
-            speakersMap: sampleSpeakers,
+            speakerLabels: sampleSpeakers,
             transcriptId: 'test-transcript',
         })
         expect(result).toContain('<v Speaker One>')
@@ -161,7 +162,7 @@ describe('generateVtt', () => {
     it('contains cue identifiers', () => {
         const result = generateVtt({
             segments: sampleSegments,
-            speakersMap: sampleSpeakers,
+            speakerLabels: sampleSpeakers,
             transcriptId: 'test-transcript',
         })
         expect(result).toContain('test-transcript/0')
@@ -171,7 +172,7 @@ describe('generateVtt', () => {
     it('contains properly formatted timestamps', () => {
         const result = generateVtt({
             segments: sampleSegments,
-            speakersMap: sampleSpeakers,
+            speakerLabels: sampleSpeakers,
             transcriptId: 'test-transcript',
         })
         expect(result).toContain('00:00:04.205 --> 00:00:10.243')
@@ -180,10 +181,28 @@ describe('generateVtt', () => {
     it('handles empty segments array', () => {
         const result = generateVtt({
             segments: [],
-            speakersMap: {},
+            speakerLabels: new Map(),
             transcriptId: 'test-transcript',
         })
         expect(result).toBe('WEBVTT\n')
+    })
+
+    it('escapes a speaker label so it cannot close or split the voice tag', () => {
+        const result = generateVtt({
+            segments: [{ speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'Hi.' }],
+            speakerLabels: new Map([['s1', 'A>B & <C>\nD']]),
+            transcriptId: 'test-transcript',
+        })
+        expect(result).toContain('<v A&gt;B &amp; &lt;C&gt; D>Hi.</v>')
+    })
+
+    it('voices an unassigned segment as Unknown speaker', () => {
+        const result = generateVtt({
+            segments: [{ speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' }],
+            speakerLabels: sampleSpeakers,
+            transcriptId: 'test-transcript',
+        })
+        expect(result).toContain('<v Unknown speaker>Anon.</v>')
     })
 })
 
@@ -197,10 +216,10 @@ const textSegments = [
     { speaker_id: 's2', start_ms: 12000, end_ms: 15000, text: 'Happy to be here.' },
 ]
 
-const textSpeakers = {
-    s1: { label: 'Speaker 1' },
-    s2: { label: 'Speaker 2' },
-}
+const textSpeakers = new Map([
+    ['s1', 'Speaker 1'],
+    ['s2', 'Speaker 2'],
+])
 
 const sampleDate = new Date('2026-07-04T12:00:00Z')
 
@@ -214,26 +233,29 @@ describe('groupSegmentsBySpeaker', () => {
         expect(turns[1].segments).toHaveLength(1)
     })
 
-    it('falls back for null / unmapped speakers', () => {
+    it('labels unassigned segments Unknown speaker and collapses them into one turn', () => {
         const turns = groupSegmentsBySpeaker(
-            [{ speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' }],
-            {}
+            [
+                { speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' },
+                { speaker_id: null, start_ms: 1000, end_ms: 2000, text: 'Still anon.' },
+            ],
+            new Map()
         )
         expect(turns).toHaveLength(1)
-        expect(turns[0].speakerLabel).toBe('Unknown Speaker')
+        expect(turns[0].speakerLabel).toBe(UNKNOWN_SPEAKER_LABEL)
+        expect(UNKNOWN_SPEAKER_LABEL).toBe('Unknown speaker')
     })
 
-    it('honors a custom fallback label', () => {
+    it('labels a speaker id missing from the labels Unknown speaker', () => {
         const turns = groupSegmentsBySpeaker(
-            [{ speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' }],
-            {},
-            'Speaker'
+            [{ speaker_id: 'gone', start_ms: 0, end_ms: 1000, text: 'Anon.' }],
+            textSpeakers
         )
-        expect(turns[0].speakerLabel).toBe('Speaker')
+        expect(turns[0].speakerLabel).toBe('Unknown speaker')
     })
 
     it('returns an empty array for no segments', () => {
-        expect(groupSegmentsBySpeaker([], {})).toEqual([])
+        expect(groupSegmentsBySpeaker([], new Map())).toEqual([])
     })
 })
 
@@ -255,7 +277,7 @@ describe('generateTxt', () => {
     const params = {
         transcriptTitle: 'Meeting Notes',
         segments: textSegments,
-        speakersMap: textSpeakers,
+        speakerLabels: textSpeakers,
         transcriptionDate: sampleDate,
         durationSeconds: 312,
     }
@@ -292,13 +314,21 @@ describe('generateTxt', () => {
         expect(result).not.toContain('Speaker')
         expect(result.startsWith('Meeting Notes\n')).toBe(true)
     })
+
+    it('heads an unassigned turn Unknown speaker', () => {
+        const result = generateTxt({
+            ...params,
+            segments: [{ speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' }],
+        })
+        expect(result).toContain('\nUnknown speaker\n[0:00] Anon.')
+    })
 })
 
 describe('generateMarkdown', () => {
     const params = {
         transcriptTitle: 'Meeting Notes',
         segments: textSegments,
-        speakersMap: textSpeakers,
+        speakerLabels: textSpeakers,
         transcriptionDate: sampleDate,
         durationSeconds: 312,
     }
@@ -330,7 +360,7 @@ describe('generateMarkdown', () => {
     it('escapes backticks so a stray backtick cannot swallow a later timestamp', () => {
         const result = generateMarkdown({
             ...params,
-            speakersMap: { s1: { label: 'Speaker 1' } },
+            speakerLabels: new Map([['s1', 'Speaker 1']]),
             segments: [
                 { speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'I said `hello' },
                 { speaker_id: 's1', start_ms: 8000, end_ms: 9000, text: 'world` and left' },
@@ -348,7 +378,7 @@ describe('generateMarkdown', () => {
     it('escapes inline emphasis and link metacharacters in segment bodies', () => {
         const result = generateMarkdown({
             ...params,
-            speakersMap: { s1: { label: 'Speaker 1' } },
+            speakerLabels: new Map([['s1', 'Speaker 1']]),
             segments: [
                 { speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'use *bold* _under_ [link]' },
             ],
@@ -360,7 +390,7 @@ describe('generateMarkdown', () => {
         const result = generateMarkdown({
             ...params,
             transcriptTitle: 'Q3 *Review*',
-            speakersMap: { s1: { label: 'Speaker _1_' } },
+            speakerLabels: new Map([['s1', 'Speaker _1_']]),
             segments: [{ speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'hi' }],
         })
         expect(result).toContain('# Q3 \\*Review\\*')
@@ -371,5 +401,13 @@ describe('generateMarkdown', () => {
         const result = generateMarkdown({ ...params, segments: [] })
         expect(result).not.toContain('**')
         expect(result.startsWith('# Meeting Notes\n')).toBe(true)
+    })
+
+    it('heads an unassigned turn Unknown speaker', () => {
+        const result = generateMarkdown({
+            ...params,
+            segments: [{ speaker_id: null, start_ms: 0, end_ms: 1000, text: 'Anon.' }],
+        })
+        expect(result).toContain('**Unknown speaker**')
     })
 })

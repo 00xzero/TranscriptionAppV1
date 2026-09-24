@@ -13,8 +13,9 @@ const makeTranscriptQuery = jest.fn((transcript: unknown, error: unknown = null)
   single: jest.fn().mockResolvedValue({ data: transcript, error }),
 }))
 
+const speakersSelect = jest.fn()
 const makeSpeakersQuery = jest.fn((speakers: unknown[] | null, error: unknown = null) => ({
-  select: jest.fn().mockReturnThis(),
+  select: speakersSelect.mockReturnThis(),
   eq: jest.fn().mockResolvedValue({ data: speakers, error }),
 }))
 
@@ -30,7 +31,7 @@ describe('fetchExportData', () => {
     consoleErrorSpy.mockRestore()
   })
 
-  it('reads from segments, preserves order, and maps to export segments', async () => {
+  it('reads from segments, preserves order, and resolves speaker labels', async () => {
     const transcript = {
       id: 'p1',
       title: 'Transcript',
@@ -40,10 +41,14 @@ describe('fetchExportData', () => {
     const segments = [
       { id: 's1', speaker_id: 'sp2', start_ms: 1000, end_ms: 2000, text: 'Second' },
       { id: 's2', speaker_id: 'sp1', start_ms: 3000, end_ms: 4000, text: 'Third' },
+      { id: 's3', speaker_id: 'sp3', start_ms: 5000, end_ms: 6000, text: 'Fourth' },
+      { id: 's4', speaker_id: null, start_ms: 7000, end_ms: 8000, text: 'Fifth' },
     ]
+    // sp3 shares sp1's label and appears later, so it is the one numbered.
     const speakers = [
-      { id: 'sp1', label: 'Alice', color: '#111111' },
-      { id: 'sp2', label: 'Bob', color: '#222222' },
+      { id: 'sp1', ordinal: 0, custom_label: 'Alice' },
+      { id: 'sp2', ordinal: 1, custom_label: null },
+      { id: 'sp3', ordinal: 2, custom_label: 'Alice' },
     ]
 
     mockPaginateAllRows.mockResolvedValueOnce(segments as any)
@@ -76,13 +81,17 @@ describe('fetchExportData', () => {
     expect(from).not.toHaveBeenCalledWith('chunks')
     expect(mockPaginateAllRows).toHaveBeenCalledWith(supabase, 'segments', 'p1', 'start_ms')
 
+    expect(speakersSelect).toHaveBeenCalledWith('id, ordinal, custom_label')
     expect(result.data.exportSegments).toEqual([
       { speaker_id: 'sp2', start_ms: 1000, end_ms: 2000, text: 'Second' },
       { speaker_id: 'sp1', start_ms: 3000, end_ms: 4000, text: 'Third' },
+      { speaker_id: 'sp3', start_ms: 5000, end_ms: 6000, text: 'Fourth' },
+      { speaker_id: null, start_ms: 7000, end_ms: 8000, text: 'Fifth' },
     ])
-    expect(result.data.speakersMap).toEqual({
-      sp1: { label: 'Alice', color: '#111111' },
-      sp2: { label: 'Bob', color: '#222222' },
+    expect(Object.fromEntries(result.data.speakerLabels)).toEqual({
+      sp1: 'Alice',
+      sp2: 'Speaker 1',
+      sp3: 'Alice (2)',
     })
   })
 

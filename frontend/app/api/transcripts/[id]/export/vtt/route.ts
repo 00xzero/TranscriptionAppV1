@@ -28,12 +28,12 @@ export async function GET(
         )
     }
 
-    const { transcript, exportSegments, speakersMap } = result.data
+    const { transcript, exportSegments, speakerLabels } = result.data
 
     // Generate VTT
     const vttContent = generateVtt({
         segments: exportSegments,
-        speakersMap,
+        speakerLabels,
         transcriptId,
     })
 

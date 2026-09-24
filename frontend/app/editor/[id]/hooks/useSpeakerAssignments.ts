@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  updateSegment,
-  createSpeaker,
-  updateSpeaker,
-  deleteSpeaker,
+  assignSegmentsToNewSpeaker,
+  reassignSegments,
+  setSpeakerCustomLabel,
 } from '@/lib/supabase/queries'
+import { resolveSpeakerLabels, speakerLabelFor } from '@/core/speakers/labels'
 import { buildSpeakerColorMap, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 import type { Seg, Speaker } from '../types'
 
@@ -37,15 +37,21 @@ function createStableMeasurable(el: HTMLElement): Measurable {
 export function useSpeakerAssignments({
   transcriptId,
   speakers,
+  segments,
   setSpeakers,
   setSegments,
-  reloadTranscript,
+  reloadSpeakerAssignments,
 }: {
   transcriptId: string
   speakers: Speaker[]
+  segments: Seg[]
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
   setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
-  reloadTranscript: () => Promise<void>
+  /**
+   * Refetches speakers and segment assignments, never segment text. Resolves
+   * false if the refresh failed too.
+   */
+  reloadSpeakerAssignments: () => Promise<boolean>
 }) {
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
   const lastTriggerElementRef = useRef<HTMLElement | null>(null)
@@ -64,9 +70,27 @@ export function useSpeakerAssignments({
 
   const colorForSpeaker = useCallback((sp?: Speaker) => {
     if (!sp) return SPEAKER_COLOR_FALLBACK
-    if (sp.color) return sp.color
     return speakerColorMap.get(sp.id) || SPEAKER_COLOR_FALLBACK
   }, [speakerColorMap])
+
+  // Every label the editor shows comes from the shared resolver, including
+  // `Unknown speaker` for unassigned segments.
+  const speakerLabels = useMemo(() => resolveSpeakerLabels(speakers, segments), [speakers, segments])
+
+  const labelForSpeaker = useCallback(
+    (speakerId: string | null | undefined) => speakerLabelFor(speakerLabels, speakerId),
+    [speakerLabels]
+  )
+
+  // The speaker a segment holds now: what a guarded write expects to replace.
+  const segmentsRef = useRef(segments)
+  useEffect(() => {
+    segmentsRef.current = segments
+  }, [segments])
+  const currentSpeakerIdOf = useCallback(
+    (segmentId: string) => segmentsRef.current.find(s => s.id === segmentId)?.speaker_id ?? null,
+    []
+  )
 
   const handleAvatarClick = useCallback((e: React.MouseEvent, segmentId: string, speakerId: string | null) => {
     e.stopPropagation()
@@ -101,78 +125,73 @@ export function useSpeakerAssignments({
   const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
     if (!speakerPopover) return
     const { segmentId } = speakerPopover
+    const expectedSpeakerId = currentSpeakerIdOf(segmentId)
 
     setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, speaker_id: speaker.id } : s))
     closeSpeakerPopover('selection')
 
     try {
-      await updateSegment(segmentId, { speaker_id: speaker.id })
+      await reassignSegments(transcriptId, [
+        { segment_id: segmentId, expected_speaker_id: expectedSpeakerId, speaker_id: speaker.id },
+      ])
     } catch (err) {
+      // Refused as stale or failed outright: show what the database holds. If
+      // that cannot be read either, at least undo the change that never saved.
       console.error('Failed to reassign speaker:', err)
-      await reloadTranscript()
+      if (!(await reloadSpeakerAssignments())) {
+        setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, speaker_id: expectedSpeakerId } : s))
+      }
     }
-  }, [closeSpeakerPopover, speakerPopover, reloadTranscript, setSegments])
+  }, [closeSpeakerPopover, currentSpeakerIdOf, speakerPopover, reloadSpeakerAssignments, setSegments, transcriptId])
 
   const handleCreateSpeaker = useCallback(async (label: string) => {
     if (!speakerPopover) return
     const { segmentId } = speakerPopover
+    const expectedSpeakerId = currentSpeakerIdOf(segmentId)
 
     closeSpeakerPopover('selection')
 
-    let newSpeaker: Speaker | null = null
-
     try {
-      const createdSpeaker = await createSpeaker(transcriptId, label)
-      newSpeaker = createdSpeaker
-
-      await updateSegment(segmentId, { speaker_id: createdSpeaker.id })
+      // One atomic call: a failed move never leaves an orphan speaker behind.
+      const createdSpeaker = await assignSegmentsToNewSpeaker(transcriptId, label, [
+        { segment_id: segmentId, expected_speaker_id: expectedSpeakerId },
+      ])
 
       setSpeakers(prev => [...prev, createdSpeaker])
       setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, speaker_id: createdSpeaker.id } : s))
     } catch (err) {
       console.error('Failed to create speaker:', err)
-      if (newSpeaker) {
-        try {
-          await deleteSpeaker(newSpeaker.id)
-        } catch (cleanupErr) {
-          console.error('Failed to cleanup orphan speaker:', cleanupErr)
-        }
+      await reloadSpeakerAssignments()
+    }
+  }, [closeSpeakerPopover, currentSpeakerIdOf, speakerPopover, reloadSpeakerAssignments, transcriptId, setSpeakers, setSegments])
+
+  // Sets the transcript-local label; null clears it back to `Speaker {ordinal}`.
+  const saveCustomLabel = useCallback(async (speaker: Speaker, customLabel: string | null) => {
+    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, custom_label: customLabel } : sp))
+    closeSpeakerPopover('selection')
+
+    try {
+      const saved = await setSpeakerCustomLabel(speaker.id, speaker.custom_label, customLabel)
+      setSpeakers(prev => prev.map(sp => sp.id === saved.id ? saved : sp))
+    } catch (err) {
+      // Prefer the label the database now holds (another tab may have renamed
+      // it); fall back to the old label only if that cannot be read.
+      console.error('Failed to rename speaker:', err)
+      if (!(await reloadSpeakerAssignments())) {
+        setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, custom_label: speaker.custom_label } : sp))
       }
     }
-  }, [closeSpeakerPopover, speakerPopover, transcriptId, setSpeakers, setSegments])
+  }, [closeSpeakerPopover, reloadSpeakerAssignments, setSpeakers])
 
-  const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
-    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    closeSpeakerPopover('selection')
+  const handleRenameSpeaker = useCallback(
+    (speaker: Speaker, newLabel: string) => saveCustomLabel(speaker, newLabel),
+    [saveCustomLabel]
+  )
 
-    try {
-      await updateSpeaker(speaker.id, { label: newLabel })
-    } catch (err) {
-      console.error('Failed to rename speaker:', err)
-      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
-    }
-  }, [closeSpeakerPopover, setSpeakers])
-
-  const handleUntag = useCallback(async (speaker: Speaker) => {
-    const existingNumbers = speakers
-      .map(sp => {
-        const match = sp.label.match(/^Speaker\s+(\d+)$/i)
-        return match ? parseInt(match[1], 10) : -1
-      })
-      .filter(n => n >= 0)
-    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 0
-    const newLabel = `Speaker ${nextNumber}`
-
-    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    closeSpeakerPopover('selection')
-
-    try {
-      await updateSpeaker(speaker.id, { label: newLabel })
-    } catch (err) {
-      console.error('Failed to untag speaker:', err)
-      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
-    }
-  }, [closeSpeakerPopover, speakers, setSpeakers])
+  const handleUntag = useCallback(
+    (speaker: Speaker) => saveCustomLabel(speaker, null),
+    [saveCustomLabel]
+  )
 
   return {
     speakerPopover, setSpeakerPopover,
@@ -183,6 +202,7 @@ export function useSpeakerAssignments({
     speakersMap,
     speakerColorMap,
     colorForSpeaker,
+    labelForSpeaker,
     handleAvatarClick,
     handleSelectSpeaker,
     handleCreateSpeaker,

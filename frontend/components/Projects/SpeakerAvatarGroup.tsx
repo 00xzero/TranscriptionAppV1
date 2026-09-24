@@ -5,7 +5,8 @@ import { Ghost } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
-import { resolveSpeakerColor, speakerInitials } from '@/lib/speakers/palette'
+import { speakerBaseLabel } from '@/core/speakers/labels'
+import { speakerInitials, speakerPaletteColor } from '@/lib/speakers/palette'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
@@ -69,9 +70,9 @@ const CIRCLE_BASE =
  */
 const EMPTY_COPY = 'No speakers yet!'
 
-/** An empty label would render an empty tooltip chip; say who it is instead. */
-function displayName(label: string): string {
-  return label.trim() || 'Unnamed speaker'
+/** The speaker's own label, from the shared resolver. */
+function displayName(speaker: ProjectSpeakerPreview): string {
+  return speakerBaseLabel(speaker.ordinal, speaker.customLabel)
 }
 
 /**
@@ -123,7 +124,7 @@ function accessibleName(visible: ProjectSpeakerPreview[], totalCount: number): s
   if (totalCount === 0) return EMPTY_COPY
   const count = countLabel(totalCount, 'speaker', 'speakers')
 
-  const names = visible.map((speaker) => displayName(speaker.label))
+  const names = visible.map((speaker) => displayName(speaker))
   const remainder = totalCount - visible.length
   const parts = remainder > 0 ? [...names, `${remainder} more`] : names
   if (parts.length === 0) return count
@@ -269,12 +270,12 @@ export function SpeakerAvatarGroup({
                       styles.circle,
                       index > 0 && styles.overlap
                     )}
-                    style={{ backgroundColor: resolveSpeakerColor(speaker, speaker.paletteIndex) }}
+                    style={{ backgroundColor: speakerPaletteColor(speaker.paletteIndex) }}
                   >
-                    {speakerInitials(speaker.label)}
+                    {speakerInitials(displayName(speaker))}
                   </div>
                 </TooltipTrigger>
-                <TooltipContent className={TOOLTIP_ON_CARD}>{displayName(speaker.label)}</TooltipContent>
+                <TooltipContent className={TOOLTIP_ON_CARD}>{displayName(speaker)}</TooltipContent>
               </Tooltip>
             ))}
             {overflow > 0 && (

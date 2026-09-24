@@ -793,7 +793,16 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   test('makes consecutive same-speaker reassignment reachable by keyboard', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce([
-      { id: 'sp1', transcript_id: 'p1', label: 'Alice', color: null, created_at: '2024-01-01T00:00:00Z' },
+      {
+        id: 'sp1',
+        transcript_id: 'p1',
+        user_id: 'u1',
+        ordinal: 0,
+        custom_label: 'Alice',
+        diarization_index: 0,
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      },
     ])
 
     renderEditorScreen()
@@ -818,8 +827,21 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await user.click(screen.getByRole('button', { name: /Assign speaker Alice/i }))
     await waitFor(() => {
-      expect(supabaseQueries.updateSegment).toHaveBeenCalledWith('s2', { speaker_id: 'sp1' })
+      expect(supabaseQueries.reassignSegments).toHaveBeenCalledWith('p1', [
+        { segment_id: 's2', expected_speaker_id: null, speaker_id: 'sp1' },
+      ])
     })
+    expect(supabaseQueries.updateSegment).not.toHaveBeenCalled()
+  })
+
+  test('labels unassigned segments Unknown speaker', async () => {
+    renderEditorScreen()
+
+    await waitForEditorContent()
+
+    const speakerButtons = screen.getAllByRole('button', { name: /Change speaker/i })
+    expect(speakerButtons[0]).toHaveTextContent(/^Unknown speaker$/)
+    expect(speakerButtons[0]).toHaveAttribute('aria-label', 'Change speaker (Unknown speaker)')
   })
 
   test('persistent search does not steal edit-mode focus after follow is resumed', async () => {

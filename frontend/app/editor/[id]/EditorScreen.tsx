@@ -47,9 +47,10 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const speakerHook = useSpeakerAssignments({
     transcriptId,
     speakers: data.speakers,
+    segments: data.segments,
     setSpeakers: data.setSpeakers,
     setSegments: data.setSegments,
-    reloadTranscript: data.reloadTranscript,
+    reloadSpeakerAssignments: data.reloadSpeakerAssignments,
   })
 
   const handleTitleSaved = useCallback((newTitle: string) => {
@@ -268,6 +269,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           matchIndex={search.matchIndex}
           speakersMap={speakerHook.speakersMap}
           colorForSpeaker={speakerHook.colorForSpeaker}
+          labelForSpeaker={speakerHook.labelForSpeaker}
           editingId={editing.editingId}
           editingTexts={editing.editingTexts}
           saveStatus={editing.saveStatus}
@@ -357,6 +359,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
             onRenameSpeaker={speakerHook.handleRenameSpeaker}
             onUntag={speakerHook.handleUntag}
             getColorForSpeaker={speakerHook.colorForSpeaker}
+            labelForSpeaker={speakerHook.labelForSpeaker}
             onHoldOpenChange={setHoldSpeakerPopoverOpen}
           />
         </PopoverContent>

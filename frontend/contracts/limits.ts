@@ -8,7 +8,9 @@
  * data — it only stops new values going over it.
  *
  * projectName is also enforced by the database (projects_name_length, 80), so
- * it cannot be raised above 80 without a migration. The other two are app-only.
+ * it cannot be raised above 80 without a migration. speakerName is likewise
+ * checked by the speaker write functions (speaker identity migration), so
+ * changing it needs a migration too. transcriptTitle is app-only.
  */
 export const TEXT_LIMITS = {
   projectName: 80,

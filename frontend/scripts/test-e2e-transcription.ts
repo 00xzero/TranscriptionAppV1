@@ -14,6 +14,7 @@
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
+import { resolveSpeakerLabels, speakerLabelFor } from "@/core/speakers/labels";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -181,9 +182,10 @@ async function main() {
     // Get speakers
     const { data: speakers } = await supabase
         .from("speakers")
-        .select("id, label")
+        .select("id, ordinal, custom_label")
         .eq("transcript_id", transcript.id);
 
+    const speakerLabels = resolveSpeakerLabels(speakers ?? [], segments ?? []);
     console.log(`   Speakers: ${speakers?.length || 0}`);
 
     // Step 7: Save results to file
@@ -203,7 +205,7 @@ async function main() {
         segments: segments?.map(segment => ({
             id: segment.id,
             speakerId: segment.speaker_id,
-            speakerLabel: speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown",
+            speakerLabel: speakerLabelFor(speakerLabels, segment.speaker_id),
             startMs: segment.start_ms,
             endMs: segment.end_ms,
             text: segment.text,
