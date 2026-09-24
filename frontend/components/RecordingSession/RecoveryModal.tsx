@@ -1,8 +1,11 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { CharacterCount } from '@/components/ui/character-count'
+import { TEXT_LIMITS } from '@/contracts/limits'
+import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 import { toast } from '@/components/ui/toaster'
 import { showCaptureWarning } from '@/lib/capture/warnings'
 import {
@@ -26,6 +29,9 @@ function formatApproxSize(bytes: number): string {
  */
 export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
   const [title, setTitle] = useState(info.title ?? info.generatedTitle ?? '')
+  const titleCountId = useId()
+  const titleInputRef = useRef<HTMLInputElement>(null)
+  const [titleSaveBlocked, setTitleSaveBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
@@ -34,6 +40,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
   useEffect(() => {
     setTitle(info.title ?? info.generatedTitle ?? '')
     setError(null)
+    setTitleSaveBlocked(false)
     setSaving(false)
   }, [info.sessionId, info.title, info.generatedTitle])
 
@@ -50,7 +57,14 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
 
   const total = info.remainingCount + 1
 
+  const titleTooLong = transcriptTitleTooLong(title)
+
   const handleSave = async () => {
+    if (titleTooLong) {
+      setTitleSaveBlocked(true)
+      titleInputRef.current?.focus()
+      return
+    }
     setSaving(true)
     setError(null)
     const savedTitle =
@@ -109,15 +123,26 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               Title
             </span>
             <input
+              ref={titleInputRef}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={saving}
               placeholder="Untitled recording"
+              aria-describedby={titleCountId}
+              aria-invalid={titleTooLong ? true : undefined}
               aria-label="Recovered recording title"
-              className="w-full rounded-lg border border-border [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 dark:text-paper"
+              className="w-full rounded-lg border border-border [background:color-mix(in_oklab,var(--surface)_60%,transparent)] px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-trust-blue focus:bg-surface disabled:opacity-50 aria-invalid:border-ember-red dark:text-paper"
             />
           </label>
+          <div className="-mt-3 flex items-start justify-between gap-3">
+            {titleSaveBlocked && titleTooLong ? (
+              <p role="alert" className="text-xs text-ember-red">{TRANSCRIPT_TITLE_TOO_LONG}</p>
+            ) : (
+              <span />
+            )}
+            <CharacterCount id={titleCountId} length={title.trim().length} max={TEXT_LIMITS.transcriptTitle} />
+          </div>
 
           <p className="text-xs text-ink/50 dark:text-paper/40">
             Approximate size {formatApproxSize(info.bytesSoFar)}. Recovered audio is

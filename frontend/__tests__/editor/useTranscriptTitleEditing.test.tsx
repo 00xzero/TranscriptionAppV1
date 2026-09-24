@@ -57,6 +57,29 @@ describe('useTranscriptTitleEditing', () => {
     updateTranscriptMock.mockReset()
   })
 
+  test('an over-long title is not saved and stays open until it fits or Escape cancels', async () => {
+    const user = userEvent.setup()
+    render(<TitleHarness onTitleSaved={jest.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit title' }))
+    const input = screen.getByLabelText('Transcript title')
+    await user.clear(input)
+    await user.click(input)
+    await user.paste('x'.repeat(130))
+    await user.keyboard('{Enter}')
+    act(() => input.blur())
+
+    expect(updateTranscriptMock).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Transcript title')).toHaveValue('x'.repeat(130))
+    expect(screen.getByText('Titles must be 120 characters or fewer.')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Transcript title'), '{Backspace}'.repeat(10))
+    expect(screen.queryByText('Titles must be 120 characters or fewer.')).not.toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.getByTestId('saved-title')).toHaveTextContent('Original title')
+  })
+
   test('publishes a saved title after persistence resolves and before editing closes', async () => {
     const user = userEvent.setup()
     const save = deferred<Awaited<ReturnType<typeof updateTranscript>>>()

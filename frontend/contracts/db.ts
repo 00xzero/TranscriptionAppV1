@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod'
+import { TEXT_LIMITS } from './limits'
 import { ProjectNameSchema, UuidSchema } from './primitives'
 
 // Status enums — canonical, imported by state-machine.ts and transition.ts
@@ -46,7 +47,8 @@ export const ProjectSchema = z.object({
   id: UuidSchema,
   user_id: UuidSchema,
   parent_id: UuidSchema.nullable(),
-  name: ProjectNameSchema,
+  // Plain string on read: TEXT_LIMITS apply to writes only (see contracts/limits.ts).
+  name: z.string(),
   deleting_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -119,7 +121,7 @@ export const WatchlistTermSchema = z.object({
 
 // Insert/update schemas (DB mutations)
 export const TranscriptUpdateSchema = z.object({
-  title: z.string().nullable().optional(),
+  title: z.string().max(TEXT_LIMITS.transcriptTitle).nullable().optional(),
   duration_seconds: z.number().nullable().optional(),
 })
 
@@ -148,7 +150,7 @@ export const TranscriptWaveformInternalUpdateSchema = z.object({
 export const SpeakerInsertSchema = z.object({
   id: UuidSchema.optional(),
   transcript_id: UuidSchema,
-  label: z.string().optional(),
+  label: z.string().min(1).max(TEXT_LIMITS.speakerName).optional(),
   color: z.string().nullish(),
 })
 
@@ -159,7 +161,7 @@ export const SegmentUpdateSchema = z.object({
 })
 
 export const SpeakerUpdateSchema = z.object({
-  label: z.string().optional(),
+  label: z.string().min(1).max(TEXT_LIMITS.speakerName).optional(),
   color: z.string().nullable().optional(),
 })
 

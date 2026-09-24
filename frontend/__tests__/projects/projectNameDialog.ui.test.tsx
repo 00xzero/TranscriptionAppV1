@@ -28,19 +28,34 @@ describe('ProjectNameDialog', () => {
     view.unmount()
   })
 
-  test('shows the character count and flags when the name hits the cap', async () => {
+  test('shows the count only near the limit, and lets typing run past it without saving', async () => {
     const user = userEvent.setup()
-    render(<ProjectNameDialog open onOpenChange={jest.fn()} mode="create" parentId={null} onSubmit={jest.fn()} />)
+    const onSubmit = jest.fn()
+    render(<ProjectNameDialog open onOpenChange={jest.fn()} mode="create" parentId={null} onSubmit={onSubmit} />)
     const input = screen.getByLabelText('Project name')
-    expect(input).toHaveAccessibleDescription('0/80')
+    const counter = screen.getByTestId('character-count')
+    expect(input).toHaveAccessibleDescription('Up to 80 characters.')
 
     await user.type(input, 'Dechra')
-    expect(input).toHaveAccessibleDescription('6/80')
+    expect(counter).toHaveClass('opacity-0')
 
     await user.clear(input)
-    await user.type(input, 'x'.repeat(85))
-    expect(input).toHaveValue('x'.repeat(80))
-    expect(input).toHaveAccessibleDescription('Character limit reached · 80/80')
+    await user.type(input, 'x'.repeat(60))
+    expect(counter).not.toHaveClass('opacity-0')
+    expect(counter).toHaveTextContent('60/80')
+
+    await user.type(input, 'x'.repeat(25))
+    expect(input).toHaveValue('x'.repeat(85))
+    expect(counter).toHaveTextContent(/^85\/80$/)
+
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('80 characters or fewer')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(onSubmit).not.toHaveBeenCalled()
+
+    await user.type(input, '{Backspace}')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(input).not.toHaveAttribute('aria-invalid')
   })
 
   test('maps write errors inline and stays open', async () => {

@@ -79,6 +79,8 @@ jest.mock('../components/CaptureModal/useCaptureForm', () => ({
     handleFileSelect: jest.fn(),
     title: '',
     setTitle: jest.fn(),
+    titleError: null,
+    blockOverLongTitle: jest.fn(() => false),
     keyTerms: [],
     keyTermInput: '',
     setKeyTermInput: jest.fn(),

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { updateTranscript } from '@/lib/supabase/queries'
+import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 
 export function useTranscriptTitleEditing({
   transcriptId,
@@ -14,13 +15,15 @@ export function useTranscriptTitleEditing({
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
-  const [titleSaveError, setTitleSaveError] = useState<string | null>(null)
+  const [saveFailure, setSaveFailure] = useState<string | null>(null)
+  const [tooLongSaveBlocked, setTooLongSaveBlocked] = useState(false)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   const isSavingTitleRef = useRef(false)
 
   const startEditingTitle = useCallback(() => {
     setTitleInput(transcriptTitle || '')
-    setTitleSaveError(null)
+    setSaveFailure(null)
+    setTooLongSaveBlocked(false)
     setEditingTitle(true)
     setTimeout(() => titleInputRef.current?.focus(), 0)
   }, [transcriptTitle])
@@ -31,12 +34,17 @@ export function useTranscriptTitleEditing({
     const newTitle = titleInput.trim()
     if (!newTitle) {
       setEditingTitle(false)
-      setTitleSaveError(null)
+      setSaveFailure(null)
+      return
+    }
+    // Over the limit: keep the field open with the typed text; Escape cancels.
+    if (transcriptTitleTooLong(newTitle)) {
+      setTooLongSaveBlocked(true)
       return
     }
 
     isSavingTitleRef.current = true
-    setTitleSaveError(null)
+    setSaveFailure(null)
 
     try {
       await updateTranscript(transcriptId, { title: newTitle })
@@ -45,7 +53,7 @@ export function useTranscriptTitleEditing({
       setEditingTitle(false)
     } catch (err) {
       console.error('Failed to save title:', err)
-      setTitleSaveError('Failed to save title. Please try again.')
+      setSaveFailure('Failed to save title. Please try again.')
     } finally {
       isSavingTitleRef.current = false
     }
@@ -57,7 +65,8 @@ export function useTranscriptTitleEditing({
       saveTitle()
     } else if (e.key === 'Escape') {
       setEditingTitle(false)
-      setTitleSaveError(null)
+      setSaveFailure(null)
+      setTooLongSaveBlocked(false)
     }
   }, [saveTitle])
 
@@ -65,6 +74,10 @@ export function useTranscriptTitleEditing({
     if (isSavingTitleRef.current) return
     saveTitle()
   }, [saveTitle])
+
+  // The length error clears itself as soon as the title fits again.
+  const titleSaveError =
+    saveFailure ?? (tooLongSaveBlocked && transcriptTitleTooLong(titleInput) ? TRANSCRIPT_TITLE_TOO_LONG : null)
 
   return {
     editingTitle,

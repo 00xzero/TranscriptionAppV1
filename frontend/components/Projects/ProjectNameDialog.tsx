@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react'
 import type { Project } from '@/contracts/db'
-import { PROJECT_NAME_MAX_LENGTH } from '@/contracts/primitives'
+import { TEXT_LIMITS } from '@/contracts/limits'
 import { siblingNameTaken } from '@/core/projects/tree'
 import { validateProjectName } from '@/core/projects/validate'
 import { mapProjectWriteError } from '@/lib/supabase/project-errors'
@@ -15,8 +15,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { CharacterCount } from '@/components/ui/character-count'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
 
 type ProjectNameDialogProps = {
   open: boolean
@@ -85,8 +85,6 @@ export function ProjectNameDialog({
   }
 
   const isRename = mode === 'rename'
-  // maxLength stops typing silently at the cap, so the counter is what tells the user why.
-  const atLimit = name.length >= PROJECT_NAME_MAX_LENGTH
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="overflow-hidden p-0">
@@ -102,23 +100,17 @@ export function ProjectNameDialog({
               autoFocus
               aria-label="Project name"
               value={name}
-              maxLength={PROJECT_NAME_MAX_LENGTH}
               aria-describedby={counterId}
+              aria-invalid={error ? true : undefined}
               disabled={pending}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => {
+                setName(event.target.value)
+                setError(null)
+              }}
             />
             <div className="-mt-2 flex items-start justify-between gap-3">
               {error ? <p role="alert" className="text-sm text-ember-red">{error}</p> : <span />}
-              <p
-                id={counterId}
-                className={cn(
-                  'shrink-0 font-mono text-xs tabular-nums',
-                  atLimit ? 'text-ember-red' : 'text-muted'
-                )}
-              >
-                {atLimit && 'Character limit reached · '}
-                {name.length}/{PROJECT_NAME_MAX_LENGTH}
-              </p>
+              <CharacterCount id={counterId} length={name.trim().length} max={TEXT_LIMITS.projectName} />
             </div>
           </div>
           <div className="flex justify-end gap-3 border-t border-border bg-subtle px-6 py-4">

@@ -1,9 +1,8 @@
 import { z } from 'zod'
+import { TEXT_LIMITS } from './limits'
 
 export const UuidSchema = z.guid('Invalid UUID')
-/** Mirrors the projects_name_length CHECK constraint in the projects migration. */
-export const PROJECT_NAME_MAX_LENGTH = 80
-export const ProjectNameSchema = z.string().trim().min(1).max(PROJECT_NAME_MAX_LENGTH)
+export const ProjectNameSchema = z.string().trim().min(1).max(TEXT_LIMITS.projectName)
 
 export function uuidString(message = 'Invalid UUID') {
   return z.guid(message)

@@ -10,6 +10,7 @@ const micSelectId = 'capture-mic-select'
 interface RecordAudioPanelProps {
   title: string
   setTitle: (value: string) => void
+  titleError: string | null
   keyTerms: string[]
   keyTermInput: string
   setKeyTermInput: (value: string) => void
@@ -26,6 +27,7 @@ interface RecordAudioPanelProps {
 export default function RecordAudioPanel({
   title,
   setTitle,
+  titleError,
   keyTerms,
   keyTermInput,
   setKeyTermInput,
@@ -152,6 +154,7 @@ export default function RecordAudioPanel({
       <CaptureMetadataFields
         title={title}
         setTitle={setTitle}
+        titleError={titleError}
         keyTerms={keyTerms}
         keyTermInput={keyTermInput}
         setKeyTermInput={setKeyTermInput}

@@ -369,3 +369,38 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
   })
 })
+
+describe('runCaptureUpload title', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(global as unknown as { fetch: typeof fetchMock }).fetch = fetchMock
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          transcript: { id: 'p1' },
+          storagePath: 'u/p1/rec.webm',
+          deduped: true,
+          sourceObjectKey: 'u/p1/rec.webm',
+          status: 'created',
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
+  })
+
+  function createRequestTitle(): string {
+    return JSON.parse(fetchMock.mock.calls[0][1].body).title
+  }
+
+  test('passes an explicit title through unchanged, even over the limit', async () => {
+    const title = 'x'.repeat(130)
+    await runCaptureUpload(makeFile(), title, [])
+    expect(createRequestTitle()).toBe(title)
+  })
+
+  test('fits only the filename fallback under the limit', async () => {
+    const longName = new File([new Uint8Array(16)], `${'y'.repeat(200)}.webm`, { type: 'audio/webm' })
+    await runCaptureUpload(longName, '', [])
+    expect(createRequestTitle()).toHaveLength(120)
+    expect(createRequestTitle().endsWith('…')).toBe(true)
+  })
+})

@@ -1,31 +1,43 @@
+import { TEXT_LIMITS } from '@/contracts/limits'
+import { transcriptTitleTooLong } from '@/core/transcripts/title'
+import { captureTitleInputId } from './shared'
+import { CharacterCount } from '@/components/ui/character-count'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
-const titleInputId = 'capture-title-input'
+const titleCountId = 'capture-title-count'
 
 interface CaptureDetailsProps {
   title: string
   setTitle: (value: string) => void
+  /** Set after a submit attempt was blocked by an over-long title. */
+  titleError: string | null
   isUploading: boolean
 }
 
-export default function CaptureDetails({ title, setTitle, isUploading }: CaptureDetailsProps) {
+export default function CaptureDetails({ title, setTitle, titleError, isUploading }: CaptureDetailsProps) {
   return (
     <div className="space-y-4 pt-2 border-t border-border">
       <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Transcript Details</p>
 
       <div className="space-y-1">
-        <Label className="text-xs font-medium opacity-80" htmlFor={titleInputId}>Title</Label>
+        <Label className="text-xs font-medium opacity-80" htmlFor={captureTitleInputId}>Title</Label>
         <Input
-          id={titleInputId}
+          id={captureTitleInputId}
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g., Client Interview - January 2026"
+          aria-describedby={titleCountId}
+          aria-invalid={transcriptTitleTooLong(title) ? true : undefined}
           disabled={isUploading}
         />
+        <div className="flex items-start justify-between gap-3">
+          {titleError ? <p role="alert" className="text-xs text-ember-red">{titleError}</p> : <span />}
+          <CharacterCount id={titleCountId} length={title.trim().length} max={TEXT_LIMITS.transcriptTitle} />
+        </div>
       </div>
 
       <div className="space-y-1">
