@@ -82,4 +82,49 @@ describe('useCaptureForm', () => {
     expect(showCaptureWarningMock).toHaveBeenCalledWith('project_missing')
     expect(pushMock).not.toHaveBeenCalled()
   })
+
+  test('prefills an over-long filename in full and blocks submit until it is shortened', async () => {
+    const longName = 'z'.repeat(130)
+    const file = new File(['audio'], `${longName}.wav`, { type: 'audio/wav' })
+    const { result } = renderHook(() =>
+      useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal: jest.fn(), projectId: null })
+    )
+
+    act(() => {
+      result.current.handleFileSelect(file)
+    })
+    expect(result.current.title).toBe(longName)
+    expect(result.current.titleError).toBeNull()
+
+    await act(async () => {
+      await result.current.handleSubmit()
+    })
+    expect(uploadMock).not.toHaveBeenCalled()
+    expect(result.current.titleError).toBe('Titles must be 120 characters or fewer.')
+
+    act(() => {
+      result.current.setTitle('z'.repeat(120))
+    })
+    expect(result.current.titleError).toBeNull()
+  })
+
+  test('sends a cleared title empty so the upload names it from the file', async () => {
+    uploadMock.mockResolvedValue({ outcome: 'started', transcriptId: 'transcript-1' })
+    const file = new File(['audio'], 'sample.wav', { type: 'audio/wav' })
+    const { result } = renderHook(() =>
+      useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal: jest.fn(), projectId: null })
+    )
+
+    act(() => {
+      result.current.handleFileSelect(file)
+    })
+    act(() => {
+      result.current.setTitle('   ')
+    })
+    await act(async () => {
+      await result.current.handleSubmit()
+    })
+
+    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), '', [], null)
+  })
 })

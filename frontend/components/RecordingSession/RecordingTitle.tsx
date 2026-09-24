@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
+import { TEXT_LIMITS } from '@/contracts/limits'
+import { CharacterCount } from '@/components/ui/character-count'
 import {
   useRecordingActions,
   useRecordingSession,
@@ -19,6 +21,7 @@ const TITLE_EDIT_HINT_ID = 'recording-title-edit-hint'
 
 export default function RecordingTitle() {
   const snapshot = useRecordingSession()
+  const titleCountId = useId()
   const actions = useRecordingActions()
 
   const displayTitle =
@@ -29,6 +32,7 @@ export default function RecordingTitle() {
     editingTitle,
     titleInput,
     setTitleInput,
+    titleError,
     titleInputRef,
     startEditingTitle,
     cancelEditingTitle,
@@ -47,17 +51,25 @@ export default function RecordingTitle() {
 
   if (editingTitle && editable) {
     return (
-      <input
-        ref={titleInputRef}
-        data-testid="recording-title-input"
-        className={`${TITLE_CLASSES} bg-transparent border-b-2 border-trust-blue px-1 py-0.5 min-w-[280px] focus:outline-hidden`}
-        value={titleInput}
-        onChange={(e) => setTitleInput(e.target.value)}
-        onKeyDown={onTitleKeyDown}
-        onBlur={onTitleBlur}
-        placeholder={snapshot.generatedTitle ?? 'Recording title'}
-        aria-label="Recording title"
-      />
+      <div>
+        <input
+          ref={titleInputRef}
+          data-testid="recording-title-input"
+          className={`${TITLE_CLASSES} bg-transparent border-b-2 border-trust-blue aria-invalid:border-ember-red px-1 py-0.5 min-w-[280px] focus:outline-hidden`}
+          value={titleInput}
+          onChange={(e) => setTitleInput(e.target.value)}
+          onKeyDown={onTitleKeyDown}
+          onBlur={onTitleBlur}
+          placeholder={snapshot.generatedTitle ?? 'Recording title'}
+          aria-label="Recording title"
+          aria-describedby={titleCountId}
+          aria-invalid={titleError ? true : undefined}
+        />
+        <CharacterCount id={titleCountId} length={titleInput.trim().length} max={TEXT_LIMITS.transcriptTitle} className="mt-1" />
+        {titleError && (
+          <p role="alert" className="mt-1 text-sm text-ember-red">{titleError}</p>
+        )}
+      </div>
     )
   }
 

@@ -328,3 +328,10 @@ body {
     transform: translateY(0);
   }
 }
+
+/* CharacterCount: a single soft pulse as the count crosses its limit */
+@keyframes limitPulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}

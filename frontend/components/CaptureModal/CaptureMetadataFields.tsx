@@ -4,6 +4,7 @@ import KeyTermsInput from './KeyTermsInput'
 interface CaptureMetadataFieldsProps {
   title: string
   setTitle: (value: string) => void
+  titleError: string | null
   keyTerms: string[]
   keyTermInput: string
   setKeyTermInput: (value: string) => void
@@ -17,6 +18,7 @@ interface CaptureMetadataFieldsProps {
 export default function CaptureMetadataFields({
   title,
   setTitle,
+  titleError,
   keyTerms,
   keyTermInput,
   setKeyTermInput,
@@ -31,6 +33,7 @@ export default function CaptureMetadataFields({
       <CaptureDetails
         title={title}
         setTitle={setTitle}
+        titleError={titleError}
         isUploading={isUploading}
       />
       <KeyTermsInput

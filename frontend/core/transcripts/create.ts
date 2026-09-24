@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CreateTranscriptBody, CreateTranscriptWarning } from '@/contracts/api'
 import { getMediaPath } from '@/infra/supabase/storage'
 import { isProjectGoneError } from '@/lib/supabase/project-errors'
+import { fitTranscriptTitle } from './title'
 
 export interface TranscriptCreated {
     id: string
@@ -96,7 +97,7 @@ export async function createTranscript(
             .from('transcripts')
             .insert({
                 user_id: userId,
-                title: title || filename,
+                title: title || fitTranscriptTitle(filename),
                 status: 'created',
                 ...(upload_intent_id ? { upload_intent_id } : {}),
                 ...(projectId !== undefined ? { project_id: projectId } : {}),

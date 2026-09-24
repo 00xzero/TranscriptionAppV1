@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useId } from 'react'
+import { TEXT_LIMITS } from '@/contracts/limits'
+import { CharacterCount } from '@/components/ui/character-count'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
@@ -37,6 +39,7 @@ export default function EditorHeader({
   onDeleteClick: () => void
   onMoveClick: () => void
 }) {
+  const titleCountId = useId()
   const showStatusInMetaRow = status !== 'Ready'
   const isStatusError = status.startsWith('Error:')
 
@@ -54,6 +57,8 @@ export default function EditorHeader({
               onBlur={onTitleBlur}
               placeholder="Transcript title"
               aria-label="Transcript title"
+              aria-describedby={titleCountId}
+              aria-invalid={titleSaveError ? true : undefined}
             />
           ) : (
             <Tooltip>
@@ -78,8 +83,11 @@ export default function EditorHeader({
             </Tooltip>
           )}
         </div>
+        {editingTitle && (
+          <CharacterCount id={titleCountId} length={titleInput.trim().length} max={TEXT_LIMITS.transcriptTitle} className="-mt-2 mb-2" />
+        )}
         {titleSaveError && (
-          <span className="text-sm text-ember-red">{titleSaveError}</span>
+          <span role="alert" className="text-sm text-ember-red">{titleSaveError}</span>
         )}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0 flex-1 flex-wrap text-xs font-mono uppercase tracking-wider text-ink/50 dark:text-paper/40">

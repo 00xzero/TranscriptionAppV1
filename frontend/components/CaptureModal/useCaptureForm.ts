@@ -4,7 +4,8 @@ import { useCapture } from '@/lib/capture/useCapture'
 import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { showCaptureWarning } from '@/lib/capture/warnings'
-import { formatFileSize } from './shared'
+import { captureTitleInputId, formatFileSize } from './shared'
+import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
@@ -24,6 +25,7 @@ export function useCaptureForm({
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
+  const [titleSubmitBlocked, setTitleSubmitBlocked] = useState(false)
 
   const {
     keyTermInput,
@@ -44,6 +46,7 @@ export function useCaptureForm({
       setKeyTermInput('')
       setKeyTermsError(null)
       setFileError(null)
+      setTitleSubmitBlocked(false)
       resetError()
     }
   }, [isCaptureModalOpen, resetError, setKeyTermInput, setKeyTermsError])
@@ -56,6 +59,8 @@ export function useCaptureForm({
     } else {
       setFileError(null)
       setSelectedFile(file)
+      // Prefilled in full, even over the title limit: the user sees it in the field
+      // and is asked to shorten it on submit, rather than having it cut for them.
       if (!title) {
         const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
         setTitle(nameWithoutExt)
@@ -63,10 +68,24 @@ export function useCaptureForm({
     }
   }, [title])
 
+  /**
+   * Shared by both submit paths (upload and start recording). Returns true when the
+   * title is over the limit: the submit stops and focus goes to the title field.
+   */
+  const blockOverLongTitle = useCallback(() => {
+    if (!transcriptTitleTooLong(title)) return false
+    setTitleSubmitBlocked(true)
+    document.getElementById(captureTitleInputId)?.focus()
+    return true
+  }, [title])
+
   const handleSubmit = useCallback(async () => {
     if (!selectedFile || isUploading) return
+    if (blockOverLongTitle()) return
 
-    const result = await upload(selectedFile, title || selectedFile.name, keyTerms, projectId)
+    // A cleared title is sent empty so the upload's filename fallback, which fits
+    // the name under the limit, names the transcript instead.
+    const result = await upload(selectedFile, title.trim(), keyTerms, projectId)
     if (!result) return
 
     closeCaptureModal()
@@ -82,7 +101,10 @@ export function useCaptureForm({
       }
       guardedNav.push(`/transcripts?${params.toString()}`)
     }
-  }, [selectedFile, title, keyTerms, projectId, isUploading, upload, closeCaptureModal, guardedNav])
+  }, [selectedFile, title, keyTerms, projectId, isUploading, upload, closeCaptureModal, guardedNav, blockOverLongTitle])
+
+  // Clears itself once the title fits again.
+  const titleError = titleSubmitBlocked && transcriptTitleTooLong(title) ? TRANSCRIPT_TITLE_TOO_LONG : null
 
   const canSubmit = Boolean(selectedFile && !isUploading && !fileError)
   const displayError = fileError ?? error ?? null
@@ -103,6 +125,8 @@ export function useCaptureForm({
     handleFileSelect,
     title,
     setTitle,
+    titleError,
+    blockOverLongTitle,
     keyTerms,
     keyTermInput,
     setKeyTermInput,

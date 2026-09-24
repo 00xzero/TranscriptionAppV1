@@ -142,6 +142,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     !editing.editingId
   const waveformCollapsed = sync.waveformCollapsed && !playback.expandedPlayerScrubbing
   const didInteractOutsidePopoverRef = useRef(false)
+  // True while the popover holds a name over the length limit; an outside click
+  // then leaves it open rather than discarding the typed name.
+  const holdSpeakerPopoverOpenRef = useRef(false)
+  const setHoldSpeakerPopoverOpen = useCallback((hold: boolean) => {
+    holdSpeakerPopoverOpenRef.current = hold
+  }, [])
 
   return (
     <div className="editor-scroll-shell flex flex-col h-full relative">
@@ -320,7 +326,11 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
           // own search input on mount (SpeakerPopoverContent.tsx useEffect)
           onOpenAutoFocus={(event) => event.preventDefault()}
-          onInteractOutside={() => {
+          onInteractOutside={(event) => {
+            if (holdSpeakerPopoverOpenRef.current) {
+              event.preventDefault()
+              return
+            }
             didInteractOutsidePopoverRef.current = true
           }}
           onCloseAutoFocus={(event) => {
@@ -347,6 +357,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
             onRenameSpeaker={speakerHook.handleRenameSpeaker}
             onUntag={speakerHook.handleUntag}
             getColorForSpeaker={speakerHook.colorForSpeaker}
+            onHoldOpenChange={setHoldSpeakerPopoverOpen}
           />
         </PopoverContent>
       </Popover>

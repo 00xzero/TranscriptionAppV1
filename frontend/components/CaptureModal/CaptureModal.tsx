@@ -131,6 +131,8 @@ export default function CaptureModal() {
     handleFileSelect,
     title,
     setTitle,
+    titleError,
+    blockOverLongTitle,
     keyTerms,
     keyTermInput,
     setKeyTermInput,
@@ -154,6 +156,7 @@ export default function CaptureModal() {
 
   const handleStartRecording = async () => {
     setRecordSubmitError(null)
+    if (blockOverLongTitle()) return
     if (codecSupported === false) {
       setRecordSubmitError(CODEC_UNSUPPORTED_TOOLTIP)
       return
@@ -403,6 +406,7 @@ export default function CaptureModal() {
                 handleFileSelect={handleFileSelect}
                 title={title}
                 setTitle={setTitle}
+                titleError={titleError}
                 keyTerms={keyTerms}
                 keyTermInput={keyTermInput}
                 setKeyTermInput={setKeyTermInput}
@@ -419,6 +423,7 @@ export default function CaptureModal() {
               <RecordAudioPanel
                 title={title}
                 setTitle={setTitle}
+                titleError={titleError}
                 keyTerms={keyTerms}
                 keyTermInput={keyTermInput}
                 setKeyTermInput={setKeyTermInput}

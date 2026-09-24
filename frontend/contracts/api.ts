@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { TEXT_LIMITS } from './limits'
 import { UuidSchema } from './primitives'
 
 export const MAX_KEY_TERMS = 100
 
 export const CreateTranscriptBodySchema = z.object({
-  title: z.string().max(500).optional(),
+  title: z.string().max(TEXT_LIMITS.transcriptTitle).optional(),
   filename: z.string().min(1, 'filename is required'),
   key_terms: z.array(z.string().max(100)).max(MAX_KEY_TERMS).optional(),
   // Client-generated, user-scoped upload idempotency key. Optional so the

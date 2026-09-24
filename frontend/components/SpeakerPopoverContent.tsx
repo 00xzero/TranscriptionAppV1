@@ -1,10 +1,18 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Speaker } from '@/contracts/db'
 import { speakerInitials } from '@/lib/speakers/palette'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { CharacterCount } from '@/components/ui/character-count'
+import { TEXT_LIMITS } from '@/contracts/limits'
+
+const SPEAKER_NAME_TOO_LONG = `Speaker names must be ${TEXT_LIMITS.speakerName} characters or fewer.`
+
+function speakerNameTooLong(name: string) {
+  return name.trim().length > TEXT_LIMITS.speakerName
+}
 
 type SpeakerPopoverContentProps = {
   speakers: Speaker[]
@@ -20,6 +28,11 @@ type SpeakerPopoverContentProps = {
    * without the transcript-wide map.
    */
   getColorForSpeaker: (speaker?: Speaker) => string
+  /**
+   * Reports whether a typed name is over the length limit, so the popover can
+   * refuse to close on an outside click and discard it. Escape still cancels.
+   */
+  onHoldOpenChange?: (hold: boolean) => void
 }
 
 export default function SpeakerPopoverContent({
@@ -30,11 +43,20 @@ export default function SpeakerPopoverContent({
   onRenameSpeaker,
   onUntag,
   getColorForSpeaker,
+  onHoldOpenChange,
 }: SpeakerPopoverContentProps) {
   const [searchValue, setSearchValue] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const newNameCountId = useId()
+  const renameCountId = useId()
+  // Set when a save was refused; the errors clear themselves once the name fits.
+  const [tagBlocked, setTagBlocked] = useState(false)
+  const [renameBlocked, setRenameBlocked] = useState(false)
+  const newNameTooLong = speakerNameTooLong(searchValue)
+  const renameTooLong = editingId !== null && speakerNameTooLong(editValue)
+  const holdOpen = newNameTooLong || renameTooLong
 
   const filteredSpeakers = useMemo(() => {
     if (!searchValue.trim()) return speakers
@@ -56,12 +78,19 @@ export default function SpeakerPopoverContent({
     inputRef.current?.focus()
   }, [])
 
+  useEffect(() => {
+    onHoldOpenChange?.(holdOpen)
+  }, [holdOpen, onHoldOpenChange])
+
   const handleTagClick = () => {
     const trimmed = searchValue.trim()
     if (!trimmed) return
 
     if (exactMatch) {
       onSelectSpeaker(exactMatch)
+    } else if (speakerNameTooLong(trimmed)) {
+      setTagBlocked(true)
+      return
     } else {
       onCreateSpeaker(trimmed)
     }
@@ -79,6 +108,7 @@ export default function SpeakerPopoverContent({
     if (speaker.id === currentSpeaker?.id) {
       setEditingId(speaker.id)
       setEditValue(speaker.label)
+      setRenameBlocked(false)
     } else {
       onSelectSpeaker(speaker)
     }
@@ -86,6 +116,11 @@ export default function SpeakerPopoverContent({
 
   const handleRenameSubmit = (speaker: Speaker) => {
     const trimmed = editValue.trim()
+    // Over the limit: stay in edit mode (blur included) with the typed text.
+    if (speakerNameTooLong(trimmed)) {
+      setRenameBlocked(true)
+      return
+    }
     if (trimmed && trimmed !== speaker.label) {
       onRenameSpeaker(speaker, trimmed)
     }
@@ -130,51 +165,60 @@ export default function SpeakerPopoverContent({
             const isEditing = editingId === sp.id
 
             return (
-              <div
-                key={sp.id}
-                role="button"
-                tabIndex={isEditing ? -1 : 0}
-                aria-label={isCurrentSp ? `Current speaker ${sp.label}. Activate to rename` : `Assign speaker ${sp.label}`}
-                title={isCurrentSp ? `Rename ${sp.label}` : `Assign ${sp.label}`}
-                className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
-                  }`}
-                onClick={() => !isEditing && handleSpeakerClick(sp)}
-                onKeyDown={e => {
-                  if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
-                    e.preventDefault()
-                    handleSpeakerClick(sp)
-                  }
-                }}
-              >
+              <React.Fragment key={sp.id}>
                 <div
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-solid-foreground"
-                  style={{ backgroundColor: color }}
+                  role="button"
+                  tabIndex={isEditing ? -1 : 0}
+                  aria-label={isCurrentSp ? `Current speaker ${sp.label}. Activate to rename` : `Assign speaker ${sp.label}`}
+                  title={isCurrentSp ? `Rename ${sp.label}` : `Assign ${sp.label}`}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent ${isCurrentSp ? 'bg-accent-soft' : 'hover:bg-surface-alt focus:bg-surface-alt'
+                    }`}
+                  onClick={() => !isEditing && handleSpeakerClick(sp)}
+                  onKeyDown={e => {
+                    if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault()
+                      handleSpeakerClick(sp)
+                    }
+                  }}
                 >
-                  {initials}
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-solid-foreground"
+                    style={{ backgroundColor: color }}
+                  >
+                    {initials}
+                  </div>
+
+                  {isEditing ? (
+                    <>
+                      <Input
+                        type="text"
+                        className="min-w-0 flex-1 bg-surface px-2 py-1"
+                        aria-describedby={renameCountId}
+                        aria-invalid={renameTooLong ? true : undefined}
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onBlur={() => handleRenameSubmit(sp)}
+                        onKeyDown={e => handleRenameKeyDown(e, sp)}
+                        aria-label={`Rename speaker ${sp.label}`}
+                        autoFocus
+                        onClick={e => e.stopPropagation()}
+                      />
+                      <CharacterCount id={renameCountId} length={editValue.trim().length} max={TEXT_LIMITS.speakerName} />
+                    </>
+                  ) : (
+                    <span className="flex-1 text-sm truncate">{sp.label}</span>
+                  )}
+
+                  {isCurrentSp && !isEditing && (
+                    <span className="text-[10px] text-muted bg-surface-alt px-2 py-0.5 rounded-sm">
+                      Click to rename
+                    </span>
+                  )}
                 </div>
-
-                {isEditing ? (
-                  <Input
-                    type="text"
-                    className="flex-1 bg-surface px-2 py-1"
-                    value={editValue}
-                    onChange={e => setEditValue(e.target.value)}
-                    onBlur={() => handleRenameSubmit(sp)}
-                    onKeyDown={e => handleRenameKeyDown(e, sp)}
-                    aria-label={`Rename speaker ${sp.label}`}
-                    autoFocus
-                    onClick={e => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className="flex-1 text-sm truncate">{sp.label}</span>
+                {isEditing && renameBlocked && renameTooLong && (
+                  <p role="alert" className="px-3 pb-2 text-xs text-ember-red">{SPEAKER_NAME_TOO_LONG}</p>
                 )}
-
-                {isCurrentSp && !isEditing && (
-                  <span className="text-[10px] text-muted bg-surface-alt px-2 py-0.5 rounded-sm">
-                    Click to rename
-                  </span>
-                )}
-              </div>
+              </React.Fragment>
             )
           })
         )}
@@ -187,6 +231,8 @@ export default function SpeakerPopoverContent({
             type="text"
             className="flex-1 bg-surface py-1.5 placeholder:text-muted"
             placeholder="Type speaker's name here"
+            aria-describedby={newNameCountId}
+            aria-invalid={newNameTooLong ? true : undefined}
             value={searchValue}
             onChange={e => setSearchValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -203,6 +249,14 @@ export default function SpeakerPopoverContent({
           >
             Tag
           </Button>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          {tagBlocked && newNameTooLong ? (
+            <p role="alert" className="text-xs text-ember-red">{SPEAKER_NAME_TOO_LONG}</p>
+          ) : (
+            <span />
+          )}
+          <CharacterCount id={newNameCountId} length={searchValue.trim().length} max={TEXT_LIMITS.speakerName} />
         </div>
 
         {currentSpeaker && isCurrentSpeakerNamed && (

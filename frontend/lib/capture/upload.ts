@@ -14,6 +14,7 @@ import {
     mapProjectWriteError,
 } from '@/lib/supabase/project-errors'
 import { transferToStorage } from './storageTransfer'
+import { fitTranscriptTitle } from '@/core/transcripts/title'
 
 /**
  * Supported file types for upload.
@@ -300,7 +301,7 @@ export async function runCaptureUpload(
             headers: { 'Content-Type': 'application/json' },
             signal,
             body: JSON.stringify({
-                title: title || file.name,
+                title: title || fitTranscriptTitle(file.name),
                 filename: file.name,
                 key_terms: keyTerms.length > 0 ? keyTerms : undefined,
                 upload_intent_id: options?.uploadIntentId,

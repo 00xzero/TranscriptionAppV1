@@ -1,11 +1,13 @@
 import { useCallback, useRef, useState } from 'react'
+import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 
 /**
  * Inline title-edit state for the live recording page. Mirrors the editor's
  * useTranscriptTitleEditing interaction (click to edit, Enter/blur to save,
  * Escape to cancel) but is synchronous: there is no transcript row yet, so
  * `onSave` writes to the in-memory session snapshot and cannot fail — hence no
- * saving/error state.
+ * saving state. The one error is a title over the length limit, which keeps the
+ * field open instead of saving.
  *
  * An empty value is a deliberate "clear" (saves `null`), which restores the
  * generated `Recording — {date}` fallback in the store; this differs from the
@@ -21,6 +23,7 @@ export function useRecordingTitleEditing({
 }) {
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
+  const [tooLongSaveBlocked, setTooLongSaveBlocked] = useState(false)
   const titleInputRef = useRef<HTMLInputElement | null>(null)
   // Tracks editing state synchronously so a blur firing after Enter/Escape
   // (the input unmounts) doesn't double-save or resurrect a cancelled edit.
@@ -33,6 +36,7 @@ export function useRecordingTitleEditing({
 
   const startEditingTitle = useCallback(() => {
     setTitleInput(title || '')
+    setTooLongSaveBlocked(false)
     setEditing(true)
     setTimeout(() => titleInputRef.current?.focus(), 0)
   }, [title, setEditing])
@@ -43,8 +47,13 @@ export function useRecordingTitleEditing({
 
   const saveTitle = useCallback(() => {
     if (!editingRef.current) return
-    setEditing(false)
     const next = titleInput.trim()
+    // Over the limit: stay in edit mode with the typed text; Escape cancels.
+    if (transcriptTitleTooLong(next)) {
+      setTooLongSaveBlocked(true)
+      return
+    }
+    setEditing(false)
     onSave(next ? next : null)
   }, [titleInput, onSave, setEditing])
 
@@ -65,10 +74,15 @@ export function useRecordingTitleEditing({
     saveTitle()
   }, [saveTitle])
 
+  // Clears itself as soon as the title fits again.
+  const titleError =
+    tooLongSaveBlocked && transcriptTitleTooLong(titleInput) ? TRANSCRIPT_TITLE_TOO_LONG : null
+
   return {
     editingTitle,
     titleInput,
     setTitleInput,
+    titleError,
     titleInputRef,
     startEditingTitle,
     cancelEditingTitle,

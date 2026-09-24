@@ -6,6 +6,7 @@ interface UploadAudioPanelProps {
   handleFileSelect: (file: File) => void
   title: string
   setTitle: (value: string) => void
+  titleError: string | null
   keyTerms: string[]
   keyTermInput: string
   setKeyTermInput: (value: string) => void
@@ -23,6 +24,7 @@ export default function UploadAudioPanel({
   handleFileSelect,
   title,
   setTitle,
+  titleError,
   keyTerms,
   keyTermInput,
   setKeyTermInput,
@@ -46,6 +48,7 @@ export default function UploadAudioPanel({
       <CaptureMetadataFields
         title={title}
         setTitle={setTitle}
+        titleError={titleError}
         keyTerms={keyTerms}
         keyTermInput={keyTermInput}
         setKeyTermInput={setKeyTermInput}
