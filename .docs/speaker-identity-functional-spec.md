@@ -170,7 +170,7 @@ A correction cannot create a new local-only label.
 - The original transcript speaker and its name stay intact for its other segments.
 - A transcript speaker left with no segments stays in the database but is hidden from the picker and not counted.
 
-**Remove** (on the Current row) sends each segment of the passage back to the detected speaker Deepgram gave it. A segment already there is left alone, and Remove is not offered when nothing would change. Nothing is invented: after any sequence of removals, every segment shows a speaker Deepgram produced. For example, if Deepgram's `Speaker 1` is named Tibo, removing Tibo from two segments shows them as `Speaker 1`, and removing Tibo everywhere afterwards puts every segment back on `Speaker 1` as one speaker. It must never be labelled **Reset to generic name**.
+**Remove** (on the Current row) sends each segment of the passage back to Deepgram's original assignment: its detected speaker, or Unknown when Deepgram gave no number. A segment already there is left alone, and Remove is not offered when nothing would change. Nothing is invented. For example, if Deepgram's `Speaker 1` is named Tibo, removing Tibo from two segments shows them as `Speaker 1`, and removing Tibo everywhere afterwards puts every segment back on `Speaker 1` as one speaker. It must never be labelled **Reset to generic name**.
 
 **The whole-segment limitation.** Splitting a segment when the speaker changes partway through is out of scope (§12). Until it exists, the **This segment** option carries the hint as its tooltip: *"Speaker changes partway through a segment? Splitting isn't available yet — assign the segment to whoever says most of it."*
 

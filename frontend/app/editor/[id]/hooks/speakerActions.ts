@@ -111,11 +111,11 @@ export function homeSpeakerId(
   return speakers.find((speaker) => speaker.diarization_index === segment.diarization_index)?.id ?? null
 }
 
-/** What Remove would change: each segment not already on its detected speaker. */
+/** What Remove would change: each segment not on Deepgram's original assignment. */
 export function removalChanges(speakers: readonly Speaker[], segments: readonly Seg[]): SegmentSpeakerChange[] {
   return segments.flatMap((segment) => {
     const home = homeSpeakerId(speakers, segment)
-    return home && home !== segment.speaker_id
+    return home !== segment.speaker_id
       ? [{ segment_id: segment.id, expected_speaker_id: segment.speaker_id, speaker_id: home }]
       : []
   })
@@ -278,8 +278,8 @@ export function correctAction(
 }
 
 /**
- * Remove: segments go back to the detected speaker Deepgram gave them. Nothing
- * is invented; a segment already there is left alone.
+ * Remove: segments go back to Deepgram's assignment, including Unknown when
+ * Deepgram gave no number. A segment already there is left alone.
  */
 export function removeAction(
   store: SpeakerStore,
@@ -287,13 +287,13 @@ export function removeAction(
     segmentIds: ReadonlySet<string>
     applyTo: ApplyTo
     fromLabel: string
-    labelForSpeaker: (speakerId: string) => string
+    labelForSpeaker: (speakerId: string | null) => string
   }
 ): SpeakerAction | null {
   const segments = store.segments().filter((segment) => segmentIds.has(segment.id))
   const changes = removalChanges(store.speakers(), segments)
   if (changes.length === 0) return null
-  const homes = [...new Set(changes.map((change) => change.speaker_id!))]
+  const homes = [...new Set(changes.map((change) => change.speaker_id))]
   const where = applyTo === 'speaker' ? '' : ` from this ${applyTo}`
   const back = homes.length === 1 ? ` — back to ${labelForSpeaker(homes[0])}` : ''
   return reassignAction(store, changes, {
