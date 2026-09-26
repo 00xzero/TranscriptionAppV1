@@ -26,7 +26,8 @@ const speaker = {
   transcriptId: '22222222-2222-2222-2222-222222222222',
   ordinal: 0,
   customLabel: 'Kate',
-  paletteIndex: 0,
+  personName: null,
+  personColor: null,
 }
 
 const PROJECT_A = '33333333-3333-3333-3333-333333333333'
@@ -124,8 +125,8 @@ describe('fetchProjectSpeakerSummaries', () => {
       ['a missing count', [{ project_id: PROJECT_A, preview: [] }]],
       ['a negative count', [row(PROJECT_A, -1)]],
       ['a non-uuid project id', [row('not-a-uuid', 0)]],
-      ['a preview entry without a palette index', [
-        row(PROJECT_A, 1, [{ ...speaker, paletteIndex: undefined }]),
+      ['a preview entry without its person fields', [
+        row(PROJECT_A, 1, [{ ...speaker, personName: undefined }]),
       ]],
       ['an object where rows were expected', { project_id: PROJECT_A }],
     ])('%s', async (_label, data) => {

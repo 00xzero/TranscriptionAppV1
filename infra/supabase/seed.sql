@@ -20,6 +20,7 @@ DECLARE
     transcript_2_id UUID := '22222222-2222-2222-2222-222222222222';
     speaker_1_id UUID := 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
     speaker_2_id UUID := 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
+    interviewer_id UUID := 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
     segment_1_id UUID := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     segment_2_id UUID := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 BEGIN
@@ -46,17 +47,20 @@ BEGIN
         test_user_id || '/' || transcript_1_id || '/interview.mp3'
     ) ON CONFLICT (id) DO NOTHING;
 
-    -- Speakers for Transcript 1: one with a transcript-local label, one generic
-    -- ("Speaker 1"), as diarized voices would be.
+    -- Speakers for Transcript 1: Deepgram detected voices 0 and 1, shown as
+    -- Speaker 1 and Speaker 2. The first was then named "Interviewer", which
+    -- moved its segment to a named speaker; its detected speaker stays unnamed,
+    -- so Remove can send the segment back.
     INSERT INTO speakers (id, transcript_id, user_id, ordinal, custom_label, diarization_index) VALUES
-        (speaker_1_id, transcript_1_id, test_user_id, 0, 'Interviewer', 0),
-        (speaker_2_id, transcript_1_id, test_user_id, 1, NULL, 1)
+        (speaker_1_id, transcript_1_id, test_user_id, 1, NULL, 0),
+        (speaker_2_id, transcript_1_id, test_user_id, 2, NULL, 1),
+        (interviewer_id, transcript_1_id, test_user_id, 3, 'Interviewer', NULL)
     ON CONFLICT (id) DO NOTHING;
 
-    -- Segments for Transcript 1
-    INSERT INTO segments (id, transcript_id, speaker_id, start_ms, end_ms, text) VALUES
-        (segment_1_id, transcript_1_id, speaker_1_id, 0, 5000, 'Welcome to the show. Today we have a special guest.'),
-        (segment_2_id, transcript_1_id, speaker_2_id, 5500, 10000, 'Thank you for having me. It is great to be here.')
+    -- Segments for Transcript 1, each keeping its Deepgram number
+    INSERT INTO segments (id, transcript_id, speaker_id, diarization_index, start_ms, end_ms, text) VALUES
+        (segment_1_id, transcript_1_id, interviewer_id, 0, 0, 5000, 'Welcome to the show. Today we have a special guest.'),
+        (segment_2_id, transcript_1_id, speaker_2_id, 1, 5500, 10000, 'Thank you for having me. It is great to be here.')
     ON CONFLICT (id) DO NOTHING;
 
     -- Watchlist for Transcript 1

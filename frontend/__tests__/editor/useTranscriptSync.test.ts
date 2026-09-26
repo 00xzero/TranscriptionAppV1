@@ -9,6 +9,7 @@ function makeSegment(overrides: Partial<Seg> = {}): Seg {
     id: 's1',
     transcript_id: 'p1',
     speaker_id: 'sp1',
+    diarization_index: null,
     start_ms: 0,
     end_ms: 5000,
     text: 'First segment',

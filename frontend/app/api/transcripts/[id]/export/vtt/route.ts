@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
 import { generateVtt, normalizeFilename } from '@/core/exports'
-import { fetchExportData } from '@/core/exports/data'
+import { fetchExportData } from '@/lib/supabase/export-data'
 
 export async function GET(
     request: NextRequest,
@@ -28,12 +28,12 @@ export async function GET(
         )
     }
 
-    const { transcript, exportSegments, speakerLabels } = result.data
+    const { transcript, exportSegments, speakers } = result.data
 
     // Generate VTT
     const vttContent = generateVtt({
         segments: exportSegments,
-        speakerLabels,
+        speakers,
         transcriptId,
     })
 

@@ -3,10 +3,11 @@
 import type { ReactNode } from 'react'
 import { Ghost } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
 import { speakerBaseLabel } from '@/core/speakers/labels'
-import { speakerInitials, speakerPaletteColor } from '@/lib/speakers/palette'
+import { SPEAKER_COLOR_FALLBACK, speakerInitials } from '@/lib/speakers/palette'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
@@ -53,14 +54,8 @@ const TOOLTIP_SKIP_DELAY_MS = 400
  */
 const TOOLTIP_ON_CARD = 'border border-border'
 
-/**
- * select-none because these are pictures of people, not text: without it the
- * initials drag-select like a caption and the caret turns into an I-beam,
- * which reads as "this is copyable content". The cursor is set per surface —
- * see `href`.
- */
-const CIRCLE_BASE =
-  'flex shrink-0 select-none items-center justify-center rounded-full font-semibold ring-2 ring-panel'
+/** The ring separates overlapping circles. The cursor is set per surface; see `href`. */
+const CIRCLE_RING = 'ring-2 ring-panel'
 
 /**
  * Said instead of "0 speakers", which is a true but joyless way to describe a
@@ -70,9 +65,9 @@ const CIRCLE_BASE =
  */
 const EMPTY_COPY = 'No speakers yet!'
 
-/** The speaker's own label, from the shared resolver. */
+/** A linked speaker is its person, as in the editor; any other keeps its own label. */
 function displayName(speaker: ProjectSpeakerPreview): string {
-  return speakerBaseLabel(speaker.ordinal, speaker.customLabel)
+  return speaker.personName ?? speakerBaseLabel(speaker.ordinal, speaker.customLabel)
 }
 
 /**
@@ -83,7 +78,7 @@ function displayName(speaker: ProjectSpeakerPreview): string {
  * header steps down to 4px.
  */
 const SIZES = {
-  card: { circle: 'h-7 w-7 text-[10px]', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '' },
+  card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '' },
   // In the header the group shares a row with the counts and the action buttons,
   // so the count text drops out when that row is tight rather than wrapping the
   // group onto a second line and making the card taller. The full count stays in
@@ -104,7 +99,7 @@ const SIZES = {
   // 719px row renders the label and the header grows 135px -> 171px, which makes
   // the card's height depend on how many transcripts it happens to hold.
   header: {
-    circle: 'h-6 w-6 text-[9px]',
+    avatar: 'sm',
     row: 'min-h-6',
     overlap: '-ml-1',
     count: 'font-mono text-xs @max-3xl:hidden',
@@ -204,13 +199,10 @@ export function SpeakerAvatarGroup({
       >
         <div className="flex">
           {[0, 1, 2].map((item) => (
-            <div
+            <Avatar
               key={item}
-              className={cn(
-                'animate-pulse rounded-full bg-subtle ring-2 ring-panel',
-                styles.circle,
-                item > 0 && styles.overlap
-              )}
+              size={styles.avatar}
+              className={cn('animate-pulse bg-subtle', CIRCLE_RING, item > 0 && styles.overlap)}
             />
           ))}
         </div>
@@ -262,18 +254,15 @@ export function SpeakerAvatarGroup({
             {visible.map((speaker, index) => (
               <Tooltip key={speaker.id}>
                 <TooltipTrigger asChild>
-                  <div
-                    className={cn(
-                      CIRCLE_BASE,
-                      cursorClass,
-                      'text-solid-foreground',
-                      styles.circle,
-                      index > 0 && styles.overlap
-                    )}
-                    style={{ backgroundColor: speakerPaletteColor(speaker.paletteIndex) }}
+                  {/* A person in their preferred colour, an unlinked voice
+                      neutral: the editor's colour rules (spec §8). */}
+                  <Avatar
+                    size={styles.avatar}
+                    color={speaker.personColor ?? SPEAKER_COLOR_FALLBACK}
+                    className={cn(CIRCLE_RING, cursorClass, index > 0 && styles.overlap)}
                   >
                     {speakerInitials(displayName(speaker))}
-                  </div>
+                  </Avatar>
                 </TooltipTrigger>
                 <TooltipContent className={TOOLTIP_ON_CARD}>{displayName(speaker)}</TooltipContent>
               </Tooltip>
@@ -285,9 +274,10 @@ export function SpeakerAvatarGroup({
               // tooltip lists the overflow when it cannot.
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div
+                  <Avatar
+                    size={styles.avatar}
                     className={cn(
-                      CIRCLE_BASE,
+                      CIRCLE_RING,
                       cursorClass,
                       // bg-border, not bg-surface-alt. In dark mode surface-alt
                       // is #141414 against a #1D1E18 card -- 1.09:1 -- so the
@@ -297,12 +287,11 @@ export function SpeakerAvatarGroup({
                       // themes (#333333 on night-surface, #D1CEC5 on white),
                       // and text-foreground clears AA on either.
                       'bg-border text-foreground',
-                      styles.circle,
                       styles.overlap
                     )}
                   >
                     +{overflow}
-                  </div>
+                  </Avatar>
                 </TooltipTrigger>
                 <TooltipContent className={TOOLTIP_ON_CARD}>
                   {countLabel(overflow, 'more speaker', 'more speakers')}

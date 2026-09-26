@@ -1,5 +1,5 @@
 "use client"
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
@@ -8,7 +8,7 @@ import FindReplaceModal from '@/components/FindReplaceModal'
 import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
-import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverFrozenWhileClosed } from '@/components/ui/popover'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
@@ -48,9 +48,10 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     transcriptId,
     speakers: data.speakers,
     segments: data.segments,
+    peopleContext: data.peopleContext,
     setSpeakers: data.setSpeakers,
     setSegments: data.setSegments,
-    reloadSpeakerAssignments: data.reloadSpeakerAssignments,
+    setPeopleContext: data.setPeopleContext,
   })
 
   const handleTitleSaved = useCallback((newTitle: string) => {
@@ -125,15 +126,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   })
 
   // Derived values
-  const uniqueSpeakerCount = useMemo(() => {
-    const ids = new Set(data.segments.map(s => s.speaker_id).filter(Boolean))
-    return ids.size
-  }, [data.segments])
-
-  const currentSpeaker = useMemo(() => {
-    const speakerId = speakerHook.speakerPopover?.speakerId
-    return speakerId ? data.speakers.find(s => s.id === speakerId) : undefined
-  }, [data.speakers, speakerHook.speakerPopover])
+  const uniqueSpeakerCount = speakerHook.presentation.identities.length
 
   const syncButtonVisible =
     sync.mode !== 'seeking' &&
@@ -267,9 +260,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           activeSegId={sync.activeIds.segId}
           matchesBySeg={search.matchesBySeg}
           matchIndex={search.matchIndex}
-          speakersMap={speakerHook.speakersMap}
-          colorForSpeaker={speakerHook.colorForSpeaker}
-          labelForSpeaker={speakerHook.labelForSpeaker}
+          displayForSpeaker={speakerHook.displayForSpeaker}
           editingId={editing.editingId}
           editingTexts={editing.editingTexts}
           saveStatus={editing.saveStatus}
@@ -323,7 +314,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           side="bottom"
           align="start"
           sideOffset={8}
-          className="w-72 p-0"
+          className="w-[min(19rem,calc(100vw-2rem))] overflow-hidden p-0"
           aria-label="Speaker assignment"
           // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
           // own search input on mount (SpeakerPopoverContent.tsx useEffect)
@@ -351,17 +342,23 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
             speakerHook.closeReasonRef.current = null
           }}
         >
-          <SpeakerPopoverContent
-            speakers={data.speakers}
-            currentSpeaker={currentSpeaker}
-            onSelectSpeaker={speakerHook.handleSelectSpeaker}
-            onCreateSpeaker={speakerHook.handleCreateSpeaker}
-            onRenameSpeaker={speakerHook.handleRenameSpeaker}
-            onUntag={speakerHook.handleUntag}
-            getColorForSpeaker={speakerHook.colorForSpeaker}
-            labelForSpeaker={speakerHook.labelForSpeaker}
-            onHoldOpenChange={setHoldSpeakerPopoverOpen}
-          />
+          <PopoverFrozenWhileClosed open={!!speakerHook.speakerPopover}>
+            <SpeakerPopoverContent
+              key={speakerHook.speakerPopover?.segmentId}
+              presentation={speakerHook.presentation}
+              peopleContext={data.peopleContext}
+              currentSpeaker={speakerHook.currentSpeaker}
+              scopes={speakerHook.scopes}
+              removable={speakerHook.removable}
+              onSelectTarget={speakerHook.selectTarget}
+              onRemove={speakerHook.removeSpeaker}
+              onRenameLocal={speakerHook.renameLocal}
+              onRenamePerson={speakerHook.renameLinkedPerson}
+              labelForSpeaker={speakerHook.labelForSpeaker}
+              displayForSpeaker={speakerHook.displayForSpeaker}
+              onHoldOpenChange={setHoldSpeakerPopoverOpen}
+            />
+          </PopoverFrozenWhileClosed>
         </PopoverContent>
       </Popover>
     </div>

@@ -31,4 +31,15 @@ const PopoverContent = React.forwardRef<
 ))
 PopoverContent.displayName = PopoverPrimitive.Content.displayName
 
-export { Popover, PopoverTrigger, PopoverAnchor, PopoverPortal, PopoverContent }
+/**
+ * Keeps its last render while `open` is false. Content that is derived from
+ * what the popover was opened for would otherwise re-render empty while the
+ * popover fades out.
+ */
+const PopoverFrozenWhileClosed = React.memo(function PopoverFrozenWhileClosed(
+  { children }: { open: boolean; children: React.ReactNode },
+) {
+  return children
+}, (_previous, next) => !next.open)
+
+export { Popover, PopoverTrigger, PopoverAnchor, PopoverPortal, PopoverContent, PopoverFrozenWhileClosed }

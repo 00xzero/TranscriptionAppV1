@@ -12,6 +12,11 @@ import {
 } from '@/infra/supabase/storage'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
+    EditorPeopleContext,
+    LocalSpeakerResult,
+    NewSpeakerSegmentChange,
+    Person,
+    PersonCorrectionResult,
     Transcript,
     Project,
     ProjectSpeakerSummary,
@@ -19,13 +24,16 @@ import type {
     SegmentUpdate,
     SegmentSpeakerChange,
     SegmentSpeakerAssignment,
-    NewSpeakerSegmentChange,
     TranscriptSummary,
     TranscriptUpdate,
     Segment,
 } from '@/contracts/db'
 import {
+    EditorPeopleContextSchema,
+    LocalSpeakerResultSchema,
     NewSpeakerSegmentChangeSchema,
+    PersonCorrectionResultSchema,
+    PersonSchema,
     ProjectSpeakerSummariesResultSchema,
     ReassignSegmentsResultSchema,
     SegmentSpeakerChangeSchema,
@@ -509,27 +517,22 @@ export async function fetchSpeakers(transcriptId: string): Promise<Speaker[]> {
         .from('speakers')
         .select('*')
         .eq('transcript_id', transcriptId)
-        // save_transcript_segments inserts every speaker of a transcript in one
-        // transaction, so they all share the transaction's now() and created_at is
-        // a total tie. id is the only deterministic key, and without it a rename
-        // (which rewrites the tuple) can silently reshuffle palette colors.
-        // project_speaker_summaries orders on the same two columns.
-        .order('created_at', { ascending: true })
-        .order('id', { ascending: true })
+        // Only for a stable order: labels and colours follow first appearance
+        // in the transcript, not this list.
+        .order('ordinal', { ascending: true })
 
     if (error) throw error
     return data || []
 }
 
 /**
- * Set or clear a speaker's transcript-local label (null clears it back to
- * `Speaker {ordinal}`). `expectedCustomLabel` is the value last read; the
- * database refuses the write if it has changed since.
+ * Rename a speaker that has a transcript-local label. `expectedCustomLabel` is
+ * the value last read; the database refuses the write if it has changed since.
  */
 export async function setSpeakerCustomLabel(
     speakerId: string,
-    expectedCustomLabel: string | null,
-    customLabel: string | null
+    expectedCustomLabel: string,
+    customLabel: string
 ): Promise<Speaker> {
     const supabase = createClient()
     const { data, error } = await supabase.rpc('set_speaker_custom_label', {
@@ -544,7 +547,7 @@ export async function setSpeakerCustomLabel(
 
 /**
  * Reassign segments of one transcript, all or nothing. Each change names the
- * speaker the segment is expected to hold and its new speaker (null = Unknown).
+ * speaker the segment is expected to hold and its new speaker.
  */
 export async function reassignSegments(
     transcriptId: string,
@@ -560,22 +563,103 @@ export async function reassignSegments(
     return ReassignSegmentsResultSchema.parse(data ?? [])
 }
 
+// ============================================================================
+// People (speaker identity)
+// ============================================================================
+
 /**
- * Create a transcript speaker with a local label and move the given segments
- * to it, as one operation. Returns the new speaker.
+ * The editor picker's directory: every person the user owns, with each
+ * person's appearances in transcripts other than this one.
  */
-export async function assignSegmentsToNewSpeaker(
+export async function fetchEditorPeopleContext(transcriptId: string): Promise<EditorPeopleContext> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('editor_people_context', {
+        p_transcript_id: transcriptId,
+    })
+
+    if (error) throw error
+    return EditorPeopleContextSchema.parse(data)
+}
+
+/**
+ * Rename a person everywhere. `expectedName` is the name last read.
+ */
+export async function renamePerson(
+    personId: string,
+    expectedName: string,
+    name: string
+): Promise<Person> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('rename_person_guarded', {
+        p_person_id: personId,
+        p_expected_name: expectedName,
+        p_name: name,
+    })
+
+    if (error) throw error
+    return PersonSchema.parse(data)
+}
+
+/**
+ * Name a detected speaker in this transcript only: the segments move to a new
+ * speaker with the label, as one operation.
+ */
+export async function createLocalSpeaker(
     transcriptId: string,
     customLabel: string,
     changes: NewSpeakerSegmentChange[]
-): Promise<Speaker> {
+): Promise<LocalSpeakerResult> {
     const supabase = createClient()
-    const { data, error } = await supabase.rpc('assign_segments_to_new_speaker', {
+    const { data, error } = await supabase.rpc('create_local_speaker', {
         p_transcript_id: transcriptId,
         p_custom_label: customLabel,
         p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
     })
 
     if (error) throw error
-    return SpeakerSchema.parse(data)
+    return LocalSpeakerResultSchema.parse(data)
+}
+
+/**
+ * Move segments to an existing or new person, as one operation. The database
+ * reuses the person's speaker in this transcript or creates one.
+ */
+export async function correctSegmentsToPerson(
+    transcriptId: string,
+    changes: NewSpeakerSegmentChange[],
+    target: { personId: string } | { newPersonName: string }
+): Promise<PersonCorrectionResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('correct_segments_to_person', {
+        p_transcript_id: transcriptId,
+        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
+        p_person_id: 'personId' in target ? target.personId : null,
+        p_new_person_name: 'newPersonName' in target ? target.newPersonName : null,
+    })
+
+    if (error) throw error
+    return PersonCorrectionResultSchema.parse(data)
+}
+
+/**
+ * Undo a correction that created a person: move the segments back and delete
+ * the person. The database refuses if anything the correction wrote has
+ * changed since, judged by the person's `updated_at`.
+ */
+export async function undoCreatedPerson(args: {
+    transcriptId: string
+    speakerId: string
+    person: Pick<Person, 'id' | 'updated_at'>
+    changes: SegmentSpeakerChange[]
+}): Promise<void> {
+    const supabase = createClient()
+    const { error } = await supabase.rpc('undo_created_person_action', {
+        p_transcript_id: args.transcriptId,
+        p_person_id: args.person.id,
+        p_person_updated_at: args.person.updated_at,
+        p_speaker_id: args.speakerId,
+        p_changes: z.array(SegmentSpeakerChangeSchema).parse(args.changes),
+    })
+
+    if (error) throw error
 }

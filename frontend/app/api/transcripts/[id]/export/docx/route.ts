@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
 import { generateDocx, normalizeFilename } from '@/core/exports'
-import { fetchExportData } from '@/core/exports/data'
+import { fetchExportData } from '@/lib/supabase/export-data'
 
 export const runtime = 'nodejs' // DOCX generation requires Node.js runtime
 
@@ -30,13 +30,13 @@ export async function GET(
         )
     }
 
-    const { transcript, exportSegments, speakerLabels } = result.data
+    const { transcript, exportSegments, speakers } = result.data
 
     // Generate DOCX
     const docxBuffer = await generateDocx({
         transcriptTitle: transcript.title || 'Transcript',
         segments: exportSegments,
-        speakerLabels,
+        speakers,
         transcriptionDate: new Date(transcript.created_at),
         durationSeconds: transcript.duration_seconds,
     })

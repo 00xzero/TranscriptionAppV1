@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import EditorScreen from '../app/editor/[id]/EditorScreen'
 import * as supabaseQueries from '../lib/supabase/queries'
@@ -756,12 +756,12 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitForEditorContent()
 
     await user.click(screen.getAllByRole('button', { name: /Change speaker/i })[0])
-    await screen.findByText(/Suggested Speakers/i)
+    await screen.findByRole('dialog', { name: /Speaker assignment/i })
 
     fireEvent.keyDown(document, { key: 'f', metaKey: true })
     await screen.findByPlaceholderText(/Search text/i)
 
-    expect(screen.queryByText(/Suggested Speakers/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: /Speaker assignment/i })).not.toBeInTheDocument()
   })
 
   test('focuses the speaker search input on open and closes on Escape', async () => {
@@ -774,7 +774,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await user.click(trigger)
 
     const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
-    const searchInput = screen.getByRole('textbox', { name: /Search speakers or type a new speaker name/i })
+    const searchInput = screen.getByRole('combobox', { name: /Search or add a person/i })
 
     expect(popover).toBeInTheDocument()
     await waitFor(() => {
@@ -790,7 +790,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     })
   })
 
-  test('makes consecutive same-speaker reassignment reachable by keyboard', async () => {
+  test('keeps every segment speaker control keyboard reachable and hides unused local speakers', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce([
       {
@@ -799,6 +799,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
         user_id: 'u1',
         ordinal: 0,
         custom_label: 'Alice',
+        person_id: null,
         diarization_index: 0,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
@@ -823,14 +824,10 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     speakerButtons[1].focus()
     await user.keyboard('{Enter}')
-    await screen.findByRole('dialog', { name: /Speaker assignment/i })
+    const dialog = await screen.findByRole('dialog', { name: /Speaker assignment/i })
 
-    await user.click(screen.getByRole('button', { name: /Assign speaker Alice/i }))
-    await waitFor(() => {
-      expect(supabaseQueries.reassignSegments).toHaveBeenCalledWith('p1', [
-        { segment_id: 's2', expected_speaker_id: null, speaker_id: 'sp1' },
-      ])
-    })
+    expect(within(dialog).queryByRole('option', { name: 'Alice' })).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Unknown speaker')).toBeInTheDocument()
     expect(supabaseQueries.updateSegment).not.toHaveBeenCalled()
   })
 
@@ -840,8 +837,25 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitForEditorContent()
 
     const speakerButtons = screen.getAllByRole('button', { name: /Change speaker/i })
-    expect(speakerButtons[0]).toHaveTextContent(/^Unknown speaker$/)
+    expect(speakerButtons[0]).toHaveTextContent(/Unknown speaker/)
     expect(speakerButtons[0]).toHaveAttribute('aria-label', 'Change speaker (Unknown speaker)')
+  })
+
+  test('reports a failed speaker load with Retry instead of showing stale labels', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+    ;(supabaseQueries.fetchEditorPeopleContext as jest.Mock).mockRejectedValueOnce(new Error('offline'))
+    renderEditorScreen()
+
+    await waitForEditorContent()
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Couldn't load speakers", variant: 'error',
+      action: expect.objectContaining({ label: 'Retry' }),
+    })))
+    const retry = mockToast.mock.calls.find(([options]) => options.title === "Couldn't load speakers")![0].action.onClick
+    act(() => retry())
+    await waitFor(() => expect(supabaseQueries.fetchEditorPeopleContext).toHaveBeenCalledTimes(2))
+    consoleErrorSpy.mockRestore()
   })
 
   test('persistent search does not steal edit-mode focus after follow is resumed', async () => {
