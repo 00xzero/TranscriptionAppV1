@@ -1,12 +1,24 @@
 /** @jest-environment node */
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { resolveSpeakerPresentation } from '@/core/speakers/labels'
 import {
-  buildSpeakerColorMap,
+  leastUsedSpeakerColor,
+  resolveTranscriptColors,
   speakerInitials,
   speakerPaletteColor,
   SPEAKER_COLORS,
   SPEAKER_COLOR_FALLBACK,
 } from '@/lib/speakers/palette'
+
+test('the palette matches speaker_palette() in the database, in allocation order', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname,
+    '../../../infra/supabase/migrations/20260924120000_people_editor.sql'), 'utf8')
+  const body = migration.match(/FUNCTION public\.speaker_palette\(\)[\s\S]*?ARRAY\[([\s\S]*?)\]/)
+  expect(body).not.toBeNull()
+  expect([...body![1].matchAll(/'(#[0-9A-F]{6})'/gi)].map((match) => match[1])).toEqual([...SPEAKER_COLORS])
+})
 
 describe('speakerPaletteColor', () => {
   test('returns the palette entry at a position', () => {
@@ -26,26 +38,34 @@ describe('speakerPaletteColor', () => {
   })
 })
 
-describe('buildSpeakerColorMap', () => {
-  test('maps array position to palette position', () => {
-    const map = buildSpeakerColorMap([{ id: 'a' }, { id: 'b' }, { id: 'c' }])
+test('linked people claim colours in first appearance order while local voices stay grey', () => {
+  const presentation = resolveSpeakerPresentation([
+    { id: 'a', ordinal: 0, custom_label: null, person_id: 'p1' },
+    { id: 'b', ordinal: 1, custom_label: null, person_id: 'p2' },
+    { id: 'c', ordinal: 2, custom_label: null, person_id: 'p1' },
+    { id: 'local', ordinal: 3, custom_label: null, person_id: null },
+  ], [{ speaker_id: 'b' }, { speaker_id: 'local' }, { speaker_id: 'a' }, { speaker_id: 'c' }], [
+    { id: 'p1', name: 'Alex' }, { id: 'p2', name: 'Blair' },
+  ])
+  const colors = resolveTranscriptColors(presentation, [
+    { id: 'p1', preferred_color: SPEAKER_COLORS[0] },
+    { id: 'p2', preferred_color: SPEAKER_COLORS[0] },
+  ])
+  expect(colors.get('b')).toBe(SPEAKER_COLORS[0])
+  expect(colors.get('a')).toBe(SPEAKER_COLORS[1])
+  expect(colors.get('c')).toBe(SPEAKER_COLORS[1])
+  expect(colors.get('local')).toBe(SPEAKER_COLOR_FALLBACK)
+})
 
-    expect(map.get('a')).toBe(SPEAKER_COLORS[0])
-    expect(map.get('b')).toBe(SPEAKER_COLORS[1])
-    expect(map.get('c')).toBe(SPEAKER_COLORS[2])
+describe('leastUsedSpeakerColor', () => {
+  test('a first person takes the first palette colour', () => {
+    expect(leastUsedSpeakerColor([])).toBe(SPEAKER_COLORS[0])
   })
 
-  test('wraps for a transcript with more speakers than palette entries', () => {
-    const speakers = Array.from({ length: SPEAKER_COLORS.length + 1 }, (_, index) => ({
-      id: `speaker-${index}`,
-    }))
-
-    const map = buildSpeakerColorMap(speakers)
-    expect(map.get(`speaker-${SPEAKER_COLORS.length}`)).toBe(SPEAKER_COLORS[0])
-  })
-
-  test('is empty for no speakers', () => {
-    expect(buildSpeakerColorMap([]).size).toBe(0)
+  test('takes the least used colour, earliest in the palette on a tie', () => {
+    const used = SPEAKER_COLORS.map((preferred_color) => ({ preferred_color }))
+    expect(leastUsedSpeakerColor([...used, { preferred_color: SPEAKER_COLORS[0] }])).toBe(SPEAKER_COLORS[1])
+    expect(leastUsedSpeakerColor(used.slice(0, 3))).toBe(SPEAKER_COLORS[3])
   })
 })
 

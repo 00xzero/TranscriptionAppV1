@@ -2,8 +2,10 @@
 
 import {
   UNKNOWN_SPEAKER_LABEL,
+  displayedIdentityKey,
   genericSpeakerLabel,
   resolveSpeakerLabels,
+  resolveSpeakerPresentation,
   speakerBaseLabel,
   speakerLabelFor,
   type LabelledSpeaker,
@@ -16,6 +18,90 @@ const speaker = (id: string, ordinal: number, custom_label: string | null = null
 })
 
 const said = (...speakerIds: (string | null)[]) => speakerIds.map((speaker_id) => ({ speaker_id }))
+
+describe('linked identity presentation', () => {
+  test('two voices linked to one person share label, identity and participant', () => {
+    const result = resolveSpeakerPresentation([
+      { ...speaker('a', 0), person_id: 'person-a' },
+      { ...speaker('b', 1), person_id: 'person-a' },
+    ], said('a', 'b'), [{ id: 'person-a', name: 'Alex', organisation_name: 'Example Org' }])
+    expect([...result.labels.values()]).toEqual(['Alex', 'Alex'])
+    expect(result.identityKeys.get('a')).toBe(result.identityKeys.get('b'))
+    expect(result.identities).toHaveLength(1)
+    expect(result.usedSpeakerIds).toEqual(['a', 'b'])
+    expect(result.participants).toEqual(['Alex — Example Org'])
+  })
+
+  test('namesakes use organisation then numbering, keeping unlinked voices separate', () => {
+    const result = resolveSpeakerPresentation([
+      { ...speaker('a', 0), person_id: 'p1' },
+      { ...speaker('b', 1), person_id: 'p2' },
+      speaker('c', 2, 'Alex'),
+    ], said('a', 'b', 'c'), [
+      { id: 'p1', name: 'Alex', organisation_name: 'Example Org' },
+      { id: 'p2', name: 'Alex', organisation_name: 'Another Org' },
+    ])
+    expect(Object.fromEntries(result.labels)).toEqual({
+      a: 'Alex (Example Org)', b: 'Alex (Another Org)', c: 'Alex',
+    })
+    expect(result.participants).toEqual(['Alex — Example Org', 'Alex — Another Org', 'Alex'])
+    const sameOrg = resolveSpeakerPresentation([
+      { ...speaker('a', 0), person_id: 'p1' }, { ...speaker('b', 1), person_id: 'p2' },
+    ], said('a', 'b'), [
+      { id: 'p1', name: 'Alex', organisation_name: 'Example Org' },
+      { id: 'p2', name: 'Alex', organisation_name: 'Example Org' },
+    ])
+    expect([...sameOrg.labels.values()]).toEqual(['Alex (Example Org)', 'Alex (Example Org) (2)'])
+    expect(sameOrg.participants).toEqual(['Alex — Example Org', 'Alex (2) — Example Org'])
+  })
+
+  test('a speaker with no segments never changes a visible namesake\'s label', () => {
+    const result = resolveSpeakerPresentation([
+      { ...speaker('a', 0), person_id: 'p1' },
+      { ...speaker('b', 1), person_id: 'p2' },
+    ], said('a'), [
+      { id: 'p1', name: 'Alex', organisation_name: 'Example Org' },
+      { id: 'p2', name: 'Alex', organisation_name: 'Another Org' },
+    ])
+    expect(Object.fromEntries(result.labels)).toEqual({ a: 'Alex', b: 'Alex (2)' })
+    expect(result.participants).toEqual(['Alex — Example Org'])
+  })
+
+  test('a person whose name contains their organisation keeps it in the participants block', () => {
+    const result = resolveSpeakerPresentation([{ ...speaker('a', 0), person_id: 'p1' }], said('a'),
+      [{ id: 'p1', name: 'Paul (ACME)', organisation_name: 'ACME' }])
+    expect(result.participants).toEqual(['Paul (ACME) — ACME'])
+  })
+
+  test('people are listed before unlinked voices, each in order of first appearance; Unknown is not', () => {
+    const result = resolveSpeakerPresentation([
+      speaker('local', 0, 'Interviewer'), { ...speaker('b', 1), person_id: 'p2' }, { ...speaker('a', 2), person_id: 'p1' },
+    ], said('local', null, 'b', 'a'), [
+      { id: 'p1', name: 'Alex' }, { id: 'p2', name: 'Blair' },
+    ])
+    expect(result.identities.map((identity) => identity.label)).toEqual(['Interviewer', 'Blair', 'Alex'])
+    expect(result.participants).toEqual(['Blair', 'Alex', 'Interviewer'])
+  })
+
+  test('a speaker linked to a person who is not loaded stays unlinked', () => {
+    const result = resolveSpeakerPresentation([{ ...speaker('a', 3), person_id: 'missing' }], said('a'))
+    expect(result.labels.get('a')).toBe('Speaker 3')
+    expect(result.identityKeys.get('a')).toBe('speaker:a')
+  })
+})
+
+describe('displayedIdentityKey', () => {
+  const presentation = resolveSpeakerPresentation([speaker('a', 0)], said('a'))
+
+  test('an unassigned segment is Unknown', () => {
+    expect(displayedIdentityKey(presentation, null)).toBe('unknown')
+  })
+
+  test('a speaker missing from the presentation stays its own identity', () => {
+    expect(displayedIdentityKey(presentation, 'gone')).toBe('speaker:gone')
+    expect(displayedIdentityKey(presentation, 'gone')).not.toBe(displayedIdentityKey(presentation, 'other'))
+  })
+})
 
 describe('speakerBaseLabel', () => {
   test('a generic speaker is Speaker {ordinal}', () => {

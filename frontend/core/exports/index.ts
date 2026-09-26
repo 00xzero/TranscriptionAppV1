@@ -10,7 +10,11 @@ import {
     AlignmentType,
     Packer,
 } from 'docx'
-import { speakerLabelFor, type SpeakerLabels } from '@/core/speakers/labels'
+import {
+    displayedIdentityKey,
+    speakerLabelFor,
+    type SpeakerPresentation,
+} from '@/core/speakers/labels'
 
 // ============================================================================
 // Types
@@ -22,6 +26,9 @@ export interface ExportSegment {
     end_ms: number
     text: string
 }
+
+/** What the exports take from the speaker label resolver. */
+export type ExportSpeakers = Pick<SpeakerPresentation, 'labels' | 'identityKeys' | 'participants'>
 
 // ============================================================================
 // Time Formatting Helpers
@@ -112,23 +119,23 @@ export interface SpeakerTurn {
 
 /**
  * Group consecutive segments into speaker turns. A new turn starts whenever the
- * speaker changes; consecutive null-speaker segments collapse into a single turn
- * via a stable key. Labels come from the shared resolver, so an unassigned turn
- * reads `Unknown speaker`. Shared by the DOCX, TXT, and Markdown generators.
+ * displayed identity changes, so two voices linked to one person share a turn
+ * and consecutive unassigned segments collapse into one `Unknown speaker` turn.
+ * Shared by the DOCX, TXT, and Markdown generators.
  */
 export function groupSegmentsBySpeaker(
     segments: ExportSegment[],
-    speakerLabels: SpeakerLabels
+    speakers: Pick<ExportSpeakers, 'labels' | 'identityKeys'>
 ): SpeakerTurn[] {
     const turns: SpeakerTurn[] = []
     let currentKey: string | null = null
 
     for (const segment of segments) {
-        const key = segment.speaker_id ?? '__null__'
+        const key = displayedIdentityKey(speakers, segment.speaker_id)
         if (key !== currentKey) {
             currentKey = key
             turns.push({
-                speakerLabel: speakerLabelFor(speakerLabels, segment.speaker_id),
+                speakerLabel: speakerLabelFor(speakers.labels, segment.speaker_id),
                 segments: [],
             })
         }
@@ -171,7 +178,7 @@ function normalizeSegmentText(text: string): string {
 
 export interface GenerateVttParams {
     segments: ExportSegment[]
-    speakerLabels: SpeakerLabels
+    speakers: Pick<ExportSpeakers, 'labels'>
     transcriptId: string
 }
 
@@ -199,13 +206,13 @@ function escapeVttVoice(label: string): string {
  */
 export function generateVtt({
     segments,
-    speakerLabels,
+    speakers,
     transcriptId,
 }: GenerateVttParams): string {
     const lines: string[] = ['WEBVTT', '']
 
     segments.forEach((segment, idx) => {
-        const speakerLabel = escapeVttVoice(speakerLabelFor(speakerLabels, segment.speaker_id))
+        const speakerLabel = escapeVttVoice(speakerLabelFor(speakers.labels, segment.speaker_id))
         const text = escapeVttText(segment.text)
 
         const startVtt = msToVttTimestamp(segment.start_ms)
@@ -230,7 +237,7 @@ export function generateVtt({
 export interface GenerateDocxParams {
     transcriptTitle: string
     segments: ExportSegment[]
-    speakerLabels: SpeakerLabels
+    speakers: ExportSpeakers
     transcriptionDate: Date
     durationSeconds?: number | null
 }
@@ -243,7 +250,7 @@ export interface GenerateDocxParams {
 export async function generateDocx({
     transcriptTitle,
     segments,
-    speakerLabels,
+    speakers,
     transcriptionDate,
     durationSeconds,
 }: GenerateDocxParams): Promise<Buffer> {
@@ -302,8 +309,16 @@ export async function generateDocx({
     // Spacer
     children.push(new Paragraph({ children: [] }))
 
+    if (speakers.participants.length > 0) {
+        children.push(new Paragraph({ children: [new TextRun({ text: 'Participants', bold: true })] }))
+        for (const participant of speakers.participants) {
+            children.push(new Paragraph({ children: [new TextRun({ text: participant })] }))
+        }
+        children.push(new Paragraph({ children: [] }))
+    }
+
     // Transcript body - group segments into speaker turns
-    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
+    for (const turn of groupSegmentsBySpeaker(segments, speakers)) {
         // Speaker header at the start of each turn
         children.push(
             new Paragraph({
@@ -366,7 +381,7 @@ export async function generateDocx({
 export interface GenerateTextExportParams {
     transcriptTitle: string
     segments: ExportSegment[]
-    speakerLabels: SpeakerLabels
+    speakers: ExportSpeakers
     transcriptionDate: Date
     durationSeconds?: number | null
 }
@@ -380,7 +395,7 @@ export interface GenerateTextExportParams {
 export function generateTxt({
     transcriptTitle,
     segments,
-    speakerLabels,
+    speakers,
     transcriptionDate,
     durationSeconds,
 }: GenerateTextExportParams): string {
@@ -389,7 +404,9 @@ export function generateTxt({
         buildExportMetaLine(transcriptionDate, durationSeconds),
     ]
 
-    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
+    if (speakers.participants.length > 0) lines.push('', 'Participants', ...speakers.participants)
+
+    for (const turn of groupSegmentsBySpeaker(segments, speakers)) {
         lines.push('', turn.speakerLabel)
         for (const segment of turn.segments) {
             lines.push(
@@ -429,7 +446,7 @@ function escapeMarkdown(text: string): string {
 export function generateMarkdown({
     transcriptTitle,
     segments,
-    speakerLabels,
+    speakers,
     transcriptionDate,
     durationSeconds,
 }: GenerateTextExportParams): string {
@@ -438,7 +455,11 @@ export function generateMarkdown({
         `_${buildExportMetaLine(transcriptionDate, durationSeconds)}_`,
     ]
 
-    for (const turn of groupSegmentsBySpeaker(segments, speakerLabels)) {
+    if (speakers.participants.length > 0) {
+        lines.push('', '**Participants**', ...speakers.participants.map(escapeMarkdown))
+    }
+
+    for (const turn of groupSegmentsBySpeaker(segments, speakers)) {
         lines.push('', `**${escapeMarkdown(turn.speakerLabel)}**`)
         for (const segment of turn.segments) {
             lines.push(

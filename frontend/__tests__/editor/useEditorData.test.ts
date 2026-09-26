@@ -18,7 +18,7 @@ describe('chooseEditorDuration', () => {
 
 describe('mergeSpeakerAssignments', () => {
   const seg = (id: string, speaker_id: string | null, text: string): Seg => ({
-    id, transcript_id: 't1', speaker_id, start_ms: 0, end_ms: 1000, text,
+    id, transcript_id: 't1', speaker_id, diarization_index: null, start_ms: 0, end_ms: 1000, text,
     is_edited: false, is_filler: false, algo_version: 'test',
     created_at: '2026-09-24T00:00:00Z', updated_at: '2026-09-24T00:00:00Z',
   })

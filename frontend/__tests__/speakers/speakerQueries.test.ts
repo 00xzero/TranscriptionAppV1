@@ -11,7 +11,7 @@ jest.mock('@/infra/supabase/client', () => ({
 }))
 
 // jest.setup.ts globally mocks this module, so reach past it for the real code.
-const { setSpeakerCustomLabel, reassignSegments, assignSegmentsToNewSpeaker } = jest.requireActual<
+const { setSpeakerCustomLabel, reassignSegments } = jest.requireActual<
   typeof import('@/lib/supabase/queries')
 >('@/lib/supabase/queries')
 
@@ -27,6 +27,7 @@ const speakerRow = {
   ordinal: 2,
   custom_label: 'Interviewer',
   diarization_index: null,
+  person_id: null,
   created_at: '2026-09-24T00:00:00Z',
   updated_at: '2026-09-24T00:00:00Z',
 }
@@ -39,10 +40,10 @@ describe('setSpeakerCustomLabel', () => {
   test('sends the expected label with the new one and returns the saved speaker', async () => {
     mockRpc.mockResolvedValueOnce({ data: speakerRow, error: null })
 
-    await expect(setSpeakerCustomLabel(SPEAKER, null, 'Interviewer')).resolves.toEqual(speakerRow)
+    await expect(setSpeakerCustomLabel(SPEAKER, 'Host', 'Interviewer')).resolves.toEqual(speakerRow)
     expect(mockRpc).toHaveBeenCalledWith('set_speaker_custom_label', {
       p_speaker_id: SPEAKER,
-      p_expected_custom_label: null,
+      p_expected_custom_label: 'Host',
       p_custom_label: 'Interviewer',
     })
   })
@@ -57,7 +58,7 @@ describe('setSpeakerCustomLabel', () => {
   test('rejects a malformed response', async () => {
     mockRpc.mockResolvedValueOnce({ data: { id: SPEAKER }, error: null })
 
-    await expect(setSpeakerCustomLabel(SPEAKER, null, 'X')).rejects.toThrow()
+    await expect(setSpeakerCustomLabel(SPEAKER, 'Host', 'X')).rejects.toThrow()
   })
 })
 
@@ -95,28 +96,5 @@ describe('reassignSegments', () => {
     await expect(
       reassignSegments(TRANSCRIPT, [{ segment_id: SEGMENT, expected_speaker_id: null, speaker_id: SPEAKER }])
     ).rejects.toBe(conflict)
-  })
-})
-
-describe('assignSegmentsToNewSpeaker', () => {
-  test('sends the label and the guarded segments, and returns the new speaker', async () => {
-    mockRpc.mockResolvedValueOnce({ data: speakerRow, error: null })
-
-    const changes = [{ segment_id: SEGMENT, expected_speaker_id: OTHER_SPEAKER }]
-    await expect(assignSegmentsToNewSpeaker(TRANSCRIPT, 'Interviewer', changes)).resolves.toEqual(speakerRow)
-    expect(mockRpc).toHaveBeenCalledWith('assign_segments_to_new_speaker', {
-      p_transcript_id: TRANSCRIPT,
-      p_custom_label: 'Interviewer',
-      p_changes: changes,
-    })
-  })
-
-  test('passes a database error through to the caller', async () => {
-    const invalid = { code: 'SP003', message: 'speaker names must be 1 to 50 characters' }
-    mockRpc.mockResolvedValueOnce({ data: null, error: invalid })
-
-    await expect(
-      assignSegmentsToNewSpeaker(TRANSCRIPT, 'x'.repeat(51), [{ segment_id: SEGMENT, expected_speaker_id: null }])
-    ).rejects.toBe(invalid)
   })
 })

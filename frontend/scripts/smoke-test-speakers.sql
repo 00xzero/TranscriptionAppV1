@@ -77,12 +77,12 @@ SELECT public.save_transcript_segments(
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT array_agg(ordinal ORDER BY ordinal) = ARRAY[0, 1]
+  (SELECT array_agg(ordinal ORDER BY ordinal) = ARRAY[1, 2]
       AND array_agg(diarization_index ORDER BY ordinal) = ARRAY[0, 1]
       AND bool_and(custom_label IS NULL)
       AND bool_and(user_id = 'c0000000-0000-0000-0000-00000000000a')
    FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1'),
-  'new speakers take ordinal = diarization index, no custom label, and the transcript owner'
+  'new speakers count from 1 (ordinal = diarization index + 1), with no custom label and the transcript owner'
 );
 
 SELECT pg_temp.assert_true(
@@ -90,6 +90,12 @@ SELECT pg_temp.assert_true(
   AND (SELECT sp.diarization_index FROM public.segments AS sg JOIN public.speakers AS sp ON sp.id = sg.speaker_id
        WHERE sg.id = 'c3000000-0000-0000-0000-000000000003') = 0,
   'segments join to speakers on the diarization index; a null speaker_num stays unassigned'
+);
+
+SELECT pg_temp.assert_true(
+  (SELECT array_agg(diarization_index ORDER BY start_ms) FROM public.segments
+   WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1') = ARRAY[0, 1, 0, NULL],
+  'each segment keeps the Deepgram number it was saved with'
 );
 
 -- A re-run (never on a completed transcript) replaces segments but reuses speakers.
@@ -114,9 +120,9 @@ SELECT pg_temp.assert_true(
 
 RESET ROLE;
 
--- A legacy-style row already holds ordinal 0 in A2, with no diarization index.
+-- A legacy-style row already holds ordinal 1 in A2, with no diarization index.
 INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label)
-VALUES ('c2000000-0000-0000-0000-0000000000a2', 'c1000000-0000-0000-0000-0000000000a2', 'c0000000-0000-0000-0000-00000000000a', 0, null);
+VALUES ('c2000000-0000-0000-0000-0000000000a2', 'c1000000-0000-0000-0000-0000000000a2', 'c0000000-0000-0000-0000-00000000000a', 1, null);
 
 SET LOCAL ROLE service_role;
 
@@ -133,8 +139,25 @@ SELECT public.save_transcript_segments(
 
 SELECT pg_temp.assert_true(
   (SELECT ordinal FROM public.speakers
-   WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a2' AND diarization_index = 0) = 1,
+   WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a2' AND diarization_index = 0) = 2,
   'a diarized speaker whose ordinal is taken gets the next free ordinal'
+);
+
+-- A segment's number missing from the speaker list still gets its speaker.
+SELECT public.save_transcript_segments(
+  'c1000000-0000-0000-0000-0000000000a2',
+  '{
+    "speakers": [],
+    "segments": [
+      {"id": "c3000000-0000-0000-0000-000000000031", "speaker_num": 3, "start_ms": 0, "end_ms": 900, "text": "a2 three", "is_filler": false, "algo_version": "smoke", "words": []}
+    ]
+  }'::jsonb
+);
+SELECT pg_temp.assert_true(
+  (SELECT sp.diarization_index = 3 AND sp.ordinal = 4
+   FROM public.segments AS sg JOIN public.speakers AS sp ON sp.id = sg.speaker_id
+   WHERE sg.id = 'c3000000-0000-0000-0000-000000000031'),
+  'every number a segment carries gets a detected speaker'
 );
 
 SELECT pg_temp.assert_sqlstate(
@@ -147,20 +170,29 @@ RESET ROLE;
 -- Fixed ids for the rest of the script.
 CREATE TEMP TABLE ids ON COMMIT DROP AS
 SELECT
-  (SELECT id FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1' AND ordinal = 0) AS a1_s0,
-  (SELECT id FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1' AND ordinal = 1) AS a1_s1;
+  (SELECT id FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1' AND diarization_index = 0) AS a1_s0,
+  (SELECT id FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1' AND diarization_index = 1) AS a1_s1;
 GRANT SELECT ON ids TO anon, authenticated, service_role;
 
 INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label)
 VALUES ('c2000000-0000-0000-0000-0000000000b1', 'c1000000-0000-0000-0000-0000000000b1', 'c0000000-0000-0000-0000-00000000000b', 0, 'Other user');
+-- A local name in A1: named speakers carry no Deepgram number.
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label)
+VALUES ('c2000000-0000-0000-0000-0000000000a3', 'c1000000-0000-0000-0000-0000000000a1', 'c0000000-0000-0000-0000-00000000000a', 5, 'Host');
 INSERT INTO public.segments (id, transcript_id, speaker_id, start_ms, end_ms, text)
 VALUES ('c3000000-0000-0000-0000-0000000000b1', 'c1000000-0000-0000-0000-0000000000b1', 'c2000000-0000-0000-0000-0000000000b1', 0, 900, 'b one');
 
 -- -------------------------------------------------------------- constraints ----
 
 SELECT pg_temp.assert_sqlstate(
-  $sql$INSERT INTO public.speakers (transcript_id, user_id, ordinal) VALUES ('c1000000-0000-0000-0000-0000000000a1', 'c0000000-0000-0000-0000-00000000000a', 0)$sql$,
+  $sql$INSERT INTO public.speakers (transcript_id, user_id, ordinal) VALUES ('c1000000-0000-0000-0000-0000000000a1', 'c0000000-0000-0000-0000-00000000000a', 1)$sql$,
   '23505'
+);
+
+-- A numbered segment must have its detected speaker.
+SELECT pg_temp.assert_sqlstate(
+  $sql$INSERT INTO public.segments (transcript_id, diarization_index, start_ms, end_ms, text) VALUES ('c1000000-0000-0000-0000-0000000000a1', 7, 0, 1, 'x')$sql$,
+  '23503'
 );
 
 SELECT pg_temp.assert_sqlstate(
@@ -222,7 +254,7 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT count(*) FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1') = 2
+  (SELECT count(*) FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1') = 3
   AND (SELECT count(*) FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000b1') = 0,
   'users read their own speakers and no one else''s'
 );
@@ -251,21 +283,21 @@ SET LOCAL request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-00000000000a","r
 SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.assert_true(
-  (SELECT custom_label FROM public.set_speaker_custom_label((SELECT a1_s0 FROM ids), null, '  Interviewer  ')) = 'Interviewer',
-  'a local label is set, trimmed'
+  (SELECT custom_label FROM public.set_speaker_custom_label('c2000000-0000-0000-0000-0000000000a3', 'Host', '  Interviewer  ')) = 'Interviewer',
+  'a local label is renamed, trimmed'
 );
 
 SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.set_speaker_custom_label((SELECT a1_s0 FROM ids), null, 'Stale')$sql$,
+  $sql$SELECT public.set_speaker_custom_label('c2000000-0000-0000-0000-0000000000a3', 'Host', 'Stale')$sql$,
   'SP002'
 );
 SELECT pg_temp.assert_true(
-  (SELECT custom_label FROM public.speakers WHERE id = (SELECT a1_s0 FROM ids)) = 'Interviewer',
+  (SELECT custom_label FROM public.speakers WHERE id = 'c2000000-0000-0000-0000-0000000000a3') = 'Interviewer',
   'a stale label write changes nothing'
 );
 
 SELECT pg_temp.assert_sqlstate(
-  format($sql$SELECT public.set_speaker_custom_label((SELECT a1_s0 FROM ids), 'Interviewer', %L)$sql$, repeat('x', 51)),
+  format($sql$SELECT public.set_speaker_custom_label('c2000000-0000-0000-0000-0000000000a3', 'Interviewer', %L)$sql$, repeat('x', 51)),
   'SP003'
 );
 SELECT pg_temp.assert_sqlstate(
@@ -273,10 +305,14 @@ SELECT pg_temp.assert_sqlstate(
   'SP001'
 );
 
-SELECT pg_temp.assert_true(
-  (SELECT custom_label IS NULL AND ordinal = 0
-   FROM public.set_speaker_custom_label((SELECT a1_s0 FROM ids), 'Interviewer', E' \t ')),
-  'a blank label clears it back to Speaker {ordinal}'
+-- Remove, not a blank label, takes a name away; Deepgram's speakers take none.
+SELECT pg_temp.assert_sqlstate(
+  $sql$SELECT public.set_speaker_custom_label('c2000000-0000-0000-0000-0000000000a3', 'Interviewer', E' \t ')$sql$,
+  'SP003'
+);
+SELECT pg_temp.assert_sqlstate(
+  $sql$SELECT public.set_speaker_custom_label((SELECT a1_s0 FROM ids), null, 'Named')$sql$,
+  'SP003'
 );
 
 SET LOCAL request.jwt.claims = '{"role":"authenticated"}';
@@ -286,10 +322,6 @@ SELECT pg_temp.assert_sqlstate(
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1', '[]'::jsonb)$sql$,
-  '42501'
-);
-SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000a1', 'x', '[]'::jsonb)$sql$,
   '42501'
 );
 SET LOCAL request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-00000000000a","role":"authenticated"}';
@@ -370,55 +402,11 @@ SELECT pg_temp.assert_sqlstate(
   'SP003'
 );
 
--- --------------------------------------------- assign_segments_to_new_speaker ----
+-- --------------------------------------------- old Tag path removed ----
 
 SELECT pg_temp.assert_true(
-  (SELECT ordinal = 2 AND custom_label = 'Guest' AND diarization_index IS NULL
-          AND user_id = 'c0000000-0000-0000-0000-00000000000a'
-   FROM public.assign_segments_to_new_speaker(
-     'c1000000-0000-0000-0000-0000000000a1', ' Guest ',
-     (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000013', 'expected_speaker_id', a1_s0)) FROM ids))),
-  'a new speaker takes the next free ordinal and the trimmed label'
-);
-SELECT pg_temp.assert_true(
-  (SELECT sp.custom_label FROM public.segments AS sg JOIN public.speakers AS sp ON sp.id = sg.speaker_id
-   WHERE sg.id = 'c3000000-0000-0000-0000-000000000013') = 'Guest',
-  'the segment moves to the new speaker'
-);
-
-SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000a1', 'Late',
-    (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000011', 'expected_speaker_id', a1_s0)) FROM ids))$sql$,
-  'SP002'
-);
-SELECT pg_temp.assert_true(
-  NOT EXISTS (SELECT 1 FROM public.speakers WHERE custom_label = 'Late')
-  AND (SELECT count(*) FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1') = 3,
-  'a refused move leaves no new speaker behind'
-);
-
-SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000a1', '   ',
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000011", "expected_speaker_id": null}]'::jsonb)$sql$,
-  'SP003'
-);
-SELECT pg_temp.assert_sqlstate(
-  format($sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000a1', %L,
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000011", "expected_speaker_id": null}]'::jsonb)$sql$, repeat('y', 51)),
-  'SP003'
-);
-SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000a1', 'Nobody', '[]'::jsonb)$sql$,
-  'SP003'
-);
-SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.assign_segments_to_new_speaker('c1000000-0000-0000-0000-0000000000b1', 'Intruder',
-    '[{"segment_id": "c3000000-0000-0000-0000-0000000000b1", "expected_speaker_id": "c2000000-0000-0000-0000-0000000000b1"}]'::jsonb)$sql$,
-  'SP001'
-);
-SELECT pg_temp.assert_true(
-  (SELECT count(*) FROM public.speakers WHERE transcript_id = 'c1000000-0000-0000-0000-0000000000a1') = 3,
-  'refused creations leave the speaker count unchanged'
+  to_regprocedure('public.assign_segments_to_new_speaker(uuid,text,jsonb)') IS NULL,
+  'the people editor migration drops the local-label Tag function'
 );
 
 -- ---------------------------------------------------------------- deletion ----
@@ -433,8 +421,16 @@ SELECT pg_temp.assert_true(
   'deleting a transcript removes its speakers and segments'
 );
 
--- Only server code can delete a speaker now; its segments become Unknown.
-DELETE FROM public.speakers WHERE id = (SELECT a1_s1 FROM ids);
+-- A detected speaker whose number segments still carry cannot be deleted.
+SELECT pg_temp.assert_sqlstate(
+  $sql$DELETE FROM public.speakers WHERE id = (SELECT a1_s1 FROM ids)$sql$,
+  '23503'
+);
+
+-- Only server code can delete a speaker; a named one's segments become Unknown.
+UPDATE public.segments SET speaker_id = 'c2000000-0000-0000-0000-0000000000a3'
+WHERE id = 'c3000000-0000-0000-0000-000000000011';
+DELETE FROM public.speakers WHERE id = 'c2000000-0000-0000-0000-0000000000a3';
 SELECT pg_temp.assert_true(
   (SELECT speaker_id IS NULL AND transcript_id = 'c1000000-0000-0000-0000-0000000000a1'
    FROM public.segments WHERE id = 'c3000000-0000-0000-0000-000000000011'),

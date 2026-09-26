@@ -1,6 +1,8 @@
 import React from 'react'
 import { Pencil, X } from 'lucide-react'
+import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { SpeakerDisplay } from '@/lib/speakers/display'
 import type { Word, Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 import { msToTimestamp } from '../utils'
 
@@ -16,7 +18,7 @@ function autosize(el: HTMLTextAreaElement) {
 
 type SegmentHeaderRowProps = {
   showSpeaker: boolean
-  speakerLabel: string
+  speaker: SpeakerDisplay
   timestamp: string
   saveStatus: SaveStatusBySegment
   segmentId: string
@@ -29,7 +31,7 @@ type SegmentHeaderRowProps = {
 
 function SegmentHeaderRow({
   showSpeaker,
-  speakerLabel,
+  speaker,
   timestamp,
   saveStatus,
   segmentId,
@@ -39,6 +41,7 @@ function SegmentHeaderRow({
   setEditingId,
   setEditingTexts,
 }: SegmentHeaderRowProps) {
+  const speakerLabel = speaker.label
   const speakerButtonClassName = [
     'font-sans font-bold text-sm text-ink dark:text-paper cursor-pointer hover:text-trust-blue transition-all duration-200 ease-out motion-reduce:transition-none bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40 whitespace-nowrap',
     showSpeaker
@@ -47,7 +50,7 @@ function SegmentHeaderRow({
   ].join(' ')
 
   return (
-    <div className="flex items-baseline gap-3 mb-2">
+    <div className="flex items-center gap-3 mb-2">
       {onSpeakerClick && (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -59,10 +62,13 @@ function SegmentHeaderRow({
               aria-haspopup="dialog"
               tabIndex={0}
             >
-              {speakerLabel}
+              <span className="inline-flex items-center gap-2">
+                <Avatar color={speaker.color}>{speaker.avatarText}</Avatar>
+                {speakerLabel}
+              </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>Click to change speaker</TooltipContent>
+          <TooltipContent>{speaker.organisation ? `${speakerLabel} · ${speaker.organisation}` : 'Click to change speaker'}</TooltipContent>
         </Tooltip>
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
@@ -133,8 +139,7 @@ export type TranscriptSegmentCardProps = {
   isActive: boolean
   matchesForSeg: SegmentMatch[]
   matchIndex: number
-  speakerLabel: string
-  avatarBg: string
+  speaker: SpeakerDisplay
   needHeader: boolean
   editingId: string | null
   editingTexts: Record<string, string>
@@ -152,8 +157,7 @@ export default function TranscriptSegmentCard({
   isActive,
   matchesForSeg,
   matchIndex,
-  speakerLabel,
-  avatarBg,
+  speaker,
   needHeader,
   editingId,
   editingTexts,
@@ -166,6 +170,7 @@ export default function TranscriptSegmentCard({
   scheduleSave,
 }: TranscriptSegmentCardProps) {
   const isEditing = editingId === s.id
+  const speakerLabel = speaker.label
   // Where keyboard focus returns when Escape closes the editor.
   const cardRef = React.useRef<HTMLDivElement | null>(null)
   const textAreaRef = React.useRef<HTMLTextAreaElement | null>(null)
@@ -224,13 +229,13 @@ export default function TranscriptSegmentCard({
     >
       <div
         className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-xs' : 'w-1 opacity-60'}`}
-        style={{ backgroundColor: avatarBg }}
+        style={{ backgroundColor: speaker.color }}
       />
 
       <div className="flex-1 min-w-0">
         <SegmentHeaderRow
           showSpeaker={needHeader}
-          speakerLabel={speakerLabel}
+          speaker={speaker}
           timestamp={msToTimestamp(s.start_ms)}
           saveStatus={saveStatus}
           segmentId={s.id}
