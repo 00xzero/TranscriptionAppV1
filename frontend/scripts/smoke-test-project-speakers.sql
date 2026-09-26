@@ -60,8 +60,7 @@ INSERT INTO public.transcripts (id, user_id, project_id, title, status, updated_
   ('70000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', 'T5', 'completed', '2026-09-05T00:00:00Z'),
   ('70000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000020', 'T6', 'completed', '2026-09-06T00:00:00Z');
 
--- T1 carries the palette-stability case: 'Unused' sits at index 1 with no
--- segments, so 'John Smith' must still come out at index 2.
+-- T1's 'Unused' has no segments, so it must not be counted.
 -- T2 carries the tie case: Sarah and Zed share a created_at, so only id breaks it.
 -- T3's speaker is generic: no custom label, so it displays as Speaker 3.
 INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, created_at) VALUES
@@ -87,6 +86,21 @@ INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) 
   ('70000000-0000-0000-0000-000000000004', '80000000-0000-0000-0000-000000000030', 0,    1000, 'hidden'),
   ('70000000-0000-0000-0000-000000000005', '80000000-0000-0000-0000-000000000040', 0,    1000, 'also hidden'),
   ('70000000-0000-0000-0000-000000000006', '80000000-0000-0000-0000-000000000050', 0,    1000, 'foreign');
+
+-- T7, in a root of its own, holds a linked person and an unlinked voice. The
+-- linked speaker has no label and a later ordinal, as naming someone leaves it.
+INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
+  ('60000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', null, 'People');
+INSERT INTO public.transcripts (id, user_id, project_id, title, status, updated_at) VALUES
+  ('70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000008', 'T7', 'completed', '2026-09-07T00:00:00Z');
+INSERT INTO public.people (id, user_id, name, preferred_color) VALUES
+  ('90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Ada Lovelace', '#0D9488');
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, person_id, created_at) VALUES
+  ('80000000-0000-0000-0000-000000000060', '70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 1, null, null,                                   '2026-01-07T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000061', '70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 3, null, '90000000-0000-0000-0000-000000000001', '2026-01-07T00:00:01Z');
+INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) VALUES
+  ('70000000-0000-0000-0000-000000000007', '80000000-0000-0000-0000-000000000060', 0,    1000, 'voice'),
+  ('70000000-0000-0000-0000-000000000007', '80000000-0000-0000-0000-000000000061', 1000, 2000, 'ada');
 
 -- deleting_at is server-managed, so it is set before dropping to authenticated.
 UPDATE public.projects SET deleting_at = now()
@@ -198,41 +212,37 @@ SELECT pg_temp.assert_true(
   'a generic speaker has a null customLabel and its ordinal'
 );
 
--- The palette index is computed before unused speakers are dropped, so 'Unused'
--- still occupies slot 1 and John Smith is 2 rather than 1. This is what keeps
--- the project surfaces agreeing with the editor.
+-- A linked speaker carries its person's name and colour, so the avatar reads as
+-- the person and not as its own unlabelled row. An unlinked voice has neither,
+-- and the positional palette index is gone.
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
+  (SELECT p ->> 'personName' = 'Ada Lovelace' AND p ->> 'personColor' = '#0D9488'
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'customLabel' = 'John Smith') = 2,
-  'an unused speaker still occupies its palette slot'
+   WHERE p ->> 'id' = '80000000-0000-0000-0000-000000000061'),
+  'a linked speaker carries its person''s name and preferred colour'
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
+  (SELECT p -> 'personName' = 'null'::jsonb AND p -> 'personColor' = 'null'::jsonb
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'customLabel' = 'Kate') = 0,
-  'the first speaker of a transcript is palette index 0'
+   WHERE p ->> 'id' = '80000000-0000-0000-0000-000000000060'),
+  'an unlinked voice carries no person name or colour'
 );
 
--- Sarah and Zed share a created_at, so id is the only thing separating them.
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
-   FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'customLabel' = 'Sarah') = 0
-  AND
-  (SELECT (p ->> 'paletteIndex')::int
-   FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'customLabel' = 'Zed') = 1,
-  'speakers created in the same statement are ordered by id'
+  NOT EXISTS (
+    SELECT 1
+    FROM public.project_speaker_summaries(
+      ARRAY['60000000-0000-0000-0000-000000000001',
+            '60000000-0000-0000-0000-000000000008']::uuid[], true) AS s,
+      LATERAL jsonb_array_elements(s.preview) AS p
+    WHERE p ? 'paletteIndex'
+  ),
+  'a preview entry no longer carries a palette index'
 );
 
 -- -------------------------------------------------------------- preview ----

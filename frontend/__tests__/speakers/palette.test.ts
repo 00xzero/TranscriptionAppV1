@@ -7,7 +7,6 @@ import {
   leastUsedSpeakerColor,
   resolveTranscriptColors,
   speakerInitials,
-  speakerPaletteColor,
   SPEAKER_COLORS,
   SPEAKER_COLOR_FALLBACK,
 } from '@/lib/speakers/palette'
@@ -18,24 +17,6 @@ test('the palette matches speaker_palette() in the database, in allocation order
   const body = migration.match(/FUNCTION public\.speaker_palette\(\)[\s\S]*?ARRAY\[([\s\S]*?)\]/)
   expect(body).not.toBeNull()
   expect([...body![1].matchAll(/'(#[0-9A-F]{6})'/gi)].map((match) => match[1])).toEqual([...SPEAKER_COLORS])
-})
-
-describe('speakerPaletteColor', () => {
-  test('returns the palette entry at a position', () => {
-    expect(speakerPaletteColor(0)).toBe(SPEAKER_COLORS[0])
-    expect(speakerPaletteColor(3)).toBe(SPEAKER_COLORS[3])
-  })
-
-  test('wraps past the end of the palette', () => {
-    expect(speakerPaletteColor(SPEAKER_COLORS.length)).toBe(SPEAKER_COLORS[0])
-    expect(speakerPaletteColor(SPEAKER_COLORS.length + 2)).toBe(SPEAKER_COLORS[2])
-    expect(speakerPaletteColor(SPEAKER_COLORS.length * 3 + 1)).toBe(SPEAKER_COLORS[1])
-  })
-
-  // Total rather than returning undefined: a bad index must still paint a circle.
-  test.each([-1, 1.5, NaN, Infinity])('falls back for the out-of-band index %p', (index) => {
-    expect(speakerPaletteColor(index)).toBe(SPEAKER_COLOR_FALLBACK)
-  })
 })
 
 test('linked people claim colours in first appearance order while local voices stay grey', () => {

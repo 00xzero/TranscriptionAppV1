@@ -281,14 +281,16 @@ export const SaveTranscriptSegmentsResultSchema = z.object({
 
 // project_speaker_summaries RPC. Row columns stay snake_case like every other
 // row shape here; the preview entries are camelCase because they are a synthetic
-// view-model — paletteIndex has no table counterpart — consumed straight by
+// view-model — a speaker joined to its person — consumed straight by
 // SpeakerAvatarGroup with no mapping layer.
 export const ProjectSpeakerPreviewSchema = z.object({
   id: UuidSchema,
   transcriptId: UuidSchema,
   ordinal: z.number().int().nonnegative(),
   customLabel: z.string().nullable(),
-  paletteIndex: z.number().int().nonnegative(),
+  // The linked person's name and preferred colour; null for an unlinked voice.
+  personName: z.string().nullable(),
+  personColor: z.string().nullable(),
 })
 
 export const ProjectSpeakerSummarySchema = z.object({

@@ -294,6 +294,7 @@ The overhaul ships in four slices, each with its own implementation plan and pul
    - The Deepgram layer: each segment keeps Deepgram's number, detected speakers carry no name, and **Remove** returns segments to them.
    - Undo and Retry toasts, the action queue, and refresh on focus.
    - Turns by displayed identity, the colour rules, resolved export labels and the Participants block.
+   - Project avatars name and colour a linked speaker by its person, with unlinked voices grey, and `palette_index` is removed. Counting and ordering wait for slice 3.
 3. **People directory and project summaries.**
    - The list and person pages, with rename, organisation, colour, hide, delete, per-appearance remove and merge.
    - The rewrite of `project_speaker_summaries`.
@@ -380,6 +381,7 @@ These actions must not share an ambiguous **Tag**, **Rename** or **Reset** label
 | 36 | A local label can be renamed but not cleared to empty. | **Remove** is the one way to take a name away. |
 | 37 | The Current row, with **Remove**, stays visible while searching. | Removing should never need the search cleared first. |
 | 38 | Only identities with segments are compared for namesakes. | Remove and identify leave empty speakers behind, and they must not rename a visible one. |
+| 39 | Project avatars take a linked speaker's person name and colour in slice 2. | A linked speaker's own row has no label, so without it the avatar reads as a `Speaker N` that does not exist. |
 
 ### Details filled in while writing this spec (not discussed in review)
 

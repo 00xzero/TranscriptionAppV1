@@ -607,6 +607,132 @@ $$;
 -- The former Tag path: a passage correction goes to a person (spec §6).
 DROP FUNCTION public.assign_segments_to_new_speaker(uuid, text, jsonb);
 
+-- As in the foundations migration, except that a preview entry carries its
+-- linked person's name and preferred colour, so project avatars name and colour
+-- a person as the editor does; an unlinked voice has neither and is neutral
+-- (spec §8). The positional palette index goes. Counting and ordering stay as
+-- they are until the slice 3 rewrite.
+CREATE OR REPLACE FUNCTION public.project_speaker_summaries(
+  p_project_ids uuid[],
+  p_include_descendants boolean,
+  p_preview_limit integer DEFAULT 4
+)
+RETURNS TABLE (
+  project_id uuid,
+  speaker_count integer,
+  preview jsonb
+)
+STABLE
+SECURITY INVOKER
+SET search_path = public
+LANGUAGE sql
+AS $$
+  WITH RECURSIVE
+  requested AS (
+    SELECT DISTINCT r.id
+    FROM unnest(COALESCE(p_project_ids, '{}'::uuid[])) AS r(id)
+    WHERE r.id IS NOT NULL
+  ),
+  emitted AS (
+    SELECT p.id
+    FROM public.projects AS p
+    JOIN requested AS q ON q.id = p.id
+    WHERE p.deleting_at IS NULL
+  ),
+  branch AS (
+    SELECT e.id AS root_id, e.id AS scope_project_id
+    FROM emitted AS e
+    UNION ALL
+    SELECT b.root_id, c.id
+    FROM branch AS b
+    JOIN public.projects AS c ON c.parent_id = b.scope_project_id
+    WHERE c.deleting_at IS NULL
+      AND COALESCE(p_include_descendants, false)
+  ) CYCLE scope_project_id SET is_cycle USING path,
+  -- Unique (root_id, scope_project_id) keeps count(*) below a distinct-speaker
+  -- count, since a transcript has exactly one project_id.
+  scope AS (
+    SELECT DISTINCT b.root_id, b.scope_project_id
+    FROM branch AS b
+    WHERE NOT b.is_cycle
+  ),
+  scope_transcripts AS (
+    SELECT s.root_id, t.id AS transcript_id, t.updated_at
+    FROM scope AS s
+    JOIN public.transcripts AS t ON t.project_id = s.scope_project_id
+  ),
+  -- A speaker counts once a segment references it. RLS limits people to the
+  -- caller's own, which a linked speaker's person always is.
+  used_speakers AS (
+    SELECT
+      sp.id,
+      sp.transcript_id,
+      sp.ordinal,
+      sp.custom_label,
+      sp.created_at,
+      pe.name AS person_name,
+      pe.preferred_color AS person_color
+    FROM public.speakers AS sp
+    LEFT JOIN public.people AS pe ON pe.id = sp.person_id
+    WHERE sp.transcript_id IN (SELECT st.transcript_id FROM scope_transcripts AS st)
+      AND EXISTS (
+        SELECT 1
+        FROM public.segments AS sg
+        WHERE sg.transcript_id = sp.transcript_id
+          AND sg.speaker_id = sp.id
+      )
+  ),
+  ordered AS (
+    SELECT
+      st.root_id,
+      us.id,
+      us.transcript_id,
+      us.ordinal,
+      us.custom_label,
+      us.person_name,
+      us.person_color,
+      row_number() OVER (
+        PARTITION BY st.root_id
+        ORDER BY st.updated_at DESC, st.transcript_id, us.created_at, us.id
+      ) AS rn
+    FROM scope_transcripts AS st
+    JOIN used_speakers AS us ON us.transcript_id = st.transcript_id
+  ),
+  aggregated AS (
+    SELECT
+      o.root_id,
+      count(*)::integer AS speaker_count,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'id',           o.id,
+            'transcriptId', o.transcript_id,
+            'ordinal',      o.ordinal,
+            'customLabel',  o.custom_label,
+            'personName',   o.person_name,
+            'personColor',  o.person_color
+          )
+          ORDER BY o.rn
+        ) FILTER (WHERE o.rn <= LEAST(GREATEST(COALESCE(p_preview_limit, 4), 0), 4)),
+        '[]'::jsonb
+      ) AS preview
+    FROM ordered AS o
+    GROUP BY o.root_id
+  )
+  SELECT
+    e.id,
+    COALESCE(a.speaker_count, 0),
+    COALESCE(a.preview, '[]'::jsonb)
+  FROM emitted AS e
+  LEFT JOIN aggregated AS a ON a.root_id = e.id;
+$$;
+
+COMMENT ON FUNCTION public.project_speaker_summaries(uuid[], boolean, integer) IS
+'Per-project speaker avatar summary: the distinct transcript speakers referenced
+by segments in a project''s direct transcripts (or its whole active branch), each
+with its ordinal, custom label and linked person''s name and colour, plus a
+bounded preview slice. SECURITY INVOKER -- RLS performs the ownership filtering.';
+
 REVOKE ALL ON TABLE public.person_appearances FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.speaker_palette() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.editor_create_person(uuid, text) FROM PUBLIC, anon, authenticated, service_role;

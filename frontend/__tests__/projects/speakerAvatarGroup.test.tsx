@@ -3,14 +3,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
 import { SpeakerAvatarGroup } from '@/components/Projects/SpeakerAvatarGroup'
-import { SPEAKER_COLORS } from '@/lib/speakers/palette'
+import { SPEAKER_COLORS, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 
 const preview = (overrides: Partial<ProjectSpeakerPreview> = {}): ProjectSpeakerPreview => ({
   id: '11111111-1111-1111-1111-111111111111',
   transcriptId: '22222222-2222-2222-2222-222222222222',
   ordinal: 0,
   customLabel: 'Kate',
-  paletteIndex: 0,
+  personName: null,
+  personColor: null,
   ...overrides,
 })
 
@@ -19,7 +20,6 @@ const previews = (labels: string[]): ProjectSpeakerPreview[] =>
     preview({
       id: `speaker-${index}`,
       customLabel: label,
-      paletteIndex: index,
     })
   )
 
@@ -110,29 +110,34 @@ describe('SpeakerAvatarGroup', () => {
     expect(screen.getByRole('img')).toHaveAttribute('aria-label', '2 speakers: Kate and John')
   })
 
-  describe('colors', () => {
-    test('uses the palette position from the RPC', () => {
+  // A linked speaker's own row has no label and a later ordinal than any voice
+  // Deepgram found, so falling back to it would invent a "Speaker 9".
+  describe('a linked person', () => {
+    test('is named and coloured as their person, as in the editor', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ customLabel: 'Kate', paletteIndex: 2 })]}
+          speakers={[preview({ ordinal: 9, customLabel: null, personName: 'Ada Lovelace', personColor: SPEAKER_COLORS[3] })]}
           totalCount={1}
           size="card"
         />
       )
 
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[2] })
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Ada Lovelace')
+      expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[3] })
     })
 
-    test('wraps past the end of the palette', () => {
+    test('an unlinked voice keeps its own label and is neutral', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ customLabel: 'Kate', paletteIndex: SPEAKER_COLORS.length })]}
-          totalCount={1}
+          speakers={[preview({ ordinal: 2, customLabel: null }), preview({ id: 'kate', customLabel: 'Kate' })]}
+          totalCount={2}
           size="card"
         />
       )
 
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[0] })
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '2 speakers: Speaker 2 and Kate')
+      expect(screen.getByText('S2')).toHaveStyle({ backgroundColor: SPEAKER_COLOR_FALLBACK })
+      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLOR_FALLBACK })
     })
   })
 

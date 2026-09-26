@@ -29,8 +29,8 @@ function functionDefinition(source: string): string {
 describe('project_speaker_summaries migration', () => {
   const definition = functionDefinition(readMigration(latestDefiningMigration))
 
-  test('the latest definition is the speaker identity rewrite of the preview', () => {
-    expect(latestDefiningMigration).toBe('20260924000000_speaker_identity_foundations.sql')
+  test('the latest definition is the people editor rewrite of the preview', () => {
+    expect(latestDefiningMigration).toBe('20260924120000_people_editor.sql')
     // speakers.label and speakers.color were dropped; the client resolves labels.
     expect(definition).not.toMatch(/\bsp\.label\b/)
     expect(definition).not.toMatch(/\bsp\.color\b/)
@@ -68,15 +68,12 @@ describe('project_speaker_summaries migration', () => {
     expect(executable).not.toContain('project_branch_ids')
   })
 
-  test('ranks palette positions over every speaker of a transcript', () => {
-    expect(definition).toMatch(
-      /row_number\(\) over \(\s*partition by sp\.transcript_id\s*order by sp\.created_at, sp\.id\s*\)/
-    )
-    // The rank must be computed before the used-speaker filter, or dropping an
-    // unused speaker would repaint the transcript.
-    expect(definition.indexOf('ranked_speakers as')).toBeLessThan(
-      definition.indexOf('used_speakers as')
-    )
+  test('names and colours a linked speaker by its person, with no palette position', () => {
+    // A left join: an unlinked voice must still be counted, with null person fields.
+    expect(definition).toContain('left join public.people as pe on pe.id = sp.person_id')
+    expect(definition).toContain("'personname',   o.person_name")
+    expect(definition).toContain("'personcolor',  o.person_color")
+    expect(definition).not.toContain('palette_index')
   })
 
   test('counts distinct speakers actually referenced by segments', () => {

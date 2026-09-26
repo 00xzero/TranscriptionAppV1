@@ -16,16 +16,6 @@ export const SPEAKER_COLORS = [
 export const SPEAKER_COLOR_FALLBACK = '#9CA3AF'
 
 /**
- * Palette color for a 0-based position, wrapping past the end of the list.
- * Total: a negative, non-integer or non-finite index yields the neutral
- * fallback rather than `undefined`.
- */
-export function speakerPaletteColor(paletteIndex: number): string {
-  if (!Number.isInteger(paletteIndex) || paletteIndex < 0) return SPEAKER_COLOR_FALLBACK
-  return SPEAKER_COLORS[paletteIndex % SPEAKER_COLORS.length]
-}
-
-/**
  * The colour a new person gets: the one least used among the account's people,
  * earliest in the palette on a tie. Mirrors editor_create_person, so a person
  * shown before the database confirms it already has its final colour.
