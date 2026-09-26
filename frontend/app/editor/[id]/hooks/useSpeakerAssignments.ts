@@ -16,6 +16,7 @@ import {
   removeAction,
   renameLocalAction,
   renamePersonAction,
+  savedId,
   type ApplyTo,
   type SpeakerAction,
   type SpeakerStore,
@@ -31,6 +32,7 @@ type SpeakerPopoverState = { segmentId: string; speakerId: string | null; anchor
 
 const UNDO_WINDOW_MS = 8000
 const CONFLICT_TOAST = 'Changed in another tab — refreshed'
+const STALE_TOAST = "Changed in another tab — couldn't refresh"
 const isConflict = (error: unknown) =>
   typeof error === 'object' && error !== null && 'code' in error && error.code === 'SP002'
 
@@ -124,9 +126,17 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
     [speakers, presentation, peopleContext.people])
   const labelForSpeaker = useCallback((speakerId: string | null | undefined) =>
     speakerLabelFor(presentation.labels, speakerId), [presentation])
-  const currentSpeaker = speakerPopover?.speakerId
-    ? speakers.find((speaker) => speaker.id === speakerPopover.speakerId) : undefined
+  // The speaker the picker opened on, under its saved id once a provisional
+  // one is saved.
+  const openedOn = speakerPopover?.speakerId ? savedId(speakerPopover.speakerId) : null
+  const currentSpeaker = openedOn ? speakers.find((speaker) => speaker.id === openedOn) : undefined
   const selectedSegment = speakerPopover ? segments.find((segment) => segment.id === speakerPopover.segmentId) : undefined
+  // The picker shows the speaker it opened on, while its scopes follow the
+  // segment. If the segment moves to another speaker while it is open (a
+  // refresh, or an action queued earlier), close it rather than show one
+  // speaker and act on another. Closed during render, so the mismatch never
+  // paints; focus goes back to the avatar, as on a dismiss.
+  if (selectedSegment && selectedSegment.speaker_id !== openedOn) setSpeakerPopover(null)
   // The segments each Apply to scope covers. All is every segment showing the
   // current identity, however many speakers carry it.
   const scopes = useMemo<Record<ApplyTo, Seg[]>>(() => {
@@ -175,12 +185,19 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
   const execute = useCallback((build: () => SpeakerAction | null) => {
     closeSpeakerPopover('selection')
 
+    // After a refused write: refresh, and say it refreshed only if it did.
+    async function refreshAfterConflict(title: string): Promise<boolean> {
+      const refreshed = await refresh()
+      toast(refreshed ? { title, variant: 'error' } : { title: STALE_TOAST, variant: 'error',
+        action: { label: 'Retry', onClick: () => void enqueue(async () => { await refreshAfterConflict(title) }) } })
+      return refreshed
+    }
+
     function run() {
       void enqueue(async () => {
         const action = build()
         if (!action) {
-          await refresh()
-          toast({ title: CONFLICT_TOAST, variant: 'error' })
+          await refreshAfterConflict(CONFLICT_TOAST)
           return
         }
         action.apply()
@@ -190,8 +207,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
             action: { label: 'Undo', onClick: () => void enqueue(() => runUndo(undo)) } })
         } catch (error) {
           if (isConflict(error)) {
-            if (!(await refresh())) action.restore()
-            toast({ title: CONFLICT_TOAST, variant: 'error' })
+            if (!(await refreshAfterConflict(CONFLICT_TOAST))) action.restore()
           } else {
             action.restore()
             toast({ title: action.failed, variant: 'error', action: { label: 'Retry', onClick: run } })
@@ -206,8 +222,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
         await undo.write()
       } catch (error) {
         if (isConflict(error)) {
-          if (!(await refresh())) undo.restore()
-          toast({ title: "Can't undo — changed since", variant: 'error' })
+          if (!(await refreshAfterConflict("Can't undo — changed since"))) undo.restore()
         } else {
           undo.restore()
           toast({ title: "Couldn't undo", variant: 'error',

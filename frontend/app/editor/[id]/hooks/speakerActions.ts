@@ -59,9 +59,15 @@ export type SpeakerAction = {
   write(): Promise<SpeakerUndo>
 }
 
-// Ids for rows shown before the database has created them.
+// Ids for rows shown before the database has created them, and the ids the
+// database then gave them. An action queued behind the one that created a row
+// was chosen while the row still had its provisional id.
 let provisionalCount = 0
 const provisionalId = () => `pending-${++provisionalCount}`
+const savedIds = new Map<string, string>()
+
+/** The database's id for a row first shown under a provisional id; any other id as is. */
+export const savedId = (id: string) => savedIds.get(id) ?? id
 
 function patchSpeaker(store: SpeakerStore, id: string, patch: Partial<Speaker>) {
   store.updateSpeakers((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)))
@@ -80,6 +86,7 @@ function provisionalSpeaker(store: SpeakerStore, patch: Pick<Speaker, 'custom_la
 
 /** Put the database's row in place, dropping the provisional row it replaces. */
 function settleSpeaker(store: SpeakerStore, row: Speaker, replacesId?: string) {
+  if (replacesId) savedIds.set(replacesId, row.id)
   store.updateSpeakers((rows) => {
     const rest = rows.filter((existing) => existing.id !== replacesId)
     return rest.some((existing) => existing.id === row.id)
@@ -174,6 +181,7 @@ function provisionalPerson(store: SpeakerStore, name: string, userId: string): E
 
 /** Replace a provisional person with the one the database created. */
 function settlePerson(store: SpeakerStore, replacesId: string, result: PersonCorrectionResult) {
+  savedIds.set(replacesId, result.person.id)
   store.updatePeople((context) => ({
     ...context,
     people: [...context.people.filter((row) => row.id !== replacesId), { ...result.person, ...NEW_PERSON }],
@@ -197,8 +205,13 @@ export function correctAction(
 ): SpeakerAction | null {
   const segments = store.segments().filter((segment) => segmentIds.has(segment.id))
   const changes = segments.map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id }))
-  const targetName = target.kind === 'person' ? findPerson(store, target.id)?.name
-    : target.kind === 'new-person' ? target.name : labelForSpeaker(target.id)
+  // A target made by an action queued ahead of this one was chosen under its
+  // provisional id: find and write it under the saved one, but label it as it
+  // was shown when chosen.
+  const targetName = target.kind === 'person' ? findPerson(store, savedId(target.id))?.name
+    : target.kind === 'new-person' ? target.name
+    : store.speakers().some((speaker) => speaker.id === savedId(target.id)) ? labelForSpeaker(target.id)
+    : undefined
   if (changes.length === 0 || targetName === undefined) return null
 
   const detected = new Set(store.speakers().flatMap((speaker) => speaker.diarization_index === null ? [] : [speaker.id]))
@@ -210,7 +223,8 @@ export function correctAction(
       : [`Changed ${fromLabel} to ${targetName}`, `Couldn't change ${fromLabel} to ${targetName}`]
 
   if (target.kind === 'speaker') {
-    return reassignAction(store, changes.map((change) => ({ ...change, speaker_id: target.id })), { done, failed })
+    const speakerId = savedId(target.id)
+    return reassignAction(store, changes.map((change) => ({ ...change, speaker_id: speakerId })), { done, failed })
   }
 
   // Until the database answers, the segments sit on any speaker already linked
@@ -218,7 +232,7 @@ export function correctAction(
   // provisional one.
   const created = target.kind === 'new-person'
     ? provisionalPerson(store, target.name, store.speakers()[0]?.user_id ?? '') : null
-  const personId = target.kind === 'person' ? target.id : created!.id
+  const personId = target.kind === 'person' ? savedId(target.id) : created!.id
   const linked = store.speakers().find((speaker) => speaker.person_id === personId)
   const provisional = linked ? null : provisionalSpeaker(store, { custom_label: null, person_id: personId })
   const shownId = linked?.id ?? provisional!.id
@@ -239,7 +253,7 @@ export function correctAction(
     },
     async write() {
       const result = await correctSegmentsToPerson(store.transcriptId, changes,
-        target.kind === 'person' ? { personId: target.id } : { newPersonName: target.name })
+        target.kind === 'person' ? { personId } : { newPersonName: target.name })
       if (created) settlePerson(store, created.id, result)
       settleSpeaker(store, result.speaker, provisional?.id)
       assignSegments(store, result.assignments)
@@ -302,25 +316,25 @@ export function renameLocalAction(
     fromLabel: string
   }
 ): SpeakerAction | null {
-  const speaker = store.speakers().find((row) => row.id === speakerId)
+  const speaker = store.speakers().find((row) => row.id === savedId(speakerId))
   if (!speaker || speaker.person_id) return null
   const messages = { done: `Renamed ${fromLabel} to ${label} in this transcript`, failed: `Couldn't rename ${fromLabel} to ${label}` }
 
   const previous = speaker.custom_label
   if (previous !== null) {
-    const setLabel = (value: string) => patchSpeaker(store, speakerId, { custom_label: value })
+    const setLabel = (value: string) => patchSpeaker(store, speaker.id, { custom_label: value })
     return {
       ...messages,
       apply: () => setLabel(label),
       restore: () => setLabel(previous),
       async write() {
-        const saved = await setSpeakerCustomLabel(speakerId, previous, label)
+        const saved = await setSpeakerCustomLabel(speaker.id, previous, label)
         settleSpeaker(store, saved)
         const savedLabel = saved.custom_label ?? label
         return {
           apply: () => setLabel(previous),
           restore: () => setLabel(savedLabel),
-          write: async () => settleSpeaker(store, await setSpeakerCustomLabel(speakerId, savedLabel, previous)),
+          write: async () => settleSpeaker(store, await setSpeakerCustomLabel(speaker.id, savedLabel, previous)),
         }
       },
     }
@@ -355,12 +369,12 @@ export function renameLocalAction(
 
 /** Rename person everywhere: every linked transcript shows the new name. */
 export function renamePersonAction(store: SpeakerStore, personId: string, name: string): SpeakerAction | null {
-  const person = findPerson(store, personId)
+  const person = findPerson(store, savedId(personId))
   if (!person) return null
   const previous = person.name
   const setName = (value: string) => store.updatePeople((context) => ({
     ...context,
-    people: context.people.map((row) => (row.id === personId ? { ...row, name: value } : row)),
+    people: context.people.map((row) => (row.id === person.id ? { ...row, name: value } : row)),
   }))
 
   return {
@@ -369,12 +383,12 @@ export function renamePersonAction(store: SpeakerStore, personId: string, name: 
     apply: () => setName(name),
     restore: () => setName(previous),
     async write() {
-      const saved = await renamePerson(personId, previous, name)
+      const saved = await renamePerson(person.id, previous, name)
       setName(saved.name)
       return {
         apply: () => setName(previous),
         restore: () => setName(saved.name),
-        write: async () => setName((await renamePerson(personId, saved.name, previous)).name),
+        write: async () => setName((await renamePerson(person.id, saved.name, previous)).name),
       }
     },
   }

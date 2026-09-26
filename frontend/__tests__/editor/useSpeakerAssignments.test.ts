@@ -327,3 +327,93 @@ test('Undo after inline creation moves the segments back and removes the unchang
   expect(speakerIds()).toEqual(['a', 'a'])
   expect(result.current.speakers.find((row) => row.id === 'c')?.person_id).toBeNull()
 })
+
+test('an open picker closes when a refresh moves its segment to another speaker', async () => {
+  const { result, open } = setup()
+  open()
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([{ id: 's1', speaker_id: 'b' }])
+  act(() => window.dispatchEvent(new Event('focus')))
+  // Its Current row would still say Speaker 1 while All acted on Speaker 2.
+  await waitFor(() => expect(result.current.speakerPopover).toBeNull())
+  expect(result.current.segments[0].speaker_id).toBe('b')
+})
+
+test('an open picker stays open while a refresh leaves its segment where it was', async () => {
+  const { result, open } = setup()
+  open()
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1))
+  expect(result.current.speakerPopover).not.toBeNull()
+})
+
+test('an open picker stays open when the speaker it opened on is saved', async () => {
+  let save!: (value: unknown) => void
+  queries.createLocalSpeaker.mockImplementationOnce(() => new Promise((resolve) => { save = resolve }))
+  const { result, open, speakerIds } = setup()
+  open()
+  act(() => result.current.renameLocal('Host'))
+  await waitFor(() => expect(speakerIds()[0]).toMatch(/^pending-/))
+  open('s2')
+  const host = named('l', 3, { custom_label: 'Host', person_id: null })
+  await act(async () => save({ speaker: host,
+    assignments: [{ segment_id: 's1', speaker_id: 'l' }, { segment_id: 's2', speaker_id: 'l' }] }))
+  expect(speakerIds()).toEqual(['l', 'l'])
+  expect(result.current.speakerPopover).not.toBeNull()
+  expect(result.current.currentSpeaker?.id).toBe('l')
+})
+
+test('a person picked while their creation is still saving is written under their saved id', async () => {
+  let save!: (value: unknown) => void
+  const blair = { ...alex, id: 'created', name: 'Blair' }
+  const blairHere = named('c', 3, { custom_label: null, person_id: 'created' })
+  queries.correctSegmentsToPerson
+    .mockImplementationOnce(() => new Promise((resolve) => { save = resolve }))
+    .mockResolvedValueOnce({ speaker: blairHere, person: blair, assignments: [{ segment_id: 's2', speaker_id: 'c' }] })
+  const { result, open, speakerIds } = setup()
+  open('s1')
+  act(() => result.current.selectTarget({ kind: 'new-person', name: 'Blair' }, 'segment'))
+  await waitFor(() => expect(result.current.peopleContext.people.map((person) => person.name)).toContain('Blair'))
+  const provisionalId = result.current.peopleContext.people.find((person) => person.name === 'Blair')!.id
+  open('s2')
+  act(() => result.current.selectTarget({ kind: 'person', id: provisionalId }, 'segment'))
+  await act(async () => save({ speaker: blairHere, person: blair, assignments: [{ segment_id: 's1', speaker_id: 'c' }] }))
+  await waitFor(() => expect(speakerIds()).toEqual(['c', 'c']))
+  expect(queries.correctSegmentsToPerson).toHaveBeenLastCalledWith('t1',
+    [{ segment_id: 's2', expected_speaker_id: 'a' }], { personId: 'created' })
+  expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Moved this segment to Blair' }))
+})
+
+test('a local speaker picked while it is still saving is written under its saved id', async () => {
+  let save!: (value: unknown) => void
+  queries.createLocalSpeaker.mockImplementationOnce(() => new Promise((resolve) => { save = resolve }))
+  const { result, open, speakerIds } = setup([detected('a', 0), detected('b', 1)],
+    [segment('s1', 'a', 0), segment('s2', 'b', 1000, 1)])
+  open('s1')
+  act(() => result.current.renameLocal('Host'))
+  await waitFor(() => expect(speakerIds()[0]).toMatch(/^pending-/))
+  const provisionalId = speakerIds()[0]!
+  open('s2')
+  act(() => result.current.selectTarget({ kind: 'speaker', id: provisionalId }, 'segment'))
+  await act(async () => save({ speaker: named('l', 3, { custom_label: 'Host', person_id: null }),
+    assignments: [{ segment_id: 's1', speaker_id: 'l' }] }))
+  await waitFor(() => expect(speakerIds()).toEqual(['l', 'l']))
+  expect(queries.reassignSegments).toHaveBeenLastCalledWith('t1',
+    [{ segment_id: 's2', expected_speaker_id: 'b', speaker_id: 'l' }])
+  expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Moved this segment to Host' }))
+})
+
+test('a refused write whose refresh fails says so, and offers to refresh again', async () => {
+  queries.reassignSegments.mockRejectedValueOnce({ code: 'SP002' })
+  const { result, open, speakerIds } = setup()
+  queries.fetchSpeakers.mockRejectedValueOnce(new Error('offline'))
+  jest.spyOn(console, 'error').mockImplementationOnce(() => {})
+  open()
+  act(() => result.current.selectTarget({ kind: 'speaker', id: 'b' }, 'segment'))
+  await waitFor(() => expect(toastWith('Retry')).toBeDefined())
+  expect(toastWith('Retry')!.title).toBe("Changed in another tab — couldn't refresh")
+  expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed in another tab — refreshed' }))
+  expect(speakerIds()).toEqual(['a', 'a'])
+  act(() => toastWith('Retry')!.action!.onClick())
+  await waitFor(() => expect(toast).toHaveBeenLastCalledWith(
+    expect.objectContaining({ title: 'Changed in another tab — refreshed' })))
+})

@@ -147,6 +147,14 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
     detail: contextLine(person),
     avatar: { text: speakerInitials(person.name), color: person.preferred_color },
   })
+  // A search result already in this transcript looks as it does on the page,
+  // so namesakes keep their `Paul (2)` and colours match.
+  const identityByPerson = new Map(presentation.identities.flatMap((identity) =>
+    identity.personId ? [[identity.personId, identity] as const] : []))
+  const resultOption = (person: EditorPerson): Option => {
+    const identity = identityByPerson.get(person.id)
+    return identity ? identityOption(identity) : personOption(person)
+  }
 
   const name = query.trim()
   const search = name.toLocaleLowerCase()
@@ -156,7 +164,7 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
     matches(`${person.name} ${person.organisation_name ?? ''}`)) : []
   const sections: { title: string; options: Option[] }[] = search
     ? [{ title: 'Results', options: [
-      ...found.filter((person) => !person.hidden).map(personOption),
+      ...found.filter((person) => !person.hidden).map(resultOption),
       ...choosable.filter((identity) => !identity.personId && matches(identity.label)).map(identityOption),
     ] }]
     : [
@@ -165,7 +173,7 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
         .filter((person) => !person.hidden && !inTranscript.has(person.id))
         .slice(0, SUGGESTION_LIMIT).map(personOption) },
     ]
-  const hidden = found.filter((person) => person.hidden).map(personOption)
+  const hidden = found.filter((person) => person.hidden).map(resultOption)
   const createAnother = peopleContext.people.some((person) => sameName(person.name, name))
   const create: Option | null = search && !queryTooLong
     ? { key: 'create', target: { kind: 'new-person', name }, detail: null, avatar: 'create',

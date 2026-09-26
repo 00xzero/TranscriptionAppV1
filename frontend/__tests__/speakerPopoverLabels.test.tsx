@@ -29,7 +29,8 @@ function renderPopover({ speakers = [speaker], segments = [segment], ...override
   Partial<React.ComponentProps<typeof SpeakerPopoverContent>> & { speakers?: Speaker[]; segments?: Seg[] } = {}) {
   // An explicit `currentSpeaker: undefined` means an unassigned segment.
   const currentSpeaker = 'currentSpeaker' in overrides ? overrides.currentSpeaker : speaker
-  const presentation = resolveSpeakerPresentation(speakers, segments, peopleContext.people)
+  const people = (overrides.peopleContext ?? peopleContext).people
+  const presentation = resolveSpeakerPresentation(speakers, segments, people)
   const selectedSegment = segments[0]
   const props = {
     presentation, peopleContext, currentSpeaker, removable: nothingToRemove,
@@ -38,7 +39,7 @@ function renderPopover({ speakers = [speaker], segments = [segment], ...override
       segment: [selectedSegment], turn: [selectedSegment],
     },
     labelForSpeaker: (id: string | null) => presentation.labels.get(id ?? '') ?? 'Unknown speaker',
-    displayForSpeaker: buildSpeakerDisplay(speakers, presentation, peopleContext.people),
+    displayForSpeaker: buildSpeakerDisplay(speakers, presentation, people),
     onSelectTarget: jest.fn(), onRemove: jest.fn(), onRenameLocal: jest.fn(), onRenamePerson: jest.fn(),
     onHoldOpenChange: jest.fn(), ...overrides,
   }
@@ -105,6 +106,28 @@ test('typing searches, a hidden namesake is discoverable, and Enter picks the be
   await user.click(screen.getByRole('combobox'))
   await user.keyboard('{Enter}')
   expect(onSelectTarget).toHaveBeenCalledWith({ kind: 'person', id: 'p1' }, 'speaker')
+})
+
+test('a search keeps namesakes in this transcript apart, as the page shows them', async () => {
+  // Two new people called Paul, both in this transcript: no organisation or
+  // history to tell them apart, only the transcript's `Paul (2)` and colours.
+  const paul = (id: string, preferred_color: string) => ({ ...peopleContext.people[0], id, name: 'Paul',
+    organisation_name: null, preferred_color, last_other_title: null, last_other_seen_at: null })
+  const people = [paul('pa', '#4F638C'), paul('pb', '#4F638C')]
+  const linkedTo = (id: string, person_id: string, ordinal: number) =>
+    ({ ...speaker, id, ordinal, diarization_index: null, person_id })
+  const speakers = [speaker, linkedTo('sa', 'pa', 2), linkedTo('sb', 'pb', 3)]
+  const segments = [segment, { ...segment, id: 'seg2', speaker_id: 'sa', start_ms: 3000 },
+    { ...segment, id: 'seg3', speaker_id: 'sb', start_ms: 5000 }]
+  const { user, displayForSpeaker } = renderPopover({ speakers, segments, peopleContext: { people } })
+  const shown = () => screen.getAllByRole('option', { name: /^Paul/ })
+    .map((option) => [option.querySelector('.text-sm')?.textContent, option.querySelector('[aria-hidden]')?.getAttribute('style')])
+  const before = shown()
+  expect(before.map(([text]) => text)).toEqual(['Paul', 'Paul (2)'])
+  await user.type(screen.getByRole('combobox'), 'Paul')
+  expect(shown()).toEqual(before)
+  // Both prefer the same colour; the page gives the second another one.
+  expect(displayForSpeaker('sb').color).not.toBe(displayForSpeaker('sa').color)
 })
 
 test('arrow keys move to Create, and a new person is created in one step', async () => {
