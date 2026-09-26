@@ -49,7 +49,7 @@ Rules:
 
 1. One transcript speaker links to zero or one person. One person can be linked from many transcript speakers, including more than one within the same transcript.
 2. Two people may have the same name. Equal names never establish equal identity; different spellings do not prevent an intentional link to the same identity.
-3. **Deepgram is a fixed layer.** A detected `Speaker N` is Deepgram's voice, not a person, and never carries a name. Naming it moves its segments to a named speaker, and **Remove** moves segments back to the detected speaker Deepgram gave them. Whatever the user does, every segment can return to what Deepgram said. New transcription does not automatically create a person for any detected voice.
+3. **Deepgram is a fixed layer.** A detected `Speaker N` is Deepgram's voice, not a person, and never carries a name. Naming it moves its segments to a named speaker, and **Remove** moves segments back to what Deepgram gave them: their detected speaker, or Unknown where Deepgram gave no number. Whatever the user does, every segment can return to what Deepgram said. New transcription does not automatically create a person for any detected voice.
 4. **Display label.** A linked transcript speaker shows its person's name, a named unlinked one its custom local label, and a detected one `Speaker {N}`, numbered from 1 in Deepgram's order. An unassigned segment shows `Unknown speaker`. One resolver in `core/` produces this label for the editor, every export and every summary.
 5. **Namesakes in one transcript.** If two different identities with segments in one transcript resolve to the same label, the resolver adds the organisation (`Paul (ACME)` / `Paul (Globex)`). If they are still identical, it adds a number (`Paul (2)`). A speaker with no segments never changes another identity's label.
 6. Renaming a person changes the current view and future exports of every linked transcript. Previously downloaded exports are static files and do not change.
@@ -88,7 +88,7 @@ Interview A and Meeting B contain the same person because they share `hamza-id`.
 
 - A header with name, organisation and colour.
 - Actions: **Rename person**, **Change organisation**, **Change colour**, **Hide** / **Unhide**, **Merge people**, and **Delete person**. Delete is available only when the person has no appearances; otherwise it is disabled with "Remove or merge first".
-- Appearances: one row per transcript, newest first, showing title, project path, date and segment count. Each row opens the transcript and has **Remove from this transcript**, which sends every segment showing this person there back to the speakers Deepgram gave them.
+- Appearances: one row per transcript, newest first, showing title, project path, date and segment count. Each row opens the transcript and has **Remove from this transcript**, which sends every segment showing this person there back to what Deepgram gave them.
 - Names are trimmed, non-empty, limited to the existing 50-character speaker-name limit, and may use any Unicode characters. Duplicate names are allowed; §5 describes how a namesake is created deliberately.
 
 ### Organisations
@@ -144,7 +144,7 @@ Under the search field, an **Apply to** control sets the scope before anything i
 **Named speaker (a person or a local label)**
 
 - The Current row shows the name. Choosing another person moves every segment of the identity to that person; the scope row shows the transcript-wide segment count.
-- **Remove** on the Current row sends every segment back to the speaker Deepgram gave it. Segments show `Speaker N` again, or that speaker's name if it has since been named. The person is not deleted.
+- **Remove** on the Current row sends every segment back to what Deepgram gave it. Segments show `Speaker N` again, or that speaker's name if it has since been named. The person is not deleted.
 - **Rename person everywhere** (the popover's footer) renames the person; its field is labelled with the count of affected transcripts, for example `Rename person everywhere · 26 transcripts`. For a local label, **Rename in this transcript only** changes the label. A name is never cleared to empty; **Remove** takes it away.
 
 When Deepgram split one person into two voices, the user identifies both as that person. The two then show one identity, and adjacent segments from both form one continuous turn.
@@ -318,7 +318,7 @@ Out of scope for this overhaul:
 |---|---|---|
 | This voice throughout this recording is Hamza | **All N** + choose Hamza (toast: **Identified Speaker 1 as Hamza**) | Move every segment of the voice to Hamza's speaker in this transcript. |
 | This one passage was said by Tibo | **This segment** / **This turn** + choose Tibo | Reassign the chosen segment or continuous turn only. |
-| This passage isn't who I said | **Remove** on the Current row, under **This segment** or **This turn** | Send the passage back to the speaker Deepgram gave it. |
+| This passage isn't who I said | **Remove** on the Current row, under **This segment** or **This turn** | Send the passage back to what Deepgram gave it. |
 | This voice isn't Hamza after all | **Remove** on the Current row, under **All N** | Send every segment showing Hamza here back to Deepgram's speakers. |
 | Hamza isn't in this transcript | **Remove from this transcript** (person page) | The same, from the person page. |
 | I only need a label in this recording | **Rename in this transcript only** | Give the voice a local label without creating or linking a person. |
@@ -375,9 +375,9 @@ These actions must not share an ambiguous **Tag**, **Rename** or **Reset** label
 | # | Decision | Why |
 |---|---|---|
 | 32 | Each segment keeps the number Deepgram gave it, and Deepgram's speakers never carry a name. Naming one moves its segments to a named speaker. | What Deepgram said stays separate from every edit, so it can always be restored. Resetting all speakers, splitting segments and re-running detection can build on it later. |
-| 33 | One **Remove** at every scope sends segments back to the speaker Deepgram gave them. It replaces **Unlink** and removing to Unknown. | One verb with one meaning. Nothing is invented: after any sequence of removals, every segment shows a speaker Deepgram produced. |
+| 33 | One **Remove** at every scope sends segments back to what Deepgram gave them. It replaces **Unlink** and removing to Unknown; a segment reaches Unknown only where Deepgram gave no number (decision 35). | One verb with one meaning. Nothing is invented: after any sequence of removals, every segment shows what Deepgram produced. |
 | 34 | `Speaker N` follows Deepgram's order, counted from 1, and existing data is renumbered once. The stored number stays as Deepgram sent it, from 0. | People count from 1, while the stored number still matches Deepgram's output. Speakers renamed before the overhaul had lost their number, and the old **Reset to generic name** invented new ones. |
-| 35 | `Unknown speaker` remains only for a segment Deepgram gave no number. | There is nothing to go back to. |
+| 35 | `Unknown speaker` remains only for a segment Deepgram gave no number, and **Remove** returns such a segment there once it has been attributed. | Unknown is what Deepgram gave it, so it is the one assignment to go back to. |
 | 36 | A local label can be renamed but not cleared to empty. | **Remove** is the one way to take a name away. |
 | 37 | The Current row, with **Remove**, stays visible while searching. | Removing should never need the search cleared first. |
 | 38 | Only identities with segments are compared for namesakes. | Remove and identify leave empty speakers behind, and they must not rename a visible one. |

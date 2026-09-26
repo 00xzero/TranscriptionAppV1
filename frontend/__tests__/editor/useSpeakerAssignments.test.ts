@@ -101,6 +101,14 @@ test('Remove restores an attributed segment that Deepgram left Unknown', async (
   await waitFor(() => expect(speakerIds()).toEqual(['c']))
 })
 
+test('Remove leaves a numbered segment alone when its detected speaker is missing', () => {
+  // The database's foreign key rules this out; if it ever happened, the
+  // segment must keep its speaker rather than be blanked to Unknown.
+  const { result, open } = setup([alexHere], [segment('s1', 'c', 0, 4)])
+  open()
+  expect(result.current.removable).toEqual({ speaker: false, segment: false, turn: false })
+})
+
 test('a passage correction settles on the speaker the database chose', async () => {
   queries.correctSegmentsToPerson.mockResolvedValue({ speaker: alexHere, person: alex,
     assignments: [{ segment_id: 's1', speaker_id: 'c' }] })

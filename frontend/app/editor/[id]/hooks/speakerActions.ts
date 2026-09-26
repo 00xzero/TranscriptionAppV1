@@ -102,20 +102,25 @@ function assignSegments(store: SpeakerStore, assignments: readonly SegmentSpeake
     : row))
 }
 
-/** The detected speaker Deepgram gave a segment, where Remove sends it. */
-export function homeSpeakerId(
+/**
+ * Where Remove sends a segment: the detected speaker Deepgram gave it, or null
+ * (Unknown) when Deepgram gave it no number. Undefined when a numbered
+ * segment's detected speaker is missing, which the database's foreign key
+ * rules out; such a segment is left alone rather than blanked to Unknown.
+ */
+function homeSpeakerId(
   speakers: readonly Speaker[],
   segment: Pick<Seg, 'diarization_index'>
-): string | null {
+): string | null | undefined {
   if (segment.diarization_index === null) return null
-  return speakers.find((speaker) => speaker.diarization_index === segment.diarization_index)?.id ?? null
+  return speakers.find((speaker) => speaker.diarization_index === segment.diarization_index)?.id
 }
 
 /** What Remove would change: each segment not on Deepgram's original assignment. */
 export function removalChanges(speakers: readonly Speaker[], segments: readonly Seg[]): SegmentSpeakerChange[] {
   return segments.flatMap((segment) => {
     const home = homeSpeakerId(speakers, segment)
-    return home !== segment.speaker_id
+    return home !== undefined && home !== segment.speaker_id
       ? [{ segment_id: segment.id, expected_speaker_id: segment.speaker_id, speaker_id: home }]
       : []
   })
