@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
 import { z } from 'zod'
 import {
+  fetchEditorPeopleContext,
   fetchTranscriptData,
-  fetchSegmentSpeakerAssignments,
   fetchSpeakers,
   fetchTranscriptById,
 } from '@/lib/supabase/queries'
-import { SegmentSchema, WaveformStatusSchema, type WaveformStatus } from '@/contracts/db'
+import {
+  SegmentSchema,
+  WaveformStatusSchema,
+  type EditorPeopleContext,
+  type WaveformStatus,
+} from '@/contracts/db'
 import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
+import { toast } from '@/components/ui/toaster'
 import type { Seg, Speaker } from '../types'
 import { computeWordsForSegments } from '../utils'
 
@@ -54,6 +60,7 @@ export function useEditorData(transcriptId: string) {
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
   const [speakers, setSpeakers] = useState<Speaker[]>([])
+  const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
   const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
   const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
@@ -61,25 +68,6 @@ export function useEditorData(transcriptId: string) {
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
-
-  // Refreshes speakers and each segment's speaker_id only. Segment text stays as
-  // the editor holds it, so a text edit still waiting on its debounced save is
-  // never replaced by the older text in the database. Resolves false when the
-  // refresh itself fails, so the caller can undo its optimistic change instead.
-  const reloadSpeakerAssignments = async (): Promise<boolean> => {
-    try {
-      const [assignments, speakerData] = await Promise.all([
-        fetchSegmentSpeakerAssignments(transcriptId),
-        fetchSpeakers(transcriptId),
-      ])
-      setSegments((prev) => mergeSpeakerAssignments(prev, assignments))
-      setSpeakers(speakerData)
-      return true
-    } catch (error) {
-      console.error(`Failed to reload speaker assignments for transcript ${transcriptId}:`, error)
-      return false
-    }
-  }
 
   useEffect(() => {
     let cancelled = false
@@ -161,11 +149,38 @@ export function useEditorData(transcriptId: string) {
       }, WAVEFORM_POLL_INTERVAL_MS)
     }
 
+    // Speakers and people arrive together: a linked speaker shown without its
+    // person would read as an unlinked voice with the wrong label.
+    const loadSpeakers = () => Promise.all([fetchSpeakers(transcriptId), fetchEditorPeopleContext(transcriptId)])
+    const showSpeakers = ([speakerData, context]: [Speaker[], EditorPeopleContext]) => {
+      if (cancelled) return
+      const speakersParsed = z.array(EditorSpeakerSchema).safeParse(speakerData)
+      if (!speakersParsed.success) {
+        console.warn('[useEditorData] speakers schema mismatch', speakersParsed.error.issues)
+      }
+      setSpeakers(speakerData)
+      setPeopleContext(context)
+    }
+    const reportSpeakerLoadFailure = (error: unknown) => {
+      if (cancelled) return
+      console.error(`[useEditorData] failed to load speakers for transcript ${transcriptId}:`, error)
+      toast({
+        title: "Couldn't load speakers",
+        description: 'Every segment shows Unknown speaker until they load.',
+        variant: 'error',
+        action: { label: 'Retry', onClick: () => { void loadSpeakers().then(showSpeakers, reportSpeakerLoadFailure) } },
+      })
+    }
+
     const init = async () => {
       try {
         setStatus('Loading media...')
 
         const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
+          (data) => ({ data, error: null as unknown }),
+          (error) => ({ data: null, error })
+        )
+        const speakersPromise = loadSpeakers().then(
           (data) => ({ data, error: null as unknown }),
           (error) => ({ data: null, error })
         )
@@ -192,18 +207,12 @@ export function useEditorData(transcriptId: string) {
           console.warn('[useEditorData] transcript schema mismatch', itemsParsed.error.issues)
         }
 
+        // Segments and their speakers render in the same pass.
+        const speakersResult = await speakersPromise
+        if (cancelled) return
         setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
-
-        void fetchSpeakers(transcriptId)
-          .then((speakerData) => {
-            if (cancelled) return
-            const speakersParsed = z.array(EditorSpeakerSchema).safeParse(speakerData)
-            if (!speakersParsed.success) {
-              console.warn('[useEditorData] speakers schema mismatch', speakersParsed.error.issues)
-            }
-            setSpeakers(speakerData)
-          })
-          .catch(() => { /* ignore */ })
+        if (speakersResult.data) showSpeakers(speakersResult.data)
+        else reportSpeakerLoadFailure(speakersResult.error)
 
         void loadTranscriptMetadata()
           .then((wfStatus) => {
@@ -230,6 +239,7 @@ export function useEditorData(transcriptId: string) {
     status, setStatus,
     segments, setSegments,
     speakers, setSpeakers,
+    peopleContext, setPeopleContext,
     transcriptTitle, setTranscriptTitle,
     transcriptCreatedAt,
     transcriptDurationSecs: chooseEditorDuration(transcriptDurationSecs, waveformDurationSecs),
@@ -237,6 +247,5 @@ export function useEditorData(transcriptId: string) {
     waveformDurationSecs,
     peaks,
     waveformStatus,
-    reloadSpeakerAssignments,
   }
 }

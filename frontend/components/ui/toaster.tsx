@@ -3,6 +3,7 @@
 import * as React from 'react'
 import {
   Toast,
+  ToastAction,
   ToastDescription,
   ToastProvider,
   ToastTitle,
@@ -15,6 +16,7 @@ export interface ToastOptions {
   variant?: 'default' | 'error'
   /** Auto-dismiss delay; defaults to 5s. */
   durationMs?: number
+  action?: { label: string; onClick: () => void }
 }
 
 interface ToastItem extends ToastOptions {
@@ -100,6 +102,14 @@ export function Toaster(): React.JSX.Element {
             >
               {item.description}
             </ToastDescription>
+          ) : null}
+          {item.action ? (
+            <ToastAction altText={item.action.label} asChild>
+              <button type="button" className="mt-2 rounded-sm border border-current px-2 py-1 text-sm font-semibold"
+                onClick={() => { item.action?.onClick(); setOpen(item.id, false) }}>
+                {item.action.label}
+              </button>
+            </ToastAction>
           ) : null}
         </Toast>
       ))}

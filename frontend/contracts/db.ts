@@ -79,8 +79,40 @@ export const SpeakerSchema = z.object({
   ordinal: z.number().int().nonnegative(),
   custom_label: z.string().nullable(),
   diarization_index: z.number().int().nonnegative().nullable(),
+  person_id: UuidSchema.nullable(),
   created_at: z.string(),
   updated_at: z.string(),
+})
+
+export const OrganisationSchema = z.object({
+  id: UuidSchema,
+  user_id: UuidSchema,
+  name: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+export const PersonSchema = z.object({
+  id: UuidSchema,
+  user_id: UuidSchema,
+  name: z.string(),
+  organisation_id: UuidSchema.nullable(),
+  preferred_color: z.string(),
+  hidden: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+// A person as the editor's picker sees them (editor_people_context). The
+// figures describe appearances in OTHER transcripts: the editor works out who
+// is in the open transcript from its own speaker state.
+export const EditorPersonSchema = PersonSchema.extend({
+  organisation_name: z.string().nullable(),
+  other_transcript_count: z.number().int().nonnegative(),
+  last_other_title: z.string().nullable(),
+  last_other_seen_at: z.string().nullable(),
+  // Appears in another transcript of the open transcript's project.
+  in_project: z.boolean(),
 })
 
 // === Secondary schemas (type derivation only — not used for runtime validation) ===
@@ -106,6 +138,8 @@ export const SegmentSchema = z.object({
   id: UuidSchema,
   transcript_id: UuidSchema,
   speaker_id: UuidSchema.nullable(),
+  /** Deepgram's speaker number, fixed at save; Remove returns the segment to its detected speaker. */
+  diarization_index: z.number().int().nonnegative().nullable(),
   start_ms: z.number().int(),
   end_ms: z.number().int(),
   text: z.string(),
@@ -172,8 +206,8 @@ export const SegmentSpeakerChangeSchema = z.object({
   speaker_id: UuidSchema.nullable(),
 })
 
-// One segment of an assign_segments_to_new_speaker call; the target is the
-// speaker that call creates.
+// One segment of a correct_segments_to_person call. The database chooses or
+// creates the target speaker, so a change names only the expected one.
 export const NewSpeakerSegmentChangeSchema = SegmentSpeakerChangeSchema.omit({ speaker_id: true })
 
 export const SegmentSpeakerAssignmentSchema = z.object({
@@ -183,6 +217,21 @@ export const SegmentSpeakerAssignmentSchema = z.object({
 
 // RETURNS TABLE, so PostgREST hands back an array of rows.
 export const ReassignSegmentsResultSchema = z.array(SegmentSpeakerAssignmentSchema)
+
+// === RPC: people in the editor ===
+// See infra/supabase/migrations/20260924120000_people_editor.sql
+
+export const EditorPeopleContextSchema = z.object({
+  people: z.array(EditorPersonSchema),
+})
+
+export const PersonCorrectionResultSchema = z.object({
+  speaker: SpeakerSchema,
+  person: PersonSchema,
+  assignments: z.array(SegmentSpeakerAssignmentSchema),
+})
+
+export const LocalSpeakerResultSchema = PersonCorrectionResultSchema.omit({ person: true })
 
 // === RPC: save_transcript_segments ===
 // The webhook handler builds the full transcript in TypeScript (segment-builder) and
@@ -261,6 +310,12 @@ export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
 export type JobSummary = Omit<Job, 'payload'>
 export type Speaker = z.infer<typeof SpeakerSchema>
+export type Person = z.infer<typeof PersonSchema>
+export type Organisation = z.infer<typeof OrganisationSchema>
+export type EditorPerson = z.infer<typeof EditorPersonSchema>
+export type EditorPeopleContext = z.infer<typeof EditorPeopleContextSchema>
+export type PersonCorrectionResult = z.infer<typeof PersonCorrectionResultSchema>
+export type LocalSpeakerResult = z.infer<typeof LocalSpeakerResultSchema>
 export type Word = z.infer<typeof WordSchema>
 export type Segment = z.infer<typeof SegmentSchema>
 export type WatchlistTerm = z.infer<typeof WatchlistTermSchema>

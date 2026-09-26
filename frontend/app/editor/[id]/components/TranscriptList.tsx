@@ -1,7 +1,8 @@
 import React from 'react'
 import { Virtuoso, VirtuosoHandle, ListRange } from 'react-virtuoso'
 import TranscriptSegmentCard from './TranscriptSegmentCard'
-import type { Seg, SegmentMatch, SaveStatusBySegment, Speaker } from '../types'
+import type { SpeakerDisplay } from '@/lib/speakers/display'
+import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 
 export type TranscriptListProps = {
   segments: Seg[]
@@ -11,9 +12,7 @@ export type TranscriptListProps = {
   activeSegId: string | undefined
   matchesBySeg: Map<string, SegmentMatch[]>
   matchIndex: number
-  speakersMap: Map<string, Speaker>
-  colorForSpeaker: (sp: Speaker | undefined) => string
-  labelForSpeaker: (speakerId: string | null) => string
+  displayForSpeaker: (speakerId: string | null) => SpeakerDisplay
   editingId: string | null
   editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
@@ -33,9 +32,7 @@ export default function TranscriptList({
   activeSegId,
   matchesBySeg,
   matchIndex,
-  speakersMap,
-  colorForSpeaker,
-  labelForSpeaker,
+  displayForSpeaker,
   editingId,
   editingTexts,
   saveStatus,
@@ -56,9 +53,10 @@ export default function TranscriptList({
         overscan={1200}
         rangeChanged={onRangeChanged}
         itemContent={(idx: number, s: Seg) => {
-          const prevSpeakerId = idx > 0 ? (segments[idx - 1]?.speaker_id ?? null) : null
-          const needHeader = idx === 0 || (s.speaker_id ?? null) !== prevSpeakerId
-          const sp = s.speaker_id ? speakersMap.get(s.speaker_id) : undefined
+          const speaker = displayForSpeaker(s.speaker_id ?? null)
+          // A new turn starts when the displayed identity changes (spec §3).
+          const needHeader = idx === 0 ||
+            speaker.identityKey !== displayForSpeaker(segments[idx - 1]?.speaker_id ?? null).identityKey
           const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
           return (
             <TranscriptSegmentCard
@@ -66,8 +64,7 @@ export default function TranscriptList({
               isActive={activeSegId === s.id}
               matchesForSeg={matchesForSeg}
               matchIndex={matchIndex}
-              speakerLabel={labelForSpeaker(s.speaker_id ?? null)}
-              avatarBg={colorForSpeaker(sp)}
+              speaker={speaker}
               needHeader={needHeader}
               editingId={editingId}
               editingTexts={editingTexts}

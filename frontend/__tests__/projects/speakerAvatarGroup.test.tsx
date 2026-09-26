@@ -314,7 +314,7 @@ describe('SpeakerAvatarGroup', () => {
       const badge = all[all.length - 1]
       expect(badge).toHaveTextContent('+6')
       // Same sizing classes, so the badge cannot drift from its neighbours.
-      for (const size of ['h-7', 'w-7', 'text-[10px]']) {
+      for (const size of ['h-7', 'min-w-7', 'text-[10px]']) {
         expect(badge).toHaveClass(size)
         expect(all[0]).toHaveClass(size)
       }
