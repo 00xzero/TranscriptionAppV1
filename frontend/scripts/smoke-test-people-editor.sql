@@ -64,6 +64,8 @@ INSERT INTO public.segments (id, transcript_id, speaker_id, diarization_index, s
   ('d3000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000005', 0, 1000, 2000, 'two'),
   ('d3000000-0000-4000-8000-000000000003', 'd1000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000002', 1, 2000, 3000, 'three'),
   ('d3000000-0000-4000-8000-000000000004', 'd1000000-0000-4000-8000-000000000003', 'd2000000-0000-4000-8000-000000000004', 0, 0, 1000, 'gamma');
+INSERT INTO public.segments (id, transcript_id, speaker_id, diarization_index, start_ms, end_ms, text) VALUES
+  ('d3000000-0000-4000-8000-000000000005', 'd1000000-0000-4000-8000-000000000003', NULL, NULL, 1000, 2000, 'unknown');
 
 -- Remove relies on this: every segment with a Deepgram number has a detected
 -- speaker for that number in its transcript. Holds for all data, not only the
@@ -227,6 +229,21 @@ SELECT pg_temp.assert_true(
     AND data->'assignments'->0->>'speaker_id' = data->'speaker'->>'id' FROM action_result WHERE name = 'local')
   AND (SELECT custom_label IS NULL FROM public.speakers WHERE id = 'd2000000-0000-4000-8000-000000000004'),
   'a local name lives on a new speaker, and Deepgram''s speaker keeps none'
+);
+
+-- A corrected passage with no Deepgram number can be removed back to Unknown.
+INSERT INTO action_result VALUES ('unknown', public.correct_segments_to_person(
+  'd1000000-0000-4000-8000-000000000003',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000005","expected_speaker_id":null}]',
+  (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first')));
+SELECT public.reassign_segments('d1000000-0000-4000-8000-000000000003',
+  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000005',
+    'expected_speaker_id', (data->'speaker'->>'id')::uuid, 'speaker_id', NULL))
+   FROM action_result WHERE name = 'unknown'));
+SELECT pg_temp.assert_true(
+  (SELECT speaker_id IS NULL AND diarization_index IS NULL FROM public.segments
+   WHERE id = 'd3000000-0000-4000-8000-000000000005'),
+  'Remove returns a corrected segment without a Deepgram number to Unknown'
 );
 
 RESET ROLE;

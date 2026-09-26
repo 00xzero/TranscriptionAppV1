@@ -286,7 +286,7 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
                       Remove
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-64">Back to the speaker Deepgram detected</TooltipContent>
+                  <TooltipContent className="max-w-64">Back to Deepgram&apos;s original assignment</TooltipContent>
                 </Tooltip>
               )}
             </div>

@@ -31,7 +31,7 @@ const detected = (id: string, index: number): Speaker => ({
 const named = (id: string, ordinal: number, patch: Pick<Speaker, 'custom_label' | 'person_id'>): Speaker => ({
   ...detected(id, ordinal), diarization_index: null, ...patch,
 })
-const segment = (id: string, speaker_id: string | null, start_ms: number, diarization_index = 0): Seg => ({
+const segment = (id: string, speaker_id: string | null, start_ms: number, diarization_index: number | null = 0): Seg => ({
   id, transcript_id: 't1', speaker_id, diarization_index, start_ms, end_ms: start_ms + 1000, text: `text ${id}`,
   is_edited: false, is_filler: false, algo_version: 'test', created_at: stamp, updated_at: stamp,
 })
@@ -85,6 +85,20 @@ test('two voices linked to one person count once and form one turn', () => {
   expect(result.current.scopes.speaker.map((row) => row.id)).toEqual(['s1', 's2'])
   expect(result.current.labelForSpeaker('x')).toBe('Alex')
   expect(result.current.displayForSpeaker('y').identityKey).toBe(result.current.displayForSpeaker('x').identityKey)
+})
+
+test('Remove restores an attributed segment that Deepgram left Unknown', async () => {
+  const { result, open, speakerIds } = setup([alexHere], [segment('s1', 'c', 0, null)])
+  open()
+  expect(result.current.removable.segment).toBe(true)
+  act(() => result.current.removeSpeaker('segment'))
+  await waitFor(() => expect(speakerIds()).toEqual([null]))
+  expect(queries.reassignSegments).toHaveBeenCalledWith('t1', [{
+    segment_id: 's1', expected_speaker_id: 'c', speaker_id: null,
+  }])
+  expect(toastWith('Undo')!.title).toBe('Removed Alex from this segment — back to Unknown speaker')
+  act(() => toastWith('Undo')!.action!.onClick())
+  await waitFor(() => expect(speakerIds()).toEqual(['c']))
 })
 
 test('a passage correction settles on the speaker the database chose', async () => {
