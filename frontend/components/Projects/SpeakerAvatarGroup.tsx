@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
 import { speakerBaseLabel } from '@/core/speakers/labels'
-import { speakerInitials, speakerPaletteColor } from '@/lib/speakers/palette'
+import { SPEAKER_COLOR_FALLBACK, speakerInitials } from '@/lib/speakers/palette'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
@@ -65,9 +65,9 @@ const CIRCLE_RING = 'ring-2 ring-panel'
  */
 const EMPTY_COPY = 'No speakers yet!'
 
-/** The speaker's own label, from the shared resolver. */
+/** A linked speaker is its person, as in the editor; any other keeps its own label. */
 function displayName(speaker: ProjectSpeakerPreview): string {
-  return speakerBaseLabel(speaker.ordinal, speaker.customLabel)
+  return speaker.personName ?? speakerBaseLabel(speaker.ordinal, speaker.customLabel)
 }
 
 /**
@@ -254,9 +254,11 @@ export function SpeakerAvatarGroup({
             {visible.map((speaker, index) => (
               <Tooltip key={speaker.id}>
                 <TooltipTrigger asChild>
+                  {/* A person in their preferred colour, an unlinked voice
+                      neutral: the editor's colour rules (spec §8). */}
                   <Avatar
                     size={styles.avatar}
-                    color={speakerPaletteColor(speaker.paletteIndex)}
+                    color={speaker.personColor ?? SPEAKER_COLOR_FALLBACK}
                     className={cn(CIRCLE_RING, cursorClass, index > 0 && styles.overlap)}
                   >
                     {speakerInitials(displayName(speaker))}
