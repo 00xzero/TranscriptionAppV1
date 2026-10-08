@@ -1,6 +1,8 @@
-import type { Speaker } from '@/contracts/db'
+import type { ProjectSpeakerPreview, Speaker } from '@/contracts/db'
 import {
   displayedIdentityKey,
+  resolveSpeakerLabels,
+  speakerLabelFor,
   UNKNOWN_SPEAKER_LABEL,
   type SpeakerPresentation,
 } from '@/core/speakers/labels'
@@ -49,5 +51,48 @@ export function buildSpeakerDisplay(
     color: SPEAKER_COLOR_FALLBACK,
     avatarText: '?',
     organisation: null,
+  }
+}
+
+/** Everything a project avatar shows for one preview entry. */
+export type PreviewDisplay = {
+  key: string
+  tooltip: string
+  avatarText: string
+  color: string
+}
+
+/**
+ * A project avatar (spec §8). A person shows their name and preferred colour,
+ * with their organisation in the tooltip, as the editor's avatar does. A voice
+ * is grey and labelled by the resolver among its transcript's identities, so it
+ * reads exactly as it does in the editor (`Paul (2)`); its tooltip names the
+ * transcript (`Speaker 1 · Q3 steering`).
+ */
+export function previewDisplay(entry: ProjectSpeakerPreview): PreviewDisplay {
+  if (entry.kind === 'person') {
+    return {
+      key: `person:${entry.id}`,
+      tooltip: entry.organisationName ? `${entry.name} · ${entry.organisationName}` : entry.name,
+      avatarText: speakerInitials(entry.name),
+      color: entry.color,
+    }
+  }
+  const labels = resolveSpeakerLabels(
+    entry.peers.map((peer) => ({ id: peer.id, ordinal: peer.ordinal, custom_label: peer.customLabel, person_id: peer.personId })),
+    // Peers arrive in order of first appearance, which is all the resolver reads from segments.
+    entry.peers.map((peer) => ({ speaker_id: peer.id })),
+    entry.peers.flatMap((peer) => peer.personId && peer.personName !== null
+      ? [{ id: peer.personId, name: peer.personName, organisation_name: peer.organisationName }]
+      : [])
+  )
+  const label = speakerLabelFor(labels, entry.id)
+  const self = entry.peers.find((peer) => peer.id === entry.id)
+  return {
+    key: `voice:${entry.id}`,
+    tooltip: `${label} · ${entry.transcriptTitle || 'Untitled'}`,
+    // As the editor draws an unlinked voice: its label's initials, or S{N}.
+    avatarText: self?.customLabel ? speakerInitials(self.customLabel) : self ? `S${self.ordinal}` : '?',
+    color: SPEAKER_COLOR_FALLBACK,
   }
 }

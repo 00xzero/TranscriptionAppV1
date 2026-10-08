@@ -33,7 +33,7 @@ function renderPopover({ speakers = [speaker], segments = [segment], ...override
   const presentation = resolveSpeakerPresentation(speakers, segments, people)
   const selectedSegment = segments[0]
   const props = {
-    presentation, peopleContext, currentSpeaker, removable: nothingToRemove,
+    transcriptId: 't1', presentation, peopleContext, currentSpeaker, removable: nothingToRemove,
     scopes: {
       speaker: currentSpeaker ? segments.filter((row) => row.speaker_id === currentSpeaker.id) : [],
       segment: [selectedSegment], turn: [selectedSegment],
@@ -167,6 +167,30 @@ test('a linked speaker can be removed everywhere and renamed everywhere', async 
   await user.clear(input)
   await user.type(input, 'Alexa{Enter}')
   expect(onRenamePerson).toHaveBeenCalledWith('Alexa')
+})
+
+test('a linked person\'s name opens their page, with the way back to this transcript', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  const linked = { ...speaker, person_id: id, diarization_index: null }
+  renderPopover({ speakers: [linked], currentSpeaker: linked,
+    peopleContext: { people: [{ ...peopleContext.people[0], id }] } })
+  expect(screen.getByRole('link', { name: 'Alex' })).toHaveAttribute('href', `/people/${id}?from=t1`)
+})
+
+test('a person still being created is not a link yet', () => {
+  const linked = { ...speaker, person_id: 'p1', diarization_index: null }
+  renderPopover({ speakers: [linked], currentSpeaker: linked })
+  expect(screen.queryByRole('link', { name: 'Alex' })).not.toBeInTheDocument()
+})
+
+test('an unlinked voice\'s name is not a link', () => {
+  renderPopover()
+  expect(screen.queryByRole('link', { name: 'Speaker 0' })).not.toBeInTheDocument()
+})
+
+test('Manage people sits at the bottom, even for an unassigned segment', () => {
+  renderPopover({ segments: [{ ...segment, speaker_id: null }], currentSpeaker: undefined })
+  expect(screen.getByRole('link', { name: 'Manage people' })).toHaveAttribute('href', '/people?from=t1')
 })
 
 test('renaming in this transcript needs a name and can use an existing person instead', async () => {

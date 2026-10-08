@@ -104,6 +104,28 @@ describe('Sidebar', () => {
     expect(library).not.toHaveClass('border')
   })
 
+  it('renders People after Projects and marks People routes active', async () => {
+    usePathnameMock.mockReturnValue('/people/11111111-1111-4111-8111-111111111111')
+    await renderSidebar()
+
+    const projects = screen.getByRole('button', { name: 'Projects' })
+    const people = screen.getByRole('button', { name: 'People' })
+    const drafts = screen.getByRole('button', { name: 'Drafts (coming soon)' })
+    expect(projects.compareDocumentPosition(people) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(people.compareDocumentPosition(drafts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(people).toHaveClass('border')
+    expect(projects).not.toHaveClass('border')
+
+    await user.click(people)
+    expect(routerPushMock).toHaveBeenCalledWith('/people')
+  })
+
+  it('does not mark a route that merely starts with "people" active', async () => {
+    usePathnameMock.mockReturnValue('/peoplesoft')
+    await renderSidebar()
+    expect(screen.getByRole('button', { name: 'People' })).not.toHaveClass('border')
+  })
+
   it('shows the provider user in the account menu', async () => {
     setTestAuth({
       userId: 'user-a',

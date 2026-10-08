@@ -345,6 +345,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           <PopoverFrozenWhileClosed open={!!speakerHook.speakerPopover}>
             <SpeakerPopoverContent
               key={speakerHook.speakerPopover?.segmentId}
+              transcriptId={transcriptId}
               presentation={speakerHook.presentation}
               peopleContext={data.peopleContext}
               currentSpeaker={speakerHook.currentSpeaker}

@@ -12,8 +12,8 @@ const summary: ProjectSpeakerSummary = {
   project_id: PROJECT_ID,
   speaker_count: 2,
   preview: [
-    { id: 's1', transcriptId: 't1', ordinal: 0, customLabel: 'Kate Bishop', personName: null, personColor: null },
-    { id: 's2', transcriptId: 't1', ordinal: 0, customLabel: 'John Smith', personName: null, personColor: null },
+    { kind: 'person', id: 's1', name: 'Kate Bishop', color: '#4F638C', organisationName: null },
+    { kind: 'person', id: 's2', name: 'John Smith', color: '#4F638C', organisationName: null },
   ],
 }
 

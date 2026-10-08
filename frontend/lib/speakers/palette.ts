@@ -12,6 +12,15 @@ export const SPEAKER_COLORS = [
   '#B45309', '#059669', '#DB2777', '#2563EB',
 ] as const
 
+export type SpeakerColor = (typeof SPEAKER_COLORS)[number]
+
+/** What the colour picker calls each palette colour, for people who cannot see it. */
+export const SPEAKER_COLOR_NAMES: Readonly<Record<SpeakerColor, string>> = {
+  '#4F638C': 'Denim', '#C73E1D': 'Red', '#CA8A04': 'Mustard',
+  '#0D9488': 'Teal', '#7C3AED': 'Violet', '#64748B': 'Slate',
+  '#B45309': 'Bronze', '#059669': 'Green', '#DB2777': 'Pink', '#2563EB': 'Blue',
+}
+
 // Neutral: unlinked voices and Unknown.
 export const SPEAKER_COLOR_FALLBACK = '#9CA3AF'
 

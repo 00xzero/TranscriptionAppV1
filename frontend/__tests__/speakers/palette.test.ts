@@ -7,6 +7,7 @@ import {
   leastUsedSpeakerColor,
   resolveTranscriptColors,
   speakerInitials,
+  SPEAKER_COLOR_NAMES,
   SPEAKER_COLORS,
   SPEAKER_COLOR_FALLBACK,
 } from '@/lib/speakers/palette'
@@ -17,6 +18,13 @@ test('the palette matches speaker_palette() in the database, in allocation order
   const body = migration.match(/FUNCTION public\.speaker_palette\(\)[\s\S]*?ARRAY\[([\s\S]*?)\]/)
   expect(body).not.toBeNull()
   expect([...body![1].matchAll(/'(#[0-9A-F]{6})'/gi)].map((match) => match[1])).toEqual([...SPEAKER_COLORS])
+})
+
+test('every palette colour has a distinct name for the colour picker', () => {
+  const names = SPEAKER_COLORS.map((color) => SPEAKER_COLOR_NAMES[color])
+  expect(names.every(Boolean)).toBe(true)
+  expect(new Set(names).size).toBe(SPEAKER_COLORS.length)
+  expect(Object.keys(SPEAKER_COLOR_NAMES)).toHaveLength(SPEAKER_COLORS.length)
 })
 
 test('linked people claim colours in first appearance order while local voices stay grey', () => {
