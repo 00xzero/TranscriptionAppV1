@@ -456,7 +456,8 @@ export function generateMarkdown({
     ]
 
     if (speakers.participants.length > 0) {
-        lines.push('', '**Participants**', ...speakers.participants.map(escapeMarkdown))
+        // A list, so each participant renders on its own line rather than as one paragraph.
+        lines.push('', '**Participants**', '', ...speakers.participants.map((name) => `- ${escapeMarkdown(name)}`))
     }
 
     for (const turn of groupSegmentsBySpeaker(segments, speakers)) {
