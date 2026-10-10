@@ -10,12 +10,15 @@
  * projectName is also enforced by the database (projects_name_length, 80), so
  * it cannot be raised above 80 without a migration. speakerName is likewise
  * checked by the speaker write functions (speaker identity migration), so
- * changing it needs a migration too. transcriptTitle is app-only.
+ * changing it needs a migration too; person names use the same limit.
+ * organisationName is enforced by organisations_name_valid and the directory
+ * functions. transcriptTitle is app-only.
  */
 export const TEXT_LIMITS = {
   projectName: 80,
   transcriptTitle: 120,
   speakerName: 50,
+  organisationName: 50,
 } as const
 
 /**

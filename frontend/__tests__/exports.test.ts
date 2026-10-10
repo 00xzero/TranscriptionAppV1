@@ -292,9 +292,9 @@ test('DOCX, TXT and Markdown include participants; VTT keeps only voice labels',
         segments: [
             { speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello' },
             { speaker_id: null, start_ms: 1000, end_ms: 2000, text: 'Who?' },
-        ], speakers: speakersOf(new Map([['s1', 'Alex']]), ['Alex — Example Org']) }
-    expect(generateTxt(params)).toContain('Participants\nAlex — Example Org')
-    expect(generateMarkdown(params)).toContain('**Participants**\nAlex — Example Org')
+        ], speakers: speakersOf(new Map([['s1', 'Alex']]), ['Alex — Example Org', 'Blair']) }
+    expect(generateTxt(params)).toContain('Participants\nAlex — Example Org\nBlair')
+    expect(generateMarkdown(params)).toContain('**Participants**\n\n- Alex — Example Org\n- Blair\n')
     const zip = await JSZip.loadAsync(await generateDocx(params))
     const xml = await zip.file('word/document.xml')!.async('string')
     expect(xml).toContain('Participants')

@@ -193,10 +193,7 @@ export default function FindReplaceModal({
             pressed={caseSensitive}
             onPressedChange={setCaseSensitive}
             aria-label="Match case"
-            className={`select-none rounded-md border px-2.5 py-1 h-auto text-[11px] font-mono transition-colors ${caseSensitive
-              ? 'border-trust-blue/30 bg-trust-blue/15 text-trust-blue dark:border-trust-blue/40 dark:bg-trust-blue/20 dark:text-trust-blue'
-              : 'border-ink/10 text-ink/40 hover:bg-ink/5 dark:border-paper/10 dark:text-paper/40 dark:hover:bg-paper/5'
-              }`}
+            variant="outline"
           >
             <span className="mr-1.5 font-serif text-xs italic">Aa</span>
             Match Case
@@ -205,10 +202,7 @@ export default function FindReplaceModal({
             pressed={wholeWord}
             onPressedChange={setWholeWord}
             aria-label="Whole word"
-            className={`select-none rounded-md border px-2.5 py-1 h-auto text-[11px] font-mono transition-colors ${wholeWord
-              ? 'border-trust-blue/30 bg-trust-blue/15 text-trust-blue dark:border-trust-blue/40 dark:bg-trust-blue/20 dark:text-trust-blue'
-              : 'border-ink/10 text-ink/40 hover:bg-ink/5 dark:border-paper/10 dark:text-paper/40 dark:hover:bg-paper/5'
-              }`}
+            variant="outline"
           >
             <span className="mr-1.5 text-xs font-bold">W</span>
             Whole Word

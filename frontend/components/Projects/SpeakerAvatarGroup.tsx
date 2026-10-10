@@ -6,8 +6,7 @@ import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
-import { speakerBaseLabel } from '@/core/speakers/labels'
-import { SPEAKER_COLOR_FALLBACK, speakerInitials } from '@/lib/speakers/palette'
+import { previewDisplay, type PreviewDisplay } from '@/lib/speakers/display'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
@@ -65,11 +64,6 @@ const CIRCLE_RING = 'ring-2 ring-panel'
  */
 const EMPTY_COPY = 'No speakers yet!'
 
-/** A linked speaker is its person, as in the editor; any other keeps its own label. */
-function displayName(speaker: ProjectSpeakerPreview): string {
-  return speaker.personName ?? speakerBaseLabel(speaker.ordinal, speaker.customLabel)
-}
-
 /**
  * Overlap is capped by legibility, not taste: each circle covers the right edge
  * of the one before it, so the overlap must stay under the free margin beside
@@ -114,12 +108,13 @@ const SIZES = {
   },
 } as const
 
-function accessibleName(visible: ProjectSpeakerPreview[], totalCount: number): string {
+function accessibleName(visible: PreviewDisplay[], totalCount: number): string {
   // One string for both paths, so the label can never drift from the copy.
   if (totalCount === 0) return EMPTY_COPY
   const count = countLabel(totalCount, 'speaker', 'speakers')
 
-  const names = visible.map((speaker) => displayName(speaker))
+  // The tooltip text, so a voice is named with its transcript here too.
+  const names = visible.map((speaker) => speaker.tooltip)
   const remainder = totalCount - visible.length
   const parts = remainder > 0 ? [...names, `${remainder} more`] : names
   if (parts.length === 0) return count
@@ -212,7 +207,8 @@ export function SpeakerAvatarGroup({
 
   // Exactly four speakers get four circles; a fifth would not fit, so from five
   // up the last slot is spent on the overflow badge instead.
-  const visible = totalCount > MAX_AVATARS ? speakers.slice(0, MAX_AVATARS - 1) : speakers.slice(0, MAX_AVATARS)
+  const visible = (totalCount > MAX_AVATARS ? speakers.slice(0, MAX_AVATARS - 1) : speakers.slice(0, MAX_AVATARS))
+    .map(previewDisplay)
   const overflow = totalCount - visible.length
 
   return (
@@ -252,19 +248,19 @@ export function SpeakerAvatarGroup({
         >
           <Row href={href}>
             {visible.map((speaker, index) => (
-              <Tooltip key={speaker.id}>
+              <Tooltip key={speaker.key}>
                 <TooltipTrigger asChild>
-                  {/* A person in their preferred colour, an unlinked voice
-                      neutral: the editor's colour rules (spec §8). */}
+                  {/* People first, in their preferred colours; unlinked voices
+                      follow in grey: the editor's colour rules (spec §8). */}
                   <Avatar
                     size={styles.avatar}
-                    color={speaker.personColor ?? SPEAKER_COLOR_FALLBACK}
+                    color={speaker.color}
                     className={cn(CIRCLE_RING, cursorClass, index > 0 && styles.overlap)}
                   >
-                    {speakerInitials(displayName(speaker))}
+                    {speaker.avatarText}
                   </Avatar>
                 </TooltipTrigger>
-                <TooltipContent className={TOOLTIP_ON_CARD}>{displayName(speaker)}</TooltipContent>
+                <TooltipContent className={TOOLTIP_ON_CARD}>{speaker.tooltip}</TooltipContent>
               </Tooltip>
             ))}
             {overflow > 0 && (

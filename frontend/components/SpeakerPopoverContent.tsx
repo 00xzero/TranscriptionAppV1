@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Contact, Pencil, Plus, Search } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { CharacterCount } from '@/components/ui/character-count'
@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { countLabel } from '@/components/Projects/format'
+import { isPersonId, peopleHref, personHref } from '@/lib/people/routes'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import type { SpeakerIdentity, SpeakerPresentation } from '@/core/speakers/labels'
 import { speakerInitials } from '@/lib/speakers/palette'
@@ -20,6 +22,8 @@ import { msToTimestamp } from '@/app/editor/[id]/utils'
 import type { ApplyTo, SpeakerTarget } from '@/app/editor/[id]/hooks/useSpeakerAssignments'
 
 type Props = {
+  /** The open transcript, which People pages link back to. */
+  transcriptId: string
   presentation: SpeakerPresentation
   peopleContext: EditorPeopleContext
   currentSpeaker?: Speaker
@@ -84,7 +88,7 @@ function passageSpan(segments: readonly Seg[]): string {
   return `${segmentCount(segments.length)}, ${msToTimestamp(start)}–${msToTimestamp(end)}`
 }
 
-export default function SpeakerPopoverContent({ presentation, peopleContext, currentSpeaker, scopes, removable,
+export default function SpeakerPopoverContent({ transcriptId, presentation, peopleContext, currentSpeaker, scopes, removable,
   labelForSpeaker, displayForSpeaker, onSelectTarget, onRemove, onRenameLocal, onRenamePerson,
   onHoldOpenChange }: Props) {
   const personById = useMemo(() => new Map(peopleContext.people.map((person) => [person.id, person])),
@@ -277,7 +281,16 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
             <SectionTitle>Current</SectionTitle>
             <div className="flex items-center gap-2.5 px-3 py-1.5">
               <Avatar size="sm" color={current.color}>{current.avatarText}</Avatar>
-              <span className="min-w-0 flex-1 truncate text-sm">{current.label}</span>
+              {/* A linked person's name opens their page (spec §4); a person
+                  still being created has no page yet. */}
+              {linked && isPersonId(linked.id) ? (
+                <Link href={personHref(linked.id, transcriptId)}
+                  className="min-w-0 flex-1 truncate rounded-xs text-sm hover:text-trust-blue hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40">
+                  {current.label}
+                </Link>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-sm">{current.label}</span>
+              )}
               {removable[applyTo] && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -311,14 +324,19 @@ export default function SpeakerPopoverContent({ presentation, peopleContext, cur
         </TabsContent>
       </Tabs>
 
-      {currentSpeaker && (
-        <div className="border-t border-border px-1.5 py-1">
+      <div className="flex items-center justify-between gap-1 border-t border-border px-1.5 py-1">
+        {currentSpeaker && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(true)} className="gap-1.5">
             <Pencil className="h-3.5 w-3.5" aria-hidden />
             {linked ? 'Rename person everywhere' : 'Rename in this transcript'}
           </Button>
-        </div>
-      )}
+        )}
+        <Link href={peopleHref('/people', transcriptId)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-xs px-3 py-1.5 text-xs text-foreground/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40">
+          <Contact className="h-3.5 w-3.5" aria-hidden />
+          Manage people
+        </Link>
+      </div>
     </div>
   )
 }

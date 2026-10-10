@@ -29,13 +29,11 @@ function functionDefinition(source: string): string {
 describe('project_speaker_summaries migration', () => {
   const definition = functionDefinition(readMigration(latestDefiningMigration))
 
-  test('the latest definition is the people editor rewrite of the preview', () => {
-    expect(latestDefiningMigration).toBe('20260924120000_people_editor.sql')
+  test('the latest definition is the People directory rewrite, counted by person', () => {
+    expect(latestDefiningMigration).toBe('20260926000000_people_directory.sql')
     // speakers.label and speakers.color were dropped; the client resolves labels.
     expect(definition).not.toMatch(/\bsp\.label\b/)
     expect(definition).not.toMatch(/\bsp\.color\b/)
-    expect(definition).toContain("'ordinal',      o.ordinal")
-    expect(definition).toContain("'customlabel',  o.custom_label")
   })
 
   test('is a read-only invoker-rights function', () => {
@@ -68,25 +66,43 @@ describe('project_speaker_summaries migration', () => {
     expect(executable).not.toContain('project_branch_ids')
   })
 
-  test('names and colours a linked speaker by its person, with no palette position', () => {
-    // A left join: an unlinked voice must still be counted, with null person fields.
-    expect(definition).toContain('left join public.people as pe on pe.id = sp.person_id')
-    expect(definition).toContain("'personname',   o.person_name")
-    expect(definition).toContain("'personcolor',  o.person_color")
+  test('counts a linked person once per requested root, and each unlinked voice', () => {
+    // Grouped by root as well as person: a parent and child requested together
+    // each count the person once, in their own row.
+    expect(definition).toMatch(/where us\.person_id is not null\s+group by st\.root_id, us\.person_id/)
+    expect(definition).toMatch(/where us\.person_id is null\s*\),/)
+    expect(definition).toContain('partition by i.root_id')
+    expect(definition).toContain('count(*)::integer as speaker_count')
+    expect(definition).toContain('select distinct b.root_id, b.scope_project_id')
     expect(definition).not.toContain('palette_index')
   })
 
-  test('counts distinct speakers actually referenced by segments', () => {
-    expect(definition).toMatch(/exists \(\s*select 1\s*from public\.segments as sg/)
-    expect(definition).toContain('count(*)::integer as speaker_count')
-    expect(definition).toContain('select distinct b.root_id, b.scope_project_id')
+  test('takes each speaker\'s first segment without a root, then applies the scope', () => {
+    // First appearance belongs to the speaker; the join to scope_transcripts
+    // hands it to every root whose scope holds its transcript.
+    expect(definition).toMatch(/select distinct on \(sg\.speaker_id\)/)
+    expect(definition).toContain('order by sg.speaker_id, sg.start_ms, sg.id')
+    expect(definition).toContain('join used_speakers as us on us.transcript_id = st.transcript_id')
   })
 
-  test('orders the preview inside the aggregate and bounds its size', () => {
+  test('previews people by name and colour, and voices with their transcript\'s peers', () => {
+    expect(definition).toContain("'kind',             'person'")
+    expect(definition).toContain("'color',            o.person_color")
+    expect(definition).toContain("'kind',             'voice'")
+    expect(definition).toContain("'transcripttitle',  o.transcript_title")
+    // Peers in first-appearance order, so the client's resolver labels a voice
+    // as the editor does.
+    expect(definition).toMatch(/'peers',\s+tp\.peers/)
+    expect(definition).toContain('order by us.first_start_ms, us.first_segment_id')
+  })
+
+  test('orders the preview inside the aggregate, people first, and bounds its size', () => {
     // An ordering in an upstream CTE is not binding on jsonb_agg.
     expect(definition).toMatch(/jsonb_agg\([\s\S]*order by o\.rn\s*\)/)
+    // People by most recent appearance (transcript created_at), then voices.
+    expect(definition).toContain('max(st.created_at) as seen_at')
     expect(definition).toMatch(
-      /order by st\.updated_at desc, st\.transcript_id, us\.created_at, us\.id/
+      /order by i\.rank_group, i\.seen_at desc, pe\.name, i\.transcript_id,\s+i\.first_start_ms, i\.first_segment_id, i\.id/
     )
     expect(definition).toContain('least(greatest(coalesce(p_preview_limit, 4), 0), 4)')
   })

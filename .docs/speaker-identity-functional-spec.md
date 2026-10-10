@@ -72,7 +72,7 @@ Interview A and Meeting B contain the same person because they share `hamza-id`.
 
 ### Entry points
 
-- A **People** item in the sidebar, after Projects. Routes: `/people` and `/people/[id]`.
+- A **People** item in the sidebar, after Projects. Routes: `/people` and `/people/[id]`. The person page at `/people/[id]` opens as a dialog over the list, which keeps its search and filters underneath; closing it returns to the list.
 - From the editor: a linked person's name in the speaker popover opens their page, and **Manage people** sits at the bottom of the popover. Arriving from the editor adds `?from=<transcriptId>`, and the page shows **← Back to "<transcript title>"**.
 
 ### List
@@ -80,15 +80,15 @@ Interview A and Meeting B contain the same person because they share `hamza-id`.
 - Each row shows the avatar (preferred colour and initials), name, organisation, number of linked transcripts, and **Last seen** (the `created_at` of the newest linked transcript).
 - Search matches name and organisation name. It is case-insensitive, ignores leading and trailing whitespace, and matches substrings.
 - Default order is most recent appearance; people with no appearances sort by when they were created. A switch changes the order to Name A–Z.
-- An organisation filter offers All, each organisation, and No organisation.
+- An organisation filter offers All, each organisation, and No organisation. Each turns on and off, several can be on at once, and the list then shows people in any of them; All turns them all off.
 - Hidden people are omitted unless **Show hidden** is on.
 - The empty state explains the two ways to add a person: identify a speaker in a transcript, or create one here.
 
 ### Person page
 
-- A header with name, organisation and colour.
-- Actions: **Rename person**, **Change organisation**, **Change colour**, **Hide** / **Unhide**, **Merge people**, and **Delete person**. Delete is available only when the person has no appearances; otherwise it is disabled with "Remove or merge first".
-- Appearances: one row per transcript, newest first, showing title, project path, date and segment count. Each row opens the transcript and has **Remove from this transcript**, which sends every segment showing this person there back to what Deepgram gave them.
+- A header with name, organisation and colour, and a summary: transcripts, total speaking time and Last seen.
+- Actions, shown as icons that name themselves in a tooltip: **Rename person**, **Change organisation**, **Change colour**, **Hide** / **Unhide**, **Merge people**, and **Delete person**. Organisation and colour are chosen in a popover; rename, merge and delete open their own dialogs. Delete is available only when the person has no appearances; otherwise it is disabled with "Remove or merge first".
+- Appearances: one row per transcript, newest first, showing title, project path, date, the person's speaking time there and their share of the transcript's speaking time (speaking time is the summed length of segments). Each row opens the transcript and has **Remove from this transcript**, which sends every segment showing this person there back to what Deepgram gave them.
 - Names are trimmed, non-empty, limited to the existing 50-character speaker-name limit, and may use any Unicode characters. Duplicate names are allowed; §5 describes how a namesake is created deliberately.
 
 ### Organisations
@@ -106,7 +106,7 @@ Interview A and Meeting B contain the same person because they share `hamza-id`.
 
 ### Merge
 
-- **Merge people** starts on the survivor's page. The user picks one or more people to fold into it and sees a preview of every transcript and local voice that will move.
+- **Merge people** starts on the survivor's page. The user picks one or more people to fold into it and sees a preview of every transcript and local voice that will move, with each voice's speaking time.
 - On confirmation, one transaction moves every link to the survivor and deletes the merged people. Either every link moves or none does.
 - The survivor keeps its name, colour and organisation. It takes a merged person's organisation only when it has none of its own.
 - Merge has no Undo; its preview and confirmation stand in for it. A wrong name is fixed afterwards with **Rename person**.

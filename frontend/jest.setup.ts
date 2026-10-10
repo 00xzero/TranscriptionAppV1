@@ -82,6 +82,18 @@ jest.mock('./lib/supabase/queries', () => ({
   renamePerson: jest.fn(),
   correctSegmentsToPerson: jest.fn(),
   undoCreatedPerson: jest.fn(),
+  fetchPeopleDirectory: jest.fn().mockResolvedValue({ people: [], organisations: [] }),
+  fetchPersonAppearances: jest.fn().mockResolvedValue([]),
+  fetchMergePreview: jest.fn(),
+  createPerson: jest.fn(),
+  setPersonOrganisation: jest.fn(),
+  setPersonColor: jest.fn(),
+  setPersonHidden: jest.fn(),
+  deletePerson: jest.fn(),
+  removePersonFromTranscript: jest.fn(),
+  mergePeople: jest.fn(),
+  renameOrganisation: jest.fn(),
+  deleteOrganisation: jest.fn(),
   deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
   // Any surface rendering a project card or header reaches for this. Defaulting
   // it to an empty map keeps those tests from hitting an undefined export and

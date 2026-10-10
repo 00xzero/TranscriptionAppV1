@@ -115,6 +115,31 @@ export const EditorPersonSchema = PersonSchema.extend({
   in_project: z.boolean(),
 })
 
+// A person as the People directory lists them (people_directory). An
+// appearance is a transcript where one of their linked speakers has segments;
+// last_seen_at is the created_at of the newest such transcript.
+// Source of truth: infra/supabase/migrations/20260926000000_people_directory.sql
+export const DirectoryPersonSchema = PersonSchema.extend({
+  organisation_name: z.string().nullable(),
+  transcript_count: z.number().int().nonnegative(),
+  last_seen_at: z.string().nullable(),
+})
+
+export const DirectoryOrganisationSchema = OrganisationSchema.extend({
+  person_count: z.number().int().nonnegative(),
+})
+
+// Speaking time is the summed length of segments: the person's in talk_ms,
+// everyone's in transcript_talk_ms, so the page can show their share.
+export const PersonAppearanceSchema = z.object({
+  transcript_id: UuidSchema,
+  title: z.string().nullable(),
+  project_id: UuidSchema.nullable(),
+  created_at: z.string(),
+  talk_ms: z.number().int().nonnegative(),
+  transcript_talk_ms: z.number().int().nonnegative(),
+})
+
 // === Secondary schemas (type derivation only — not used for runtime validation) ===
 // Note: migration has order_index + updated_at; no speaker_label (stale types.ts had it wrong)
 export const WordSchema = z.object({
@@ -233,6 +258,52 @@ export const PersonCorrectionResultSchema = z.object({
 
 export const LocalSpeakerResultSchema = PersonCorrectionResultSchema.omit({ person: true })
 
+// === RPC: the People directory ===
+// See infra/supabase/migrations/20260926000000_people_directory.sql
+
+export const PeopleDirectorySchema = z.object({
+  people: z.array(DirectoryPersonSchema),
+  organisations: z.array(DirectoryOrganisationSchema),
+})
+
+export const PersonAppearancesSchema = z.array(PersonAppearanceSchema)
+
+export const PersonOrganisationResultSchema = z.object({
+  person: PersonSchema,
+  organisation: OrganisationSchema.nullable(),
+})
+
+// The changes Remove from this transcript made; swapping each expectation and
+// target undoes them through reassign_segments.
+export const RemovePersonResultSchema = z.array(SegmentSpeakerChangeSchema)
+
+// One local voice a merge would move: a linked transcript speaker with
+// segments, and their summed length in talk_ms. It has its own label only if
+// it was given one; detected_ordinals holds the ordinals of the detected
+// speakers its segments came from (null for Unknown), which is how a voice
+// without a label is described.
+export const MergePreviewVoiceSchema = z.object({
+  speaker_id: UuidSchema,
+  custom_label: z.string().nullable(),
+  talk_ms: z.number().int().nonnegative(),
+  detected_ordinals: z.array(z.number().int().nonnegative().nullable()),
+})
+
+export const MergePreviewSchema = z.object({
+  // Transcripts the survivor already appears in, where the two will show as one.
+  survivor_transcript_ids: z.array(UuidSchema),
+  // In the order the people were given.
+  people: z.array(z.object({
+    person_id: UuidSchema,
+    transcripts: z.array(z.object({
+      transcript_id: UuidSchema,
+      title: z.string().nullable(),
+      created_at: z.string(),
+      voices: z.array(MergePreviewVoiceSchema),
+    })),
+  })),
+})
+
 // === RPC: save_transcript_segments ===
 // The webhook handler builds the full transcript in TypeScript (segment-builder) and
 // hands it to a single Postgres function that atomically replaces all segments + words
@@ -281,17 +352,43 @@ export const SaveTranscriptSegmentsResultSchema = z.object({
 
 // project_speaker_summaries RPC. Row columns stay snake_case like every other
 // row shape here; the preview entries are camelCase because they are a synthetic
-// view-model — a speaker joined to its person — consumed straight by
-// SpeakerAvatarGroup with no mapping layer.
-export const ProjectSpeakerPreviewSchema = z.object({
+// view-model consumed straight by SpeakerAvatarGroup with no mapping layer.
+// See infra/supabase/migrations/20260926000000_people_directory.sql
+
+// A linked person, once per project scope however many transcripts carry them.
+export const ProjectPersonPreviewSchema = z.object({
+  kind: z.literal('person'),
   id: UuidSchema,
-  transcriptId: UuidSchema,
+  name: z.string(),
+  color: z.string(),
+  organisationName: z.string().nullable(),
+})
+
+// One of a transcript's identities with segments, as the label resolver needs it.
+export const ProjectVoicePeerSchema = z.object({
+  id: UuidSchema,
   ordinal: z.number().int().nonnegative(),
   customLabel: z.string().nullable(),
-  // The linked person's name and preferred colour; null for an unlinked voice.
+  personId: UuidSchema.nullable(),
   personName: z.string().nullable(),
-  personColor: z.string().nullable(),
+  organisationName: z.string().nullable(),
 })
+
+// An unlinked transcript speaker. `peers` lists its transcript's speakers with
+// segments in order of first appearance, itself included, so the client can
+// label it exactly as the editor does (`Paul (2)`).
+export const ProjectVoicePreviewSchema = z.object({
+  kind: z.literal('voice'),
+  id: UuidSchema,
+  transcriptId: UuidSchema,
+  transcriptTitle: z.string().nullable(),
+  peers: z.array(ProjectVoicePeerSchema),
+})
+
+export const ProjectSpeakerPreviewSchema = z.discriminatedUnion('kind', [
+  ProjectPersonPreviewSchema,
+  ProjectVoicePreviewSchema,
+])
 
 export const ProjectSpeakerSummarySchema = z.object({
   project_id: UuidSchema,
@@ -332,6 +429,14 @@ export type SegmentSpeakerAssignment = z.infer<typeof SegmentSpeakerAssignmentSc
 export type SaveTranscriptSegmentsPayload = z.infer<typeof SaveTranscriptSegmentsPayloadSchema>
 export type SaveTranscriptSegmentsResult = z.infer<typeof SaveTranscriptSegmentsResultSchema>
 export type ProjectSpeakerPreview = z.infer<typeof ProjectSpeakerPreviewSchema>
+export type ProjectVoicePreview = z.infer<typeof ProjectVoicePreviewSchema>
+export type DirectoryPerson = z.infer<typeof DirectoryPersonSchema>
+export type DirectoryOrganisation = z.infer<typeof DirectoryOrganisationSchema>
+export type PeopleDirectory = z.infer<typeof PeopleDirectorySchema>
+export type PersonAppearance = z.infer<typeof PersonAppearanceSchema>
+export type PersonOrganisationResult = z.infer<typeof PersonOrganisationResultSchema>
+export type MergePreview = z.infer<typeof MergePreviewSchema>
+export type MergePreviewVoice = z.infer<typeof MergePreviewVoiceSchema>
 export type ProjectSpeakerSummary = z.infer<typeof ProjectSpeakerSummarySchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)

@@ -14,9 +14,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     EditorPeopleContext,
     LocalSpeakerResult,
+    MergePreview,
     NewSpeakerSegmentChange,
+    Organisation,
+    PeopleDirectory,
     Person,
+    PersonAppearance,
     PersonCorrectionResult,
+    PersonOrganisationResult,
     Transcript,
     Project,
     ProjectSpeakerSummary,
@@ -31,11 +36,17 @@ import type {
 import {
     EditorPeopleContextSchema,
     LocalSpeakerResultSchema,
+    MergePreviewSchema,
     NewSpeakerSegmentChangeSchema,
+    OrganisationSchema,
+    PeopleDirectorySchema,
+    PersonAppearancesSchema,
     PersonCorrectionResultSchema,
+    PersonOrganisationResultSchema,
     PersonSchema,
     ProjectSpeakerSummariesResultSchema,
     ReassignSegmentsResultSchema,
+    RemovePersonResultSchema,
     SegmentSpeakerChangeSchema,
     SpeakerSchema,
     TranscriptSummarySchema,
@@ -660,6 +671,186 @@ export async function undoCreatedPerson(args: {
         p_speaker_id: args.speakerId,
         p_changes: z.array(SegmentSpeakerChangeSchema).parse(args.changes),
     })
+
+    if (error) throw error
+}
+
+// ============================================================================
+// People directory
+// ============================================================================
+
+/**
+ * Every person the user owns, with their organisation, appearance count and
+ * last seen date, and every organisation with its number of people.
+ */
+export async function fetchPeopleDirectory(): Promise<PeopleDirectory> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('people_directory')
+
+    if (error) throw error
+    return PeopleDirectorySchema.parse(data)
+}
+
+/**
+ * The transcripts a person appears in, newest first.
+ */
+export async function fetchPersonAppearances(personId: string): Promise<PersonAppearance[]> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('list_person_appearances', {
+        p_person_id: personId,
+    })
+
+    if (error) throw error
+    return PersonAppearancesSchema.parse(data ?? [])
+}
+
+/**
+ * What merging `personIds` into the survivor would move. `personIds` keeps the
+ * order the user picked them in.
+ */
+export async function fetchMergePreview(survivorId: string, personIds: string[]): Promise<MergePreview> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('merge_people_preview', {
+        p_survivor_id: survivorId,
+        p_person_ids: personIds,
+    })
+
+    if (error) throw error
+    return MergePreviewSchema.parse(data)
+}
+
+/**
+ * Create a person from the directory. Duplicate names are allowed.
+ */
+export async function createPerson(name: string): Promise<Person> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('create_person', { p_name: name })
+
+    if (error) throw error
+    return PersonSchema.parse(data)
+}
+
+/**
+ * Set, change or clear a person's organisation. A new name reuses an
+ * organisation already called that, ignoring case. `expectedOrganisationId`
+ * is the value last read.
+ */
+export async function setPersonOrganisation(
+    personId: string,
+    expectedOrganisationId: string | null,
+    target: { organisationId: string } | { newOrganisationName: string } | null
+): Promise<PersonOrganisationResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('set_person_organisation', {
+        p_person_id: personId,
+        p_expected_organisation_id: expectedOrganisationId,
+        p_organisation_id: target && 'organisationId' in target ? target.organisationId : null,
+        p_new_organisation_name: target && 'newOrganisationName' in target ? target.newOrganisationName : null,
+    })
+
+    if (error) throw error
+    return PersonOrganisationResultSchema.parse(data)
+}
+
+/**
+ * Change a person's preferred colour to another palette colour.
+ */
+export async function setPersonColor(personId: string, expectedColor: string, color: string): Promise<Person> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('set_person_color', {
+        p_person_id: personId,
+        p_expected_color: expectedColor,
+        p_color: color,
+    })
+
+    if (error) throw error
+    return PersonSchema.parse(data)
+}
+
+/**
+ * Hide or unhide a person. Hiding only affects suggestions and the list.
+ */
+export async function setPersonHidden(personId: string, hidden: boolean): Promise<Person> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('set_person_hidden', {
+        p_person_id: personId,
+        p_hidden: hidden,
+    })
+
+    if (error) throw error
+    return PersonSchema.parse(data)
+}
+
+/**
+ * Delete a person who appears in no transcript. The database refuses (SP002)
+ * while any transcript still shows them.
+ */
+export async function deletePerson(personId: string): Promise<void> {
+    const supabase = createClient()
+    const { error } = await supabase.rpc('delete_person', { p_person_id: personId })
+
+    if (error) throw error
+}
+
+/**
+ * Send every segment showing the person in one transcript back to what
+ * Deepgram gave it. Returns the changes made, for Undo.
+ */
+export async function removePersonFromTranscript(
+    personId: string,
+    transcriptId: string
+): Promise<SegmentSpeakerChange[]> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('remove_person_from_transcript', {
+        p_person_id: personId,
+        p_transcript_id: transcriptId,
+    })
+
+    if (error) throw error
+    return RemovePersonResultSchema.parse(data)
+}
+
+/**
+ * Fold people into a survivor, in one transaction. `personIds` keeps the order
+ * the user picked them in: a survivor without an organisation takes the first
+ * one among them.
+ */
+export async function mergePeople(survivorId: string, personIds: string[]): Promise<Person> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('merge_people', {
+        p_survivor_id: survivorId,
+        p_person_ids: personIds,
+    })
+
+    if (error) throw error
+    return PersonSchema.parse(data)
+}
+
+/**
+ * Rename an organisation everywhere. `expectedName` is the name last read.
+ */
+export async function renameOrganisation(
+    organisationId: string,
+    expectedName: string,
+    name: string
+): Promise<Organisation> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('rename_organisation', {
+        p_organisation_id: organisationId,
+        p_expected_name: expectedName,
+        p_name: name,
+    })
+
+    if (error) throw error
+    return OrganisationSchema.parse(data)
+}
+
+/**
+ * Delete an organisation. Its people lose it; no person is deleted.
+ */
+export async function deleteOrganisation(organisationId: string): Promise<void> {
+    const supabase = createClient()
+    const { error } = await supabase.rpc('delete_organisation', { p_organisation_id: organisationId })
 
     if (error) throw error
 }

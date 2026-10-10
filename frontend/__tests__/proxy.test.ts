@@ -86,7 +86,7 @@ describe('proxy', () => {
     expect(response.headers.get('pragma')).toBe('no-cache')
   })
 
-  test.each(['/projects', '/projects/11111111-1111-1111-1111-111111111111'])(
+  test.each(['/projects', '/projects/11111111-1111-1111-1111-111111111111', '/people', '/people/11111111-1111-1111-1111-111111111111'])(
     'redirects an unauthenticated request for %s to auth',
     async (path) => {
       mockCreateServerClient.mockReturnValue({
