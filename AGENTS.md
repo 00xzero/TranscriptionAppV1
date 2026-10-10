@@ -112,6 +112,7 @@ Keep these credentials available for UI testing. Do not use them as production c
 
 ## Security & Configuration Tips
 
+- The browser talks to Supabase directly for reads and for single-step writes the database fully guards (RLS, column grants, triggers, or guarded RPCs). Use a server route for anything that needs a secret, touches Storage and the database together, or starts background work. A route cannot enforce guarantees that can be bypassed by calling its underlying RPCs directly from the browser; those guarantees must be enforced in the RPCs themselves.
 - Use `infra/.env.docker` and `frontend/.env.local` for local secrets; never commit API keys, tokens, or generated environment files.
 - `DEEPGRAM_API_KEY` is required for transcription. A public ngrok callback is required when running the webhook flow through local Docker.
 - Supabase local seed and test-account setup are intended for development only.
