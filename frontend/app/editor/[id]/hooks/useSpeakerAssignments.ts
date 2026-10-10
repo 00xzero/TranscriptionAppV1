@@ -1,192 +1,269 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  updateSegment,
-  createSpeaker,
-  updateSpeaker,
-  deleteSpeaker,
+  fetchEditorPeopleContext,
+  fetchSegmentSpeakerAssignments,
+  fetchSpeakers,
 } from '@/lib/supabase/queries'
-import { buildSpeakerColorMap, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
-import type { Seg, Speaker } from '../types'
+import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
+import { buildSpeakerDisplay } from '@/lib/speakers/display'
+import { toast } from '@/components/ui/toaster'
+import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
+import type { EditorPeopleContext, Speaker } from '@/contracts/db'
+import type { Seg } from '../types'
+import { mergeSpeakerAssignments } from './useEditorData'
+import {
+  correctAction,
+  removalChanges,
+  removeAction,
+  renameLocalAction,
+  renamePersonAction,
+  savedId,
+  type ApplyTo,
+  type SpeakerAction,
+  type SpeakerStore,
+  type SpeakerTarget,
+  type SpeakerUndo,
+} from './speakerActions'
 
-type Measurable = {
-  getBoundingClientRect(): DOMRect
-}
+export type { ApplyTo, SpeakerTarget } from './speakerActions'
 
+type Measurable = { getBoundingClientRect(): DOMRect }
 export type SpeakerPopoverCloseReason = 'dismiss' | 'outside' | 'selection' | 'external'
+type SpeakerPopoverState = { segmentId: string; speakerId: string | null; anchorMeasurable: Measurable; triggerElement: HTMLElement | null }
 
-type SpeakerPopoverState = {
-  segmentId: string
-  speakerId: string | null
-  anchorMeasurable: Measurable
-  triggerElement: HTMLElement | null
-}
+const UNDO_WINDOW_MS = 8000
 
 function createStableMeasurable(el: HTMLElement): Measurable {
   let lastRect = el.getBoundingClientRect()
-
-  return {
-    getBoundingClientRect() {
-      if (el.isConnected) {
-        lastRect = el.getBoundingClientRect()
-      }
-      return lastRect
-    },
-  }
+  return { getBoundingClientRect() { if (el.isConnected) lastRect = el.getBoundingClientRect(); return lastRect } }
 }
 
-export function useSpeakerAssignments({
-  transcriptId,
-  speakers,
-  setSpeakers,
-  setSegments,
-  reloadTranscript,
-}: {
+export function useSpeakerAssignments({ transcriptId, speakers, segments, peopleContext,
+  setSpeakers, setSegments, setPeopleContext }: {
   transcriptId: string
   speakers: Speaker[]
+  segments: Seg[]
+  peopleContext: EditorPeopleContext
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
   setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
-  reloadTranscript: () => Promise<void>
+  setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
 }) {
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
   const lastTriggerElementRef = useRef<HTMLElement | null>(null)
   const closeReasonRef = useRef<SpeakerPopoverCloseReason | null>(null)
+  const anchorRef = useRef<Measurable>({ getBoundingClientRect: () => new DOMRect() })
 
-  const speakersMap = useMemo(() => {
-    const m = new Map<string, Speaker>()
-    speakers.forEach((sp) => m.set(sp.id, sp))
-    return m
-  }, [speakers])
+  // Speaker actions run one at a time and read the latest state from these
+  // refs, which every change updates at once. The setters get updater
+  // functions, so a change composes with a text edit made in the meantime.
+  const speakersRef = useRef(speakers)
+  const segmentsRef = useRef(segments)
+  const peopleRef = useRef(peopleContext)
+  useEffect(() => { speakersRef.current = speakers }, [speakers])
+  useEffect(() => { segmentsRef.current = segments }, [segments])
+  useEffect(() => { peopleRef.current = peopleContext }, [peopleContext])
+  const store = useMemo<SpeakerStore>(() => ({
+    transcriptId,
+    speakers: () => speakersRef.current,
+    segments: () => segmentsRef.current,
+    people: () => peopleRef.current,
+    updateSpeakers(edit) { speakersRef.current = edit(speakersRef.current); setSpeakers(edit) },
+    updateSegments(edit) { segmentsRef.current = edit(segmentsRef.current); setSegments(edit) },
+    updatePeople(edit) { peopleRef.current = edit(peopleRef.current); setPeopleContext(edit) },
+  }), [transcriptId, setSpeakers, setSegments, setPeopleContext])
 
-  // Array position is the palette index, so `speakers` must stay in
-  // fetchSpeakers' (created_at, id) order for these colors to match the ones
-  // project_speaker_summaries computes for the same transcript.
-  const speakerColorMap = useMemo(() => buildSpeakerColorMap(speakers), [speakers])
-
-  const colorForSpeaker = useCallback((sp?: Speaker) => {
-    if (!sp) return SPEAKER_COLOR_FALLBACK
-    if (sp.color) return sp.color
-    return speakerColorMap.get(sp.id) || SPEAKER_COLOR_FALLBACK
-  }, [speakerColorMap])
-
-  const handleAvatarClick = useCallback((e: React.MouseEvent, segmentId: string, speakerId: string | null) => {
-    e.stopPropagation()
-    const el = e.currentTarget as HTMLElement
-    const anchorMeasurable = createStableMeasurable(el)
-    anchorRef.current = anchorMeasurable
-    lastTriggerElementRef.current = el
-    closeReasonRef.current = null
-    setSpeakerPopover({ segmentId, speakerId, anchorMeasurable, triggerElement: el })
+  const queueRef = useRef(Promise.resolve())
+  const enqueue = useCallback((task: () => Promise<void>) => {
+    const next = queueRef.current.then(task, task)
+    queueRef.current = next.catch(() => undefined)
+    return next
   }, [])
 
-  const fallbackAnchor = useMemo<Measurable>(() => ({
-    getBoundingClientRect: () => new DOMRect(),
-  }), [])
+  // Reloads speaker data and segment assignments, never segment text.
+  // Resolves false when it fails, so a caller can undo its optimistic change.
+  const refresh = useCallback(async (): Promise<boolean> => {
+    try {
+      const [assignments, speakerRows, people] = await Promise.all([
+        fetchSegmentSpeakerAssignments(store.transcriptId),
+        fetchSpeakers(store.transcriptId),
+        fetchEditorPeopleContext(store.transcriptId),
+      ])
+      store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
+      store.updateSpeakers(() => speakerRows)
+      store.updatePeople(() => people)
+      return true
+    } catch (error) {
+      console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
+      return false
+    }
+  }, [store])
 
-  const anchorRef = useRef<Measurable>(fallbackAnchor)
-
+  // Refresh when the user comes back to the tab. A tab switch fires both
+  // events; the refresh the first one starts covers the second.
   useEffect(() => {
-    if (speakerPopover?.anchorMeasurable) {
-      anchorRef.current = speakerPopover.anchorMeasurable
+    let refreshing = false
+    const onReturn = () => {
+      if (document.visibilityState === 'hidden' || refreshing) return
+      refreshing = true
+      void enqueue(async () => {
+        try { await refresh() } finally { refreshing = false }
+      })
     }
-    if (speakerPopover?.triggerElement) {
-      lastTriggerElementRef.current = speakerPopover.triggerElement
+    window.addEventListener('focus', onReturn)
+    document.addEventListener('visibilitychange', onReturn)
+    return () => {
+      window.removeEventListener('focus', onReturn)
+      document.removeEventListener('visibilitychange', onReturn)
     }
-  }, [speakerPopover])
+  }, [enqueue, refresh])
+
+  const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segments, peopleContext.people),
+    [speakers, segments, peopleContext.people])
+  const displayForSpeaker = useMemo(() => buildSpeakerDisplay(speakers, presentation, peopleContext.people),
+    [speakers, presentation, peopleContext.people])
+  const labelForSpeaker = useCallback((speakerId: string | null | undefined) =>
+    speakerLabelFor(presentation.labels, speakerId), [presentation])
+  // The speaker the picker opened on, under its saved id once a provisional
+  // one is saved.
+  const openedOn = speakerPopover?.speakerId ? savedId(speakerPopover.speakerId) : null
+  const currentSpeaker = openedOn ? speakers.find((speaker) => speaker.id === openedOn) : undefined
+  const selectedSegment = speakerPopover ? segments.find((segment) => segment.id === speakerPopover.segmentId) : undefined
+  // The picker shows the speaker it opened on, while its scopes follow the
+  // segment. If the segment moves to another speaker while it is open (a
+  // refresh, or an action queued earlier), close it rather than show one
+  // speaker and act on another. Closed during render, so the mismatch never
+  // paints; focus goes back to the avatar, as on a dismiss.
+  if (selectedSegment && selectedSegment.speaker_id !== openedOn) setSpeakerPopover(null)
+  // The segments each Apply to scope covers. All is every segment showing the
+  // current identity, however many speakers carry it.
+  const scopes = useMemo<Record<ApplyTo, Seg[]>>(() => {
+    if (!selectedSegment) return { speaker: [], segment: [], turn: [] }
+    const key = displayedIdentityKey(presentation, selectedSegment.speaker_id)
+    const sameIdentity = (segment: Seg) => displayedIdentityKey(presentation, segment.speaker_id) === key
+    const index = segments.indexOf(selectedSegment)
+    let start = index
+    let end = index
+    while (start > 0 && sameIdentity(segments[start - 1])) start--
+    while (end + 1 < segments.length && sameIdentity(segments[end + 1])) end++
+    return {
+      speaker: selectedSegment.speaker_id ? segments.filter(sameIdentity) : [],
+      segment: [selectedSegment],
+      turn: segments.slice(start, end + 1),
+    }
+  }, [segments, selectedSegment, presentation])
+  const removable = useMemo<Record<ApplyTo, boolean>>(() => ({
+    speaker: removalChanges(speakers, scopes.speaker).length > 0,
+    segment: removalChanges(speakers, scopes.segment).length > 0,
+    turn: removalChanges(speakers, scopes.turn).length > 0,
+  }), [speakers, scopes])
 
   const closeSpeakerPopover = useCallback((reason: SpeakerPopoverCloseReason = 'dismiss') => {
-    closeReasonRef.current = reason
-    setSpeakerPopover(null)
+    closeReasonRef.current = reason; setSpeakerPopover(null)
   }, [])
+  const handleAvatarClick = useCallback((event: React.MouseEvent, segmentId: string, speakerId: string | null) => {
+    event.stopPropagation()
+    const element = event.currentTarget as HTMLElement
+    const anchorMeasurable = createStableMeasurable(element)
+    anchorRef.current = anchorMeasurable
+    lastTriggerElementRef.current = element
+    closeReasonRef.current = null
+    // A second click on the name the picker is open for closes it.
+    setSpeakerPopover((open) => open?.segmentId === segmentId
+      ? null : { segmentId, speakerId, anchorMeasurable, triggerElement: element })
+  }, [])
+  useEffect(() => {
+    if (speakerPopover?.anchorMeasurable) anchorRef.current = speakerPopover.anchorMeasurable
+    if (speakerPopover?.triggerElement) lastTriggerElementRef.current = speakerPopover.triggerElement
+  }, [speakerPopover])
 
-  const handleSelectSpeaker = useCallback(async (speaker: Speaker) => {
-    if (!speakerPopover) return
-    const { segmentId } = speakerPopover
-
-    setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, speaker_id: speaker.id } : s))
+  /**
+   * Runs an action in the queue (spec §7): apply optimistically, write, then
+   * offer Undo. A refused write refreshes speaker data; any other failure
+   * rolls back only the action's own change and offers Retry.
+   */
+  const execute = useCallback((build: () => SpeakerAction | null) => {
     closeSpeakerPopover('selection')
 
-    try {
-      await updateSegment(segmentId, { speaker_id: speaker.id })
-    } catch (err) {
-      console.error('Failed to reassign speaker:', err)
-      await reloadTranscript()
+    // After a refused write: refresh, and say it refreshed only if it did.
+    async function refreshAfterConflict(title: string): Promise<boolean> {
+      const refreshed = await refresh()
+      toast(refreshed ? { title, variant: 'error' } : { title: STALE_TOAST, variant: 'error',
+        action: { label: 'Retry', onClick: () => void enqueue(async () => { await refreshAfterConflict(title) }) } })
+      return refreshed
     }
-  }, [closeSpeakerPopover, speakerPopover, reloadTranscript, setSegments])
 
-  const handleCreateSpeaker = useCallback(async (label: string) => {
-    if (!speakerPopover) return
-    const { segmentId } = speakerPopover
-
-    closeSpeakerPopover('selection')
-
-    let newSpeaker: Speaker | null = null
-
-    try {
-      const createdSpeaker = await createSpeaker(transcriptId, label)
-      newSpeaker = createdSpeaker
-
-      await updateSegment(segmentId, { speaker_id: createdSpeaker.id })
-
-      setSpeakers(prev => [...prev, createdSpeaker])
-      setSegments(prev => prev.map(s => s.id === segmentId ? { ...s, speaker_id: createdSpeaker.id } : s))
-    } catch (err) {
-      console.error('Failed to create speaker:', err)
-      if (newSpeaker) {
+    function run() {
+      void enqueue(async () => {
+        const action = build()
+        if (!action) {
+          await refreshAfterConflict(CONFLICT_TOAST)
+          return
+        }
+        action.apply()
         try {
-          await deleteSpeaker(newSpeaker.id)
-        } catch (cleanupErr) {
-          console.error('Failed to cleanup orphan speaker:', cleanupErr)
+          const undo = await action.write()
+          toast({ title: action.done, durationMs: UNDO_WINDOW_MS,
+            action: { label: 'Undo', onClick: () => void enqueue(() => runUndo(undo)) } })
+        } catch (error) {
+          if (isConflict(error) || isGone(error)) {
+            if (!(await refreshAfterConflict(isGone(error) ? 'That person or speaker no longer exists.' : CONFLICT_TOAST))) action.restore()
+          } else if (isNotReady(error)) {
+            action.restore()
+            toast({ title: NOT_READY_MESSAGE, variant: 'error' })
+          } else {
+            action.restore()
+            toast({ title: action.failed, variant: 'error', action: { label: 'Retry', onClick: run } })
+          }
+        }
+      })
+    }
+
+    async function runUndo(undo: SpeakerUndo) {
+      undo.apply()
+      try {
+        await undo.write()
+      } catch (error) {
+        if (isConflict(error) || isGone(error)) {
+          if (!(await refreshAfterConflict("Can't undo — changed since"))) undo.restore()
+        } else if (isNotReady(error)) {
+          undo.restore()
+          toast({ title: NOT_READY_MESSAGE, variant: 'error' })
+        } else {
+          undo.restore()
+          toast({ title: "Couldn't undo", variant: 'error',
+            action: { label: 'Retry', onClick: () => void enqueue(() => runUndo(undo)) } })
         }
       }
     }
-  }, [closeSpeakerPopover, speakerPopover, transcriptId, setSpeakers, setSegments])
 
-  const handleRenameSpeaker = useCallback(async (speaker: Speaker, newLabel: string) => {
-    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    closeSpeakerPopover('selection')
+    run()
+  }, [closeSpeakerPopover, enqueue, refresh])
 
-    try {
-      await updateSpeaker(speaker.id, { label: newLabel })
-    } catch (err) {
-      console.error('Failed to rename speaker:', err)
-      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
-    }
-  }, [closeSpeakerPopover, setSpeakers])
+  const fromLabel = labelForSpeaker(selectedSegment?.speaker_id)
 
-  const handleUntag = useCallback(async (speaker: Speaker) => {
-    const existingNumbers = speakers
-      .map(sp => {
-        const match = sp.label.match(/^Speaker\s+(\d+)$/i)
-        return match ? parseInt(match[1], 10) : -1
-      })
-      .filter(n => n >= 0)
-    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 0
-    const newLabel = `Speaker ${nextNumber}`
+  const selectTarget = useCallback((target: SpeakerTarget, applyTo: ApplyTo) => {
+    const segmentIds = new Set(scopes[applyTo].map((segment) => segment.id))
+    execute(() => correctAction(store, { segmentIds, applyTo, target, fromLabel, labelForSpeaker }))
+  }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
-    setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: newLabel } : sp))
-    closeSpeakerPopover('selection')
+  const removeSpeaker = useCallback((applyTo: ApplyTo) => {
+    const segmentIds = new Set(scopes[applyTo].map((segment) => segment.id))
+    execute(() => removeAction(store, { segmentIds, applyTo, fromLabel, labelForSpeaker }))
+  }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
-    try {
-      await updateSpeaker(speaker.id, { label: newLabel })
-    } catch (err) {
-      console.error('Failed to untag speaker:', err)
-      setSpeakers(prev => prev.map(sp => sp.id === speaker.id ? { ...sp, label: speaker.label } : sp))
-    }
-  }, [closeSpeakerPopover, speakers, setSpeakers])
+  const renameLocal = useCallback((label: string) => {
+    const speakerId = currentSpeaker?.id
+    const segmentIds = new Set(scopes.speaker.map((segment) => segment.id))
+    if (speakerId) execute(() => renameLocalAction(store, { speakerId, label, segmentIds, fromLabel }))
+  }, [currentSpeaker, scopes, execute, store, fromLabel])
 
-  return {
-    speakerPopover, setSpeakerPopover,
-    closeSpeakerPopover,
-    closeReasonRef,
-    lastTriggerElementRef,
-    anchorRef,
-    speakersMap,
-    speakerColorMap,
-    colorForSpeaker,
-    handleAvatarClick,
-    handleSelectSpeaker,
-    handleCreateSpeaker,
-    handleRenameSpeaker,
-    handleUntag,
-  }
+  const renameLinkedPerson = useCallback((name: string) => {
+    const personId = currentSpeaker?.person_id
+    if (personId) execute(() => renamePersonAction(store, personId, name))
+  }, [currentSpeaker, execute, store])
+
+  return { speakerPopover, setSpeakerPopover, closeSpeakerPopover, closeReasonRef,
+    lastTriggerElementRef, anchorRef, presentation, displayForSpeaker, labelForSpeaker,
+    currentSpeaker, selectedSegment, scopes, removable,
+    handleAvatarClick, selectTarget, removeSpeaker, renameLocal, renameLinkedPerson }
 }

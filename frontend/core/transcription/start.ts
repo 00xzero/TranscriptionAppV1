@@ -82,6 +82,12 @@ export async function startTranscription(opts: {
         }
     }
 
+    // Completed content may contain edits that a new transcription would replace.
+    // Keep the idempotency replay above: returning the original job is safe.
+    if (transcript.status === 'completed') {
+        return { outcome: 'invalid', reason: 'This transcript is already completed.' }
+    }
+
     // Reject if already in-flight
     if (transcript.status === 'processing' || transcript.status === 'queued') {
         return { outcome: 'conflict' }
@@ -146,6 +152,11 @@ export async function startTranscription(opts: {
                     return { outcome: 'invalid', reason: 'Previous transcription attempt failed. Please retry with a new idempotency key.', jobId: existingJob.id, jobStatus: existingJob.status }
                 }
             }
+        }
+
+        // The transcript may have completed after the initial status read.
+        if (jobError.code === 'SP004') {
+            return { outcome: 'invalid', reason: 'This transcript is already completed.' }
         }
 
         console.error('[startTranscription] Failed to create job:', jobError)

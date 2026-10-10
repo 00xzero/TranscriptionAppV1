@@ -3,9 +3,10 @@
 import type { ReactNode } from 'react'
 import { Ghost } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ProjectSpeakerPreview } from '@/contracts/db'
-import { resolveSpeakerColor, speakerInitials } from '@/lib/speakers/palette'
+import { previewDisplay, type PreviewDisplay } from '@/lib/speakers/display'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
@@ -52,14 +53,8 @@ const TOOLTIP_SKIP_DELAY_MS = 400
  */
 const TOOLTIP_ON_CARD = 'border border-border'
 
-/**
- * select-none because these are pictures of people, not text: without it the
- * initials drag-select like a caption and the caret turns into an I-beam,
- * which reads as "this is copyable content". The cursor is set per surface —
- * see `href`.
- */
-const CIRCLE_BASE =
-  'flex shrink-0 select-none items-center justify-center rounded-full font-semibold ring-2 ring-panel'
+/** The ring separates overlapping circles. The cursor is set per surface; see `href`. */
+const CIRCLE_RING = 'ring-2 ring-panel'
 
 /**
  * Said instead of "0 speakers", which is a true but joyless way to describe a
@@ -69,11 +64,6 @@ const CIRCLE_BASE =
  */
 const EMPTY_COPY = 'No speakers yet!'
 
-/** An empty label would render an empty tooltip chip; say who it is instead. */
-function displayName(label: string): string {
-  return label.trim() || 'Unnamed speaker'
-}
-
 /**
  * Overlap is capped by legibility, not taste: each circle covers the right edge
  * of the one before it, so the overlap must stay under the free margin beside
@@ -82,7 +72,7 @@ function displayName(label: string): string {
  * header steps down to 4px.
  */
 const SIZES = {
-  card: { circle: 'h-7 w-7 text-[10px]', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '' },
+  card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '' },
   // In the header the group shares a row with the counts and the action buttons,
   // so the count text drops out when that row is tight rather than wrapping the
   // group onto a second line and making the card taller. The full count stays in
@@ -103,7 +93,7 @@ const SIZES = {
   // 719px row renders the label and the header grows 135px -> 171px, which makes
   // the card's height depend on how many transcripts it happens to hold.
   header: {
-    circle: 'h-6 w-6 text-[9px]',
+    avatar: 'sm',
     row: 'min-h-6',
     overlap: '-ml-1',
     count: 'font-mono text-xs @max-3xl:hidden',
@@ -118,12 +108,13 @@ const SIZES = {
   },
 } as const
 
-function accessibleName(visible: ProjectSpeakerPreview[], totalCount: number): string {
+function accessibleName(visible: PreviewDisplay[], totalCount: number): string {
   // One string for both paths, so the label can never drift from the copy.
   if (totalCount === 0) return EMPTY_COPY
   const count = countLabel(totalCount, 'speaker', 'speakers')
 
-  const names = visible.map((speaker) => displayName(speaker.label))
+  // The tooltip text, so a voice is named with its transcript here too.
+  const names = visible.map((speaker) => speaker.tooltip)
   const remainder = totalCount - visible.length
   const parts = remainder > 0 ? [...names, `${remainder} more`] : names
   if (parts.length === 0) return count
@@ -203,13 +194,10 @@ export function SpeakerAvatarGroup({
       >
         <div className="flex">
           {[0, 1, 2].map((item) => (
-            <div
+            <Avatar
               key={item}
-              className={cn(
-                'animate-pulse rounded-full bg-subtle ring-2 ring-panel',
-                styles.circle,
-                item > 0 && styles.overlap
-              )}
+              size={styles.avatar}
+              className={cn('animate-pulse bg-subtle', CIRCLE_RING, item > 0 && styles.overlap)}
             />
           ))}
         </div>
@@ -219,7 +207,8 @@ export function SpeakerAvatarGroup({
 
   // Exactly four speakers get four circles; a fifth would not fit, so from five
   // up the last slot is spent on the overflow badge instead.
-  const visible = totalCount > MAX_AVATARS ? speakers.slice(0, MAX_AVATARS - 1) : speakers.slice(0, MAX_AVATARS)
+  const visible = (totalCount > MAX_AVATARS ? speakers.slice(0, MAX_AVATARS - 1) : speakers.slice(0, MAX_AVATARS))
+    .map(previewDisplay)
   const overflow = totalCount - visible.length
 
   return (
@@ -259,22 +248,19 @@ export function SpeakerAvatarGroup({
         >
           <Row href={href}>
             {visible.map((speaker, index) => (
-              <Tooltip key={speaker.id}>
+              <Tooltip key={speaker.key}>
                 <TooltipTrigger asChild>
-                  <div
-                    className={cn(
-                      CIRCLE_BASE,
-                      cursorClass,
-                      'text-solid-foreground',
-                      styles.circle,
-                      index > 0 && styles.overlap
-                    )}
-                    style={{ backgroundColor: resolveSpeakerColor(speaker, speaker.paletteIndex) }}
+                  {/* People first, in their preferred colours; unlinked voices
+                      follow in grey: the editor's colour rules (spec §8). */}
+                  <Avatar
+                    size={styles.avatar}
+                    color={speaker.color}
+                    className={cn(CIRCLE_RING, cursorClass, index > 0 && styles.overlap)}
                   >
-                    {speakerInitials(speaker.label)}
-                  </div>
+                    {speaker.avatarText}
+                  </Avatar>
                 </TooltipTrigger>
-                <TooltipContent className={TOOLTIP_ON_CARD}>{displayName(speaker.label)}</TooltipContent>
+                <TooltipContent className={TOOLTIP_ON_CARD}>{speaker.tooltip}</TooltipContent>
               </Tooltip>
             ))}
             {overflow > 0 && (
@@ -284,9 +270,10 @@ export function SpeakerAvatarGroup({
               // tooltip lists the overflow when it cannot.
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div
+                  <Avatar
+                    size={styles.avatar}
                     className={cn(
-                      CIRCLE_BASE,
+                      CIRCLE_RING,
                       cursorClass,
                       // bg-border, not bg-surface-alt. In dark mode surface-alt
                       // is #141414 against a #1D1E18 card -- 1.09:1 -- so the
@@ -296,12 +283,11 @@ export function SpeakerAvatarGroup({
                       // themes (#333333 on night-surface, #D1CEC5 on white),
                       // and text-foreground clears AA on either.
                       'bg-border text-foreground',
-                      styles.circle,
                       styles.overlap
                     )}
                   >
                     +{overflow}
-                  </div>
+                  </Avatar>
                 </TooltipTrigger>
                 <TooltipContent className={TOOLTIP_ON_CARD}>
                   {countLabel(overflow, 'more speaker', 'more speakers')}

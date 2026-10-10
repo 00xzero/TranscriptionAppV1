@@ -1,27 +1,29 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ProjectSpeakerPreview } from '@/contracts/db'
+import type { ProjectSpeakerPreview, ProjectVoicePreview } from '@/contracts/db'
 import { SpeakerAvatarGroup } from '@/components/Projects/SpeakerAvatarGroup'
-import { SPEAKER_COLORS } from '@/lib/speakers/palette'
+import { SPEAKER_COLORS, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 
-const preview = (overrides: Partial<ProjectSpeakerPreview> = {}): ProjectSpeakerPreview => ({
-  id: '11111111-1111-1111-1111-111111111111',
-  transcriptId: '22222222-2222-2222-2222-222222222222',
-  label: 'Kate',
-  color: null,
-  paletteIndex: 0,
-  ...overrides,
+type Peer = ProjectVoicePreview['peers'][number]
+
+/** A linked person, once per project. */
+const person = (name: string, overrides: Partial<Extract<ProjectSpeakerPreview, { kind: 'person' }>> = {}): ProjectSpeakerPreview => ({
+  kind: 'person', id: `person-${name}`, name, color: SPEAKER_COLORS[0], organisationName: null, ...overrides,
 })
 
-const previews = (labels: string[]): ProjectSpeakerPreview[] =>
-  labels.map((label, index) =>
-    preview({
-      id: `speaker-${index}`,
-      label,
-      paletteIndex: index,
-    })
-  )
+const peer = (id: string, ordinal: number, customLabel: string | null = null, overrides: Partial<Peer> = {}): Peer => ({
+  id, ordinal, customLabel, personId: null, personName: null, organisationName: null, ...overrides,
+})
+
+/** An unlinked voice; alone in its transcript unless peers are given. */
+const voice = (id: string, ordinal: number, customLabel: string | null = null,
+  overrides: Partial<ProjectVoicePreview> = {}): ProjectSpeakerPreview => ({
+  kind: 'voice', id, transcriptId: 'transcript-1', transcriptTitle: 'Q3 steering',
+  peers: [peer(id, ordinal, customLabel)], ...overrides,
+})
+
+const previews = (labels: string[]): ProjectSpeakerPreview[] => labels.map((label) => person(label))
 
 const circles = (container: HTMLElement) => container.querySelectorAll('.rounded-full')
 
@@ -110,41 +112,93 @@ describe('SpeakerAvatarGroup', () => {
     expect(screen.getByRole('img')).toHaveAttribute('aria-label', '2 speakers: Kate and John')
   })
 
-  describe('colors', () => {
-    test('uses the palette position from the RPC', () => {
+  describe('people and voices (spec §8)', () => {
+    test('a person is named and coloured as their person, as in the editor', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', paletteIndex: 2 })]}
+          speakers={[person('Ada Lovelace', { color: SPEAKER_COLORS[3] })]}
           totalCount={1}
           size="card"
         />
       )
 
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[2] })
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Ada Lovelace')
+      expect(screen.getByText('AL')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[3] })
     })
 
-    test('a stored color overrides the palette position', () => {
+    test('a person\'s tooltip adds their organisation, as the editor\'s avatar does', async () => {
+      const user = userEvent.setup()
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', color: '#FF0000', paletteIndex: 2 })]}
+          speakers={[person('Ada Lovelace', { organisationName: 'Example Org' })]}
           totalCount={1}
           size="card"
         />
       )
 
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: '#FF0000' })
+      await user.hover(screen.getByText('AL'))
+      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Ada Lovelace · Example Org'))
     })
 
-    test('wraps past the end of the palette', () => {
+    test('an unlinked voice is grey and named with its transcript', () => {
       render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: 'Kate', paletteIndex: SPEAKER_COLORS.length })]}
-          totalCount={1}
+          speakers={[voice('v1', 2), voice('v2', 3, 'Kate', { transcriptTitle: null })]}
+          totalCount={2}
           size="card"
         />
       )
 
-      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLORS[0] })
+      expect(screen.getByRole('img')).toHaveAttribute(
+        'aria-label', '2 speakers: Speaker 2 · Q3 steering and Kate · Untitled')
+      expect(screen.getByText('S2')).toHaveStyle({ backgroundColor: SPEAKER_COLOR_FALLBACK })
+      expect(screen.getByText('K')).toHaveStyle({ backgroundColor: SPEAKER_COLOR_FALLBACK })
+    })
+
+    test('keeps the order it was given: people first, then voices', () => {
+      const { container } = render(
+        <SpeakerAvatarGroup
+          speakers={[person('Ada Lovelace'), person('Blair'), voice('v1', 1)]}
+          totalCount={3}
+          size="card"
+        />
+      )
+
+      expect(Array.from(circles(container)).map((circle) => circle.textContent)).toEqual(['AL', 'B', 'S1'])
+    })
+
+    // The editor tells two voices with one label apart; a preview built from
+    // base labels used to show both as the same name.
+    test('namesake voices in one transcript are labelled as the editor labels them', () => {
+      const peers = [peer('paul-1', 3, 'Paul'), peer('paul-2', 4, 'Paul')]
+      render(
+        <SpeakerAvatarGroup
+          speakers={[voice('paul-1', 3, 'Paul', { peers }), voice('paul-2', 4, 'Paul', { peers })]}
+          totalCount={2}
+          size="card"
+        />
+      )
+
+      expect(screen.getByRole('img')).toHaveAttribute(
+        'aria-label', '2 speakers: Paul · Q3 steering and Paul (2) · Q3 steering')
+      // Initials come from the label itself, as in the editor, never from `(2)`.
+      expect(screen.getAllByText('P')).toHaveLength(2)
+    })
+
+    test('a voice sharing a linked person\'s name in its transcript is numbered after them', () => {
+      const peers = [
+        peer('linked', 5, null, { personId: 'person-paul', personName: 'Paul' }),
+        peer('local', 6, 'Paul'),
+      ]
+      render(
+        <SpeakerAvatarGroup
+          speakers={[person('Paul'), voice('local', 6, 'Paul', { peers })]}
+          totalCount={2}
+          size="card"
+        />
+      )
+
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '2 speakers: Paul and Paul (2) · Q3 steering')
     })
   })
 
@@ -190,17 +244,17 @@ describe('SpeakerAvatarGroup', () => {
       expect(container.querySelectorAll('button, a, [tabindex]')).toHaveLength(0)
     })
 
-    test('names an unlabelled speaker rather than leaving a gap', () => {
+    test('names a voice without a custom label by its ordinal', () => {
       const { container } = render(
         <SpeakerAvatarGroup
-          speakers={[preview({ label: '  ' })]}
+          speakers={[voice('v3', 3)]}
           totalCount={1}
           size="card"
         />
       )
 
-      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Unnamed speaker')
-      expect(circles(container)[0]).toHaveTextContent('?')
+      expect(screen.getByRole('img')).toHaveAttribute('aria-label', '1 speaker: Speaker 3 · Q3 steering')
+      expect(circles(container)[0]).toHaveTextContent('S3')
     })
   })
 
@@ -252,13 +306,19 @@ describe('SpeakerAvatarGroup', () => {
       await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('John Smith'))
     })
 
-    test('falls back to a name rather than opening an empty chip', async () => {
+    test('names a voice and its transcript on hover', async () => {
       const user = userEvent.setup()
-      render(<SpeakerAvatarGroup speakers={previews(['   '])} totalCount={1} size="card" />)
+      render(
+        <SpeakerAvatarGroup
+          speakers={[voice('v1', 1)]}
+          totalCount={1}
+          size="card"
+        />
+      )
 
-      await user.hover(circleFor('?'))
+      await user.hover(circleFor('S1'))
 
-      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Unnamed speaker'))
+      await waitFor(() => expect(screen.getByRole('tooltip')).toHaveTextContent('Speaker 1 · Q3 steering'))
     })
 
     test('the overflow badge counts the hidden speakers instead of naming them', async () => {
@@ -320,7 +380,7 @@ describe('SpeakerAvatarGroup', () => {
       const badge = all[all.length - 1]
       expect(badge).toHaveTextContent('+6')
       // Same sizing classes, so the badge cannot drift from its neighbours.
-      for (const size of ['h-7', 'w-7', 'text-[10px]']) {
+      for (const size of ['h-7', 'min-w-7', 'text-[10px]']) {
         expect(badge).toHaveClass(size)
         expect(all[0]).toHaveClass(size)
       }

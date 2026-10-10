@@ -209,6 +209,14 @@ describe('ContextualHeader', () => {
     expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
   })
 
+  test.each(['/people', '/people/11111111-1111-4111-8111-111111111111'])('titles %s as People', async (pathname) => {
+    usePathnameMock.mockReturnValue(pathname)
+
+    renderHeader()
+    expect(await screen.findByRole('link', { name: 'People' })).toHaveAttribute('href', '/people')
+    expect(screen.queryByText('Library')).not.toBeInTheDocument()
+  })
+
   test('renders unauthenticated chrome on auth routes even with a signed-in identity', () => {
     usePathnameMock.mockReturnValue('/auth')
 

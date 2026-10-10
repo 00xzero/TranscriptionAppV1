@@ -19,6 +19,14 @@ $$;
 
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO authenticated, service_role;
 
+-- A voice entry's own row among its transcript's peers: its ordinal and label.
+CREATE OR REPLACE FUNCTION pg_temp.own(entry jsonb)
+RETURNS jsonb LANGUAGE sql AS $$
+  SELECT q FROM jsonb_array_elements(entry -> 'peers') AS q WHERE q ->> 'id' = entry ->> 'id'
+$$;
+
+GRANT EXECUTE ON FUNCTION pg_temp.own(jsonb) TO authenticated;
+
 INSERT INTO auth.users (
   id, instance_id, aud, role, email, encrypted_password,
   email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -51,28 +59,29 @@ INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
   ('60000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', null, 'DeletingRoot'),
   ('60000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000002', null, 'Other user');
 
--- updated_at descending across T1, T2, T3 fixes the preview order.
-INSERT INTO public.transcripts (id, user_id, project_id, title, status, updated_at) VALUES
-  ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'T1', 'completed', '2026-09-03T00:00:00Z'),
-  ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'T2', 'completed', '2026-09-02T00:00:00Z'),
-  ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000003', 'T3', 'completed', '2026-09-01T00:00:00Z'),
-  ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000004', 'T4', 'completed', '2026-09-04T00:00:00Z'),
-  ('70000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', 'T5', 'completed', '2026-09-05T00:00:00Z'),
-  ('70000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000020', 'T6', 'completed', '2026-09-06T00:00:00Z');
+-- created_at descending across T1, T2, T3 fixes the preview order: a voice
+-- follows the recency of its transcript.
+INSERT INTO public.transcripts (id, user_id, project_id, title, status, created_at, updated_at) VALUES
+  ('70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', 'T1', 'completed', '2026-08-03T00:00:00Z', '2026-09-03T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000002', 'T2', 'completed', '2026-08-02T00:00:00Z', '2026-09-02T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000003', 'T3', 'completed', '2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000004', 'T4', 'completed', '2026-08-04T00:00:00Z', '2026-09-04T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000005', 'T5', 'completed', '2026-08-05T00:00:00Z', '2026-09-05T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000020', 'T6', 'completed', '2026-08-06T00:00:00Z', '2026-09-06T00:00:00Z');
 
--- T1 carries the palette-stability case: 'Unused' sits at index 1 with no
--- segments, so 'John Smith' must still come out at index 2.
+-- T1's 'Unused' has no segments, so it must not be counted.
 -- T2 carries the tie case: Sarah and Zed share a created_at, so only id breaks it.
-INSERT INTO public.speakers (id, transcript_id, label, color, created_at) VALUES
-  ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'Kate',       null,      '2026-01-01T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', 'Unused',     null,      '2026-01-01T00:00:01Z'),
-  ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', 'John Smith', '#FF0000', '2026-01-01T00:00:02Z'),
-  ('80000000-0000-0000-0000-000000000010', '70000000-0000-0000-0000-000000000002', 'Sarah',      null,      '2026-01-02T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000011', '70000000-0000-0000-0000-000000000002', 'Zed',        null,      '2026-01-02T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000020', '70000000-0000-0000-0000-000000000003', 'Mark',       null,      '2026-01-03T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000030', '70000000-0000-0000-0000-000000000004', 'Hidden',     null,      '2026-01-04T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000040', '70000000-0000-0000-0000-000000000005', 'AlsoHidden', null,      '2026-01-05T00:00:00Z'),
-  ('80000000-0000-0000-0000-000000000050', '70000000-0000-0000-0000-000000000006', 'Foreign',    null,      '2026-01-06T00:00:00Z');
+-- T3's speaker is generic: no custom label, so it displays as Speaker 3.
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, created_at) VALUES
+  ('80000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 0, 'Kate',       '2026-01-01T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 1, 'Unused',     '2026-01-01T00:00:01Z'),
+  ('80000000-0000-0000-0000-000000000003', '70000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 2, 'John Smith', '2026-01-01T00:00:02Z'),
+  ('80000000-0000-0000-0000-000000000010', '70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 0, 'Sarah',      '2026-01-02T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000011', '70000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 1, 'Zed',        '2026-01-02T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000020', '70000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 3, null,         '2026-01-03T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000030', '70000000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 0, 'Hidden',     '2026-01-04T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000040', '70000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 0, 'AlsoHidden', '2026-01-05T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000050', '70000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000002', 0, 'Foreign',    '2026-01-06T00:00:00Z');
 
 -- Kate gets two segments (must still count once); one T1 segment is unassigned.
 INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) VALUES
@@ -86,6 +95,51 @@ INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) 
   ('70000000-0000-0000-0000-000000000004', '80000000-0000-0000-0000-000000000030', 0,    1000, 'hidden'),
   ('70000000-0000-0000-0000-000000000005', '80000000-0000-0000-0000-000000000040', 0,    1000, 'also hidden'),
   ('70000000-0000-0000-0000-000000000006', '80000000-0000-0000-0000-000000000050', 0,    1000, 'foreign');
+
+-- The People root holds T7 and T8. T7 has an unlinked voice, Ada, and Bea,
+-- who is hidden; T8 is newer by created_at (though older by updated_at) and
+-- has Ada on two voices. Linked speakers have no label and a later ordinal, as
+-- naming someone leaves them.
+INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
+  ('60000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', null, 'People');
+INSERT INTO public.transcripts (id, user_id, project_id, title, status, created_at, updated_at) VALUES
+  ('70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000008', 'T7', 'completed', '2026-09-07T00:00:00Z', '2026-09-07T00:00:00Z'),
+  ('70000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000008', 'T8', 'completed', '2026-09-08T00:00:00Z', '2026-09-01T00:00:00Z');
+INSERT INTO public.organisations (id, user_id, name) VALUES
+  ('a0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Example Org');
+INSERT INTO public.people (id, user_id, name, preferred_color, organisation_id, hidden) VALUES
+  ('90000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Ada Lovelace', '#0D9488', 'a0000000-0000-0000-0000-000000000001', false),
+  ('90000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Bea', '#C73E1D', null, true);
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, person_id, created_at) VALUES
+  ('80000000-0000-0000-0000-000000000060', '70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 1, null, null,                                   '2026-01-07T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000061', '70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 3, null, '90000000-0000-0000-0000-000000000001', '2026-01-07T00:00:01Z'),
+  ('80000000-0000-0000-0000-000000000062', '70000000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 4, null, '90000000-0000-0000-0000-000000000002', '2026-01-07T00:00:02Z'),
+  ('80000000-0000-0000-0000-000000000070', '70000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 3, null, '90000000-0000-0000-0000-000000000001', '2026-01-08T00:00:00Z'),
+  ('80000000-0000-0000-0000-000000000071', '70000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 4, null, '90000000-0000-0000-0000-000000000001', '2026-01-08T00:00:01Z');
+INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) VALUES
+  ('70000000-0000-0000-0000-000000000007', '80000000-0000-0000-0000-000000000060', 0,    1000, 'voice'),
+  ('70000000-0000-0000-0000-000000000007', '80000000-0000-0000-0000-000000000061', 1000, 2000, 'ada'),
+  ('70000000-0000-0000-0000-000000000007', '80000000-0000-0000-0000-000000000062', 2000, 3000, 'bea'),
+  ('70000000-0000-0000-0000-000000000008', '80000000-0000-0000-0000-000000000070', 0,    1000, 'ada again'),
+  ('70000000-0000-0000-0000-000000000008', '80000000-0000-0000-0000-000000000071', 1000, 2000, 'ada, second voice');
+
+-- Parent and Kid, to request together: Cy appears in both, and Kid has a voice.
+INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
+  ('60000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', null, 'Parent'),
+  ('60000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000009', 'Kid');
+INSERT INTO public.transcripts (id, user_id, project_id, title, status, created_at) VALUES
+  ('70000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000009', 'T9', 'completed', '2026-09-09T00:00:00Z'),
+  ('70000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-00000000000a', 'T10', 'completed', '2026-09-10T00:00:00Z');
+INSERT INTO public.people (id, user_id, name, preferred_color) VALUES
+  ('90000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Cy', '#CA8A04');
+INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, custom_label, person_id) VALUES
+  ('80000000-0000-0000-0000-000000000090', '70000000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 3, null, '90000000-0000-0000-0000-000000000003'),
+  ('80000000-0000-0000-0000-0000000000a0', '70000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 1, null, null),
+  ('80000000-0000-0000-0000-0000000000a1', '70000000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 3, null, '90000000-0000-0000-0000-000000000003');
+INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) VALUES
+  ('70000000-0000-0000-0000-000000000009', '80000000-0000-0000-0000-000000000090', 0,    1000, 'cy in parent'),
+  ('70000000-0000-0000-0000-00000000000a', '80000000-0000-0000-0000-0000000000a1', 0,    1000, 'cy in kid'),
+  ('70000000-0000-0000-0000-00000000000a', '80000000-0000-0000-0000-0000000000a0', 1000, 2000, 'voice in kid');
 
 -- deleting_at is server-managed, so it is set before dropping to authenticated.
 UPDATE public.projects SET deleting_at = now()
@@ -114,7 +168,7 @@ SELECT pg_temp.assert_true(
     FROM public.project_speaker_summaries(
       ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], true) AS s,
       LATERAL jsonb_array_elements(s.preview) AS p
-    WHERE p ->> 'label' IN ('Hidden', 'AlsoHidden')
+    WHERE pg_temp.own(p) ->> 'customLabel' IN ('Hidden', 'AlsoHidden')
   ),
   'a deleting project takes its whole subtree out of the branch'
 );
@@ -162,7 +216,7 @@ SELECT pg_temp.assert_true(
     FROM public.project_speaker_summaries(
       ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
       LATERAL jsonb_array_elements(s.preview) AS p
-    WHERE p ->> 'label' = 'Unused'
+    WHERE pg_temp.own(p) ->> 'customLabel' = 'Unused'
   ),
   'a speaker row with no segments is not counted'
 );
@@ -175,74 +229,122 @@ SELECT pg_temp.assert_true(
   'repeated segments from one speaker count once and unassigned segments count for nobody'
 );
 
--- --------------------------------------------------------------- colour ----
+-- ---------------------------------------------------------- label data ----
 
+-- A voice carries its transcript's identities with segments, itself included,
+-- so the client labels it as the editor does; never the dropped label or color.
 SELECT pg_temp.assert_true(
-  (SELECT p ->> 'color'
+  (SELECT p ->> 'kind' = 'voice' AND p ->> 'transcriptTitle' = 'T1'
+          AND (pg_temp.own(p) ->> 'ordinal')::int = 2 AND pg_temp.own(p) ->> 'customLabel' = 'John Smith'
+          AND NOT p ? 'label' AND NOT p ? 'color'
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'John Smith') = '#FF0000',
-  'a stored colour is returned as stored'
+   WHERE pg_temp.own(p) ->> 'customLabel' = 'John Smith'),
+  'a voice entry carries its transcript title and its own ordinal and label among its peers'
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT p -> 'color'
+  (SELECT pg_temp.own(p) -> 'customLabel' = 'null'::jsonb AND (pg_temp.own(p) ->> 'ordinal')::int = 3
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Kate') = 'null'::jsonb,
-  'a speaker with no stored colour returns null, not an empty string'
+     ARRAY['60000000-0000-0000-0000-000000000003']::uuid[], false) AS s,
+     LATERAL jsonb_array_elements(s.preview) AS p),
+  'a generic voice has a null customLabel and its ordinal'
 );
 
--- The palette index is computed before unused speakers are dropped, so 'Unused'
--- still occupies slot 1 and John Smith is 2 rather than 1. This is what keeps
--- the project surfaces agreeing with the editor.
+-- Peers list the transcript's speakers with segments in order of first
+-- appearance, linked ones with their person's name and organisation.
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
+  (SELECT array_agg(q ->> 'id' ORDER BY ord) = ARRAY[
+      '80000000-0000-0000-0000-000000000060', '80000000-0000-0000-0000-000000000061',
+      '80000000-0000-0000-0000-000000000062']
+     AND (p -> 'peers' -> 1 ->> 'personName') = 'Ada Lovelace'
+     AND (p -> 'peers' -> 1 ->> 'organisationName') = 'Example Org'
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
+     LATERAL jsonb_array_elements(s.preview) AS p,
+     LATERAL jsonb_array_elements(p -> 'peers') WITH ORDINALITY AS t(q, ord)
+   WHERE p ->> 'kind' = 'voice'
+   GROUP BY p),
+  'a voice''s peers are its transcript''s identities in order of first appearance'
+);
+
+-- A linked person is the entry, named and coloured as themselves, with their
+-- organisation; the voice carrying them is not listed on its own.
+SELECT pg_temp.assert_true(
+  (SELECT p ->> 'kind' = 'person' AND p ->> 'name' = 'Ada Lovelace' AND p ->> 'color' = '#0D9488'
+          AND p ->> 'organisationName' = 'Example Org'
+   FROM public.project_speaker_summaries(
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
      LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'John Smith') = 2,
-  'an unused speaker still occupies its palette slot'
+   WHERE p ->> 'id' = '90000000-0000-0000-0000-000000000001')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.project_speaker_summaries(
+      ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
+      LATERAL jsonb_array_elements(s.preview) AS p
+    WHERE p ->> 'id' IN ('80000000-0000-0000-0000-000000000061', '80000000-0000-0000-0000-000000000070')),
+  'a linked person is previewed as the person, with name, colour and organisation'
 );
 
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
-   FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Kate') = 0,
-  'the first speaker of a transcript is palette index 0'
+  NOT EXISTS (
+    SELECT 1
+    FROM public.project_speaker_summaries(
+      ARRAY['60000000-0000-0000-0000-000000000001',
+            '60000000-0000-0000-0000-000000000008']::uuid[], true) AS s,
+      LATERAL jsonb_array_elements(s.preview) AS p
+    WHERE p ? 'paletteIndex' OR (p ->> 'kind' = 'voice' AND p ? 'color')
+  ),
+  'no entry carries a palette index, and a voice carries no colour'
 );
 
--- Sarah and Zed share a created_at, so id is the only thing separating them.
+-- ------------------------------------------------------- counting people ----
+
+-- Ada is in T7 and T8, on two voices in T8: she counts once. Bea is hidden and
+-- still counts. With T7's unlinked voice, that is three.
 SELECT pg_temp.assert_true(
-  (SELECT (p ->> 'paletteIndex')::int
+  (SELECT speaker_count FROM public.project_speaker_summaries(
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false)) = 3,
+  'a person counts once however many transcripts and voices carry them; hidden people count'
+);
+
+-- People first, by most recent appearance: Ada was last in T8, newer by
+-- created_at than T7 though older by updated_at, so she leads Bea.
+SELECT pg_temp.assert_true(
+  (SELECT array_agg(coalesce(p ->> 'name', p ->> 'kind') ORDER BY ord)
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Sarah') = 0
-  AND
-  (SELECT (p ->> 'paletteIndex')::int
+     ARRAY['60000000-0000-0000-0000-000000000008']::uuid[], false) AS s,
+     LATERAL jsonb_array_elements(s.preview) WITH ORDINALITY AS t(p, ord))
+  = ARRAY['Ada Lovelace', 'Bea', 'voice'],
+  'people come first, by most recent appearance, then voices'
+);
+
+-- Requested together, Parent (with its branch) and Kid each report their own
+-- scope: Cy once in each row, and Kid's voice in both.
+SELECT pg_temp.assert_true(
+  (SELECT array_agg(s.project_id::text || ':' || s.speaker_count || ':' ||
+     (SELECT string_agg(coalesce(p ->> 'name', p ->> 'id'), ',' ORDER BY ord)
+      FROM jsonb_array_elements(s.preview) WITH ORDINALITY AS t(p, ord)) ORDER BY s.project_id)
    FROM public.project_speaker_summaries(
-     ARRAY['60000000-0000-0000-0000-000000000002']::uuid[], false) AS s,
-     LATERAL jsonb_array_elements(s.preview) AS p
-   WHERE p ->> 'label' = 'Zed') = 1,
-  'speakers created in the same statement are ordered by id'
+     ARRAY['60000000-0000-0000-0000-000000000009', '60000000-0000-0000-0000-00000000000a']::uuid[], true) AS s)
+  = ARRAY[
+    '60000000-0000-0000-0000-000000000009:2:Cy,80000000-0000-0000-0000-0000000000a0',
+    '60000000-0000-0000-0000-00000000000a:2:Cy,80000000-0000-0000-0000-0000000000a0'],
+  'a parent and child requested together each count their own scope'
 );
 
 -- -------------------------------------------------------------- preview ----
 
--- Transcript updated_at descending, then speaker created_at: T1 before T2
--- before T3, Kate before John Smith.
+-- Voices by transcript created_at descending, then first appearance: T1
+-- before T2 before T3, Kate before John Smith.
 SELECT pg_temp.assert_true(
-  (SELECT array_agg(p ->> 'label' ORDER BY ord)
+  (SELECT array_agg(pg_temp.own(p) ->> 'customLabel' ORDER BY ord)
    FROM public.project_speaker_summaries(
      ARRAY['60000000-0000-0000-0000-000000000001']::uuid[], true) AS s,
      LATERAL jsonb_array_elements(s.preview) WITH ORDINALITY AS t(p, ord))
   = ARRAY['Kate', 'John Smith', 'Sarah', 'Zed'],
-  'the preview is ordered by transcript recency then speaker creation'
+  'voices are ordered by transcript recency then first appearance'
 );
 
 SELECT pg_temp.assert_true(

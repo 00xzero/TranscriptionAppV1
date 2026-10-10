@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import { useModal } from '@/lib/ModalContext'
@@ -310,6 +310,7 @@ export default function CaptureModal() {
       <DialogContent
         className="top-[7vh] flex max-h-[86vh] w-[500px] flex-col overflow-hidden p-0 text-ink dark:text-paper"
         aria-describedby={undefined}
+        focusSelfOnOpen
         onEscapeKeyDown={(event) => {
           if (actionInProgress) {
             event.preventDefault()
@@ -330,19 +331,8 @@ export default function CaptureModal() {
             </span>
             <DialogTitle className="font-sans text-sm font-medium not-italic">Capture</DialogTitle>
           </div>
-          <button
-            type="button"
-            className={`flex items-center gap-2 border-none bg-transparent p-0 ${actionInProgress ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
-            onClick={actionInProgress ? undefined : handleClose}
-            disabled={actionInProgress}
-            aria-label="Close modal"
-            title="Close (Esc)"
-          >
-            <span className="rounded-sm border border-current px-1.5 py-0.5 text-[10px] font-mono opacity-40">ESC</span>
-            <svg className="h-4 w-4 opacity-50 hover:opacity-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {/* Closes through onOpenChange above, which waits while an action is in progress. */}
+          <DialogCloseButton className="-mr-2" disabled={actionInProgress} />
         </div>
 
         <Tabs

@@ -160,7 +160,7 @@ function resetMockDb() {
 }
 
 function getSavePayload(): {
-  speakers: Array<{ num: number; label: string }>
+  speakers: Array<{ num: number }>
   segments: Array<Record<string, unknown>>
 } {
   const call = mockDb.rpcCalls.find((c) => c.fn === 'save_transcript_segments')
@@ -168,7 +168,7 @@ function getSavePayload(): {
     throw new Error('save_transcript_segments was not called')
   }
   return call.args.p_payload as {
-    speakers: Array<{ num: number; label: string }>
+    speakers: Array<{ num: number }>
     segments: Array<Record<string, unknown>>
   }
 }
@@ -388,11 +388,11 @@ describe('Inngest handlers', () => {
       sentence_end: true,
     }))
 
-    // Speakers are deduped and sorted; the RPC upserts these and joins on
-    // speaker_num when resolving segment.speaker_id.
+    // Speakers are deduped and sorted. They carry only Deepgram's number: the
+    // RPC keys transcript speakers on it and joins segments on speaker_num.
     expect(payload.speakers).toEqual([
-      { num: 0, label: 'Speaker 0' },
-      { num: 1, label: 'Speaker 1' },
+      { num: 0 },
+      { num: 1 },
     ])
   })
 

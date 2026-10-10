@@ -2,17 +2,23 @@
  * Shared data-fetching logic for export routes.
  *
  * Centralizes authentication, transcript/segments/speakers fetching,
- * and speaker map building for DOCX and VTT exports.
+ * and speaker label resolution for every export format.
  */
 import { SupabaseClient } from '@supabase/supabase-js'
 import type { Segment, Transcript } from '@/contracts/db'
-import type { ExportSegment, SpeakersMap } from '@/core/exports'
+import type { ExportSegment } from '@/core/exports'
+import {
+    resolveSpeakerPresentation,
+    type LabelledPerson,
+    type LabelledSpeaker,
+    type SpeakerPresentation,
+} from '@/core/speakers/labels'
 import { paginateAllRows } from '@/lib/supabase/queries'
 
 export interface ExportData {
     transcript: Transcript
     exportSegments: ExportSegment[]
-    speakersMap: SpeakersMap
+    speakers: SpeakerPresentation
 }
 
 export interface ExportError {
@@ -23,6 +29,16 @@ export interface ExportError {
 export type ExportDataResult =
     | { success: true; data: ExportData }
     | { success: false; error: ExportError }
+
+// A transcript speaker with its linked person and that person's organisation,
+// embedded through the composite owner foreign keys.
+type ExportSpeakerRow = LabelledSpeaker & {
+    person: { id: string; name: string; organisation: { name: string } | null } | null
+}
+
+const EXPORT_SPEAKER_COLUMNS =
+    'id, ordinal, custom_label, person_id, ' +
+    'person:people!speakers_person_owner_fk(id, name, organisation:organisations!people_organisation_owner_fk(name))'
 
 /**
  * Fetch all segments for a transcript with pagination to avoid PostgREST's
@@ -84,10 +100,10 @@ export async function fetchExportData(
         }
     }
 
-    // Fetch speakers
-    const { data: speakers, error: speakersError } = await supabase
+    // Fetch speakers with their linked people
+    const { data, error: speakersError } = await supabase
         .from('speakers')
-        .select('*')
+        .select(EXPORT_SPEAKER_COLUMNS)
         .eq('transcript_id', transcriptId)
 
     if (speakersError) {
@@ -98,14 +114,10 @@ export async function fetchExportData(
         }
     }
 
-    // Build speakers map
-    const speakersMap: SpeakersMap = {}
-    for (const speaker of speakers || []) {
-        speakersMap[speaker.id] = {
-            label: speaker.label,
-            color: speaker.color,
-        }
-    }
+    const speakers = (data ?? []) as unknown as ExportSpeakerRow[]
+    const people: LabelledPerson[] = speakers.flatMap(({ person }) => person
+        ? [{ id: person.id, name: person.name, organisation_name: person.organisation?.name ?? null }]
+        : [])
 
     // Convert DB segments to the lean export view model.
     const exportSegments: ExportSegment[] = segments.map((segment: Segment) => ({
@@ -120,7 +132,9 @@ export async function fetchExportData(
         data: {
             transcript: transcript as Transcript,
             exportSegments,
-            speakersMap,
+            // Segments arrive in transcript order, which the resolver needs for
+            // first appearance.
+            speakers: resolveSpeakerPresentation(speakers, segments, people),
         },
     }
 }

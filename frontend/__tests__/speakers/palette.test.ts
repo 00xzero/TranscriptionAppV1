@@ -1,82 +1,60 @@
 /** @jest-environment node */
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { resolveSpeakerPresentation } from '@/core/speakers/labels'
 import {
-  buildSpeakerColorMap,
-  resolveSpeakerColor,
+  leastUsedSpeakerColor,
+  resolveTranscriptColors,
   speakerInitials,
-  speakerPaletteColor,
+  SPEAKER_COLOR_NAMES,
   SPEAKER_COLORS,
   SPEAKER_COLOR_FALLBACK,
 } from '@/lib/speakers/palette'
 
-describe('speakerPaletteColor', () => {
-  test('returns the palette entry at a position', () => {
-    expect(speakerPaletteColor(0)).toBe(SPEAKER_COLORS[0])
-    expect(speakerPaletteColor(3)).toBe(SPEAKER_COLORS[3])
-  })
-
-  test('wraps past the end of the palette', () => {
-    expect(speakerPaletteColor(SPEAKER_COLORS.length)).toBe(SPEAKER_COLORS[0])
-    expect(speakerPaletteColor(SPEAKER_COLORS.length + 2)).toBe(SPEAKER_COLORS[2])
-    expect(speakerPaletteColor(SPEAKER_COLORS.length * 3 + 1)).toBe(SPEAKER_COLORS[1])
-  })
-
-  // Total rather than returning undefined: a bad index must still paint a circle.
-  test.each([-1, 1.5, NaN, Infinity])('falls back for the out-of-band index %p', (index) => {
-    expect(speakerPaletteColor(index)).toBe(SPEAKER_COLOR_FALLBACK)
-  })
+test('the palette matches speaker_palette() in the database, in allocation order', () => {
+  const migration = fs.readFileSync(path.resolve(__dirname,
+    '../../../infra/supabase/migrations/20260924120000_people_editor.sql'), 'utf8')
+  const body = migration.match(/FUNCTION public\.speaker_palette\(\)[\s\S]*?ARRAY\[([\s\S]*?)\]/)
+  expect(body).not.toBeNull()
+  expect([...body![1].matchAll(/'(#[0-9A-F]{6})'/gi)].map((match) => match[1])).toEqual([...SPEAKER_COLORS])
 })
 
-describe('resolveSpeakerColor', () => {
-  test('prefers a stored color over the palette position', () => {
-    expect(resolveSpeakerColor({ color: '#FF0000' }, 0)).toBe('#FF0000')
-  })
-
-  test('uses the palette position when no color is stored', () => {
-    expect(resolveSpeakerColor({ color: null }, 1)).toBe(SPEAKER_COLORS[1])
-  })
-
-  test('falls back without a speaker or without a position', () => {
-    expect(resolveSpeakerColor(undefined, 0)).toBe(SPEAKER_COLOR_FALLBACK)
-    expect(resolveSpeakerColor(null, 0)).toBe(SPEAKER_COLOR_FALLBACK)
-    expect(resolveSpeakerColor({ color: null }, null)).toBe(SPEAKER_COLOR_FALLBACK)
-  })
-
-  // The editor has always treated a whitespace color as stored; trimming here
-  // would silently repaint those speakers grey.
-  test('treats a whitespace color as stored, and an empty one as absent', () => {
-    expect(resolveSpeakerColor({ color: '   ' }, 0)).toBe('   ')
-    expect(resolveSpeakerColor({ color: '' }, 0)).toBe(SPEAKER_COLORS[0])
-  })
+test('every palette colour has a distinct name for the colour picker', () => {
+  const names = SPEAKER_COLORS.map((color) => SPEAKER_COLOR_NAMES[color])
+  expect(names.every(Boolean)).toBe(true)
+  expect(new Set(names).size).toBe(SPEAKER_COLORS.length)
+  expect(Object.keys(SPEAKER_COLOR_NAMES)).toHaveLength(SPEAKER_COLORS.length)
 })
 
-describe('buildSpeakerColorMap', () => {
-  test('maps array position to palette position, honouring stored colors', () => {
-    const map = buildSpeakerColorMap([
-      { id: 'a', color: null },
-      { id: 'b', color: '#123456' },
-      { id: 'c', color: null },
-    ])
+test('linked people claim colours in first appearance order while local voices stay grey', () => {
+  const presentation = resolveSpeakerPresentation([
+    { id: 'a', ordinal: 0, custom_label: null, person_id: 'p1' },
+    { id: 'b', ordinal: 1, custom_label: null, person_id: 'p2' },
+    { id: 'c', ordinal: 2, custom_label: null, person_id: 'p1' },
+    { id: 'local', ordinal: 3, custom_label: null, person_id: null },
+  ], [{ speaker_id: 'b' }, { speaker_id: 'local' }, { speaker_id: 'a' }, { speaker_id: 'c' }], [
+    { id: 'p1', name: 'Alex' }, { id: 'p2', name: 'Blair' },
+  ])
+  const colors = resolveTranscriptColors(presentation, [
+    { id: 'p1', preferred_color: SPEAKER_COLORS[0] },
+    { id: 'p2', preferred_color: SPEAKER_COLORS[0] },
+  ])
+  expect(colors.get('b')).toBe(SPEAKER_COLORS[0])
+  expect(colors.get('a')).toBe(SPEAKER_COLORS[1])
+  expect(colors.get('c')).toBe(SPEAKER_COLORS[1])
+  expect(colors.get('local')).toBe(SPEAKER_COLOR_FALLBACK)
+})
 
-    expect(map.get('a')).toBe(SPEAKER_COLORS[0])
-    expect(map.get('b')).toBe('#123456')
-    // 'b' still occupies palette slot 1, so 'c' is slot 2 — a stored color must
-    // not shift the speakers after it.
-    expect(map.get('c')).toBe(SPEAKER_COLORS[2])
+describe('leastUsedSpeakerColor', () => {
+  test('a first person takes the first palette colour', () => {
+    expect(leastUsedSpeakerColor([])).toBe(SPEAKER_COLORS[0])
   })
 
-  test('wraps for a transcript with more speakers than palette entries', () => {
-    const speakers = Array.from({ length: SPEAKER_COLORS.length + 1 }, (_, index) => ({
-      id: `speaker-${index}`,
-      color: null,
-    }))
-
-    const map = buildSpeakerColorMap(speakers)
-    expect(map.get(`speaker-${SPEAKER_COLORS.length}`)).toBe(SPEAKER_COLORS[0])
-  })
-
-  test('is empty for no speakers', () => {
-    expect(buildSpeakerColorMap([]).size).toBe(0)
+  test('takes the least used colour, earliest in the palette on a tie', () => {
+    const used = SPEAKER_COLORS.map((preferred_color) => ({ preferred_color }))
+    expect(leastUsedSpeakerColor([...used, { preferred_color: SPEAKER_COLORS[0] }])).toBe(SPEAKER_COLORS[1])
+    expect(leastUsedSpeakerColor(used.slice(0, 3))).toBe(SPEAKER_COLORS[3])
   })
 })
 

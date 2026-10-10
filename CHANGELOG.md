@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-10] - Speaker Identity Overhaul
+
+Speakers can now be linked to reusable people across transcripts. Each
+transcript keeps the speakers Deepgram detected, naming a voice moves its
+segments to a named speaker, and one Remove returns them to what Deepgram
+gave. A People directory lists everyone with their appearances, and project
+summaries count each person once. Built in four slices from
+`.docs/speaker-identity-functional-spec.md` (decision log in §14), merged as
+#112, #114, #116, #117 and #118.
+
+### Added
+
+- **People and organisations** — Account-owned `people` and `organisations` tables with RLS. Every write goes through a guarded definer function granted only to `authenticated`; calls on another account's rows are refused (`SP001`).
+- **Speaker picker** — The editor popover has All / This segment / This turn scopes, directory search, inline person creation, local labels and Remove. Changes go through an optimistic queue with Undo and Retry toasts, and speaker data refreshes on window focus.
+- **People directory** (`/people`) — Search by name or organisation, order by most recent appearance or **Name A–Z**, multi-select organisation filters, **Show hidden**, and **New person** with the least-used colour. Sidebar entry after Projects; sign-in required.
+- **Person page** (`/people/<id>`) — Opens as a dialog over the list, keeping its search, filters and scroll. It shows transcripts, speaking time and Last seen, and offers rename, organisation, colour, hide, delete (only with no appearances) and merge. Appearances are listed newest first with share of the talking. **Remove from this transcript** can be undone.
+- **Merge people** — A preview lists every transcript and voice that will move. The merge runs as one transaction and is checked against a fresh preview under database locks, so it never acts on state the user did not confirm.
+- **Participants** — DOCX, TXT and Markdown exports list the transcript's participants.
+- **Shared UI** — `Avatar`, `IconButton`, `DialogCloseButton` (also used in Capture), an `outline` Toggle variant (also used in Find & Replace) and a `focusSelfOnOpen` option on `DialogContent`.
+- **`verify` skill** — Drives the local stack and measures layout shift.
+
+### Changed
+
+- **Speaker model** — Speakers carry `ordinal`, `custom_label`, `diarization_index` and `user_id`. `label` and `color` are dropped. Composite keys tie a speaker to its transcript's owner, and a segment to a speaker of its own transcript.
+- **One label resolver** — `core/speakers/labels.ts` builds every speaker label: editor, exports and project previews. Namesakes read `Paul (2)`. Unassigned segments read **Unknown speaker**. `Speaker N` counts from 1.
+- **Guarded speaker writes** — Speaker and `segments.speaker_id` writes go through atomic, owner-only functions. Stale expectations are refused (`SP002`) and the editor refreshes only speaker data, never unsaved text. Direct writes from the browser are closed.
+- **`save_transcript_segments`** — Keys speakers on Deepgram's speaker number instead of the label, so a re-run creates no duplicates.
+- **Project summaries** — Count each linked person once per scope and each unlinked voice separately. Previews show people first, in their colours, then grey voices.
+- **Speaker popover** — Its height comes from the window (half of it less 1.75rem, between 12rem and 32rem), so it is the same size wherever it opens. The footer is two equal halves, **Rename everywhere** (or **Rename here**) and **Manage people**, and the popover is 20rem wide.
+
+### Fixed
+
+- **Completed transcripts can't be restarted** — A restart no longer overwrites speaker corrections. Speaker edits require a completed transcript, and identity and content changes are serialised per account.
+- **Switching speaker names** — With the popover open, clicking another speaker name moves the popover to it. Before, Radix's deferred outside-press dismiss closed the popover the click had just opened. Clicking the same name again closes it.
+- **Directory recovery** — Merge results and saved edits stay visible when a reload fails, and Retry reloads without repeating the write. Organisation search no longer clears the current assignment.
+- **VTT voice tags** — `>` and line breaks are escaped.
+
+### Database
+
+- Four migrations:
+  - `20260924000000_speaker_identity_foundations`
+  - `20260924120000_people_editor`
+  - `20260926000000_people_directory`
+  - `20261010000000_speaker_identity_review_guards`
+- `people_editor` rewrites existing rows once: named detected speakers are split out, segments get their Deepgram number, and detected speakers are renumbered from 1.
+- All four were applied to hosted on 2026-10-10, after checking that day's backup.
+- The same day, the existing named labels were linked to people by hand: 83 labels became 73 people in 7 organisations.
+
+### Notes
+
+- Two transcripts have words without Deepgram speaker numbers, so they kept 13 speakers with no number, label or person. They show `Speaker N`, but Remove sends their segments to Unknown. Neither opens under the main account, so they were left as is.
+- #115 is still open: Undo after **Remove from this transcript** can't be reached by keyboard or screen reader while the person dialog is open.
+
+### Tests
+
+- **Frontend** — `npm run test:ci` (`131` suites / `1,462` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, `57` warnings, all existing).
+- **SQL** — Rollback-only smoke tests pass locally: `smoke-test-speakers.sql`, `smoke-test-people-editor.sql`, `smoke-test-people-directory.sql`, `smoke-test-project-speakers.sql`. `supabase db diff --local` reports no drift.
+- **Browser** — Every slice was checked on the local stack. Before the merge, a smoke test against hosted data covered library project cards, the People directory with filters and sort, a person page, and the editor (waveform, linked names, picker, switching between names). There were no console errors.
+
 ## [2026-09-24] - Text Length Limits and Character Count
 
 Capped transcript titles and speaker names, which previously had no limit and

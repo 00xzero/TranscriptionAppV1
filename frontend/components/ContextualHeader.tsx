@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import { EditorHeaderTitle } from '@/components/Projects/EditorHeaderTitle'
 import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
+import { PeopleHeaderTitle } from '@/components/People/PeopleHeaderTitle'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { projectIdFromPathname } from '@/lib/projects/routes'
 
@@ -19,6 +20,7 @@ export default function ContextualHeader() {
   const { tree, projectsLoading } = useProjectsData()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
+  const isPeopleRoute = pathname === '/people' || pathname?.startsWith('/people/')
   const routeProjectId = projectIdFromPathname(pathname)
   const routeProject = routeProjectId ? tree.byId.get(routeProjectId) : null
   const hideCapture = Boolean(
@@ -50,6 +52,8 @@ export default function ContextualHeader() {
           </div>
         ) : isProjectsRoute ? (
           <ProjectsHeaderTitle pathname={pathname} />
+        ) : isPeopleRoute ? (
+          <PeopleHeaderTitle pathname={pathname} />
         ) : isEditorRoute ? (
           <EditorHeaderTitle pathname={pathname} />
         ) : (

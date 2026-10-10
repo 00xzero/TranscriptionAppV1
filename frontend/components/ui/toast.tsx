@@ -28,7 +28,9 @@ const Toast = React.forwardRef<
   <ToastPrimitive.Root
     ref={ref}
     className={cn(
-      'rounded-xl border border-border [background:color-mix(in_oklab,var(--surface)_55%,transparent)] px-4 py-3 text-ink shadow-2xl backdrop-blur-md dark:text-paper',
+      // pointer-events-auto: a modal dialog turns pointer events off on the
+      // body, and a toast's Undo must still work over it.
+      'pointer-events-auto rounded-xl border border-border [background:color-mix(in_oklab,var(--surface)_55%,transparent)] px-4 py-3 text-ink shadow-2xl backdrop-blur-md dark:text-paper',
       'data-[state=open]:animate-[slideUp_180ms_ease-out] data-[state=closed]:animate-[fadeOut_150ms_ease-in]',
       'data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=cancel]:translate-x-0 data-[swipe=cancel]:transition-transform data-[swipe=end]:animate-[fadeOut_150ms_ease-in]',
       className

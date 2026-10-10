@@ -22,11 +22,22 @@ const row = (projectId: string, speakerCount: number, preview: unknown[] = []) =
 })
 
 const speaker = {
+  kind: 'person',
   id: '11111111-1111-1111-1111-111111111111',
+  name: 'Kate',
+  color: '#4F638C',
+  organisationName: null,
+}
+
+const voice = {
+  kind: 'voice',
+  id: '55555555-5555-5555-5555-555555555555',
   transcriptId: '22222222-2222-2222-2222-222222222222',
-  label: 'Kate',
-  color: null,
-  paletteIndex: 0,
+  transcriptTitle: 'Q3 steering',
+  peers: [{
+    id: '55555555-5555-5555-5555-555555555555', ordinal: 1, customLabel: null,
+    personId: null, personName: null, organisationName: null,
+  }],
 }
 
 const PROJECT_A = '33333333-3333-3333-3333-333333333333'
@@ -90,6 +101,14 @@ describe('fetchProjectSpeakerSummaries', () => {
     expect(result.get(PROJECT_B)?.speaker_count).toBe(0)
   })
 
+  test('reads people and voices, each by kind', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [row(PROJECT_A, 2, [speaker, voice])], error: null })
+
+    const result = await fetchProjectSpeakerSummaries([PROJECT_A], { includeDescendants: false })
+
+    expect(result.get(PROJECT_A)?.preview).toEqual([speaker, voice])
+  })
+
   test('omits a project the RPC did not return, rather than inventing a zero', async () => {
     mockRpc.mockResolvedValueOnce({ data: [row(PROJECT_A, 2)], error: null })
 
@@ -124,9 +143,9 @@ describe('fetchProjectSpeakerSummaries', () => {
       ['a missing count', [{ project_id: PROJECT_A, preview: [] }]],
       ['a negative count', [row(PROJECT_A, -1)]],
       ['a non-uuid project id', [row('not-a-uuid', 0)]],
-      ['a preview entry without a palette index', [
-        row(PROJECT_A, 1, [{ ...speaker, paletteIndex: undefined }]),
-      ]],
+      ['a person without their colour', [row(PROJECT_A, 1, [{ ...speaker, color: undefined }])]],
+      ['a voice without its transcript\'s peers', [row(PROJECT_A, 1, [{ ...voice, peers: undefined }])]],
+      ['an entry of an unknown kind', [row(PROJECT_A, 1, [{ ...speaker, kind: 'speaker' }])]],
       ['an object where rows were expected', { project_id: PROJECT_A }],
     ])('%s', async (_label, data) => {
       mockRpc.mockResolvedValueOnce({ data, error: null })

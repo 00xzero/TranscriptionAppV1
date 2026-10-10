@@ -3,22 +3,38 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-const migrationPath = path.resolve(
-  __dirname,
-  '../../infra/supabase/migrations/20260920000000_project_speaker_summaries.sql'
-)
-const sql = fs.readFileSync(migrationPath, 'utf8').toLowerCase()
+const migrationsDir = path.resolve(__dirname, '../../infra/supabase/migrations')
+const readMigration = (file: string) =>
+  fs.readFileSync(path.join(migrationsDir, file), 'utf8').toLowerCase()
 
-function functionDefinition(name: string): string {
-  const marker = `create or replace function public.${name}(`
-  const start = sql.indexOf(marker)
-  if (start === -1) throw new Error(`Missing function definition: ${name}`)
-  const next = sql.indexOf('create or replace function public.', start + marker.length)
-  return sql.slice(start, next === -1 ? sql.length : next)
+// The original migration owns the grants and the index; the function body is
+// checked in whichever migration defines it last, since later migrations
+// replace it.
+const sql = readMigration('20260920000000_project_speaker_summaries.sql')
+const MARKER = 'create or replace function public.project_speaker_summaries('
+const latestDefiningMigration = fs
+  .readdirSync(migrationsDir)
+  .filter((file) => file.endsWith('.sql'))
+  .sort()
+  .filter((file) => readMigration(file).includes(MARKER))
+  .at(-1)!
+
+function functionDefinition(source: string): string {
+  const start = source.indexOf(MARKER)
+  if (start === -1) throw new Error('Missing function definition: project_speaker_summaries')
+  const next = source.indexOf('create or replace function public.', start + MARKER.length)
+  return source.slice(start, next === -1 ? source.length : next)
 }
 
 describe('project_speaker_summaries migration', () => {
-  const definition = functionDefinition('project_speaker_summaries')
+  const definition = functionDefinition(readMigration(latestDefiningMigration))
+
+  test('the latest definition is the People directory rewrite, counted by person', () => {
+    expect(latestDefiningMigration).toBe('20260926000000_people_directory.sql')
+    // speakers.label and speakers.color were dropped; the client resolves labels.
+    expect(definition).not.toMatch(/\bsp\.label\b/)
+    expect(definition).not.toMatch(/\bsp\.color\b/)
+  })
 
   test('is a read-only invoker-rights function', () => {
     expect(definition).toContain('stable')
@@ -50,28 +66,43 @@ describe('project_speaker_summaries migration', () => {
     expect(executable).not.toContain('project_branch_ids')
   })
 
-  test('ranks palette positions over every speaker of a transcript', () => {
-    expect(definition).toMatch(
-      /row_number\(\) over \(\s*partition by sp\.transcript_id\s*order by sp\.created_at, sp\.id\s*\)/
-    )
-    // The rank must be computed before the used-speaker filter, or dropping an
-    // unused speaker would repaint the transcript.
-    expect(definition.indexOf('ranked_speakers as')).toBeLessThan(
-      definition.indexOf('used_speakers as')
-    )
-  })
-
-  test('counts distinct speakers actually referenced by segments', () => {
-    expect(definition).toMatch(/exists \(\s*select 1\s*from public\.segments as sg/)
+  test('counts a linked person once per requested root, and each unlinked voice', () => {
+    // Grouped by root as well as person: a parent and child requested together
+    // each count the person once, in their own row.
+    expect(definition).toMatch(/where us\.person_id is not null\s+group by st\.root_id, us\.person_id/)
+    expect(definition).toMatch(/where us\.person_id is null\s*\),/)
+    expect(definition).toContain('partition by i.root_id')
     expect(definition).toContain('count(*)::integer as speaker_count')
     expect(definition).toContain('select distinct b.root_id, b.scope_project_id')
+    expect(definition).not.toContain('palette_index')
   })
 
-  test('orders the preview inside the aggregate and bounds its size', () => {
+  test('takes each speaker\'s first segment without a root, then applies the scope', () => {
+    // First appearance belongs to the speaker; the join to scope_transcripts
+    // hands it to every root whose scope holds its transcript.
+    expect(definition).toMatch(/select distinct on \(sg\.speaker_id\)/)
+    expect(definition).toContain('order by sg.speaker_id, sg.start_ms, sg.id')
+    expect(definition).toContain('join used_speakers as us on us.transcript_id = st.transcript_id')
+  })
+
+  test('previews people by name and colour, and voices with their transcript\'s peers', () => {
+    expect(definition).toContain("'kind',             'person'")
+    expect(definition).toContain("'color',            o.person_color")
+    expect(definition).toContain("'kind',             'voice'")
+    expect(definition).toContain("'transcripttitle',  o.transcript_title")
+    // Peers in first-appearance order, so the client's resolver labels a voice
+    // as the editor does.
+    expect(definition).toMatch(/'peers',\s+tp\.peers/)
+    expect(definition).toContain('order by us.first_start_ms, us.first_segment_id')
+  })
+
+  test('orders the preview inside the aggregate, people first, and bounds its size', () => {
     // An ordering in an upstream CTE is not binding on jsonb_agg.
     expect(definition).toMatch(/jsonb_agg\([\s\S]*order by o\.rn\s*\)/)
+    // People by most recent appearance (transcript created_at), then voices.
+    expect(definition).toContain('max(st.created_at) as seen_at')
     expect(definition).toMatch(
-      /order by st\.updated_at desc, st\.transcript_id, us\.created_at, us\.id/
+      /order by i\.rank_group, i\.seen_at desc, pe\.name, i\.transcript_id,\s+i\.first_start_ms, i\.first_segment_id, i\.id/
     )
     expect(definition).toContain('least(greatest(coalesce(p_preview_limit, 4), 0), 4)')
   })

@@ -6,6 +6,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
+import { resolveSpeakerLabels, speakerLabelFor } from "@/core/speakers/labels";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -33,20 +34,22 @@ async function main() {
     // Get speakers
     const { data: speakers } = await supabase
         .from("speakers")
-        .select("id, label")
+        .select("id, ordinal, custom_label")
         .eq("transcript_id", TRANSCRIPT_ID);
-
-    console.log(`\nSpeakers: ${speakers?.length || 0}`);
-    speakers?.forEach(s => console.log(`  - ${s.label}`));
 
     // Get segments
     const { data: segments, error: segmentsError } = await supabase
         .from("segments")
         .select("id, speaker_id, start_ms, end_ms, text, is_filler, algo_version")
-        .eq("transcript_id", TRANSCRIPT_ID);
+        .eq("transcript_id", TRANSCRIPT_ID)
+        .order("start_ms");
     if (segmentsError) {
         throw segmentsError;
     }
+
+    const speakerLabels = resolveSpeakerLabels(speakers ?? [], segments ?? []);
+    console.log(`\nSpeakers: ${speakers?.length || 0}`);
+    speakers?.forEach(s => console.log(`  - ${speakerLabelFor(speakerLabels, s.id)}`));
 
     const segmentCount = segments?.length || 0;
     console.log(`\nSegments: ${segmentCount}`);
@@ -79,7 +82,7 @@ async function main() {
         segments: segments?.map(segment => ({
             startTime: formatTime(segment.start_ms),
             endTime: formatTime(segment.end_ms),
-            speaker: speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown",
+            speaker: speakerLabelFor(speakerLabels, segment.speaker_id),
             text: segment.text,
             isFiller: segment.is_filler,
             algoVersion: segment.algo_version,
@@ -96,7 +99,7 @@ async function main() {
     console.log("=".repeat(80));
 
     for (const segment of (segments || []).slice(0, 10)) {
-        const speaker = speakers?.find(s => s.id === segment.speaker_id)?.label || "Unknown";
+        const speaker = speakerLabelFor(speakerLabels, segment.speaker_id);
         const duration = ((segment.end_ms - segment.start_ms) / 1000).toFixed(1);
         console.log(`\n[${formatTime(segment.start_ms)} - ${formatTime(segment.end_ms)}] (${duration}s) - ${speaker}`);
         console.log(`"${segment.text}"`);
