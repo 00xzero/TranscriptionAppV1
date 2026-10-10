@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PeopleLayout from '@/app/people/layout'
 import PersonPage from '@/app/people/[id]/page'
@@ -449,6 +449,35 @@ describe('editing the person', () => {
     await waitFor(() => expect(setPersonOrganisation).toHaveBeenCalledWith(BLAIR_ID, 'acme', null))
   })
 
+  test.each([
+    ['Globex', { organisationId: 'globex' }],
+    ['Initech', { newOrganisationName: 'Initech' }],
+  ])('organisation: typing %s and Enter replaces the current organisation', async (name, choice) => {
+    jest.mocked(setPersonOrganisation).mockResolvedValue({ person: blair, organisation: null })
+    mockId = BLAIR_ID
+    const user = await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Change organisation' }))
+    await user.type(screen.getByRole('combobox', { name: 'Organisation' }), `${name}{Enter}`)
+
+    await waitFor(() => expect(setPersonOrganisation).toHaveBeenCalledWith(BLAIR_ID, 'acme', choice))
+  })
+
+  test('organisation: typing the current name does not clear it, and clearing the search restores the clear choice', async () => {
+    jest.mocked(setPersonOrganisation).mockResolvedValue({ person: { ...blair, organisation_id: null }, organisation: null })
+    mockId = BLAIR_ID
+    const user = await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Change organisation' }))
+    const input = screen.getByRole('combobox', { name: 'Organisation' })
+    await user.type(input, 'ACME{Enter}')
+    expect(setPersonOrganisation).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(setPersonOrganisation).toHaveBeenCalledWith(BLAIR_ID, 'acme', null))
+  })
+
   test('colour: choosing a palette colour applies it, guarded by the current one', async () => {
     jest.mocked(setPersonColor).mockResolvedValue(alex)
     const user = await renderPage()
@@ -499,6 +528,57 @@ describe('merge', () => {
       }] },
     ],
   }
+
+  test.each(['both', 'directory', 'appearances'])('a saved merge survives a failed %s refresh, and Retry only reads', async (failedRead) => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    const transcriptC = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    const moving = { ...preview.people[1], transcripts: [
+      ...preview.people[1].transcripts,
+      { ...preview.people[1].transcripts[0], transcript_id: transcriptC, title: 'New meeting', created_at: '2026-09-25T00:00:00Z' },
+    ] }
+    const confirmed = { ...preview, survivor_transcript_ids: [TRANSCRIPT_A, TRANSCRIPT_B], people: [moving] }
+    const saved = { ...alex, organisation_id: 'acme' }
+    const updatedPeople = { ...directory, people: [
+      { ...saved, organisation_name: 'ACME', transcript_count: 3, last_seen_at: '2026-09-25T00:00:00Z' }, casey,
+    ] }
+    const updatedRows = [...appearances, {
+      ...appearances[0], transcript_id: transcriptC, title: 'New meeting', created_at: '2026-09-25T00:00:00Z',
+    }]
+    jest.mocked(fetchMergePreview).mockResolvedValue(confirmed)
+    jest.mocked(mergePeople).mockResolvedValue(saved)
+    const user = await renderPage()
+    await screen.findByTestId(`appearance-${TRANSCRIPT_B}`)
+    if (failedRead !== 'appearances') jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('offline'))
+    if (failedRead !== 'directory') jest.mocked(fetchPersonAppearances).mockRejectedValueOnce(new Error('offline'))
+    jest.mocked(fetchPeopleDirectory).mockResolvedValue(updatedPeople)
+    jest.mocked(fetchPersonAppearances).mockResolvedValue(updatedRows)
+
+    await user.click(screen.getByRole('button', { name: 'Merge people' }))
+    await user.click(screen.getByRole('checkbox', { name: /Blair/ }))
+    const confirm = screen.getByRole('button', { name: 'Merge 1 person' })
+    await waitFor(() => expect(confirm).toBeEnabled())
+    await user.click(confirm)
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Alex Morgan' })).toHaveAccessibleDescription('ACME Denim'))
+    expect(screen.queryByTestId(`person-row-${BLAIR_ID}`)).not.toBeInTheDocument()
+    expect(screen.getByTestId(`person-row-${PERSON_ID}`)).toHaveTextContent('3 transcripts')
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: "Merge saved — couldn't refresh", action: expect.objectContaining({ label: 'Retry' }),
+    })))
+    if (failedRead !== 'directory') {
+      expect(screen.queryByTestId(`appearance-${TRANSCRIPT_B}`)).not.toBeInTheDocument()
+      expect(screen.getByText(/Couldn't load the transcripts/)).toBeInTheDocument()
+    } else {
+      expect(screen.getByTestId(`appearance-${transcriptC}`)).toBeInTheDocument()
+    }
+
+    await act(() => clickToastAction('Retry'))
+
+    expect(await screen.findByTestId(`appearance-${transcriptC}`)).toBeInTheDocument()
+    expect(screen.queryByText(/Couldn't load the transcripts/)).not.toBeInTheDocument()
+    expect(screen.queryByTestId(`person-row-${BLAIR_ID}`)).not.toBeInTheDocument()
+    expect(mergePeople).toHaveBeenCalledTimes(1)
+  })
 
   test('a changed preview is reloaded and must be confirmed again with its server organisation outcome', async () => {
     const initial = { ...preview, people: [preview.people[1]] }

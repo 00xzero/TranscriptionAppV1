@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import type { DirectoryPerson } from '@/contracts/db'
+import type { DirectoryPerson, MergePreview, PeopleDirectory } from '@/contracts/db'
 import {
   appearanceTotals,
   describeMergeVoice,
@@ -8,6 +8,7 @@ import {
   filterDirectory,
   matchesPersonSearch,
   matchOrganisations,
+  mergeDirectoryPeople,
   namesakesOf,
   NO_ORGANISATION,
   sortDirectory,
@@ -28,6 +29,64 @@ const casey = person({ id: 'c', name: 'Casey', hidden: true, organisation_id: 'g
 // Never seen, but created after everyone's last appearance.
 const drew = person({ id: 'd', name: 'Drew', created_at: '2026-09-25T00:00:00Z' })
 const everyone = [alex, blair, casey, drew]
+
+describe('confirmed directory merges', () => {
+  const metadata = (person: DirectoryPerson) => ({ person_id: person.id, name: person.name,
+    preferred_color: person.preferred_color, organisation_id: person.organisation_id,
+    organisation_name: person.organisation_name })
+  const directory: PeopleDirectory = {
+    people: everyone,
+    organisations: [
+      { id: 'acme', name: 'ACME', user_id: 'u1', created_at: '', updated_at: '', person_count: 1 },
+      { id: 'globex', name: 'Globex', user_id: 'u1', created_at: '', updated_at: '', person_count: 1 },
+    ],
+  }
+
+  test('removes source identities and counts each overlapping transcript once, keeping the newest appearance', () => {
+    const preview: MergePreview = {
+      survivor: metadata(alex), survivor_transcript_ids: ['x', 'y'],
+      people: [
+        { ...metadata(blair), transcripts: [
+          { transcript_id: 'y', title: null, created_at: '2026-09-10T00:00:00Z', voices: [] },
+          { transcript_id: 'z', title: null, created_at: '2026-09-30T00:00:00Z', voices: [] },
+        ] },
+        { ...metadata(casey), transcripts: [
+          { transcript_id: 'z', title: null, created_at: '2026-09-30T00:00:00Z', voices: [] },
+          { transcript_id: 'w', title: null, created_at: '2026-09-29T00:00:00Z', voices: [] },
+        ] },
+      ],
+    }
+
+    const merged = mergeDirectoryPeople(directory, { ...alex, updated_at: '2026-10-10T00:00:00Z' }, preview)
+
+    expect(merged.people.map((person) => person.id)).toEqual(['a', 'd'])
+    expect(merged.people[0]).toMatchObject({
+      organisation_id: 'acme', organisation_name: 'ACME', transcript_count: 4,
+      last_seen_at: '2026-09-30T00:00:00Z', updated_at: '2026-10-10T00:00:00Z',
+    })
+    expect(merged.organisations.map((organisation) => organisation.person_count)).toEqual([1, 0])
+    expect(merged.people[1]).toEqual(drew)
+    expect(directory.people).toEqual(everyone)
+    expect(directory.organisations[1].person_count).toBe(1)
+  })
+
+  test('silent source links add no appearances or last-seen date', () => {
+    const preview: MergePreview = {
+      survivor: metadata(alex), survivor_transcript_ids: ['x', 'y'],
+      people: [{ ...metadata(casey), transcripts: [] }],
+    }
+    const merged = mergeDirectoryPeople(directory, alex, preview)
+    expect(merged.people.find((person) => person.id === alex.id)).toMatchObject({
+      transcript_count: 2, last_seen_at: alex.last_seen_at,
+    })
+    expect(merged.people.some((person) => person.id === casey.id)).toBe(false)
+
+    const empty = mergeDirectoryPeople(directory, alex, { ...preview, survivor_transcript_ids: [] })
+    expect(empty.people.find((person) => person.id === alex.id)).toMatchObject({
+      transcript_count: 0, last_seen_at: null,
+    })
+  })
+})
 
 describe('search (spec §4)', () => {
   test.each([

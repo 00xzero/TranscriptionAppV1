@@ -38,7 +38,7 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
   const name = query.trim()
   const tooLong = nameLength(name) > LIMIT
   const options: Option[] = [
-    ...(currentId ? [{ key: 'clear', label: 'No organisation', choice: null, icon: 'clear' as const }] : []),
+    ...(currentId && !name ? [{ key: 'clear', label: 'No organisation', choice: null, icon: 'clear' as const }] : []),
     ...matchOrganisations(organisations, query)
       .filter((organisation) => organisation.id !== currentId)
       .map((organisation) => ({
@@ -102,7 +102,9 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
           : error && <p role="alert" className="text-sm text-ember-red">{error}</p>}
       </div>
       <div id={listId} role="listbox" aria-label="Organisations" className="max-h-56 overflow-y-auto border-t border-border py-1">
-        {options.length === 0 && <p className="px-3 py-3 text-sm text-muted">No other organisations yet. Type a name to add one.</p>}
+        {options.length === 0 && <p className="px-3 py-3 text-sm text-muted">
+          {name ? 'No other matching organisations.' : 'No other organisations yet. Type a name to add one.'}
+        </p>}
         {options.map((option) => (
           <button
             key={option.key}
