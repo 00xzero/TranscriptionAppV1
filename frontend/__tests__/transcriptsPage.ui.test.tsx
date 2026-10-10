@@ -4,7 +4,6 @@ import userEventLib from '@testing-library/user-event'
 import TranscriptsPage from '@/app/transcripts/page'
 import type { Transcript } from '@/contracts/db'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 
 const mockToast = jest.fn()
@@ -79,7 +78,7 @@ describe('TranscriptsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
+    mockDeleteTranscript.mockResolvedValue(undefined)
     mockUseProjectsData.mockReturnValue({
       transcripts: [makeTranscript()],
       transcriptsLoading: false,
@@ -176,23 +175,6 @@ describe('TranscriptsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(mockDeleteTranscript).not.toHaveBeenCalled()
-  })
-
-  test('reports cleanup pending as a neutral toast, not a failure', async () => {
-    const user = userEventLib.setup()
-    mockDeleteTranscript.mockResolvedValueOnce({
-      cleanupPendingKeys: ['user/transcript/waveform.json'],
-    })
-    renderTranscriptsPage()
-    await screen.findByText('Transcript Alpha')
-
-    await openDeleteDialog(user)
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
-
-    await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
-    })
-    expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
   })
 
   test('closes a cancelled delete without cleanup effects or an error', async () => {

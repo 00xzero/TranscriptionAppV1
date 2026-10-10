@@ -43,7 +43,19 @@ export const DeleteProjectErrorSchema = z.discriminatedUnion('stage', [
   }),
 ])
 
+export const DeleteTranscriptResponseSchema = z.object({
+  deleted: z.literal(true),
+})
+
+// `gone` means the row no longer exists; its folder was still swept.
+export const DeleteTranscriptErrorSchema = z.object({
+  error: z.string(),
+  gone: z.literal(true).optional(),
+})
+
 export type CreateTranscriptBody = z.infer<typeof CreateTranscriptBodySchema>
 export type CreateTranscriptWarning = z.infer<typeof CreateTranscriptWarningSchema>
 export type DeleteProjectResponse = z.infer<typeof DeleteProjectResponseSchema>
 export type DeleteProjectError = z.infer<typeof DeleteProjectErrorSchema>
+export type DeleteTranscriptResponse = z.infer<typeof DeleteTranscriptResponseSchema>
+export type DeleteTranscriptError = z.infer<typeof DeleteTranscriptErrorSchema>

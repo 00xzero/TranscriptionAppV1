@@ -12,7 +12,6 @@ import {
 } from './realtime'
 import {
     fetchTranscriptSummaries,
-    deleteTranscript as deleteTranscriptQuery,
     fetchProjects,
     createProject as createProjectQuery,
     renameProject as renameProjectQuery,
@@ -20,6 +19,7 @@ import {
     addTranscriptsToProject,
 } from './queries'
 import { buildProjectTree } from '@/core/projects/tree'
+import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
 import { randomId } from '@/lib/ids'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { TranscriptSummarySchema } from '@/contracts/db'
@@ -321,10 +321,9 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
             )
 
             try {
-                const result = await deleteTranscriptQuery(id)
+                await deleteTranscriptRequest(id)
                 assertCurrentScope()
                 runBackgroundRealtimeRefetch(refetch, 'transcript deletion')
-                return result
             } catch (err) {
                 assertCurrentScope()
                 // Restore only the removed row so concurrent realtime changes survive.

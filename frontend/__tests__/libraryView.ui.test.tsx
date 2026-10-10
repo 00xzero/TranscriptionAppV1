@@ -4,7 +4,6 @@ import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
 import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
-import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 import { makeProject, projectProviderData, transcriptProviderData } from './projects/fixtures'
 import { setTestAuth, testUser } from '@/__tests__/helpers/auth'
 
@@ -93,7 +92,7 @@ describe('LibraryView', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     setTestAuth({ userId: null, ready: true })
-    mockDeleteTranscript.mockResolvedValue({ cleanupPendingKeys: [] })
+    mockDeleteTranscript.mockResolvedValue(undefined)
     mockCreateProject.mockResolvedValue(makeProject({ id: 'created' }))
     mockRenameProject.mockResolvedValue(makeProject({ id: 'p1', name: 'Renamed' }))
     mockFetchBranchCount.mockResolvedValue(0)
@@ -193,24 +192,6 @@ describe('LibraryView', () => {
       expect(mockDeleteTranscript).toHaveBeenCalledWith('11111111-1111-1111-1111-111111111111')
     })
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument()
-  })
-
-  test('reports cleanup pending as a neutral toast, not a failure', async () => {
-    const user = userEventLib.setup()
-    mockDeleteTranscript.mockResolvedValueOnce({
-      cleanupPendingKeys: ['user/transcript/waveform.json'],
-    })
-    renderLibraryView()
-    await screen.findByText('Transcript Alpha')
-
-    await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
-    await user.click(screen.getByRole('menuitem', { name: /Delete/i }))
-    await user.click(await screen.findByRole('button', { name: 'Delete' }))
-
-    await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
-    })
-    expect(screen.queryByText(/Failed to delete transcript/i)).not.toBeInTheDocument()
   })
 
   test('does not delete and closes the menu when delete is canceled', async () => {

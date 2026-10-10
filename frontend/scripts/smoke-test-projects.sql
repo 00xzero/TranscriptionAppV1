@@ -95,21 +95,29 @@ SELECT pg_temp.assert_sqlstate(
   'PJ001'
 );
 
+-- Pipeline-owned columns are seeded as the owner. Transcript 2 has an upload in
+-- its folder that was never linked: the inventory still has to find it.
+RESET ROLE;
 INSERT INTO public.transcripts (
   id, user_id, project_id, title, status, source_object_key, waveform_object_key
 ) VALUES
-  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Root transcript', 'created', 'a/root.mp3', null),
-  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Nested transcript', 'created', 'a/nested.mp3', null),
-  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'Deep transcript', 'created', 'a/deep.mp3', null);
+  ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Root transcript', 'created', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/root.mp3', null),
+  ('30000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002', 'Nested transcript', 'created', null, null),
+  ('30000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000003', 'Deep transcript', 'created', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000003/deep.mp3', null);
+INSERT INTO storage.objects (bucket_id, name) VALUES
+  ('media', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000001/root.mp3'),
+  ('media', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000002/nested.mp3'),
+  ('media', '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000003/deep.mp3');
+SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.assert_sqlstate(
-  $sql$INSERT INTO public.transcripts (user_id, project_id, title, status)
-       VALUES ('10000000-0000-0000-0000-000000000001', '29999999-0000-0000-0000-000000000099', 'Missing project', 'created')$sql$,
+  $sql$INSERT INTO public.transcripts (user_id, project_id, title)
+       VALUES ('10000000-0000-0000-0000-000000000001', '29999999-0000-0000-0000-000000000099', 'Missing project')$sql$,
   'PJ001'
 );
 SELECT pg_temp.assert_sqlstate(
-  $sql$INSERT INTO public.transcripts (user_id, project_id, title, status)
-       VALUES ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000020', 'Cross-user project', 'created')$sql$,
+  $sql$INSERT INTO public.transcripts (user_id, project_id, title)
+       VALUES ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000020', 'Cross-user project')$sql$,
   'PJ001'
 );
 
@@ -120,8 +128,11 @@ SELECT pg_temp.assert_sqlstate(
 
 INSERT INTO public.projects (id, user_id, name)
 VALUES ('20000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Disposable');
-INSERT INTO public.transcripts (id, user_id, project_id, title, status)
-VALUES ('30000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000008', 'Preserved', 'created');
+-- A fixed id is a fixture concern; browsers cannot choose one.
+RESET ROLE;
+INSERT INTO public.transcripts (id, user_id, project_id, title)
+VALUES ('30000000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000008', 'Preserved');
+SET LOCAL ROLE authenticated;
 DELETE FROM public.projects WHERE id = '20000000-0000-0000-0000-000000000008';
 SELECT pg_temp.assert_true(
   (SELECT project_id IS NULL AND user_id = '10000000-0000-0000-0000-000000000001'
@@ -163,8 +174,8 @@ SELECT pg_temp.assert_sqlstate(
   'PJ002'
 );
 SELECT pg_temp.assert_sqlstate(
-  $sql$INSERT INTO public.transcripts (user_id, project_id, title, status)
-       VALUES ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Late', 'created')$sql$,
+  $sql$INSERT INTO public.transcripts (user_id, project_id, title)
+       VALUES ('10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'Late')$sql$,
   'PJ002'
 );
 SELECT pg_temp.assert_sqlstate(
@@ -178,7 +189,8 @@ SELECT pg_temp.assert_sqlstate(
   'PJ002'
 );
 SELECT pg_temp.assert_sqlstate(
-  $sql$UPDATE public.transcripts SET source_object_key = 'a/changed.mp3'
+  $sql$UPDATE public.transcripts
+       SET source_object_key = '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000002/nested.mp3'
        WHERE id = '30000000-0000-0000-0000-000000000002'$sql$,
   'PJ002'
 );
@@ -193,8 +205,7 @@ SELECT pg_temp.assert_sqlstate(
   '42501'
 );
 SELECT pg_temp.assert_sqlstate(
-  $sql$DELETE FROM public.transcripts
-       WHERE id = '30000000-0000-0000-0000-000000000003'$sql$,
+  $sql$SELECT public.delete_transcript('30000000-0000-0000-0000-000000000003')$sql$,
   'PJ002'
 );
 SELECT pg_temp.assert_sqlstate(
@@ -206,7 +217,8 @@ SELECT pg_temp.assert_sqlstate(
 RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT pg_temp.assert_sqlstate(
-  $sql$UPDATE public.transcripts SET waveform_object_key = 'a/late-waveform.json'
+  $sql$UPDATE public.transcripts
+       SET waveform_object_key = '10000000-0000-0000-0000-000000000001/30000000-0000-0000-0000-000000000002/waveform.json'
        WHERE id = '30000000-0000-0000-0000-000000000002'$sql$,
   'PJ002'
 );
@@ -251,14 +263,14 @@ SELECT pg_temp.assert_sqlstate(
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.finish_project_delete(
-       '20000000-0000-0000-0000-000000000001', '{}'::uuid[], '{}'::text[], '{}'::text[])$sql$,
+       '20000000-0000-0000-0000-000000000001', '{}'::uuid[])$sql$,
   'PJ001'
 );
 
 SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.finish_project_delete(
-       '20000000-0000-0000-0000-000000000004', '{}'::uuid[], '{}'::text[], '{}'::text[])$sql$,
+       '20000000-0000-0000-0000-000000000004', '{}'::uuid[])$sql$,
   'PJ003'
 );
 
@@ -272,26 +284,32 @@ BEGIN
   BEGIN
     PERFORM * FROM public.finish_project_delete(
       '20000000-0000-0000-0000-000000000001',
-      inventory.transcript_ids[1:2], inventory.media_keys, inventory.waveform_keys
+      inventory.transcript_ids[1:2]
     );
     RAISE EXCEPTION 'stale transcript inventory unexpectedly succeeded';
   EXCEPTION WHEN SQLSTATE 'PJ004' THEN
     NULL;
   END;
 
+  -- Calling finish straight after begin skips file removal: refused.
   BEGIN
     PERFORM * FROM public.finish_project_delete(
       '20000000-0000-0000-0000-000000000001',
-      inventory.transcript_ids, inventory.media_keys[1:2], inventory.waveform_keys
+      inventory.transcript_ids
     );
-    RAISE EXCEPTION 'stale key inventory unexpectedly succeeded';
-  EXCEPTION WHEN SQLSTATE 'PJ004' THEN
+    RAISE EXCEPTION 'finish with files still present unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE 'PJ005' THEN
     NULL;
   END;
 
+  -- What the Storage API does when the route removes the inventory.
+  SET LOCAL storage.allow_delete_query = 'true';
+  DELETE FROM storage.objects
+  WHERE bucket_id = 'media' AND name = ANY(inventory.media_keys);
+
   SELECT * INTO result FROM public.finish_project_delete(
     '20000000-0000-0000-0000-000000000001',
-    inventory.transcript_ids, inventory.media_keys, inventory.waveform_keys
+    inventory.transcript_ids
   );
   PERFORM pg_temp.assert_true(result.deleted_projects = 3, 'finish project count');
   PERFORM pg_temp.assert_true(result.deleted_transcripts = 3, 'finish transcript count');
@@ -300,10 +318,10 @@ $$;
 
 INSERT INTO public.projects (id, user_id, name)
 VALUES ('20000000-0000-0000-0000-000000000030', '10000000-0000-0000-0000-000000000001', 'Bulk');
-INSERT INTO public.transcripts (user_id, project_id, title, status)
+INSERT INTO public.transcripts (user_id, project_id, title)
 SELECT '10000000-0000-0000-0000-000000000001',
        '20000000-0000-0000-0000-000000000030',
-       'Bulk ' || n, 'created'
+       'Bulk ' || n
 FROM generate_series(1, 1001) AS n;
 SELECT pg_temp.assert_true(
   (SELECT cardinality(transcript_ids) = 1001

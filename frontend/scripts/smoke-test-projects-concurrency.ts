@@ -61,6 +61,13 @@ async function expectBlocked<T>(promise: Promise<T>, label: string) {
 async function resetFixture(admin: Client) {
   await admin.query('BEGIN')
   try {
+    // Fixture files only; the Storage API sets this flag for its own deletes.
+    await admin.query("SET LOCAL storage.allow_delete_query = 'true'")
+    await admin.query(
+      `DELETE FROM storage.objects
+       WHERE bucket_id IN ('media', 'waveforms') AND starts_with(name, $1 || '/')`,
+      [USER_ID]
+    )
     await admin.query('DELETE FROM public.transcripts WHERE user_id = $1', [USER_ID])
     await admin.query('DELETE FROM public.projects WHERE user_id = $1', [USER_ID])
     await admin.query('DELETE FROM auth.users WHERE id = $1', [USER_ID])
@@ -96,6 +103,12 @@ async function seedFixture(admin: Client) {
   )
 }
 
+function folderKey(transcriptId: string, name: string) {
+  return `${USER_ID}/${transcriptId}/${name}`
+}
+
+const INSERT_OBJECT = 'INSERT INTO storage.objects (bucket_id, name) VALUES ($1, $2)'
+
 async function inventory(connection: Client): Promise<QueryResult<Inventory>> {
   return connection.query<Inventory>('SELECT * FROM public.begin_project_delete($1)', [ROOT_ID])
 }
@@ -125,12 +138,11 @@ async function markBehindWrite(
   writer: Client,
   deleter: Client,
   role: Role,
-  sql: string,
-  params: unknown[],
+  writes: Array<[sql: string, params: unknown[]]>,
   label: string
 ): Promise<Inventory> {
   await beginAs(writer, role)
-  await writer.query(sql, params)
+  for (const [sql, params] of writes) await writer.query(sql, params)
   await beginAs(deleter, 'authenticated')
   const pending = inventory(deleter)
   await expectBlocked(pending, label)
@@ -145,8 +157,7 @@ async function scenarioMoveBeforeMark(admin: Client) {
       writer,
       deleter,
       'authenticated',
-      'UPDATE public.transcripts SET project_id = $1 WHERE id = $2',
-      [ROOT_ID, TRANSCRIPT_A],
+      [['UPDATE public.transcripts SET project_id = $1 WHERE id = $2', [ROOT_ID, TRANSCRIPT_A]]],
       'begin_project_delete behind an in-flight move'
     )
     assert(result.transcript_ids.includes(TRANSCRIPT_A))
@@ -172,15 +183,19 @@ async function scenarioMoveAfterMark(admin: Client) {
 
 async function scenarioKeyLinkBeforeMark(admin: Client) {
   await withConnections(admin, async (writer, deleter) => {
+    const key = folderKey(TRANSCRIPT_B, 'new-media.mp3')
     const result = await markBehindWrite(
       writer,
       deleter,
       'service_role',
-      'UPDATE public.transcripts SET source_object_key = $1 WHERE id = $2',
-      ['concurrency/new-media.mp3', TRANSCRIPT_B],
+      [
+        [INSERT_OBJECT, ['media', key]],
+        ['UPDATE public.transcripts SET source_object_key = $1 WHERE id = $2', [key, TRANSCRIPT_B]],
+      ],
       'begin_project_delete behind an in-flight key link'
     )
-    assert(result.media_keys.includes('concurrency/new-media.mp3'))
+    // The inventory comes from the folder, so it sees the committed upload.
+    assert(result.media_keys.includes(key))
     await deleter.query('COMMIT')
   })
 }
@@ -191,8 +206,10 @@ async function scenarioChildBeforeMark(admin: Client) {
       writer,
       deleter,
       'authenticated',
-      'INSERT INTO public.projects (id, user_id, parent_id, name) VALUES ($1, $2, $3, $4)',
-      [CHILD_ID, USER_ID, LEAF_ID, 'Late child'],
+      [[
+        'INSERT INTO public.projects (id, user_id, parent_id, name) VALUES ($1, $2, $3, $4)',
+        [CHILD_ID, USER_ID, LEAF_ID, 'Late child'],
+      ]],
       'begin_project_delete behind an in-flight child insert'
     )
     assert(result.project_ids.includes(CHILD_ID))
@@ -215,8 +232,7 @@ async function scenarioDeleteBeforeAndAfterMark(admin: Client) {
       writer,
       deleter,
       'authenticated',
-      'DELETE FROM public.transcripts WHERE id = $1',
-      [TRANSCRIPT_B],
+      [['SELECT public.delete_transcript($1)', [TRANSCRIPT_B]]],
       'begin_project_delete behind an in-flight transcript delete'
     )
     assert(!result.transcript_ids.includes(TRANSCRIPT_B))
@@ -224,10 +240,87 @@ async function scenarioDeleteBeforeAndAfterMark(admin: Client) {
 
     await beginAs(writer, 'authenticated')
     await assert.rejects(
-      writer.query('DELETE FROM public.transcripts WHERE id = $1', [TRANSCRIPT_A]),
+      writer.query('SELECT public.delete_transcript($1)', [TRANSCRIPT_A]),
       (error: NodeJS.ErrnoException) => error.code === 'PJ002'
     )
     await writer.query('ROLLBACK')
+  })
+}
+
+/**
+ * An upload and its link are in flight: delete_transcript waits on the row
+ * lock, then sees the committed file and refuses.
+ */
+async function scenarioTranscriptDeleteBehindLink(admin: Client) {
+  await withConnections(admin, async (writer, deleter) => {
+    const key = folderKey(TRANSCRIPT_A, 'audio.webm')
+    await beginAs(writer, 'service_role')
+    await writer.query(INSERT_OBJECT, ['media', key])
+    await writer.query('UPDATE public.transcripts SET source_object_key = $1 WHERE id = $2', [
+      key,
+      TRANSCRIPT_A,
+    ])
+    await beginAs(deleter, 'authenticated')
+    const pending = deleter.query('SELECT public.delete_transcript($1)', [TRANSCRIPT_A])
+    await expectBlocked(pending, 'delete_transcript behind an in-flight link')
+    await writer.query('COMMIT')
+    await assert.rejects(pending, (error: NodeJS.ErrnoException) => error.code === 'TR002')
+    await deleter.query('ROLLBACK')
+  })
+}
+
+/**
+ * A server write on a branch transcript is in flight after the mark: finish
+ * waits on the transcript lock it takes before checking folders, then sees the
+ * committed waveform and refuses.
+ */
+async function scenarioFinishBehindWaveformWrite(admin: Client) {
+  await withConnections(admin, async (writer, deleter) => {
+    await beginAs(deleter, 'authenticated')
+    const { rows } = await inventory(deleter)
+    await deleter.query('COMMIT')
+
+    await beginAs(writer, 'service_role')
+    await writer.query(INSERT_OBJECT, ['waveforms', folderKey(TRANSCRIPT_B, 'waveform.json')])
+    await writer.query("UPDATE public.transcripts SET waveform_status = 'processing' WHERE id = $1", [
+      TRANSCRIPT_B,
+    ])
+    await beginAs(deleter, 'authenticated')
+    const pending = deleter.query('SELECT * FROM public.finish_project_delete($1, $2)', [
+      ROOT_ID,
+      rows[0].transcript_ids,
+    ])
+    await expectBlocked(pending, 'finish_project_delete behind an in-flight waveform write')
+    await writer.query('COMMIT')
+    await assert.rejects(pending, (error: NodeJS.ErrnoException) => error.code === 'PJ005')
+    await deleter.query('ROLLBACK')
+  })
+}
+
+/**
+ * The documented limit: an upload that holds no row lock and commits after
+ * delete_transcript has checked the folder is not seen by the delete. The
+ * inventory still finds it afterwards, which is what the route's post-delete
+ * sweep relies on.
+ */
+async function scenarioUploadAfterFolderCheck(admin: Client) {
+  await withConnections(admin, async (writer, deleter) => {
+    const key = folderKey(TRANSCRIPT_A, 'late.webm')
+    await beginAs(writer, 'service_role')
+    await writer.query(INSERT_OBJECT, ['media', key])
+
+    await beginAs(deleter, 'authenticated')
+    await deleter.query('SELECT public.delete_transcript($1)', [TRANSCRIPT_A])
+    await deleter.query('COMMIT')
+    await writer.query('COMMIT')
+
+    await beginAs(deleter, 'authenticated')
+    const { rows } = await deleter.query<{ media_keys: string[] }>(
+      'SELECT media_keys FROM public.transcript_delete_inventory($1)',
+      [[TRANSCRIPT_A]]
+    )
+    assert.deepEqual(rows[0].media_keys, [key])
+    await deleter.query('ROLLBACK')
   })
 }
 
@@ -240,6 +333,9 @@ async function main() {
     await scenarioKeyLinkBeforeMark(admin)
     await scenarioChildBeforeMark(admin)
     await scenarioDeleteBeforeAndAfterMark(admin)
+    await scenarioTranscriptDeleteBehindLink(admin)
+    await scenarioFinishBehindWaveformWrite(admin)
+    await scenarioUploadAfterFolderCheck(admin)
     console.log('projects concurrency smoke test passed')
   } finally {
     await resetFixture(admin)

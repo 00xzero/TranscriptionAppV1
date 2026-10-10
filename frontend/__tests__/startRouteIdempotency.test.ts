@@ -2,6 +2,7 @@
 
 const getUserMock = jest.fn()
 const fromMock = jest.fn()
+const adminFromMock = jest.fn()
 
 jest.mock('@/infra/supabase/storage', () => {
   return {
@@ -17,6 +18,13 @@ jest.mock('@/infra/supabase/server', () => {
       },
       from: fromMock,
     }),
+  }
+})
+
+// Jobs are server-owned, so the start flow writes them through the admin client.
+jest.mock('@/infra/supabase/admin', () => {
+  return {
+    createAdminClient: () => ({ from: adminFromMock }),
   }
 })
 
@@ -88,11 +96,23 @@ describe('Start route idempotency', () => {
         return { select: transcriptSelectMock, update: transcriptUpdateMock }
       }
       if (table === 'jobs') {
-        return { select: jobsSelectMock, insert: jobsInsertMock }
+        return { select: jobsSelectMock }
       }
       if (table === 'watchlist') {
         return { select: watchlistSelectMock }
       }
+      return {}
+    })
+
+    type ClaimChain = { eq: jest.Mock; select: jest.Mock; maybeSingle: jest.Mock }
+    const waveformClaimChain: ClaimChain = {
+      eq: jest.fn((): ClaimChain => waveformClaimChain),
+      select: jest.fn((): ClaimChain => waveformClaimChain),
+      maybeSingle: jest.fn(async () => ({ data: null, error: null })),
+    }
+    adminFromMock.mockImplementation((table: string) => {
+      if (table === 'jobs') return { insert: jobsInsertMock }
+      if (table === 'transcripts') return { update: jest.fn(() => waveformClaimChain) }
       return {}
     })
 

@@ -5,7 +5,6 @@ import EditorScreen from '../app/editor/[id]/EditorScreen'
 import * as supabaseQueries from '../lib/supabase/queries'
 import { scrollToIndexMock, rangeChangedMock } from '../__mocks__/react-virtuoso'
 import { TooltipProvider } from '../components/ui/tooltip'
-import { TRANSCRIPT_CLEANUP_PENDING_TOAST } from '@/lib/transcripts/deleteErrors'
 import {
   makeProject,
   makeTranscript,
@@ -199,12 +198,10 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     })
   })
 
-  test('navigates away and reports cleanup pending after the transcript row is deleted', async () => {
+  test('navigates away after the transcript is deleted', async () => {
     const user = userEventLib.setup()
     const data = transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
-    data.deleteTranscript.mockResolvedValueOnce({
-      cleanupPendingKeys: ['user/transcript/waveform.json'],
-    })
+    data.deleteTranscript.mockResolvedValueOnce(undefined)
     mockUseTranscriptsData.mockReturnValue(data)
     renderEditorScreen()
     await waitForEditorContent()
@@ -216,7 +213,6 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitFor(() => {
       expect(mockRouterReplace).toHaveBeenCalledWith('/transcripts')
     })
-    expect(mockToast).toHaveBeenCalledWith(TRANSCRIPT_CLEANUP_PENDING_TOAST)
   })
 
   test('closes a scope-cancelled delete before cleanup handling or navigation', async () => {

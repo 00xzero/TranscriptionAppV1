@@ -5,11 +5,6 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
-import {
-    MEDIA_BUCKET,
-    removeStorageObjectIfPresent,
-    WAVEFORM_BUCKET,
-} from '@/infra/supabase/storage'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     EditorPeopleContext,
@@ -328,71 +323,6 @@ export async function updateTranscript(
 
     if (error) throw error
     return data
-}
-
-export type DeleteTranscriptResult = {
-    /** Keys linked during the delete whose objects could not be removed. */
-    cleanupPendingKeys: string[]
-}
-
-/**
- * Delete a transcript and its storage objects.
- *
- * Throws while the row still exists. Once the row is gone it resolves, reporting
- * any late-linked objects it could not remove.
- */
-export async function deleteTranscript(id: string): Promise<DeleteTranscriptResult> {
-    const supabase = createClient()
-    const { data: transcript, error: fetchError } = await supabase
-        .from('transcripts')
-        .select('user_id, source_object_key, waveform_object_key')
-        .eq('id', id)
-        .maybeSingle()
-
-    if (fetchError) throw fetchError
-    if (!transcript) return { cleanupPendingKeys: [] }
-
-    await Promise.all([
-        removeStorageObjectIfPresent(
-            supabase,
-            MEDIA_BUCKET,
-            transcript.source_object_key,
-            transcript.user_id
-        ),
-        removeStorageObjectIfPresent(
-            supabase,
-            WAVEFORM_BUCKET,
-            transcript.waveform_object_key,
-            transcript.user_id
-        ),
-    ])
-
-    const { data: deletedTranscript, error } = await supabase
-        .from('transcripts')
-        .delete()
-        .eq('id', id)
-        .select('source_object_key, waveform_object_key')
-        .maybeSingle()
-
-    if (error) throw error
-    // Another tab already deleted it.
-    if (!deletedTranscript) return { cleanupPendingKeys: [] }
-
-    // Sweep keys linked between the initial read and the row delete.
-    const cleanupPendingKeys: string[] = []
-    for (const [bucket, before, after] of [
-        [MEDIA_BUCKET, transcript.source_object_key, deletedTranscript.source_object_key],
-        [WAVEFORM_BUCKET, transcript.waveform_object_key, deletedTranscript.waveform_object_key],
-    ] as const) {
-        if (!after || after === before) continue
-        try {
-            await removeStorageObjectIfPresent(supabase, bucket, after, transcript.user_id)
-        } catch {
-            cleanupPendingKeys.push(after)
-        }
-    }
-
-    return { cleanupPendingKeys }
 }
 
 // ============================================================================
