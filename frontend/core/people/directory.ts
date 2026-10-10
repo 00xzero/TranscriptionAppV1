@@ -1,4 +1,4 @@
-import type { MergePreviewVoice, Organisation, PeopleDirectory, Person } from '@/contracts/db'
+import type { MergePreview, MergePreviewVoice, Organisation, PeopleDirectory, Person } from '@/contracts/db'
 import { genericSpeakerLabel, UNKNOWN_SPEAKER_LABEL } from '@/core/speakers/labels'
 
 /**
@@ -30,6 +30,23 @@ export function updateDirectoryPerson(data: PeopleDirectory, person: Person, org
   return { people, organisations: organisations.map((entry) => ({
     ...entry, person_count: people.filter((person) => person.organisation_id === entry.id).length,
   })) }
+}
+
+/** Apply a confirmed merge before reloading; the guarded preview supplies its appearance union. */
+export function mergeDirectoryPeople(data: PeopleDirectory, survivor: Person, preview: MergePreview): PeopleDirectory {
+  const mergedIds = new Set(preview.people.map((person) => person.person_id))
+  const updated = updateDirectoryPerson({ ...data, people: data.people.filter((person) => !mergedIds.has(person.id)) }, survivor)
+  const moving = preview.people.flatMap((person) => person.transcripts)
+  const transcriptIds = new Set([...preview.survivor_transcript_ids, ...moving.map((row) => row.transcript_id)])
+  const previous = data.people.find((person) => person.id === survivor.id)
+  const lastSeen = moving.reduce<string | null>((latest, row) =>
+    latest === null || Date.parse(row.created_at) > Date.parse(latest) ? row.created_at : latest,
+    preview.survivor_transcript_ids.length > 0 ? previous?.last_seen_at ?? null : null)
+  const organisationName = [preview.survivor, ...preview.people]
+    .find((person) => person.organisation_id === survivor.organisation_id)?.organisation_name ?? null
+  return { ...updated, people: updated.people.map((person) => person.id === survivor.id ? {
+    ...person, organisation_name: organisationName, transcript_count: transcriptIds.size, last_seen_at: lastSeen,
+  } : person) }
 }
 
 export type DirectoryOrder = 'recent' | 'name'

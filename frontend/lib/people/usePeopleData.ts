@@ -16,6 +16,8 @@ export type ReloadingQuery<T> = {
   reload: () => Promise<boolean>
   /** Patch the data in place, ahead of a reload. */
   update: (edit: (data: T) => T) => void
+  /** Discard cached data when a confirmed write needs a fresh read. */
+  invalidate: () => void
 }
 
 /**
@@ -52,12 +54,18 @@ function useReloadingQuery<T>(load: () => Promise<T>): ReloadingQuery<T> {
     setState((current) => (current.data === null ? current : { ...current, data: edit(current.data) }))
   }, [])
 
+  const invalidate = useCallback(() => {
+    generationRef.current++
+    setState({ data: null, error: null, settled: true })
+  }, [])
+
   return {
     data: state.data,
     loading: !state.settled,
     error: state.data === null ? state.error : null,
     reload,
     update,
+    invalidate,
   }
 }
 

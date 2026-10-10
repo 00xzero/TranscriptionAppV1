@@ -15,7 +15,7 @@ import { toast } from '@/components/ui/toaster'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
-import { appearanceTotals, updateDirectoryPerson } from '@/core/people/directory'
+import { appearanceTotals, mergeDirectoryPeople, updateDirectoryPerson } from '@/core/people/directory'
 import { isConflict, isGone, isNotReady, mapPeopleWriteError, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
@@ -174,6 +174,15 @@ export function PersonDialog({ personId }: { personId: string }) {
     directory.update((data) => updateDirectoryPerson(data, saved, organisation))
   const closeDialog = (open: boolean) => { if (!open) setDialog(null) }
   const colourName = SPEAKER_COLOR_NAMES[person.preferred_color as SpeakerColor] ?? 'Custom colour'
+
+  async function refreshAfterMerge() {
+    if (await reloadAll()) return
+    toast({
+      title: "Merge saved — couldn't refresh",
+      variant: 'error',
+      action: { label: 'Retry', onClick: () => void refreshAfterMerge() },
+    })
+  }
 
   // A refused write means another tab changed this person first: reload and
   // say so. Any other failure is the dialog's or picker's to show.
@@ -411,9 +420,13 @@ export function PersonDialog({ personId }: { personId: string }) {
           people={directory.data.people}
           onOpenChange={closeDialog}
           onMerge={async (personIds, preview) => {
-            await mergePeople(personId, personIds, preview)
+            const saved = await mergePeople(personId, personIds, preview)
+            directory.update((data) => mergeDirectoryPeople(data, saved, preview))
+            // The preview lacks project ids and transcript speaking totals, so
+            // these rows need a read before they can describe the merged person.
+            appearances.invalidate()
             toast({ title: `Merged ${countLabel(personIds.length, 'person', 'people')} into ${person.name}` })
-            await reloadAll()
+            await refreshAfterMerge()
           }}
         />
       )}
