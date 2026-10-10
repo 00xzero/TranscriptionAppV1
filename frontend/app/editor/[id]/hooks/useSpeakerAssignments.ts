@@ -7,6 +7,7 @@ import {
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import { toast } from '@/components/ui/toaster'
+import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
 import type { Seg } from '../types'
 import { mergeSpeakerAssignments } from './useEditorData'
@@ -31,10 +32,6 @@ export type SpeakerPopoverCloseReason = 'dismiss' | 'outside' | 'selection' | 'e
 type SpeakerPopoverState = { segmentId: string; speakerId: string | null; anchorMeasurable: Measurable; triggerElement: HTMLElement | null }
 
 const UNDO_WINDOW_MS = 8000
-const CONFLICT_TOAST = 'Changed in another tab — refreshed'
-const STALE_TOAST = "Changed in another tab — couldn't refresh"
-const isConflict = (error: unknown) =>
-  typeof error === 'object' && error !== null && 'code' in error && error.code === 'SP002'
 
 function createStableMeasurable(el: HTMLElement): Measurable {
   let lastRect = el.getBoundingClientRect()
@@ -206,8 +203,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
           toast({ title: action.done, durationMs: UNDO_WINDOW_MS,
             action: { label: 'Undo', onClick: () => void enqueue(() => runUndo(undo)) } })
         } catch (error) {
-          if (isConflict(error)) {
-            if (!(await refreshAfterConflict(CONFLICT_TOAST))) action.restore()
+          if (isConflict(error) || isGone(error)) {
+            if (!(await refreshAfterConflict(isGone(error) ? 'That person or speaker no longer exists.' : CONFLICT_TOAST))) action.restore()
+          } else if (isNotReady(error)) {
+            action.restore()
+            toast({ title: NOT_READY_MESSAGE, variant: 'error' })
           } else {
             action.restore()
             toast({ title: action.failed, variant: 'error', action: { label: 'Retry', onClick: run } })
@@ -221,8 +221,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
       try {
         await undo.write()
       } catch (error) {
-        if (isConflict(error)) {
+        if (isConflict(error) || isGone(error)) {
           if (!(await refreshAfterConflict("Can't undo — changed since"))) undo.restore()
+        } else if (isNotReady(error)) {
+          undo.restore()
+          toast({ title: NOT_READY_MESSAGE, variant: 'error' })
         } else {
           undo.restore()
           toast({ title: "Couldn't undo", variant: 'error',

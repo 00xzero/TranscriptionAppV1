@@ -235,6 +235,19 @@ describe('the organisation filter', () => {
 })
 
 describe('adding a person', () => {
+  test('keeps the created person in the directory if the follow-up read fails', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    const created = { ...blair, id: 'new-person', name: 'Dana' }
+    jest.mocked(createPerson).mockResolvedValue(created)
+    const user = await renderPage()
+    jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('offline'))
+    await user.click(screen.getByRole('button', { name: 'New person' }))
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Dana')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/people/new-person'))
+    expect(screen.getByTestId('person-row-new-person')).toHaveTextContent('Dana')
+    expect(screen.getByTestId('person-row-new-person')).toHaveTextContent('0 transcripts')
+  })
   test('an empty directory explains both ways to add someone', async () => {
     await renderPage({ people: [], organisations: [] })
     expect(screen.getByText(/In a transcript, click a speaker and identify them as a person/)).toBeInTheDocument()

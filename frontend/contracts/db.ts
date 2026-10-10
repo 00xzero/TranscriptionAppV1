@@ -287,22 +287,32 @@ export const MergePreviewVoiceSchema = z.object({
   custom_label: z.string().nullable(),
   talk_ms: z.number().int().nonnegative(),
   detected_ordinals: z.array(z.number().int().nonnegative().nullable()),
-})
+}).strict()
 
+export const MergePreviewPersonSchema = z.object({
+  person_id: UuidSchema,
+  name: z.string(),
+  preferred_color: z.string(),
+  organisation_id: UuidSchema.nullable(),
+  organisation_name: z.string().nullable(),
+}).strict()
+
+// This snapshot is sent back for an exact database comparison. Reject new
+// fields at every level instead of silently stripping them from the preview.
 export const MergePreviewSchema = z.object({
+  survivor: MergePreviewPersonSchema,
   // Transcripts the survivor already appears in, where the two will show as one.
   survivor_transcript_ids: z.array(UuidSchema),
   // In the order the people were given.
-  people: z.array(z.object({
-    person_id: UuidSchema,
+  people: z.array(MergePreviewPersonSchema.extend({
     transcripts: z.array(z.object({
       transcript_id: UuidSchema,
       title: z.string().nullable(),
       created_at: z.string(),
       voices: z.array(MergePreviewVoiceSchema),
-    })),
-  })),
-})
+    }).strict()),
+  }).strict()),
+}).strict()
 
 // === RPC: save_transcript_segments ===
 // The webhook handler builds the full transcript in TypeScript (segment-builder) and

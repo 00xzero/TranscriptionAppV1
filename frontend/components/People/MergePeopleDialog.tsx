@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { countLabel, formatDuration } from '@/components/Projects/format'
 import type { DirectoryPerson, MergePreview } from '@/contracts/db'
 import { describeMergeVoice, matchesPersonSearch, sortDirectory } from '@/core/people/directory'
-import { mapPeopleWriteError } from '@/lib/people/errors'
+import { isConflict, isGone, mapPeopleWriteError } from '@/lib/people/errors'
 import { speakerInitials } from '@/lib/speakers/palette'
 import { fetchMergePreview } from '@/lib/supabase/queries'
 import { formatPeopleDate } from './format'
@@ -31,7 +31,7 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
   people: readonly DirectoryPerson[]
   onOpenChange: (open: boolean) => void
   /** Rejects to show an error in the dialog; resolves to close it. */
-  onMerge: (personIds: string[]) => Promise<void>
+  onMerge: (personIds: string[], preview: MergePreview) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
   // In the order they were picked: the first with an organisation donates it.
@@ -39,6 +39,7 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
   const [preview, setPreview] = useState<PreviewState>({ status: 'idle' })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [previewRevision, setPreviewRevision] = useState(0)
   const generationRef = useRef(0)
 
   const selectedKey = selected.join(',')
@@ -52,26 +53,26 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
         console.error('[people] Failed to load merge preview:', caught)
         if (generationRef.current === generation) setPreview({ status: 'error', ids: selectedKey })
       })
-  }, [survivor.id, selectedKey])
+  }, [survivor.id, selectedKey, previewRevision])
 
   // A preview for another selection is not this one's.
   const current = preview.status !== 'idle' && preview.ids === selectedKey ? preview : null
   const ready = current?.status === 'ready' ? current.preview : null
 
-  const personById = new Map(people.map((person) => [person.id, person]))
   const candidates = sortDirectory(people.filter((person) => person.id !== survivor.id), 'name')
     .filter((person) => selected.includes(person.id) || matchesPersonSearch(person, query))
-  const donor = survivor.organisation_id ? null
-    : selected.map((id) => personById.get(id)).find((person) => person?.organisation_id)
+  const kept = ready?.survivor
+  const donor = kept?.organisation_id ? null : ready?.people.find((person) => person.organisation_id)
   const survivorTranscripts = new Set(ready?.survivor_transcript_ids ?? [])
-  const outcome = `${survivor.name} keeps their name and colour` +
-    (survivor.organisation_name ? ` and organisation, ${survivor.organisation_name}` : '') +
+  const outcome = `${kept?.name ?? survivor.name} keeps their name and colour` +
+    (kept?.organisation_name ? ` and organisation, ${kept.organisation_name}` : '') +
     (donor ? `, and takes ${donor.organisation_name} from ${donor.name}` : '')
   // A name can end the sentence, and a name can end in a full stop.
   const outcomeSentence = outcome.endsWith('.') ? outcome : `${outcome}.`
 
   const toggle = (personId: string) => {
     setError(null)
+    setPreview({ status: 'idle' })
     setSelected((ids) => ids.includes(personId) ? ids.filter((id) => id !== personId) : [...ids, personId])
   }
 
@@ -80,10 +81,16 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
     setPending(true)
     setError(null)
     try {
-      await onMerge(selected)
+      await onMerge(selected, ready)
       onOpenChange(false)
     } catch (caught) {
-      setError(mapPeopleWriteError(caught))
+      if (isConflict(caught) || isGone(caught)) {
+        setPreview({ status: 'idle' })
+        setPreviewRevision((revision) => revision + 1)
+      }
+      setError(isConflict(caught)
+        ? 'Merge details changed. Review the refreshed preview before confirming again.'
+        : mapPeopleWriteError(caught))
     } finally {
       setPending(false)
     }
@@ -153,11 +160,10 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
               {current?.status === 'error' && <p role="alert" className="text-ember-red">Couldn&apos;t load what will move. Change the selection to try again.</p>}
               {!current && <p className="text-muted">Loading what will move…</p>}
               {ready?.people.map((entry) => {
-                const person = personById.get(entry.person_id)
                 return (
                   <div key={entry.person_id}>
                     <p className="font-medium">
-                      {person?.name ?? 'Someone'} · {countLabel(entry.transcripts.length, 'transcript', 'transcripts')}
+                      {entry.name} · {countLabel(entry.transcripts.length, 'transcript', 'transcripts')}
                     </p>
                     {entry.transcripts.length === 0 && <p className="text-muted">Not in any transcript.</p>}
                     <ul className="mt-1 space-y-1.5">
@@ -166,7 +172,7 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
                           <span>{transcript.title || 'Untitled'}</span>
                           <span className="text-muted"> · {formatPeopleDate(transcript.created_at)}</span>
                           {survivorTranscripts.has(transcript.transcript_id) && (
-                            <span className="text-muted"> · shows as one with {survivor.name}</span>
+                            <span className="text-muted"> · shows as one with {kept?.name}</span>
                           )}
                           <ul className="ml-4 text-xs text-muted">
                             {transcript.voices.map((voice) => (

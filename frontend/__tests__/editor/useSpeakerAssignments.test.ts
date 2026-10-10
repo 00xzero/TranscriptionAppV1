@@ -180,6 +180,31 @@ test('stale write refreshes speaker data and reports conflict', async () => {
   expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed in another tab — refreshed' }))
 })
 
+test('a person merged away refreshes rather than retrying the failed correction', async () => {
+  queries.correctSegmentsToPerson.mockRejectedValueOnce({ code: 'SP001' })
+  const { result, open } = setup()
+  queries.fetchEditorPeopleContext.mockResolvedValue({ people: [] })
+  open()
+  act(() => result.current.selectTarget({ kind: 'person', id: 'p1' }, 'segment'))
+  await waitFor(() => expect(queries.fetchEditorPeopleContext).toHaveBeenCalledTimes(1))
+  expect(toast).toHaveBeenCalledWith({ title: 'That person or speaker no longer exists.', variant: 'error' })
+  expect(toastWith('Retry')).toBeUndefined()
+  expect(result.current.peopleContext.people).toEqual([])
+  expect(queries.correctSegmentsToPerson).toHaveBeenCalledTimes(1)
+})
+
+test('an unfinished transcript restores the optimistic edit without offering write Retry', async () => {
+  queries.reassignSegments.mockRejectedValueOnce({ code: 'SP004' })
+  const { result, open, speakerIds } = setup()
+  open()
+  act(() => result.current.selectTarget({ kind: 'speaker', id: 'b' }, 'segment'))
+  await waitFor(() => expect(toast).toHaveBeenCalledWith({
+    title: 'Speaker changes are available when transcription is complete.', variant: 'error',
+  }))
+  expect(speakerIds()).toEqual(['a', 'a'])
+  expect(toastWith('Retry')).toBeUndefined()
+})
+
 test('an action on state that is gone refreshes instead of writing', async () => {
   const { result, open } = setup([detected('a', 0), alexHere], [segment('s1', 'c', 0)])
   open()

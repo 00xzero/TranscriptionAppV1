@@ -815,11 +815,12 @@ export async function removePersonFromTranscript(
  * the user picked them in: a survivor without an organisation takes the first
  * one among them.
  */
-export async function mergePeople(survivorId: string, personIds: string[]): Promise<Person> {
+export async function mergePeople(survivorId: string, personIds: string[], preview: MergePreview): Promise<Person> {
     const supabase = createClient()
     const { data, error } = await supabase.rpc('merge_people', {
         p_survivor_id: survivorId,
         p_person_ids: personIds,
+        p_expected_preview: MergePreviewSchema.parse(preview),
     })
 
     if (error) throw error

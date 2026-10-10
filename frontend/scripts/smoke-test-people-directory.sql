@@ -29,7 +29,7 @@ SELECT pg_temp.assert_true(
      'public.merge_people_preview(uuid,uuid[])', 'public.create_person(text)',
      'public.set_person_organisation(uuid,uuid,uuid,text)', 'public.set_person_color(uuid,text,text)',
      'public.set_person_hidden(uuid,boolean)', 'public.delete_person(uuid)',
-     'public.remove_person_from_transcript(uuid,uuid)', 'public.merge_people(uuid,uuid[])',
+     'public.remove_person_from_transcript(uuid,uuid)', 'public.merge_people(uuid,uuid[],jsonb)',
      'public.rename_organisation(uuid,text,text)', 'public.delete_organisation(uuid)'
    ]) AS f)
   AND NOT has_function_privilege('authenticated', 'public.check_merge_request(uuid,uuid,uuid[])', 'EXECUTE')
@@ -40,6 +40,13 @@ SELECT pg_temp.assert_true(
   AND NOT has_table_privilege('authenticated', 'public.organisations', 'UPDATE')
   AND NOT has_table_privilege('authenticated', 'public.organisations', 'DELETE'),
   'directory functions are for signed-in users only, and the tables stay read-only'
+);
+
+SELECT pg_temp.assert_true(
+  to_regprocedure('public.merge_people(uuid,uuid[])') IS NULL
+  AND NOT has_function_privilege('authenticated', 'public.require_completed_transcript(uuid,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('service_role', 'public.lock_speaker_identity_writes(uuid)', 'EXECUTE'),
+  'the unguarded merge signature is gone and write-lock helpers stay private'
 );
 
 -- -------------------------------------------------------------- fixtures ----
@@ -261,6 +268,47 @@ SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people_preview('e3000000
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people_preview('e3000000-0000-4000-8000-000000000001',
   ARRAY['e3000000-0000-4000-8000-00000000000b']::uuid[])$sql$, 'SP001');
 
+-- Speaker mutations are available only after completion, including Undo and
+-- directory removal. A refused write must not create a person or local voice.
+SELECT pg_temp.assert_sqlstate($sql$INSERT INTO public.jobs (transcript_id, type, status)
+  VALUES ('e2000000-0000-4000-8000-000000000001', 'transcription', 'queued')$sql$, 'SP004');
+SELECT pg_temp.assert_true((SELECT status = 'completed' FROM public.transcripts
+  WHERE id = 'e2000000-0000-4000-8000-000000000001'), 'refusing a restart preserves completed status');
+SAVEPOINT retry_unfinished;
+UPDATE public.transcripts SET status = 'error' WHERE id = 'e2000000-0000-4000-8000-000000000001';
+INSERT INTO public.jobs (transcript_id, type, status)
+  VALUES ('e2000000-0000-4000-8000-000000000001', 'transcription', 'queued');
+SELECT pg_temp.assert_true((SELECT status = 'queued' FROM public.transcripts
+  WHERE id = 'e2000000-0000-4000-8000-000000000001'), 'unfinished transcripts remain retriable');
+ROLLBACK TO retry_unfinished;
+DO $$
+DECLARE v_status text;
+BEGIN
+  FOREACH v_status IN ARRAY ARRAY['created', 'queued', 'processing', 'error'] LOOP
+    UPDATE public.transcripts SET status = v_status WHERE id = 'e2000000-0000-4000-8000-000000000001';
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.reassign_segments('e2000000-0000-4000-8000-000000000001',
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012","speaker_id":null}]')$sql$, 'SP004');
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.correct_segments_to_person('e2000000-0000-4000-8000-000000000001',
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]', NULL, 'Must not be created')$sql$, 'SP004');
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('e2000000-0000-4000-8000-000000000001', 'Must not be created',
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]')$sql$, 'SP004');
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.set_speaker_custom_label('e5000000-0000-4000-8000-000000000012', NULL, 'Must not change')$sql$, 'SP004');
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.undo_created_person_action('e2000000-0000-4000-8000-000000000001',
+      'e3000000-0000-4000-8000-000000000001', now(), 'e5000000-0000-4000-8000-000000000012', '[]')$sql$, 'SP004');
+    PERFORM pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript('e3000000-0000-4000-8000-000000000001',
+      'e2000000-0000-4000-8000-000000000001')$sql$, 'SP004');
+  END LOOP;
+  UPDATE public.transcripts SET status = 'completed' WHERE id = 'e2000000-0000-4000-8000-000000000001';
+END;
+$$;
+SELECT pg_temp.assert_true(
+  NOT EXISTS (SELECT 1 FROM public.people WHERE name = 'Must not be created')
+  AND NOT EXISTS (SELECT 1 FROM public.speakers WHERE custom_label = 'Must not be created')
+  AND (SELECT speaker_id = 'e5000000-0000-4000-8000-000000000012' FROM public.segments
+    WHERE id = 'e6000000-0000-4000-8000-000000000001'),
+  'unfinished transcript writes leave identities and assignments unchanged'
+);
+
 -- Dana first, although Blair's id sorts before hers.
 INSERT INTO action_result VALUES ('preview', public.merge_people_preview('e3000000-0000-4000-8000-000000000001',
   ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[]));
@@ -282,9 +330,41 @@ SELECT pg_temp.assert_true(
   'the preview lists each transcript and local voice that would move, in the order given'
 );
 
+-- The preview also owns the confirmation's person and organisation details.
+SELECT pg_temp.assert_true(
+  (SELECT data->'survivor'->>'name' = 'Alex'
+    AND data->'people'->0->>'organisation_id' = 'e4000000-0000-4000-8000-000000000002'
+    AND data->'people'->0->>'organisation_name' = 'Globex' FROM action_result WHERE name = 'preview'),
+  'organisation outcome and survivor details are part of the guarded preview'
+);
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-000000000001',
+  ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[], NULL)$sql$, 'SP003');
+
+SAVEPOINT changed_organisation;
+SELECT public.set_person_organisation('e3000000-0000-4000-8000-000000000004',
+  'e4000000-0000-4000-8000-000000000002', 'e4000000-0000-4000-8000-000000000001');
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-000000000001',
+  ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[],
+  (SELECT data FROM action_result WHERE name = 'preview'))$sql$, 'SP002');
+SELECT pg_temp.assert_true((SELECT count(*) = 2 FROM public.people WHERE id IN
+  ('e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002')),
+  'a stale organisation preview deletes no person');
+ROLLBACK TO changed_organisation;
+
+SAVEPOINT changed_appearance;
+SELECT public.correct_segments_to_person('e2000000-0000-4000-8000-000000000001',
+  '[{"segment_id":"e6000000-0000-4000-8000-000000000002","expected_speaker_id":"e5000000-0000-4000-8000-000000000011"}]',
+  'e3000000-0000-4000-8000-000000000002');
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-000000000001',
+  ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[],
+  (SELECT data FROM action_result WHERE name = 'preview'))$sql$, 'SP002');
+SELECT pg_temp.assert_true((SELECT person_id = 'e3000000-0000-4000-8000-000000000002' FROM public.speakers
+  WHERE id = 'e5000000-0000-4000-8000-000000000032'), 'a stale appearance preview moves no link');
+ROLLBACK TO changed_appearance;
+
 -- A failed merge changes nothing.
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-000000000001',
-  ARRAY['e3000000-0000-4000-8000-000000000002', 'e3000000-0000-4000-8000-00000000000b']::uuid[])$sql$, 'SP001');
+  ARRAY['e3000000-0000-4000-8000-000000000002', 'e3000000-0000-4000-8000-00000000000b']::uuid[], '{}'::jsonb)$sql$, 'SP001');
 SELECT pg_temp.assert_true(
   (SELECT count(*) = 1 FROM public.people WHERE id = 'e3000000-0000-4000-8000-000000000002')
   AND (SELECT person_id = 'e3000000-0000-4000-8000-000000000002' FROM public.speakers
@@ -293,7 +373,8 @@ SELECT pg_temp.assert_true(
 );
 
 INSERT INTO action_result VALUES ('merged', to_jsonb(public.merge_people('e3000000-0000-4000-8000-000000000001',
-  ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[])));
+  ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[],
+  (SELECT data FROM action_result WHERE name = 'preview'))));
 SELECT pg_temp.assert_true(
   (SELECT data->>'name' = 'Alex' AND data->>'preferred_color' = '#4F638C'
      AND data->>'organisation_id' = 'e4000000-0000-4000-8000-000000000002'
@@ -351,7 +432,7 @@ SELECT pg_temp.assert_sqlstate($sql$SELECT public.delete_person('e3000000-0000-4
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript('e3000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000001')$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript('e3000000-0000-4000-8000-00000000000b', 'e2000000-0000-4000-8000-000000000001')$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people_preview('e3000000-0000-4000-8000-00000000000b', ARRAY['e3000000-0000-4000-8000-000000000001']::uuid[])$sql$, 'SP001');
-SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-00000000000b', ARRAY['e3000000-0000-4000-8000-000000000001']::uuid[])$sql$, 'SP001');
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-00000000000b', ARRAY['e3000000-0000-4000-8000-000000000001']::uuid[], '{}'::jsonb)$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.rename_organisation('e4000000-0000-4000-8000-000000000002', 'Globex', 'Mine')$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.delete_organisation('e4000000-0000-4000-8000-000000000002')$sql$, 'SP001');
 

@@ -164,6 +164,48 @@ describe('Start route idempotency', () => {
     })
   })
 
+  test.each(['new-key', null])('does not restart a completed transcript with key %s', async (key) => {
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed' }, error: null })
+    jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
+    const res = await POST({ headers: new Headers(key ? { 'x-idempotency-key': key } : {}) } as any,
+      { params: Promise.resolve({ id: 'done' }) } as any)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'This transcript is already completed.' })
+    expect(jobsInsertMock).not.toHaveBeenCalled()
+    expect(getMediaUrlForDeepgram).not.toHaveBeenCalled()
+  })
+
+  test('a completed transcript still replays its original completed job', async () => {
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed' }, error: null })
+    jobsMaybeSingleMock.mockResolvedValue({ data: { id: 'original', status: 'completed' }, error: null })
+    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'original-key' }) } as any,
+      { params: Promise.resolve({ id: 'done' }) } as any)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ jobId: 'original', cached: true })
+    expect(jobsInsertMock).not.toHaveBeenCalled()
+  })
+
+  test('completion between the initial read and job insertion is refused by the database guard', async () => {
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error' }, error: null })
+    jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
+    jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
+    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'new-key' }) } as any,
+      { params: Promise.resolve({ id: 'done' }) } as any)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'This transcript is already completed.' })
+  })
+
+  test('a completion race still returns the original job for the same idempotency key', async () => {
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error' }, error: null })
+    jobsMaybeSingleMock.mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { id: 'original', status: 'completed' }, error: null })
+    jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
+    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'original-key' }) } as any,
+      { params: Promise.resolve({ id: 'done' }) } as any)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ jobId: 'original', cached: true })
+  })
+
   test('creates a new job when no cached job exists', async () => {
     transcriptSingleMock.mockResolvedValue({
       data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },

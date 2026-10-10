@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PeopleDirectory, PersonAppearance } from '@/contracts/db'
 import { fetchPeopleDirectory, fetchPersonAppearances } from '@/lib/supabase/queries'
+import { isGone } from './errors'
 
 export type ReloadingQuery<T> = {
   /** The latest data, kept while a reload runs or after a reload fails. */
@@ -67,6 +68,15 @@ export function usePeopleDirectory(): ReloadingQuery<PeopleDirectory> {
 
 /** The transcripts one person appears in, newest first. */
 export function usePersonAppearances(personId: string): ReloadingQuery<PersonAppearance[]> {
-  const load = useCallback(() => fetchPersonAppearances(personId), [personId])
+  const load = useCallback(async () => {
+    try {
+      return await fetchPersonAppearances(personId)
+    } catch (error) {
+      // The directory refresh shows Person not found after a merge or deletion.
+      // There is no appearances read to retry for an identity that is gone.
+      if (isGone(error)) return []
+      throw error
+    }
+  }, [personId])
   return useReloadingQuery(load)
 }

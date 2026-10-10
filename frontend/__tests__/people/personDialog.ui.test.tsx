@@ -330,10 +330,24 @@ describe('remove from this transcript', () => {
   test('a person merged away in another tab reloads instead of offering Retry', async () => {
     jest.mocked(removePersonFromTranscript).mockRejectedValue({ code: 'SP001' })
     const user = await renderPage()
+    jest.mocked(fetchPeopleDirectory).mockResolvedValueOnce({ ...directory, people: [blair, casey] })
+    jest.mocked(fetchPersonAppearances).mockRejectedValueOnce({ code: 'SP001' })
 
     await user.click(screen.getByRole('button', { name: 'Remove Alex Morgan from “Q3 steering”' }))
 
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'Changed in another tab — refreshed', variant: 'error' }))
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'That person no longer exists.', variant: 'error' }))
+    expect(await screen.findByText('Person not found')).toBeInTheDocument()
+    expect(mockToast.mock.calls.some(([options]) => options.action?.label === 'Retry')).toBe(false)
+  })
+
+  test('removal on an unfinished transcript explains readiness and does not retry the write', async () => {
+    jest.mocked(removePersonFromTranscript).mockRejectedValueOnce({ code: 'SP004' })
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Remove Alex Morgan from “Q3 steering”' }))
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith({
+      title: 'Speaker changes are available when transcription is complete.', variant: 'error',
+    }))
+    expect(screen.getByTestId(`appearance-${TRANSCRIPT_B}`)).toBeInTheDocument()
     expect(mockToast.mock.calls.some(([options]) => options.action?.label === 'Retry')).toBe(false)
   })
 
@@ -468,11 +482,15 @@ describe('editing the person', () => {
 })
 
 describe('merge', () => {
+  const metadata = (person: DirectoryPerson) => ({ person_id: person.id, name: person.name,
+    preferred_color: person.preferred_color, organisation_id: person.organisation_id,
+    organisation_name: person.organisation_name })
   const preview: MergePreview = {
+    survivor: metadata(alex),
     survivor_transcript_ids: [TRANSCRIPT_B],
     people: [
-      { person_id: CASEY_ID, transcripts: [] },
-      { person_id: BLAIR_ID, transcripts: [{
+      { ...metadata(casey), transcripts: [] },
+      { ...metadata(blair), transcripts: [{
         transcript_id: TRANSCRIPT_B, title: 'Q3 steering', created_at: '2026-09-20T00:00:00Z',
         voices: [
           { speaker_id: LINKED_SPEAKER, custom_label: null, talk_ms: 125_000, detected_ordinals: [2] },
@@ -481,6 +499,24 @@ describe('merge', () => {
       }] },
     ],
   }
+
+  test('a changed preview is reloaded and must be confirmed again with its server organisation outcome', async () => {
+    const initial = { ...preview, people: [preview.people[1]] }
+    const refreshed = { ...initial, people: [{ ...initial.people[0], organisation_name: 'ACME New' }] }
+    jest.mocked(fetchMergePreview).mockResolvedValueOnce(initial).mockResolvedValue(refreshed)
+    jest.mocked(mergePeople).mockRejectedValueOnce({ code: 'SP002' }).mockResolvedValue(alex)
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Merge people' }))
+    await user.click(screen.getByRole('checkbox', { name: /Blair/ }))
+    const confirm = screen.getByRole('button', { name: 'Merge 1 person' })
+    await waitFor(() => expect(confirm).toBeEnabled())
+    await user.click(confirm)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Merge details changed. Review the refreshed preview')
+    expect(await screen.findByText('Alex Morgan keeps their name and colour, and takes ACME New from Blair.')).toBeInTheDocument()
+    expect(mergePeople).toHaveBeenCalledTimes(1)
+    await user.click(confirm)
+    await waitFor(() => expect(mergePeople).toHaveBeenLastCalledWith(PERSON_ID, [BLAIR_ID], refreshed))
+  })
 
   test('previews every transcript and voice that will move, then merges in the order picked', async () => {
     jest.mocked(fetchMergePreview).mockResolvedValue(preview)
@@ -504,13 +540,13 @@ describe('merge', () => {
     expect(moving).toHaveTextContent('Blair (typo) · 4 sec')
 
     await user.click(within(dialog).getByRole('button', { name: 'Merge 2 people' }))
-    await waitFor(() => expect(mergePeople).toHaveBeenCalledWith(PERSON_ID, [CASEY_ID, BLAIR_ID]))
+    await waitFor(() => expect(mergePeople).toHaveBeenCalledWith(PERSON_ID, [CASEY_ID, BLAIR_ID], preview))
     expect(mockToast).toHaveBeenCalledWith({ title: 'Merged 2 people into Alex Morgan' })
   })
 
   test('a donor whose name ends in a full stop does not double it', async () => {
-    jest.mocked(fetchMergePreview).mockResolvedValue({ survivor_transcript_ids: [],
-      people: [{ person_id: BLAIR_ID, transcripts: [] }] })
+    jest.mocked(fetchMergePreview).mockResolvedValue({ survivor: metadata(alex), survivor_transcript_ids: [],
+      people: [{ ...metadata({ ...blair, name: 'Blair B.' }), transcripts: [] }] })
     const user = await renderPage({ people: { ...directory, people: [alex, { ...blair, name: 'Blair B.' }, casey] } })
 
     await user.click(screen.getByRole('button', { name: 'Merge people' }))
@@ -562,4 +598,51 @@ describe('merge', () => {
 
     expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveTextContent('That person no longer exists.')
   })
+})
+
+test('a failed conflict refresh offers read Retry without claiming refreshed', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+  const user = await renderPage()
+  jest.mocked(setPersonColor).mockRejectedValueOnce({ code: 'SP002' })
+  jest.mocked(fetchPersonAppearances).mockRejectedValueOnce(new Error('offline'))
+  await user.click(screen.getByRole('button', { name: 'Change colour' }))
+  await user.click(screen.getByRole('radio', { name: 'Teal' }))
+  await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+    title: "Changed in another tab — couldn't refresh", action: expect.objectContaining({ label: 'Retry' }),
+  })))
+  expect(mockToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed in another tab — refreshed' }))
+  await clickToastAction('Retry')
+  await waitFor(() => expect(mockToast).toHaveBeenLastCalledWith({ title: 'Changed in another tab — refreshed', variant: 'error' }))
+  expect(setPersonColor).toHaveBeenCalledTimes(1)
+})
+
+test('confirmed rename and colour remain visible when their reloads fail', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+  const user = await renderPage()
+  jest.mocked(renamePerson).mockResolvedValueOnce({ ...alex, name: 'Alex Updated' })
+  jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('offline'))
+  await user.click(screen.getByRole('button', { name: 'Rename person' }))
+  await user.clear(screen.getByRole('textbox', { name: 'Name' }))
+  await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Alex Updated')
+  await user.click(screen.getByRole('button', { name: 'Rename' }))
+  const dialog = await screen.findByRole('dialog', { name: 'Alex Updated' })
+  expect(dialog).toHaveAccessibleDescription('No organisation Denim')
+  jest.mocked(setPersonColor).mockResolvedValueOnce({ ...alex, name: 'Alex Updated', preferred_color: '#0D9488' })
+  jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('offline'))
+  await user.click(screen.getByRole('button', { name: 'Change colour' }))
+  await user.click(screen.getByRole('radio', { name: 'Teal' }))
+  await waitFor(() => expect(dialog).toHaveAccessibleDescription('No organisation Teal'))
+})
+
+test('a confirmed new organisation remains visible if the reload fails', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+  const user = await renderPage()
+  jest.mocked(setPersonOrganisation).mockResolvedValueOnce({
+    person: { ...alex, organisation_id: 'initech' },
+    organisation: { id: 'initech', user_id: 'u1', name: 'Initech', created_at: '', updated_at: '' },
+  })
+  jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('offline'))
+  await user.click(screen.getByRole('button', { name: 'Change organisation' }))
+  await user.type(screen.getByRole('combobox', { name: 'Organisation' }), 'Initech{Enter}')
+  await waitFor(() => expect(screen.getByRole('dialog', { name: 'Alex Morgan' })).toHaveAccessibleDescription('Initech Denim'))
 })
