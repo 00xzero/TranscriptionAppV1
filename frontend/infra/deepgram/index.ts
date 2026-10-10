@@ -58,10 +58,19 @@ export function getCallbackUrl(): string {
 
 /**
  * Get the Deepgram model to use.
- * Default: nova-3
+ * Default: nova-3. Deepgram has no "latest" model alias; the separate `version`
+ * parameter already defaults to the newest release of the chosen model.
  */
 export function getDeepgramModel(): string {
     return process.env.DEEPGRAM_MODEL || "nova-3";
+}
+
+/**
+ * Label for Deepgram usage reports, so local and hosted spend can be told apart.
+ * Unset sends no tag.
+ */
+export function getDeepgramTag(): string | null {
+    return process.env.DEEPGRAM_TAG || null;
 }
 
 /**
@@ -88,9 +97,22 @@ export async function startAsyncTranscription(
     const params = new URLSearchParams();
     params.append("model", model || getDeepgramModel());
     params.append("smart_format", "true");
-    params.append("diarize", "true");
     params.append("paragraphs", "true");
+    // Speaker detection. `diarize=true` is deprecated and always uses the v1
+    // diarizer; `latest` follows Deepgram's newest batch diarizer. Deepgram
+    // rejects requests that send both.
+    params.append("diarize_model", "latest");
+    // Keep "uh" and "um" in the transcript; Deepgram drops them by default.
+    params.append("filler_words", "true");
+    // Keep the audio out of Deepgram's Model Improvement Program: Deepgram then
+    // holds it only while processing, so deleting a transcript leaves no copy.
+    params.append("mip_opt_out", "true");
     params.append("callback", callbackUrl);
+
+    const tag = getDeepgramTag();
+    if (tag) {
+        params.append("tag", tag);
+    }
 
     // Pass transcript ID via extra parameter (returned in metadata.extra in callback)
     params.append("extra", `transcript_id:${transcriptId}`);

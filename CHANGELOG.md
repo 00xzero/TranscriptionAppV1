@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-10] - Deepgram Request Options
+
+Reviewed every pre-recorded `/v1/listen` option against Deepgram's current API
+reference and updated the request: the newest speaker model, filler words, an
+opt-out from Deepgram's model improvement programme, and a usage tag.
+
+### Changed
+
+- **Speaker detection** — `diarize=true` is deprecated and always uses Deepgram's v1 diarizer. Requests now send `diarize_model=latest` (v2 today). Deepgram rejects requests that send both.
+- **Filler words** — `filler_words=true` keeps "um" and "uh". The segment builder's filler flag now fires on them; before, Deepgram removed them first.
+- **Model improvement opt-out** — `mip_opt_out=true` keeps audio out of Deepgram's Model Improvement Partnership Program, so Deepgram holds it only while processing. Deleting a transcript now leaves no copy there.
+
+### Added
+
+- **`DEEPGRAM_TAG`** — Optional. When set, requests carry it as Deepgram's `tag`, so usage reports separate environments (`local` in `infra/.env.docker.example`; set `hosted` in `frontend/.env.local`).
+
+### Notes
+
+- **Model** — Deepgram has no "latest" model alias. `nova-3` is its newest pre-recorded model (Flux is for streaming), and the `version` parameter already defaults to the latest release. Change `DEEPGRAM_MODEL` when a newer model ships.
+- **Pricing** — Deepgram's reference says to check pricing before setting `mip_opt_out`; its docs give no figure. Confirm in the Deepgram console.
+- **Left as is** — `punctuate`, `numerals` and `measurements` (covered by `smart_format`), `keywords` (not supported on Nova-3; `keyterm` is used), `utterances` (segments come from paragraphs), `redact`, `multichannel`, and the paid analysis features (`summarize`, `topics`, `intents`, `sentiment`, `detect_entities`).
+
+### Tests
+
+- **Frontend** — New `deepgramRequest.test.ts` pins the request parameters. `npm test` (`135` suites / `1,487` tests passing); `npm run typecheck`; lint clean on changed files.
+- **Live** — The same 2-hour EPB call through the local Docker stack completed in about 45 seconds. Speakers went from 12 (v1) to 10 (v2), segments from 722 to 745, and 35 segments are now flagged as fillers (none before).
+
 ## [2026-10-10] - Server-Owned Writes and Folder-Based Deletion
 
 The browser and every route on the server client run as the same
