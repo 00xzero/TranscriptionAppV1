@@ -324,6 +324,15 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               event.preventDefault()
               return
             }
+            // Radix dismisses after the click, so a press on a speaker name
+            // would close the picker that name's click just opened. The click
+            // decides instead: another name moves the picker, the same one
+            // closes it (handleAvatarClick).
+            if (event.detail.originalEvent.type === 'pointerdown'
+              && event.target instanceof Element && event.target.closest('[data-speaker-trigger]')) {
+              event.preventDefault()
+              return
+            }
             didInteractOutsidePopoverRef.current = true
           }}
           onCloseAutoFocus={(event) => {

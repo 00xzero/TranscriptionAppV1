@@ -790,6 +790,39 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     })
   })
 
+  test('another speaker name moves the open popover to it; the same name closes it', async () => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+
+    await waitForEditorContent()
+
+    const [first, second] = screen.getAllByRole('button', { name: /Change speaker/i })
+    const tick = () => act(() => new Promise((resolve) => setTimeout(resolve, 10)))
+    // A full mouse press, which reaches Radix's outside-press listener; a
+    // user-event click in jsdom does not, so it would pass without the fix.
+    const press = async (target: HTMLElement) => {
+      fireEvent.pointerDown(target, { button: 0, pointerType: 'mouse' })
+      fireEvent.mouseDown(target, { button: 0 })
+      fireEvent.pointerUp(target, { button: 0, pointerType: 'mouse' })
+      fireEvent.mouseUp(target, { button: 0 })
+      fireEvent.click(target, { button: 0 })
+      await tick()
+    }
+    await user.click(first)
+    await screen.findByRole('dialog', { name: /Speaker assignment/i })
+    await tick() // Radix listens for outside presses from the next tick
+
+    // Radix dismisses an outside press after its click; that must not close
+    // the popover the second name's click just opened.
+    await press(second)
+    expect(screen.getByRole('dialog', { name: /Speaker assignment/i })).toBeInTheDocument()
+
+    await press(second)
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Speaker assignment/i })).not.toBeInTheDocument()
+    })
+  })
+
   test('keeps every segment speaker control keyboard reachable and hides unused local speakers', async () => {
     const user = userEventLib.setup()
     ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce([

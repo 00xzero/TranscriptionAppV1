@@ -60,6 +60,7 @@ function SegmentHeaderRow({
               onClick={onSpeakerClick}
               aria-label={`Change speaker (${speakerLabel})`}
               aria-haspopup="dialog"
+              data-speaker-trigger=""
               tabIndex={0}
             >
               <span className="inline-flex items-center gap-2">

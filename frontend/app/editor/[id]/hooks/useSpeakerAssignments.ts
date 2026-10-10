@@ -167,7 +167,9 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
     anchorRef.current = anchorMeasurable
     lastTriggerElementRef.current = element
     closeReasonRef.current = null
-    setSpeakerPopover({ segmentId, speakerId, anchorMeasurable, triggerElement: element })
+    // A second click on the name the picker is open for closes it.
+    setSpeakerPopover((open) => open?.segmentId === segmentId
+      ? null : { segmentId, speakerId, anchorMeasurable, triggerElement: element })
   }, [])
   useEffect(() => {
     if (speakerPopover?.anchorMeasurable) anchorRef.current = speakerPopover.anchorMeasurable
