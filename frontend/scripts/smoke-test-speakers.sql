@@ -415,7 +415,8 @@ SELECT pg_temp.assert_true(
 
 -- ---------------------------------------------------------------- deletion ----
 
-DELETE FROM public.transcripts WHERE id = 'c1000000-0000-0000-0000-0000000000a2';
+-- Browsers delete through delete_transcript(); this folder holds no files.
+SELECT public.delete_transcript('c1000000-0000-0000-0000-0000000000a2');
 
 RESET ROLE;
 

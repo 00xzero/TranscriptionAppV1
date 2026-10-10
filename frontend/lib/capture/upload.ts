@@ -13,6 +13,7 @@ import {
     classifyProjectLinkWriteRejection,
     mapProjectWriteError,
 } from '@/lib/supabase/project-errors'
+import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
 import { transferToStorage } from './storageTransfer'
 import { fitTranscriptTitle } from '@/core/transcripts/title'
 
@@ -139,6 +140,19 @@ function getMimeType(file: File): string {
     return 'application/octet-stream'
 }
 
+// An unknown answer counts as live: sweeping a live transcript would delete it.
+async function transcriptStillExists(
+    supabase: ReturnType<typeof createClient>,
+    transcriptId: string
+): Promise<boolean> {
+    const { data, error } = await supabase
+        .from('transcripts')
+        .select('id')
+        .eq('id', transcriptId)
+        .maybeSingle()
+    return Boolean(error) || data !== null
+}
+
 async function rollbackPartialCapture(
     supabase: ReturnType<typeof createClient>,
     transcriptId: string | null,
@@ -146,8 +160,7 @@ async function rollbackPartialCapture(
     didUploadFile: boolean,
     shouldDeleteTranscript: boolean
 ): Promise<string | null> {
-    const cleanupFailures: string[] = []
-
+    let uploadRemains = false
     if (didUploadFile && storagePath) {
         const { error: removeError } = await supabase.storage
             .from(MEDIA_BUCKET)
@@ -155,21 +168,35 @@ async function rollbackPartialCapture(
 
         if (removeError) {
             console.error('[capture] Failed to remove uploaded media during rollback:', removeError)
-            cleanupFailures.push('uploaded media')
+            uploadRemains = true
         }
     }
 
-    if (transcriptId && shouldDeleteTranscript) {
-        const { error: deleteError } = await supabase
-            .from('transcripts')
-            .delete()
-            .eq('id', transcriptId)
-
-        if (deleteError) {
+    // The delete route also sweeps the transcript's folder, which catches an
+    // upload the removal above missed. A transcript this attempt reused (dedupe
+    // or recovery retry) is never deleted: a leftover upload stays in its folder
+    // until that transcript is deleted. Once it is already gone, only the sweep runs.
+    let transcriptRemains = false
+    const shouldSweep =
+        transcriptId !== null &&
+        (shouldDeleteTranscript ||
+            (uploadRemains && !(await transcriptStillExists(supabase, transcriptId))))
+    if (transcriptId && shouldSweep) {
+        try {
+            await deleteTranscriptRequest(transcriptId)
+            uploadRemains = false
+        } catch (deleteError) {
             console.error('[capture] Failed to delete transcript during rollback:', deleteError)
-            cleanupFailures.push('transcript record')
+            transcriptRemains = shouldDeleteTranscript
         }
+    } else if (uploadRemains && transcriptId) {
+        console.warn('[capture] Leftover upload stays with its reused transcript:', storagePath)
+        uploadRemains = false
     }
+
+    const cleanupFailures: string[] = []
+    if (uploadRemains) cleanupFailures.push('uploaded media')
+    if (transcriptRemains) cleanupFailures.push('transcript record')
 
     if (cleanupFailures.length === 0) {
         return null

@@ -224,44 +224,6 @@ export function isMissingStorageObjectError(error: StorageError): boolean {
     )
 }
 
-export async function removeStorageObjectIfPresent(
-    supabase: SupabaseClient,
-    bucket: string,
-    objectKey: string | null,
-    ownerId: string
-): Promise<void> {
-    if (!objectKey) return
-
-    const storage = supabase.storage.from(bucket)
-    const belongsToOwner = objectKey.startsWith(`${ownerId}/`)
-    const before = await storage.info(objectKey)
-
-    if (before.error) {
-        if (belongsToOwner && isMissingStorageObjectError(before.error)) {
-            console.warn(
-                `[storage] Object already missing in ${bucket}: ${objectKey}`,
-                before.error.message
-            )
-            return
-        }
-        throw before.error
-    }
-
-    const removed = await storage.remove([objectKey])
-    if (!removed.error && (removed.data?.length ?? 0) > 0) return
-
-    // Storage can report an empty successful delete when RLS matched no rows.
-    // Re-read before accepting an ambiguous result as a concurrent removal.
-    const after = await storage.info(objectKey)
-    if (belongsToOwner && after.error && isMissingStorageObjectError(after.error)) {
-        return
-    }
-
-    if (removed.error) throw removed.error
-    if (after.error) throw after.error
-    throw new Error(`Storage did not remove object from ${bucket}: ${objectKey}`)
-}
-
 export async function removeStorageObjectsBatched(
     supabase: SupabaseClient,
     verificationSupabase: SupabaseClient,

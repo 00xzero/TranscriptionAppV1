@@ -24,12 +24,15 @@ let channelMock: {
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchTranscriptSummaries: () => mockFetchTranscripts(),
-  deleteTranscript: (...args: unknown[]) => mockDeleteTranscript(...args),
   moveTranscriptToProject: (...args: unknown[]) => mockMoveTranscript(...args),
   addTranscriptsToProject: (...args: unknown[]) => mockAddTranscripts(...args),
   fetchProjects: () => mockFetchProjects(),
   createProject: (...args: unknown[]) => mockCreateProject(...args),
   renameProject: (...args: unknown[]) => mockRenameProject(...args),
+}))
+
+jest.mock('@/lib/transcripts/delete-client', () => ({
+  deleteTranscriptRequest: (...args: unknown[]) => mockDeleteTranscript(...args),
 }))
 
 jest.mock('@/infra/supabase/client', () => ({
@@ -132,10 +135,9 @@ describe('useTranscriptsRealtime', () => {
     expect(mockAddTranscripts).not.toHaveBeenCalled()
   })
 
-  test('keeps the optimistic removal and returns pending cleanup keys', async () => {
-    const result = { cleanupPendingKeys: ['user/transcript/waveform.json'] }
+  test('keeps the optimistic removal once the delete succeeds', async () => {
     mockFetchTranscripts.mockResolvedValue([{ id: 'transcript-1' }])
-    mockDeleteTranscript.mockResolvedValueOnce(result)
+    mockDeleteTranscript.mockResolvedValueOnce(undefined)
     const { result: hook } = renderHook(() =>
       useTranscriptsRealtime({ userId: 'user-from-session' })
     )
@@ -146,7 +148,7 @@ describe('useTranscriptsRealtime', () => {
     mockFetchTranscripts.mockResolvedValue([])
 
     await act(async () => {
-      await expect(hook.current.deleteTranscript('transcript-1')).resolves.toEqual(result)
+      await expect(hook.current.deleteTranscript('transcript-1')).resolves.toBeUndefined()
     })
 
     expect(hook.current.transcripts).toEqual([])

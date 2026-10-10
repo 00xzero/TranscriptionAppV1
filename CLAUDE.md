@@ -49,7 +49,7 @@ The codebase is layered, and the layering is load-bearing — respect it when ad
 | `core/`      | Pure domain logic: transcription state machine, segment builder, exports, rate limiting | No framework or network imports.              |
 | `infra/`     | External adapters: Supabase clients, Deepgram, Inngest client, storage       | Only place that talks to third parties.       |
 | `lib/`       | App glue: recording engine, capture/upload, Inngest handlers, Supabase queries/hooks/realtime | Wires `core` to `infra` and React.            |
-| `app/`       | Next App Router: pages + 12 API routes                                      | Thin — delegate to `core`/`lib`.              |
+| `app/`       | Next App Router: pages + 14 API routes                                      | Thin — delegate to `core`/`lib`.              |
 
 `contracts/db.ts` is the source of truth for DB row shapes, mirroring `infra/supabase/migrations/`.
 
@@ -63,6 +63,10 @@ Three separate Supabase client factories — use the correct one for the context
 
 Also in `infra/supabase/`: `cookie.ts` (auth cookie naming) and `storage.ts`.
 
+**Browser vs. server writes.** The server client runs as the same `authenticated` role as the browser, so a route only guards what that role cannot do itself. The browser talks to Supabase directly for reads and for single-step writes the database fully guards (RLS, column grants, triggers, or `SECURITY DEFINER` RPCs). Anything that needs a secret, touches Storage and the database together, or starts background work goes through a route. Guarantees belong in the database functions, not the route, because those functions are callable from the browser too. Pipeline state (`jobs`, transcript `status`/`duration_seconds`, waveform fields) and segment rows are written only by the admin client.
+
+**Transcript files and deletion.** A transcript owns every object under `{user_id}/{transcript_id}/` in the `media` and `waveforms` buckets, linked or not; CHECK constraints keep its keys inside that folder, and `source_object_key` can be linked once but never cleared or replaced by the browser. `delete_transcript` and `finish_project_delete` refuse while a folder still holds a file, so both delete routes sweep the folder inventory (`transcript_delete_inventory`) first and once more after deleting. The folder check is point-in-time: an upload that commits after it is removed by its writer's compensation, the post-delete sweep, or `scripts/cleanup-orphaned-media.mjs`, which is a manual backstop that needs Inngest stopped and no uploads running.
+
 ### Auth & Proxy
 
 `frontend/proxy.ts` exports `proxy()` — the Next.js 16 rename of middleware. It refreshes Supabase auth tokens on every request. Protected routes: `/transcripts`, `/editor`, `/recording`. `/api/inngest` is exempted. Signed-in users hitting `/auth` are redirected out; `/auth/callback` is excluded from that redirect.
@@ -71,7 +75,7 @@ Note `/` renders `LibraryView` and is not in `PROTECTED_ROUTES`.
 
 ### Transcription Pipeline
 
-1. **Upload** → `POST /api/transcripts` creates transcript + uploads media to Supabase Storage
+1. **Upload** → `POST /api/transcripts` creates the transcript row; the browser uploads the media straight to Supabase Storage and links its key
 2. **Start** → `POST /api/transcripts/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
 3. **Webhook** → `POST /api/webhooks/deepgram` receives results, triggers Inngest `transcription/webhook`
 4. **Processing** → Inngest function stores canonical segments/words and assigns speaker-linked segments directly from the webhook payload
@@ -121,8 +125,10 @@ Storage buckets: media and `waveforms`.
 
 | Route                                   | Purpose                                        |
 | --------------------------------------- | ---------------------------------------------- |
-| `POST /api/transcripts`                 | Create transcript + upload media               |
+| `POST /api/transcripts`                 | Create transcript row (browser uploads media)  |
 | `POST /api/transcripts/[id]/start`      | Start transcription (idempotency key required) |
+| `POST /api/transcripts/[id]/delete`     | Delete transcript and its folder's files       |
+| `POST /api/projects/[id]/delete`        | Delete project branch and its files            |
 | `GET /api/transcripts/[id]/media-url`   | Get signed media URL                           |
 | `GET /api/transcripts/[id]/waveform-url`| Get signed waveform URL                        |
 | `GET /api/transcripts/[id]/export/docx` | Export DOCX                                    |

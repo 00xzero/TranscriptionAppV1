@@ -187,7 +187,6 @@ export const WatchlistTermSchema = z.object({
 // Insert/update schemas (DB mutations)
 export const TranscriptUpdateSchema = z.object({
   title: z.string().max(TEXT_LIMITS.transcriptTitle).nullable().optional(),
-  duration_seconds: z.number().nullable().optional(),
 })
 
 export const ProjectInsertSchema = z.object({

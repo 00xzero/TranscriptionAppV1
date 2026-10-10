@@ -191,4 +191,17 @@ describe('POST /api/transcripts', () => {
     expect(res.status).toBe(500)
     expect(transcripts.insertMock).toHaveBeenCalledTimes(1)
   })
+
+  test('leaves status to its database default', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    await postTranscript(transcripts, { filename: 'audio.mp3' })
+
+    // The authenticated role holds no INSERT grant on status.
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.not.objectContaining({ status: expect.anything() }),
+    ])
+  })
 })

@@ -109,8 +109,18 @@ export async function startTranscription(opts: {
     }
     const mediaUrl = mediaUrlResult.url
 
+    // Jobs are server-owned: the authenticated role can read them but not write
+    // them. The RLS read above has already established ownership.
+    let adminSupabase: ReturnType<typeof createAdminClient>
+    try {
+        adminSupabase = createAdminClient()
+    } catch (adminError) {
+        console.error('[startTranscription] Admin client unavailable:', adminError)
+        return { outcome: 'error', reason: 'Failed to create job' }
+    }
+
     // Create job record
-    const { data: job, error: jobError } = await supabase
+    const { data: job, error: jobError } = await adminSupabase
         .from('jobs')
         .insert({
             transcript_id: transcriptId,
@@ -180,7 +190,7 @@ export async function startTranscription(opts: {
         console.error('[startTranscription] Failed to send Inngest event:', sendError)
         const errorMessage = sendError instanceof Error ? sendError.message : String(sendError)
         await forceJobError({
-            supabase,
+            supabase: adminSupabase,
             jobId: job.id,
             extraJobFields: {
                 payload: {
@@ -199,9 +209,7 @@ export async function startTranscription(opts: {
     // Waveform dispatch is a UI enhancement and MUST NOT fail the transcription
     // start path. Admin client because waveform_status is server-owned (a BEFORE
     // UPDATE trigger rejects writes from the authenticated role).
-    let adminSupabase: ReturnType<typeof createAdminClient> | null = null
     try {
-        adminSupabase = createAdminClient()
         const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
             .from('transcripts')
             .update({ waveform_status: 'pending' })
@@ -227,16 +235,14 @@ export async function startTranscription(opts: {
         })
     } catch (waveformError) {
         console.error('[startTranscription] Failed to dispatch waveform/requested (non-fatal):', waveformError)
-        if (adminSupabase) {
-            try {
-                await adminSupabase
-                    .from('transcripts')
-                    .update({ waveform_status: 'skipped' })
-                    .eq('id', transcriptId)
-                    .eq('waveform_status', 'pending')
-            } catch (rollbackError) {
-                console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)
-            }
+        try {
+            await adminSupabase
+                .from('transcripts')
+                .update({ waveform_status: 'skipped' })
+                .eq('id', transcriptId)
+                .eq('waveform_status', 'pending')
+        } catch (rollbackError) {
+            console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)
         }
     }
 

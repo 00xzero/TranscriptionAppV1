@@ -98,7 +98,6 @@ export async function createTranscript(
             .insert({
                 user_id: userId,
                 title: title || fitTranscriptTitle(filename),
-                status: 'created',
                 ...(upload_intent_id ? { upload_intent_id } : {}),
                 ...(projectId !== undefined ? { project_id: projectId } : {}),
             })

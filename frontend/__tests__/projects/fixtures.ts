@@ -55,7 +55,7 @@ export function transcriptProviderData(transcripts: TranscriptSummary[]) {
     transcriptError: null,
     transcriptConnectionStatus: 'connected' as const,
     refetchTranscripts: jest.fn().mockResolvedValue(undefined),
-    deleteTranscript: jest.fn().mockResolvedValue({ cleanupPendingKeys: [] }),
+    deleteTranscript: jest.fn().mockResolvedValue(undefined),
     moveTranscript: jest.fn(),
     addTranscripts: jest.fn(),
     mutateTranscripts: jest.fn(),

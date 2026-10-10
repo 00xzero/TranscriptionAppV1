@@ -16,8 +16,8 @@ BEGIN
   RAISE EXCEPTION 'expected %, statement succeeded: %', expected, statement;
 END;
 $$;
-GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated, service_role;
 
 -- ------------------------------------------------------------ privileges ----
 SELECT pg_temp.assert_true(
@@ -270,6 +270,8 @@ SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people_preview('e3000000
 
 -- Speaker mutations are available only after completion, including Undo and
 -- directory removal. A refused write must not create a person or local voice.
+-- Jobs and transcript status are pipeline-owned, so the server role drives them.
+SET LOCAL ROLE service_role;
 SELECT pg_temp.assert_sqlstate($sql$INSERT INTO public.jobs (transcript_id, type, status)
   VALUES ('e2000000-0000-4000-8000-000000000001', 'transcription', 'queued')$sql$, 'SP004');
 SELECT pg_temp.assert_true((SELECT status = 'completed' FROM public.transcripts
@@ -281,11 +283,14 @@ INSERT INTO public.jobs (transcript_id, type, status)
 SELECT pg_temp.assert_true((SELECT status = 'queued' FROM public.transcripts
   WHERE id = 'e2000000-0000-4000-8000-000000000001'), 'unfinished transcripts remain retriable');
 ROLLBACK TO retry_unfinished;
+SET LOCAL ROLE authenticated;
 DO $$
 DECLARE v_status text;
 BEGIN
   FOREACH v_status IN ARRAY ARRAY['created', 'queued', 'processing', 'error'] LOOP
+    SET LOCAL ROLE service_role;
     UPDATE public.transcripts SET status = v_status WHERE id = 'e2000000-0000-4000-8000-000000000001';
+    SET LOCAL ROLE authenticated;
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.reassign_segments('e2000000-0000-4000-8000-000000000001',
       '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012","speaker_id":null}]')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.correct_segments_to_person('e2000000-0000-4000-8000-000000000001',
@@ -298,7 +303,9 @@ BEGIN
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript('e3000000-0000-4000-8000-000000000001',
       'e2000000-0000-4000-8000-000000000001')$sql$, 'SP004');
   END LOOP;
+  SET LOCAL ROLE service_role;
   UPDATE public.transcripts SET status = 'completed' WHERE id = 'e2000000-0000-4000-8000-000000000001';
+  SET LOCAL ROLE authenticated;
 END;
 $$;
 SELECT pg_temp.assert_true(

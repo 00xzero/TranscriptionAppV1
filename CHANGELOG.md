@@ -2,6 +2,52 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-10] - Server-Owned Writes and Folder-Based Deletion
+
+The browser and every route on the server client run as the same
+`authenticated` role. An audit (forged writes as the test user, rolled back)
+showed a user could rewrite pipeline-owned state on their own transcripts:
+status, duration, jobs, segment rows, and storage keys outside the
+transcript's folder. No cross-user access was possible. The database now
+refuses those writes, and deleting a transcript or project removes its files
+before its rows, enforced in the database. PR #120.
+
+### Added
+
+- **Transcript delete route** (`POST /api/transcripts/[id]/delete`) — Sweeps the transcript's folder, deletes the row through `delete_transcript`, then sweeps once more. Up to three attempts when a file lands mid-delete (`TR002`); an already-deleted transcript (`TR001`) is swept and reported as gone. Replaces the browser-side `deleteTranscript`.
+- **Folder cleanup helpers** (`lib/transcripts/folder-cleanup.ts`) — `removeTranscriptFiles` and `sweepTranscriptFolders` back both delete routes. Strict: an unreadable inventory throws and failed removals are reported; each route decides whether a failure blocks the delete or is only logged.
+
+### Changed
+
+- **Server-owned writes** — `authenticated` can no longer write jobs, transcript `status` or `duration_seconds`, insert or delete segments, or edit and delete watchlist terms. It keeps only the columns the app writes: transcript `title`, `project_id`, `source_object_key` and segment `text`/`is_edited`. `FOR ALL` policies are narrowed to the commands still granted.
+- **Start flow** — Job rows are written through the admin client, after the RLS ownership read.
+- **Files live in their transcript's folder** — `source_object_key` must sit under `{user_id}/{transcript_id}/` and `waveform_object_key` must be that folder's `waveform.json`. The browser links media once and can't clear or replace the key.
+- **Deletion is folder-based** — A transcript owns every file in its folder, linked or not. `delete_transcript` and `finish_project_delete` refuse while the folder still holds a file (`TR002`, `PJ005`), so calling the functions directly can't skip file removal. `finish_project_delete` now takes `(project id, transcript ids)` and locks the transcripts before checking. The project inventory comes from the folders, so unlinked uploads are removed too.
+- **Upload rollback** — Reports cleanup failure only if something is still known to remain, and goes through the delete route. A transcript reused by a retry is never deleted; its leftover upload is swept only once that transcript is gone.
+- **Docs** — `CLAUDE.md` and `AGENTS.md` state when the browser may write directly and when a route is needed, plus the deletion contract.
+
+### Removed
+
+- The "Some files could not be removed and will be cleaned up later" toast. A file problem is now a normal delete error and the transcript stays, so the delete can be retried.
+
+### Database
+
+- Migration `20261010120000_server_owned_writes`: grants, policies, folder CHECKs, the link-once guard (`protect_transcript_server_columns`), `transcript_folder_objects` (internal), `transcript_delete_inventory`, `delete_transcript`, and the new `finish_project_delete`.
+- **Not yet applied to hosted.** A read-only pre-check on hosted found 0 source keys outside their folder and 0 off-shape waveform keys, so the CHECKs will apply cleanly. Push the migration and deploy the frontend back to back: old code can't start or delete transcripts once the grants change.
+- On 2026-10-10, 96 leftover waveform files (1.3 MB) were removed from hosted Storage with `cleanup-orphaned-media.mjs`. All dated 18 May – 4 July 2026, from deletes made before `20260704000000_allow_waveform_delete`. Hosted now has 72 recordings and 70 waveforms, all linked.
+
+### Notes
+
+- The folder check is point-in-time: row locks don't block Storage inserts. A file that commits after the final check is removed by its writer's own cleanup, the route's post-delete sweep, or `cleanup-orphaned-media.mjs`, which is a manual backstop (stop Inngest and uploads before `--delete`).
+- Deepgram requests don't send `mip_opt_out=true`. Without it Deepgram may keep audio for model improvement, which deleting in the app can't reach. Open decision.
+- File uploads can't be cancelled once started; only recording uploads can.
+
+### Tests
+
+- **Frontend** — `npm test` (`134` suites / `1,483` tests passing); `npm run typecheck`; lint clean on every changed file. New: static migration test, transcript delete route, delete client, folder cleanup helpers, and upload rollback cases.
+- **SQL** — Rollback-only smoke tests pass locally, including the new `smoke-test-server-owned-writes.sql`; existing fixtures were updated for the new grants. `smoke-test-projects-concurrency.ts` passes all eight two-connection scenarios, including the point-in-time limit. `supabase db diff --local` reports no drift.
+- **Browser** — On the local Docker stack: upload and transcribe a 2-hour file, rename, edit text, move into a project, delete the transcript, delete a project. Rows and both storage files were confirmed gone after each delete.
+
 ## [2026-10-10] - Speaker Identity Overhaul
 
 Speakers can now be linked to reusable people across transcripts. Each

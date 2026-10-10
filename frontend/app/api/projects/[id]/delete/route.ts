@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   DeleteProjectErrorSchema,
   DeleteProjectResponseSchema,
@@ -7,12 +8,11 @@ import {
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
 import { createAdminClient } from '@/infra/supabase/admin'
-import {
-  MEDIA_BUCKET,
-  removeStorageObjectsBatched,
-  WAVEFORM_BUCKET,
-} from '@/infra/supabase/storage'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
+import {
+  removeTranscriptFiles,
+  sweepTranscriptFolders,
+} from '@/lib/transcripts/folder-cleanup'
 
 const DELETE_BATCH_SIZE = 100
 
@@ -101,33 +101,22 @@ export async function POST(
       502
     )
   }
-  const [mediaResult, waveformResult] = await Promise.all([
-    removeStorageObjectsBatched(
-      supabase,
-      verificationSupabase,
-      MEDIA_BUCKET,
-      mediaKeys,
-      authData.user.id,
-      DELETE_BATCH_SIZE
-    ),
-    removeStorageObjectsBatched(
-      supabase,
-      verificationSupabase,
-      WAVEFORM_BUCKET,
-      waveformKeys,
-      authData.user.id,
-      DELETE_BATCH_SIZE
-    ),
-  ])
+  const removal = await removeTranscriptFiles(
+    supabase,
+    verificationSupabase,
+    authData.user.id,
+    { media: mediaKeys, waveforms: waveformKeys },
+    DELETE_BATCH_SIZE
+  )
 
-  if (mediaResult.failed.length > 0 || waveformResult.failed.length > 0) {
+  if (removal.failed.length > 0) {
     return errorResponse(
       {
         error:
           'Some files could not be removed. The project is still marked for deletion; nothing was deleted from your library. Try again to finish.',
         stage: 'storage',
-        removed_media: mediaResult.removed,
-        removed_waveforms: waveformResult.removed,
+        removed_media: removal.media.removed,
+        removed_waveforms: removal.waveforms.removed,
         remaining_transcripts: transcriptIds.length,
       },
       502
@@ -139,8 +128,6 @@ export async function POST(
     {
       p_id: parsedId.data,
       p_transcript_ids: inventory.transcript_ids ?? [],
-      p_media_keys: inventory.media_keys ?? [],
-      p_waveform_keys: inventory.waveform_keys ?? [],
     }
   )
   if (finishError) {
@@ -160,6 +147,16 @@ export async function POST(
       return errorResponse(
         {
           error: 'The project changed while it was being deleted. Try again to finish.',
+          stage: 'finish',
+          remaining_transcripts: transcriptIds.length,
+        },
+        409
+      )
+    }
+    if (finishErrorCode === 'PJ005') {
+      return errorResponse(
+        {
+          error: 'New files appeared while the project was being deleted. Try again to finish.',
           stage: 'finish',
           remaining_transcripts: transcriptIds.length,
         },
@@ -188,5 +185,34 @@ export async function POST(
     )
   }
 
+  await sweepAfterFinish(supabase, verificationSupabase, authData.user.id, transcriptIds)
+
   return NextResponse.json(DeleteProjectResponseSchema.parse(deleted))
+}
+
+/**
+ * Catches files that committed between finish_project_delete's check and its
+ * commit. Best effort: the rows are already gone, so a failure only logs.
+ */
+async function sweepAfterFinish(
+  supabase: SupabaseClient,
+  verificationSupabase: SupabaseClient,
+  userId: string,
+  transcriptIds: string[]
+) {
+  if (transcriptIds.length === 0) return
+  try {
+    const { failed } = await sweepTranscriptFolders(
+      supabase,
+      verificationSupabase,
+      userId,
+      transcriptIds,
+      DELETE_BATCH_SIZE
+    )
+    if (failed.length > 0) {
+      console.error('[projects] Post-delete sweep left files:', failed)
+    }
+  } catch (error) {
+    console.error('[projects] Post-delete sweep failed:', error)
+  }
 }

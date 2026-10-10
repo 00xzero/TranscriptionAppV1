@@ -48,6 +48,9 @@ describe('project delete route', () => {
     rpcMock.mockImplementation(async (name: string) => {
       callOrder.push(name)
       if (name === 'begin_project_delete') return { data: [inventory()], error: null }
+      if (name === 'transcript_delete_inventory') {
+        return { data: [{ media_keys: [], waveform_keys: [] }], error: null }
+      }
       return {
         data: [{ deleted_projects: 1, deleted_transcripts: 1 }],
         error: null,
@@ -95,6 +98,7 @@ describe('project delete route', () => {
       expect.arrayContaining(['storage:media', 'storage:waveforms'])
     )
     expect(callOrder[3]).toBe('finish_project_delete')
+    expect(callOrder[4]).toBe('transcript_delete_inventory')
   })
 
   test('maps PJ001 to gone without touching storage or finish', async () => {
@@ -237,11 +241,9 @@ describe('project delete route', () => {
     expect(response.status).toBe(200)
     expect(removeMock.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 5])
     expect(removeMock.mock.calls.flatMap(([keys]) => keys)).not.toContain(null)
-    expect(rpcMock).toHaveBeenLastCalledWith('finish_project_delete', {
+    expect(rpcMock).toHaveBeenCalledWith('finish_project_delete', {
       p_id: PROJECT_ID,
       p_transcript_ids: ['22222222-2222-4222-8222-222222222222'],
-      p_media_keys: mediaKeys,
-      p_waveform_keys: [],
     })
   })
 
@@ -254,6 +256,66 @@ describe('project delete route', () => {
 
     expect(response.status).toBe(409)
     expect(await response.json()).toMatchObject({ stage: 'finish', remaining_transcripts: 1 })
+  })
+
+  test('maps PJ005 (files appeared during the delete) to a retryable finish conflict', async () => {
+    rpcMock
+      .mockResolvedValueOnce({ data: [inventory()], error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: 'PJ005' } })
+
+    const response = await request()
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ stage: 'finish', remaining_transcripts: 1 })
+    expect(rpcMock).not.toHaveBeenCalledWith('transcript_delete_inventory', expect.anything())
+  })
+
+  test('sweeps files that landed after finish checked the folders', async () => {
+    const lateKey = 'user-1/22222222-2222-4222-8222-222222222222/waveform.json'
+    rpcMock.mockImplementation(async (name: string) => {
+      if (name === 'begin_project_delete') return { data: [inventory()], error: null }
+      if (name === 'transcript_delete_inventory') {
+        return { data: [{ media_keys: [], waveform_keys: [lateKey] }], error: null }
+      }
+      return { data: [{ deleted_projects: 1, deleted_transcripts: 1 }], error: null }
+    })
+    const waveformRemoves: string[][] = []
+    storageFromMock.mockImplementation((bucket: string) => ({
+      remove: jest.fn(async (keys: string[]) => {
+        if (bucket === 'waveforms') waveformRemoves.push(keys)
+        return { data: keys.map((name) => ({ name })), error: null }
+      }),
+      info: jest.fn(),
+    }))
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    expect(rpcMock).toHaveBeenCalledWith('transcript_delete_inventory', {
+      p_ids: ['22222222-2222-4222-8222-222222222222'],
+    })
+    expect(waveformRemoves).toContainEqual([lateKey])
+  })
+
+  test('a failed post-finish sweep is logged and still reports success', async () => {
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    rpcMock.mockImplementation(async (name: string) => {
+      if (name === 'begin_project_delete') return { data: [inventory()], error: null }
+      if (name === 'transcript_delete_inventory') {
+        return { data: null, error: { message: 'inventory unavailable' } }
+      }
+      return { data: [{ deleted_projects: 1, deleted_transcripts: 1 }], error: null }
+    })
+
+    const response = await request()
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ deleted_projects: 1, deleted_transcripts: 1 })
+    expect(consoleError).toHaveBeenCalledWith(
+      '[projects] Post-delete sweep failed:',
+      expect.objectContaining({ message: 'inventory unavailable' })
+    )
+    consoleError.mockRestore()
   })
 
   test('maps PJ001 from a concurrent finish to gone', async () => {
