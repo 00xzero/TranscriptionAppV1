@@ -10,7 +10,7 @@ showed a user could rewrite pipeline-owned state on their own transcripts:
 status, duration, jobs, segment rows, and storage keys outside the
 transcript's folder. No cross-user access was possible. The database now
 refuses those writes, and deleting a transcript or project removes its files
-before its rows, enforced in the database. PR #120.
+before its rows, enforced in the database. Merged as #120.
 
 ### Added
 
@@ -33,7 +33,7 @@ before its rows, enforced in the database. PR #120.
 ### Database
 
 - Migration `20261010120000_server_owned_writes`: grants, policies, folder CHECKs, the link-once guard (`protect_transcript_server_columns`), `transcript_folder_objects` (internal), `transcript_delete_inventory`, `delete_transcript`, and the new `finish_project_delete`.
-- **Not yet applied to hosted.** A read-only pre-check on hosted found 0 source keys outside their folder and 0 off-shape waveform keys, so the CHECKs will apply cleanly. Push the migration and deploy the frontend back to back: old code can't start or delete transcripts once the grants change.
+- Applied to hosted on 2026-10-10, after checking that day's backup. A read-only pre-check beforehand found 0 source keys outside their folder and 0 off-shape waveform keys. Any copy of the app older than #120 can no longer start or delete transcripts against hosted.
 - On 2026-10-10, 96 leftover waveform files (1.3 MB) were removed from hosted Storage with `cleanup-orphaned-media.mjs`. All dated 18 May – 4 July 2026, from deletes made before `20260704000000_allow_waveform_delete`. Hosted now has 72 recordings and 70 waveforms, all linked.
 
 ### Notes
