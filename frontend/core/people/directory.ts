@@ -1,4 +1,4 @@
-import type { MergePreviewVoice } from '@/contracts/db'
+import type { MergePreviewVoice, Organisation, PeopleDirectory, Person } from '@/contracts/db'
 import { genericSpeakerLabel, UNKNOWN_SPEAKER_LABEL } from '@/core/speakers/labels'
 
 /**
@@ -9,6 +9,28 @@ import { genericSpeakerLabel, UNKNOWN_SPEAKER_LABEL } from '@/core/speakers/labe
 
 /** The organisation filter's value for people with no organisation, beside organisation ids. */
 export const NO_ORGANISATION = 'none'
+
+/** Keep a confirmed write visible even if the following directory read fails. */
+export function updateDirectoryPerson(data: PeopleDirectory, person: Person, organisation?: Organisation | null): PeopleDirectory {
+  const previous = data.people.find((entry) => entry.id === person.id)
+  const organisations = organisation
+    ? data.organisations.some((entry) => entry.id === organisation.id)
+      ? data.organisations.map((entry) => entry.id === organisation.id ? { ...entry, ...organisation } : entry)
+      : [...data.organisations, { ...organisation, person_count: 0 }]
+    : data.organisations
+  const updated = {
+    ...previous, ...person,
+    organisation_name: organisation?.name ?? organisations.find((entry) => entry.id === person.organisation_id)?.name ?? null,
+    transcript_count: previous?.transcript_count ?? 0,
+    last_seen_at: previous?.last_seen_at ?? null,
+  }
+  const people = (previous ? data.people.map((entry) => entry.id === person.id ? updated : entry) : [...data.people, updated])
+    .map((entry) => organisation && entry.organisation_id === organisation.id
+      ? { ...entry, organisation_name: organisation.name } : entry)
+  return { people, organisations: organisations.map((entry) => ({
+    ...entry, person_count: people.filter((person) => person.organisation_id === entry.id).length,
+  })) }
+}
 
 export type DirectoryOrder = 'recent' | 'name'
 

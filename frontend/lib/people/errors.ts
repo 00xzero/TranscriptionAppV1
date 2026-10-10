@@ -2,6 +2,8 @@ import { TEXT_LIMITS } from '@/contracts/limits'
 
 /** Shown when a guarded write was refused and the page reloaded (spec §7). */
 export const CONFLICT_TOAST = 'Changed in another tab — refreshed'
+export const STALE_TOAST = "Changed in another tab — couldn't refresh"
+export const NOT_READY_MESSAGE = 'Speaker changes are available when transcription is complete.'
 
 function errorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null
@@ -18,13 +20,19 @@ export function isGone(error: unknown): boolean {
   return errorCode(error) === 'SP001'
 }
 
+export function isNotReady(error: unknown): boolean {
+  return errorCode(error) === 'SP004'
+}
+
 /** A user-facing message for a failed directory write. */
 export function mapPeopleWriteError(error: unknown, subject: 'person' | 'organisation' = 'person'): string {
   switch (errorCode(error)) {
     case 'SP001':
       return subject === 'organisation' ? 'That organisation no longer exists.' : 'That person no longer exists.'
     case 'SP002':
-      return CONFLICT_TOAST
+      return 'Changed in another tab. Please try again.'
+    case 'SP004':
+      return NOT_READY_MESSAGE
     case 'SP003':
       return subject === 'organisation'
         ? `Organisation names must be 1 to ${TEXT_LIMITS.organisationName} characters.`

@@ -13,10 +13,11 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from '@/components/ui/toaster'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
-import type { PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
+import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
-import { appearanceTotals } from '@/core/people/directory'
-import { CONFLICT_TOAST, isConflict, isGone, mapPeopleWriteError } from '@/lib/people/errors'
+import { appearanceTotals, updateDirectoryPerson } from '@/core/people/directory'
+import { isConflict, isGone, isNotReady, mapPeopleWriteError, NOT_READY_MESSAGE } from '@/lib/people/errors'
+import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
 import { fromTranscriptId, peopleHref } from '@/lib/people/routes'
 import { usePersonAppearances } from '@/lib/people/usePeopleData'
@@ -168,18 +169,21 @@ export function PersonDialog({ personId }: { personId: string }) {
   const rows = appearances.data
   const hasAppearances = rows ? rows.length > 0 : person.transcript_count > 0
   const deleteBlocked = hasAppearances ? 'Remove or merge first' : rows === null ? 'Checking transcripts…' : undefined
-  const reloadAll = () => Promise.all([directory.reload(), appearances.reload()])
+  const reloadAll = async () => (await Promise.all([directory.reload(), appearances.reload()])).every(Boolean)
+  const showPerson = (saved: Person, organisation?: Organisation | null) =>
+    directory.update((data) => updateDirectoryPerson(data, saved, organisation))
   const closeDialog = (open: boolean) => { if (!open) setDialog(null) }
   const colourName = SPEAKER_COLOR_NAMES[person.preferred_color as SpeakerColor] ?? 'Custom colour'
 
   // A refused write means another tab changed this person first: reload and
   // say so. Any other failure is the dialog's or picker's to show.
-  async function guarded(write: () => Promise<unknown>) {
+  async function guarded<T>(write: () => Promise<T>, saved: (result: T) => void) {
     try {
-      await write()
+      saved(await write())
     } catch (error) {
-      if (!isConflict(error)) throw error
-      toast({ title: CONFLICT_TOAST, variant: 'error' })
+      if (!isConflict(error) && !isGone(error)) throw error
+      await refreshAfterConflict(reloadAll, isGone(error) ? 'That person no longer exists.' : undefined)
+      return
     }
     await reloadAll()
   }
@@ -187,7 +191,7 @@ export function PersonDialog({ personId }: { personId: string }) {
   async function toggleHidden(hidden: boolean, name: string) {
     setHiding(true)
     try {
-      await setPersonHidden(personId, hidden)
+      showPerson(await setPersonHidden(personId, hidden))
       toast({ title: hidden ? `${name} is hidden from suggestions` : `${name} is back in suggestions` })
     } catch (error) {
       toast({ title: hidden ? `Couldn't hide ${name}` : `Couldn't unhide ${name}`, description: mapPeopleWriteError(error), variant: 'error' })
@@ -220,12 +224,18 @@ export function PersonDialog({ personId }: { personId: string }) {
       })
     } catch (error) {
       showAppearance(appearance)
+      if (isNotReady(error)) {
+        toast({ title: NOT_READY_MESSAGE, variant: 'error' })
+        return
+      }
       // Refused, or the person was merged away or deleted in another tab:
       // the reload shows what happened, and retrying could not succeed.
-      toast(isConflict(error) || isGone(error)
-        ? { title: CONFLICT_TOAST, variant: 'error' }
-        : { title: `Couldn't remove ${name} from “${title}”`, variant: 'error',
-          action: { label: 'Retry', onClick: () => void removeFrom(appearance, name) } })
+      if (isConflict(error) || isGone(error)) {
+        await refreshAfterConflict(reloadAll, isGone(error) ? 'That person no longer exists.' : undefined)
+        return
+      }
+      toast({ title: `Couldn't remove ${name} from “${title}”`, variant: 'error',
+        action: { label: 'Retry', onClick: () => void removeFrom(appearance, name) } })
     }
     void reloadAll()
   }
@@ -239,7 +249,9 @@ export function PersonDialog({ personId }: { personId: string }) {
       })))
       showAppearance(appearance)
     } catch (error) {
-      toast(isConflict(error)
+      toast(isNotReady(error)
+        ? { title: NOT_READY_MESSAGE, variant: 'error' }
+        : isConflict(error)
         ? { title: "Can't undo — changed since", variant: 'error' }
         : { title: "Couldn't undo", variant: 'error',
           action: { label: 'Retry', onClick: () => void undoRemove(appearance, changes) } })
@@ -285,7 +297,8 @@ export function PersonDialog({ personId }: { personId: string }) {
                   organisations={directory.data.organisations}
                   currentId={person.organisation_id}
                   currentName={person.organisation_name}
-                  onChoose={(choice) => guarded(() => setPersonOrganisation(personId, person.organisation_id, choice))
+                  onChoose={(choice) => guarded(() => setPersonOrganisation(personId, person.organisation_id, choice),
+                    (result) => showPerson(result.person, result.organisation))
                     .then(() => setPicker(null))}
                 />
               </PopoverContent>
@@ -299,7 +312,7 @@ export function PersonDialog({ personId }: { personId: string }) {
                 <ColourPicker
                   name={person.name}
                   current={person.preferred_color}
-                  onChoose={(color) => guarded(() => setPersonColor(personId, person.preferred_color, color))
+                  onChoose={(color) => guarded(() => setPersonColor(personId, person.preferred_color, color), showPerson)
                     .then(() => setPicker(null))}
                 />
               </PopoverContent>
@@ -388,7 +401,7 @@ export function PersonDialog({ personId }: { personId: string }) {
           subject="person"
           submitLabel={() => 'Rename'}
           pendingLabel="Renaming…"
-          onSubmit={(name) => guarded(() => renamePerson(personId, person.name, name))}
+          onSubmit={(name) => guarded(() => renamePerson(personId, person.name, name), showPerson)}
         />
       )}
 
@@ -397,8 +410,8 @@ export function PersonDialog({ personId }: { personId: string }) {
           survivor={person}
           people={directory.data.people}
           onOpenChange={closeDialog}
-          onMerge={async (personIds) => {
-            await mergePeople(personId, personIds)
+          onMerge={async (personIds, preview) => {
+            await mergePeople(personId, personIds, preview)
             toast({ title: `Merged ${countLabel(personIds.length, 'person', 'people')} into ${person.name}` })
             await reloadAll()
           }}

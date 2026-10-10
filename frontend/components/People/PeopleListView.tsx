@@ -22,8 +22,10 @@ import {
   namesakesOf,
   NO_ORGANISATION,
   sortDirectory,
+  updateDirectoryPerson,
 } from '@/core/people/directory'
-import { CONFLICT_TOAST, isConflict, mapPeopleWriteError } from '@/lib/people/errors'
+import { isConflict, isGone, mapPeopleWriteError } from '@/lib/people/errors'
+import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
 import { fromTranscriptId, personHref, personIdFromPathname } from '@/lib/people/routes'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
@@ -208,6 +210,7 @@ export function PeopleListView() {
           pendingLabel="Creating…"
           onSubmit={async (name) => {
             const person = await createPerson(name)
+            directory.update((data) => updateDirectoryPerson(data, person))
             await directory.reload()
             openedFromListRef.current = true
             router.push(personHref(person.id, from))
@@ -230,10 +233,16 @@ export function PeopleListView() {
           pendingLabel="Renaming…"
           onSubmit={async (name) => {
             try {
-              await renameOrganisation(menuOrganisation.id, menuOrganisation.name, name)
+              const organisation = await renameOrganisation(menuOrganisation.id, menuOrganisation.name, name)
+              directory.update((data) => ({
+                people: data.people.map((person) => person.organisation_id === organisation.id
+                  ? { ...person, organisation_name: organisation.name } : person),
+                organisations: data.organisations.map((entry) => entry.id === organisation.id ? { ...entry, ...organisation } : entry),
+              }))
             } catch (error) {
-              if (!isConflict(error)) throw error
-              toast({ title: CONFLICT_TOAST, variant: 'error' })
+              if (!isConflict(error) && !isGone(error)) throw error
+              await refreshAfterConflict(directory.reload, isGone(error) ? 'That organisation no longer exists.' : undefined)
+              return
             }
             await directory.reload()
           }}
@@ -330,9 +339,9 @@ function PersonRow({ person, href, open, onOpen }: {
       href={href}
       onClick={onOpen}
       data-testid={`person-row-${person.id}`}
-      className={cn('group flex min-h-18 items-center gap-4 p-4 transition-colors hover:bg-subtle', open && 'bg-subtle')}
+      className={cn('group grid min-h-18 grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 p-4 transition-colors hover:bg-subtle sm:flex', open && 'bg-subtle')}
     >
-      <Avatar color={person.preferred_color} className="h-10 min-w-10 text-xs">
+      <Avatar color={person.preferred_color} className="row-span-2 h-10 min-w-10 self-start text-xs sm:self-center">
         {speakerInitials(person.name)}
       </Avatar>
       <div className="min-w-0 flex-1">
@@ -342,7 +351,7 @@ function PersonRow({ person, href, open, onOpen }: {
         </p>
         {person.organisation_name && <p className="truncate text-xs text-muted">{person.organisation_name}</p>}
       </div>
-      <div className="shrink-0 text-right font-mono text-[10px] text-ink/60 dark:text-paper/60">
+      <div className="col-start-2 min-w-0 font-mono text-[10px] text-muted sm:shrink-0 sm:text-right">
         <p>{countLabel(person.transcript_count, 'transcript', 'transcripts')}</p>
         <p>{person.last_seen_at ? `Last seen ${formatPeopleDate(person.last_seen_at)}` : 'Not in any transcript yet'}</p>
       </div>

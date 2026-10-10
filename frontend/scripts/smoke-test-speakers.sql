@@ -167,6 +167,10 @@ SELECT pg_temp.assert_sqlstate(
 
 RESET ROLE;
 
+-- Content saving finishes before user-facing speaker edits are allowed.
+UPDATE public.transcripts SET status = 'completed' WHERE user_id IN
+  ('c0000000-0000-0000-0000-00000000000a', 'c0000000-0000-0000-0000-00000000000b');
+
 -- Fixed ids for the rest of the script.
 CREATE TEMP TABLE ids ON COMMIT DROP AS
 SELECT

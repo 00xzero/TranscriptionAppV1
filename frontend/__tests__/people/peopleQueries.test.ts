@@ -25,6 +25,14 @@ const stamp = '2026-09-26T00:00:00+00:00'
 const person = { id: personId, user_id: userId, name: 'Alex', organisation_id: null,
   preferred_color: '#4F638C', hidden: false, created_at: stamp, updated_at: stamp }
 const organisation = { id: organisationId, user_id: userId, name: 'Example Org', created_at: stamp, updated_at: stamp }
+const metadata = { person_id: personId, name: 'Alex', preferred_color: '#4F638C',
+  organisation_id: null, organisation_name: null }
+const mergePreview = () => ({ survivor: { ...metadata }, survivor_transcript_ids: [transcriptId], people: [{
+  ...metadata, person_id: otherId, transcripts: [{
+    transcript_id: transcriptId, title: 'Review', created_at: stamp,
+    voices: [{ speaker_id: speakerId, custom_label: null, talk_ms: 12_500, detected_ordinals: [1, null] }],
+  }],
+}] })
 
 beforeEach(() => mockRpc.mockReset())
 
@@ -52,13 +60,37 @@ test('appearances and the merge preview are read for the given people', async ()
     created_at: stamp, segment_count: 4 }], error: null })
   await expect(fetchPersonAppearances(personId)).rejects.toThrow()
 
-  const preview = { survivor_transcript_ids: [transcriptId], people: [{ person_id: otherId, transcripts: [{
-    transcript_id: transcriptId, title: 'Review', created_at: stamp,
-    voices: [{ speaker_id: speakerId, custom_label: null, talk_ms: 12_500, detected_ordinals: [1, null] }],
-  }] }] }
+  const preview = mergePreview()
   mockRpc.mockResolvedValueOnce({ data: preview, error: null })
   await expect(fetchMergePreview(personId, [otherId])).resolves.toEqual(preview)
   expect(mockRpc).toHaveBeenLastCalledWith('merge_people_preview', { p_survivor_id: personId, p_person_ids: [otherId] })
+})
+
+test('the parsed preview reaches merge unchanged', async () => {
+  const preview = mergePreview()
+  mockRpc.mockResolvedValueOnce({ data: preview, error: null })
+  const parsed = await fetchMergePreview(personId, [otherId])
+  mockRpc.mockResolvedValueOnce({ data: person, error: null })
+  await mergePeople(personId, [otherId], parsed)
+  expect(mockRpc).toHaveBeenLastCalledWith('merge_people', {
+    p_survivor_id: personId, p_person_ids: [otherId], p_expected_preview: preview,
+  })
+})
+
+test.each([
+  ['preview', (preview: ReturnType<typeof mergePreview>) => preview],
+  ['survivor', (preview: ReturnType<typeof mergePreview>) => preview.survivor],
+  ['person', (preview: ReturnType<typeof mergePreview>) => preview.people[0]],
+  ['transcript', (preview: ReturnType<typeof mergePreview>) => preview.people[0].transcripts[0]],
+  ['voice', (preview: ReturnType<typeof mergePreview>) => preview.people[0].transcripts[0].voices[0]],
+])('unknown fields in the %s fail when loading the preview', async (_level, select) => {
+  const preview = mergePreview()
+  Object.assign(select(preview), { future_field: 'unexpected' })
+  mockRpc.mockResolvedValueOnce({ data: preview, error: null })
+  await expect(fetchMergePreview(personId, [otherId])).rejects.toMatchObject({
+    issues: expect.arrayContaining([expect.objectContaining({ code: 'unrecognized_keys' })]),
+  })
+  expect(mockRpc).toHaveBeenCalledTimes(1)
 })
 
 test('each write is one guarded RPC with the values it expects to replace', async () => {
@@ -71,9 +103,10 @@ test('each write is one guarded RPC with the values it expects to replace', asyn
   await setPersonHidden(personId, true)
   expect(mockRpc).toHaveBeenLastCalledWith('set_person_hidden', { p_person_id: personId, p_hidden: true })
   // Merge keeps the order the people were picked in.
-  await mergePeople(personId, [otherId, organisationId])
+  const preview = { survivor: metadata, survivor_transcript_ids: [], people: [] }
+  await mergePeople(personId, [otherId, organisationId], preview)
   expect(mockRpc).toHaveBeenLastCalledWith('merge_people', {
-    p_survivor_id: personId, p_person_ids: [otherId, organisationId] })
+    p_survivor_id: personId, p_person_ids: [otherId, organisationId], p_expected_preview: preview })
 
   mockRpc.mockResolvedValue({ data: organisation, error: null })
   await renameOrganisation(organisationId, 'Example', 'Example Org')
