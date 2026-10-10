@@ -1,7 +1,9 @@
 import React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import PeopleLayout from '@/app/people/layout'
 import PeoplePage from '@/app/people/page'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { DirectoryOrganisation, DirectoryPerson, PeopleDirectory } from '@/contracts/db'
 import {
   createPerson,
@@ -14,7 +16,8 @@ import { makeTranscript, transcriptProviderData } from '../projects/fixtures'
 const mockPush = jest.fn()
 let mockSearch = ''
 jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush, replace: jest.fn() }),
+  usePathname: () => '/people',
+  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
   useSearchParams: () => new URLSearchParams(mockSearch),
 }))
 
@@ -49,10 +52,12 @@ const directory: PeopleDirectory = {
 
 const rowNames = () => screen.getAllByTestId(/^person-row-/).map((row) => row.getAttribute('data-testid'))
 
+const page = () => <TooltipProvider><PeopleLayout><PeoplePage /></PeopleLayout></TooltipProvider>
+
 async function renderPage(data: PeopleDirectory = directory) {
   jest.mocked(fetchPeopleDirectory).mockResolvedValue(data)
   const user = userEvent.setup()
-  render(<PeoplePage />)
+  render(page())
   await screen.findByRole('heading', { name: 'People', level: 1 })
   return user
 }
@@ -99,40 +104,97 @@ test('hidden people appear, marked, only with Show hidden on', async () => {
   await user.type(screen.getByRole('textbox', { name: 'Search people' }), 'casey')
   expect(screen.getByText(/1 hidden person matches; turn on Show hidden/)).toBeInTheDocument()
 
-  await user.click(screen.getByRole('switch', { name: 'Show hidden' }))
+  await user.click(screen.getByRole('button', { name: /^Show hidden/ }))
   expect(rowNames()).toEqual(['person-row-casey'])
   expect(within(screen.getByTestId('person-row-casey')).getByText('Hidden')).toBeInTheDocument()
 })
 
+test('Show hidden is offered only when someone is hidden', async () => {
+  await renderPage({ ...directory, people: [alex, blair] })
+  expect(screen.queryByRole('button', { name: /^Show hidden/ })).not.toBeInTheDocument()
+})
+
 test('the order switch sorts by name', async () => {
   const user = await renderPage()
-  await user.click(screen.getByRole('switch', { name: 'Name A–Z' }))
+  const byName = screen.getByRole('button', { name: 'Name A–Z' })
+  expect(byName).toHaveAttribute('aria-pressed', 'false')
+  await user.click(byName)
+  expect(byName).toHaveAttribute('aria-pressed', 'true')
   expect(rowNames()).toEqual(['person-row-alex', 'person-row-blair'])
 })
 
+test('Clear search and filter brings everyone back', async () => {
+  const user = await renderPage()
+  await user.type(screen.getByRole('textbox', { name: 'Search people' }), 'nobody')
+  expect(screen.getByText(/No people match/)).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Clear search and filter' }))
+  expect(screen.getByRole('textbox', { name: 'Search people' })).toHaveValue('')
+  expect(rowNames()).toEqual(['person-row-blair', 'person-row-alex'])
+})
+
 describe('the organisation filter', () => {
-  test('offers All, each organisation and No organisation', async () => {
+  const chip = (name: RegExp) => within(screen.getByRole('group', { name: 'Organisation' })).getByRole('button', { name })
+
+  test('offers All, each organisation and No organisation, with the people each would list', async () => {
     const user = await renderPage()
-    expect(screen.queryByRole('button', { name: 'Rename organisation' })).not.toBeInTheDocument()
+    const filter = screen.getByRole('group', { name: 'Organisation' })
+    // Casey is hidden, so not counted until Show hidden is on.
+    expect(within(filter).getAllByRole('button').map((option) => option.textContent))
+      .toEqual(['All 2', 'ACME1', 'No organisation1'])
+    expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: /^More options for/ })).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('combobox', { name: 'Organisation' }))
-    expect(screen.getAllByRole('option').map((option) => option.textContent))
-      .toEqual(['All organisations', 'ACME (1)', 'No organisation'])
-
-    await user.click(screen.getByRole('option', { name: 'No organisation' }))
+    await user.click(chip(/^No organisation/))
     expect(rowNames()).toEqual(['person-row-blair'])
-    expect(screen.queryByRole('button', { name: 'Rename organisation' })).not.toBeInTheDocument()
+    expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('button', { name: /^More options for/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^Show hidden/ }))
+    expect(chip(/^No organisation/)).toHaveTextContent('No organisation2')
+  })
+
+  test('chips turn on and off, and several on show anyone in any of them', async () => {
+    const globex = organisation('globex', 'Globex', 1)
+    const dana = person({ id: 'dana', name: 'Dana', organisation_id: 'globex', organisation_name: 'Globex',
+      transcript_count: 1, last_seen_at: '2026-09-05T00:00:00Z' })
+    const user = await renderPage({ people: [alex, blair, casey, dana], organisations: [organisation('acme', 'ACME', 1), globex] })
+
+    await user.click(chip(/^ACME/))
+    await user.click(chip(/^Globex/))
+    expect(rowNames()).toEqual(['person-row-alex', 'person-row-dana'])
+    expect(chip(/^ACME/)).toHaveAttribute('aria-pressed', 'true')
+    expect(chip(/^Globex/)).toHaveAttribute('aria-pressed', 'true')
+    // Rename and delete are for one organisation at a time.
+    expect(screen.queryByRole('button', { name: /^More options for/ })).not.toBeInTheDocument()
+
+    await user.click(chip(/^ACME/))
+    expect(rowNames()).toEqual(['person-row-dana'])
+    expect(screen.getByRole('button', { name: 'More options for Globex' })).toBeInTheDocument()
+
+    // Turning the last one off, or choosing All, shows everyone again.
+    await user.click(chip(/^Globex/))
+    expect(rowNames()).toEqual(['person-row-blair', 'person-row-alex', 'person-row-dana'])
+    await user.click(chip(/^ACME/))
+    await user.click(chip(/^No organisation/))
+    await user.click(chip(/^All/))
+    expect(chip(/^All/)).toHaveAttribute('aria-pressed', 'true')
+    expect(rowNames()).toEqual(['person-row-blair', 'person-row-alex', 'person-row-dana'])
+  })
+
+  test('there is no filter until there is an organisation', async () => {
+    await renderPage({ ...directory, organisations: [] })
+    expect(screen.queryByRole('group', { name: 'Organisation' })).not.toBeInTheDocument()
   })
 
   test('with one organisation selected, it can be renamed', async () => {
     jest.mocked(renameOrganisation).mockResolvedValue({ ...organisation('acme', 'ACME Ltd', 1) })
     const user = await renderPage()
 
-    await user.click(screen.getByRole('combobox', { name: 'Organisation' }))
-    await user.click(screen.getByRole('option', { name: 'ACME (1)' }))
+    await user.click(chip(/^ACME/))
     expect(rowNames()).toEqual(['person-row-alex'])
 
-    await user.click(screen.getByRole('button', { name: 'Rename organisation' }))
+    await user.click(screen.getByRole('button', { name: 'More options for ACME' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Rename organisation' }))
     const field = screen.getByRole('textbox', { name: 'Organisation name' })
     await user.clear(field)
     await user.type(field, ' ACME Ltd ')
@@ -146,9 +208,9 @@ describe('the organisation filter', () => {
     jest.mocked(renameOrganisation).mockRejectedValue({ code: '23505' })
     const user = await renderPage()
 
-    await user.click(screen.getByRole('combobox', { name: 'Organisation' }))
-    await user.click(screen.getByRole('option', { name: 'ACME (1)' }))
-    await user.click(screen.getByRole('button', { name: 'Rename organisation' }))
+    await user.click(chip(/^ACME/))
+    await user.click(screen.getByRole('button', { name: 'More options for ACME' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Rename organisation' }))
     await user.type(screen.getByRole('textbox', { name: 'Organisation name' }), ' 2')
     await user.click(screen.getByRole('button', { name: 'Rename' }))
 
@@ -159,9 +221,9 @@ describe('the organisation filter', () => {
     jest.mocked(deleteOrganisation).mockResolvedValue(undefined)
     const user = await renderPage()
 
-    await user.click(screen.getByRole('combobox', { name: 'Organisation' }))
-    await user.click(screen.getByRole('option', { name: 'ACME (1)' }))
-    await user.click(screen.getByRole('button', { name: 'Delete organisation' }))
+    await user.click(chip(/^ACME/))
+    await user.click(screen.getByRole('button', { name: 'More options for ACME' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete organisation' }))
 
     const dialog = screen.getByRole('alertdialog')
     expect(dialog).toHaveTextContent('1 person will have no organisation. No person is deleted.')
@@ -227,7 +289,7 @@ test('a failed load offers to try again', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => {})
   jest.mocked(fetchPeopleDirectory).mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce(directory)
   const user = userEvent.setup()
-  render(<PeoplePage />)
+  render(page())
 
   await user.click(await screen.findByRole('button', { name: 'Try again' }))
   expect(await screen.findByRole('heading', { name: 'People', level: 1 })).toBeInTheDocument()

@@ -55,7 +55,9 @@ END;
 $$;
 
 -- The person page: one row per transcript the person appears in, newest
--- first. A person the caller does not own has none.
+-- first, with how long they spoke there (talk_ms) and how long everyone did
+-- (transcript_talk_ms), for their share. Speaking time is the summed length of
+-- segments. A person the caller does not own has none.
 CREATE FUNCTION public.list_person_appearances(p_person_id uuid)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -66,10 +68,19 @@ BEGIN
   RETURN COALESCE((
     SELECT jsonb_agg(jsonb_build_object(
         'transcript_id', t.id, 'title', t.title, 'project_id', t.project_id,
-        'created_at', t.created_at, 'segment_count', a.segment_count)
+        'created_at', t.created_at, 'talk_ms', talk.person_ms, 'transcript_talk_ms', talk.total_ms)
       ORDER BY t.created_at DESC, t.id)
     FROM public.person_appearances AS a
     JOIN public.transcripts AS t ON t.id = a.transcript_id
+    CROSS JOIN LATERAL (
+      SELECT
+        COALESCE(sum(greatest(sg.end_ms - sg.start_ms, 0)) FILTER (WHERE sp.person_id = p_person_id), 0)::bigint
+          AS person_ms,
+        COALESCE(sum(greatest(sg.end_ms - sg.start_ms, 0)), 0)::bigint AS total_ms
+      FROM public.segments AS sg
+      LEFT JOIN public.speakers AS sp ON sp.transcript_id = sg.transcript_id AND sp.id = sg.speaker_id
+      WHERE sg.transcript_id = t.id
+    ) AS talk
     WHERE a.person_id = p_person_id AND a.user_id = v_user
   ), '[]'::jsonb);
 END;
@@ -98,12 +109,12 @@ $$;
 
 -- What a merge would move (spec §4): for each person to fold in, in the order
 -- given, every transcript they appear in and each local voice there, a linked
--- transcript speaker with segments. A voice carries its own label, if it has
--- one, and the ordinals of the detected speakers its segments came from (null
--- for Unknown), since a linked speaker's own ordinal names no voice Deepgram
--- heard. Linked speakers without segments move too but show nowhere, so they
--- are not listed. survivor_transcript_ids lets the preview mark transcripts
--- where the two will show as one.
+-- transcript speaker with segments. A voice carries its speaking time, its own
+-- label if it has one, and the ordinals of the detected speakers its segments
+-- came from (null for Unknown), since a linked speaker's own ordinal names no
+-- voice Deepgram heard. Linked speakers without segments move too but show
+-- nowhere, so they are not listed. survivor_transcript_ids lets the preview
+-- mark transcripts where the two will show as one.
 CREATE FUNCTION public.merge_people_preview(p_survivor_id uuid, p_person_ids uuid[])
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -115,7 +126,7 @@ BEGIN
 
   WITH voices AS (
     SELECT sp.person_id, sp.transcript_id, sp.id AS speaker_id, sp.custom_label,
-      count(*)::integer AS segment_count,
+      sum(greatest(sg.end_ms - sg.start_ms, 0))::bigint AS talk_ms,
       min(sg.start_ms) AS first_start_ms,
       array_agg(DISTINCT home.ordinal ORDER BY home.ordinal) AS detected_ordinals
     FROM public.speakers AS sp
@@ -129,7 +140,7 @@ BEGIN
     SELECT v.person_id, v.transcript_id,
       jsonb_agg(jsonb_build_object(
           'speaker_id', v.speaker_id, 'custom_label', v.custom_label,
-          'segment_count', v.segment_count, 'detected_ordinals', to_jsonb(v.detected_ordinals))
+          'talk_ms', v.talk_ms, 'detected_ordinals', to_jsonb(v.detected_ordinals))
         ORDER BY v.first_start_ms, v.speaker_id) AS voices
     FROM voices AS v
     GROUP BY v.person_id, v.transcript_id

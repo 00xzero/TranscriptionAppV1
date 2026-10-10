@@ -129,12 +129,15 @@ export const DirectoryOrganisationSchema = OrganisationSchema.extend({
   person_count: z.number().int().nonnegative(),
 })
 
+// Speaking time is the summed length of segments: the person's in talk_ms,
+// everyone's in transcript_talk_ms, so the page can show their share.
 export const PersonAppearanceSchema = z.object({
   transcript_id: UuidSchema,
   title: z.string().nullable(),
   project_id: UuidSchema.nullable(),
   created_at: z.string(),
-  segment_count: z.number().int().positive(),
+  talk_ms: z.number().int().nonnegative(),
+  transcript_talk_ms: z.number().int().nonnegative(),
 })
 
 // === Secondary schemas (type derivation only — not used for runtime validation) ===
@@ -275,13 +278,14 @@ export const PersonOrganisationResultSchema = z.object({
 export const RemovePersonResultSchema = z.array(SegmentSpeakerChangeSchema)
 
 // One local voice a merge would move: a linked transcript speaker with
-// segments. It has its own label only if it was given one; detected_ordinals
-// holds the ordinals of the detected speakers its segments came from (null for
-// Unknown), which is how a voice without a label is described.
+// segments, and their summed length in talk_ms. It has its own label only if
+// it was given one; detected_ordinals holds the ordinals of the detected
+// speakers its segments came from (null for Unknown), which is how a voice
+// without a label is described.
 export const MergePreviewVoiceSchema = z.object({
   speaker_id: UuidSchema,
   custom_label: z.string().nullable(),
-  segment_count: z.number().int().positive(),
+  talk_ms: z.number().int().nonnegative(),
   detected_ordinals: z.array(z.number().int().nonnegative().nullable()),
 })
 

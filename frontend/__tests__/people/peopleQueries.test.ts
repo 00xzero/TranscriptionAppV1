@@ -42,14 +42,19 @@ test('the directory read validates people and organisations', async () => {
 })
 
 test('appearances and the merge preview are read for the given people', async () => {
+  const appearance = { transcript_id: transcriptId, title: null, project_id: null, created_at: stamp,
+    talk_ms: 90_000, transcript_talk_ms: 600_000 }
+  mockRpc.mockResolvedValueOnce({ data: [appearance], error: null })
+  await expect(fetchPersonAppearances(personId)).resolves.toEqual([appearance])
+  expect(mockRpc).toHaveBeenLastCalledWith('list_person_appearances', { p_person_id: personId })
+  // Speaking time replaced the segment count.
   mockRpc.mockResolvedValueOnce({ data: [{ transcript_id: transcriptId, title: null, project_id: null,
     created_at: stamp, segment_count: 4 }], error: null })
-  await expect(fetchPersonAppearances(personId)).resolves.toHaveLength(1)
-  expect(mockRpc).toHaveBeenLastCalledWith('list_person_appearances', { p_person_id: personId })
+  await expect(fetchPersonAppearances(personId)).rejects.toThrow()
 
   const preview = { survivor_transcript_ids: [transcriptId], people: [{ person_id: otherId, transcripts: [{
     transcript_id: transcriptId, title: 'Review', created_at: stamp,
-    voices: [{ speaker_id: speakerId, custom_label: null, segment_count: 2, detected_ordinals: [1, null] }],
+    voices: [{ speaker_id: speakerId, custom_label: null, talk_ms: 12_500, detected_ordinals: [1, null] }],
   }] }] }
   mockRpc.mockResolvedValueOnce({ data: preview, error: null })
   await expect(fetchMergePreview(personId, [otherId])).resolves.toEqual(preview)

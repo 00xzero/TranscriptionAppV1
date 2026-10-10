@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { countLabel } from '@/components/Projects/format'
+import { countLabel, formatDuration } from '@/components/Projects/format'
 import type { DirectoryPerson, MergePreview } from '@/contracts/db'
 import { describeMergeVoice, matchesPersonSearch, sortDirectory } from '@/core/people/directory'
 import { mapPeopleWriteError } from '@/lib/people/errors'
@@ -171,7 +171,7 @@ export function MergePeopleDialog({ survivor, people, onOpenChange, onMerge }: {
                           <ul className="ml-4 text-xs text-muted">
                             {transcript.voices.map((voice) => (
                               <li key={voice.speaker_id}>
-                                {describeMergeVoice(voice)} · {countLabel(voice.segment_count, 'segment', 'segments')}
+                                {describeMergeVoice(voice)} · {formatDuration(voice.talk_ms / 1000)}
                               </li>
                             ))}
                           </ul>

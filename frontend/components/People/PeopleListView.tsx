@@ -1,56 +1,67 @@
 'use client'
 
-import { useId, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Contact, Plus, Search } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
-import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
+import { DestructiveMenuItem, RowActionsMenu } from '@/components/RowActionsMenu'
+import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { countLabel } from '@/components/Projects/format'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { LoadingStatus } from '@/components/ui/loading-status'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { Toggle } from '@/components/ui/toggle'
 import { toast } from '@/components/ui/toaster'
-import type { DirectoryPerson } from '@/contracts/db'
+import type { DirectoryOrganisation, DirectoryPerson } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import {
-  ALL_ORGANISATIONS,
   filterDirectory,
   namesakesOf,
   NO_ORGANISATION,
   sortDirectory,
 } from '@/core/people/directory'
 import { CONFLICT_TOAST, isConflict, mapPeopleWriteError } from '@/lib/people/errors'
-import { fromTranscriptId, personHref } from '@/lib/people/routes'
-import { usePeopleDirectory } from '@/lib/people/usePeopleData'
+import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
+import { fromTranscriptId, personHref, personIdFromPathname } from '@/lib/people/routes'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { speakerInitials } from '@/lib/speakers/palette'
 import { createPerson, deleteOrganisation, renameOrganisation } from '@/lib/supabase/queries'
+import { cn } from '@/lib/utils'
 import { BackToTranscript } from './BackToTranscript'
+import { HiddenBadge } from './HiddenBadge'
 import { PersonNameDialog } from './PersonNameDialog'
 import { formatPeopleDate } from './format'
 
 type Dialog = 'create' | 'rename-organisation' | 'delete-organisation' | null
 
+/** An organisation filter chip, on or off. */
+const CHIP = cn(
+  'h-8 max-w-64 gap-1.5 rounded-full border border-border bg-control px-3 text-xs font-normal text-foreground/80',
+  'hover:bg-control-hover hover:text-foreground',
+  'data-[state=on]:border-trust-blue/50 data-[state=on]:bg-warm-highlight data-[state=on]:text-trust-blue',
+  'dark:data-[state=on]:bg-night-border dark:data-[state=on]:text-paper'
+)
+
 /**
  * The People directory (spec §4): search, an organisation filter, recent or
  * A–Z order, and hidden people on request. Organisations are renamed and
- * deleted here, with one selected in the filter.
+ * deleted here, with one selected in the filter. A person opens as a dialog
+ * over this list, which stays as it was underneath.
  */
 export function PeopleListView() {
   const router = useRouter()
   const from = fromTranscriptId(useSearchParams().get('from'))
-  const directory = usePeopleDirectory()
+  const openPersonId = personIdFromPathname(usePathname())
+  const { directory, openedFromListRef } = usePeopleDirectoryContext()
   const [query, setQuery] = useState('')
-  const [organisationFilter, setOrganisationFilter] = useState<string>(ALL_ORGANISATIONS)
+  // Selected organisation ids and NO_ORGANISATION; none selected is everyone.
+  const [organisationFilter, setOrganisationFilter] = useState<string[]>([])
   const [byName, setByName] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
-  const id = useId()
 
   if (directory.loading) {
     return (
@@ -72,13 +83,19 @@ export function PeopleListView() {
   }
 
   const { people, organisations } = directory.data
-  const selectedOrganisation = organisations.find((organisation) => organisation.id === organisationFilter)
-  // An organisation deleted elsewhere falls back to everyone.
-  const organisation = selectedOrganisation || organisationFilter === NO_ORGANISATION
-    ? organisationFilter : ALL_ORGANISATIONS
-  const shown = sortDirectory(filterDirectory(people, { query, organisation, showHidden }), byName ? 'name' : 'recent')
-  const hiddenMatches = showHidden ? 0
-    : filterDirectory(people, { query, organisation, showHidden: true }).length - shown.length
+  const hiddenCount = people.filter((person) => person.hidden).length
+  // The toggle goes with the last hidden person, and so does its effect.
+  const includeHidden = showHidden && hiddenCount > 0
+  // An organisation deleted elsewhere drops out of the selection.
+  const selected = organisationFilter.filter((value) =>
+    value === NO_ORGANISATION || organisations.some((organisation) => organisation.id === value))
+  const menuOrganisations = organisations.filter((organisation) => selected.includes(organisation.id))
+  // Rename and delete apply to one organisation, so they are offered while exactly one is selected (spec §4).
+  const menuOrganisation = menuOrganisations.length === 1 ? menuOrganisations[0] : undefined
+  const shown = sortDirectory(filterDirectory(people, { query, organisations: selected, showHidden: includeHidden }), byName ? 'name' : 'recent')
+  const hiddenMatches = includeHidden ? 0
+    : filterDirectory(people, { query, organisations: selected, showHidden: true }).length - shown.length
+  const filtered = query.trim() !== '' || selected.length > 0
   const closeDialog = (open: boolean) => { if (!open) setDialog(null) }
 
   return (
@@ -96,50 +113,37 @@ export function PeopleListView() {
         </div>
 
         {people.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-            <div className="relative min-w-56 flex-1">
-              <Input
-                aria-label="Search people"
-                placeholder="Search by name or organisation"
-                className="pl-8"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-56 flex-1">
+                <Input
+                  aria-label="Search people"
+                  placeholder="Search by name or organisation"
+                  className="pl-8"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
+              </div>
+              {/* Option toggles as in Find and Replace: the order switch (spec §4), and Show hidden once anyone is. */}
+              <Toggle variant="outline" pressed={byName} onPressedChange={setByName}>Name A–Z</Toggle>
+              {hiddenCount > 0 && (
+                <Toggle variant="outline" pressed={includeHidden} onPressedChange={setShowHidden}>
+                  Show hidden ({hiddenCount})
+                </Toggle>
+              )}
+            </div>
+            {organisations.length > 0 && (
+              <OrganisationFilter
+                people={includeHidden ? people : people.filter((person) => !person.hidden)}
+                organisations={organisations}
+                selected={selected}
+                onChange={setOrganisationFilter}
+                menuOrganisation={menuOrganisation}
+                onRename={() => setDialog('rename-organisation')}
+                onDelete={() => setDialog('delete-organisation')}
               />
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" aria-hidden="true" />
-            </div>
-            <Select value={organisation} onValueChange={setOrganisationFilter}>
-              <SelectTrigger aria-label="Organisation" className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_ORGANISATIONS}>All organisations</SelectItem>
-                {organisations.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    {entry.name} ({entry.person_count})
-                  </SelectItem>
-                ))}
-                <SelectItem value={NO_ORGANISATION}>No organisation</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Switch id={`${id}-order`} checked={byName} onCheckedChange={setByName} />
-              <Label htmlFor={`${id}-order`} className="text-sm">Name A–Z</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch id={`${id}-hidden`} checked={showHidden} onCheckedChange={setShowHidden} />
-              <Label htmlFor={`${id}-hidden`} className="text-sm">Show hidden</Label>
-            </div>
-          </div>
-        )}
-
-        {selectedOrganisation && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setDialog('rename-organisation')}>
-              Rename organisation
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setDialog('delete-organisation')}>
-              Delete organisation
-            </Button>
+            )}
           </div>
         )}
       </section>
@@ -160,20 +164,33 @@ export function PeopleListView() {
           </div>
         </ProjectList>
       ) : (
-        <section aria-labelledby="people-list-heading">
-          <ListSectionHeading
-            id="people-list-heading"
-            title={selectedOrganisation?.name ?? (organisation === NO_ORGANISATION ? 'No organisation' : 'Everyone')}
-            meta={countLabel(shown.length, 'person', 'people')}
-          />
+        <section aria-label="People">
           <ProjectList>
             {shown.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-muted">
-                No people match.
-                {hiddenMatches > 0 && ` ${countLabel(hiddenMatches, 'hidden person matches', 'hidden people match')}; turn on Show hidden to see them.`}
-              </p>
+              <div className="px-6 py-8 text-center text-sm text-muted">
+                <p>
+                  No people match.
+                  {hiddenMatches > 0 && ` ${countLabel(hiddenMatches, 'hidden person matches', 'hidden people match')}; turn on Show hidden to see them.`}
+                </p>
+                {filtered && (
+                  <Button size="sm" variant="secondary" className="mt-4" onClick={() => {
+                    setQuery('')
+                    setOrganisationFilter([])
+                  }}>
+                    Clear search and filter
+                  </Button>
+                )}
+              </div>
             ) : (
-              shown.map((person) => <PersonRow key={person.id} person={person} href={personHref(person.id, from)} />)
+              shown.map((person) => (
+                <PersonRow
+                  key={person.id}
+                  person={person}
+                  href={personHref(person.id, from)}
+                  open={person.id === openPersonId}
+                  onOpen={() => { openedFromListRef.current = true }}
+                />
+              ))
             )}
           </ProjectList>
         </section>
@@ -191,6 +208,8 @@ export function PeopleListView() {
           pendingLabel="Creating…"
           onSubmit={async (name) => {
             const person = await createPerson(name)
+            await directory.reload()
+            openedFromListRef.current = true
             router.push(personHref(person.id, from))
           }}
         >
@@ -198,20 +217,20 @@ export function PeopleListView() {
         </PersonNameDialog>
       )}
 
-      {dialog === 'rename-organisation' && selectedOrganisation && (
+      {dialog === 'rename-organisation' && menuOrganisation && (
         <PersonNameDialog
           onOpenChange={closeDialog}
           title="Rename organisation"
-          description={`Everyone at ${selectedOrganisation.name} shows the new name, in every transcript.`}
+          description={`Everyone at ${menuOrganisation.name} shows the new name, in every transcript.`}
           label="Organisation name"
-          initialName={selectedOrganisation.name}
+          initialName={menuOrganisation.name}
           maxLength={TEXT_LIMITS.organisationName}
           subject="organisation"
           submitLabel={() => 'Rename'}
           pendingLabel="Renaming…"
           onSubmit={async (name) => {
             try {
-              await renameOrganisation(selectedOrganisation.id, selectedOrganisation.name, name)
+              await renameOrganisation(menuOrganisation.id, menuOrganisation.name, name)
             } catch (error) {
               if (!isConflict(error)) throw error
               toast({ title: CONFLICT_TOAST, variant: 'error' })
@@ -221,22 +240,22 @@ export function PeopleListView() {
         />
       )}
 
-      {selectedOrganisation && (
+      {menuOrganisation && (
         <ConfirmDialog
           open={dialog === 'delete-organisation'}
           onOpenChange={closeDialog}
-          heading={`Delete ${selectedOrganisation.name}?`}
-          description={`${countLabel(selectedOrganisation.person_count, 'person', 'people')} will have no organisation. No person is deleted.`}
+          heading={`Delete ${menuOrganisation.name}?`}
+          description={`${countLabel(menuOrganisation.person_count, 'person', 'people')} will have no organisation. No person is deleted.`}
           confirmLabel="Delete organisation"
           pendingLabel="Deleting…"
           onConfirm={async () => {
             try {
-              await deleteOrganisation(selectedOrganisation.id)
+              await deleteOrganisation(menuOrganisation.id)
             } catch (error) {
               throw new Error(mapPeopleWriteError(error, 'organisation'))
             }
-            setOrganisationFilter(ALL_ORGANISATIONS)
-            toast({ title: `Deleted ${selectedOrganisation.name}` })
+            setOrganisationFilter((values) => values.filter((value) => value !== menuOrganisation.id))
+            toast({ title: `Deleted ${menuOrganisation.name}` })
             await directory.reload()
           }}
         />
@@ -245,12 +264,73 @@ export function PeopleListView() {
   )
 }
 
-function PersonRow({ person, href }: { person: DirectoryPerson; href: string }) {
+/**
+ * All, each organisation and No organisation (spec §4), as chips that turn on
+ * and off, each with the number of people it would list. Any number can be on,
+ * and the list shows people in any of them; All turns them all off. While one
+ * organisation is on, its chip carries rename and delete.
+ */
+function OrganisationFilter({ people, organisations, selected, onChange, menuOrganisation, onRename, onDelete }: {
+  people: readonly DirectoryPerson[]
+  organisations: readonly DirectoryOrganisation[]
+  selected: readonly string[]
+  onChange: (selected: string[]) => void
+  menuOrganisation: DirectoryOrganisation | undefined
+  onRename: () => void
+  onDelete: () => void
+}) {
+  const counts = new Map<string, number>()
+  for (const person of people) {
+    const key = person.organisation_id ?? NO_ORGANISATION
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  const options = [
+    ...organisations.map((entry) => ({ value: entry.id, label: entry.name, count: counts.get(entry.id) ?? 0 })),
+    { value: NO_ORGANISATION, label: 'No organisation', count: counts.get(NO_ORGANISATION) ?? 0 },
+  ]
+  const toggle = (value: string, on: boolean) =>
+    onChange(on ? [...selected, value] : selected.filter((entry) => entry !== value))
+
+  return (
+    <div role="group" aria-label="Organisation" className="flex flex-wrap items-center gap-2">
+      <Toggle pressed={selected.length === 0} onPressedChange={() => onChange([])} className={CHIP}>
+        All <span className="font-mono text-[11px] text-muted">{people.length}</span>
+      </Toggle>
+      {options.map((option) => (
+        <span key={option.value} className="inline-flex items-center gap-0.5">
+          <Toggle
+            pressed={selected.includes(option.value)}
+            onPressedChange={(on) => toggle(option.value, on)}
+            className={CHIP}
+          >
+            <span className="truncate">{option.label}</span>
+            <span className="font-mono text-[11px] text-muted">{option.count}</span>
+          </Toggle>
+          {menuOrganisation?.id === option.value && (
+            <RowActionsMenu label={menuOrganisation.name}>
+              <DropdownMenuItem onSelect={onRename}>Rename organisation</DropdownMenuItem>
+              <DestructiveMenuItem onSelect={onDelete}>Delete organisation</DestructiveMenuItem>
+            </RowActionsMenu>
+          )}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function PersonRow({ person, href, open, onOpen }: {
+  person: DirectoryPerson
+  href: string
+  /** This person's dialog is open over the list. */
+  open: boolean
+  onOpen: () => void
+}) {
   return (
     <Link
       href={href}
+      onClick={onOpen}
       data-testid={`person-row-${person.id}`}
-      className="group flex min-h-18 items-center gap-4 p-4 transition-colors hover:bg-subtle"
+      className={cn('group flex min-h-18 items-center gap-4 p-4 transition-colors hover:bg-subtle', open && 'bg-subtle')}
     >
       <Avatar color={person.preferred_color} className="h-10 min-w-10 text-xs">
         {speakerInitials(person.name)}
@@ -258,9 +338,7 @@ function PersonRow({ person, href }: { person: DirectoryPerson; href: string }) 
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-trust-blue dark:text-paper">
           <span className="truncate">{person.name}</span>
-          {person.hidden && (
-            <span className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted">Hidden</span>
-          )}
+          {person.hidden && <HiddenBadge />}
         </p>
         {person.organisation_name && <p className="truncate text-xs text-muted">{person.organisation_name}</p>}
       </div>

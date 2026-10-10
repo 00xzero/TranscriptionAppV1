@@ -2,7 +2,7 @@
 
 import type { DirectoryPerson } from '@/contracts/db'
 import {
-  ALL_ORGANISATIONS,
+  appearanceTotals,
   describeMergeVoice,
   exactOrganisation,
   filterDirectory,
@@ -11,6 +11,7 @@ import {
   namesakesOf,
   NO_ORGANISATION,
   sortDirectory,
+  talkShare,
 } from '@/core/people/directory'
 
 const person = (overrides: Partial<DirectoryPerson> & { id: string; name: string }): DirectoryPerson => ({
@@ -44,7 +45,7 @@ describe('search (spec §4)', () => {
 
 describe('filterDirectory', () => {
   const filter = (options: Partial<Parameters<typeof filterDirectory>[1]>) =>
-    filterDirectory(everyone, { query: '', organisation: ALL_ORGANISATIONS, showHidden: false, ...options })
+    filterDirectory(everyone, { query: '', organisations: [], showHidden: false, ...options })
       .map((entry) => entry.id)
 
   test('hidden people are left out unless Show hidden is on', () => {
@@ -53,14 +54,21 @@ describe('filterDirectory', () => {
   })
 
   test('filters by one organisation, or by none', () => {
-    expect(filter({ organisation: 'acme' })).toEqual(['a'])
-    expect(filter({ organisation: 'globex' })).toEqual([])
-    expect(filter({ organisation: 'globex', showHidden: true })).toEqual(['c'])
-    expect(filter({ organisation: NO_ORGANISATION })).toEqual(['b', 'd'])
+    expect(filter({ organisations: ['acme'] })).toEqual(['a'])
+    expect(filter({ organisations: ['globex'] })).toEqual([])
+    expect(filter({ organisations: ['globex'], showHidden: true })).toEqual(['c'])
+    expect(filter({ organisations: [NO_ORGANISATION] })).toEqual(['b', 'd'])
+  })
+
+  test('several selected show anyone in any of them', () => {
+    expect(filter({ organisations: ['acme', 'globex'], showHidden: true })).toEqual(['a', 'c'])
+    expect(filter({ organisations: ['acme', NO_ORGANISATION] })).toEqual(['a', 'b', 'd'])
+    // An organisation no one belongs to adds no one.
+    expect(filter({ organisations: ['acme', 'initech'] })).toEqual(['a'])
   })
 
   test('combines search with the other filters', () => {
-    expect(filter({ query: 'a', organisation: NO_ORGANISATION })).toEqual(['b'])
+    expect(filter({ query: 'a', organisations: [NO_ORGANISATION] })).toEqual(['b'])
     expect(filter({ query: 'globex', showHidden: true })).toEqual(['c'])
   })
 })
@@ -132,5 +140,24 @@ describe('describeMergeVoice', () => {
     expect(describeMergeVoice({ custom_label: null, detected_ordinals: [1, 3] })).toBe('From Speaker 1, Speaker 3')
     expect(describeMergeVoice({ custom_label: null, detected_ordinals: [2, null] }))
       .toBe('From Speaker 2, Unknown speaker')
+  })
+})
+
+describe('speaking time', () => {
+  test('the share is a whole percentage of everyone\'s speaking time, or nothing when none is known', () => {
+    expect(talkShare(150_000, 600_000)).toBe(25)
+    expect(talkShare(1_000, 300_000)).toBe(0)
+    expect(talkShare(600_000, 600_000)).toBe(100)
+    // Never above everyone's total, however the lengths were measured.
+    expect(talkShare(700_000, 600_000)).toBe(100)
+    expect(talkShare(0, 0)).toBeNull()
+  })
+
+  test('the summary totals transcripts and speaking time, with the newest appearance', () => {
+    expect(appearanceTotals([
+      { created_at: '2026-09-10T00:00:00Z', talk_ms: 60_000 },
+      { created_at: '2026-09-20T00:00:00Z', talk_ms: 30_000 },
+    ])).toEqual({ transcripts: 2, talkMs: 90_000, lastSeen: '2026-09-20T00:00:00Z' })
+    expect(appearanceTotals([])).toEqual({ transcripts: 0, talkMs: 0, lastSeen: null })
   })
 })

@@ -1,20 +1,12 @@
 'use client'
 
-import { Suspense } from 'react'
 import { notFound, useParams } from 'next/navigation'
-import { PersonView } from '@/components/People/PersonView'
-import { ProjectListSkeleton } from '@/components/Projects/ProjectList'
-import { LoadingStatus } from '@/components/ui/loading-status'
+import { PersonDialog } from '@/components/People/PersonDialog'
 import { isPersonId } from '@/lib/people/routes'
 
+/** A person, opened as a dialog over the list the layout keeps (spec §4). */
 export default function PersonPage() {
   const { id } = useParams<{ id: string }>()
   if (!isPersonId(id)) notFound()
-
-  // useSearchParams (the editor's ?from) needs a Suspense boundary.
-  return (
-    <Suspense fallback={<LoadingStatus message="Loading person…"><ProjectListSkeleton /></LoadingStatus>}>
-      <PersonView key={id} personId={id} />
-    </Suspense>
-  )
+  return <PersonDialog key={id} personId={id} />
 }

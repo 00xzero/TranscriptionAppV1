@@ -1,7 +1,10 @@
 import React from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import PeopleLayout from '@/app/people/layout'
 import PersonPage from '@/app/people/[id]/page'
+import PeoplePage from '@/app/people/page'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { DirectoryPerson, MergePreview, PeopleDirectory, PersonAppearance } from '@/contracts/db'
 import {
   deletePerson,
@@ -28,11 +31,15 @@ const LINKED_SPEAKER = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const DETECTED_SPEAKER = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 
 const mockPush = jest.fn()
+const mockReplace = jest.fn()
+const mockBack = jest.fn()
 let mockSearch = ''
 let mockId = PERSON_ID
+let mockPathname = `/people/${PERSON_ID}`
 jest.mock('next/navigation', () => ({
   useParams: () => ({ id: mockId }),
-  useRouter: () => ({ push: mockPush, replace: jest.fn() }),
+  usePathname: () => mockPathname,
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack }),
   useSearchParams: () => new URLSearchParams(mockSearch),
   notFound: () => { throw new Error('NEXT_NOT_FOUND') },
 }))
@@ -64,16 +71,29 @@ const directory: PeopleDirectory = {
   ],
 }
 const appearances: PersonAppearance[] = [
-  { transcript_id: TRANSCRIPT_B, title: 'Q3 steering', project_id: 'project-a', created_at: '2026-09-20T00:00:00Z', segment_count: 1 },
-  { transcript_id: TRANSCRIPT_A, title: null, project_id: null, created_at: '2026-09-10T00:00:00Z', segment_count: 4 },
+  // 90 seconds of everyone's 10 minutes.
+  { transcript_id: TRANSCRIPT_B, title: 'Q3 steering', project_id: 'project-a', created_at: '2026-09-20T00:00:00Z',
+    talk_ms: 90_000, transcript_talk_ms: 600_000 },
+  // 1.2 seconds of 5 minutes: under half a percent.
+  { transcript_id: TRANSCRIPT_A, title: null, project_id: null, created_at: '2026-09-10T00:00:00Z',
+    talk_ms: 1_200, transcript_talk_ms: 300_000 },
 ]
+
+/** The People layout, as the router renders it, with a person's page or the bare list inside. */
+function tree(child: 'person' | 'list' = 'person') {
+  return (
+    <TooltipProvider delayDuration={0}>
+      <PeopleLayout>{child === 'person' ? <PersonPage /> : <PeoplePage />}</PeopleLayout>
+    </TooltipProvider>
+  )
+}
 
 async function renderPage({ people = directory, rows = appearances }: { people?: PeopleDirectory; rows?: PersonAppearance[] } = {}) {
   jest.mocked(fetchPeopleDirectory).mockResolvedValue(people)
   jest.mocked(fetchPersonAppearances).mockResolvedValue(rows)
   const user = userEvent.setup()
-  render(<PersonPage />)
-  await screen.findByRole('heading', { level: 1 })
+  render(tree())
+  await screen.findByRole('dialog')
   await screen.findByRole('heading', { name: 'Appearances' })
   await waitFor(() => expect(screen.queryByRole('button', { name: /^Delete person$/ })).toBeInTheDocument())
   return user
@@ -90,26 +110,51 @@ beforeEach(() => {
   jest.clearAllMocks()
   mockSearch = ''
   mockId = PERSON_ID
+  mockPathname = `/people/${PERSON_ID}`
   mockUseTranscriptsData.mockReturnValue(transcriptProviderData([
     makeTranscript({ id: TRANSCRIPT_B, title: 'Q3 steering' }),
   ]))
   mockUseProjectsData.mockReturnValue(projectProviderData([makeProject({ id: 'project-a', name: 'Client work' })]))
 })
 
-test('shows the person and their appearances, newest first', async () => {
+test('opens as a dialog over the list, with the person and their appearances, newest first', async () => {
   await renderPage()
 
-  expect(screen.getByRole('heading', { level: 1, name: 'Alex Morgan' })).toBeInTheDocument()
-  expect(screen.getByText('No organisation')).toBeInTheDocument()
-  expect(screen.getByText('Denim')).toBeInTheDocument()
+  const dialog = screen.getByRole('dialog', { name: 'Alex Morgan' })
+  expect(dialog).toHaveAccessibleDescription('No organisation Denim')
+  // The list is still there underneath, hidden from assistive tech while the dialog is open.
+  expect(screen.getByTestId(`person-row-${PERSON_ID}`)).toBeInTheDocument()
+  expect(within(dialog).getByText(/^2 transcripts · 1 min speaking · last seen /)).toBeInTheDocument()
 
   const [newest, older] = screen.getAllByTestId(/^appearance-/)
   expect(within(newest).getByRole('link', { name: /Q3 steering/ })).toHaveAttribute('href', `/editor/${TRANSCRIPT_B}`)
   expect(newest).toHaveTextContent('Client work')
-  expect(newest).toHaveTextContent('1 segment')
+  expect(newest).toHaveTextContent('1 min · 15% of the talking')
   expect(within(older).getByRole('link', { name: /Untitled/ })).toBeInTheDocument()
   expect(older).toHaveTextContent('Unfiled')
-  expect(older).toHaveTextContent('4 segments')
+  expect(older).toHaveTextContent('1 sec · <1% of the talking')
+})
+
+test('without a speaking total for the transcript, only the time is shown', async () => {
+  await renderPage({ rows: [{ ...appearances[0], talk_ms: 45_000, transcript_talk_ms: 0 }] })
+  const row = screen.getByTestId(`appearance-${TRANSCRIPT_B}`)
+  expect(row).toHaveTextContent('45 sec')
+  expect(row).not.toHaveTextContent('of the talking')
+})
+
+test('every action is an icon with its name in a tooltip', async () => {
+  const user = await renderPage()
+  // Opening a person focuses the dialog, not an icon, so no tooltip opens by itself.
+  expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+  await user.hover(screen.getByRole('button', { name: 'Change colour' }))
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('Change colour')
+})
+
+test('Delete\'s tooltip says why it is unavailable', async () => {
+  const user = await renderPage()
+  await user.hover(screen.getByRole('button', { name: 'Delete person' }))
+  expect(await screen.findByRole('tooltip')).toHaveTextContent('Delete person · Remove or merge first')
 })
 
 test('arriving from the editor offers the way back', async () => {
@@ -120,9 +165,44 @@ test('arriving from the editor offers the way back', async () => {
 
 test('someone merged away or deleted is not found', async () => {
   jest.mocked(fetchPeopleDirectory).mockResolvedValue({ ...directory, people: [blair] })
-  render(<PersonPage />)
-  expect(await screen.findByRole('heading', { name: 'Person not found' })).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'View people' })).toHaveAttribute('href', '/people')
+  const user = userEvent.setup()
+  render(tree())
+  expect(await screen.findByRole('dialog', { name: 'Person not found' })).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'View people' }))
+  expect(mockReplace).toHaveBeenCalledWith('/people')
+})
+
+describe('closing', () => {
+  test('after a direct visit, returns to the list in place, keeping the way back to the editor', async () => {
+    mockSearch = `from=${TRANSCRIPT_B}`
+    const user = await renderPage()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(mockReplace).toHaveBeenCalledWith(`/people?from=${TRANSCRIPT_B}`)
+    expect(mockBack).not.toHaveBeenCalled()
+  })
+
+  test('opened from the list, goes back to it, which kept its search', async () => {
+    jest.mocked(fetchPeopleDirectory).mockResolvedValue(directory)
+    jest.mocked(fetchPersonAppearances).mockResolvedValue(appearances)
+    mockPathname = '/people'
+    const user = userEvent.setup()
+    const { rerender } = render(tree('list'))
+    await user.type(await screen.findByRole('textbox', { name: 'Search people' }), 'alex')
+    await user.click(screen.getByTestId(`person-row-${PERSON_ID}`))
+
+    // The router moves to the person; the layout, and the list in it, stay.
+    mockPathname = `/people/${PERSON_ID}`
+    rerender(tree('person'))
+    await user.keyboard('{Escape}')
+
+    expect(mockBack).toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled()
+    mockPathname = '/people'
+    rerender(tree('list'))
+    expect(screen.getByRole('textbox', { name: 'Search people' })).toHaveValue('alex')
+    // The dialog has no trigger, so focus goes back to the row that opened it.
+    await waitFor(() => expect(screen.getByTestId(`person-row-${PERSON_ID}`)).toHaveFocus())
+  })
 })
 
 test('a malformed id is a 404', () => {
@@ -133,11 +213,13 @@ test('a malformed id is a 404', () => {
 })
 
 describe('delete', () => {
-  test('is disabled while the person appears anywhere', async () => {
-    await renderPage()
+  test('is unavailable while the person appears anywhere, and says why', async () => {
+    const user = await renderPage()
     const button = screen.getByRole('button', { name: 'Delete person' })
-    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-disabled', 'true')
     expect(button).toHaveAccessibleDescription('Remove or merge first')
+    await user.click(button)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
   test('with no appearances, it confirms and returns to the list', async () => {
@@ -150,7 +232,7 @@ describe('delete', () => {
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete person' }))
 
     await waitFor(() => expect(deletePerson).toHaveBeenCalledWith(PERSON_ID))
-    expect(mockPush).toHaveBeenCalledWith(`/people?from=${TRANSCRIPT_B}`)
+    expect(mockReplace).toHaveBeenCalledWith(`/people?from=${TRANSCRIPT_B}`)
   })
 
   test('the database refusing it says why', async () => {
@@ -161,7 +243,8 @@ describe('delete', () => {
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete person' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Alex Morgan now appears in a transcript. Remove or merge first.')
-    expect(mockPush).not.toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled()
+    expect(mockBack).not.toHaveBeenCalled()
   })
 })
 
@@ -241,7 +324,7 @@ describe('remove from this transcript', () => {
     await waitFor(() => expect(fetchPersonAppearances).toHaveBeenCalledTimes(2))
     expect(screen.getByTestId(`appearance-${TRANSCRIPT_B}`)).toBeInTheDocument()
     // Still an appearance, so Delete stays off.
-    expect(screen.getByRole('button', { name: 'Delete person' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete person' })).toHaveAttribute('aria-disabled', 'true')
   })
 
   test('a person merged away in another tab reloads instead of offering Retry', async () => {
@@ -287,7 +370,9 @@ describe('editing the person', () => {
     await user.click(screen.getByRole('button', { name: 'Rename' }))
 
     await waitFor(() => expect(renamePerson).toHaveBeenCalledWith(PERSON_ID, 'Alex Morgan', 'Alex'))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument())
+    // Back to the person, still open.
+    expect(screen.getByRole('dialog', { name: 'Alex Morgan' })).toBeInTheDocument()
   })
 
   test('a rename refused by another tab closes, reloads and says so', async () => {
@@ -301,7 +386,7 @@ describe('editing the person', () => {
 
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'Changed in another tab — refreshed', variant: 'error' }))
     expect(jest.mocked(fetchPeopleDirectory).mock.calls.length).toBeGreaterThan(loads)
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument())
   })
 
   test('organisation: an existing one by id, matched ignoring case rather than created again', async () => {
@@ -314,6 +399,19 @@ describe('editing the person', () => {
     await user.click(screen.getByRole('option', { name: 'ACME' }))
 
     await waitFor(() => expect(setPersonOrganisation).toHaveBeenCalledWith(PERSON_ID, null, { organisationId: 'acme' }))
+    // The popover closes once it is applied.
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Organisation' })).not.toBeInTheDocument())
+  })
+
+  test('organisation: a failure stays in the popover and says so', async () => {
+    jest.mocked(setPersonOrganisation).mockRejectedValue({ code: 'SP003' })
+    const user = await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Change organisation' }))
+    await user.click(screen.getByRole('option', { name: 'ACME' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Organisation names must be 1 to 50 characters.')
+    expect(screen.getByRole('combobox', { name: 'Organisation' })).toBeInTheDocument()
   })
 
   test('organisation: a new name is created when nothing matches', async () => {
@@ -337,16 +435,26 @@ describe('editing the person', () => {
     await waitFor(() => expect(setPersonOrganisation).toHaveBeenCalledWith(BLAIR_ID, 'acme', null))
   })
 
-  test('colour: another palette colour, guarded by the current one', async () => {
+  test('colour: choosing a palette colour applies it, guarded by the current one', async () => {
     jest.mocked(setPersonColor).mockResolvedValue(alex)
     const user = await renderPage()
 
     await user.click(screen.getByRole('button', { name: 'Change colour' }))
     expect(screen.getByRole('radio', { name: 'Denim' })).toBeChecked()
     await user.click(screen.getByRole('radio', { name: 'Teal' }))
-    await user.click(screen.getByRole('button', { name: 'Save colour' }))
 
     await waitFor(() => expect(setPersonColor).toHaveBeenCalledWith(PERSON_ID, '#4F638C', '#0D9488'))
+    await waitFor(() => expect(screen.queryByRole('radiogroup', { name: 'Colour' })).not.toBeInTheDocument())
+  })
+
+  test('colour: a colour changed in another tab reloads and says so', async () => {
+    jest.mocked(setPersonColor).mockRejectedValue({ code: 'SP002' })
+    const user = await renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'Change colour' }))
+    await user.click(screen.getByRole('radio', { name: 'Teal' }))
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'Changed in another tab — refreshed', variant: 'error' }))
   })
 
   test('hide and unhide', async () => {
@@ -367,8 +475,8 @@ describe('merge', () => {
       { person_id: BLAIR_ID, transcripts: [{
         transcript_id: TRANSCRIPT_B, title: 'Q3 steering', created_at: '2026-09-20T00:00:00Z',
         voices: [
-          { speaker_id: LINKED_SPEAKER, custom_label: null, segment_count: 3, detected_ordinals: [2] },
-          { speaker_id: DETECTED_SPEAKER, custom_label: 'Blair (typo)', segment_count: 1, detected_ordinals: [1] },
+          { speaker_id: LINKED_SPEAKER, custom_label: null, talk_ms: 125_000, detected_ordinals: [2] },
+          { speaker_id: DETECTED_SPEAKER, custom_label: 'Blair (typo)', talk_ms: 4_000, detected_ordinals: [1] },
         ],
       }] },
     ],
@@ -392,8 +500,8 @@ describe('merge', () => {
     expect(moving).toHaveTextContent('Not in any transcript.')
     expect(moving).toHaveTextContent('Q3 steering')
     expect(moving).toHaveTextContent('shows as one with Alex Morgan')
-    expect(moving).toHaveTextContent('From Speaker 2 · 3 segments')
-    expect(moving).toHaveTextContent('Blair (typo) · 1 segment')
+    expect(moving).toHaveTextContent('From Speaker 2 · 2 mins')
+    expect(moving).toHaveTextContent('Blair (typo) · 4 sec')
 
     await user.click(within(dialog).getByRole('button', { name: 'Merge 2 people' }))
     await waitFor(() => expect(mergePeople).toHaveBeenCalledWith(PERSON_ID, [CASEY_ID, BLAIR_ID]))

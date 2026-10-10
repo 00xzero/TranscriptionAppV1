@@ -7,8 +7,7 @@ import { genericSpeakerLabel, UNKNOWN_SPEAKER_LABEL } from '@/core/speakers/labe
  * tests share one definition.
  */
 
-/** Organisation filter values besides an organisation id. */
-export const ALL_ORGANISATIONS = 'all'
+/** The organisation filter's value for people with no organisation, beside organisation ids. */
 export const NO_ORGANISATION = 'none'
 
 export type DirectoryOrder = 'recent' | 'name'
@@ -46,18 +45,18 @@ export function matchesPersonSearch(
 }
 
 /**
- * The people the list shows. `organisation` is ALL_ORGANISATIONS,
- * NO_ORGANISATION or an organisation id. Hidden people are left out unless
- * `showHidden` is on.
+ * The people the list shows. `organisations` holds the selected organisation
+ * ids and NO_ORGANISATION; a person in any of them is shown, and with none
+ * selected everyone is. Hidden people are left out unless `showHidden` is on.
  */
 export function filterDirectory<T extends ListedPerson>(
   people: readonly T[],
-  { query, organisation, showHidden }: { query: string; organisation: string; showHidden: boolean }
+  { query, organisations, showHidden }: { query: string; organisations: readonly string[]; showHidden: boolean }
 ): T[] {
+  const selected = new Set(organisations)
   return people.filter((person) =>
     (showHidden || !person.hidden) &&
-    (organisation === ALL_ORGANISATIONS ||
-      (organisation === NO_ORGANISATION ? person.organisation_id === null : person.organisation_id === organisation)) &&
+    (selected.size === 0 || selected.has(person.organisation_id ?? NO_ORGANISATION)) &&
     matchesPersonSearch(person, query))
 }
 
@@ -72,6 +71,26 @@ export function sortDirectory<T extends ListedPerson>(people: readonly T[], orde
   if (order === 'name') return [...people].sort(byName)
   const seen = (person: T) => Date.parse(person.last_seen_at ?? person.created_at)
   return [...people].sort((a, b) => seen(b) - seen(a) || byName(a, b))
+}
+
+/**
+ * A person's share of the speaking in one transcript, as a whole percentage;
+ * null when nobody's speaking time is known.
+ */
+export function talkShare(talkMs: number, totalMs: number): number | null {
+  if (totalMs <= 0) return null
+  return Math.round((100 * Math.min(talkMs, totalMs)) / totalMs)
+}
+
+export type AppearanceTotals = { transcripts: number; talkMs: number; lastSeen: string | null }
+
+/** The person page's summary, from their appearances. */
+export function appearanceTotals(rows: readonly { created_at: string; talk_ms: number }[]): AppearanceTotals {
+  let lastSeen: string | null = null
+  for (const row of rows) {
+    if (lastSeen === null || Date.parse(row.created_at) > Date.parse(lastSeen)) lastSeen = row.created_at
+  }
+  return { transcripts: rows.length, talkMs: rows.reduce((sum, row) => sum + row.talk_ms, 0), lastSeen }
 }
 
 /** Organisations whose name contains the query, for the type-ahead; all of them for a blank query. */

@@ -94,8 +94,8 @@ INSERT INTO public.speakers (id, transcript_id, user_id, ordinal, diarization_in
 INSERT INTO public.segments (id, transcript_id, speaker_id, diarization_index, start_ms, end_ms, text) VALUES
   ('e6000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000012', 0,    0, 1000, 'alex one'),
   ('e6000000-0000-4000-8000-000000000002', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000011', 1, 1000, 2000, 'speaker two'),
-  ('e6000000-0000-4000-8000-000000000003', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000012', NULL, 2000, 3000, 'alex, unnumbered'),
-  ('e6000000-0000-4000-8000-000000000004', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000010', 0, 3000, 4000, 'speaker one'),
+  ('e6000000-0000-4000-8000-000000000003', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000012', NULL, 2000, 3500, 'alex, unnumbered'),
+  ('e6000000-0000-4000-8000-000000000004', 'e2000000-0000-4000-8000-000000000001', 'e5000000-0000-4000-8000-000000000010', 0, 3500, 4000, 'speaker one'),
   ('e6000000-0000-4000-8000-000000000005', 'e2000000-0000-4000-8000-000000000002', 'e5000000-0000-4000-8000-000000000021', 0,    0, 1000, 'alex in review'),
   ('e6000000-0000-4000-8000-000000000006', 'e2000000-0000-4000-8000-000000000003', 'e5000000-0000-4000-8000-000000000032', 0,    0, 1000, 'blair'),
   ('e6000000-0000-4000-8000-000000000007', 'e2000000-0000-4000-8000-000000000003', 'e5000000-0000-4000-8000-000000000033', 1, 1000, 2000, 'dana'),
@@ -138,13 +138,14 @@ SELECT pg_temp.assert_true(
   'organisations are listed with their number of people'
 );
 SELECT pg_temp.assert_true(
-  (SELECT array_agg(e->>'title' || ':' || (e->>'segment_count') ORDER BY ord)
+  (SELECT array_agg(e->>'title' || ':' || (e->>'talk_ms') || '/' || (e->>'transcript_talk_ms') ORDER BY ord)
    FROM jsonb_array_elements(public.list_person_appearances('e3000000-0000-4000-8000-000000000001'))
      WITH ORDINALITY AS t(e, ord))
-  = ARRAY['Review:1', 'Kickoff:2']
+  -- Alex speaks 1000 + 1500 ms of Kickoff's 4000, and all of Review.
+  = ARRAY['Review:1000/1000', 'Kickoff:2500/4000']
   AND public.list_person_appearances('e3000000-0000-4000-8000-000000000003') = '[]'::jsonb
   AND public.list_person_appearances('e3000000-0000-4000-8000-00000000000b') = '[]'::jsonb,
-  'appearances are newest first with segment counts; another account''s person has none'
+  'appearances are newest first with the person''s and everyone''s speaking time; another account''s person has none'
 );
 
 -- ---------------------------------------------------------------- create ----
@@ -272,11 +273,11 @@ SELECT pg_temp.assert_true(
   -- Dana's silent link in Review moves too, but shows nowhere, so is not listed.
   AND (SELECT data->'people'->0->'transcripts' @> '[{"title": "Retro", "voices": [
          {"speaker_id": "e5000000-0000-4000-8000-000000000033", "custom_label": null,
-          "segment_count": 1, "detected_ordinals": [2]}]}]'::jsonb
+          "talk_ms": 1000, "detected_ordinals": [2]}]}]'::jsonb
          AND jsonb_array_length(data->'people'->0->'transcripts') = 1
        FROM action_result WHERE name = 'preview')
   AND (SELECT data->'people'->1->'transcripts'->0->'voices'->0 @> '{"custom_label": "Blair typo",
-         "segment_count": 1, "detected_ordinals": [1]}'::jsonb
+         "talk_ms": 1000, "detected_ordinals": [1]}'::jsonb
        FROM action_result WHERE name = 'preview'),
   'the preview lists each transcript and local voice that would move, in the order given'
 );

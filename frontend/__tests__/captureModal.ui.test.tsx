@@ -199,6 +199,17 @@ describe('CaptureModal', () => {
     expect(mockCloseCaptureModal).toHaveBeenCalledTimes(2)
   })
 
+  test('the shared close button closes when idle, and names itself in a tooltip', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    const close = screen.getByRole('button', { name: 'Close' })
+    await user.hover(close)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Close')
+    await user.click(close)
+    expect(mockCloseCaptureModal).toHaveBeenCalledTimes(1)
+  })
+
   test('blocks dismissal while uploading', async () => {
     const user = userEventLib.setup()
     mockCaptureFormState.isUploading = true
@@ -211,6 +222,7 @@ describe('CaptureModal', () => {
     expect(overlay).not.toBeNull()
 
     await user.click(overlay as Element)
+    expect(screen.getByRole('button', { name: 'Close' })).toBeDisabled()
 
     expect(mockCloseCaptureModal).not.toHaveBeenCalled()
   })

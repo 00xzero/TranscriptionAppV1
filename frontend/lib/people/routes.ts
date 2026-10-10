@@ -21,3 +21,9 @@ export function fromTranscriptId(value: string | null): string | null {
 export function isPersonId(value: string): boolean {
   return UuidSchema.safeParse(value).success
 }
+
+/** The person whose dialog `/people/<id>` opens, if the path names one. */
+export function personIdFromPathname(pathname: string | null): string | null {
+  const id = pathname?.match(/^\/people\/([^/]+)\/?$/)?.[1]
+  return id && isPersonId(id) ? id : null
+}
