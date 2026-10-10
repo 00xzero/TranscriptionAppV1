@@ -230,7 +230,10 @@ export default function SpeakerPopoverContent({ transcriptId, presentation, peop
   }
 
   return (
-    <div className="flex max-h-[min(560px,var(--radix-popover-content-available-height))] flex-col text-foreground">
+    // A fixed height from the window, not the content or the anchor, so the
+    // popover is the same size wherever it opens. Under half the window it
+    // always fits above or below the name; the cap only bites in tiny windows.
+    <div className="flex h-[clamp(12rem,calc(50dvh_-_1.75rem),32rem)] max-h-(--radix-popover-content-available-height) flex-col text-foreground">
       <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         {/* The icon follows the field so it paints over the field's focused fill. */}
         <div className="relative min-w-0 flex-1">
@@ -324,22 +327,25 @@ export default function SpeakerPopoverContent({ transcriptId, presentation, peop
         </TabsContent>
       </Tabs>
 
-      <div className="flex items-center justify-between gap-1 border-t border-border px-1.5 py-1">
+      <div className={`grid shrink-0 border-t border-border ${currentSpeaker ? 'grid-cols-2 divide-x divide-border' : 'grid-cols-1'}`}>
         {currentSpeaker && (
-          <Button type="button" variant="ghost" size="sm" onClick={() => setRenaming(true)} className="gap-1.5">
-            <Pencil className="h-3.5 w-3.5" aria-hidden />
-            {linked ? 'Rename person everywhere' : 'Rename in this transcript'}
-          </Button>
+          <button type="button" onClick={() => setRenaming(true)} className={FOOTER_ACTION}
+            title={linked ? 'Rename this person in every transcript' : 'Rename this voice in this transcript only'}>
+            <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{linked ? 'Rename everywhere' : 'Rename here'}</span>
+          </button>
         )}
-        <Link href={peopleHref('/people', transcriptId)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-xs px-3 py-1.5 text-xs text-foreground/60 hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40">
-          <Contact className="h-3.5 w-3.5" aria-hidden />
-          Manage people
+        <Link href={peopleHref('/people', transcriptId)} className={FOOTER_ACTION}>
+          <Contact className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate">Manage people</span>
         </Link>
       </div>
     </div>
   )
 }
+
+// The footer's two actions are equal halves, so they share one look.
+const FOOTER_ACTION = 'inline-flex min-w-0 items-center justify-center gap-1.5 px-2 py-2.5 text-xs text-foreground/70 hover:bg-subtle hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/40'
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="px-3 pb-1 pt-2 text-xs text-muted">{children}</div>

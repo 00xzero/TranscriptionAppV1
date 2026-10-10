@@ -161,7 +161,7 @@ test('a linked speaker can be removed everywhere and renamed everywhere', async 
   await user.click(screen.getByRole('tab', { name: 'All 1 segment' }))
   await user.click(screen.getByRole('button', { name: 'Remove Alex' }))
   expect(onRemove).toHaveBeenCalledWith('speaker')
-  await user.click(screen.getByRole('button', { name: 'Rename person everywhere' }))
+  await user.click(screen.getByRole('button', { name: 'Rename everywhere' }))
   const input = screen.getByLabelText('Rename person everywhere · 2 transcripts')
   expect(input).toHaveValue('Alex')
   await user.clear(input)
@@ -196,7 +196,7 @@ test('Manage people sits at the bottom, even for an unassigned segment', () => {
 test('renaming in this transcript needs a name and can use an existing person instead', async () => {
   const host = { ...speaker, custom_label: 'Host', diarization_index: null }
   const { user, onRenameLocal, onSelectTarget } = renderPopover({ speakers: [host], currentSpeaker: host })
-  await user.click(screen.getByRole('button', { name: 'Rename in this transcript' }))
+  await user.click(screen.getByRole('button', { name: 'Rename here' }))
   const input = screen.getByLabelText('Rename in this transcript only')
   await user.clear(input)
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()

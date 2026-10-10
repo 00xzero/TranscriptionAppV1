@@ -314,7 +314,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
           side="bottom"
           align="start"
           sideOffset={8}
-          className="w-[min(19rem,calc(100vw-2rem))] overflow-hidden p-0"
+          className="w-[min(20rem,calc(100vw-2rem))] overflow-hidden p-0"
           aria-label="Speaker assignment"
           // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
           // own search input on mount (SpeakerPopoverContent.tsx useEffect)
