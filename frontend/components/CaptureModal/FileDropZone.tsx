@@ -1,13 +1,16 @@
 "use client"
 
 import { useState, useCallback, useRef } from 'react'
+import { X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
+import { IconButton } from '@/components/ui/icon-button'
 import { SUPPORTED_EXTENSIONS } from '@/lib/capture/upload'
 import { formatFileSize } from './shared'
 
 interface FileDropZoneProps {
   selectedFile: File | null
   onFileSelect: (file: File) => void
+  onClearFile: () => void
   isUploading: boolean
   displayError: string | null
   maxFileSizeLabel: string
@@ -18,11 +21,13 @@ const fileInputId = 'capture-file-input'
 export default function FileDropZone({
   selectedFile,
   onFileSelect,
+  onClearFile,
   isUploading,
   displayError,
   maxFileSizeLabel,
 }: FileDropZoneProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropzoneRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDropzoneClick = useCallback(() => {
@@ -74,6 +79,12 @@ export default function FileDropZone({
     }
   }, [isUploading, onFileSelect])
 
+  const handleClearClick = useCallback(() => {
+    onClearFile()
+    // The button goes with the file, so keep focus in the drop zone.
+    dropzoneRef.current?.focus()
+  }, [onClearFile])
+
   return (
     <div className="space-y-3">
       <Label className="block text-[10px] font-mono uppercase tracking-wider opacity-60" htmlFor={fileInputId}>Select File</Label>
@@ -91,53 +102,67 @@ export default function FileDropZone({
         className="hidden"
       />
 
-      <div
-        onClick={handleDropzoneClick}
-        onKeyDown={handleDropzoneKeyDown}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        tabIndex={0}
-        role="button"
-        aria-label={selectedFile ? `Change selected file. Current file: ${selectedFile.name}` : 'Choose an audio or video file'}
-        title={selectedFile ? `Change selected file (${selectedFile.name})` : 'Choose a file'}
-        aria-disabled={isUploading}
-        className={`border-2 border-dashed rounded-lg h-40 flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer group ${isDragging
-          ? 'border-trust-blue bg-trust-blue/10'
-          : selectedFile
-            ? 'border-trust-blue/50 bg-trust-blue/5'
-            : 'border-border bg-subtle hover:border-trust-blue hover:bg-trust-blue/5'
-          } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        {selectedFile ? (
-          <>
-            <div className="w-10 h-10 rounded-full bg-trust-blue/10 border border-trust-blue/30 flex items-center justify-center text-trust-blue">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div className="text-center">
-              <p className="max-w-[300px] truncate text-sm font-medium text-foreground/80">
-                {selectedFile.name}
-              </p>
-              <p className="mt-1 text-xs text-foreground/40">
-                {formatFileSize(selectedFile.size)}
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-field text-foreground/40 transition-colors group-hover:border-trust-blue group-hover:text-trust-blue">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12" />
-              </svg>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium text-foreground/80">Drop recording here</p>
-              <p className="my-1 text-xs text-foreground/40">or</p>
-              <span className="text-xs font-mono border border-(--border) px-2 py-1 rounded-sm bg-paper dark:bg-(--field)">Browse Files</span>
-            </div>
-          </>
+      <div className="relative">
+        <div
+          ref={dropzoneRef}
+          onClick={handleDropzoneClick}
+          onKeyDown={handleDropzoneKeyDown}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          tabIndex={0}
+          role="button"
+          aria-label={selectedFile ? `Change selected file. Current file: ${selectedFile.name}` : 'Choose an audio or video file'}
+          title={selectedFile ? `Change selected file (${selectedFile.name})` : 'Choose a file'}
+          aria-disabled={isUploading}
+          className={`border-2 border-dashed rounded-lg h-40 flex flex-col items-center justify-center gap-3 transition-colors cursor-pointer group ${isDragging
+            ? 'border-trust-blue bg-trust-blue/10'
+            : selectedFile
+              ? 'border-trust-blue/50 bg-trust-blue/5'
+              : 'border-border bg-subtle hover:border-trust-blue hover:bg-trust-blue/5'
+            } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {selectedFile ? (
+            <>
+              <div className="w-10 h-10 rounded-full bg-trust-blue/10 border border-trust-blue/30 flex items-center justify-center text-trust-blue">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="max-w-[300px] truncate text-sm font-medium text-foreground/80">
+                  {selectedFile.name}
+                </p>
+                <p className="mt-1 text-xs text-foreground/40">
+                  {formatFileSize(selectedFile.size)}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-field text-foreground/40 transition-colors group-hover:border-trust-blue group-hover:text-trust-blue">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground/80">Drop recording here</p>
+                <p className="my-1 text-xs text-foreground/40">or</p>
+                <span className="text-xs font-mono border border-(--border) px-2 py-1 rounded-sm bg-paper dark:bg-(--field)">Browse Files</span>
+              </div>
+            </>
+          )}
+        </div>
+        {/* Beside the drop zone rather than inside it: no button nested in a button,
+            and removing the file does not open the file browser. */}
+        {selectedFile && !isUploading && (
+          <IconButton
+            label="Remove file"
+            ariaLabel={`Remove ${selectedFile.name}`}
+            icon={<X className="h-4 w-4" aria-hidden="true" />}
+            onClick={handleClearClick}
+            className="absolute right-2 top-2"
+          />
         )}
       </div>
 

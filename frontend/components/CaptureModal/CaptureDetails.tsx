@@ -6,24 +6,40 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import CaptureProjectField from './CaptureProjectField'
 
 const titleCountId = 'capture-title-count'
 
 interface CaptureDetailsProps {
+  projectId: string | null
+  onProjectChange: (projectId: string | null) => void
   title: string
   setTitle: (value: string) => void
   /** Set after a submit attempt was blocked by an over-long title. */
   titleError: string | null
-  isUploading: boolean
+  disabled: boolean
 }
 
-export default function CaptureDetails({ title, setTitle, titleError, isUploading }: CaptureDetailsProps) {
+export default function CaptureDetails({
+  projectId,
+  onProjectChange,
+  title,
+  setTitle,
+  titleError,
+  disabled,
+}: CaptureDetailsProps) {
   return (
     <div className="space-y-4 pt-2 border-t border-border">
       <p className="block text-[10px] font-mono uppercase tracking-wider opacity-60 mt-4">Transcript Details</p>
 
       <div className="space-y-1">
-        <Label className="text-xs font-medium opacity-80" htmlFor={captureTitleInputId}>Title</Label>
+        {/* The count shares the label's line, so it needs no row of its own: the
+            fields below keep an even rhythm and nothing moves while typing. */}
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-xs font-medium opacity-80" htmlFor={captureTitleInputId}>Title</Label>
+          {/* Its 20px line would make this row taller than the other labels. */}
+          <CharacterCount id={titleCountId} length={title.trim().length} max={TEXT_LIMITS.transcriptTitle} className="-my-0.5" />
+        </div>
         <Input
           id={captureTitleInputId}
           type="text"
@@ -32,13 +48,12 @@ export default function CaptureDetails({ title, setTitle, titleError, isUploadin
           placeholder="e.g., Client Interview - January 2026"
           aria-describedby={titleCountId}
           aria-invalid={transcriptTitleTooLong(title) ? true : undefined}
-          disabled={isUploading}
+          disabled={disabled}
         />
-        <div className="flex items-start justify-between gap-3">
-          {titleError ? <p role="alert" className="text-xs text-ember-red">{titleError}</p> : <span />}
-          <CharacterCount id={titleCountId} length={title.trim().length} max={TEXT_LIMITS.transcriptTitle} />
-        </div>
+        {titleError && <p role="alert" className="text-xs text-ember-red">{titleError}</p>}
       </div>
+
+      <CaptureProjectField projectId={projectId} onProjectChange={onProjectChange} disabled={disabled} />
 
       <div className="space-y-1">
         <Label className="text-xs font-medium opacity-80">

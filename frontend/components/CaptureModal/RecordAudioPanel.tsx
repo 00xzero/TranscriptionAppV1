@@ -8,6 +8,8 @@ import type { MicTestApi } from '@/lib/recording/useMicTest'
 const micSelectId = 'capture-mic-select'
 
 interface RecordAudioPanelProps {
+  projectId: string | null
+  onProjectChange: (projectId: string | null) => void
   title: string
   setTitle: (value: string) => void
   titleError: string | null
@@ -19,12 +21,16 @@ interface RecordAudioPanelProps {
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
   isUploading: boolean
+  /** Locks the transcript details while an upload or recording start is in progress. */
+  fieldsDisabled: boolean
   micTest: MicTestApi
   codecSupported: boolean | null
   recordingActive: boolean
 }
 
 export default function RecordAudioPanel({
+  projectId,
+  onProjectChange,
   title,
   setTitle,
   titleError,
@@ -36,6 +42,7 @@ export default function RecordAudioPanel({
   handleAddTermClick,
   removeTerm,
   isUploading,
+  fieldsDisabled,
   micTest,
   codecSupported,
   recordingActive,
@@ -152,6 +159,8 @@ export default function RecordAudioPanel({
       </div>
 
       <CaptureMetadataFields
+        projectId={projectId}
+        onProjectChange={onProjectChange}
         title={title}
         setTitle={setTitle}
         titleError={titleError}
@@ -162,7 +171,7 @@ export default function RecordAudioPanel({
         handleKeyTermKeyDown={handleKeyTermKeyDown}
         handleAddTermClick={handleAddTermClick}
         removeTerm={removeTerm}
-        isUploading={isUploading}
+        disabled={fieldsDisabled}
       />
     </div>
   )

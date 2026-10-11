@@ -67,7 +67,7 @@ export default function RecordingKeyTerms() {
             keyTermInput={keyTermInput}
             setKeyTermInput={setKeyTermInput}
             keyTermsError={keyTermsError}
-            isUploading={false}
+            disabled={false}
             onKeyDown={handleKeyTermKeyDown}
             onAddClick={handleAddTermClick}
             onRemoveTerm={removeTerm}

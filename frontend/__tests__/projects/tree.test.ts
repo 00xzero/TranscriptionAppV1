@@ -7,6 +7,7 @@ import {
   buildProjectTree,
   collapseBreadcrumbs,
   descendantCount,
+  isProjectAvailable,
   pathLabel,
   siblingNameTaken,
   transcriptCountsByProject,
@@ -194,6 +195,25 @@ describe('activeBranchIds', () => {
 
   test('returns nothing for an unknown id', () => {
     expect(activeBranchIds(buildProjectTree([]), 'nope')).toEqual([])
+  })
+})
+
+describe('isProjectAvailable', () => {
+  const tree = buildProjectTree([
+    project('kept', 'Kept'),
+    { ...project('going', 'Going'), deleting_at: '2026-09-15T00:00:00Z' },
+  ])
+
+  test('a project in the tree that is not being deleted is available', () => {
+    expect(isProjectAvailable(tree, 'kept')).toBe(true)
+  })
+
+  test('a project being deleted is not', () => {
+    expect(isProjectAvailable(tree, 'going')).toBe(false)
+  })
+
+  test('an unknown id is not', () => {
+    expect(isProjectAvailable(tree, 'missing')).toBe(false)
   })
 })
 

@@ -2,6 +2,8 @@ import CaptureDetails from './CaptureDetails'
 import KeyTermsInput from './KeyTermsInput'
 
 interface CaptureMetadataFieldsProps {
+  projectId: string | null
+  onProjectChange: (projectId: string | null) => void
   title: string
   setTitle: (value: string) => void
   titleError: string | null
@@ -12,10 +14,12 @@ interface CaptureMetadataFieldsProps {
   handleKeyTermKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
-  isUploading: boolean
+  disabled: boolean
 }
 
 export default function CaptureMetadataFields({
+  projectId,
+  onProjectChange,
   title,
   setTitle,
   titleError,
@@ -26,22 +30,24 @@ export default function CaptureMetadataFields({
   handleKeyTermKeyDown,
   handleAddTermClick,
   removeTerm,
-  isUploading,
+  disabled,
 }: CaptureMetadataFieldsProps) {
   return (
     <>
       <CaptureDetails
+        projectId={projectId}
+        onProjectChange={onProjectChange}
         title={title}
         setTitle={setTitle}
         titleError={titleError}
-        isUploading={isUploading}
+        disabled={disabled}
       />
       <KeyTermsInput
         keyTerms={keyTerms}
         keyTermInput={keyTermInput}
         setKeyTermInput={setKeyTermInput}
         keyTermsError={keyTermsError}
-        isUploading={isUploading}
+        disabled={disabled}
         onKeyDown={handleKeyTermKeyDown}
         onAddClick={handleAddTermClick}
         onRemoveTerm={removeTerm}

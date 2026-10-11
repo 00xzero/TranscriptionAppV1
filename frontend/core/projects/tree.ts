@@ -146,6 +146,12 @@ export function transcriptCountsByProject(
   return counts
 }
 
+/** In the tree and not being deleted, so new work can still be filed there. */
+export function isProjectAvailable(tree: ProjectTree, id: string): boolean {
+  const project = tree.byId.get(id)
+  return Boolean(project && !project.deleting_at)
+}
+
 export function activeBranchIds(tree: ProjectTree, id: string): string[] {
   const root = tree.byId.get(id)
   if (!root || root.deleting_at) return []

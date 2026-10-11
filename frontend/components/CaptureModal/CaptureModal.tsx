@@ -125,10 +125,12 @@ export default function CaptureModal() {
     restoreFocus()
   }
 
-  const intentProjectId = captureModalIntent?.projectId ?? null
   const {
     selectedFile,
     handleFileSelect,
+    clearFile,
+    projectId,
+    setProjectId,
     title,
     setTitle,
     titleError,
@@ -149,7 +151,7 @@ export default function CaptureModal() {
   } = useCaptureForm({
     isCaptureModalOpen,
     closeCaptureModal: handleClose,
-    projectId: intentProjectId,
+    intentProjectId: captureModalIntent?.projectId ?? null,
   })
 
   const isRecordTab = activeTab === 'record' && !isUploading
@@ -228,7 +230,7 @@ export default function CaptureModal() {
           codec,
           title: title.trim() ? title.trim() : null,
           keyTerms,
-          projectId: intentProjectId,
+          projectId,
           deviceId: deviceId ?? null,
           maxBytes: MAX_FILE_SIZE_BYTES,
         })
@@ -394,6 +396,9 @@ export default function CaptureModal() {
               <UploadAudioPanel
                 selectedFile={selectedFile}
                 handleFileSelect={handleFileSelect}
+                clearFile={clearFile}
+                projectId={projectId}
+                onProjectChange={setProjectId}
                 title={title}
                 setTitle={setTitle}
                 titleError={titleError}
@@ -405,12 +410,15 @@ export default function CaptureModal() {
                 handleAddTermClick={handleAddTermClick}
                 removeTerm={removeTerm}
                 isUploading={isUploading}
+                fieldsDisabled={actionInProgress}
                 displayError={displayError}
                 maxFileSizeLabel={maxFileSizeLabel}
               />
             </TabsContent>
             <TabsContent value="record">
               <RecordAudioPanel
+                projectId={projectId}
+                onProjectChange={setProjectId}
                 title={title}
                 setTitle={setTitle}
                 titleError={titleError}
@@ -422,6 +430,7 @@ export default function CaptureModal() {
                 handleAddTermClick={handleAddTermClick}
                 removeTerm={removeTerm}
                 isUploading={isUploading}
+                fieldsDisabled={actionInProgress}
                 micTest={micTest}
                 codecSupported={codecSupported}
                 recordingActive={anyRecordingActive}
