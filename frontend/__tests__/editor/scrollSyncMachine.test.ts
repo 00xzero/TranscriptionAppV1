@@ -203,3 +203,44 @@ describe('scrollSyncMachine', () => {
     expect(state.mode).toBe('userScrolling')
   })
 })
+
+describe('SEGMENT_JUMP', () => {
+  const from = {
+    following: createInitialScrollSyncState(),
+    idle: transitionScrollSyncState(createInitialScrollSyncState(), { type: 'FOLLOW_SUSPENDED', now: 1 }).state,
+    userScrolling: transitionScrollSyncState(createInitialScrollSyncState(), { type: 'USER_SCROLL', now: 1 }).state,
+    editBlocked: transitionScrollSyncState(createInitialScrollSyncState(), { type: 'EDIT_BLOCKED', now: 1 }).state,
+    popoverBlocked: transitionScrollSyncState(createInitialScrollSyncState(), { type: 'POPOVER_BLOCKED', now: 1 }).state,
+  }
+
+  it.each(Object.entries(from))('from %s, scrolls to the target exactly once and follows from there', (_name, start) => {
+    const { state, commands } = transitionScrollSyncState(start, {
+      type: 'SEGMENT_JUMP',
+      now: 100,
+      segId: 's9',
+      lockSeekUntil: 3100,
+    })
+
+    expect(commands.filter((command) => command.type === 'SCROLL_TO_ACTIVE')).toEqual([
+      { type: 'SCROLL_TO_ACTIVE', behavior: 'smooth' },
+    ])
+    expect(state).toMatchObject({
+      mode: 'following',
+      activeSegId: 's9',
+      seekLockUntil: 3100,
+      hasUserScrolled: false,
+      editBlocked: false,
+      popoverBlocked: false,
+    })
+  })
+
+  it('leaves nothing for the closing edit to undo', () => {
+    const jumped = transitionScrollSyncState(from.editBlocked, {
+      type: 'SEGMENT_JUMP', now: 100, segId: 's9', lockSeekUntil: 3100,
+    }).state
+    const { state, commands } = transitionScrollSyncState(jumped, { type: 'EDIT_UNBLOCKED', now: 120 })
+
+    expect(state.mode).toBe('following')
+    expect(commands).toEqual([])
+  })
+})

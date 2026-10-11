@@ -38,7 +38,7 @@ export default function FloatingPlayerDeck({
   }
 
   return (
-    <div className="absolute bottom-6 left-1/2 z-50 w-[90%] -translate-x-1/2 rounded-2xl border border-border bg-panel/45 px-5 py-3 shadow-float backdrop-blur-md md:w-[600px]">
+    <div className="absolute bottom-6 left-1/2 z-50 w-[min(600px,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-border bg-panel/45 px-5 py-3 shadow-float backdrop-blur-md">
       <div className="flex items-center justify-between">
         {/* Left: Time display */}
         <div className="font-mono text-xs select-none min-w-[80px]">

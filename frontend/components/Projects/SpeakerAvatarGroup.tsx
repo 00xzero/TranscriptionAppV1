@@ -5,15 +5,15 @@ import { Ghost } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import type { ProjectSpeakerPreview } from '@/contracts/db'
-import { previewDisplay, type PreviewDisplay } from '@/lib/speakers/display'
+import type { PreviewDisplay } from '@/lib/speakers/display'
 import { cn } from '@/lib/utils'
 import { countLabel } from './format'
 
 type SpeakerAvatarGroupProps = {
-  speakers: ProjectSpeakerPreview[]
+  /** Already resolved: projects map their preview with `previewDisplay`, the editor builds its own. */
+  speakers: PreviewDisplay[]
   totalCount: number
-  size: 'card' | 'header'
+  size: 'card' | 'header' | 'editor'
   loading?: boolean
   className?: string
   /**
@@ -29,9 +29,6 @@ type SpeakerAvatarGroupProps = {
    */
   href?: string
 }
-
-/** Four circles fit; beyond that the fourth slot becomes the "+N" badge. */
-const MAX_AVATARS = 4
 
 /**
  * Near-instant, matching the collapsed sidebar (Sidebar.tsx) for the same
@@ -54,7 +51,10 @@ const TOOLTIP_SKIP_DELAY_MS = 400
 const TOOLTIP_ON_CARD = 'border border-border'
 
 /** The ring separates overlapping circles. The cursor is set per surface; see `href`. */
-const CIRCLE_RING = 'ring-2 ring-panel'
+const CIRCLE_RING = 'ring-2'
+
+/** A circle's square hover target; see the note on the row. */
+const HIT_AREA = 'inline-flex shrink-0'
 
 /**
  * Said instead of "0 speakers", which is a true but joyless way to describe a
@@ -72,7 +72,9 @@ const EMPTY_COPY = 'No speakers yet!'
  * header steps down to 4px.
  */
 const SIZES = {
-  card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '' },
+  // Four circles fit on a card or a project header; beyond that the fourth slot
+  // becomes the "+N" badge, so `facesWithOverflow` is one fewer than `maxFaces`.
+  card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '', ring: 'ring-panel', maxFaces: 4, facesWithOverflow: 3 },
   // In the header the group shares a row with the counts and the action buttons,
   // so the count text drops out when that row is tight rather than wrapping the
   // group onto a second line and making the card taller. The full count stays in
@@ -105,7 +107,15 @@ const SIZES = {
     // the header reads exactly as it did before this feature. Mobile still gets
     // avatars on the Library cards, which have a row of their own.
     group: '@max-sm:hidden',
+    ring: 'ring-panel',
+    maxFaces: 4,
+    facesWithOverflow: 3,
   },
+  // The editor header's speaker button. Its meta row has the room for four
+  // faces and the badge, and the talk-share bar beside it stands in for the
+  // count text, which the accessible name still carries. It sits on the page,
+  // not a card, so its rings take the page colour.
+  editor: { avatar: 'sm', row: 'min-h-6', overlap: '-ml-1', count: 'hidden', ghost: 'h-3.5 w-3.5', group: '', ring: 'ring-background', maxFaces: 4, facesWithOverflow: 4 },
 } as const
 
 function accessibleName(visible: PreviewDisplay[], totalCount: number): string {
@@ -180,9 +190,10 @@ export function SpeakerAvatarGroup({
   href,
 }: SpeakerAvatarGroupProps) {
   const styles = SIZES[size]
-  // A link's hand on a card, a plain arrow on the header. Either way never a
+  // A hand where clicking does something (a card's link, the editor's speaker
+  // button around the group), a plain arrow on the project header. Never a
   // text caret: an I-beam would say the initials are copyable prose.
-  const cursorClass = href ? 'cursor-pointer' : 'cursor-default'
+  const cursorClass = href || size === 'editor' ? 'cursor-pointer' : 'cursor-default'
 
   if (loading) {
     // Same height as the loaded row, so nothing shifts when the data lands.
@@ -197,7 +208,7 @@ export function SpeakerAvatarGroup({
             <Avatar
               key={item}
               size={styles.avatar}
-              className={cn('animate-pulse bg-subtle', CIRCLE_RING, item > 0 && styles.overlap)}
+              className={cn('animate-pulse bg-subtle', CIRCLE_RING, styles.ring, item > 0 && styles.overlap)}
             />
           ))}
         </div>
@@ -205,10 +216,11 @@ export function SpeakerAvatarGroup({
     )
   }
 
-  // Exactly four speakers get four circles; a fifth would not fit, so from five
-  // up the last slot is spent on the overflow badge instead.
-  const visible = (totalCount > MAX_AVATARS ? speakers.slice(0, MAX_AVATARS - 1) : speakers.slice(0, MAX_AVATARS))
-    .map(previewDisplay)
+  // On a card exactly four speakers get four circles; a fifth would not fit, so
+  // from five up the last slot is spent on the overflow badge instead.
+  const visible = totalCount > styles.maxFaces
+    ? speakers.slice(0, styles.facesWithOverflow)
+    : speakers.slice(0, styles.maxFaces)
   const overflow = totalCount - visible.length
 
   return (
@@ -242,23 +254,33 @@ export function SpeakerAvatarGroup({
           of the tab order and out of the accessibility tree, because the title
           link already says all of this for keyboard and screen-reader users.
         */
+        // disableHoverableContent: these tooltips hold nothing to click, and the
+        // grace area that keeps a tooltip open while the pointer heads for it
+        // also blocks every other trigger. A wide name above the row sits over
+        // its neighbours, so sliding along the circles kept the first name up.
         <TooltipProvider
           delayDuration={TOOLTIP_DELAY_MS}
           skipDelayDuration={TOOLTIP_SKIP_DELAY_MS}
+          disableHoverableContent
         >
           <Row href={href}>
+            {/*
+              Each trigger is a square around its circle, not the circle itself.
+              Hit testing follows border-radius, so round triggers left dead
+              slivers above and below the centre line where neighbours overlap,
+              and a slow pointer drifting through one closed a name and reopened
+              the next. Squares meet edge to edge, so the handover is seamless.
+            */}
             {visible.map((speaker, index) => (
               <Tooltip key={speaker.key}>
                 <TooltipTrigger asChild>
-                  {/* People first, in their preferred colours; unlinked voices
-                      follow in grey: the editor's colour rules (spec §8). */}
-                  <Avatar
-                    size={styles.avatar}
-                    color={speaker.color}
-                    className={cn(CIRCLE_RING, cursorClass, index > 0 && styles.overlap)}
-                  >
-                    {speaker.avatarText}
-                  </Avatar>
+                  <span className={cn(HIT_AREA, cursorClass, index > 0 && styles.overlap)}>
+                    {/* People first, in their preferred colours; unlinked voices
+                        follow in grey: the editor's colour rules (spec §8). */}
+                    <Avatar size={styles.avatar} color={speaker.color} className={cn(CIRCLE_RING, styles.ring)}>
+                      {speaker.avatarText}
+                    </Avatar>
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent className={TOOLTIP_ON_CARD}>{speaker.tooltip}</TooltipContent>
               </Tooltip>
@@ -270,24 +292,25 @@ export function SpeakerAvatarGroup({
               // tooltip lists the overflow when it cannot.
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Avatar
-                    size={styles.avatar}
-                    className={cn(
-                      CIRCLE_RING,
-                      cursorClass,
-                      // bg-border, not bg-surface-alt. In dark mode surface-alt
-                      // is #141414 against a #1D1E18 card -- 1.09:1 -- so the
-                      // disc was invisible and the badge read as a SMALLER
-                      // circle than its neighbours when it is in fact the same
-                      // 28px. The border token steps away from the card in both
-                      // themes (#333333 on night-surface, #D1CEC5 on white),
-                      // and text-foreground clears AA on either.
-                      'bg-border text-foreground',
-                      styles.overlap
-                    )}
-                  >
-                    +{overflow}
-                  </Avatar>
+                  <span className={cn(HIT_AREA, cursorClass, styles.overlap)}>
+                    <Avatar
+                      size={styles.avatar}
+                      className={cn(
+                        CIRCLE_RING,
+                        styles.ring,
+                        // bg-border, not bg-surface-alt. In dark mode surface-alt
+                        // is #141414 against a #1D1E18 card -- 1.09:1 -- so the
+                        // disc was invisible and the badge read as a SMALLER
+                        // circle than its neighbours when it is in fact the same
+                        // 28px. The border token steps away from the card in both
+                        // themes (#333333 on night-surface, #D1CEC5 on white),
+                        // and text-foreground clears AA on either.
+                        'bg-border text-foreground'
+                      )}
+                    >
+                      +{overflow}
+                    </Avatar>
+                  </span>
                 </TooltipTrigger>
                 <TooltipContent className={TOOLTIP_ON_CARD}>
                   {countLabel(overflow, 'more speaker', 'more speakers')}

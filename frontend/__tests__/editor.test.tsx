@@ -745,6 +745,56 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(document.querySelector('[data-testid="segment-card"] textarea')).toBeNull()
   })
 
+  test('the header speaker summary opens the sidebar, whose jumps scroll once to the turn', async () => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    const summary = screen.getByRole('button', { name: /^Speakers:/ })
+    await user.click(summary)
+    const panel = screen.getByRole('complementary', { name: 'Speakers' })
+    expect(summary).toHaveAttribute('aria-expanded', 'true')
+    expect(within(panel).getByRole('heading', { name: 'Speakers' })).toHaveFocus()
+
+    // The quietest speaker: the case the sidebar is for.
+    const rows = within(panel).getAllByRole('button', { name: /of talk time/ })
+    await user.click(rows[rows.length - 1])
+    scrollToIndexMock.mockClear()
+    await user.click(within(panel).getByRole('button', { name: /Go to turn 1/ }))
+
+    const cards = screen.getAllByTestId('segment-card')
+    const activeIndex = cards.findIndex((card) => card.className.includes('bg-trust-blue/10'))
+    expect(activeIndex).toBeGreaterThanOrEqual(0)
+    expect(scrollToIndexMock).toHaveBeenCalledTimes(1)
+    expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({ index: activeIndex }))
+
+    await user.keyboard('{Escape}')
+    // Kept mounted to animate out, but inert: out of the tab order and the accessibility tree.
+    expect(panel).toHaveAttribute('inert')
+    expect(summary).toHaveAttribute('aria-expanded', 'false')
+    expect(summary).toHaveFocus()
+  })
+
+  test("the speaker popover's panel button opens the sidebar on that speaker's turn", async () => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    const trigger = screen.getAllByRole('button', { name: /Change speaker/i })[0]
+    const speakerName = trigger.getAttribute('aria-label')!.match(/\((.*)\)/)![1]
+    await user.click(trigger)
+    const popover = await screen.findByRole('dialog', { name: /Speaker assignment/i })
+    await user.click(within(popover).getByRole('button', { name: 'Show in speakers panel' }))
+
+    expect(screen.queryByRole('dialog', { name: /Speaker assignment/i })).not.toBeInTheDocument()
+    const panel = screen.getByRole('complementary', { name: 'Speakers' })
+    expect(panel).not.toHaveAttribute('inert')
+    const row = within(panel).getByRole('button', { name: new RegExp(`^${speakerName}`) })
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    expect(within(panel).getByText(/^turn 1 of \d+$/)).toBeInTheDocument()
+    await waitFor(() => expect(row).toHaveFocus())
+  })
+
   test('auto-closes speaker popover when opening Find/Replace', async () => {
     const user = userEventLib.setup()
     renderEditorScreen()

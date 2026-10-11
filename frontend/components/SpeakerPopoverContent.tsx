@@ -1,10 +1,11 @@
 "use client"
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ChevronDown, ChevronUp, Contact, Pencil, Plus, Search } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Contact, PanelRightOpen, Pencil, Plus, Search } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { CharacterCount } from '@/components/ui/character-count'
+import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -38,6 +39,8 @@ type Props = {
   onRenameLocal: (label: string) => void
   onRenamePerson: (name: string) => void
   onHoldOpenChange?: (hold: boolean) => void
+  /** Open the speakers sidebar on this speaker's turn; the button shows only when given. */
+  onShowInSpeakers?: () => void
 }
 
 /** One row the user can pick; picking it applies at once (Undo is in the toast). */
@@ -90,7 +93,7 @@ function passageSpan(segments: readonly Seg[]): string {
 
 export default function SpeakerPopoverContent({ transcriptId, presentation, peopleContext, currentSpeaker, scopes, removable,
   labelForSpeaker, displayForSpeaker, onSelectTarget, onRemove, onRenameLocal, onRenamePerson,
-  onHoldOpenChange }: Props) {
+  onHoldOpenChange, onShowInSpeakers }: Props) {
   const personById = useMemo(() => new Map(peopleContext.people.map((person) => [person.id, person])),
     [peopleContext.people])
   const transcriptPersonIds = useMemo(() =>
@@ -261,6 +264,13 @@ export default function SpeakerPopoverContent({ transcriptId, presentation, peop
           <Button type="button" variant="primary" size="sm" onClick={chooseCreate}>
             {createAnother ? 'Add another' : 'Add'}
           </Button>
+        )}
+        {onShowInSpeakers && (
+          <IconButton
+            label="Show in speakers panel"
+            icon={<PanelRightOpen className="h-4 w-4" />}
+            onClick={onShowInSpeakers}
+          />
         )}
       </div>
       {blocked && queryTooLong && <p role="alert" className="px-3 text-xs text-ember-red">{TOO_LONG}</p>}

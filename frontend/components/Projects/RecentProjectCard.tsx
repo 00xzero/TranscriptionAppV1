@@ -5,6 +5,7 @@ import { Folder } from 'lucide-react'
 import type { ProjectSpeakerSummary } from '@/contracts/db'
 import type { RecentProjectCardData } from '@/core/projects/activity'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { previewDisplay } from '@/lib/speakers/display'
 import { cn } from '@/lib/utils'
 import { countLabel, formatRelativeTime } from './format'
 import { SpeakerAvatarGroup } from './SpeakerAvatarGroup'
@@ -106,7 +107,7 @@ export function RecentProjectCard({
           size="card"
           href={`/projects/${project.id}`}
           loading={speakersLoading}
-          speakers={speakerSummary?.preview ?? []}
+          speakers={(speakerSummary?.preview ?? []).map(previewDisplay)}
           totalCount={speakerSummary?.speaker_count ?? 0}
         />
       )}

@@ -108,6 +108,15 @@ export function useScrollSyncMachine({
       lockSeekUntil: now + SEEK_LOCK_MS,
     })
   }, [send])
+  const onSegmentJump = useCallback((segId: string) => {
+    const now = Date.now()
+    return send({
+      type: 'SEGMENT_JUMP',
+      now,
+      segId,
+      lockSeekUntil: now + SEEK_LOCK_MS,
+    })
+  }, [send])
   const handleReturnToTop = useCallback(() => send({ type: 'RETURN_TO_TOP', now: Date.now() }), [send])
 
   return {
@@ -124,6 +133,7 @@ export function useScrollSyncMachine({
     commitSeek,
     onWordSeek,
     onSegmentSeek,
+    onSegmentJump,
     handleReturnToTop,
   }
 }
