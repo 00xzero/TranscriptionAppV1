@@ -142,7 +142,7 @@ describe('useCaptureForm', () => {
     expect(uploadMock).toHaveBeenCalledWith(expect.any(File), '', [], null)
   })
 
-  describe('title prefill when the file changes', () => {
+  describe('the title follows the file', () => {
     function renderForm() {
       return renderHook(() =>
         useCaptureForm({ isCaptureModalOpen: true, closeCaptureModal: jest.fn(), intentProjectId: null })
@@ -150,27 +150,36 @@ describe('useCaptureForm', () => {
     }
     const fileNamed = (name: string) => new File(['audio'], name, { type: 'audio/wav' })
 
-    test('replaces an untouched automatic title', () => {
+    test('names the title after the picked file', () => {
       const { result } = renderForm()
       act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
-      act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
-      expect(result.current.title).toBe('interview-b')
+      expect(result.current.title).toBe('interview-a')
     })
 
-    test('keeps a title the user edited', () => {
+    test('a new file replaces the title, even one the user edited', () => {
       const { result } = renderForm()
       act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
       act(() => result.current.setTitle('Client call'))
       act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
-      expect(result.current.title).toBe('Client call')
+      expect(result.current.title).toBe('interview-b')
     })
 
-    test('fills a cleared title from the next file', () => {
+    test('a file replaces a title typed before any file was picked', () => {
+      const { result } = renderForm()
+      act(() => result.current.setTitle('Client call'))
+      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
+      expect(result.current.title).toBe('interview-a')
+    })
+
+    test('a file that fails validation removes the previous file and its title', () => {
       const { result } = renderForm()
       act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
-      act(() => result.current.setTitle(''))
-      act(() => result.current.handleFileSelect(fileNamed('interview-b.wav')))
-      expect(result.current.title).toBe('interview-b')
+      act(() => result.current.setTitle('Client call'))
+      ;(validateFile as jest.Mock).mockReturnValueOnce('Unsupported file type.')
+      act(() => result.current.handleFileSelect(fileNamed('notes.txt')))
+      expect(result.current.selectedFile).toBeNull()
+      expect(result.current.title).toBe('')
+      expect(result.current.displayError).toBe('Unsupported file type.')
     })
   })
 
@@ -258,7 +267,7 @@ describe('useCaptureForm', () => {
     }
     const fileNamed = (name: string) => new File(['audio'], name, { type: 'audio/wav' })
 
-    test('clears the file and the title filled in from it', () => {
+    test('clears the file and its title', () => {
       const { result } = renderForm()
       act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
       act(() => result.current.clearFile())
@@ -267,21 +276,12 @@ describe('useCaptureForm', () => {
       expect(result.current.canSubmit).toBe(false)
     })
 
-    test('keeps a title the user typed', () => {
+    test('clears the title even after the user edited it', () => {
       const { result } = renderForm()
+      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
       act(() => result.current.setTitle('Client call'))
-      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
       act(() => result.current.clearFile())
-      expect(result.current.selectedFile).toBeNull()
-      expect(result.current.title).toBe('Client call')
-    })
-
-    test('keeps a filled-in title the user then edited', () => {
-      const { result } = renderForm()
-      act(() => result.current.handleFileSelect(fileNamed('interview-a.wav')))
-      act(() => result.current.setTitle('interview-a final'))
-      act(() => result.current.clearFile())
-      expect(result.current.title).toBe('interview-a final')
+      expect(result.current.title).toBe('')
     })
 
     test('fills the title from the next file after clearing', () => {
@@ -313,6 +313,18 @@ describe('useCaptureForm', () => {
 
       act(() => result.current.clearFile())
       expect(result.current.titleError).toBeNull()
+      act(() => result.current.handleFileSelect(fileNamed(`${'y'.repeat(130)}.wav`)))
+      expect(result.current.titleError).toBeNull()
+    })
+
+    test('a new long filename is not flagged before submit after a blocked one', async () => {
+      const { result } = renderForm()
+      act(() => result.current.handleFileSelect(fileNamed(`${'z'.repeat(130)}.wav`)))
+      await act(async () => {
+        await result.current.handleSubmit()
+      })
+      expect(result.current.titleError).not.toBeNull()
+
       act(() => result.current.handleFileSelect(fileNamed(`${'y'.repeat(130)}.wav`)))
       expect(result.current.titleError).toBeNull()
     })

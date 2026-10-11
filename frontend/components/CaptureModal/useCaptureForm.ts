@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { validateFile, MAX_FILE_SIZE_BYTES } from '@/lib/capture/upload'
 import { useCapture } from '@/lib/capture/useCapture'
 import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
@@ -33,9 +33,6 @@ export function useCaptureForm({
   // The destination the user picked. Undefined until they pick one, so the
   // intent's project applies without being copied into state on open.
   const [pickedProjectId, setPickedProjectId] = useState<string | null | undefined>(undefined)
-  // The last title filled in from a filename. While the field still holds it, the
-  // user has not made the title their own, so picking another file may replace it.
-  const autoTitleRef = useRef<string | null>(null)
 
   const {
     keyTermInput,
@@ -58,42 +55,36 @@ export function useCaptureForm({
       setFileError(null)
       setTitleSubmitBlocked(false)
       setPickedProjectId(undefined)
-      autoTitleRef.current = null
       resetError()
     }
   }, [isCaptureModalOpen, resetError, setKeyTermInput, setKeyTermsError])
 
+  // The title follows the file: picking one names it after the file, and losing
+  // the file (removed, or replaced by one that fails validation) empties it. An
+  // edit only lasts as long as the file it was made for.
   const handleFileSelect = useCallback((file: File) => {
     const validationError = validateFile(file)
+    setTitleSubmitBlocked(false)
     if (validationError) {
       setFileError(validationError)
       setSelectedFile(null)
+      setTitle('')
     } else {
       setFileError(null)
       setSelectedFile(file)
-      // Prefilled in full, even over the title limit: the user sees it in the field
-      // and is asked to shorten it on submit, rather than having it cut for them.
-      // A title the user typed or edited is kept; only an untouched prefill follows
-      // the newly picked file.
-      if (!title || title === autoTitleRef.current) {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
-        autoTitleRef.current = nameWithoutExt
-        setTitle(nameWithoutExt)
-      }
+      // In full, even over the title limit: the user sees it in the field and is
+      // asked to shorten it on submit, rather than having it cut for them.
+      setTitle(file.name.replace(/\.[^/.]+$/, ''))
     }
-  }, [title])
+  }, [])
 
-  /** Back to no file. A title filled in from the filename goes with it; one the user typed stays. */
   const clearFile = useCallback(() => {
     setSelectedFile(null)
     setFileError(null)
     resetError()
-    if (title === autoTitleRef.current) {
-      setTitle('')
-      setTitleSubmitBlocked(false)
-    }
-    autoTitleRef.current = null
-  }, [title, resetError])
+    setTitle('')
+    setTitleSubmitBlocked(false)
+  }, [resetError])
 
   const chosenProjectId = pickedProjectId !== undefined ? pickedProjectId : (intentProjectId ?? null)
   // Only a successfully loaded tree can show the project is gone: a failed first
