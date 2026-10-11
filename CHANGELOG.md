@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-11] - Editor Scroll Stability
+
+### Fixed
+
+- **Transcript scroll jumps** — Scrolling around a selected card no longer shifts the transcript when off-screen rows are recycled. `TranscriptList` now contains each card's top margin in a `flow-root` wrapper, so Virtuoso includes the 16px speaker-turn gap in its measured row height.
+
+### Tests
+
+- **Frontend** — Three focused editor suites (`57` tests passing); `npm run typecheck`; `npm run lint` (`0` errors, `57` existing warnings); `git diff --check`.
+- **Browser** — Repeated forward and reverse scrolling around the same selected card in the local transcript. The previous 80–96px jumps are gone; the first row-window transition had a 0.5px rounding adjustment and subsequent transitions stayed aligned.
+
+### Notes
+
+- Frontend-only change. No database changes or migrations are required.
+
 ## [2026-10-10] - Deepgram Request Options
 
 Reviewed every pre-recorded `/v1/listen` option against Deepgram's current API

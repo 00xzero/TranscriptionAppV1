@@ -58,24 +58,28 @@ export default function TranscriptList({
           const needHeader = idx === 0 ||
             speaker.identityKey !== displayForSpeaker(segments[idx - 1]?.speaker_id ?? null).identityKey
           const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+          // Contain the card's top margin so Virtuoso measures the turn spacing
+          // when replacing off-screen rows with padding.
           return (
-            <TranscriptSegmentCard
-              segment={s}
-              isActive={activeSegId === s.id}
-              matchesForSeg={matchesForSeg}
-              matchIndex={matchIndex}
-              speaker={speaker}
-              needHeader={needHeader}
-              editingId={editingId}
-              editingTexts={editingTexts}
-              saveStatus={saveStatus}
-              onSegmentClick={onSegmentClick}
-              onWordClick={onWordClick}
-              onSpeakerClick={onSpeakerClick}
-              setEditingId={setEditingId}
-              setEditingTexts={setEditingTexts}
-              scheduleSave={scheduleSave}
-            />
+            <div className="flow-root">
+              <TranscriptSegmentCard
+                segment={s}
+                isActive={activeSegId === s.id}
+                matchesForSeg={matchesForSeg}
+                matchIndex={matchIndex}
+                speaker={speaker}
+                needHeader={needHeader}
+                editingId={editingId}
+                editingTexts={editingTexts}
+                saveStatus={saveStatus}
+                onSegmentClick={onSegmentClick}
+                onWordClick={onWordClick}
+                onSpeakerClick={onSpeakerClick}
+                setEditingId={setEditingId}
+                setEditingTexts={setEditingTexts}
+                scheduleSave={scheduleSave}
+              />
+            </div>
           )
         }}
       />
