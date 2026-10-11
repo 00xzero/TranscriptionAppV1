@@ -202,7 +202,7 @@ export default function AccountMenu({
             aria-hidden={isCollapsed}
             className={`
               hidden md:flex flex-1 min-w-0 items-center gap-2
-              transition-[opacity,transform] duration-200 motion-reduce:transition-none
+              transition-[opacity,translate] duration-200 motion-reduce:transition-none
               ${isCollapsed ? 'opacity-0 -translate-x-1 pointer-events-none delay-0' : 'opacity-100 translate-x-0 delay-100'}
             `}
           >
