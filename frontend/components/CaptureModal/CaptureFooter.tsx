@@ -59,15 +59,17 @@ export default function CaptureFooter({
     submitButton
   )
 
+  // A phone-width dialog has no room for the hint beside the actions, so it
+  // sits above them until the dialog reaches its full width.
   return (
-    <div className="flex items-center justify-between border-t border-border bg-subtle p-6 dark:bg-surface-alt">
+    <div className="flex flex-col gap-3 border-t border-border bg-subtle p-6 sm:flex-row sm:items-center sm:justify-between dark:bg-surface-alt">
       <div className="flex items-center gap-2 opacity-50">
         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span className="text-[10px] w-32 md:w-auto leading-tight">60-min file ≈ 5 min process</span>
+        <span className="text-[10px] leading-tight sm:w-32 md:w-auto">60-min file ≈ 5 min process</span>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3">
         <button
           onClick={onClose}
           disabled={isActionInProgress}
