@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import type { Project, ProjectSpeakerSummary } from '@/contracts/db'
+import { previewDisplay } from '@/lib/speakers/display'
 import { countLabel, formatRelativeTime } from './format'
 import { SpeakerAvatarGroup } from './SpeakerAvatarGroup'
 
@@ -71,7 +72,7 @@ export function ProjectHeaderCard({
             <SpeakerAvatarGroup
               size="header"
               loading={speakersLoading}
-              speakers={speakerSummary?.preview ?? []}
+              speakers={(speakerSummary?.preview ?? []).map(previewDisplay)}
               totalCount={speakerSummary?.speaker_count ?? 0}
             />
           )}

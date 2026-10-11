@@ -85,7 +85,8 @@ describe('RecentProjectCard', () => {
 
     test('the cursor promises a click the row can keep', () => {
       renderCard()
-      expect(screen.getByText('KB')).toHaveClass('cursor-pointer')
+      // On the circle's hover target, the square tooltip trigger around it.
+      expect(screen.getByText('KB').closest('[data-state]')).toHaveClass('cursor-pointer')
     })
   })
 

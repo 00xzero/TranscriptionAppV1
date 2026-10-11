@@ -3,12 +3,13 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ProjectSpeakerPreview, ProjectVoicePreview } from '@/contracts/db'
 import { SpeakerAvatarGroup } from '@/components/Projects/SpeakerAvatarGroup'
+import { previewDisplay, type PreviewDisplay } from '@/lib/speakers/display'
 import { SPEAKER_COLORS, SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 
 type Peer = ProjectVoicePreview['peers'][number]
 
-/** A linked person, once per project. */
-const person = (name: string, overrides: Partial<Extract<ProjectSpeakerPreview, { kind: 'person' }>> = {}): ProjectSpeakerPreview => ({
+/** A linked person, once per project, as the group receives it. */
+const person = (name: string, overrides: Partial<Extract<ProjectSpeakerPreview, { kind: 'person' }>> = {}): PreviewDisplay => previewDisplay({
   kind: 'person', id: `person-${name}`, name, color: SPEAKER_COLORS[0], organisationName: null, ...overrides,
 })
 
@@ -18,14 +19,16 @@ const peer = (id: string, ordinal: number, customLabel: string | null = null, ov
 
 /** An unlinked voice; alone in its transcript unless peers are given. */
 const voice = (id: string, ordinal: number, customLabel: string | null = null,
-  overrides: Partial<ProjectVoicePreview> = {}): ProjectSpeakerPreview => ({
+  overrides: Partial<ProjectVoicePreview> = {}): PreviewDisplay => previewDisplay({
   kind: 'voice', id, transcriptId: 'transcript-1', transcriptTitle: 'Q3 steering',
   peers: [peer(id, ordinal, customLabel)], ...overrides,
 })
 
-const previews = (labels: string[]): ProjectSpeakerPreview[] => labels.map((label) => person(label))
+const previews = (labels: string[]): PreviewDisplay[] => labels.map((label) => person(label))
 
 const circles = (container: HTMLElement) => container.querySelectorAll('.rounded-full')
+/** What the pointer hits for a circle: its tooltip trigger, a square around it. */
+const hoverTarget = (circle: Element) => circle.closest('[data-state]')
 
 describe('SpeakerAvatarGroup', () => {
   test.each([1, 2, 3, 4])('renders one circle per speaker for %i speakers', (count) => {
@@ -51,6 +54,36 @@ describe('SpeakerAvatarGroup', () => {
     expect(circles(container)).toHaveLength(4)
     expect(screen.getByText('+4')).toBeInTheDocument()
     expect(screen.queryByTitle('Mark')).not.toBeInTheDocument()
+  })
+
+  test('each circle hovers as a square, so neighbours hand over with no dead sliver between them', () => {
+    const { container } = render(
+      <SpeakerAvatarGroup speakers={previews(['Kate', 'John', 'Sarah'])} totalCount={5} size="editor" />
+    )
+    // Hit testing follows border-radius; a round trigger left gaps above and
+    // below where circles overlap, and a slow pointer flickered the tooltip.
+    for (const circle of Array.from(circles(container))) {
+      const target = hoverTarget(circle)
+      expect(target).not.toBe(circle)
+      expect(target).not.toHaveClass('rounded-full')
+      expect(target).toHaveClass('cursor-pointer')
+    }
+  })
+
+  test('the editor size keeps four faces and adds the +N badge after them', () => {
+    const { container } = render(
+      <SpeakerAvatarGroup
+        speakers={previews(['Kate', 'John', 'Sarah', 'Mark', 'Lena'])}
+        totalCount={8}
+        size="editor"
+      />
+    )
+
+    expect(circles(container)).toHaveLength(5)
+    expect(screen.getByText('M')).toBeInTheDocument()
+    expect(screen.queryByText('L')).not.toBeInTheDocument()
+    expect(screen.getByText('+4')).toBeInTheDocument()
+    expect(screen.queryByText('8 speakers')).toHaveClass('hidden')
   })
 
   describe('the empty state', () => {
@@ -398,7 +431,8 @@ describe('SpeakerAvatarGroup', () => {
       // Initials are a picture of a person, not a caption: dragging across them
       // should not select, and the caret should not turn into an I-beam.
       for (const circle of Array.from(circles(container))) {
-        expect(circle).toHaveClass('select-none', 'cursor-default')
+        expect(circle).toHaveClass('select-none')
+        expect(hoverTarget(circle)).toHaveClass('cursor-default')
       }
       // Without an href there is nothing to click, so the arrow is honest.
       expect(container.querySelector('a')).toBeNull()
@@ -455,11 +489,11 @@ describe('SpeakerAvatarGroup', () => {
           href="/projects/p1"
         />
       )
-      expect(screen.getByText('K')).toHaveClass('cursor-pointer')
+      expect(hoverTarget(screen.getByText('K'))).toHaveClass('cursor-pointer')
 
       rerender(<SpeakerAvatarGroup speakers={previews(['Kate'])} totalCount={1} size="card" />)
       // No destination, so no hand promising one -- but never a text caret.
-      expect(screen.getByText('K')).toHaveClass('cursor-default')
+      expect(hoverTarget(screen.getByText('K'))).toHaveClass('cursor-default')
       expect(screen.getByText('K')).toHaveClass('select-none')
     })
   })

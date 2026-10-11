@@ -237,6 +237,7 @@ export function useEditorPlayback({
     handleScrubPreviewFraction,
     togglePlay,
     seekRelative,
+    seekToMs,
     onRateChange,
     onWordClick,
     onSegmentClick,

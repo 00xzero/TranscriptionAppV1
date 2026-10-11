@@ -243,7 +243,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   // Labels share the nav's duration and no longer wait on a delay, so the whole
   // sidebar arrives at once instead of the text trailing the edge.
   const labelTransitionClass = motionReady
-    ? 'transition-[opacity,transform] duration-100 ease-in-out motion-reduce:transition-none'
+    ? 'transition-[opacity,translate] duration-100 ease-in-out motion-reduce:transition-none'
     : ''
   const labelStateClass = isCollapsed
     ? 'opacity-0 -translate-x-1 pointer-events-none'
@@ -290,14 +290,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                     aria-label="Expand Sidebar"
                     className="group/header-toggle relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-md text-foreground hover:bg-subtle focus:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/50 md:flex"
                   >
-                    <span className="absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-150 ease-out group-hover/header-toggle:scale-90 group-hover/header-toggle:opacity-0 group-focus-visible/header-toggle:scale-90 group-focus-visible/header-toggle:opacity-0 motion-reduce:transition-none">
+                    <span className="absolute inset-0 flex items-center justify-center transition-[opacity,scale] duration-150 ease-out group-hover/header-toggle:scale-90 group-hover/header-toggle:opacity-0 group-focus-visible/header-toggle:scale-90 group-focus-visible/header-toggle:opacity-0 motion-reduce:transition-none">
                       <span className="flex items-center gap-1.5" aria-hidden="true">
                         <span className="h-6 w-1 rounded-full bg-ink dark:bg-paper" />
                         <span className="h-2 w-2 rounded-xs bg-ember-red" />
                       </span>
                     </span>
                     <PanelLeftOpen
-                      className="h-[18px] w-[18px] scale-90 text-ink/50 opacity-0 transition-[opacity,transform] duration-150 ease-out group-hover/header-toggle:scale-100 group-hover/header-toggle:opacity-100 group-focus-visible/header-toggle:scale-100 group-focus-visible/header-toggle:opacity-100 motion-reduce:transition-none dark:text-paper/50"
+                      className="h-[18px] w-[18px] scale-90 text-ink/50 opacity-0 transition-[opacity,scale] duration-150 ease-out group-hover/header-toggle:scale-100 group-hover/header-toggle:opacity-100 group-focus-visible/header-toggle:scale-100 group-focus-visible/header-toggle:opacity-100 motion-reduce:transition-none dark:text-paper/50"
                       strokeWidth={1.75}
                       aria-hidden="true"
                     />
@@ -360,7 +360,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 aria-label="Library"
                 className={`
                   w-full flex items-center py-2.5 rounded-md overflow-hidden whitespace-nowrap
-                  transition-[background-color,border-color,color,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
+                  transition-[background-color,border-color,color,scale] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
                   ${isLibraryActive
                     ? 'bg-field/50 dark:bg-subtle shadow-xs border border-border text-foreground'
                     : 'hover:bg-subtle text-foreground/70'
@@ -389,7 +389,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 aria-label="Projects"
                 className={`
                   w-full flex items-center py-2.5 rounded-md overflow-hidden whitespace-nowrap
-                  transition-[background-color,border-color,color,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
+                  transition-[background-color,border-color,color,scale] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
                   ${isProjectsActive
                     ? 'bg-field/50 dark:bg-subtle shadow-xs border border-border text-foreground'
                     : 'hover:bg-subtle text-foreground/70'
@@ -418,7 +418,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                 aria-label="People"
                 className={`
                   w-full flex items-center py-2.5 rounded-md overflow-hidden whitespace-nowrap
-                  transition-[background-color,border-color,color,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
+                  transition-[background-color,border-color,color,scale] duration-150 ease-out motion-reduce:transition-none active:scale-[0.98]
                   ${isPeopleActive
                     ? 'bg-field/50 dark:bg-subtle shadow-xs border border-border text-foreground'
                     : 'hover:bg-subtle text-foreground/70'

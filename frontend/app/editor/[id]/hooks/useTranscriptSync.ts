@@ -191,6 +191,7 @@ export function useTranscriptSync({
     commitSeek: commitMachineSeek,
     onWordSeek: markWordSeek,
     onSegmentSeek: markSegmentSeek,
+    onSegmentJump,
     handleReturnToTop: returnToTop,
   } = machine
 
@@ -303,6 +304,7 @@ export function useTranscriptSync({
     findActiveSegmentId,
     handleRangeChanged,
     scrollToSegmentIndex,
+    markProgrammaticScroll,
     handleReturnToTop,
     onAudioTick,
     startSeek,
@@ -310,5 +312,6 @@ export function useTranscriptSync({
     commitSeek,
     onWordSeek,
     onSegmentSeek,
+    onSegmentJump,
   }
 }

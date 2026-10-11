@@ -10,7 +10,7 @@ export default function EditorHeader({
   displayTitle,
   transcriptCreatedAt,
   transcriptDurationSecs,
-  uniqueSpeakerCount,
+  speakerSummary,
   status,
   editingTitle,
   titleInput,
@@ -26,7 +26,8 @@ export default function EditorHeader({
   displayTitle: string
   transcriptCreatedAt: string | null
   transcriptDurationSecs: number | null
-  uniqueSpeakerCount: number
+  /** The speaker summary button, after the date and duration. */
+  speakerSummary?: React.ReactNode
   status: string
   editingTitle: boolean
   titleInput: string
@@ -100,16 +101,13 @@ export default function EditorHeader({
                 {transcriptCreatedAt && (
                   <>
                     <span>{formatTranscriptDate(transcriptCreatedAt)}</span>
-                    <span>&bull;</span>
+                    {transcriptDurationSecs !== null && <span>&bull;</span>}
                   </>
                 )}
-                <span>{uniqueSpeakerCount} speaker{uniqueSpeakerCount !== 1 ? 's' : ''}</span>
-                {transcriptDurationSecs !== null && (
-                  <>
-                    <span>&bull;</span>
-                    <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>
-                  </>
-                )}
+                {transcriptDurationSecs !== null && <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>}
+                {/* No bullet before the faces: they set themselves apart, and on a
+                    narrow screen, where they wrap, a bullet would be left dangling. */}
+                {speakerSummary}
               </>
             )}
           </div>

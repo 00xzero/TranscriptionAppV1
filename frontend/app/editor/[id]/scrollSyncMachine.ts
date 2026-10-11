@@ -26,6 +26,7 @@ export type ScrollSyncEvent =
   | { type: 'SEEK_COMMITTED'; now: number; segId?: string; lockSeekUntil?: number | null }
   | { type: 'SEGMENT_SEEK'; now: number; segId: string; lockSeekUntil: number }
   | { type: 'WORD_SEEK'; now: number; segId: string; lockSeekUntil: number }
+  | { type: 'SEGMENT_JUMP'; now: number; segId: string; lockSeekUntil: number }
   | { type: 'FOLLOW_REQUESTED'; now: number }
   | { type: 'FOLLOW_SUSPENDED'; now: number; reason?: 'search' | 'ui' }
   | { type: 'EDIT_BLOCKED'; now: number }
@@ -166,6 +167,27 @@ export function transitionScrollSyncState(
       }
       return {
         state: nextState,
+        commands,
+      }
+    }
+
+    // "Take me and the audio there", from the speakers sidebar. Unlike a click
+    // on a card, the target is usually off screen, so the jump always scrolls,
+    // exactly once, and resumes follow from the new spot. The caller closes any
+    // edit or popover as it jumps; their UNBLOCKED events then change nothing.
+    case 'SEGMENT_JUMP': {
+      commands.push({ type: 'CLEAR_USER_SCROLLED' }, { type: 'SCROLL_TO_ACTIVE', behavior: 'smooth' })
+      return {
+        state: {
+          ...state,
+          mode: 'following',
+          activeSegId: event.segId,
+          seekLockUntil: event.lockSeekUntil,
+          hasUserScrolled: false,
+          resumeModeAfterSeek: null,
+          editBlocked: false,
+          popoverBlocked: false,
+        },
         commands,
       }
     }

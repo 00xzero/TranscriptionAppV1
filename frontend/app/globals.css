@@ -329,6 +329,31 @@ body {
   }
 }
 
+/* Accordion rows open to, and close from, the height Radix measured for them */
+@keyframes accordionDown {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordionUp {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
 /* CharacterCount: a single soft pulse as the count crosses its limit */
 @keyframes limitPulse {
   0% { transform: scale(1); }
