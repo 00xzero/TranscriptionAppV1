@@ -8,7 +8,9 @@ description: Run and drive the app locally to verify a change at its surface (ed
 ## Start
 - `cd infra && ./start-local.sh` starts local Supabase, Inngest, the Docker frontend on http://localhost:3000 and an ngrok tunnel for Deepgram callbacks.
 - Use the Docker frontend. Host `npm run dev` (and the `frontend` entry in `.claude/launch.json`) talks to the HOSTED Supabase project.
-- The user signs in; never type the password yourself. The built-in browser and the user's Chrome usually already hold a local session.
+- A host `next dev` on port 3000 blocks the Docker frontend. It is the user's; ask before stopping it.
+- ngrok dies when the shell that ran `start-local.sh` exits. If `http://localhost:4040` is down, run `ngrok http 3000` as a background task; the static domain matches `DEEPGRAM_CALLBACK_URL` in `infra/.env.docker`.
+- Sign in yourself on the local stack with the test account in `CLAUDE.md`, after checking that `docker exec infra-frontend-1 printenv NEXT_PUBLIC_SUPABASE_URL` is `http://localhost:54321`. Never sign in that way against the hosted project.
 - DB: `docker exec -i supabase_db_transcription-app-local psql -U postgres -d postgres`. Never `supabase db reset` (wipes local test data); check migrations with `supabase db diff --local --schema public`.
 
 ## Drive
