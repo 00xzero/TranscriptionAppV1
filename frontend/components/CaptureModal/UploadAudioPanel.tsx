@@ -4,6 +4,9 @@ import CaptureMetadataFields from './CaptureMetadataFields'
 interface UploadAudioPanelProps {
   selectedFile: File | null
   handleFileSelect: (file: File) => void
+  clearFile: () => void
+  projectId: string | null
+  onProjectChange: (projectId: string | null) => void
   title: string
   setTitle: (value: string) => void
   titleError: string | null
@@ -15,6 +18,8 @@ interface UploadAudioPanelProps {
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
   isUploading: boolean
+  /** Locks the transcript details while an upload or recording start is in progress. */
+  fieldsDisabled: boolean
   displayError: string | null
   maxFileSizeLabel: string
 }
@@ -22,6 +27,9 @@ interface UploadAudioPanelProps {
 export default function UploadAudioPanel({
   selectedFile,
   handleFileSelect,
+  clearFile,
+  projectId,
+  onProjectChange,
   title,
   setTitle,
   titleError,
@@ -33,6 +41,7 @@ export default function UploadAudioPanel({
   handleAddTermClick,
   removeTerm,
   isUploading,
+  fieldsDisabled,
   displayError,
   maxFileSizeLabel,
 }: UploadAudioPanelProps) {
@@ -41,11 +50,14 @@ export default function UploadAudioPanel({
       <FileDropZone
         selectedFile={selectedFile}
         onFileSelect={handleFileSelect}
+        onClearFile={clearFile}
         isUploading={isUploading}
         displayError={displayError}
         maxFileSizeLabel={maxFileSizeLabel}
       />
       <CaptureMetadataFields
+        projectId={projectId}
+        onProjectChange={onProjectChange}
         title={title}
         setTitle={setTitle}
         titleError={titleError}
@@ -56,7 +68,7 @@ export default function UploadAudioPanel({
         handleKeyTermKeyDown={handleKeyTermKeyDown}
         handleAddTermClick={handleAddTermClick}
         removeTerm={removeTerm}
-        isUploading={isUploading}
+        disabled={fieldsDisabled}
       />
     </div>
   )

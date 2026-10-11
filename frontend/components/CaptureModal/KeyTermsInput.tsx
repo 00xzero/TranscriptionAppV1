@@ -10,7 +10,7 @@ interface KeyTermsInputProps {
   keyTermInput: string
   setKeyTermInput: (value: string) => void
   keyTermsError: string | null
-  isUploading: boolean
+  disabled: boolean
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onAddClick: () => void
   onRemoveTerm: (index: number) => void
@@ -22,7 +22,7 @@ export default function KeyTermsInput({
   keyTermInput,
   setKeyTermInput,
   keyTermsError,
-  isUploading,
+  disabled,
   onKeyDown,
   onAddClick,
   onRemoveTerm,
@@ -41,14 +41,14 @@ export default function KeyTermsInput({
           onChange={(e) => setKeyTermInput(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="e.g., PAS-X, Helsingborg, Move-X"
-          disabled={isUploading || keyTerms.length >= MAX_KEY_TERMS}
+          disabled={disabled || keyTerms.length >= MAX_KEY_TERMS}
           aria-label="Add key terms for transcription"
           className="flex-1"
         />
         <Button
           variant="secondary"
           onClick={onAddClick}
-          disabled={isUploading || !keyTermInput.trim() || keyTerms.length >= MAX_KEY_TERMS}
+          disabled={disabled || !keyTermInput.trim() || keyTerms.length >= MAX_KEY_TERMS}
           aria-label="Add key term"
           title="Add key term"
           className="h-auto w-auto px-3"
@@ -80,7 +80,7 @@ export default function KeyTermsInput({
                 onClick={() => onRemoveTerm(index)}
                 aria-label={`Remove term ${index + 1}: ${term}`}
                 title={`Remove term ${term}`}
-                disabled={isUploading}
+                disabled={disabled}
                 className="ml-0.5 hover:text-ember-red transition-colors disabled:opacity-50"
               >
                 ×

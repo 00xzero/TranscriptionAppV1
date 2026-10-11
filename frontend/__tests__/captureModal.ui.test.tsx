@@ -12,6 +12,7 @@ import {
 } from '@/lib/recording/session'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
 import { setTestAuth } from '@/__tests__/helpers/auth'
+import { makeProject, projectProviderData } from '@/__tests__/projects/fixtures'
 
 class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
@@ -60,7 +61,15 @@ const mockModalState = {
 }
 const mockCaptureFormState = {
   isUploading: false,
+  // The user's pick. Undefined falls back to the intent, as the real form does.
+  projectId: undefined as string | null | undefined,
 }
+const mockSetProjectId = jest.fn()
+const mockUseProjectsData = jest.fn()
+const captureProjects = [
+  makeProject({ id: 'project-1', name: 'Clients' }),
+  makeProject({ id: 'project-2', name: 'Acme', parent_id: 'project-1' }),
+]
 const originalUserAgent = navigator.userAgent
 const originalVendor = navigator.vendor
 const originalNavigatorMediaDevices = navigator.mediaDevices
@@ -73,10 +82,20 @@ jest.mock('../lib/ModalContext', () => ({
   }),
 }))
 
+jest.mock('@/lib/projects/ProjectsProvider', () => ({
+  useProjectsData: () => mockUseProjectsData(),
+}))
+
 jest.mock('../components/CaptureModal/useCaptureForm', () => ({
   useCaptureForm: () => ({
     selectedFile: null,
     handleFileSelect: jest.fn(),
+    clearFile: jest.fn(),
+    projectId:
+      mockCaptureFormState.projectId !== undefined
+        ? mockCaptureFormState.projectId
+        : (mockModalState.captureModalIntent?.projectId ?? null),
+    setProjectId: mockSetProjectId,
     title: '',
     setTitle: jest.fn(),
     titleError: null,
@@ -133,6 +152,8 @@ function resetModalTestState(): void {
   mockModalState.isCaptureModalOpen = true
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
+  mockCaptureFormState.projectId = undefined
+  mockUseProjectsData.mockReturnValue(projectProviderData(captureProjects))
   setMediaRecorder(undefined)
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
@@ -445,6 +466,63 @@ describe('CaptureModal tabs', () => {
 
     await waitFor(() => expect(getSnapshot().state).toBe('recording'))
     expect(getSnapshot().projectId).toBe('project-1')
+  })
+
+  test.each([
+    ['another project', 'project-2'],
+    ['Unfiled', null],
+  ])('records into the project the user picked (%s) over the intent', async (_label, picked) => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    mockModalState.captureModalIntent = { initialTab: 'record', projectId: 'project-1' }
+    mockCaptureFormState.projectId = picked
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+        enumerateDevices: jest.fn().mockResolvedValue([]),
+      },
+    })
+
+    renderModal()
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    await waitFor(() => expect(getSnapshot().state).toBe('recording'))
+    expect(getSnapshot().projectId).toBe(picked)
+  })
+
+  test('locks the transcript details while a recording is starting', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    mockModalState.captureModalIntent = { initialTab: 'record' }
+    let resolveMicRequest: ((stream: MediaStream) => void) | undefined
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn(
+          () =>
+            new Promise<MediaStream>((resolve) => {
+              resolveMicRequest = resolve
+            })
+        ),
+        enumerateDevices: jest.fn().mockResolvedValue([]),
+      },
+    })
+
+    renderModal()
+    expect(screen.getByLabelText(/^title$/i)).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(screen.getByLabelText(/^title$/i)).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeDisabled()
+    expect(screen.getByLabelText(/add key terms for transcription/i)).toBeDisabled()
+
+    await act(async () => {
+      resolveMicRequest?.(makeMockStream({ deviceId: 'mic-1' }))
+    })
+    await waitFor(() => expect(getSnapshot().state).toBe('recording'))
   })
 
   test('Record tab disables Start Recording while a microphone request is pending', async () => {
@@ -779,5 +857,92 @@ describe('CaptureModal tabs', () => {
 
     expect(screen.getByRole('tab', { name: /record audio/i })).toHaveAttribute('data-state', 'active')
     expect(screen.getByRole('tab', { name: /upload audio/i })).toHaveAttribute('data-state', 'inactive')
+  })
+})
+
+describe('CaptureModal project field', () => {
+  beforeEach(() => {
+    resetModalTestState()
+  })
+
+  test('shows Unfiled when opened from outside a project', () => {
+    renderModal()
+    expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeEnabled()
+  })
+
+  test('sits between Title and Language', () => {
+    renderModal()
+    const title = screen.getByLabelText(/^title$/i)
+    const project = screen.getByRole('button', { name: 'Project Unfiled' })
+    const language = screen.getByRole('combobox', { name: 'Language' })
+    expect(title.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(project.compareDocumentPosition(language) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  test('shows the project path, and keeps it when switching tabs', async () => {
+    const user = userEventLib.setup()
+    mockModalState.captureModalIntent = { projectId: 'project-2' }
+    renderModal()
+
+    expect(screen.getByRole('button', { name: 'Project Clients / Acme' })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /record audio/i }))
+    expect(screen.getByRole('button', { name: 'Project Clients / Acme' })).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: /upload audio/i }))
+    expect(screen.getByRole('button', { name: 'Project Clients / Acme' })).toBeInTheDocument()
+  })
+
+  test('picks a destination from the project tree and closes it', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: 'Project Unfiled' }))
+    expect(screen.getByRole('dialog', { name: 'Project' })).toBeInTheDocument()
+    expect(screen.getByRole('tree', { name: 'Project destinations' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Search projects' })).toHaveFocus()
+
+    await user.click(screen.getByRole('treeitem', { name: 'Clients' }))
+
+    expect(mockSetProjectId).toHaveBeenCalledWith('project-1')
+    await waitFor(() =>
+      expect(screen.queryByRole('tree', { name: 'Project destinations' })).not.toBeInTheDocument()
+    )
+  })
+
+  test('Escape closes the project tree without closing the dialog', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: 'Project Unfiled' }))
+    await user.keyboard('{Escape}')
+
+    await waitFor(() =>
+      expect(screen.queryByRole('tree', { name: 'Project destinations' })).not.toBeInTheDocument()
+    )
+    expect(mockCloseCaptureModal).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Project Unfiled' })).toHaveFocus()
+  })
+
+  test('waits for projects to load', () => {
+    mockUseProjectsData.mockReturnValue({ ...projectProviderData([]), projectsLoading: true })
+    renderModal()
+    expect(screen.getByRole('button', { name: 'Project Loading projects…' })).toBeDisabled()
+  })
+
+  test('offers a retry when projects failed to load', async () => {
+    const user = userEventLib.setup()
+    const data = { ...projectProviderData([]), projectError: new Error('offline') }
+    mockUseProjectsData.mockReturnValue(data)
+    mockModalState.captureModalIntent = { projectId: 'project-1' }
+    renderModal()
+
+    expect(screen.getByRole('button', { name: "Project Couldn't load projects" })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(data.refetchProjects).toHaveBeenCalledTimes(1)
+  })
+
+  test('locks while uploading', () => {
+    mockCaptureFormState.isUploading = true
+    renderModal()
+    expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeDisabled()
   })
 })

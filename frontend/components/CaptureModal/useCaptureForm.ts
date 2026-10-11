@@ -4,28 +4,35 @@ import { useCapture } from '@/lib/capture/useCapture'
 import { useKeyTermsField } from '@/lib/capture/useKeyTermsField'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { showCaptureWarning } from '@/lib/capture/warnings'
+import { useProjectsData } from '@/lib/projects/ProjectsProvider'
+import { isProjectAvailable } from '@/core/projects/tree'
 import { captureTitleInputId, formatFileSize } from './shared'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
   closeCaptureModal: () => void
-  projectId?: string | null
+  /** Where the dialog was opened from, if anywhere: the default destination. */
+  intentProjectId?: string | null
 }
 
 export function useCaptureForm({
   isCaptureModalOpen,
   closeCaptureModal,
-  projectId,
+  intentProjectId,
 }: UseCaptureFormParams) {
   const guardedNav = useGuardedNavigate()
   const { upload, isUploading, error, progress, resetError } = useCapture()
+  const { tree, projectsLoading, projectError } = useProjectsData()
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [titleSubmitBlocked, setTitleSubmitBlocked] = useState(false)
+  // The destination the user picked. Undefined until they pick one, so the
+  // intent's project applies without being copied into state on open.
+  const [pickedProjectId, setPickedProjectId] = useState<string | null | undefined>(undefined)
   // The last title filled in from a filename. While the field still holds it, the
   // user has not made the title their own, so picking another file may replace it.
   const autoTitleRef = useRef<string | null>(null)
@@ -50,6 +57,7 @@ export function useCaptureForm({
       setKeyTermsError(null)
       setFileError(null)
       setTitleSubmitBlocked(false)
+      setPickedProjectId(undefined)
       autoTitleRef.current = null
       resetError()
     }
@@ -74,6 +82,26 @@ export function useCaptureForm({
       }
     }
   }, [title])
+
+  /** Back to no file. A title filled in from the filename goes with it; one the user typed stays. */
+  const clearFile = useCallback(() => {
+    setSelectedFile(null)
+    setFileError(null)
+    resetError()
+    if (title === autoTitleRef.current) {
+      setTitle('')
+      setTitleSubmitBlocked(false)
+    }
+    autoTitleRef.current = null
+  }, [title, resetError])
+
+  const chosenProjectId = pickedProjectId !== undefined ? pickedProjectId : (intentProjectId ?? null)
+  // Only a successfully loaded tree can show the project is gone: a failed first
+  // fetch leaves the tree empty. Otherwise the choice stands, and the server
+  // files the transcript Unfiled if its project has disappeared.
+  const projectsKnown = !projectsLoading && !projectError
+  const projectId =
+    chosenProjectId && projectsKnown && !isProjectAvailable(tree, chosenProjectId) ? null : chosenProjectId
 
   /**
    * Shared by both submit paths (upload and start recording). Returns true when the
@@ -130,6 +158,9 @@ export function useCaptureForm({
     selectedFile,
     fileError,
     handleFileSelect,
+    clearFile,
+    projectId,
+    setProjectId: setPickedProjectId,
     title,
     setTitle,
     titleError,
