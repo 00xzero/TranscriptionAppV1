@@ -292,21 +292,6 @@ export async function fetchJobError(transcriptId: string): Promise<{
 }
 
 /**
- * Fetch watchlist terms for a transcript.
- */
-export async function fetchWatchlistTerms(transcriptId: string): Promise<string[]> {
-    const supabase = createClient()
-    const { data, error } = await supabase
-        .from('watchlist')
-        .select('term')
-        .eq('transcript_id', transcriptId)
-        .order('created_at', { ascending: true })
-
-    if (error) throw error
-    return (data || []).map((row) => row.term)
-}
-
-/**
  * Update a transcript.
  */
 export async function updateTranscript(

@@ -3,7 +3,7 @@
  *
  * These hooks wrap the base realtime hook with specific table configurations.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/infra/supabase/client'
 import {
     isRealtimeScopeAbortError,

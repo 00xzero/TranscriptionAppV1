@@ -33,13 +33,6 @@ export function isPrewarmAbortError(err: unknown): boolean {
   )
 }
 
-export function waitForSafariMicPrewarm(
-  signal?: AbortSignal
-): Promise<void> {
-  if (!shouldPrewarmSafariMic()) return Promise.resolve()
-  return waitForSafariMicPrewarmUntil(Date.now() + SAFARI_MIC_PREWARM_MS, signal)
-}
-
 export function waitForSafariMicPrewarmUntil(
   readyAt: number | null,
   signal?: AbortSignal

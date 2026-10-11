@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Contact, FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'

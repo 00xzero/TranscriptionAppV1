@@ -1,5 +1,5 @@
 "use client"
-import React, { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
@@ -227,7 +227,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
         canReplace={true}
-        hasMatches={search.hasMatches}
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}

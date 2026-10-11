@@ -53,15 +53,7 @@ export function setSnapshot(next: SessionSnapshot): void {
 // (capture health, presence heartbeat) so the 1s interval can drive them without
 // sessionStore importing sessionActions (which would create a cycle). Multiple
 // observers are supported; each runs once per tick.
-const tickObservers = new Set<() => void>()
 const keyedTickObservers = new Map<string, () => void>()
-
-export function addTickObserver(observer: () => void): () => void {
-  tickObservers.add(observer)
-  return () => {
-    tickObservers.delete(observer)
-  }
-}
 
 export function setTickObserver(key: string, observer: () => void): () => void {
   keyedTickObservers.set(key, observer)
@@ -75,7 +67,7 @@ export function setTickObserver(key: string, observer: () => void): () => void {
 function tickSnapshot(): void {
   // Run the registered watchdogs first so any snapshot change they make is
   // included in this tick's notification.
-  const observers = [...tickObservers, ...keyedTickObservers.values()]
+  const observers = [...keyedTickObservers.values()]
   observers.forEach((observer) => {
     try {
       observer()

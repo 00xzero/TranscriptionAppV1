@@ -33,7 +33,6 @@ export function useEditorPlayback({
   const wasPlayingBeforeScrubRef = useRef(false)
   const seekGestureActiveRef = useRef(false)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
-  const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [audioProgress, setAudioProgress] = useState(0)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -67,7 +66,6 @@ export function useEditorPlayback({
 
   const handleAudioReady = useCallback(() => {
     readyRef.current = true
-    setReady(true)
     setStatus('Ready')
     const player = audioPlayerRef.current
     const currentTime = player?.getCurrentTime?.() ?? 0

@@ -1,6 +1,5 @@
 "use client"
 
-import React from 'react'
 import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { useAuth } from '@/lib/auth/AuthProvider'

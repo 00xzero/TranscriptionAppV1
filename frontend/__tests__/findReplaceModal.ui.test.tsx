@@ -23,7 +23,6 @@ const baseProps = {
   matchSummary: '1 of 1 matches',
   canNavigate: true,
   canReplace: true,
-  hasMatches: true,
   matches: [{ segId: 's1', index: 0, length: 5 }],
   segments: [{ id: 's1', text: 'hello world' }],
   matchIndex: 0,
