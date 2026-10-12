@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import React from 'react'
+import { useScrubGesture, type ScrubEndHandler } from '@/lib/audio/useScrubGesture'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface CollapsibleWaveformProps {
   collapsed: boolean
@@ -9,143 +10,85 @@ interface CollapsibleWaveformProps {
   contentRef?: (el: HTMLDivElement | null) => void
   expandedHeight?: number
   pinned?: boolean
+  onFocusCapture?: React.FocusEventHandler<HTMLDivElement>
+  onBlurCapture?: React.FocusEventHandler<HTMLDivElement>
 }
 
 interface MiniWaveformProgressProps {
   audioProgress: number
+  duration: number
+  sourceKey?: string | null
+  onSeek?: (fraction: number) => void
+  onSeekStart?: () => void
+  onSeekEnd?: ScrubEndHandler
   interactive?: boolean
   onScrub?: (fraction: number) => void
   /** Called when the user begins a drag-scrub gesture */
   onScrubStart?: () => void
-  /** Called when the user releases a drag-scrub gesture */
-  onScrubEnd?: () => void
+  /** Called once when a drag is released, cancelled or torn down. */
+  onScrubEnd?: ScrubEndHandler
 }
 
 export function MiniWaveformProgress({
   audioProgress,
+  duration,
+  sourceKey,
+  onSeek,
+  onSeekStart,
+  onSeekEnd,
   interactive = true,
   onScrub,
   onScrubStart,
   onScrubEnd,
 }: MiniWaveformProgressProps) {
+  const [tooltipDismissed, setTooltipDismissed] = React.useState(false)
   const normalizedProgress = Number.isFinite(audioProgress) ? audioProgress : 0
   const clampedProgress = Math.min(100, Math.max(0, normalizedProgress))
-  const barRef = useRef<HTMLDivElement | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragFraction, setDragFraction] = useState<number | null>(null)
-
-  const clampFraction = useCallback((fraction: number) => {
-    if (!Number.isFinite(fraction)) return 0
-    return Math.max(0, Math.min(1, fraction))
-  }, [])
-
-  const fractionFromEvent = useCallback((clientX: number): number => {
-    const bar = barRef.current
-    if (!bar) return 0
-    const rect = bar.getBoundingClientRect()
-    const width = rect.width
-    if (!width || !Number.isFinite(width)) return 0
-    const fraction = (clientX - rect.left) / width
-    return clampFraction(fraction)
-  }, [clampFraction])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!interactive) return
-    if (!onScrub) return
-    const fraction = fractionFromEvent(e.clientX)
-    setDragFraction(fraction)
-    setIsDragging(true)
-    onScrubStart?.()
-    onScrub(fraction)
-  }, [fractionFromEvent, interactive, onScrub, onScrubStart])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!interactive) return
-    const currentFraction = clampedProgress / 100
-    switch (e.key) {
-      case ' ':
-      case 'Spacebar':
-        if (!onScrub) break
-        e.preventDefault()
-        onScrub(clampFraction(currentFraction))
-        break
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        if (!onScrub) break
-        e.preventDefault()
-        onScrub(clampFraction(currentFraction - 0.05))
-        break
-      case 'ArrowRight':
-      case 'ArrowUp':
-        if (!onScrub) break
-        e.preventDefault()
-        onScrub(clampFraction(currentFraction + 0.05))
-        break
-      case 'Home':
-        if (!onScrub) break
-        e.preventDefault()
-        onScrub(0)
-        break
-      case 'End':
-        if (!onScrub) break
-        e.preventDefault()
-        onScrub(1)
-        break
-      default:
-        break
-    }
-  }, [clampedProgress, interactive, onScrub, clampFraction])
-
-  useEffect(() => {
-    if (!isDragging) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const fraction = fractionFromEvent(e.clientX)
-      setDragFraction(fraction)
-      onScrub?.(fraction)
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      setDragFraction(null)
-      onScrubEnd?.()
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, onScrub, onScrubEnd, fractionFromEvent])
-
-  const visibleProgress = dragFraction !== null ? dragFraction * 100 : clampedProgress
+  const scrub = useScrubGesture({
+    duration, fraction: clampedProgress / 100, interactive, sourceKey,
+    onSeek, onSeekStart, onSeekEnd, onScrub, onScrubStart, onScrubEnd,
+  })
+  const visibleProgress = scrub.previewFraction !== null ? scrub.previewFraction * 100 : clampedProgress
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          ref={barRef}
-          role="slider"
-          tabIndex={interactive ? 0 : -1}
-          aria-label="Audio scrubber"
-          aria-orientation="horizontal"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(visibleProgress)}
-          onMouseDown={handleMouseDown}
-          onKeyDown={handleKeyDown}
-          className="group block h-1.5 w-full cursor-pointer select-none bg-subtle-hover transition-colors hover:bg-foreground/15"
-        >
+    <TooltipProvider delayDuration={700} skipDelayDuration={0}>
+      <Tooltip disabled={!interactive || tooltipDismissed} disableHoverableContent>
+        <TooltipTrigger asChild>
           <div
-            className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 pointer-events-none ${dragFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
-            style={{ width: `${visibleProgress}%` }}
-          />
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>Scrub audio</TooltipContent>
-    </Tooltip>
+            role="slider"
+            {...scrub.sliderProps}
+            // A press means the control is already understood. Keep the hint
+            // dismissed through release until a fresh hover or keyboard intent.
+            onPointerDownCapture={() => setTooltipDismissed(true)}
+            onPointerEnter={(event) => { if (event.buttons === 0) setTooltipDismissed(false) }}
+            onPointerLeave={(event) => { if (event.buttons === 0) setTooltipDismissed(false) }}
+            onFocusCapture={(event) => {
+              // Focus handed over after a scrub is still pointer intent.
+              setTooltipDismissed(event.currentTarget.dataset.scrubPointerFocus === 'true')
+            }}
+            onKeyDownCapture={() => setTooltipDismissed(false)}
+            onBlur={(event) => {
+              scrub.sliderProps.onBlur(event)
+              setTooltipDismissed(false)
+            }}
+            aria-valuenow={scrub.sliderProps['aria-valuenow']}
+            aria-label="Audio scrubber"
+            className="group relative block h-6 w-full cursor-pointer select-none outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue data-[scrub-pointer-focus=true]:focus-visible:outline-none"
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+          >
+            <div
+              className="absolute top-0 h-1.5 w-full bg-subtle-hover transition-colors group-hover:bg-foreground/15 pointer-events-none"
+            >
+              <div
+                className={`h-full bg-trust-blue group-hover:bg-trust-blue/90 ${scrub.previewFraction !== null ? 'transition-none' : 'transition-all duration-150'}`}
+                style={{ width: `${visibleProgress}%` }}
+              />
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>Scrub audio</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
@@ -155,6 +98,8 @@ export default function CollapsibleWaveform({
   contentRef,
   expandedHeight,
   pinned = false,
+  onFocusCapture,
+  onBlurCapture,
 }: CollapsibleWaveformProps) {
   const spacerHeight = typeof expandedHeight === 'number' && Number.isFinite(expandedHeight) && expandedHeight > 0
     ? expandedHeight
@@ -174,6 +119,9 @@ export default function CollapsibleWaveform({
       {/* Expandable waveform container */}
       <div
         ref={contentRef}
+        inert={collapsed}
+        onFocusCapture={onFocusCapture}
+        onBlurCapture={onBlurCapture}
         className={`overflow-hidden transition-opacity duration-300 ease-in-out ${collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
       >

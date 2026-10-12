@@ -1,10 +1,11 @@
 'use client'
 
-import React, { forwardRef, useCallback, useEffect, useRef, useState, useImperativeHandle } from 'react'
+import React, { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, useImperativeHandle } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { formatClockTime } from '@/lib/utils'
+import { useScrubGesture, type ScrubEndHandler } from '@/lib/audio/useScrubGesture'
 import { isSafariBrowser } from '@/lib/recording/safariPrewarm'
 
 /**
@@ -61,10 +62,16 @@ export interface AudioPlayerProps {
    * owns the visible scrubber and we just need the audio engine.
    */
   audioEngineOnly?: boolean
+  /** Hold pointer seeking open before the drag threshold, without pausing. */
+  onSeekStart?: () => void
+  /** Close pointer seeking, including ordinary clicks and taps. */
+  onSeekEnd?: ScrubEndHandler
   /** Called when the user starts dragging the progress bar */
   onDragStart?: () => void
   /** Called when the user ends dragging the progress bar */
-  onDragEnd?: () => void
+  onDragEnd?: ScrubEndHandler
+  /** Disable the fallback scrubber when its enclosing waveform is hidden. */
+  interactive?: boolean
   /** Called with the immediate preview time while scrubbing */
   onScrubPreview?: (currentTime: number) => void
   /** Called with the immediate preview fraction while scrubbing */
@@ -78,6 +85,7 @@ export interface AudioPlayerRef {
   seekToMs: (ms: number) => void
   beginScrub: () => void
   scrubToFraction: (fraction: number) => void
+  seekToFraction: (fraction: number) => void
   scrubToMs: (ms: number) => void
   endScrub: () => void
   seekRelative: (seconds: number) => void
@@ -103,22 +111,24 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   preferLargerDurationHint = false,
   hideControls = false,
   audioEngineOnly = false,
+  onSeekStart,
+  onSeekEnd,
   onDragStart,
   onDragEnd,
+  interactive = true,
   onScrubPreview,
   onScrubPreviewFraction,
 }: AudioPlayerProps, ref) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const progressRef = useRef<HTMLDivElement | null>(null)
   const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [playbackRate, setPlaybackRateState] = useState(initialPlaybackRate)
-  const [isDragging, setIsDragging] = useState(false)
   const readyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
   const wasPlayingBeforeDragRef = useRef(false)
+  const pointerSeekActiveRef = useRef(false)
   const isScrubbingRef = useRef(false)
   const rafRef = useRef<number | null>(null)
   const latestScrubTimeRef = useRef(0)
@@ -225,11 +235,11 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     cancelPendingScrubFrame()
     const audio = audioRef.current
     if (!audio) return
-    const clamped = clampTime(latestScrubTimeRef.current)
+    const clamped = clampTime(latestScrubTimeRef.current, resolveDuration(audio))
     latestScrubTimeRef.current = clamped
     audio.currentTime = clamped
     setCurrentTime(clamped)
-  }, [cancelPendingScrubFrame, clampTime])
+  }, [cancelPendingScrubFrame, clampTime, resolveDuration])
 
   const beginScrub = useCallback(() => {
     isScrubbingRef.current = true
@@ -276,6 +286,24 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isScrubbingRef.current = false
   }, [flushScrubSeek])
 
+  const seekToFraction = useCallback((fraction: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+    const resolvedDuration = resolveDuration(audio)
+    pendingSeekRef.current = null
+    if (resolvedDuration <= 0) {
+      queuePendingScrubFraction(fraction)
+      return
+    }
+    clearPendingScrubFraction()
+    const nextTime = clampFraction(fraction) * resolvedDuration
+    latestScrubTimeRef.current = nextTime
+    audio.currentTime = nextTime
+    setCurrentTime(nextTime)
+    if (pointerSeekActiveRef.current) onScrubPreview?.(nextTime)
+    else onTimeUpdate?.(nextTime)
+  }, [onScrubPreview, resolveDuration, queuePendingScrubFraction, clearPendingScrubFraction, clampFraction, onTimeUpdate])
+
   // Expose imperative methods
   useImperativeHandle(ref, () => ({
     play: () => audioRef.current?.play(),
@@ -304,6 +332,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       audio.currentTime = clampedSec
     },
     beginScrub,
+    seekToFraction,
     scrubToFraction: (fraction: number) => {
       scrubToFraction(fraction)
     },
@@ -332,7 +361,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, getResolvedDuration, scrubToFraction, scrubToTime])
+  }), [beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime])
 
   // Audio event handlers
   useEffect(() => {
@@ -435,8 +464,47 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
   }, [durationHint, resolveDuration, scrubToFraction, commitDuration])
 
-  // Toggling audioEngineOnly replaces the underlying <audio> element, so the
-  // new element needs a fresh readiness cycle (same as when src changes).
+  const startPointerSeek = useCallback(() => {
+    pointerSeekActiveRef.current = true
+    onSeekStart?.()
+  }, [onSeekStart])
+
+  const finishPointerSeek = useCallback<ScrubEndHandler>((fraction, reason) => {
+    pointerSeekActiveRef.current = false
+    onSeekEnd?.(fraction, reason)
+  }, [onSeekEnd])
+
+  const startFallbackScrub = useCallback(() => {
+    const audio = audioRef.current
+    wasPlayingBeforeDragRef.current = !!audio && !audio.paused
+    if (wasPlayingBeforeDragRef.current) audio?.pause()
+    beginScrub()
+    onDragStart?.()
+  }, [beginScrub, onDragStart])
+
+  const finishFallbackScrub = useCallback<ScrubEndHandler>((fraction, reason) => {
+    const resume = wasPlayingBeforeDragRef.current && reason !== 'teardown'
+    wasPlayingBeforeDragRef.current = false
+    endScrub()
+    onDragEnd?.(fraction, reason)
+    if (resume) audioRef.current?.play()
+  }, [endScrub, onDragEnd])
+
+  const scrub = useScrubGesture({
+    duration, fraction: previewFraction ?? (duration > 0 ? currentTime / duration : 0),
+    sourceKey: src, interactive: interactive && !audioEngineOnly,
+    onSeek: seekToFraction, onSeekStart: startPointerSeek, onSeekEnd: finishPointerSeek, onScrub: scrubToFraction,
+    onScrubStart: startFallbackScrub, onScrubEnd: finishFallbackScrub,
+  })
+  const isDragging = scrub.isDragging
+
+  // A visualization swap retains the audio engine and its readiness cycle.
+  // Refresh the fallback display from live audio when that UI returns.
+  useLayoutEffect(() => {
+    if (!audioEngineOnly && audioRef.current) setCurrentTime(audioRef.current.currentTime)
+  }, [audioEngineOnly])
+
+  // Only a new source needs a fresh readiness cycle.
   useEffect(() => {
     readyRef.current = false
     setReady(false)
@@ -450,235 +518,119 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     clearPendingScrubFraction()
     isScrubbingRef.current = false
     cancelPendingScrubFrame()
-    setIsDragging(false)
     wasPlayingBeforeDragRef.current = false
-  }, [audioEngineOnly, cancelPendingScrubFrame, clearPendingScrubFraction, src])
+  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
 
-  useEffect(() => {
-    return () => {
-      cancelPendingScrubFrame()
-      clearPendingScrubFraction()
-    }
-  }, [cancelPendingScrubFrame, clearPendingScrubFraction])
-
-  const fractionFromClientX = useCallback((clientX: number) => {
-    const progressBar = progressRef.current
-    if (!progressBar) return 0
-
-    const rect = progressBar.getBoundingClientRect()
-    if (!rect.width || !Number.isFinite(rect.width)) return 0
-
-    return clampFraction((clientX - rect.left) / rect.width)
-  }, [clampFraction])
-
-  // Progress bar click/drag handling
-  const updateSeekFromEvent = useCallback((clientX: number) => {
-    const fraction = fractionFromClientX(clientX)
-    scrubToFraction(fraction)
-  }, [fractionFromClientX, scrubToFraction])
-
-  const handleProgressClick = useCallback((e: React.MouseEvent) => {
-    updateSeekFromEvent(e.clientX)
-  }, [updateSeekFromEvent])
-
-  const handleProgressMouseDown = useCallback((e: React.MouseEvent) => {
-    const audio = audioRef.current
-    if (audio && !audio.paused) {
-      wasPlayingBeforeDragRef.current = true
-      audio.pause()
-    } else {
-      wasPlayingBeforeDragRef.current = false
-    }
-    beginScrub()
-    setIsDragging(true)
-    onDragStart?.()
-    updateSeekFromEvent(e.clientX)
-  }, [beginScrub, onDragStart, updateSeekFromEvent])
-
-  const seekToTime = useCallback((nextTime: number) => {
-    const audio = audioRef.current
-    if (!audio) return
-    const clamped = clampTime(nextTime)
-    audio.currentTime = clamped
-    setCurrentTime(clamped)
-    onTimeUpdate?.(clamped)
-  }, [clampTime, onTimeUpdate])
-
-  const handleProgressKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    const smallStep = 2
-    const largeStep = 10
-
-    switch (e.key) {
-      case 'ArrowRight':
-      case 'ArrowUp':
-        e.preventDefault()
-        seekToTime(currentTime + smallStep)
-        break
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        e.preventDefault()
-        seekToTime(currentTime - smallStep)
-        break
-      case 'PageUp':
-        e.preventDefault()
-        seekToTime(currentTime + largeStep)
-        break
-      case 'PageDown':
-        e.preventDefault()
-        seekToTime(currentTime - largeStep)
-        break
-      case 'Home':
-        e.preventDefault()
-        seekToTime(0)
-        break
-      case 'End':
-        e.preventDefault()
-        seekToTime(duration)
-        break
-      default:
-        break
-    }
-  }, [currentTime, duration, seekToTime])
-
-  useEffect(() => {
-    if (!isDragging) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      updateSeekFromEvent(e.clientX)
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      endScrub()
-      onDragEnd?.()
-      if (wasPlayingBeforeDragRef.current) {
-        wasPlayingBeforeDragRef.current = false
-        audioRef.current?.play()
-      }
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [endScrub, isDragging, onDragEnd, updateSeekFromEvent])
+  useEffect(() => () => {
+    cancelPendingScrubFrame()
+  }, [cancelPendingScrubFrame])
 
   const progress = previewFraction !== null
     ? previewFraction * 100
     : duration > 0 ? (currentTime / duration) * 100 : 0
 
-  // Engine-only: render bare <audio> so there's no second focusable scrubber.
-  if (audioEngineOnly) {
-    return <audio ref={audioRef} src={src} preload="metadata" />
-  }
-
   return (
-    <div className="space-y-3">
-      {/* Audio element (hidden) */}
+    <>
+      {/* Keep this node in the same position when waveform peaks arrive. */}
       <audio ref={audioRef} src={src} preload="metadata" />
-
-      {/* Progress bar container */}
-      <div
-        ref={progressRef}
-        className="relative h-12 bg-ink/10 dark:bg-paper/10 rounded-sm cursor-pointer select-none"
-        onClick={handleProgressClick}
-        onMouseDown={handleProgressMouseDown}
-        role="slider"
-        aria-valuemin={0}
-        aria-valuemax={duration}
-        aria-valuenow={currentTime}
-        aria-label="Audio progress"
-        title="Audio progress"
-        tabIndex={0}
-        onKeyDown={handleProgressKeyDown}
-      >
-        {/* Background track */}
-        <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded-sm" />
-
-        {/* Progress fill */}
-        <div
-          className={`absolute inset-y-0 left-0 bg-trust-blue rounded-l ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
-          style={{ width: `${progress}%` }}
-        />
-
-        {/* Scrubber handle */}
-        <div
-          className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-paper dark:bg-ink rounded-full shadow-lg ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
-          style={{ left: `calc(${progress}% - 6px)` }}
-        />
-      </div>
-
-      {/* Time display */}
-      <div className="flex items-center justify-between text-sm text-muted font-mono">
-        <span>{formatClockTime(currentTime, 'never')}</span>
-        <span>{formatClockTime(duration, 'never')}</span>
-      </div>
-
-      {/* Controls — hidden when FloatingPlayerDeck is active */}
-      {!hideControls && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            disabled={!ready}
-            onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
-            title={playing ? 'Pause' : 'Play'}
+      {!audioEngineOnly && (
+        <div className="space-y-3">
+          {/* Progress bar container */}
+          <div
+            className="relative h-12 bg-ink/10 dark:bg-paper/10 rounded-sm cursor-pointer select-none outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue data-[scrub-pointer-focus=true]:focus-visible:outline-none"
+            {...scrub.sliderProps}
+            aria-valuenow={scrub.sliderProps['aria-valuenow']}
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+            role="slider"
+            aria-label="Audio progress"
+            title="Audio progress"
           >
-            {playing ? 'Pause' : 'Play'}
-          </Button>
-          <button
-            type="button"
-            className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
-            onClick={() => {
-              if (audioRef.current) {
-                audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
-              }
-            }}
-            title="Rewind 2 seconds"
-          >
-            -2s
-          </button>
-          <button
-            type="button"
-            className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
-            onClick={() => {
-              if (audioRef.current && duration) {
-                audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
-              }
-            }}
-            title="Forward 2 seconds"
-          >
-            +2s
-          </button>
-          <div className="ml-2 flex items-center gap-1">
-            <Label className="text-sm text-muted">Rate</Label>
-            <Select
-              value={String(playbackRate)}
-              onValueChange={(v) => {
-                const rate = parseFloat(v)
-                if (audioRef.current) {
-                  audioRef.current.playbackRate = rate
-                }
-                setPlaybackRateState(rate)
-              }}
-            >
-              <SelectTrigger className="h-auto w-auto border border-border rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
-                  <SelectItem key={r} value={String(r)}>{r.toFixed(2)}x</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Background track */}
+            <div className="absolute inset-0 bg-ink/5 dark:bg-paper/5 rounded-sm" />
+
+            {/* Progress fill */}
+            <div
+              className={`absolute inset-y-0 left-0 bg-trust-blue rounded-l ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
+              style={{ width: `${progress}%` }}
+            />
+
+            {/* Scrubber handle */}
+            <div
+              className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-paper dark:bg-ink rounded-full shadow-lg ${isDragging ? 'transition-none' : 'transition-all duration-75'}`}
+              style={{ left: `calc(${progress}% - 6px)` }}
+            />
           </div>
+
+          {/* Time display */}
+          <div className="flex items-center justify-between text-sm text-muted font-mono">
+            <span>{formatClockTime(currentTime, 'never')}</span>
+            <span>{formatClockTime(duration, 'never')}</span>
+          </div>
+
+          {/* Controls — hidden when FloatingPlayerDeck is active */}
+          {!hideControls && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={!ready}
+                onClick={() => audioRef.current && (audioRef.current.paused ? audioRef.current.play() : audioRef.current.pause())}
+                title={playing ? 'Pause' : 'Play'}
+              >
+                {playing ? 'Pause' : 'Play'}
+              </Button>
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+                onClick={() => {
+                  if (audioRef.current) {
+                    audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 2)
+                  }
+                }}
+                title="Rewind 2 seconds"
+              >
+                -2s
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-sm bg-surface-alt hover:bg-ink/10 dark:hover:bg-paper/10 transition-colors"
+                onClick={() => {
+                  if (audioRef.current && duration) {
+                    audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 2)
+                  }
+                }}
+                title="Forward 2 seconds"
+              >
+                +2s
+              </button>
+              <div className="ml-2 flex items-center gap-1">
+                <Label className="text-sm text-muted">Rate</Label>
+                <Select
+                  value={String(playbackRate)}
+                  onValueChange={(v) => {
+                    const rate = parseFloat(v)
+                    if (audioRef.current) {
+                      audioRef.current.playbackRate = rate
+                    }
+                    setPlaybackRateState(rate)
+                  }}
+                >
+                  <SelectTrigger className="h-auto w-auto border border-border rounded-sm px-2 py-1 text-sm bg-surface" aria-label="Playback rate">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => (
+                      <SelectItem key={r} value={String(r)}>{r.toFixed(2)}x</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </>
   )
 })
 

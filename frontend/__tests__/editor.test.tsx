@@ -1,3 +1,4 @@
+import { pointer } from './helpers/scrubPointer'
 import React from 'react'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
@@ -311,7 +312,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     window.dispatchEvent(new CustomEvent('editor-scroll-to-top'))
 
     await waitFor(() => {
-      expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
+      expect(screen.getByRole('slider', { name: 'Audio scrubber' }).parentElement).toHaveAttribute('inert')
     })
     expect(scrollContainer.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
   })
@@ -331,7 +332,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     fireEvent.scroll(scrollContainer)
 
-    expect(screen.queryByRole('slider', { name: 'Audio scrubber' })).not.toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Audio scrubber' }).parentElement).toHaveAttribute('inert')
     expect(screen.getByTestId('audio-player')).toBeInTheDocument()
   })
 
@@ -1035,7 +1036,8 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     mockRect(slider, { left: 0, width: 200, height: 6 })
-    fireEvent.mouseDown(slider, { clientX: 10 })
+    pointer.down(slider, { clientX: 6 })
+    pointer.move(slider, { clientX: 10 })
 
     expect(screen.queryByRole('button', { name: /sync to audio/i })).not.toBeInTheDocument()
   })
@@ -1105,10 +1107,10 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     mockRect(slider, { left: 0, width: 200, height: 6 })
-    fireEvent.mouseDown(slider, { clientX: 1 })
+    pointer.down(slider, { clientX: 1 })
 
     await act(async () => {
-      fireEvent.mouseMove(window, { clientX: 10 })
+      pointer.move(slider, { clientX: 10 })
     })
 
     expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -1119,12 +1121,12 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     scrollToIndexMock.mockClear()
 
     await act(async () => {
-      fireEvent.mouseMove(window, { clientX: 1 })
+      pointer.move(slider, { clientX: 1 })
     })
 
     expect(scrollToIndexMock).not.toHaveBeenCalled()
 
-    fireEvent.mouseUp(window)
+    pointer.up(slider)
   })
 
   test('mini scrub clears transcript click lock before previewing a new segment', async () => {
@@ -1146,11 +1148,12 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     mockRect(slider, { left: 0, width: 200, height: 6 })
-    fireEvent.mouseDown(slider, { clientX: 3 })
+    pointer.down(slider, { clientX: 0 })
+    pointer.move(slider, { clientX: 3 })
 
     await expectActiveSegmentIndex(0)
 
-    fireEvent.mouseUp(window)
+    pointer.up(slider)
   })
 
   test('scrub end performs a final follow correction even when the active segment does not change', async () => {
@@ -1205,11 +1208,12 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     mockRect(slider, { left: 0, width: 200, height: 6 })
-    fireEvent.mouseDown(slider, { clientX: 10 })
+    pointer.down(slider, { clientX: 6 })
+    pointer.move(slider, { clientX: 10 })
     scrollToIndexMock.mockClear()
 
     await act(async () => {
-      fireEvent.mouseUp(window)
+      pointer.up(slider)
     })
 
     expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -1234,10 +1238,11 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     const slider = screen.getByRole('slider', { name: 'Audio scrubber' })
     mockRect(slider, { left: 0, width: 200, height: 6 })
 
-    fireEvent.mouseDown(slider, { clientX: 15 })
+    pointer.down(slider, { clientX: 10 })
+    pointer.move(slider, { clientX: 15 })
 
     await expectActiveSegmentIndex(0)
 
-    fireEvent.mouseUp(window)
+    pointer.up(slider)
   })
 })

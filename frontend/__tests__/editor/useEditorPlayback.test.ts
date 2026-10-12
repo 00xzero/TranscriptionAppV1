@@ -11,6 +11,7 @@ function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
     seekRelative: jest.fn(),
     setPlaybackRate: jest.fn(),
     seekToMs: jest.fn(),
+    seekToFraction: jest.fn(),
     getCurrentTime: jest.fn(() => 12),
     getDuration: jest.fn(() => 60),
     isPlaying: jest.fn(() => false),
@@ -150,6 +151,83 @@ describe('useEditorPlayback', () => {
 
     expect(startSeek).not.toHaveBeenCalled()
     expect(commitSeek).not.toHaveBeenCalled()
+  })
+
+  it('closes teardown with the retained preview even if the player ref has gone', () => {
+    const { result, commitSeek } = setup()
+    const player = createPlayer({ isPlaying: jest.fn(() => true) })
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleExpandedScrubStart()
+      result.current.handleMiniScrub(0.75)
+      result.current.handleAudioPlayerRef(null)
+      result.current.handleExpandedScrubEnd(0.75, 'teardown')
+    })
+    expect(player.endScrub).toHaveBeenCalledTimes(1)
+    expect(player.play).not.toHaveBeenCalled()
+    expect(commitSeek).toHaveBeenCalledWith(45000)
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
+    act(() => result.current.handleExpandedScrubEnd(0.75, 'teardown'))
+    expect(commitSeek).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes a plain fractional seek immediately without beginning or pausing an audio scrub', () => {
+    const { result, startSeek, commitSeek } = setup()
+    const player = createPlayer({ isPlaying: jest.fn(() => true) })
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleMiniSeek(0.5)
+    })
+    expect(player.seekToFraction).toHaveBeenCalledWith(0.5)
+    expect(player.beginScrub).not.toHaveBeenCalled()
+    expect(player.pause).not.toHaveBeenCalled()
+    expect(startSeek).toHaveBeenCalledTimes(1)
+    expect(commitSeek).toHaveBeenCalledWith(30000, { lockSeek: false })
+  })
+
+  it('retains the pointer seek through the press-to-drag threshold without committing or nesting seeking mode', () => {
+    const { result, commitSeek, startSeek, previewSeek } = setup()
+    let time = 12
+    const player = createPlayer({
+      getCurrentTime: jest.fn(() => time),
+      isPlaying: jest.fn(() => true),
+      seekToFraction: jest.fn((fraction: number) => { time = fraction * 60 }),
+    })
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleExpandedSeekStart()
+      result.current.handleMiniSeek(0.5)
+    })
+    expect(result.current.expandedPlayerScrubbing).toBe(true)
+    expect(commitSeek).not.toHaveBeenCalled()
+    expect(previewSeek).toHaveBeenCalledWith(30000)
+    expect(player.pause).not.toHaveBeenCalled()
+    act(() => result.current.handleExpandedScrubStart())
+    expect(startSeek).toHaveBeenCalledTimes(1)
+    expect(player.pause).toHaveBeenCalledTimes(1)
+    act(() => {
+      result.current.handleExpandedScrubEnd(0.5, 'release')
+      result.current.handleMiniSeekEnd(0.5, 'release')
+    })
+    expect(commitSeek).toHaveBeenCalledTimes(1)
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
+    expect(player.play).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes a plain pointer press without pausing, flushing a drag, or replaying audio', () => {
+    const { result, commitSeek } = setup()
+    const player = createPlayer({ isPlaying: jest.fn(() => true) })
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleExpandedSeekStart()
+      result.current.handleMiniSeek(0.5)
+      result.current.handleMiniSeekEnd(0.5)
+    })
+    expect(commitSeek).toHaveBeenCalledWith(12000, { lockSeek: false })
+    expect(player.pause).not.toHaveBeenCalled()
+    expect(player.endScrub).not.toHaveBeenCalled()
+    expect(player.play).not.toHaveBeenCalled()
+    expect(result.current.expandedPlayerScrubbing).toBe(false)
   })
 
   it('updates the active segment before seeking when a word is clicked', () => {
