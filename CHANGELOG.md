@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-12] - Audio Scrubbing and Playback Continuity
+
+### Fixed
+
+- **Late waveform loading** — AudioPlayer retains the same audio element when peaks arrive, preserving playback position, readiness, rate and playing state. A fallback drag interrupted by the swap closes its seek and clears waveform pinning before conditionally resuming playback.
+- **Seek cleanup** — Pointer cancellation, lost capture, hidden controls, source changes and unmounts close active seeks exactly once. Source changes and full teardown never restart playback.
+- **Follow-mode scrubbing** — Pointer seeking now stays open from the initial press until release, so transcript follow scrolling cannot collapse or replace the active control before dragging starts. Clicks still seek immediately without pausing audio.
+- **Touch drag continuity** — Once horizontal intent is accepted, a non-passive touch handler prevents browser panning from cancelling the scrub when the finger drifts vertically. Gestures that begin vertically still scroll normally.
+- **Mini scrubber width** — The collapsed track spans the full editor width even when Speakers is open; the floating player remains centered on the transcript column.
+- **Header hit targets** — Export, Find & Replace and breadcrumb controls sit above the mini scrubber’s 24px hit area. The header backdrop blocks clicks to covered transcript cards and stays above the waveform while it is pinned during a drag, while the track stays visible and usable.
+- **Scrubber hint** — “Scrub audio” waits for a fresh 700ms hover, dismisses on press and stays hidden through dragging, release and pointer-driven focus handoff until a fresh hover. Keyboard focus still exposes the hint.
+- **Pointer focus styling** — Clicking and dragging no longer displays the browser's large blue outline. Keyboard focus retains a visible indicator, including after control handoff.
+
+### Changed
+
+- **Shared scrubbers** — The waveform, mini bar and fallback bar share pointer and keyboard handling. Mouse/pen presses seek immediately with a 3px drag threshold; touch taps seek on release, horizontal drags use an 8px threshold, and vertical gestures retain scrolling.
+- **Accessibility** — Hidden waveform wrappers use `inert`, focus transfers between visible controls, the mini bar has a 24px hit area around its unchanged 6px track, and all sliders expose whole seconds plus elapsed-time text. Arrow keys seek 5 seconds, Page keys 30 seconds, and Space leaves playback unchanged.
+
+### Tests
+
+- **Frontend** — `145` suites / `1,657` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `57` existing warnings); `git diff --check`. Follow-mode integration tests drive actual scroll events during the initial press and repeated drag previews for all three controls.
+- **Browser** — Local editor in Chrome: fresh-open follow mode, desktop presses and backward/forward dragging, expanded and mini touch scrubbing with vertical drift at 390px, vertical gestures without seeking, pointer versus keyboard focus styling, focus handoff, and hidden-control exclusion from Tab order and the accessibility tree. The mini track retains its full width with Speakers open or closed on desktop and at 390px, including seeking above the panel. Clicks and touch taps across the header background, including its bottom border, do not activate covered transcript cards. Header top-edge clicks and mobile touch taps open Export/Find & Replace without seeking; the mini hint waits on hover and remains absent during a scrub, after release and when focus transfers from the expanded waveform to the mini control. Keyboard focus and a fresh delayed hover still show the hint.
+- **Manual follow-up** — On a real iPhone, check vertical scrolling versus horizontal scrubbing on both controls, touch taps, cancellation/resume, and VoiceOver focus when the waveform collapses or expands. Chromium emulation does not verify Safari behavior.
+
 ## [2026-10-11] - Editor Scroll Stability
 
 ### Fixed

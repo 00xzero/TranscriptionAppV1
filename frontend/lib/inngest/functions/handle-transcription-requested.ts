@@ -74,7 +74,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { transcriptId, jobId, userId, mediaUrl, keyTerms } = event.data;
+        const { transcriptId, jobId, mediaUrl, keyTerms } = event.data;
 
         console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 

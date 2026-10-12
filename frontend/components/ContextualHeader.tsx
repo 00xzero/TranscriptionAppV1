@@ -1,6 +1,5 @@
 "use client"
 
-import React from 'react'
 import { usePathname } from 'next/navigation'
 import { useModal } from '@/lib/ModalContext'
 import { useAuth } from '@/lib/auth/AuthProvider'
@@ -34,7 +33,11 @@ export default function ContextualHeader() {
   const isLoading = !isAuthRoute && !ready && !userId
 
   return (
-    <header className="h-[var(--header-height)] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md flex items-center justify-between gap-4 px-6 z-10 transition-colors duration-300">
+    <header className={`relative h-[var(--header-height)] flex items-center justify-between gap-4 px-6 transition-colors duration-300 ${isEditorRoute ? 'pointer-events-none [&>div]:relative [&>div]:z-(--z-header) [&_button]:pointer-events-auto [&_a]:pointer-events-auto' : 'z-(--z-header) pointer-events-auto border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md'}`}>
+      {/* The backdrop blocks clicks to covered transcript cards and stays above
+          the pinned waveform but below the mini track; header controls remain
+          above its larger hit area. The layer order lives in globals.css. */}
+      {isEditorRoute && <span aria-hidden="true" className="pointer-events-auto absolute inset-0 z-(--z-header-backdrop) border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md" />}
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {isLoading ? (

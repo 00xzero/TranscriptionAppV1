@@ -2,7 +2,7 @@
 
 import { useRecordingSession } from '@/lib/recording/RecordingSessionContext'
 import { getElapsedActiveMs } from '@/lib/recording/session'
-import { formatElapsedTime } from '@/lib/recording/timeUtils'
+import { formatElapsedTime } from '@/lib/utils'
 
 interface RecordingTimerProps {
   className?: string

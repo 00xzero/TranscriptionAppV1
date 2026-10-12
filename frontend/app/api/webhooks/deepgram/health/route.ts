@@ -43,8 +43,6 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const startTime = Date.now();
-
     // Check Supabase connection
     let supabaseConnected = false;
     let supabaseLatencyMs: number | undefined;

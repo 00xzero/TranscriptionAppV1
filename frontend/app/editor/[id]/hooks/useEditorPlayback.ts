@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import type { ScrubEndReason } from '@/lib/audio/useScrubGesture'
 import type { AudioPlayerRef } from '@/components/AudioPlayer'
 import { useAudioSessionRecovery } from './useAudioSessionRecovery'
 
@@ -32,8 +33,9 @@ export function useEditorPlayback({
   const audioPlayerRef = useRef<AudioPlayerRef | null>(null)
   const wasPlayingBeforeScrubRef = useRef(false)
   const seekGestureActiveRef = useRef(false)
+  const scrubPlayerRef = useRef<AudioPlayerRef | null>(null)
+  const lastPreviewMsRef = useRef(0)
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null)
-  const [ready, setReady] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [audioProgress, setAudioProgress] = useState(0)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -67,7 +69,6 @@ export function useEditorPlayback({
 
   const handleAudioReady = useCallback(() => {
     readyRef.current = true
-    setReady(true)
     setStatus('Ready')
     const player = audioPlayerRef.current
     const currentTime = player?.getCurrentTime?.() ?? 0
@@ -113,6 +114,7 @@ export function useEditorPlayback({
   const handleScrubPreview = useCallback((currentTime: number) => {
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || audioDuration
+    lastPreviewMsRef.current = Math.floor(currentTime * 1000)
     setAudioCurrentTime(currentTime)
     setAudioDuration(dur)
     updateAudioProgress(currentTime, dur)
@@ -151,48 +153,82 @@ export function useEditorPlayback({
     seekToMs(ms)
   }, [onSegmentSeek, seekToMs])
 
+  const handleMiniSeekStart = useCallback(() => {
+    const player = audioPlayerRef.current
+    if (!player || seekGestureActiveRef.current) return
+    scrubPlayerRef.current = player
+    lastPreviewMsRef.current = Math.floor(player.getCurrentTime() * 1000)
+    seekGestureActiveRef.current = true
+    startSeek()
+  }, [startSeek])
+
   const handleMiniScrubStart = useCallback(() => {
     const player = audioPlayerRef.current
     if (!player) return
-    seekGestureActiveRef.current = true
-    startSeek()
-    if (player.isPlaying()) {
-      wasPlayingBeforeScrubRef.current = true
-      player.pause()
-    } else {
-      wasPlayingBeforeScrubRef.current = false
-    }
+    handleMiniSeekStart()
+    wasPlayingBeforeScrubRef.current = player.isPlaying()
+    if (wasPlayingBeforeScrubRef.current) player.pause()
     player.beginScrub()
-  }, [startSeek])
+  }, [handleMiniSeekStart])
 
-  const handleMiniScrub = useCallback((fraction: number) => {
+  const handleMiniSeek = useCallback((fraction: number) => {
     const player = audioPlayerRef.current
     if (!player) return
-    if (seekGestureActiveRef.current) {
-      player.scrubToFraction(fraction)
-      return
-    }
     const targetMs = fraction * (player.getDuration() || audioDuration) * 1000
-    commitSeek(targetMs, { lockSeek: false })
-    seekToMs(targetMs)
-  }, [audioDuration, commitSeek, seekToMs])
-
-  const handleMiniScrubEnd = useCallback(() => {
-    const player = audioPlayerRef.current
-    if (!player) {
-      seekGestureActiveRef.current = false
+    lastPreviewMsRef.current = Math.floor(targetMs)
+    if (seekGestureActiveRef.current) {
+      // Keep the seek open until pointer release. A commit here would let
+      // follow scrolling hide/replace the control before a drag can start.
+      player.seekToFraction(fraction)
+      previewSeek(Math.floor(targetMs))
       return
     }
-    player.endScrub()
-    const currentMs = Math.floor(player.getCurrentTime() * 1000)
+    // Keyboard seeks are atomic and have no pointer transaction to retain.
+    startSeek()
+    player.seekToFraction(fraction)
+    commitSeek(targetMs, { lockSeek: false })
+  }, [audioDuration, commitSeek, previewSeek, startSeek])
+
+  const handleMiniScrub = useCallback((fraction: number) => {
+    const player = audioPlayerRef.current ?? scrubPlayerRef.current
+    if (!player || !seekGestureActiveRef.current) return
+    lastPreviewMsRef.current = Math.floor(fraction * (player.getDuration() || audioDuration) * 1000)
+    player.scrubToFraction(fraction)
+  }, [audioDuration])
+
+  const finishEditorSeek = useCallback((reason: ScrubEndReason, lockSeek = true) => {
+    if (!seekGestureActiveRef.current) return
+    const player = audioPlayerRef.current
+    const currentMs = reason === 'teardown' || !player
+      ? lastPreviewMsRef.current
+      : Math.floor(player.getCurrentTime() * 1000)
     seekGestureActiveRef.current = false
-    setWaveformCollapsed(shouldCollapseWaveform())
-    commitSeek(currentMs)
-    if (wasPlayingBeforeScrubRef.current) {
-      wasPlayingBeforeScrubRef.current = false
-      player.play()
-    }
+    scrubPlayerRef.current = null
+    setExpandedPlayerScrubbing(false)
+    if (lockSeek) commitSeek(currentMs)
+    else commitSeek(currentMs, { lockSeek: false })
+    if (reason !== 'teardown') setWaveformCollapsed(shouldCollapseWaveform())
   }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed])
+
+  const handleMiniScrubEnd = useCallback((_fraction?: number, reason: ScrubEndReason = 'release') => {
+    if (!seekGestureActiveRef.current) return
+    const player = reason === 'teardown' ? scrubPlayerRef.current : audioPlayerRef.current ?? scrubPlayerRef.current
+    const resume = wasPlayingBeforeScrubRef.current && reason !== 'teardown'
+    wasPlayingBeforeScrubRef.current = false
+    player?.endScrub()
+    finishEditorSeek(reason)
+    if (resume) player?.play()
+  }, [finishEditorSeek])
+
+  const handleMiniSeekEnd = useCallback((_fraction?: number, reason: ScrubEndReason = 'release') => {
+    finishEditorSeek(reason, false)
+  }, [finishEditorSeek])
+
+  const handleExpandedSeekStart = useCallback(() => {
+    if (!audioPlayerRef.current) return
+    setExpandedPlayerScrubbing(true)
+    handleMiniSeekStart()
+  }, [handleMiniSeekStart])
 
   const handleExpandedScrubStart = useCallback(() => {
     if (!audioPlayerRef.current) return
@@ -200,25 +236,14 @@ export function useEditorPlayback({
     handleMiniScrubStart()
   }, [handleMiniScrubStart])
 
-  const handleExpandedScrubEnd = useCallback(() => {
-    handleMiniScrubEnd()
-    setExpandedPlayerScrubbing(false)
-  }, [handleMiniScrubEnd])
+  const handleExpandedScrubEnd = handleMiniScrubEnd
 
-  const handlePlayerDragStart = useCallback(() => {
-    setExpandedPlayerScrubbing(true)
-    seekGestureActiveRef.current = true
-    startSeek()
-  }, [startSeek])
+  const handlePlayerDragStart = handleExpandedSeekStart
 
-  const handlePlayerDragEnd = useCallback(() => {
-    seekGestureActiveRef.current = false
-    setWaveformCollapsed(shouldCollapseWaveform())
-    setExpandedPlayerScrubbing(false)
-    const player = audioPlayerRef.current
-    if (!player) return
-    commitSeek(Math.floor(player.getCurrentTime() * 1000))
-  }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed])
+  // AudioPlayer flushes its own seek before notifying the editor.
+  const handlePlayerDragEnd = useCallback((_fraction?: number, reason: ScrubEndReason = 'release') => {
+    finishEditorSeek(reason)
+  }, [finishEditorSeek])
 
   return {
     handleAudioPlayerRef,
@@ -241,6 +266,10 @@ export function useEditorPlayback({
     onRateChange,
     onWordClick,
     onSegmentClick,
+    handleMiniSeek,
+    handleMiniSeekStart,
+    handleMiniSeekEnd,
+    handleExpandedSeekStart,
     handleMiniScrubStart,
     handleMiniScrub,
     handleMiniScrubEnd,

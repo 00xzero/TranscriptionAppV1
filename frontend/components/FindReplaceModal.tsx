@@ -27,7 +27,6 @@ export interface FindReplaceModalProps {
   matchSummary: string
   canNavigate: boolean
   canReplace: boolean
-  hasMatches: boolean
   matches: Array<{ segId: string; index: number; length: number }>
   segments: Array<{ id: string; text: string }>
   matchIndex: number
@@ -63,7 +62,6 @@ export default function FindReplaceModal({
   matchSummary,
   canNavigate,
   canReplace,
-  hasMatches,
   matches,
   segments,
   matchIndex,

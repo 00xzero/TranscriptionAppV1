@@ -1,6 +1,7 @@
 "use client"
-import React, { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useScrubberFocus } from '@/lib/audio/useScrubberFocus'
 import AudioPlayer from '@/components/AudioPlayer'
 import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
@@ -97,6 +98,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     setWaveformCollapsed: sync.setWaveformCollapsed,
     shouldCollapseWaveform: sync.shouldCollapseForCurrentScroll,
   })
+
+  const { handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart } = playback
 
   // 5. Search + Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
@@ -196,6 +199,13 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     !speakerHook.speakerPopover &&
     !editing.editingId
   const waveformCollapsed = sync.waveformCollapsed && !playback.expandedPlayerScrubbing
+  const { attachExpanded, attachMini, trackExpandedFocus, trackMiniFocus, trackBlur } = useScrubberFocus(waveformCollapsed, data.peaks !== null)
+  const { expandedWaveformContainerRef } = sync
+  const expandedWaveformRef = useCallback((element: HTMLDivElement | null) => {
+    attachExpanded(element)
+    expandedWaveformContainerRef(element)
+  }, [attachExpanded, expandedWaveformContainerRef])
+
   const didInteractOutsidePopoverRef = useRef(false)
   // True while the popover holds a name over the length limit; an outside click
   // then leaves it open rather than discarding the typed name.
@@ -227,7 +237,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
         canReplace={true}
-        hasMatches={search.hasMatches}
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}
@@ -235,28 +244,39 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
       />
 
       <div className="relative flex min-h-0 flex-1">
+        {/* The mini scrubber spans the editor, including the Speakers panel. */}
+        <div
+          className={`absolute top-0 left-0 w-full z-(--z-editor-mini-scrubber) transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          inert={!waveformCollapsed}
+          ref={attachMini}
+          onFocusCapture={trackMiniFocus}
+          onBlurCapture={trackBlur}
+        >
+          <MiniWaveformProgress
+            audioProgress={playback.audioProgress}
+            duration={playback.audioDuration}
+            sourceKey={data.audioSrc}
+            onSeek={playback.handleMiniSeek}
+            onSeekStart={handleMiniSeekStart}
+            onSeekEnd={handleMiniSeekEnd}
+            interactive={waveformCollapsed}
+            onScrub={playback.handleMiniScrub}
+            onScrubStart={playback.handleMiniScrubStart}
+            onScrubEnd={playback.handleMiniScrubEnd}
+          />
+        </div>
+
         {/* The transcript column: the player and sync button centre on it, not the window. */}
         <div className="relative flex min-w-0 flex-1 flex-col">
-          <div
-            className={`absolute top-0 left-0 w-full z-40 transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-            aria-hidden={!waveformCollapsed}
-          >
-            <MiniWaveformProgress
-              audioProgress={playback.audioProgress}
-              interactive={waveformCollapsed}
-              onScrub={playback.handleMiniScrub}
-              onScrubStart={playback.handleMiniScrubStart}
-              onScrubEnd={playback.handleMiniScrubEnd}
-            />
-          </div>
-
           <div
             className="flex-1 overflow-auto pb-32 [overflow-anchor:none] [scrollbar-gutter:stable]"
             ref={sync.scrollContainerRef}
           >
             <CollapsibleWaveform
               collapsed={waveformCollapsed}
-              contentRef={sync.expandedWaveformContainerRef}
+              contentRef={expandedWaveformRef}
+              onFocusCapture={trackExpandedFocus}
+              onBlurCapture={trackBlur}
               expandedHeight={sync.expandedWaveformHeight}
               pinned={playback.expandedPlayerScrubbing}
             >
@@ -272,6 +292,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
                     onDurationChange={playback.handleAudioDurationChange}
                     onScrubPreview={playback.handleScrubPreview}
                     onScrubPreviewFraction={playback.handleScrubPreviewFraction}
+                    onSeekStart={handleExpandedSeekStart}
+                    onSeekEnd={handleMiniSeekEnd}
                     onDragStart={playback.handlePlayerDragStart}
                     onDragEnd={playback.handlePlayerDragEnd}
                     initialPlaybackRate={playback.playbackRate}
@@ -279,12 +301,18 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
                     preferLargerDurationHint={data.waveformDurationSecs !== null}
                     hideControls
                     audioEngineOnly={data.peaks !== null}
+                    interactive={!waveformCollapsed}
                   />
                   {data.peaks ? (
                     <Waveform
                       peaks={data.peaks}
                       currentTime={playback.audioCurrentTime}
                       duration={playback.audioDuration}
+                      sourceKey={data.audioSrc}
+                      interactive={!waveformCollapsed}
+                      onSeek={playback.handleMiniSeek}
+                      onSeekStart={handleExpandedSeekStart}
+                      onSeekEnd={handleMiniSeekEnd}
                       onScrub={playback.handleMiniScrub}
                       onScrubStart={playback.handleExpandedScrubStart}
                       onScrubEnd={playback.handleExpandedScrubEnd}

@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { formatClockTime } from '@/lib/utils'
+import { useScrubGesture, type ScrubEndHandler } from '@/lib/audio/useScrubGesture'
 
 interface WaveformProps {
   /** Source peaks (length 2048 from the artifact), values in [0, 1]. */
@@ -10,12 +11,18 @@ interface WaveformProps {
   currentTime: number
   /** Total duration in seconds. */
   duration: number
-  /** Called with a fraction in [0, 1] when the user clicks/drags to seek. */
+  /** Plain seek for pointer taps/presses and keyboard navigation. */
+  onSeek?: (fraction: number) => void
+  onSeekStart?: () => void
+  onSeekEnd?: ScrubEndHandler
+  /** Drag preview, called after onScrubStart. */
   onScrub?: (fraction: number) => void
+  interactive?: boolean
+  sourceKey?: string | null
   /** Called when the user begins a drag-scrub gesture. */
   onScrubStart?: () => void
-  /** Called when the user releases a drag-scrub gesture. */
-  onScrubEnd?: () => void
+  /** Called once when a drag is released, cancelled or torn down. */
+  onScrubEnd?: ScrubEndHandler
 }
 
 const MIN_BARS = 80
@@ -58,13 +65,21 @@ export default function Waveform({
   peaks,
   currentTime,
   duration,
+  onSeek,
+  onSeekStart,
+  onSeekEnd,
   onScrub,
+  interactive = true,
+  sourceKey,
   onScrubStart,
   onScrubEnd,
 }: WaveformProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [width, setWidth] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
+  const scrub = useScrubGesture({
+    duration, fraction: duration > 0 ? currentTime / duration : 0,
+    interactive, sourceKey, onSeek, onSeekStart, onSeekEnd, onScrub, onScrubStart, onScrubEnd,
+  })
 
   useEffect(() => {
     const el = containerRef.current
@@ -111,86 +126,20 @@ export default function Waveform({
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const fraction = duration > 0 ? clampFraction(currentTime / duration) : 0
+    const fraction = scrub.previewFraction ?? (duration > 0 ? clampFraction(currentTime / duration) : 0)
     el.style.setProperty('--waveform-progress', `${(fraction * 100).toFixed(2)}%`)
-  }, [currentTime, duration])
-
-  const fractionFromClientX = useCallback((clientX: number) => {
-    const el = containerRef.current
-    if (!el) return 0
-    const rect = el.getBoundingClientRect()
-    if (!rect.width) return 0
-    return clampFraction((clientX - rect.left) / rect.width)
-  }, [])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!onScrub) return
-    setIsDragging(true)
-    onScrubStart?.()
-    onScrub(fractionFromClientX(e.clientX))
-  }, [onScrub, onScrubStart, fractionFromClientX])
-
-  useEffect(() => {
-    if (!isDragging) return
-    const handleMove = (e: MouseEvent) => {
-      onScrub?.(fractionFromClientX(e.clientX))
-    }
-    const handleUp = () => {
-      setIsDragging(false)
-      onScrubEnd?.()
-    }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [isDragging, onScrub, onScrubEnd, fractionFromClientX])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!onScrub) return
-    const fraction = duration > 0 ? clampFraction(currentTime / duration) : 0
-    switch (e.key) {
-      case 'ArrowLeft':
-      case 'ArrowDown':
-        e.preventDefault()
-        onScrub(clampFraction(fraction - 0.05))
-        break
-      case 'ArrowRight':
-      case 'ArrowUp':
-        e.preventDefault()
-        onScrub(clampFraction(fraction + 0.05))
-        break
-      case 'Home':
-        e.preventDefault()
-        onScrub(0)
-        break
-      case 'End':
-        e.preventDefault()
-        onScrub(1)
-        break
-      default:
-        break
-    }
-  }, [onScrub, currentTime, duration])
-
-  const rawAriaValueNow = duration > 0 ? Math.round((currentTime / duration) * 100) : 0
-  const ariaValueNow = Math.max(0, Math.min(100, rawAriaValueNow))
+  }, [currentTime, duration, scrub.previewFraction])
 
   return (
     <div
       data-testid="waveform-bars"
       ref={containerRef}
       role="slider"
-      tabIndex={0}
+      {...scrub.sliderProps}
+      aria-valuenow={scrub.sliderProps['aria-valuenow']}
       aria-label="Audio waveform"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={ariaValueNow}
-      onMouseDown={handleMouseDown}
-      onKeyDown={handleKeyDown}
-      className="relative w-full cursor-pointer select-none"
-      style={{ ['--waveform-progress' as string]: '0%' }}
+      className="relative w-full cursor-pointer select-none outline-none focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trust-blue data-[scrub-pointer-focus=true]:focus-visible:outline-none"
+      style={{ touchAction: 'pan-y pinch-zoom', ['--waveform-progress' as string]: '0%' }}
     >
       <div className="relative h-40 w-full">
         <BarLayer

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'

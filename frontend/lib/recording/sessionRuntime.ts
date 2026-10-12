@@ -93,13 +93,3 @@ export function clearInterruptedSessionRuntime(
 export function getLiveRecorderFromStore(store: Store): MediaRecorder | null {
   return store.runtime.controller?.getRecorder() ?? null
 }
-
-export function stopStreamTracks(stream: MediaStream): void {
-  stream.getTracks().forEach((track) => {
-    try {
-      track.stop()
-    } catch {
-      // ignore
-    }
-  })
-}

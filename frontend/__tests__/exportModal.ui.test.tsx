@@ -117,6 +117,25 @@ describe('ExportModal - Phase 7 UI regressions', () => {
     })
   })
 
+  test.each([
+    ["attachment; filename=fallback.docx; filename*=UTF-8''%E4%BC%9A%E8%AD%B0_DOCX_2026-10-11.docx", '会議_DOCX_2026-10-11.docx'],
+    ["attachment; filename*=UTF-8''bad%ZZ; filename=fallback.docx", 'fallback.docx'],
+    [null, 'Phase7 Transcript.docx'],
+  ])('assigns the expected filename to the actual download for %s', async (header, expected) => {
+    const user = userEventLib.setup()
+    ;(global as any).fetch = jest.fn().mockResolvedValue({
+      ...makeExportResponse(), headers: { get: () => header },
+    })
+    let downloadedName: string | undefined
+    clickSpy.mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedName = this.download
+    })
+    render(<ExportModal transcriptId="p1" transcriptTitle="Phase7 Transcript" onClose={jest.fn()} />)
+    await user.click(screen.getByRole('button', { name: /^Export$/i }))
+    await waitFor(() => expect(downloadedName).toBe(expected))
+    expect(window.URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-download')
+  })
+
   test('traps focus and closes on Escape', async () => {
     const user = userEventLib.setup()
     const onClose = jest.fn()

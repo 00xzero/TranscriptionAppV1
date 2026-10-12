@@ -1,5 +1,6 @@
 import React from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { pointer } from './helpers/scrubPointer'
 import Waveform from '../components/Waveform'
 
 function mockBoundingRect(el: HTMLElement, left: number, width: number) {
@@ -31,11 +32,11 @@ describe('Waveform', () => {
         const slider = screen.getByTestId('waveform-bars')
         expect(slider).toHaveAttribute('role', 'slider')
         expect(slider).toHaveAttribute('aria-valuemin', '0')
-        expect(slider).toHaveAttribute('aria-valuemax', '100')
-        expect(slider).toHaveAttribute('aria-valuenow', '25')
+        expect(slider).toHaveAttribute('aria-valuemax', '120')
+        expect(slider).toHaveAttribute('aria-valuenow', '30')
 
         rerender(<Waveform peaks={peaks} currentTime={60} duration={120} />)
-        expect(slider).toHaveAttribute('aria-valuenow', '50')
+        expect(slider).toHaveAttribute('aria-valuenow', '60')
     })
 
     test('drives --waveform-progress imperatively (no React state for playhead)', () => {
@@ -55,18 +56,18 @@ describe('Waveform', () => {
                 peaks={peaks}
                 currentTime={0}
                 duration={120}
-                onScrub={onScrub}
+                onSeek={onScrub}
                 onScrubStart={onScrubStart}
             />
         )
         const slider = screen.getByTestId('waveform-bars')
         mockBoundingRect(slider, 0, 1000)
-        fireEvent.mouseDown(slider, { clientX: 250 })
-        expect(onScrubStart).toHaveBeenCalledTimes(1)
+        pointer.down(slider, { clientX: 250 })
+        expect(onScrubStart).not.toHaveBeenCalled()
         expect(onScrub).toHaveBeenCalledWith(0.25)
     })
 
-    test('keyboard arrow keys scrub by 5% increments', () => {
+    test('keyboard arrow keys seek by five seconds', () => {
         const peaks = new Array(2048).fill(0.5)
         const onScrub = jest.fn()
         render(
@@ -74,13 +75,12 @@ describe('Waveform', () => {
                 peaks={peaks}
                 currentTime={60}
                 duration={120}
-                onScrub={onScrub}
+                onSeek={onScrub}
             />
         )
         const slider = screen.getByTestId('waveform-bars')
         fireEvent.keyDown(slider, { key: 'ArrowRight' })
-        // 60/120 = 0.5 → +0.05 = 0.55
-        expect(onScrub).toHaveBeenLastCalledWith(0.55)
+        expect(onScrub).toHaveBeenLastCalledWith(65 / 120)
         fireEvent.keyDown(slider, { key: 'Home' })
         expect(onScrub).toHaveBeenLastCalledWith(0)
         fireEvent.keyDown(slider, { key: 'End' })

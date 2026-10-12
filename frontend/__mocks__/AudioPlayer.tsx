@@ -46,6 +46,12 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
       onTimeUpdate?.(newTime)
       onSeeked?.(newTime)
     },
+    seekToFraction: (fraction: number) => {
+      const newTime = Math.max(0, Math.min(fraction, 1)) * duration
+      setCurrentTime(newTime)
+      onTimeUpdate?.(newTime)
+      onSeeked?.(newTime)
+    },
     beginScrub: () => { },
     scrubToFraction: (fraction: number) => {
       const newTime = Math.max(0, Math.min(fraction, 1)) * duration

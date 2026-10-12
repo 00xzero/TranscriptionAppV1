@@ -218,24 +218,3 @@ export function classifyError(errorText: string): {
         message: `Transcription failed: ${errorText.slice(0, 200)}`,
     };
 }
-
-/**
- * Determine the majority speaker from a list of words.
- * Ported from legacy worker._majority_speaker()
- */
-export function getMajoritySpeaker(words: DeepgramWord[]): number | null {
-    const counts: Record<number, number> = {};
-
-    for (const word of words) {
-        if (typeof word.speaker === "number") {
-            counts[word.speaker] = (counts[word.speaker] || 0) + 1;
-        }
-    }
-
-    const speakers = Object.keys(counts).map(Number);
-    if (speakers.length === 0) {
-        return null;
-    }
-
-    return speakers.reduce((a, b) => (counts[a] > counts[b] ? a : b));
-}

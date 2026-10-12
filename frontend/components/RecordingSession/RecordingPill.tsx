@@ -9,7 +9,7 @@ import {
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { getElapsedActiveMs } from '@/lib/recording/session'
 import type { RecordingState } from '@/lib/recording/session'
-import { formatElapsedTime } from '@/lib/recording/timeUtils'
+import { formatElapsedTime } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,

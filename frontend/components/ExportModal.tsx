@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
+import { getDownloadFilename } from '@/lib/exports/filename'
 
 type ExportFormat = 'DOCX' | 'VTT' | 'TXT' | 'MD'
 
@@ -49,14 +50,8 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
 
       // Get the filename from Content-Disposition header or use default
       const contentDisposition = response.headers.get('Content-Disposition')
-      let filename = `${transcriptTitle || 'transcript'}.${selectedFormat.toLowerCase()}`
-
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/)
-        if (filenameMatch && filenameMatch[1]) {
-          filename = filenameMatch[1]
-        }
-      }
+      const filename = getDownloadFilename(contentDisposition)
+        ?? `${transcriptTitle || 'transcript'}.${selectedFormat.toLowerCase()}`
 
       // Trigger download
       const blob = await response.blob()

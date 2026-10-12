@@ -58,24 +58,6 @@ export const formatTranscriptDate = (dateStr: string | null): string => {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase()
 }
 
-// Format duration in seconds as "HH:MM:SS"
-export const formatDurationHHMMSS = (seconds: number | null): string => {
-  if (seconds === null || seconds === undefined) return ''
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-}
-
-export function msToTimestamp(ms: number): string {
-  const totalSec = Math.floor(ms / 1000)
-  const s = totalSec % 60
-  const m = Math.floor(totalSec / 60) % 60
-  const h = Math.floor(totalSec / 3600)
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${pad(h)}:${pad(m)}:${pad(s)}`
-}
-
 export function shouldCollapseWaveform(
   scrollTop: number,
   expandedWaveformHeight: number,

@@ -211,7 +211,6 @@ export function useTranscriptSearch({
     matchesBySeg,
     totalMatches,
     currentMatch,
-    hasMatches,
     isFindDirty,
     canNavigate,
     matchSummary,
