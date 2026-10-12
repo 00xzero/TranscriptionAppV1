@@ -111,7 +111,7 @@ Each swappable concern (lock, presence, persistence) ships a real implementation
 
 ### Editor
 
-`app/editor/[id]/` is decomposed: `EditorScreen.tsx` plus 11 hooks (`useEditorData`, `useEditorPlayback`, `useTranscriptSync`, `useSpeakerAssignments`, `useTranscriptSearch`, `useTranscriptMutations`, …) and a `scrollSyncMachine` that keeps the transcript scroll position in sync with audio playback. Stored `words` are the fixed record of what Deepgram heard; each card aligns its (possibly edited) segment text against them with `core/transcript/word-alignment.ts` for click-to-seek and the playing-word highlight. The highlighted card and the playing word both follow a frame-accurate `playbackClock`; the scroll machine (timeupdate-paced, offset, held after seeks) drives scrolling only.
+`app/editor/[id]/` is decomposed: `EditorScreen.tsx` plus 11 hooks (`useEditorData`, `useEditorPlayback`, `useTranscriptSync`, `useSpeakerAssignments`, `useTranscriptSearch`, `useTranscriptMutations`, …) and a `scrollSyncMachine` that keeps the transcript scroll position in sync with audio playback. Stored `words` are the fixed record of what Deepgram heard; each card aligns its (possibly edited) segment text against them with `core/transcript/word-alignment.ts` for click-to-seek and the playing-word highlight. The highlight is exact or off: a segment without stored words gets no highlight, and clicks fall back to an even spread across it. The highlighted card and the playing word both follow a frame-accurate `playbackClock`; the scroll machine (timeupdate-paced, offset, held after seeks) drives scrolling only.
 
 ### Data Model
 

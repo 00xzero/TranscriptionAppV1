@@ -224,9 +224,13 @@ export default function TranscriptSegmentCard({
     () => alignTextToWords(s.text, sourceWords ?? [], s.start_ms, s.end_ms),
     [s.text, sourceWords, s.start_ms, s.end_ms]
   )
+  // The playing-word highlight is exact or off. Without Deepgram's words the
+  // tokens are only an even spread across the segment: enough to aim a click,
+  // as before word timings existed, but never shown as playback.
+  const hasWordTimings = (sourceWords?.length ?? 0) > 0
   const currentWordIndex = useCurrentWordIndex({
     tokens,
-    enabled: isActive && !isEditing,
+    enabled: isActive && !isEditing && hasWordTimings,
     clock: playbackClock,
   })
   const sortedMatches = matchesForSeg.slice().sort((a, b) => a.index - b.index)

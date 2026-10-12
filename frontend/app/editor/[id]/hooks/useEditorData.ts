@@ -178,8 +178,9 @@ export function useEditorData(transcriptId: string) {
       })
     }
 
-    // Words load beside the segments and never hold them up: until they arrive,
-    // or if they fail, each card spreads its words evenly across the segment.
+    // Words load beside the segments and never hold them up. Until they arrive,
+    // or if they fail, cards show no playing-word highlight and clicks aim at an
+    // even spread across the segment, as before word timings existed.
     // Async so even a synchronous throw lands in reportWordLoadFailure.
     const loadWords = async () => fetchTranscriptWords(transcriptId)
     const showWords = (rows: readonly unknown[]) => {
@@ -191,7 +192,7 @@ export function useEditorData(transcriptId: string) {
       console.error(`[useEditorData] failed to load word timings for transcript ${transcriptId}:`, error)
       toast({
         title: "Couldn't load word timings",
-        description: 'Word positions are approximate.',
+        description: 'Word highlighting is off for this transcript.',
         variant: 'error',
         action: { label: 'Retry', onClick: () => { void loadWords().then(showWords, reportWordLoadFailure) } },
       })

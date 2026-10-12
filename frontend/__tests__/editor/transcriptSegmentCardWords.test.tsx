@@ -80,6 +80,20 @@ it('leaves words plain in a segment that is not current', () => {
   expect([state('Hello'), state('there,'), state('friend.')]).toEqual(['plain', 'plain', 'plain'])
 })
 
+it('shows no highlight without stored word timings, but still aims clicks as before', () => {
+  const { moveTo, onWordClick } = setup({ sourceWords: undefined })
+  moveTo(1600)
+  expect([state('Hello'), state('there,'), state('friend.')]).toEqual(['plain', 'plain', 'plain'])
+
+  // An even spread across 1000–3000ms, as before word timings existed.
+  fireEvent.click(word('friend.'))
+  expect(onWordClick).toHaveBeenCalledWith('s1', 2333)
+
+  const empty = setup({ sourceWords: [] })
+  empty.moveTo(1600)
+  expect(document.querySelector('.text-ember-red')).toBeNull()
+})
+
 it('shows no highlight while the segment is being edited', () => {
   const { moveTo, rerender } = setup()
   moveTo(1600)
