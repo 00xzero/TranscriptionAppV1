@@ -8,7 +8,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { countLabel } from '@/components/Projects/format'
 import { cn } from '@/lib/utils'
 import type { SpeakerOverview, SpeakerOverviewRow } from '../hooks/useSpeakerOverview'
-import { msToTimestamp } from '../utils'
+import { formatElapsedTime } from '@/lib/utils'
 
 export type SpeakersSidebarHandle = {
   /** Open the row and turn that hold this segment, as the speaker popover's panel button asks. */
@@ -274,8 +274,8 @@ function TurnNavigator({ row, turnIndex, timelineMs, onGoToTurn }: {
           ))}
         </div>
         <div className="mt-1 flex justify-between font-mono text-[10px] text-muted" aria-hidden="true">
-          <span>{msToTimestamp(0)}</span>
-          <span>{msToTimestamp(timelineMs)}</span>
+          <span>{formatElapsedTime(0)}</span>
+          <span>{formatElapsedTime(timelineMs)}</span>
         </div>
       </div>
 
@@ -284,9 +284,9 @@ function TurnNavigator({ row, turnIndex, timelineMs, onGoToTurn }: {
           type="button"
           onClick={() => onGoToTurn(turnIndex)}
           className="-mx-2 -mt-1.5 block w-[calc(100%+1rem)] rounded-md px-2 py-1 text-left transition-colors hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/60"
-          aria-label={`Go to turn ${turnIndex + 1} at ${msToTimestamp(turn.startMs)}: ${turn.excerpt}`}
+          aria-label={`Go to turn ${turnIndex + 1} at ${formatElapsedTime(turn.startMs)}: ${turn.excerpt}`}
         >
-          <span className="block font-mono text-[11px] text-trust-blue">{msToTimestamp(turn.startMs)}</span>
+          <span className="block font-mono text-[11px] text-trust-blue">{formatElapsedTime(turn.startMs)}</span>
           {/* Always two lines tall, so the buttons below stay put while you click through turns. */}
           <span className="mt-0.5 line-clamp-2 h-[2lh] font-sans text-sm leading-relaxed text-ink/90 dark:text-paper/80">
             {turn.excerpt || '…'}

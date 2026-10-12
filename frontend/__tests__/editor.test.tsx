@@ -262,6 +262,22 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled()
   })
 
+  test.each(['{Enter}', ' '])('exposes the title as a heading and starts editing with %s', async (key) => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+    await waitForEditorContent()
+    const heading = screen.getByRole('heading', { level: 1, name: 'Test Transcript' })
+    const button = screen.getByRole('button', { name: 'Test Transcript' })
+    expect(heading).toContainElement(button)
+    expect(button).toHaveAccessibleDescription('Press Enter or Space to edit title')
+    button.focus()
+    await user.keyboard(key)
+    const input = screen.getByRole('textbox', { name: 'Transcript title' })
+    await waitFor(() => expect(input).toHaveFocus())
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('heading', { level: 1, name: 'Test Transcript' })).toBeInTheDocument()
+  })
+
   test('synchronizes a successfully saved title into the shared transcript provider', async () => {
     const user = userEventLib.setup()
     const transcript = makeTranscript({ id: 'p1', title: 'Test Transcript' })
@@ -270,7 +286,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     renderEditorScreen()
     await waitForEditorContent()
 
-    await user.click(await screen.findByRole('button', { name: 'Edit title' }))
+    await user.click(await screen.findByRole('button', { name: 'Test Transcript' }))
     const input = screen.getByRole('textbox', { name: 'Transcript title' })
     await user.clear(input)
     await user.type(input, 'Renamed transcript{enter}')

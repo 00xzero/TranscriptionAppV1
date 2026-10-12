@@ -88,27 +88,21 @@ export default function RecordingTitle() {
       <span id={TITLE_EDIT_HINT_ID} className="sr-only">
         Press Enter or Space to edit title
       </span>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <h1
-            data-testid="recording-title"
-            className={`${TITLE_CLASSES} cursor-pointer hover:text-trust-blue transition-colors`}
-            onClick={startEditingTitle}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                startEditingTitle()
-              }
-            }}
-            tabIndex={0}
-            role="button"
-            aria-describedby={TITLE_EDIT_HINT_ID}
-          >
-            {displayTitle}
-          </h1>
-        </TooltipTrigger>
-        <TooltipContent>Click to edit title</TooltipContent>
-      </Tooltip>
+      <h1 data-testid="recording-title" className={TITLE_CLASSES}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="cursor-pointer text-left hover:text-trust-blue transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              onClick={startEditingTitle}
+              aria-describedby={TITLE_EDIT_HINT_ID}
+            >
+              {displayTitle}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Click to edit title</TooltipContent>
+        </Tooltip>
+      </h1>
     </TooltipProvider>
   )
 }

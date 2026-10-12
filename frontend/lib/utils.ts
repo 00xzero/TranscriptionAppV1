@@ -29,3 +29,8 @@ export function formatClockTime(
   if (hoursMode === 'never') return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${ss}`
   return `${mm}:${ss}`
 }
+
+/** Format elapsed milliseconds as a zero-padded HH:MM:SS clock. */
+export function formatElapsedTime(ms: number): string {
+  return formatClockTime(ms / 1000, 'always')
+}

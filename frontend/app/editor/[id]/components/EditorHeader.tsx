@@ -4,7 +4,8 @@ import { CharacterCount } from '@/components/ui/character-count'
 import { Separator } from '@/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
-import { formatTranscriptDate, formatDurationHHMMSS } from '../utils'
+import { formatTranscriptDate } from '../utils'
+import { formatClockTime } from '@/lib/utils'
 
 export default function EditorHeader({
   displayTitle,
@@ -41,6 +42,7 @@ export default function EditorHeader({
   onMoveClick: () => void
 }) {
   const titleCountId = useId()
+  const titleEditHintId = useId()
   const showStatusInMetaRow = status !== 'Ready'
   const isStatusError = status.startsWith('Error:')
 
@@ -62,26 +64,24 @@ export default function EditorHeader({
               aria-invalid={titleSaveError ? true : undefined}
             />
           ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <h1
-                  className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-paper cursor-pointer hover:text-trust-blue transition-colors mb-4"
-                  onClick={startEditingTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      startEditingTitle()
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label="Edit title"
-                >
-                  {displayTitle}
-                </h1>
-              </TooltipTrigger>
-              <TooltipContent>Click to edit title</TooltipContent>
-            </Tooltip>
+            <>
+              <span id={titleEditHintId} className="sr-only">Press Enter or Space to edit title</span>
+              <h1 className="font-serif italic text-4xl md:text-5xl tracking-tight text-ink dark:text-paper mb-4">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="cursor-pointer text-left hover:text-trust-blue transition-colors rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                      onClick={startEditingTitle}
+                      aria-describedby={titleEditHintId}
+                    >
+                      {displayTitle}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Click to edit title</TooltipContent>
+                </Tooltip>
+              </h1>
+            </>
           )}
         </div>
         {editingTitle && (
@@ -104,7 +104,7 @@ export default function EditorHeader({
                     {transcriptDurationSecs !== null && <span>&bull;</span>}
                   </>
                 )}
-                {transcriptDurationSecs !== null && <span>{formatDurationHHMMSS(transcriptDurationSecs)}</span>}
+                {transcriptDurationSecs !== null && <span>{formatClockTime(transcriptDurationSecs, 'always')}</span>}
                 {/* No bullet before the faces: they set themselves apart, and on a
                     narrow screen, where they wrap, a bullet would be left dangling. */}
                 {speakerSummary}

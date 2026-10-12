@@ -4,7 +4,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
 import type { Word, Seg, SegmentMatch, SaveStatusBySegment } from '../types'
-import { msToTimestamp } from '../utils'
+import { formatElapsedTime } from '@/lib/utils'
 
 // Keeps the edit textarea exactly as tall as its content so entering edit mode
 // never changes the segment's height.
@@ -226,7 +226,7 @@ export default function TranscriptSegmentCard({
       // readers, so the role and label lift for the duration of the edit session.
       role={isEditing ? undefined : 'button'}
       tabIndex={isEditing ? -1 : 0}
-      aria-label={isEditing ? undefined : `Jump playback to ${msToTimestamp(s.start_ms)} for ${speakerLabel}`}
+      aria-label={isEditing ? undefined : `Jump playback to ${formatElapsedTime(s.start_ms)} for ${speakerLabel}`}
     >
       <div
         className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-xs' : 'w-1 opacity-60'}`}
@@ -237,7 +237,7 @@ export default function TranscriptSegmentCard({
         <SegmentHeaderRow
           showSpeaker={needHeader}
           speaker={speaker}
-          timestamp={msToTimestamp(s.start_ms)}
+          timestamp={formatElapsedTime(s.start_ms)}
           saveStatus={saveStatus}
           segmentId={s.id}
           segmentText={s.text}
@@ -273,7 +273,7 @@ export default function TranscriptSegmentCard({
                 cardRef.current?.focus()
               }
             }}
-            aria-label={`Transcript text for ${speakerLabel} at ${msToTimestamp(s.start_ms)}`}
+            aria-label={`Transcript text for ${speakerLabel} at ${formatElapsedTime(s.start_ms)}`}
           />
         ) : (
           <div className={SEGMENT_TEXT_TYPE}>

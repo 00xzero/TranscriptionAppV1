@@ -3,9 +3,7 @@ import {
   computeWordsForSegment,
   computeWordsForSegments,
   formatTranscriptDate,
-  formatDurationHHMMSS,
   getNextWaveformCollapsed,
-  msToTimestamp,
 } from '../../app/editor/[id]/utils'
 
 describe('isUnicodeWordChar', () => {
@@ -100,33 +98,6 @@ describe('formatTranscriptDate', () => {
 
   it('returns empty string for null', () => {
     expect(formatTranscriptDate(null)).toBe('')
-  })
-})
-
-describe('formatDurationHHMMSS', () => {
-  it('formats seconds as HH:MM:SS', () => {
-    expect(formatDurationHHMMSS(3661)).toBe('01:01:01')
-    expect(formatDurationHHMMSS(0)).toBe('00:00:00')
-    expect(formatDurationHHMMSS(59)).toBe('00:00:59')
-    expect(formatDurationHHMMSS(3600)).toBe('01:00:00')
-  })
-
-  it('returns empty string for null', () => {
-    expect(formatDurationHHMMSS(null)).toBe('')
-  })
-})
-
-describe('msToTimestamp', () => {
-  it('converts milliseconds to HH:MM:SS', () => {
-    expect(msToTimestamp(0)).toBe('00:00:00')
-    expect(msToTimestamp(1000)).toBe('00:00:01')
-    expect(msToTimestamp(61000)).toBe('00:01:01')
-    expect(msToTimestamp(3661000)).toBe('01:01:01')
-  })
-
-  it('floors partial seconds', () => {
-    expect(msToTimestamp(1500)).toBe('00:00:01')
-    expect(msToTimestamp(999)).toBe('00:00:00')
   })
 })
 

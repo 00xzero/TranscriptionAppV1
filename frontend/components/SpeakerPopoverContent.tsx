@@ -19,7 +19,7 @@ import { speakerInitials } from '@/lib/speakers/palette'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
 import type { EditorPeopleContext, EditorPerson, Speaker } from '@/contracts/db'
 import type { Seg } from '@/app/editor/[id]/types'
-import { msToTimestamp } from '@/app/editor/[id]/utils'
+import { formatElapsedTime } from '@/lib/utils'
 import type { ApplyTo, SpeakerTarget } from '@/app/editor/[id]/hooks/useSpeakerAssignments'
 
 type Props = {
@@ -88,7 +88,7 @@ function passageSpan(segments: readonly Seg[]): string {
   if (segments.length === 0) return ''
   const start = Math.min(...segments.map((segment) => segment.start_ms))
   const end = Math.max(...segments.map((segment) => segment.end_ms))
-  return `${segmentCount(segments.length)}, ${msToTimestamp(start)}–${msToTimestamp(end)}`
+  return `${segmentCount(segments.length)}, ${formatElapsedTime(start)}–${formatElapsedTime(end)}`
 }
 
 export default function SpeakerPopoverContent({ transcriptId, presentation, peopleContext, currentSpeaker, scopes, removable,

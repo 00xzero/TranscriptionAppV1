@@ -1,5 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEventLib from '@testing-library/user-event'
 import RecordingNewPage from '@/app/recording/new/page'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import {
@@ -386,6 +387,22 @@ describe('Recording page', () => {
   })
 
   describe('inline title editing', () => {
+    test.each(['{Enter}', ' '])('keeps heading semantics and starts editing with %s', async (key) => {
+      const user = userEventLib.setup()
+      act(() => { startMock({ title: 'Standup notes' }) })
+      render(<RecordingNewPage />)
+      const heading = screen.getByRole('heading', { level: 1, name: 'Standup notes' })
+      const button = screen.getByRole('button', { name: 'Standup notes' })
+      expect(heading).toContainElement(button)
+      expect(button).toHaveAccessibleDescription('Press Enter or Space to edit title')
+      button.focus()
+      await user.keyboard(key)
+      expect(screen.getByRole('textbox', { name: 'Recording title' })).toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      expect(screen.getByRole('heading', { level: 1, name: 'Standup notes' })).toBeInTheDocument()
+      expect(getSnapshot().title).toBe('Standup notes')
+    })
+
     test('clicking the title edits and Enter saves it to the session', () => {
       act(() => {
         startMock({ title: 'Standup notes' })
