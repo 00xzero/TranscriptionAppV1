@@ -1,4 +1,5 @@
-import type { Word } from './types'
+import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/editor'
+import type { SourceWord } from '@/core/transcript/word-alignment'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
 export const SYNC_OFFSET_MS = 150
@@ -27,29 +28,112 @@ export const isUnicodeWordChar = (char: string) => {
   return char.toLowerCase() !== char.toUpperCase()
 }
 
-export const computeWordsForSegment = (seg: { id: string; start_ms: number; end_ms: number; text: string }): Word[] => {
-  const duration = Math.max(1, (seg.end_ms - seg.start_ms))
-  const tokens = String(seg.text || '').split(/(\s+)/).filter(Boolean)
-  const words: Word[] = []
-  let cursor = 0
-  const per = Math.floor(duration / Math.max(1, tokens.filter(t => !/^\s+$/.test(t)).length))
-  for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i]
-    if (/^\s+$/.test(t)) {
-      if (words.length > 0) words[words.length - 1].text += t
+/**
+ * Validate loaded word rows one by one and group them per segment in spoken
+ * order. Rows with a bad shape or impossible timing are dropped, so nothing
+ * malformed reaches alignment or the playback binary searches.
+ */
+export function groupSourceWords(rows: readonly unknown[]): Map<string, SourceWord[]> {
+  const rowsBySegment = new Map<string, EditorSourceWord[]>()
+  let dropped = 0
+  for (const row of rows) {
+    const parsed = EditorSourceWordSchema.safeParse(row)
+    if (!parsed.success) {
+      dropped++
       continue
     }
-    const start = seg.start_ms + cursor
-    const end = i === tokens.length - 1 ? seg.end_ms : Math.min(seg.end_ms, start + per)
-    cursor += per
-    words.push({ key: `${seg.id}:${i}`, start_ms: start, end_ms: end, text: t })
+    const list = rowsBySegment.get(parsed.data.segment_id)
+    if (list) list.push(parsed.data)
+    else rowsBySegment.set(parsed.data.segment_id, [parsed.data])
   }
-  return words
+  if (dropped > 0) {
+    console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
+  }
+
+  const wordsBySegment = new Map<string, SourceWord[]>()
+  for (const [segmentId, list] of rowsBySegment) {
+    list.sort((a, b) => a.order_index - b.order_index)
+    wordsBySegment.set(segmentId, list.map((word) => ({
+      text: word.punctuated_text ?? word.text,
+      startMs: word.start_ms,
+      endMs: word.end_ms,
+    })))
+  }
+  return wordsBySegment
 }
 
-export const computeWordsForSegments = <T extends { id: string; start_ms: number; end_ms: number; text: string }>(
-  items: T[]
-): Array<T & { words: Word[] }> => items.map((s) => ({ ...s, words: computeWordsForSegment(s) }))
+/** Index of the last item that starts at or before `ms`, or -1 if none has. */
+function lastStartedIndex<T>(items: readonly T[], ms: number, startOf: (item: T) => number): number {
+  let lo = 0
+  let hi = items.length - 1
+  let found = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (startOf(items[mid]) <= ms) {
+      found = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  return found
+}
+
+/**
+ * Finds the current segment at a playback position, for segments ordered by
+ * start_ms, treating each as the half-open range [start_ms, end_ms):
+ * - where segments overlap, the earliest one containing the position wins;
+ * - where one ends exactly as the next starts, the next one contains it;
+ * - in the silence between segments, the one heard last (latest end) stays current;
+ * - before the first segment there is none.
+ * Built once per segment list; each lookup is two binary searches.
+ */
+export function createSegmentLocator(
+  segments: readonly { id: string; start_ms: number; end_ms: number }[]
+): (ms: number) => string | undefined {
+  // The latest end among each segment and those before it. It only rises at a
+  // segment that sets a new latest end, so the first index where it passes a
+  // position is a segment containing that position, if any segment does.
+  const latestEnd: number[] = []
+  const latestEndOwner: number[] = []
+  let latest = -Infinity
+  let owner = -1
+  segments.forEach((s, i) => {
+    if (s.end_ms > latest) {
+      latest = s.end_ms
+      owner = i
+    }
+    latestEnd.push(latest)
+    latestEndOwner.push(owner)
+  })
+
+  return (ms) => {
+    const lastStarted = lastStartedIndex(segments, ms, (s) => s.start_ms)
+    if (lastStarted < 0) return undefined
+    let lo = 0
+    let hi = lastStarted
+    let earliestContaining = -1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      if (latestEnd[mid] > ms) {
+        earliestContaining = mid
+        hi = mid - 1
+      } else {
+        lo = mid + 1
+      }
+    }
+    return segments[earliestContaining >= 0 ? earliestContaining : latestEndOwner[lastStarted]].id
+  }
+}
+
+/**
+ * The token being spoken at `ms`: the last one that has started, so a word
+ * stays current through the pause after it. Among tokens sharing a start time
+ * the last is current. -1 before the first token.
+ */
+export function findCurrentTokenIndex(tokens: readonly { startMs: number }[], ms: number): number {
+  return lastStartedIndex(tokens, ms, (t) => t.startMs)
+}
 
 // Format date as "Oct 24, 2023"
 export const formatTranscriptDate = (dateStr: string | null): string => {

@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScrubEndReason } from '@/lib/audio/useScrubGesture'
 import type { AudioPlayerRef } from '@/components/AudioPlayer'
+import { createPlaybackClock } from '../playbackClock'
 import { useAudioSessionRecovery } from './useAudioSessionRecovery'
 
 export function useEditorPlayback({
@@ -44,10 +45,23 @@ export function useEditorPlayback({
   const [expandedPlayerScrubbing, setExpandedPlayerScrubbing] = useState(false)
   const readyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
+  const [playbackClock] = useState(createPlaybackClock)
+
+  // While playing, the clock follows the audio every frame. When playback
+  // stops, one last read captures where it stopped; before anything has
+  // played or seeked there is no position to show, so none is read.
+  useEffect(() => {
+    if (playing) {
+      playbackClock.start()
+      return () => playbackClock.stop()
+    }
+    if (playbackClock.getMs() !== null) playbackClock.refresh()
+  }, [playing, playbackClock])
   const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
     audioPlayerRef.current = player
+    playbackClock.attach(player ? () => Math.floor(player.getCurrentTime() * 1000) : null)
     setAudioElement(player?.getAudioElement?.() ?? null)
-  }, [])
+  }, [playbackClock])
 
   useAudioSessionRecovery({
     transcriptId,
@@ -96,13 +110,24 @@ export function useEditorPlayback({
   }, [])
 
   const handleTimeUpdate = useCallback((currentTime: number) => {
+    // A floor under the frame loop, which browsers throttle in hidden or
+    // occluded windows; before anything has played or seeked there is no
+    // position to show yet.
+    if (playbackClock.getMs() !== null) playbackClock.refresh()
     setAudioCurrentTime(currentTime)
     const player = audioPlayerRef.current
     const dur = player?.getDuration?.() || 0
     setAudioDuration(dur)
     updateAudioProgress(currentTime, dur)
     onAudioTick(Math.floor(currentTime * 1000))
-  }, [onAudioTick, updateAudioProgress])
+  }, [onAudioTick, playbackClock, updateAudioProgress])
+
+  // The media element's `seeked` fires once its position has really moved:
+  // after word and segment seeks, each scrub write, and the final scrub flush.
+  // Scrub previews arrive before their write lands, so they never refresh.
+  const handleSeeked = useCallback(() => {
+    playbackClock.refresh()
+  }, [playbackClock])
 
   const handleAudioDurationChange = useCallback((duration: number) => {
     const player = audioPlayerRef.current
@@ -253,10 +278,12 @@ export function useEditorPlayback({
     audioDuration,
     playbackRate,
     expandedPlayerScrubbing,
+    playbackClock,
     handleAudioReady,
     handleAudioError,
     handlePlayingChange,
     handleTimeUpdate,
+    handleSeeked,
     handleAudioDurationChange,
     handleScrubPreview,
     handleScrubPreviewFraction,

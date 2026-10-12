@@ -1,5 +1,5 @@
 "use client"
-import { useCallback, useId, useRef, useState } from 'react'
+import { useCallback, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { useScrubberFocus } from '@/lib/audio/useScrubberFocus'
 import AudioPlayer from '@/components/AudioPlayer'
@@ -30,6 +30,10 @@ import { useTranscriptSearch } from './hooks/useTranscriptSearch'
 import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 import { useSpeakerOverview } from './hooks/useSpeakerOverview'
 import { useKeepReadingPosition } from './hooks/useKeepReadingPosition'
+import { createSegmentLocator } from './utils'
+
+const noSegmentOnServer = () => undefined
+const noPositionOnServer = () => false
 
 export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
   const router = useRouter()
@@ -99,7 +103,23 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     shouldCollapseWaveform: sync.shouldCollapseForCurrentScroll,
   })
 
-  const { handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart } = playback
+  const { handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart, playbackClock } = playback
+
+  // The current segment, straight from the playback clock. The card highlight
+  // and the word highlight both follow it, so they switch in the same frame.
+  // The scroll machine's active segment still drives scrolling, but it trails
+  // the audio (offset, timeupdate-paced, held after seeks), so it only stands
+  // in until the clock has a position. Primitive snapshots mean this screen
+  // re-renders only when the current segment changes.
+  const locateSegment = useMemo(() => createSegmentLocator(data.segments), [data.segments])
+  const getClockSegId = useCallback(() => {
+    const ms = playbackClock.getMs()
+    return ms === null ? undefined : locateSegment(ms)
+  }, [playbackClock, locateSegment])
+  const getClockHasPosition = useCallback(() => playbackClock.getMs() !== null, [playbackClock])
+  const clockSegId = useSyncExternalStore(playbackClock.subscribe, getClockSegId, noSegmentOnServer)
+  const clockHasPosition = useSyncExternalStore(playbackClock.subscribe, getClockHasPosition, noPositionOnServer)
+  const currentSegId = clockHasPosition ? clockSegId : sync.activeIds.segId
 
   // 5. Search + Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
@@ -289,6 +309,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
                     onError={playback.handleAudioError}
                     onPlayingChange={playback.handlePlayingChange}
                     onTimeUpdate={playback.handleTimeUpdate}
+                    onSeeked={playback.handleSeeked}
                     onDurationChange={playback.handleAudioDurationChange}
                     onScrubPreview={playback.handleScrubPreview}
                     onScrubPreviewFraction={playback.handleScrubPreviewFraction}
@@ -354,10 +375,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
             <TranscriptList
               segments={data.segments}
+              wordsBySegment={data.wordsBySegment}
+              playbackClock={playbackClock}
               scrollParent={sync.scrollParent}
               virtuosoRef={sync.virtuosoRef}
               onRangeChanged={sync.handleRangeChanged}
-              activeSegId={sync.activeIds.segId}
+              activeSegId={currentSegId}
               matchesBySeg={search.matchesBySeg}
               matchIndex={search.matchIndex}
               displayForSpeaker={speakerHook.displayForSpeaker}

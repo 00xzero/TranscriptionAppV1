@@ -259,4 +259,25 @@ describe('useEditorPlayback', () => {
     expect(result.current.audioDuration).toBe(48)
     expect(result.current.audioProgress).toBe(25)
   })
+
+  it('moves the playback clock on seeks and, once moved, on time updates', () => {
+    const { result } = setup()
+    let seconds = 12
+    const player = createPlayer({ getCurrentTime: jest.fn(() => seconds) })
+
+    act(() => {
+      result.current.handleAudioPlayerRef(player as any)
+      result.current.handleAudioReady()
+      // A time update before anything has played or seeked shows nothing.
+      result.current.handleTimeUpdate(seconds)
+    })
+    expect(result.current.playbackClock.getMs()).toBeNull()
+
+    act(() => result.current.handleSeeked())
+    expect(result.current.playbackClock.getMs()).toBe(12000)
+
+    seconds = 13.5
+    act(() => result.current.handleTimeUpdate(seconds))
+    expect(result.current.playbackClock.getMs()).toBe(13500)
+  })
 })

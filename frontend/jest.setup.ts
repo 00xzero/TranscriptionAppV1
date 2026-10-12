@@ -69,6 +69,8 @@ jest.mock('./lib/supabase/queries', () => ({
       },
     ],
   }),
+  // No stored words by default: cards fall back to spreading words evenly.
+  fetchTranscriptWords: jest.fn().mockResolvedValue([]),
   fetchSpeakers: jest.fn().mockResolvedValue([]),
   fetchTranscriptById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Transcript', status: 'created' }),
   fetchSegments: jest.fn().mockResolvedValue([]),

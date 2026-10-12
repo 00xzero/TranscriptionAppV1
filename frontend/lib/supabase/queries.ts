@@ -46,6 +46,7 @@ import {
     SpeakerSchema,
     TranscriptSummarySchema,
 } from '@/contracts/db'
+import type { EditorSourceWord } from '@/contracts/editor'
 import { z } from 'zod'
 
 const PAGE_SIZE = 1000
@@ -393,6 +394,25 @@ export async function fetchSegmentSpeakerAssignments(
             .order('start_ms', { ascending: true })
             .order('id', { ascending: true })
             .range(from, to)
+    )
+}
+
+/**
+ * Fetch every stored Deepgram word of a transcript, in segment and spoken
+ * order. The empty `segments!inner()` embed filters by transcript without
+ * returning segment columns. Rows are unvalidated; see groupSourceWords.
+ */
+export async function fetchTranscriptWords(transcriptId: string): Promise<EditorSourceWord[]> {
+    const supabase = createClient()
+    return paginateRows<EditorSourceWord>((from, to) =>
+        supabase
+            .from('words')
+            .select('id, segment_id, start_ms, end_ms, text, punctuated_text, order_index, segments!inner()')
+            .eq('segments.transcript_id', transcriptId)
+            .order('segment_id', { ascending: true })
+            .order('order_index', { ascending: true })
+            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
+            .range(from, to) as unknown as PromiseLike<PageResult<EditorSourceWord>>
     )
 }
 

@@ -7,6 +7,7 @@ import type { Seg } from '@/app/editor/[id]/types'
 import { Virtuoso } from 'react-virtuoso'
 import { scrollToIndexMock } from '../__mocks__/react-virtuoso'
 import { useEditorPlayback } from '@/app/editor/[id]/hooks/useEditorPlayback'
+import type { PlaybackClock } from '@/app/editor/[id]/playbackClock'
 import Waveform from '@/components/Waveform'
 import { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import { TooltipProvider } from '../components/ui/tooltip'
@@ -892,5 +893,56 @@ describe('AudioPlayer', () => {
     })
 
     expect(getMiniWaveformFill(miniSlider).style.width).toBe('75%')
+  })
+
+  it('moves the playback clock to a paused scrub position only once the audio has moved there', () => {
+    let clock: PlaybackClock | null = null
+    const noop = jest.fn()
+    function Harness() {
+      const playback = useEditorPlayback({
+        transcriptId: 'test', audioSrc: 'test.mp3', setAudioSrc: noop, setStatus: noop,
+        onAudioTick: () => undefined, startSeek: noop, previewSeek: () => undefined, commitSeek: () => undefined,
+        onWordSeek: noop, onSegmentSeek: noop, setWaveformCollapsed: noop, shouldCollapseWaveform: () => false,
+      })
+      clock = playback.playbackClock
+      return <AudioPlayer ref={playback.handleAudioPlayerRef} src="test.mp3" hideControls
+        onReady={playback.handleAudioReady} onTimeUpdate={playback.handleTimeUpdate} onSeeked={playback.handleSeeked}
+        onPlayingChange={playback.handlePlayingChange} onDurationChange={playback.handleAudioDurationChange}
+        onScrubPreview={playback.handleScrubPreview} onScrubPreviewFraction={playback.handleScrubPreviewFraction}
+        onSeekStart={playback.handleExpandedSeekStart} onSeekEnd={playback.handleMiniSeekEnd}
+        onDragStart={playback.handlePlayerDragStart} onDragEnd={playback.handlePlayerDragEnd} />
+    }
+    render(<Harness />)
+    const audio = document.querySelector('audio') as HTMLAudioElement
+    setupAudioElement(audio, { paused: true })
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      audio.dispatchEvent(new Event('canplay'))
+    })
+    const slider = screen.getByRole('slider', { name: 'Audio progress' })
+    mockProgressRect(slider, 0, 200)
+    // jsdom never fires `seeked`; the real element does once a position write lands.
+    const seeked = () => act(() => { audio.dispatchEvent(new Event('seeked')) })
+
+    // Nothing has played or seeked, so there is no position to highlight.
+    expect(clock!.getMs()).toBeNull()
+
+    pointer.down(slider, { clientX: 50 })
+    pointer.move(slider, { clientX: 150 })
+    // The scrub preview has fired, but its rAF has not written the position yet.
+    expect(audio.currentTime).not.toBe(90)
+    expect(clock!.getMs()).toBeNull()
+
+    flushAnimationFrame()
+    seeked()
+    expect(clock!.getMs()).toBe(90000)
+
+    pointer.move(slider, { clientX: 180 })
+    expect(clock!.getMs()).toBe(90000)
+    pointer.up(slider, { clientX: 180 })
+    seeked()
+    expect(audio.currentTime).toBe(108)
+    expect(audio.paused).toBe(true)
+    expect(clock!.getMs()).toBe(108000)
   })
 })

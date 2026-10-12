@@ -1222,6 +1222,42 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     }))
   })
 
+  test('the highlighted card and the playing word move together, even while a seek lock holds the scroll', async () => {
+    const s1 = '11111111-1111-4111-8111-111111111111'
+    const s2 = '22222222-2222-4222-8222-222222222222'
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: s1, start_ms: 0, end_ms: 4000, text: 'one two', transcript_id: 'p1', speaker_id: null },
+        { id: s2, start_ms: 4000, end_ms: 9000, text: 'three four', transcript_id: 'p1', speaker_id: null },
+      ],
+    })
+    const word = (n: number, segment_id: string, text: string, start_ms: number, end_ms: number, order_index: number) => ({
+      id: `00000000-0000-4000-8000-00000000000${n}`, segment_id, text, punctuated_text: text, start_ms, end_ms, order_index,
+    })
+    ;(supabaseQueries.fetchTranscriptWords as jest.Mock).mockResolvedValueOnce([
+      word(1, s1, 'one', 0, 1500, 0),
+      word(2, s1, 'two', 2000, 4000, 1),
+      word(3, s2, 'three', 4000, 6000, 0),
+      word(4, s2, 'four', 6500, 9000, 1),
+    ])
+
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    // A word click locks the scroll machine onto s1 for a few seconds.
+    fireEvent.click(screen.getByText('two'))
+    await expectActiveSegmentIndex(0)
+    expect(document.querySelector('.text-ember-red')?.textContent).toBe('two')
+
+    // The audio moves on into s2 while that lock still holds.
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 5 seconds' }))
+
+    await expectActiveSegmentIndex(1)
+    const current = document.querySelector('.text-ember-red')
+    expect(current?.textContent).toBe('four')
+    expect(current?.closest('[data-testid="segment-card"]')).toBe(screen.getAllByTestId('segment-card')[1])
+  })
+
   test('active segment lookup stays on the earliest overlapping segment', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [

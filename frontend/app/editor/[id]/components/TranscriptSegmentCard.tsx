@@ -3,7 +3,10 @@ import { Pencil, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
-import type { Word, Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import { alignTextToWords, type SourceWord } from '@/core/transcript/word-alignment'
+import type { PlaybackClock } from '../playbackClock'
+import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import { useCurrentWordIndex } from '../hooks/useCurrentWordIndex'
 import { formatElapsedTime } from '@/lib/utils'
 
 // Keeps the edit textarea exactly as tall as its content so entering edit mode
@@ -135,9 +138,27 @@ const SEGMENT_EDIT_FILL_ACTIVE = 'bg-accent-soft'
 const SEGMENT_EDIT_FIELD =
   'block w-full p-0 resize-none overflow-hidden bg-transparent caret-accent outline-hidden'
 
+// Playing-word highlight in the segment the audio is in: spoken words keep the
+// text color, the current word takes ember, upcoming words fall well back so the
+// boundary reads at a glance. The current word is emboldened with a hairline
+// stroke rather than font-weight: a heavier weight is wider and would reflow the
+// line every time the highlight moved.
+const WORD_TRANSITION = 'transition-colors duration-150 motion-reduce:transition-none'
+const WORD_CURRENT = 'text-ember-red [-webkit-text-stroke:0.45px_currentColor]'
+const WORD_UPCOMING = 'text-foreground/30 dark:text-foreground/25'
+
+function playbackWordClass(index: number, currentIndex: number | null): string {
+  if (currentIndex === null || index < currentIndex) return WORD_TRANSITION
+  return `${WORD_TRANSITION} ${index === currentIndex ? WORD_CURRENT : WORD_UPCOMING}`
+}
+
 export type TranscriptSegmentCardProps = {
   segment: Seg
+  /** Deepgram's words for this segment; the text is aligned against them for timing. */
+  sourceWords: readonly SourceWord[] | undefined
+  /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
+  playbackClock: PlaybackClock
   matchesForSeg: SegmentMatch[]
   matchIndex: number
   speaker: SpeakerDisplay
@@ -155,7 +176,9 @@ export type TranscriptSegmentCardProps = {
 
 export default function TranscriptSegmentCard({
   segment: s,
+  sourceWords,
   isActive,
+  playbackClock,
   matchesForSeg,
   matchIndex,
   speaker,
@@ -197,6 +220,24 @@ export default function TranscriptSegmentCard({
     observer.observe(node)
     return () => observer.disconnect()
   }, [isEditing, s.id])
+  // Mounted cards only (the list is virtualized); re-aligns whenever the text changes.
+  const tokens = React.useMemo(
+    () => alignTextToWords(s.text, sourceWords ?? [], s.start_ms, s.end_ms),
+    [s.text, sourceWords, s.start_ms, s.end_ms]
+  )
+  // The playing-word highlight is exact or off per segment: it runs only where
+  // the segment has Deepgram's stored words to align against. Inside such a
+  // segment, edited text follows the alignment by design, so a word typed in
+  // where Deepgram heard nothing is placed in the gap it sits in and can be
+  // current. Without stored words the tokens are only an even spread across the
+  // segment: enough to aim a click, as before word timings existed, but never
+  // shown as playback.
+  const hasWordTimings = (sourceWords?.length ?? 0) > 0
+  const currentWordIndex = useCurrentWordIndex({
+    tokens,
+    enabled: isActive && !isEditing && hasWordTimings,
+    clock: playbackClock,
+  })
   const sortedMatches = matchesForSeg.slice().sort((a, b) => a.index - b.index)
   // Tracks the cumulative character offset used with sortedMatches/matchIndex while mapping content and onWordClick spans.
   let charCursor = 0
@@ -277,7 +318,8 @@ export default function TranscriptSegmentCard({
           />
         ) : (
           <div className={SEGMENT_TEXT_TYPE}>
-            {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+            {(tokens.length ? tokens : [{ startMs: s.start_ms, endMs: s.end_ms, text: s.text }]).map((w, wordIndex) => {
+              const wordKey = `${s.id}:${wordIndex}`
               const wordText = w.text
               const wordStart = charCursor
               const wordEnd = wordStart + wordText.length
@@ -301,17 +343,18 @@ export default function TranscriptSegmentCard({
                   localPos = endIdx
                 })
                 if (localPos < wordText.length) {
-                  pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                  pieces.push(<span key={`t-${wordKey}-${localPos}`}>{wordText.slice(localPos)}</span>)
                 }
                 content = <>{pieces}</>
               }
               charCursor = wordEnd
               return (
                 <span
-                  key={w.key}
+                  key={wordKey}
+                  className={playbackWordClass(wordIndex, currentWordIndex)}
                   onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                     e.stopPropagation()
-                    onWordClick(s.id, w.start_ms)
+                    onWordClick(s.id, w.startMs)
                   }}
                 >
                   {content}
