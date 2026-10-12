@@ -1222,6 +1222,31 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     }))
   })
 
+  test('the highlighted card and the playing word move together, even while a seek lock holds the scroll', async () => {
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
+      items: [
+        { id: 's1', start_ms: 0, end_ms: 4000, text: 'one two', transcript_id: 'p1', speaker_id: null },
+        { id: 's2', start_ms: 4000, end_ms: 9000, text: 'three four', transcript_id: 'p1', speaker_id: null },
+      ],
+    })
+
+    renderEditorScreen()
+    await waitForEditorContent()
+
+    // A word click locks the scroll machine onto s1 for a few seconds.
+    fireEvent.click(screen.getByText('two'))
+    await expectActiveSegmentIndex(0)
+    expect(document.querySelector('.text-ember-red')?.textContent).toBe('two')
+
+    // The audio moves on into s2 while that lock still holds.
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 5 seconds' }))
+
+    await expectActiveSegmentIndex(1)
+    const current = document.querySelector('.text-ember-red')
+    expect(current?.textContent).toBe('four')
+    expect(current?.closest('[data-testid="segment-card"]')).toBe(screen.getAllByTestId('segment-card')[1])
+  })
+
   test('active segment lookup stays on the earliest overlapping segment', async () => {
     ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({
       items: [

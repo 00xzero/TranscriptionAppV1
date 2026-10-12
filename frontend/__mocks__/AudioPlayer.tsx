@@ -21,7 +21,13 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
 }: AudioPlayerProps, ref) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playing, setPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(0)
+  const [currentTime, setCurrentTimeState] = useState(0)
+  // Like a real media element, the position reads back the moment it is written.
+  const timeRef = useRef(0)
+  const setCurrentTime = (time: number) => {
+    timeRef.current = time
+    setCurrentTimeState(time)
+  }
   const [duration] = useState(60)
   const [playbackRate, setPlaybackRate] = useState(initialPlaybackRate)
   const readyRef = useRef(false)
@@ -58,12 +64,16 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
       setCurrentTime(newTime)
       onScrubPreviewFraction?.(Math.max(0, Math.min(fraction, 1)))
       onScrubPreview?.(newTime)
+      // The real player writes the scrub position on the next frame; the element
+      // then reports `seeked`.
+      onSeeked?.(newTime)
     },
     scrubToMs: (ms: number) => {
       const newTime = Math.max(0, Math.min(ms / 1000, duration))
       setCurrentTime(newTime)
       onScrubPreviewFraction?.(duration > 0 ? newTime / duration : 0)
       onScrubPreview?.(newTime)
+      onSeeked?.(newTime)
     },
     endScrub: () => {
       onTimeUpdate?.(currentTime)
@@ -78,7 +88,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
     setPlaybackRate: (rate: number) => {
       setPlaybackRate(rate)
     },
-    getCurrentTime: () => currentTime,
+    getCurrentTime: () => timeRef.current,
     getDuration: () => duration,
     isPlaying: () => playing,
     isReady: () => readyRef.current,

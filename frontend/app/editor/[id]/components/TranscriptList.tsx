@@ -2,13 +2,18 @@ import React from 'react'
 import { Virtuoso, VirtuosoHandle, ListRange } from 'react-virtuoso'
 import TranscriptSegmentCard from './TranscriptSegmentCard'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
+import type { SourceWord } from '@/core/transcript/word-alignment'
+import type { PlaybackClock } from '../playbackClock'
 import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 
 export type TranscriptListProps = {
   segments: Seg[]
+  wordsBySegment: ReadonlyMap<string, SourceWord[]>
+  playbackClock: PlaybackClock
   scrollParent: HTMLElement | null
   virtuosoRef: React.RefObject<VirtuosoHandle | null>
   onRangeChanged: (range: ListRange) => void
+  /** The current segment: highlighted as a card, and the one whose words follow playback. */
   activeSegId: string | undefined
   matchesBySeg: Map<string, SegmentMatch[]>
   matchIndex: number
@@ -26,6 +31,8 @@ export type TranscriptListProps = {
 
 export default function TranscriptList({
   segments,
+  wordsBySegment,
+  playbackClock,
   scrollParent,
   virtuosoRef,
   onRangeChanged,
@@ -64,7 +71,9 @@ export default function TranscriptList({
             <div className="flow-root">
               <TranscriptSegmentCard
                 segment={s}
+                sourceWords={wordsBySegment.get(s.id)}
                 isActive={activeSegId === s.id}
+                playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
                 matchIndex={matchIndex}
                 speaker={speaker}

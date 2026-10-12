@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { updateSegment } from '@/lib/supabase/queries'
 import type { Seg, SaveStatusBySegment } from '../types'
-import { SAVE_DEBOUNCE_MS, computeWordsForSegment } from '../utils'
+import { SAVE_DEBOUNCE_MS } from '../utils'
 
 export function useTranscriptMutations({
   setSegments,
@@ -25,7 +25,7 @@ export function useTranscriptMutations({
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
     // update UI immediately
-    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText, words: computeWordsForSegment({ id: s.id, start_ms: s.start_ms, end_ms: s.end_ms, text: newText }) } : s))
+    setSegments((prev: Seg[]) => prev.map((s: Seg) => s.id === segId ? { ...s, text: newText } : s))
     setSaveStatus((prev) => ({ ...prev, [segId]: 'saving' }))
 
     // clear existing timer

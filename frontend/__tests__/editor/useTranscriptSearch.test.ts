@@ -4,8 +4,8 @@ import type { Seg } from '../../app/editor/[id]/types'
 
 const defaultParams = {
   segments: [
-    { id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello world', speaker_id: 'sp1', words: [{ key: 's1:0', start_ms: 0, end_ms: 500, text: 'Hello ' }, { key: 's1:1', start_ms: 500, end_ms: 1000, text: 'world' }] },
-    { id: 's2', start_ms: 1000, end_ms: 2000, text: 'Hello again', speaker_id: 'sp1', words: [{ key: 's2:0', start_ms: 1000, end_ms: 1500, text: 'Hello ' }, { key: 's2:1', start_ms: 1500, end_ms: 2000, text: 'again' }] },
+    { id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello world', speaker_id: 'sp1' },
+    { id: 's2', start_ms: 1000, end_ms: 2000, text: 'Hello again', speaker_id: 'sp1' },
   ] as Seg[],
   editingTexts: {},
   setEditingTexts: jest.fn(),

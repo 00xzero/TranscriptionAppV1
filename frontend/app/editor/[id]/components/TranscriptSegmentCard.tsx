@@ -3,7 +3,10 @@ import { Pencil, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
-import type { Word, Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import { alignTextToWords, type SourceWord } from '@/core/transcript/word-alignment'
+import type { PlaybackClock } from '../playbackClock'
+import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import { useCurrentWordIndex } from '../hooks/useCurrentWordIndex'
 import { formatElapsedTime } from '@/lib/utils'
 
 // Keeps the edit textarea exactly as tall as its content so entering edit mode
@@ -135,9 +138,26 @@ const SEGMENT_EDIT_FILL_ACTIVE = 'bg-accent-soft'
 const SEGMENT_EDIT_FIELD =
   'block w-full p-0 resize-none overflow-hidden bg-transparent caret-accent outline-hidden'
 
+// Playing-word highlight in the segment the audio is in: spoken words keep the
+// text color, the current word takes ember, upcoming words recede. Color only,
+// never weight, so the line never reflows as the highlight moves. In dark mode
+// `muted` sits about as bright as the body text, so upcoming words dim further.
+const WORD_TRANSITION = 'transition-colors duration-150 motion-reduce:transition-none'
+const WORD_CURRENT = 'text-ember-red'
+const WORD_UPCOMING = 'text-muted dark:text-muted/70'
+
+function playbackWordClass(index: number, currentIndex: number | null): string {
+  if (currentIndex === null || index < currentIndex) return WORD_TRANSITION
+  return `${WORD_TRANSITION} ${index === currentIndex ? WORD_CURRENT : WORD_UPCOMING}`
+}
+
 export type TranscriptSegmentCardProps = {
   segment: Seg
+  /** Deepgram's words for this segment; the text is aligned against them for timing. */
+  sourceWords: readonly SourceWord[] | undefined
+  /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
+  playbackClock: PlaybackClock
   matchesForSeg: SegmentMatch[]
   matchIndex: number
   speaker: SpeakerDisplay
@@ -155,7 +175,9 @@ export type TranscriptSegmentCardProps = {
 
 export default function TranscriptSegmentCard({
   segment: s,
+  sourceWords,
   isActive,
+  playbackClock,
   matchesForSeg,
   matchIndex,
   speaker,
@@ -197,6 +219,16 @@ export default function TranscriptSegmentCard({
     observer.observe(node)
     return () => observer.disconnect()
   }, [isEditing, s.id])
+  // Mounted cards only (the list is virtualized); re-aligns whenever the text changes.
+  const tokens = React.useMemo(
+    () => alignTextToWords(s.text, sourceWords ?? [], s.start_ms, s.end_ms),
+    [s.text, sourceWords, s.start_ms, s.end_ms]
+  )
+  const currentWordIndex = useCurrentWordIndex({
+    tokens,
+    enabled: isActive && !isEditing,
+    clock: playbackClock,
+  })
   const sortedMatches = matchesForSeg.slice().sort((a, b) => a.index - b.index)
   // Tracks the cumulative character offset used with sortedMatches/matchIndex while mapping content and onWordClick spans.
   let charCursor = 0
@@ -277,7 +309,8 @@ export default function TranscriptSegmentCard({
           />
         ) : (
           <div className={SEGMENT_TEXT_TYPE}>
-            {(s.words && s.words.length ? s.words : [{ key: `${s.id}:0`, start_ms: s.start_ms, end_ms: s.end_ms, text: s.text }]).map((w: Word) => {
+            {(tokens.length ? tokens : [{ startMs: s.start_ms, endMs: s.end_ms, text: s.text }]).map((w, wordIndex) => {
+              const wordKey = `${s.id}:${wordIndex}`
               const wordText = w.text
               const wordStart = charCursor
               const wordEnd = wordStart + wordText.length
@@ -301,17 +334,18 @@ export default function TranscriptSegmentCard({
                   localPos = endIdx
                 })
                 if (localPos < wordText.length) {
-                  pieces.push(<span key={`t-${w.key}-${localPos}`}>{wordText.slice(localPos)}</span>)
+                  pieces.push(<span key={`t-${wordKey}-${localPos}`}>{wordText.slice(localPos)}</span>)
                 }
                 content = <>{pieces}</>
               }
               charCursor = wordEnd
               return (
                 <span
-                  key={w.key}
+                  key={wordKey}
+                  className={playbackWordClass(wordIndex, currentWordIndex)}
                   onClick={(e: React.MouseEvent<HTMLSpanElement>) => {
                     e.stopPropagation()
-                    onWordClick(s.id, w.start_ms)
+                    onWordClick(s.id, w.startMs)
                   }}
                 >
                   {content}

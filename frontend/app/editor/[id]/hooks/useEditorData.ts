@@ -3,6 +3,7 @@ import { z } from 'zod'
 import {
   fetchEditorPeopleContext,
   fetchTranscriptData,
+  fetchTranscriptWords,
   fetchSpeakers,
   fetchTranscriptById,
 } from '@/lib/supabase/queries'
@@ -13,10 +14,11 @@ import {
   type WaveformStatus,
 } from '@/contracts/db'
 import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
+import type { SourceWord } from '@/core/transcript/word-alignment'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import { toast } from '@/components/ui/toaster'
 import type { Seg, Speaker } from '../types'
-import { computeWordsForSegments } from '../utils'
+import { groupSourceWords } from '../utils'
 
 const WaveformArtifactSchema = z.object({
   version: z.literal(WAVEFORM_ARTIFACT_VERSION),
@@ -28,6 +30,7 @@ const WaveformArtifactSchema = z.object({
 const WAVEFORM_POLL_INTERVAL_MS = 3000
 const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
+const NO_WORDS: ReadonlyMap<string, SourceWord[]> = new Map()
 
 export function chooseEditorDuration(
   transcriptDurationSecs: number | null,
@@ -59,6 +62,8 @@ export function useEditorData(transcriptId: string) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
+  // Deepgram's words per segment: the fixed timing record edited text aligns to.
+  const [wordsBySegment, setWordsBySegment] = useState<ReadonlyMap<string, SourceWord[]>>(NO_WORDS)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
@@ -76,6 +81,7 @@ export function useEditorData(transcriptId: string) {
     setPeaks(null)
     setWaveformDurationSecs(null)
     setWaveformStatus('skipped')
+    setWordsBySegment(NO_WORDS)
 
     const stopWaveformPolling = () => {
       if (waveformPollId) {
@@ -172,9 +178,30 @@ export function useEditorData(transcriptId: string) {
       })
     }
 
+    // Words load beside the segments and never hold them up: until they arrive,
+    // or if they fail, each card spreads its words evenly across the segment.
+    // Async so even a synchronous throw lands in reportWordLoadFailure.
+    const loadWords = async () => fetchTranscriptWords(transcriptId)
+    const showWords = (rows: readonly unknown[]) => {
+      if (cancelled) return
+      setWordsBySegment(groupSourceWords(rows))
+    }
+    const reportWordLoadFailure = (error: unknown) => {
+      if (cancelled) return
+      console.error(`[useEditorData] failed to load word timings for transcript ${transcriptId}:`, error)
+      toast({
+        title: "Couldn't load word timings",
+        description: 'Word positions are approximate.',
+        variant: 'error',
+        action: { label: 'Retry', onClick: () => { void loadWords().then(showWords, reportWordLoadFailure) } },
+      })
+    }
+
     const init = async () => {
       try {
         setStatus('Loading media...')
+
+        void loadWords().then(showWords, reportWordLoadFailure)
 
         const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
           (data) => ({ data, error: null as unknown }),
@@ -210,7 +237,7 @@ export function useEditorData(transcriptId: string) {
         // Segments and their speakers render in the same pass.
         const speakersResult = await speakersPromise
         if (cancelled) return
-        setSegments(computeWordsForSegments(transcriptResult.data.items) as Seg[])
+        setSegments(transcriptResult.data.items)
         if (speakersResult.data) showSpeakers(speakersResult.data)
         else reportSpeakerLoadFailure(speakersResult.error)
 
@@ -238,6 +265,7 @@ export function useEditorData(transcriptId: string) {
     audioSrc, setAudioSrc,
     status, setStatus,
     segments, setSegments,
+    wordsBySegment,
     speakers, setSpeakers,
     peopleContext, setPeopleContext,
     transcriptTitle, setTranscriptTitle,
