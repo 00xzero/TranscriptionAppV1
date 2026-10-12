@@ -57,7 +57,7 @@ const word = (text: string) => screen.getByText(text, { selector: 'span' })
 const state = (text: string) => {
   const cls = word(text).className
   if (cls.includes('text-ember-red')) return 'current'
-  if (cls.includes('text-muted')) return 'upcoming'
+  if (cls.includes('text-foreground/30')) return 'upcoming'
   return 'plain'
 }
 
@@ -67,6 +67,14 @@ it('marks spoken, current and upcoming words in the current segment', () => {
   expect([state('Hello'), state('there,'), state('friend.')]).toEqual(['plain', 'current', 'upcoming'])
   moveTo(2500)
   expect([state('Hello'), state('there,'), state('friend.')]).toEqual(['plain', 'plain', 'current'])
+})
+
+it('emboldens the current word with a stroke, never a heavier weight that would reflow the line', () => {
+  const { moveTo } = setup()
+  moveTo(1600)
+  const cls = word('there,').className
+  expect(cls).toContain('[-webkit-text-stroke:0.45px_currentColor]')
+  expect(cls).not.toMatch(/\bfont-(medium|semibold|bold|extrabold|black)\b/)
 })
 
 it('leaves words plain before anything has played', () => {

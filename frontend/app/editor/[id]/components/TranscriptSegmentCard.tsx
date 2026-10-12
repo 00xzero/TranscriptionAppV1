@@ -139,12 +139,13 @@ const SEGMENT_EDIT_FIELD =
   'block w-full p-0 resize-none overflow-hidden bg-transparent caret-accent outline-hidden'
 
 // Playing-word highlight in the segment the audio is in: spoken words keep the
-// text color, the current word takes ember, upcoming words recede. Color only,
-// never weight, so the line never reflows as the highlight moves. In dark mode
-// `muted` sits about as bright as the body text, so upcoming words dim further.
+// text color, the current word takes ember, upcoming words fall well back so the
+// boundary reads at a glance. The current word is emboldened with a hairline
+// stroke rather than font-weight: a heavier weight is wider and would reflow the
+// line every time the highlight moved.
 const WORD_TRANSITION = 'transition-colors duration-150 motion-reduce:transition-none'
-const WORD_CURRENT = 'text-ember-red'
-const WORD_UPCOMING = 'text-muted dark:text-muted/70'
+const WORD_CURRENT = 'text-ember-red [-webkit-text-stroke:0.45px_currentColor]'
+const WORD_UPCOMING = 'text-foreground/30 dark:text-foreground/25'
 
 function playbackWordClass(index: number, currentIndex: number | null): string {
   if (currentIndex === null || index < currentIndex) return WORD_TRANSITION
