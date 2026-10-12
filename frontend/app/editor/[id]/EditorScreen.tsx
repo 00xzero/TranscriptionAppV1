@@ -246,7 +246,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
       <div className="relative flex min-h-0 flex-1">
         {/* The mini scrubber spans the editor, including the Speakers panel. */}
         <div
-          className={`absolute top-0 left-0 w-full z-40 transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`absolute top-0 left-0 w-full z-(--z-editor-mini-scrubber) transition-opacity duration-500 ${waveformCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           inert={!waveformCollapsed}
           ref={attachMini}
           onFocusCapture={trackMiniFocus}

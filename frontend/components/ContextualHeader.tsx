@@ -33,11 +33,11 @@ export default function ContextualHeader() {
   const isLoading = !isAuthRoute && !ready && !userId
 
   return (
-    <header className={`relative h-[var(--header-height)] flex items-center justify-between gap-4 px-6 transition-colors duration-300 ${isEditorRoute ? 'pointer-events-none [&>div]:relative [&>div]:z-50 [&_button]:pointer-events-auto [&_a]:pointer-events-auto' : 'z-50 pointer-events-auto border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md'}`}>
+    <header className={`relative h-[var(--header-height)] flex items-center justify-between gap-4 px-6 transition-colors duration-300 ${isEditorRoute ? 'pointer-events-none [&>div]:relative [&>div]:z-(--z-header) [&_button]:pointer-events-auto [&_a]:pointer-events-auto' : 'z-(--z-header) pointer-events-auto border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md'}`}>
       {/* The backdrop blocks clicks to covered transcript cards and stays above
-          the pinned waveform (z-30) but below the mini track (z-40); header
-          controls remain above its larger hit area (z-50). */}
-      {isEditorRoute && <span aria-hidden="true" className="pointer-events-auto absolute inset-0 z-[35] border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md" />}
+          the pinned waveform but below the mini track; header controls remain
+          above its larger hit area. The layer order lives in globals.css. */}
+      {isEditorRoute && <span aria-hidden="true" className="pointer-events-auto absolute inset-0 z-(--z-header-backdrop) border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md" />}
       {/* Left: Logo (when unauthenticated) or View Title / Breadcrumbs (when authenticated) */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {isLoading ? (

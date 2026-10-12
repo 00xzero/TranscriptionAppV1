@@ -107,7 +107,7 @@ export default function CollapsibleWaveform({
 
   return (
     <div
-      className={`relative leading-none ${pinned ? 'sticky top-0 z-30' : ''}`}
+      className={`relative leading-none ${pinned ? 'sticky top-0 z-(--z-editor-pinned-waveform)' : ''}`}
       style={
         spacerHeight
           ? collapsed

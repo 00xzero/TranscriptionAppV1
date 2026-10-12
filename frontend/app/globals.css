@@ -120,6 +120,15 @@ body {
   --scrollbar-thumb: #6B6760;
   --scrollbar-thumb-hover: #4A4742;
   --header-height: 3.5rem;
+  /* Editor stacking order, lowest to highest. The contextual header and the
+     editor's waveform controls share `main`'s stacking context, so these only
+     mean something relative to each other: the header backdrop covers the
+     pinned waveform, the mini scrubber's hit area sits above the backdrop, and
+     header controls stay clickable above that hit area. */
+  --z-editor-pinned-waveform: 30;
+  --z-header-backdrop: 35;
+  --z-editor-mini-scrubber: 40;
+  --z-header: 50;
 }
 
 .dark {
