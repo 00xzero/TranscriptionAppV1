@@ -225,9 +225,13 @@ export default function TranscriptSegmentCard({
     () => alignTextToWords(s.text, sourceWords ?? [], s.start_ms, s.end_ms),
     [s.text, sourceWords, s.start_ms, s.end_ms]
   )
-  // The playing-word highlight is exact or off. Without Deepgram's words the
-  // tokens are only an even spread across the segment: enough to aim a click,
-  // as before word timings existed, but never shown as playback.
+  // The playing-word highlight is exact or off per segment: it runs only where
+  // the segment has Deepgram's stored words to align against. Inside such a
+  // segment, edited text follows the alignment by design, so a word typed in
+  // where Deepgram heard nothing is placed in the gap it sits in and can be
+  // current. Without stored words the tokens are only an even spread across the
+  // segment: enough to aim a click, as before word timings existed, but never
+  // shown as playback.
   const hasWordTimings = (sourceWords?.length ?? 0) > 0
   const currentWordIndex = useCurrentWordIndex({
     tokens,
