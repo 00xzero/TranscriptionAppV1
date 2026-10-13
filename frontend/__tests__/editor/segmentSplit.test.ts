@@ -1,7 +1,6 @@
 import {
   applyRejoinSegments,
   applyRejoinWords,
-  applySplitSegments,
   applySplitWords,
   joinSegmentTexts,
   upsertSegments,
@@ -28,7 +27,7 @@ const rows = [firstHalf, secondHalf] as const
 
 describe('applying a confirmed split', () => {
   it('puts both halves in place, the new one straight after the original', () => {
-    const segments = applySplitSegments([before, whole, after], rows)
+    const segments = upsertSegments([before, whole, after], rows)
     expect(segments.map((s) => [s.id, s.text])).toEqual([
       ['a', 'Before.'], ['b', 'One two.'], ['n', 'Three four.'], ['c', 'After.'],
     ])
@@ -41,22 +40,22 @@ describe('applying a confirmed split', () => {
   })
 
   it('changes nothing when applied twice, or after a reload already shows it', () => {
-    const once = applySplitSegments([before, whole, after], rows)
-    expect(applySplitSegments(once, rows)).toEqual(once)
+    const once = upsertSegments([before, whole, after], rows)
+    expect(upsertSegments(once, rows)).toEqual(once)
 
     const onceWords = applySplitWords(words, rows, wholeWords, 2)
     expect(applySplitWords(onceWords, rows, wholeWords, 2)).toEqual(onceWords)
 
     // A reload has shown the split already, words and all: still the same.
     const reloaded = [before, firstHalf, secondHalf, after]
-    expect(applySplitSegments(reloaded, rows)).toEqual(once)
+    expect(upsertSegments(reloaded, rows)).toEqual(once)
     const reloadedWords: WordsBySegment = new Map([['b', wholeWords.slice(0, 2)], ['n', wholeWords.slice(2)]])
     expect(applySplitWords(reloadedWords, rows, wholeWords, 2)).toEqual(onceWords)
   })
 })
 
 describe('applying a confirmed rejoin', () => {
-  const split = applySplitSegments([before, whole, after], rows)
+  const split = upsertSegments([before, whole, after], rows)
   const splitWords = applySplitWords(words, rows, wholeWords, 2)
   const joined = { ...seg('b', 1000, 2000, 'One two. Three four.', 2), is_edited: true }
   const captured = { first: splitWords.get('b')!, next: splitWords.get('n')! }
@@ -87,6 +86,6 @@ describe('upsertSegments', () => {
   })
 })
 
-it('joins two halves with one space at the seam', () => {
-  expect(joinSegmentTexts('One two.  ', '  Three four.')).toBe('One two. Three four.')
+it('joins two halves with one space at the seam, and says where the second starts', () => {
+  expect(joinSegmentTexts('One two.  ', '  Three four.')).toEqual({ text: 'One two. Three four.', seam: 'One two. '.length })
 })

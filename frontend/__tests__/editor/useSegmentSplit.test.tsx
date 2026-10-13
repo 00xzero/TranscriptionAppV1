@@ -553,6 +553,20 @@ describe('undo', () => {
     expect(ids(result)).toHaveLength(4)
   })
 
+  // CodeRabbit: a double click on Undo must not show a false "Can't undo yet".
+  it('treats a second click on the same Undo as the first', async () => {
+    const { result } = setup()
+    const undo = await splitThenUndoToast(result)
+    act(() => {
+      undo.action.onClick()
+      undo.action.onClick()
+    })
+    await waitFor(() => expect(ids(result)).toEqual([BEFORE, A]))
+    expect(queries.rejoinSegments).toHaveBeenCalledTimes(1)
+    expect(toastWith((o) => o.title === "Can't undo yet")).toBeUndefined()
+    expect(result.current.splitting.anyBusy).toBe(false)
+  })
+
   it('reloads and says so when the halves changed elsewhere', async () => {
     const { result } = setup()
     const undo = await splitThenUndoToast(result)

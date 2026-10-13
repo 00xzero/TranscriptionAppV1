@@ -12,7 +12,6 @@ import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent, PopoverFrozenWhileClosed } from '@/components/ui/popover'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { toast } from '@/components/ui/toaster'
-import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE } from '@/lib/people/errors'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
@@ -22,7 +21,7 @@ import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
 import { SpeakerSummaryButton } from './components/SpeakerSummaryButton'
 import { SpeakersSidebar, type SpeakersSidebarHandle } from './components/SpeakersSidebar'
-import { useEditorData } from './hooks/useEditorData'
+import { useEditorData, wordTimingsFailedToast } from './hooks/useEditorData'
 import { useTranscriptTitleEditing } from './hooks/useTranscriptTitleEditing'
 import { useTranscriptMutations } from './hooks/useTranscriptMutations'
 import { useSpeakerAssignments } from './hooks/useSpeakerAssignments'
@@ -86,13 +85,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   useEffect(() => {
     reloadContentRef.current = () => {
       void enqueue(async () => {
-        const reloaded = await reloadSegments()
-        if (!reloaded) {
-          toast({ title: "Couldn't load word timings", description: 'Word highlighting is off for this transcript.',
-            variant: 'error', action: { label: 'Retry', onClick: reloadContent } })
-        } else if (reloaded.droppedDrafts > 0) {
-          toast({ title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error' })
-        }
+        if (!(await reloadSegments())) toast(wordTimingsFailedToast(reloadContent))
       })
     }
   }, [enqueue, reloadSegments, reloadContent])
@@ -169,6 +162,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // 5. Search + Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
 
+  // Replacing waits while a split or undo is pending: its text would be
+  // edited against a shape about to change.
+  const canReplace = !splitting.anyBusy
   const search = useTranscriptSearch({
     segments: data.segments,
     editingTexts: editing.editingTexts,
@@ -179,7 +175,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     suspendFollow: sync.suspendFollow,
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
-    canReplace: !splitting.anyBusy,
+    canReplace,
   })
 
   const openExportModal = useCallback(() => {
@@ -302,9 +298,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         onClear={search.clearSearch}
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
-        // Replacing waits while a split or undo is pending: its text would be
-        // edited against a shape about to change.
-        canReplace={!splitting.anyBusy}
+        canReplace={canReplace}
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}

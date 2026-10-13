@@ -2,9 +2,6 @@ import { useCallback, useRef } from 'react'
 
 export type Enqueue = <T>(task: () => Promise<T>) => Promise<T>
 
-/** How long a done toast offers Undo. */
-export const UNDO_WINDOW_MS = 8000
-
 /**
  * The editor's one write queue. Text saves, speaker actions and segment
  * splits run through it one at a time, in the order they were queued: a draft

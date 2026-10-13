@@ -12,6 +12,7 @@ import { Dialog, DialogCloseButton, DialogContent, DialogDescription, DialogTitl
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from '@/components/ui/toaster'
+import { UNDO_WINDOW_MS } from '@/lib/undo'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
@@ -45,9 +46,6 @@ import { formatPeopleDate, formatTalk } from './format'
 
 type NestedDialog = 'rename' | 'merge' | 'delete' | null
 type Picker = 'organisation' | 'colour' | null
-
-/** As long as the editor's Undo (spec §7). */
-const UNDO_WINDOW_MS = 8000
 
 const ICON = 'h-4 w-4'
 

@@ -15,9 +15,9 @@ import {
 } from '@/contracts/db'
 import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
-import { toast } from '@/components/ui/toaster'
+import { toast, type ToastOptions } from '@/components/ui/toaster'
 import type { Seg, Speaker, WordsBySegment } from '../types'
-import { groupSourceWords, wordSetsInStep } from '../utils'
+import { groupSourceWords, revisionsMatch } from '../utils'
 
 const WaveformArtifactSchema = z.object({
   version: z.literal(WAVEFORM_ARTIFACT_VERSION),
@@ -30,6 +30,14 @@ const WAVEFORM_POLL_INTERVAL_MS = 3000
 const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
 const NO_WORDS: WordsBySegment = new Map()
+
+/** Word timings could not be loaded; Retry reloads segments and words. */
+export const wordTimingsFailedToast = (retry: () => void): ToastOptions => ({
+  title: "Couldn't load word timings",
+  description: 'Word highlighting is off for this transcript.',
+  variant: 'error',
+  action: { label: 'Retry', onClick: retry },
+})
 
 export function chooseEditorDuration(
   transcriptDurationSecs: number | null,
@@ -203,7 +211,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     const showWords = async (sets: Awaited<ReturnType<typeof fetchSegmentWordSets>>) => {
       const shown = await segmentsShown
       if (cancelled || !shown) return
-      if (!wordSetsInStep(shown, sets)) {
+      if (!revisionsMatch(shown, sets)) {
         reloadContent()
         return
       }
@@ -215,12 +223,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     const reportWordLoadFailure = (error: unknown) => {
       if (cancelled) return
       console.error(`[useEditorData] failed to load word timings for transcript ${transcriptId}:`, error)
-      toast({
-        title: "Couldn't load word timings",
-        description: 'Word highlighting is off for this transcript.',
-        variant: 'error',
-        action: { label: 'Retry', onClick: reloadContent },
-      })
+      toast(wordTimingsFailedToast(reloadContent))
     }
 
     const init = async () => {

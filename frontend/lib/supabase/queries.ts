@@ -404,6 +404,20 @@ const STORED_WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_
 /** A segment's stored words, read in the same query as its revision. Word rows are unvalidated; see groupSourceWords. */
 export type SegmentWordSet = { id: string; revision: number; words: unknown[] }
 
+/** Every segment of a transcript, in display order, with its stored words embedded in the same row. */
+function fetchSegmentRowsWithWords<T extends { id: string }>(transcriptId: string, columns: string): Promise<T[]> {
+    const supabase = createClient()
+    return paginateRows<T>((from, to) =>
+        supabase
+            .from('segments')
+            .select(`${columns}, words(${STORED_WORD_COLUMNS})`)
+            .eq('transcript_id', transcriptId)
+            .order('start_ms', { ascending: true })
+            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
+            .range(from, to) as unknown as PromiseLike<PageResult<T>>
+    )
+}
+
 /**
  * Fetch every segment's stored Deepgram words with the segment's revision. A
  * segment's words change only when its revision does (a split or rejoin), and
@@ -411,34 +425,16 @@ export type SegmentWordSet = { id: string; revision: number; words: unknown[] }
  * words read this way can be trusted for a segment shown at the same revision.
  * Words are embedded per segment, so the 1,000-row page cap counts segments.
  */
-export async function fetchSegmentWordSets(transcriptId: string): Promise<SegmentWordSet[]> {
-    const supabase = createClient()
-    return paginateRows<SegmentWordSet>((from, to) =>
-        supabase
-            .from('segments')
-            .select(`id, revision, words(${STORED_WORD_COLUMNS})`)
-            .eq('transcript_id', transcriptId)
-            .order('start_ms', { ascending: true })
-            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
-            .range(from, to) as unknown as PromiseLike<PageResult<SegmentWordSet>>
-    )
+export function fetchSegmentWordSets(transcriptId: string): Promise<SegmentWordSet[]> {
+    return fetchSegmentRowsWithWords<SegmentWordSet>(transcriptId, 'id, revision')
 }
 
 /**
  * Fetch every segment with its stored words in the same row, so each
  * segment's words always belong to the revision it is shown at.
  */
-export async function fetchSegmentsWithWords(transcriptId: string): Promise<Array<Segment & { words: unknown[] }>> {
-    const supabase = createClient()
-    return paginateRows<Segment & { words: unknown[] }>((from, to) =>
-        supabase
-            .from('segments')
-            .select(`*, words(${STORED_WORD_COLUMNS})`)
-            .eq('transcript_id', transcriptId)
-            .order('start_ms', { ascending: true })
-            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
-            .range(from, to) as unknown as PromiseLike<PageResult<Segment & { words: unknown[] }>>
-    )
+export function fetchSegmentsWithWords(transcriptId: string): Promise<Array<Segment & { words: unknown[] }>> {
+    return fetchSegmentRowsWithWords<Segment & { words: unknown[] }>(transcriptId, '*')
 }
 
 /**
@@ -453,12 +449,10 @@ export async function fetchTranscriptData(transcriptId: string): Promise<{
 }
 
 /**
- * Update a segment's text. Its speaker changes only through reassignSegments.
- */
-/**
  * Update a segment's text, only while it still has the shape the text was
  * edited against. A segment split or rejoined since has a new revision, so
- * the update matches no row and fails with PGRST116 (see isConflict).
+ * the update matches no row and fails with PGRST116 (see isStaleSegmentSave).
+ * Its speaker changes only through the speaker functions.
  */
 export async function updateSegment(
     id: string,

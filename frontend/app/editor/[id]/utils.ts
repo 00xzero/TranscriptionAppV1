@@ -55,7 +55,7 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWo
   const wordsBySegment = new Map<string, EditorWord[]>()
   for (const [segmentId, list] of rowsBySegment) {
     // (order_index, id): the order the database splits and joins words in.
-    list.sort((a, b) => a.order_index - b.order_index || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    list.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
     wordsBySegment.set(segmentId, list.map((word) => ({
       id: word.id,
       text: word.punctuated_text ?? word.text,
@@ -66,18 +66,20 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWo
   return wordsBySegment
 }
 
+/** Ids in the database's byte order, which breaks ties in display order. */
+export const compareIds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+type Revisioned = { id: string; revision: number }
+
 /**
- * Whether segment word sets, read after the segments were shown, still
- * describe those segments. A split or rejoin always bumps the revision of a
- * segment that exists both before and after it, so it is enough that every
- * set belongs to a shown segment at the same revision.
+ * Whether every `expected` segment is among `current` at the same revision.
+ * A split or rejoin always bumps the revision of a segment that exists both
+ * before and after it, so this is how the editor tells that something read or
+ * chosen earlier still describes the segments as they are.
  */
-export function wordSetsInStep(
-  shown: readonly { id: string; revision: number }[],
-  sets: readonly { id: string; revision: number }[]
-): boolean {
-  const revisions = new Map(shown.map((segment) => [segment.id, segment.revision]))
-  return sets.every((set) => revisions.get(set.id) === set.revision)
+export function revisionsMatch(current: readonly Revisioned[], expected: readonly Revisioned[]): boolean {
+  const revisions = new Map(current.map((segment) => [segment.id, segment.revision]))
+  return expected.every((segment) => revisions.get(segment.id) === segment.revision)
 }
 
 /** Index of the last item that starts at or before `ms`, or -1 if none has. */

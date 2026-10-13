@@ -1,6 +1,5 @@
 import {
     MAX_ALIGNMENT_CELLS,
-    alignTextToWords,
     alignTokens,
     type AlignedToken,
     type SourceWord,
@@ -16,7 +15,7 @@ function triples(tokens: AlignedToken[]): Array<[string, number, number]> {
 }
 
 function align(text: string, words: SourceWord[], segStartMs: number, segEndMs: number) {
-    const tokens = alignTextToWords(text, words, segStartMs, segEndMs);
+    const tokens = alignTokens(text, words, segStartMs, segEndMs);
     // The card's search highlighting counts characters across tokens.
     if (text !== "") expect(tokens.map((t) => t.text).join("")).toBe(text);
     return tokens;
@@ -30,7 +29,7 @@ const GREETING = [
     w("you?", 1400, 1800),
 ];
 
-describe("alignTextToWords", () => {
+describe("alignTokens", () => {
     it("gives unchanged text the exact word timings", () => {
         expect(triples(align("Hello there. How are you?", GREETING, 0, 1800))).toEqual([
             ["Hello ", 0, 400],
@@ -158,7 +157,7 @@ describe("alignTextToWords", () => {
 
     it("covers whitespace-only text with one token and returns nothing for empty text", () => {
         expect(triples(align("   ", GREETING, 0, 1800))).toEqual([["   ", 0, 1800]]);
-        expect(alignTextToWords("", GREETING, 0, 1800)).toEqual([]);
+        expect(alignTokens("", GREETING, 0, 1800)).toEqual([]);
     });
 
     it("keeps leading, trailing and doubled whitespace on the tokens", () => {
@@ -203,7 +202,7 @@ describe("alignTextToWords", () => {
     });
 });
 
-describe("alignTokens", () => {
+describe("alignTokens: the words each token stands for", () => {
     /** [text, offset, wordFrom, wordTo] per token. */
     function spans(text: string, words: SourceWord[]) {
         return alignTokens(text, words, 0, 2000).map((t) => [t.text, t.offset, t.wordFrom, t.wordTo]);
@@ -233,9 +232,4 @@ describe("alignTokens", () => {
         ]);
     });
 
-    it("matches alignTextToWords' times", () => {
-        const text = "Hello there, how are you";
-        expect(alignTokens(text, GREETING, 0, 1800).map(({ text: t, startMs, endMs }) => ({ text: t, startMs, endMs })))
-            .toEqual(alignTextToWords(text, GREETING, 0, 1800));
-    });
 });

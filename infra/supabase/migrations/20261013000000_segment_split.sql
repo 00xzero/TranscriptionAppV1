@@ -26,6 +26,11 @@
 
 ALTER TABLE public.segments ADD COLUMN revision integer NOT NULL DEFAULT 0;
 
+-- Display order within a transcript, (start_ms, id). The editor pages through
+-- segments in it, and split and rejoin check that nothing sits between two
+-- neighbours in it, which would otherwise read the whole transcript.
+CREATE INDEX idx_segments_transcript_order ON public.segments (transcript_id, start_ms, id);
+
 -- ---------------------------------------------------------------------------
 -- split_segment: the words from p_split_word_id onward, and p_second_text,
 -- become a new segment p_new_segment_id with the same speaker. Returns both

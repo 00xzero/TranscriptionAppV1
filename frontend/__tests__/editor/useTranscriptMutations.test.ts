@@ -4,6 +4,7 @@ import { useTranscriptMutations, type SaveOutcome } from '../../app/editor/[id]/
 import { useEditorWriteQueue } from '../../app/editor/[id]/hooks/useEditorWriteQueue'
 import { useLiveStore } from '../../app/editor/[id]/hooks/useLiveStore'
 import type { Seg, WordsBySegment } from '../../app/editor/[id]/types'
+import { SAVE_DEBOUNCE_MS } from '../../app/editor/[id]/utils'
 
 const mockUpdateSegment = jest.fn()
 const mockFetchSegmentsWithWords = jest.fn()
@@ -160,6 +161,68 @@ describe('useTranscriptMutations', () => {
     expect(order).toEqual(['earlier', 'save'])
   })
 
+  // A Replace All schedules many saves at once; one at a time through the
+  // queue, they would hold up every other write behind them.
+  it('saves drafts that come due together in one queued task, all at once', async () => {
+    const pending: Array<() => void> = []
+    mockUpdateSegment.mockImplementation(() => new Promise<void>((resolve) => { pending.push(resolve) }))
+    const { result } = setup([seg('a', 'a'), seg('b', 'b'), seg('c', 'c')])
+    act(() => {
+      for (const id of ['a', 'b', 'c']) result.current.scheduleSave(id, `${id} replaced`)
+    })
+    await settle()
+
+    // All three are in flight before any has answered.
+    expect(mockUpdateSegment.mock.calls.map(([id]) => id)).toEqual(['a', 'b', 'c'])
+    let later = false
+    act(() => { void result.current.enqueue(async () => { later = true }) })
+    await settle()
+    expect(later).toBe(false)
+
+    await act(async () => { pending.forEach((resolve) => resolve()) })
+    await settle()
+    expect(later).toBe(true)
+  })
+
+  it('takes every waiting draft along when one comes due, even one whose own wait has not run out', async () => {
+    const pending: Array<() => void> = []
+    mockUpdateSegment.mockImplementation(() => new Promise<void>((resolve) => { pending.push(resolve) }))
+    const { result } = setup([seg('a', 'a'), seg('b', 'b')])
+    const stagger = SAVE_DEBOUNCE_MS / 2
+    act(() => { result.current.scheduleSave('a', 'a edited') })
+    await act(async () => { jest.advanceTimersByTime(stagger) })
+    act(() => { result.current.scheduleSave('b', 'b edited') })
+
+    // a's wait runs out first; b's still has time to go, and b goes with it.
+    await act(async () => {
+      jest.advanceTimersByTime(SAVE_DEBOUNCE_MS - stagger)
+      for (let i = 0; i < 20; i++) await Promise.resolve()
+    })
+    expect(mockUpdateSegment.mock.calls.map(([id]) => id)).toEqual(['a', 'b'])
+
+    // b's timer was cleared with it: nothing is written twice.
+    await act(async () => { pending.forEach((resolve) => resolve()) })
+    await settle()
+    await act(async () => { jest.advanceTimersByTime(SAVE_DEBOUNCE_MS) })
+    await settle()
+    expect(mockUpdateSegment).toHaveBeenCalledTimes(2)
+  })
+
+  it('reloads once when several drafts saved together are refused as stale', async () => {
+    mockUpdateSegment.mockRejectedValue(STALE)
+    mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'a', 1)), withWords(seg('b', 'b', 1))])
+    const { result } = setup([seg('a', 'a'), seg('b', 'b')])
+    act(() => {
+      result.current.scheduleSave('a', 'a edited')
+      result.current.scheduleSave('b', 'b edited')
+    })
+    await settle()
+
+    expect(mockUpdateSegment).toHaveBeenCalledTimes(2)
+    expect(mockFetchSegmentsWithWords).toHaveBeenCalledTimes(1)
+    expect(mockToast).toHaveBeenCalledTimes(1)
+  })
+
   describe('flushSave', () => {
     it('reports nothing when there is no draft', async () => {
       const { result } = setup()
@@ -258,7 +321,11 @@ describe('useTranscriptMutations', () => {
         reloaded = await result.current.reloadSegments()
       })
 
-      expect(reloaded).toEqual({ droppedDrafts: 1 })
+      expect(reloaded).toBe(true)
+      // The reload drops b's draft, and says so itself.
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Changed in another tab — refreshed', description: "Your last edit to a segment that changed wasn't saved.",
+      }))
       expect(result.current.segments.map((s) => [s.id, s.text])).toEqual([
         ['a', 'a draft'], ['b', 'b first half'], [C, 'b second half'],
       ])
@@ -292,8 +359,9 @@ describe('useTranscriptMutations', () => {
       await act(async () => {
         reloaded = await result.current.reloadSegments()
       })
-      expect(reloaded).toBeNull()
+      expect(reloaded).toBe(false)
       expect(result.current.segments[0].text).toBe('original text')
+      expect(mockToast).not.toHaveBeenCalled()
       consoleSpy.mockRestore()
     })
   })

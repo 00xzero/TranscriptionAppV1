@@ -17,8 +17,6 @@ export type SaveOutcome = 'saved' | 'nothing' | 'failed' | 'stale'
 /** Unsaved text for a segment, and the revision it was edited against. */
 type Draft = { text: string; revision: number }
 
-export type ReloadResult = { droppedDrafts: number }
-
 export function useTranscriptMutations({
   transcriptId,
   segments,
@@ -38,6 +36,8 @@ export function useTranscriptMutations({
   // Text not saved yet, per segment. A save clears only the draft it wrote, so
   // an edit made while it was in flight keeps its own.
   const drafts = useRef(new Map<string, Draft>())
+  // Set while a save of every waiting draft is queued and has not started.
+  const saveAllQueued = useRef(false)
 
   // Where the caret goes when the next editor opens (after a split or undo).
   // Read, not consumed, so a re-run layout effect finds it too; it lapses once
@@ -76,12 +76,12 @@ export function useTranscriptMutations({
    * Replace the segments and words with the database's, read together so each
    * segment's words belong to the revision it is shown at. A draft survives where
    * its segment still has the revision it was edited against; one whose
-   * segment was reshaped or removed is dropped. Resolves null if the database
-   * could not be read, leaving everything as it was.
+   * segment was reshaped or removed is dropped, and the user is told. Resolves
+   * false if the database could not be read, leaving everything as it was.
    *
    * It writes nothing, so it runs inside a queued task, never queueing one.
    */
-  const reloadSegments = useCallback(async (): Promise<ReloadResult | null> => {
+  const reloadSegments = useCallback(async (): Promise<boolean> => {
     let rows: Seg[]
     let wordRows: readonly unknown[]
     try {
@@ -90,17 +90,17 @@ export function useTranscriptMutations({
       wordRows = fetched.flatMap((row) => row.words)
     } catch (error) {
       console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
-      return null
+      return false
     }
 
     const fetched = new Map(rows.map((row) => [row.id, row]))
-    let droppedDrafts = 0
+    let droppedDrafts = false
     for (const [segId, draft] of drafts.current) {
       if (fetched.get(segId)?.revision === draft.revision) continue
       drafts.current.delete(segId)
       clearSaveTimer(segId)
       showSaveStatus(segId, 'idle')
-      droppedDrafts++
+      droppedDrafts = true
     }
 
     const next = rows.map((row) => {
@@ -108,42 +108,44 @@ export function useTranscriptMutations({
       return draft ? { ...row, text: draft.text } : row
     })
     const textById = new Map(next.map((row) => [row.id, row.text]))
+    // Worked out once: a live store runs its updater again inside React.
+    const grouped = groupSourceWords(wordRows)
     segments.update(() => next)
-    words.update(() => groupSourceWords(wordRows))
+    words.update(() => grouped)
     setEditingTexts((prev) => Object.fromEntries(
       Object.keys(prev).flatMap((id) => textById.has(id) ? [[id, textById.get(id)!]] : [])
     ))
     setEditingId((prev) => (prev && textById.has(prev) ? prev : null))
-    return { droppedDrafts }
+    if (droppedDrafts) toast({ title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error' })
+    return true
   }, [transcriptId, segments, words, clearSaveTimer, showSaveStatus])
 
-  // Runs inside the write queue.
-  const writeDraft = useCallback(async (segId: string): Promise<SaveOutcome> => {
-    const draft = drafts.current.get(segId)
-    if (!draft) return 'nothing'
-    try {
-      await updateSegment(segId, { text: draft.text }, draft.revision)
-    } catch (error) {
-      if (isStaleSegmentSave(error)) {
-        // The segment was split or rejoined elsewhere since this text was
-        // typed. A reload already run for another draft has dropped this one.
-        if (drafts.current.get(segId) === draft) {
-          const reloaded = await reloadSegments()
-          toast(reloaded
-            ? { title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error' }
-            : { title: STALE_TOAST, variant: 'error' })
-        }
-        return 'stale'
+  // Runs inside the write queue. The drafts are of different segments, so
+  // they are written at once.
+  const writeDrafts = useCallback(async (segIds: readonly string[]): Promise<SaveOutcome[]> => {
+    const written = await Promise.all(segIds.map(async (segId) => {
+      const draft = drafts.current.get(segId)
+      if (!draft) return { segId, draft, outcome: 'nothing' as const }
+      try {
+        await updateSegment(segId, { text: draft.text }, draft.revision)
+      } catch (error) {
+        if (isStaleSegmentSave(error)) return { segId, draft, outcome: 'stale' as const }
+        console.error('save failed', error)
+        if (drafts.current.get(segId) === draft) showSaveStatus(segId, 'error')
+        return { segId, draft, outcome: 'failed' as const }
       }
-      console.error('save failed', error)
-      if (drafts.current.get(segId) === draft) showSaveStatus(segId, 'error')
-      return 'failed'
-    }
-    if (drafts.current.get(segId) === draft) {
-      drafts.current.delete(segId)
-      showSaveStatus(segId, 'saved')
-    }
-    return 'saved'
+      if (drafts.current.get(segId) === draft) {
+        drafts.current.delete(segId)
+        showSaveStatus(segId, 'saved')
+      }
+      return { segId, draft, outcome: 'saved' as const }
+    }))
+    // A segment was split or rejoined elsewhere since its text was typed: one
+    // reload, however many were refused, drops those drafts and says so. A
+    // reload already run since has dropped them.
+    const stale = written.some(({ segId, draft, outcome }) => outcome === 'stale' && drafts.current.get(segId) === draft)
+    if (stale && !(await reloadSegments())) toast({ title: STALE_TOAST, variant: 'error' })
+    return written.map(({ outcome }) => outcome)
   }, [reloadSegments, showSaveStatus])
 
   const scheduleSave = useCallback((segId: string, newText: string) => {
@@ -161,9 +163,18 @@ export function useTranscriptMutations({
     clearSaveTimer(segId)
     saveTimers.current[segId] = window.setTimeout(() => {
       delete saveTimers.current[segId]
-      void enqueue(() => writeDraft(segId))
+      if (saveAllQueued.current) return
+      saveAllQueued.current = true
+      void enqueue(async () => {
+        saveAllQueued.current = false
+        // Every draft waiting now is saved with this one, so the drafts a
+        // Replace All made together are written together, not one by one.
+        const segIds = [...drafts.current.keys()]
+        segIds.forEach(clearSaveTimer)
+        await writeDrafts(segIds)
+      })
     }, SAVE_DEBOUNCE_MS)
-  }, [segments, showSaveStatus, clearSaveTimer, enqueue, writeDraft])
+  }, [segments, showSaveStatus, clearSaveTimer, enqueue, writeDrafts])
 
   /**
    * Save a segment's draft now rather than after the debounce, and report
@@ -174,8 +185,8 @@ export function useTranscriptMutations({
   const flushSave = useCallback((segId: string): Promise<SaveOutcome> => {
     if (!drafts.current.has(segId)) return Promise.resolve('nothing')
     clearSaveTimer(segId)
-    return enqueue(() => writeDraft(segId))
-  }, [clearSaveTimer, enqueue, writeDraft])
+    return enqueue(async () => (await writeDrafts([segId]))[0])
+  }, [clearSaveTimer, enqueue, writeDrafts])
 
   /** Open the editor on a segment with the caret at `offset`. */
   const openEditorAt = useCallback((segId: string, offset: number) => {

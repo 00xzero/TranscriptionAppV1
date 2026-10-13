@@ -1,4 +1,5 @@
 import type { EditorWord, Seg, WordsBySegment } from '../types'
+import { compareIds } from '../utils'
 
 /**
  * The editor's side of a split and its undo, applied only once the database
@@ -9,8 +10,7 @@ import type { EditorWord, Seg, WordsBySegment } from '../types'
 
 /** Display order, as the database sorts segments: start time, then id. */
 export function compareSegments(a: Pick<Seg, 'id' | 'start_ms'>, b: Pick<Seg, 'id' | 'start_ms'>): number {
-  if (a.start_ms !== b.start_ms) return a.start_ms - b.start_ms
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  return a.start_ms - b.start_ms || compareIds(a.id, b.id)
 }
 
 /** Put each row in place by id; a row not shown yet goes where display order puts it. */
@@ -24,11 +24,6 @@ export function upsertSegments(segments: readonly Seg[], rows: readonly Seg[]): 
     result.splice(at < 0 ? result.length : at, 0, row)
   }
   return result
-}
-
-/** The segment and its new half in place, from split_segment's rows. */
-export function applySplitSegments(segments: readonly Seg[], rows: readonly [Seg, Seg]): Seg[] {
-  return upsertSegments(segments, rows)
 }
 
 /** The words captured for the split, divided between the two halves. */
@@ -62,7 +57,8 @@ export function applyRejoinWords(
   return next
 }
 
-/** The text two halves join under, with one space at the seam. */
-export function joinSegmentTexts(first: string, second: string): string {
-  return `${first.trimEnd()} ${second.trimStart()}`
+/** The text two halves join under, with one space at the seam, and where the second half starts in it. */
+export function joinSegmentTexts(first: string, second: string): { text: string; seam: number } {
+  const head = first.trimEnd()
+  return { text: `${head} ${second.trimStart()}`, seam: head.length + 1 }
 }

@@ -99,17 +99,7 @@ function matchAnchors(tokenKeys: string[], wordKeys: string[]): Array<[number, n
     return anchors;
 }
 
-export function alignTextToWords(
-    text: string,
-    words: readonly SourceWord[],
-    segStartMs: number,
-    segEndMs: number
-): AlignedToken[] {
-    return alignTokens(text, words, segStartMs, segEndMs)
-        .map(({ text: tokenText, startMs, endMs }) => ({ text: tokenText, startMs, endMs }));
-}
-
-/** alignTextToWords, with each token's offset and the words it stands for. */
+/** Every token of the text, with its time, its offset and the words it stands for. */
 export function alignTokens(
     text: string,
     words: readonly SourceWord[],

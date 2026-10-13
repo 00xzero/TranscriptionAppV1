@@ -7,26 +7,27 @@ import {
   type RejoinSegmentsRequest,
   type SplitSegmentRequest,
 } from '@/lib/supabase/queries'
-import { toast } from '@/components/ui/toaster'
+import { toast, type ToastOptions } from '@/components/ui/toaster'
+import { UNDO_WINDOW_MS } from '@/lib/undo'
 import { randomUuid } from '@/lib/ids'
 import { CONFLICT_TOAST, isConflict, isGone, isUncertainOutcome } from '@/lib/people/errors'
-import type { EditorWord, Seg, WordsBySegment } from '../types'
+import type { Seg, WordsBySegment } from '../types'
 import { REPLAY_DELAYS_MS } from '../utils'
 import {
   applyRejoinSegments,
   applyRejoinWords,
-  applySplitSegments,
   applySplitWords,
   joinSegmentTexts,
+  upsertSegments,
 } from './segmentSplit'
-import { UNDO_WINDOW_MS, type Enqueue } from './useEditorWriteQueue'
+import type { Enqueue } from './useEditorWriteQueue'
 import type { LiveStore } from './useLiveStore'
-import type { ReloadResult, SaveOutcome } from './useTranscriptMutations'
+import type { SaveOutcome } from './useTranscriptMutations'
 
 /** Why a segment is closed to edits: a split or undo waiting on the database. */
 export type BusyKind = 'splitting' | 'undoing' | 'unconfirmed'
 
-type Hold = { kind: BusyKind; retry?: () => void }
+type Hold = { kind: BusyKind; undo: boolean; retry?: () => void }
 type Held = {
   set(kind: BusyKind, retry?: () => void): void
   release(): void
@@ -61,7 +62,7 @@ export function useSegmentSplit({
   editingId: string | null
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   flushSave: (segId: string) => Promise<SaveOutcome>
-  reloadSegments: () => Promise<ReloadResult | null>
+  reloadSegments: () => Promise<boolean>
   openEditorAt: (segId: string, offset: number) => void
 }) {
   const editingIdRef = useRef(editingId)
@@ -76,7 +77,7 @@ export function useSegmentSplit({
     setBusy(new Map([...holdsRef.current].map(([id, holds]) => [id, holds[holds.length - 1].kind])))
   }, [])
   const hold = useCallback((ids: readonly string[], kind: BusyKind): Held => {
-    const token: Hold = { kind }
+    const token: Hold = { kind, undo: kind === 'undoing' }
     for (const id of ids) holdsRef.current.set(id, [...(holdsRef.current.get(id) ?? []), token])
     publish()
     return {
@@ -98,16 +99,16 @@ export function useSegmentSplit({
   // wrong one. Retry, on the card or in the toast, replays the same request.
   // The card keeps it after the toast is gone; whichever is used first wins,
   // and the other then does nothing.
-  const leaveUnconfirmed = useCallback((held: Held, title: string, resume: BusyKind, replay: () => void) => {
+  const leaveUnconfirmed = useCallback((held: Held, what: 'split' | 'undo', replay: () => void) => {
     let used = false
     const retry = () => {
       if (used) return
       used = true
-      held.set(resume)
+      held.set(what === 'split' ? 'splitting' : 'undoing')
       replay()
     }
     held.set('unconfirmed', retry)
-    toast({ title, variant: 'error', action: { label: 'Retry', onClick: retry } })
+    toast({ title: `Couldn't reach the server to finish the ${what}`, variant: 'error', action: { label: 'Retry', onClick: retry } })
   }, [])
 
   /** Retry a split or undo the database has not confirmed, from its card. */
@@ -116,69 +117,68 @@ export function useSegmentSplit({
     holds?.[holds.length - 1].retry?.()
   }, [])
 
-  // Runs inside the write queue.
-  const settleRejoin = useCallback(async (
-    request: RejoinSegmentsRequest,
-    captured: { first: readonly EditorWord[]; next: readonly EditorWord[] },
-    caret: number,
-    held: Held,
-    retryUndo: () => void
-  ): Promise<void> => {
-    held.set('undoing')
+  /**
+   * Runs inside the write queue: whether the drafts saved ahead of a split or
+   * undo were written. If not, the hold is released. A stale draft has
+   * reloaded the segments and said so already; a failed one is reported here.
+   */
+  const draftsSaved = useCallback(async (
+    flushed: Promise<SaveOutcome | SaveOutcome[]>, held: Held, failed: ToastOptions
+  ): Promise<boolean> => {
+    const outcomes = [await flushed].flat()
+    if (!outcomes.includes('stale') && !outcomes.includes('failed')) return true
+    held.release()
+    if (!outcomes.includes('stale')) toast(failed)
+    return false
+  }, [])
+
+  /**
+   * Runs inside the write queue: calls the database until it answers for
+   * certain. A lost answer is replayed with the same request; one still
+   * unreachable after that leaves the hold unconfirmed, and its Retry runs
+   * `replay`. A refusal because the segments changed reloads them first. The
+   * hold is released on every outcome but success, which the caller applies
+   * before releasing it.
+   */
+  const settle = useCallback(async <T>(
+    held: Held, what: 'split' | 'undo', call: () => Promise<T>, replay: () => void
+  ): Promise<{ done: T } | 'changed' | 'refused' | 'unconfirmed'> => {
     for (let attempt = 0; ; attempt++) {
       try {
-        const row = await rejoinSegments(request)
-        segments.update((current) => applyRejoinSegments(current, row, request.nextSegmentId))
-        words.update((current) => applyRejoinWords(current, row.id, request.nextSegmentId, captured))
-        setEditingTexts((prev) => {
-          const { [request.nextSegmentId]: removed, ...rest } = prev
-          return removed !== undefined || row.id in prev ? { ...rest, [row.id]: row.text } : rest
-        })
-        held.release()
-        if (editingIdRef.current === request.nextSegmentId) openEditorAt(row.id, caret)
-        return
+        return { done: await call() }
       } catch (error) {
-        if (isUncertainOutcome(error)) {
-          if (attempt < REPLAY_DELAYS_MS.length) {
-            await sleep(REPLAY_DELAYS_MS[attempt])
-            continue
-          }
-          leaveUnconfirmed(held, "Couldn't reach the server to finish the undo", 'undoing',
-            () => void enqueue(() => settleRejoin(request, captured, caret, held, retryUndo)))
-          return
+        if (isUncertainOutcome(error) && attempt < REPLAY_DELAYS_MS.length) {
+          await sleep(REPLAY_DELAYS_MS[attempt])
+          continue
         }
-        if (isConflict(error) || isGone(error)) {
-          if (!(await reloadSegments())) {
-            leaveUnconfirmed(held, "Couldn't reach the server to finish the undo", 'undoing',
-              () => void enqueue(() => settleRejoin(request, captured, caret, held, retryUndo)))
-            return
-          }
-          held.release()
-          toast({ title: "Can't undo — changed since", variant: 'error' })
-          return
+        // Changed elsewhere, or done here and then reshaped elsewhere: the
+        // database's segments and words replace the ones captured.
+        const changed = isConflict(error) || isGone(error)
+        if (isUncertainOutcome(error) || (changed && !(await reloadSegments()))) {
+          leaveUnconfirmed(held, what, replay)
+          return 'unconfirmed'
         }
-        console.error('undo split failed', error)
         held.release()
-        toast({ title: "Couldn't undo", variant: 'error', action: { label: 'Retry', onClick: retryUndo } })
-        return
+        if (changed) return 'changed'
+        console.error(`${what} failed`, error)
+        return 'refused'
       }
     }
-  }, [segments, words, enqueue, setEditingTexts, reloadSegments, openEditorAt, leaveUnconfirmed])
+  }, [reloadSegments, leaveUnconfirmed])
 
   /** Join a split's halves back together, as they are when the undo runs. */
   const undo = useCallback((firstId: string, nextId: string) => {
+    // A second click on the same Undo (its toast fades out still clickable)
+    // is the same request, not a conflict: the first one answers it.
+    if (holdsRef.current.get(firstId)?.some((h) => h.undo)) return
     const held = hold([firstId, nextId], 'undoing')
     const retry = () => undo(firstId, nextId)
     // Saved ahead of the undo in the queue, so the join reads saved text.
     const flushed = Promise.all([flushSave(firstId), flushSave(nextId)])
     void enqueue(async () => {
-      const outcomes = await flushed
-      if (outcomes.includes('stale')) { held.release(); return }
-      if (outcomes.includes('failed')) {
-        held.release()
-        toast({ title: "Couldn't undo — your latest edit isn't saved yet", variant: 'error', action: { label: 'Retry', onClick: retry } })
-        return
-      }
+      const failed: ToastOptions = { title: "Couldn't undo — your latest edit isn't saved yet", variant: 'error',
+        action: { label: 'Retry', onClick: retry } }
+      if (!(await draftsSaved(flushed, held, failed))) return
       // Queued ahead of this undo, a split of either half may have ended
       // unconfirmed: it may or may not have happened. Joining now could delete
       // the segment its Retry still has to settle.
@@ -190,82 +190,40 @@ export function useSegmentSplit({
       }
       const first = segments.get().find((segment) => segment.id === firstId)
       const next = segments.get().find((segment) => segment.id === nextId)
-      const firstWords = words.get().get(firstId) ?? []
-      const nextWords = words.get().get(nextId) ?? []
-      if (!first || !next || nextWords.length === 0) {
+      const captured = { first: [...words.get().get(firstId) ?? []], next: [...words.get().get(nextId) ?? []] }
+      if (!first || !next || captured.next.length === 0) {
         held.release()
         toast({ title: "Can't undo — changed since", variant: 'error' })
         return
       }
-      const text = joinSegmentTexts(first.text, next.text)
-      await settleRejoin({
+      const { text, seam } = joinSegmentTexts(first.text, next.text)
+      const request: RejoinSegmentsRequest = {
         segmentId: firstId,
         expectedRevision: first.revision,
         nextSegmentId: nextId,
         expectedNextRevision: next.revision,
-        nextFirstWordId: nextWords[0].id,
+        nextFirstWordId: captured.next[0].id,
         text,
-      }, { first: [...firstWords], next: [...nextWords] }, first.text.trimEnd().length + 1, held, retry)
-    })
-  }, [hold, flushSave, enqueue, segments, words, settleRejoin])
-
-  // Runs inside the write queue.
-  const settleSplit = useCallback(async (
-    request: SplitSegmentRequest,
-    captured: readonly EditorWord[],
-    splitWordIndex: number,
-    held: Held
-  ): Promise<void> => {
-    held.set('splitting')
-    const replay = () => void enqueue(() => settleSplit(request, captured, splitWordIndex, held))
-    // Editing moves to the new half only from the half it was split from: the
-    // answer can come late, and by then the user may be typing elsewhere.
-    const followSplit = (newId: string) => {
-      if (editingIdRef.current === request.segmentId) openEditorAt(newId, 0)
-    }
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const rows = await splitSegment(request)
-        segments.update((current) => applySplitSegments(current, rows))
-        words.update((current) => applySplitWords(current, rows, captured, splitWordIndex))
-        setEditingTexts((prev) => ({ ...prev, [rows[0].id]: rows[0].text, [rows[1].id]: rows[1].text }))
-        held.release()
-        followSplit(rows[1].id)
-        toast({ title: 'Segment split', durationMs: UNDO_WINDOW_MS,
-          action: { label: 'Undo', onClick: () => undo(rows[0].id, rows[1].id) } })
-        return
-      } catch (error) {
-        if (isUncertainOutcome(error)) {
-          if (attempt < REPLAY_DELAYS_MS.length) {
-            await sleep(REPLAY_DELAYS_MS[attempt])
-            continue
-          }
-          leaveUnconfirmed(held, "Couldn't reach the server to finish the split", 'splitting', replay)
-          return
-        }
-        if (isConflict(error) || isGone(error)) {
-          // Changed elsewhere, or split here and then reshaped elsewhere: the
-          // database's segments and words replace the captured ones.
-          if (!(await reloadSegments())) {
-            leaveUnconfirmed(held, "Couldn't reach the server to finish the split", 'splitting', replay)
-            return
-          }
-          held.release()
-          if (segments.get().some((segment) => segment.id === request.newSegmentId)) {
-            followSplit(request.newSegmentId)
-            toast({ title: 'Segment split — changed in another tab since' })
-          } else {
-            toast({ title: CONFLICT_TOAST, variant: 'error' })
-          }
-          return
-        }
-        console.error('split failed', error)
-        held.release()
-        toast({ title: "Couldn't split this segment", variant: 'error' })
-        return
       }
-    }
-  }, [segments, words, enqueue, setEditingTexts, reloadSegments, openEditorAt, leaveUnconfirmed, undo])
+      // Retry, if the answer is lost, runs this again with the same request.
+      const settleRejoin = async (): Promise<void> => {
+        const outcome = await settle(held, 'undo', () => rejoinSegments(request), () => void enqueue(settleRejoin))
+        if (outcome === 'changed') toast({ title: "Can't undo — changed since", variant: 'error' })
+        if (outcome === 'refused') toast({ title: "Couldn't undo", variant: 'error', action: { label: 'Retry', onClick: retry } })
+        if (typeof outcome !== 'object') return
+        const row = outcome.done
+        segments.update((current) => applyRejoinSegments(current, row, nextId))
+        words.update((current) => applyRejoinWords(current, row.id, nextId, captured))
+        setEditingTexts((prev) => {
+          const { [nextId]: removed, ...rest } = prev
+          return removed !== undefined || row.id in prev ? { ...rest, [row.id]: row.text } : rest
+        })
+        held.release()
+        if (editingIdRef.current === nextId) openEditorAt(row.id, seam)
+      }
+      await settleRejoin()
+    })
+  }, [hold, flushSave, enqueue, draftsSaved, segments, words, settle, setEditingTexts, openEditorAt])
 
   /**
    * Split a segment at a caret in its text (the text as typed, which may not
@@ -292,19 +250,43 @@ export function useSegmentSplit({
     // The new half is held too: a reload can show it before this split is
     // confirmed, and text typed there would be overwritten when it is.
     const held = hold([segId, request.newSegmentId], 'splitting')
+    // Editing moves to the new half only from the half it was split from: the
+    // answer can come late, and by then the user may be typing elsewhere.
+    const followSplit = () => {
+      if (editingIdRef.current === segId) openEditorAt(request.newSegmentId, 0)
+    }
+
+    // Retry, if the answer is lost, runs this again with the same request.
+    const settleSplit = async (): Promise<void> => {
+      const outcome = await settle(held, 'split', () => splitSegment(request), () => void enqueue(settleSplit))
+      if (outcome === 'refused') toast({ title: "Couldn't split this segment", variant: 'error' })
+      if (outcome === 'changed') {
+        if (segments.get().some((s) => s.id === request.newSegmentId)) {
+          followSplit()
+          toast({ title: 'Segment split — changed in another tab since' })
+        } else {
+          toast({ title: CONFLICT_TOAST, variant: 'error' })
+        }
+      }
+      if (typeof outcome !== 'object') return
+      const rows = outcome.done
+      segments.update((current) => upsertSegments(current, rows))
+      words.update((current) => applySplitWords(current, rows, captured, plan.splitWordIndex))
+      setEditingTexts((prev) => ({ ...prev, [rows[0].id]: rows[0].text, [rows[1].id]: rows[1].text }))
+      held.release()
+      followSplit()
+      toast({ title: 'Segment split', durationMs: UNDO_WINDOW_MS,
+        action: { label: 'Undo', onClick: () => undo(rows[0].id, rows[1].id) } })
+    }
+
     // Saved ahead of the split in the queue; the split task reads the outcome.
     const flushed = flushSave(segId)
     void enqueue(async () => {
-      const outcome = await flushed
-      if (outcome === 'stale') { held.release(); return }
-      if (outcome === 'failed') {
-        held.release()
-        toast({ title: "Couldn't split — your latest edit isn't saved yet", variant: 'error' })
-        return
+      if (await draftsSaved(flushed, held, { title: "Couldn't split — your latest edit isn't saved yet", variant: 'error' })) {
+        await settleSplit()
       }
-      await settleSplit(request, captured, plan.splitWordIndex, held)
     })
-  }, [segments, words, hold, flushSave, enqueue, settleSplit])
+  }, [segments, words, hold, openEditorAt, settle, enqueue, setEditingTexts, undo, flushSave, draftsSaved])
 
   return { busy, anyBusy: busy.size > 0, split, retry: retryUnconfirmed }
 }

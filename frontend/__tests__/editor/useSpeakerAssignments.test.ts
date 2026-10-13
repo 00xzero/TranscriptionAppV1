@@ -56,7 +56,7 @@ function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
     .map(({ id, speaker_id, revision }) => ({ id, speaker_id, revision })))
   queries.fetchSpeakers.mockResolvedValue(initialSpeakers)
   queries.fetchEditorPeopleContext.mockResolvedValue(context)
-  const reloadSegments = jest.fn().mockResolvedValue({ droppedDrafts: 0 })
+  const reloadSegments = jest.fn().mockResolvedValue(true)
   const rendered = renderHook(() => {
     const [speakers, setSpeakers] = useState(initialSpeakers)
     const [segments, setSegments] = useState(initialSegments)
@@ -448,18 +448,6 @@ test('a segment split or rejoined elsewhere reloads segments and words on return
   act(() => window.dispatchEvent(new Event('focus')))
   await waitFor(() => expect(reloadSegments).toHaveBeenCalledTimes(1))
   expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1)
-})
-
-test('a reload on return that drops unsaved text says so', async () => {
-  const { reloadSegments } = setup()
-  reloadSegments.mockResolvedValueOnce({ droppedDrafts: 1 })
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
-    { id: 's1', speaker_id: 'a', revision: 1 }, { id: 's2', speaker_id: 'a', revision: 0 },
-  ])
-  act(() => window.dispatchEvent(new Event('focus')))
-  await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({
-    title: 'Changed in another tab — refreshed', description: "Your last edit to a segment that changed wasn't saved.",
-  })))
 })
 
 test('an unchanged shape on return merges assignments without reloading', async () => {

@@ -30,8 +30,8 @@ type SegmentHeaderRowProps = {
   segmentId: string
   segmentText: string
   editingId: string | null
-  /** Splitting is offered only while editing; null hides the button. */
-  canSplit: boolean | null
+  /** Whether the caret is at a place the segment can split; the button shows only while editing. */
+  canSplit: boolean
   onSplitClick: () => void
   onRetryClick: () => void
   onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
@@ -120,7 +120,7 @@ function SegmentHeaderRow({
           </>
         )}
       </span>
-      {canSplit !== null && (
+      {editingId === segmentId && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -146,7 +146,7 @@ function SegmentHeaderRow({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`${canSplit === null ? 'ml-auto ' : ''}p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+            className={`${editingId === segmentId ? '' : 'ml-auto '}p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
             onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
               e.stopPropagation()
               setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
@@ -327,9 +327,8 @@ export default function TranscriptSegmentCard({
       node.setSelectionRange(at, at)
     }
   }, [isEditing, text])
-  const canSplit = isEditing
-    ? !busy && caret !== null && findSplit(tokens, sourceWords ?? [], text, caret, s.start_ms) !== null
-    : null
+  const canSplit = isEditing && !busy && caret !== null &&
+    findSplit(tokens, sourceWords ?? [], text, caret, s.start_ms) !== null
   const splitAtCaret = () => {
     const node = textAreaRef.current
     if (node) onSplit(s.id, node.value, node.selectionStart)
@@ -412,7 +411,7 @@ export default function TranscriptSegmentCard({
             // renders one-line segments two lines tall. rows={1} lets the fit be exact.
             rows={1}
             className={`${SEGMENT_TEXT_TYPE} ${SEGMENT_EDIT_FIELD}`}
-            value={editingTexts[s.id] ?? s.text}
+            value={text}
             // Closed to edits while a split or undo waits on the database.
             readOnly={!!busy}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart)}
