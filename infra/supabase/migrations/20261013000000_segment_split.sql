@@ -8,10 +8,11 @@
 --
 -- revision counts a segment's shape changes. Split and rejoin bump it on the
 -- segment they reshape, and every write names the revision it was made
--- against: these functions refuse a mismatch, and the editor's text saves
--- filter on it, so text written against an old shape can never land on the
--- new one and duplicate what moved. Signed-in users may filter on revision but
--- never set it: their column grant stays UPDATE (text, is_edited).
+-- against: these functions and the speaker changes refuse a mismatch, and the
+-- editor's text saves filter on it, so text written against an old shape can
+-- never land on the new one and duplicate what moved. Signed-in users may
+-- filter on revision but never set it: their column grant stays
+-- UPDATE (text, is_edited).
 --
 -- A retry after a lost response replays the same call. Each function
 -- recognises its own completed write, as long as nothing has reshaped the
@@ -315,3 +316,156 @@ REVOKE ALL ON FUNCTION public.rejoin_segments(uuid, integer, uuid, integer, uuid
   FROM PUBLIC, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.split_segment(uuid, integer, uuid, text, text, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rejoin_segments(uuid, integer, uuid, integer, uuid, text) TO authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Speaker changes name the revision too. A split keeps the original segment's
+-- id and speaker, so a correction chosen while the segment was whole would
+-- still hold its expected speaker and change only the first half. Each change
+-- is now [{segment_id, expected_speaker_id, expected_revision, speaker_id}];
+-- as in the speaker identity guards, all are as before except the new key.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.apply_segment_speaker_changes(
+  p_transcript_id uuid,
+  p_changes jsonb
+)
+RETURNS TABLE (segment_id uuid, speaker_id uuid)
+SECURITY INVOKER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_change_count integer;
+  v_distinct_count integer;
+  v_locked_count integer;
+BEGIN
+  PERFORM public.require_completed_transcript(p_transcript_id, auth.uid());
+
+  IF p_changes IS NULL
+     OR jsonb_typeof(p_changes) <> 'array'
+     OR jsonb_array_length(p_changes) = 0 THEN
+    RAISE EXCEPTION 'changes must be a non-empty array' USING ERRCODE = 'SP003';
+  END IF;
+
+  -- Every key must be present, even when null: a missing expectation must not
+  -- silently read as "expected unassigned". A revision is never null.
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(p_changes) AS e
+    WHERE jsonb_typeof(e) <> 'object'
+       OR NOT (e ? 'segment_id' AND e ? 'expected_speaker_id' AND e ? 'expected_revision'
+               AND e ? 'speaker_id')
+       OR jsonb_typeof(e -> 'segment_id') <> 'string'
+       OR jsonb_typeof(e -> 'expected_revision') <> 'number'
+  ) THEN
+    RAISE EXCEPTION 'each change needs segment_id, expected_speaker_id, expected_revision and speaker_id'
+      USING ERRCODE = 'SP003';
+  END IF;
+
+  BEGIN
+    SELECT count(*), count(DISTINCT c.segment_id)
+    INTO v_change_count, v_distinct_count
+    FROM jsonb_to_recordset(p_changes)
+      AS c(segment_id uuid, expected_speaker_id uuid, expected_revision integer, speaker_id uuid);
+  EXCEPTION WHEN invalid_text_representation THEN
+    RAISE EXCEPTION 'changes contain an invalid id or revision' USING ERRCODE = 'SP003';
+  END;
+
+  IF v_distinct_count <> v_change_count THEN
+    RAISE EXCEPTION 'a segment appears more than once' USING ERRCODE = 'SP003';
+  END IF;
+
+  -- Lock in id order so concurrent calls cannot deadlock.
+  SELECT count(*) INTO v_locked_count
+  FROM (
+    SELECT sg.id
+    FROM public.segments AS sg
+    WHERE sg.transcript_id = p_transcript_id
+      AND sg.id IN (
+        SELECT c.segment_id FROM jsonb_to_recordset(p_changes) AS c(segment_id uuid)
+      )
+    ORDER BY sg.id
+    FOR UPDATE
+  ) AS locked;
+
+  IF v_locked_count <> v_change_count THEN
+    RAISE EXCEPTION 'segment not found' USING ERRCODE = 'SP001';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(p_changes) AS c(speaker_id uuid)
+    WHERE c.speaker_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.speakers AS sp
+        WHERE sp.id = c.speaker_id AND sp.transcript_id = p_transcript_id
+      )
+  ) THEN
+    RAISE EXCEPTION 'speaker not found' USING ERRCODE = 'SP001';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(p_changes) AS c(segment_id uuid, expected_speaker_id uuid)
+    JOIN public.segments AS sg ON sg.id = c.segment_id
+    WHERE sg.speaker_id IS DISTINCT FROM c.expected_speaker_id
+  ) THEN
+    RAISE EXCEPTION 'segment speaker changed since it was read' USING ERRCODE = 'SP002';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_to_recordset(p_changes) AS c(segment_id uuid, expected_revision integer)
+    JOIN public.segments AS sg ON sg.id = c.segment_id
+    WHERE sg.revision <> c.expected_revision
+  ) THEN
+    RAISE EXCEPTION 'segment was split or rejoined since it was read' USING ERRCODE = 'SP002';
+  END IF;
+
+  RETURN QUERY
+  UPDATE public.segments AS sg
+  SET speaker_id = c.speaker_id
+  FROM jsonb_to_recordset(p_changes) AS c(segment_id uuid, speaker_id uuid)
+  WHERE sg.id = c.segment_id
+    AND sg.transcript_id = p_transcript_id
+  RETURNING sg.id, sg.speaker_id;
+END;
+$$;
+
+-- As in the speaker identity guards, except that each change it builds, and
+-- returns for Undo, carries the segment's revision.
+CREATE OR REPLACE FUNCTION public.remove_person_from_transcript(p_person_id uuid, p_transcript_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_user uuid := auth.uid();
+  v_changes jsonb;
+BEGIN
+  IF v_user IS NULL THEN RAISE EXCEPTION 'authentication required' USING ERRCODE = '42501'; END IF;
+  PERFORM public.require_completed_transcript(p_transcript_id, v_user);
+  -- Merge and delete lock the person FOR UPDATE, so this waits for either to
+  -- finish and then finds the person gone. Without it, a merge committing
+  -- between the read and the move below would pass the segment guard, since a
+  -- merge relinks speakers and leaves segments where they are.
+  PERFORM 1 FROM public.people WHERE id = p_person_id AND user_id = v_user FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'person not found' USING ERRCODE = 'SP001'; END IF;
+
+  SELECT jsonb_agg(jsonb_build_object(
+      'segment_id', sg.id, 'expected_speaker_id', sg.speaker_id,
+      'expected_revision', sg.revision, 'speaker_id', home.id)
+    ORDER BY sg.start_ms, sg.id)
+  INTO v_changes
+  FROM public.segments AS sg
+  JOIN public.speakers AS sp ON sp.transcript_id = sg.transcript_id AND sp.id = sg.speaker_id
+  LEFT JOIN public.speakers AS home
+    ON home.transcript_id = sg.transcript_id AND home.diarization_index = sg.diarization_index
+  WHERE sg.transcript_id = p_transcript_id AND sp.person_id = p_person_id;
+
+  IF v_changes IS NULL THEN
+    RAISE EXCEPTION 'person has no segments in this transcript' USING ERRCODE = 'SP002';
+  END IF;
+
+  -- Locks the segments and checks each still holds the speaker read above.
+  PERFORM 1 FROM public.apply_segment_speaker_changes(p_transcript_id, v_changes);
+  RETURN v_changes;
+END;
+$$;

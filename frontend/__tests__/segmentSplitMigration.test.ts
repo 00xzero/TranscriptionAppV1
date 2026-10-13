@@ -70,4 +70,27 @@ describe('Segment split migration', () => {
     }
     expect(sql).not.toMatch(/grant [^;]* to (anon|public)/)
   })
+
+  // Codex: a split keeps the segment's id and speaker, so speaker changes must
+  // name the revision too.
+  test('every speaker change must name a revision, and a mismatch is refused', () => {
+    const fn = replaced('apply_segment_speaker_changes')
+    expect(fn).toContain("e ? 'expected_revision'")
+    expect(fn).toContain("jsonb_typeof(e -> 'expected_revision') <> 'number'")
+    expect(fn).toContain('where sg.revision <> c.expected_revision')
+    expect(fn).toContain("raise exception 'segment was split or rejoined since it was read' using errcode = 'sp002'")
+    // Checked before the segments are written.
+    expect(fn.indexOf('sg.revision <> c.expected_revision')).toBeLessThan(fn.indexOf('set speaker_id = c.speaker_id'))
+  })
+
+  test('Remove person builds its changes, and their Undo, with each revision', () => {
+    expect(replaced('remove_person_from_transcript')).toContain("'expected_revision', sg.revision")
+  })
 })
+
+/** The body of a function this migration replaces. */
+function replaced(name: string): string {
+  const start = sql.indexOf(`create or replace function public.${name}(`)
+  expect(start).toBeGreaterThanOrEqual(0)
+  return sql.slice(start, sql.indexOf('$$;', start))
+}
