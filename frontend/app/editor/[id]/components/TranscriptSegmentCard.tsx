@@ -1,12 +1,14 @@
 import React from 'react'
-import { Pencil, X } from 'lucide-react'
+import { Pencil, Scissors, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
-import { alignTextToWords, type SourceWord } from '@/core/transcript/word-alignment'
+import { alignTokens, type SourceWord } from '@/core/transcript/word-alignment'
+import { findSplit } from '@/core/transcript/segment-split'
 import type { PlaybackClock } from '../playbackClock'
 import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 import { useCurrentWordIndex } from '../hooks/useCurrentWordIndex'
+import type { BusyKind } from '../hooks/useSegmentSplit'
 import { formatElapsedTime } from '@/lib/utils'
 
 // Keeps the edit textarea exactly as tall as its content so entering edit mode
@@ -24,12 +26,23 @@ type SegmentHeaderRowProps = {
   speaker: SpeakerDisplay
   timestamp: string
   saveStatus: SaveStatusBySegment
+  busy: BusyKind | undefined
   segmentId: string
   segmentText: string
   editingId: string | null
+  /** Whether the caret is at a place the segment can split; the button shows only while editing. */
+  canSplit: boolean
+  onSplitClick: () => void
+  onRetryClick: () => void
   onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
+}
+
+const BUSY_LABEL: Record<BusyKind, string> = {
+  splitting: 'Splitting…',
+  undoing: 'Undoing…',
+  unconfirmed: 'Not confirmed',
 }
 
 function SegmentHeaderRow({
@@ -37,9 +50,13 @@ function SegmentHeaderRow({
   speaker,
   timestamp,
   saveStatus,
+  busy,
   segmentId,
   segmentText,
   editingId,
+  canSplit,
+  onSplitClick,
+  onRetryClick,
   onSpeakerClick,
   setEditingId,
   setEditingTexts,
@@ -77,15 +94,59 @@ function SegmentHeaderRow({
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
       <span className="text-[10px] font-mono">
-        {saveStatus[segmentId] === 'saving' && <span className="text-trust-blue">Saving…</span>}
-        {saveStatus[segmentId] === 'saved' && <span className="text-emerald-600">Saved</span>}
-        {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
+        {busy === 'unconfirmed' ? (
+          <span className="text-ember-red">
+            {BUSY_LABEL[busy]}
+            {/* Stays here after the toast that also offers it is gone. */}
+            <button
+              type="button"
+              className="ml-1.5 font-semibold underline underline-offset-2 hover:no-underline rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ember-red/40"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                // A click on the card seeks; this one only retries.
+                e.stopPropagation()
+                onRetryClick()
+              }}
+            >
+              Retry
+            </button>
+          </span>
+        ) : busy ? (
+          <span className="text-trust-blue">{BUSY_LABEL[busy]}</span>
+        ) : (
+          <>
+            {saveStatus[segmentId] === 'saving' && <span className="text-trust-blue">Saving…</span>}
+            {saveStatus[segmentId] === 'saved' && <span className="text-emerald-600">Saved</span>}
+            {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
+          </>
+        )}
       </span>
+      {editingId === segmentId && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="ml-auto p-1 rounded-md text-trust-blue hover:bg-ink/10 dark:hover:bg-paper/10 disabled:opacity-30 disabled:hover:bg-transparent"
+              disabled={!canSplit}
+              // Keep focus, and the caret, in the textarea the split reads.
+              onMouseDown={(e: React.MouseEvent<HTMLButtonElement>) => e.preventDefault()}
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                // A click on the card seeks; this one only splits.
+                e.stopPropagation()
+                onSplitClick()
+              }}
+              aria-label="Split segment here"
+            >
+              <Scissors className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Split here (Enter)</TooltipContent>
+        </Tooltip>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`ml-auto p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+            className={`${editingId === segmentId ? '' : 'ml-auto '}p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
             onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
               e.stopPropagation()
               setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
@@ -156,6 +217,8 @@ export type TranscriptSegmentCardProps = {
   segment: Seg
   /** Deepgram's words for this segment; the text is aligned against them for timing. */
   sourceWords: readonly SourceWord[] | undefined
+  /** Set while a split or undo of this segment waits on the database. */
+  busy: BusyKind | undefined
   /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
   playbackClock: PlaybackClock
@@ -172,11 +235,17 @@ export type TranscriptSegmentCardProps = {
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
+  onSplit: (segId: string, text: string, caret: number) => void
+  /** Retries a split or undo the database has not confirmed. */
+  onRetryUnconfirmed: (segId: string) => void
+  /** Where the caret goes when this card's editor opens; at the end if none. */
+  caretHint: (segId: string) => number | undefined
 }
 
 export default function TranscriptSegmentCard({
   segment: s,
   sourceWords,
+  busy,
   isActive,
   playbackClock,
   matchesForSeg,
@@ -192,12 +261,24 @@ export default function TranscriptSegmentCard({
   setEditingId,
   setEditingTexts,
   scheduleSave,
+  onSplit,
+  onRetryUnconfirmed,
+  caretHint,
 }: TranscriptSegmentCardProps) {
   const isEditing = editingId === s.id
   const speakerLabel = speaker.label
   // Where keyboard focus returns when Escape closes the editor.
   const cardRef = React.useRef<HTMLDivElement | null>(null)
   const textAreaRef = React.useRef<HTMLTextAreaElement | null>(null)
+  // The caret in the textarea while editing; the split button follows it.
+  const [caret, setCaret] = React.useState<number | null>(null)
+  const caretRef = React.useRef<number | null>(null)
+  const trackCaret = (at: number) => {
+    caretRef.current = at
+    setCaret(at)
+  }
+  // The field's text as the user last left it: as it opened, or as typed.
+  const typedRef = React.useRef<string | null>(null)
 
   React.useLayoutEffect(() => {
     if (!isEditing) return
@@ -207,9 +288,13 @@ export default function TranscriptSegmentCard({
 
     autosize(node)
     // The editing identity is the caret and the focus ring, so entering edit
-    // mode must hand focus over; caret goes to the end, scroll stays put.
+    // mode must hand focus over; caret goes to the end (or where a split or
+    // undo put it), scroll stays put. The caret is placed first so the focus
+    // handler reads it.
+    const at = Math.min(caretHint(s.id) ?? node.value.length, node.value.length)
+    node.setSelectionRange(at, at)
     node.focus({ preventScroll: true })
-    node.setSelectionRange(node.value.length, node.value.length)
+    typedRef.current = node.value
     // Re-fit on width changes only; reacting to our own height writes would loop.
     let lastWidth = node.clientWidth
     const observer = new ResizeObserver(() => {
@@ -219,12 +304,35 @@ export default function TranscriptSegmentCard({
     })
     observer.observe(node)
     return () => observer.disconnect()
-  }, [isEditing, s.id])
-  // Mounted cards only (the list is virtualized); re-aligns whenever the text changes.
+  }, [isEditing, s.id, caretHint])
+  // Mounted cards only (the list is virtualized); re-aligns whenever the text
+  // changes. While editing it aligns the text being typed, which the split
+  // button and Enter cut.
+  const text = isEditing ? (editingTexts[s.id] ?? s.text) : s.text
   const tokens = React.useMemo(
-    () => alignTextToWords(s.text, sourceWords ?? [], s.start_ms, s.end_ms),
-    [s.text, sourceWords, s.start_ms, s.end_ms]
+    () => alignTokens(text, sourceWords ?? [], s.start_ms, s.end_ms),
+    [text, sourceWords, s.start_ms, s.end_ms]
   )
+  // Fit the field to its text on every change, typed or not: an undo, a reload
+  // or a replace changes it without an input event. A change from outside also
+  // moves the browser's caret to the end, so put it back where the user had it.
+  React.useLayoutEffect(() => {
+    const node = textAreaRef.current
+    if (!isEditing || !node) return
+    autosize(node)
+    if (text === typedRef.current) return
+    typedRef.current = text
+    if (document.activeElement === node && caretRef.current !== null) {
+      const at = Math.min(caretRef.current, text.length)
+      node.setSelectionRange(at, at)
+    }
+  }, [isEditing, text])
+  const canSplit = isEditing && !busy && caret !== null &&
+    findSplit(tokens, sourceWords ?? [], text, caret, s.start_ms) !== null
+  const splitAtCaret = () => {
+    const node = textAreaRef.current
+    if (node) onSplit(s.id, node.value, node.selectionStart)
+  }
   // The playing-word highlight is exact or off per segment: it runs only where
   // the segment has Deepgram's stored words to align against. Inside such a
   // segment, edited text follows the alignment by design, so a word typed in
@@ -276,13 +384,19 @@ export default function TranscriptSegmentCard({
 
       <div className="flex-1 min-w-0">
         <SegmentHeaderRow
-          showSpeaker={needHeader}
+          // While editing, the name shows even mid-turn, so the new half of a
+          // split can take its speaker straight away.
+          showSpeaker={needHeader || isEditing}
           speaker={speaker}
           timestamp={formatElapsedTime(s.start_ms)}
           saveStatus={saveStatus}
+          busy={busy}
           segmentId={s.id}
           segmentText={s.text}
           editingId={editingId}
+          canSplit={canSplit}
+          onSplitClick={splitAtCaret}
+          onRetryClick={() => onRetryUnconfirmed(s.id)}
           onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             onSpeakerClick(e, s.id, s.speaker_id ?? null)
@@ -297,10 +411,16 @@ export default function TranscriptSegmentCard({
             // renders one-line segments two lines tall. rows={1} lets the fit be exact.
             rows={1}
             className={`${SEGMENT_TEXT_TYPE} ${SEGMENT_EDIT_FIELD}`}
-            value={editingTexts[s.id] ?? s.text}
+            value={text}
+            // Closed to edits while a split or undo waits on the database.
+            readOnly={!!busy}
+            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart)}
+            onSelect={(e: React.SyntheticEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart)}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
               const value = e.target.value
-              autosize(e.currentTarget)
+              // Typed: the caret is already where the user put it. The fit
+              // follows from the effect above.
+              typedRef.current = value
               setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
               scheduleSave(s.id, value)
             }}
@@ -312,6 +432,14 @@ export default function TranscriptSegmentCard({
                 e.preventDefault()
                 setEditingId(null)
                 cardRef.current?.focus()
+                return
+              }
+              // Enter splits at the caret; Shift+Enter still breaks the line,
+              // and Enter that confirms an IME composition is left alone.
+              if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey &&
+                  !e.nativeEvent.isComposing && e.keyCode !== 229) {
+                e.preventDefault()
+                splitAtCaret()
               }
             }}
             aria-label={`Transcript text for ${speakerLabel} at ${formatElapsedTime(s.start_ms)}`}

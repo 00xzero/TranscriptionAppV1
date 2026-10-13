@@ -1,7 +1,9 @@
 import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/editor'
-import type { SourceWord } from '@/core/transcript/word-alignment'
+import type { EditorWord } from './types'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
+// Waits before replaying a split or undo whose answer was lost.
+export const REPLAY_DELAYS_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? [1, 1, 1] : [1000, 2000, 4000]
 export const SYNC_OFFSET_MS = 150
 export const SEEK_LOCK_MS = 3000
 export const PROGRAMMATIC_SCROLL_RESET_MS = 250
@@ -33,7 +35,7 @@ export const isUnicodeWordChar = (char: string) => {
  * order. Rows with a bad shape or impossible timing are dropped, so nothing
  * malformed reaches alignment or the playback binary searches.
  */
-export function groupSourceWords(rows: readonly unknown[]): Map<string, SourceWord[]> {
+export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWord[]> {
   const rowsBySegment = new Map<string, EditorSourceWord[]>()
   let dropped = 0
   for (const row of rows) {
@@ -50,16 +52,34 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, SourceWo
     console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
   }
 
-  const wordsBySegment = new Map<string, SourceWord[]>()
+  const wordsBySegment = new Map<string, EditorWord[]>()
   for (const [segmentId, list] of rowsBySegment) {
-    list.sort((a, b) => a.order_index - b.order_index)
+    // (order_index, id): the order the database splits and joins words in.
+    list.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
     wordsBySegment.set(segmentId, list.map((word) => ({
+      id: word.id,
       text: word.punctuated_text ?? word.text,
       startMs: word.start_ms,
       endMs: word.end_ms,
     })))
   }
   return wordsBySegment
+}
+
+/** Ids in the database's byte order, which breaks ties in display order. */
+export const compareIds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+type Revisioned = { id: string; revision: number }
+
+/**
+ * Whether every `expected` segment is among `current` at the same revision.
+ * A split or rejoin always bumps the revision of a segment that exists both
+ * before and after it, so this is how the editor tells that something read or
+ * chosen earlier still describes the segments as they are.
+ */
+export function revisionsMatch(current: readonly Revisioned[], expected: readonly Revisioned[]): boolean {
+  const revisions = new Map(current.map((segment) => [segment.id, segment.revision]))
+  return expected.every((segment) => revisions.get(segment.id) === segment.revision)
 }
 
 /** Index of the last item that starts at or before `ms`, or -1 if none has. */

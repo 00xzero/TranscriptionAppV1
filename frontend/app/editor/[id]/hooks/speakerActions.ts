@@ -7,6 +7,7 @@ import {
   undoCreatedPerson,
 } from '@/lib/supabase/queries'
 import { leastUsedSpeakerColor } from '@/lib/speakers/palette'
+import { reverseSpeakerChange, speakerChangeFrom } from '@/core/speakers/changes'
 import type {
   EditorPeopleContext,
   EditorPerson,
@@ -16,12 +17,14 @@ import type {
   Speaker,
 } from '@/contracts/db'
 import type { Seg } from '../types'
+import { revisionsMatch } from '../utils'
 
 /**
  * Editor speaker actions (spec §5–§7). Each one applies optimistically, writes
  * with one guarded database call, settles local state from that call's result
  * and returns its own Undo. A builder returns null when the state it was asked
- * to change is gone, which the editor treats like a refused write.
+ * to change is gone, which the editor treats like a refused write, and
+ * RESHAPED when a segment it was chosen for has been split or rejoined since.
  *
  * A detected speaker (Deepgram's `Speaker N`) never carries a name. Naming one
  * moves its segments to a named speaker, and Remove moves segments back to the
@@ -48,6 +51,20 @@ export type SpeakerStore = {
 }
 
 export type SpeakerUndo = { apply(): void; restore(): void; write(): Promise<void> }
+
+export const RESHAPED = 'reshaped'
+
+/**
+ * The segments an action was chosen for, as they are now; RESHAPED if any has
+ * been split, rejoined or removed since it was chosen. An action runs after
+ * the writes queued ahead of it, and applied to part of a segment chosen
+ * whole, it would do less than was asked.
+ */
+function chosenNow(store: SpeakerStore, chosen: readonly Seg[]): Seg[] | typeof RESHAPED {
+  if (!revisionsMatch(store.segments(), chosen)) return RESHAPED
+  const ids = new Set(chosen.map((segment) => segment.id))
+  return store.segments().filter((segment) => ids.has(segment.id))
+}
 
 export type SpeakerAction = {
   /** Success toast, e.g. "Identified Speaker 1 as Hamza". */
@@ -121,7 +138,7 @@ export function removalChanges(speakers: readonly Speaker[], segments: readonly 
   return segments.flatMap((segment) => {
     const home = homeSpeakerId(speakers, segment)
     return home !== undefined && home !== segment.speaker_id
-      ? [{ segment_id: segment.id, expected_speaker_id: segment.speaker_id, speaker_id: home }]
+      ? [{ ...speakerChangeFrom(segment), speaker_id: home }]
       : []
   })
 }
@@ -133,9 +150,7 @@ function reassignUndo(store: SpeakerStore, changes: readonly SegmentSpeakerChang
   return {
     apply: () => moveTo((change) => change.expected_speaker_id),
     restore: () => moveTo((change) => change.speaker_id),
-    write: async () => assignSegments(store, await reassignSegments(store.transcriptId, changes.map((change) => ({
-      segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-    })))),
+    write: async () => assignSegments(store, await reassignSegments(store.transcriptId, changes.map(reverseSpeakerChange))),
   }
 }
 
@@ -200,16 +215,18 @@ function settlePerson(store: SpeakerStore, replacesId: string, result: PersonCor
  */
 export function correctAction(
   store: SpeakerStore,
-  { segmentIds, applyTo, target, fromLabel, labelForSpeaker }: {
-    segmentIds: ReadonlySet<string>
+  { chosen, applyTo, target, fromLabel, labelForSpeaker }: {
+    /** The segments as they were shown when chosen. */
+    chosen: readonly Seg[]
     applyTo: ApplyTo
     target: SpeakerTarget
     fromLabel: string
     labelForSpeaker: (speakerId: string) => string
   }
-): SpeakerAction | null {
-  const segments = store.segments().filter((segment) => segmentIds.has(segment.id))
-  const changes = segments.map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id }))
+): SpeakerAction | typeof RESHAPED | null {
+  const segments = chosenNow(store, chosen)
+  if (segments === RESHAPED) return RESHAPED
+  const changes = segments.map(speakerChangeFrom)
   // A target made by an action queued ahead of this one was chosen under its
   // provisional id: find and write it under the saved one, but label it as it
   // was shown when chosen.
@@ -269,9 +286,7 @@ export function correctAction(
         async write() {
           await undoCreatedPerson({
             transcriptId: store.transcriptId, speakerId: result.speaker.id, person: result.person,
-            changes: moved(result.speaker.id).map((change) => ({
-              segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-            })),
+            changes: moved(result.speaker.id).map(reverseSpeakerChange),
           })
           // The correction's speaker stays, unlinked and silent.
           patchSpeaker(store, result.speaker.id, { person_id: null })
@@ -288,14 +303,15 @@ export function correctAction(
  */
 export function removeAction(
   store: SpeakerStore,
-  { segmentIds, applyTo, fromLabel, labelForSpeaker }: {
-    segmentIds: ReadonlySet<string>
+  { chosen, applyTo, fromLabel, labelForSpeaker }: {
+    chosen: readonly Seg[]
     applyTo: ApplyTo
     fromLabel: string
     labelForSpeaker: (speakerId: string | null) => string
   }
-): SpeakerAction | null {
-  const segments = store.segments().filter((segment) => segmentIds.has(segment.id))
+): SpeakerAction | typeof RESHAPED | null {
+  const segments = chosenNow(store, chosen)
+  if (segments === RESHAPED) return RESHAPED
   const changes = removalChanges(store.speakers(), segments)
   if (changes.length === 0) return null
   const homes = [...new Set(changes.map((change) => change.speaker_id))]
@@ -314,13 +330,14 @@ export function removeAction(
  */
 export function renameLocalAction(
   store: SpeakerStore,
-  { speakerId, label, segmentIds, fromLabel }: {
+  { speakerId, label, chosen, fromLabel }: {
     speakerId: string
     label: string
-    segmentIds: ReadonlySet<string>
+    /** The speaker's segments as they were shown when chosen. */
+    chosen: readonly Seg[]
     fromLabel: string
   }
-): SpeakerAction | null {
+): SpeakerAction | typeof RESHAPED | null {
   const speaker = store.speakers().find((row) => row.id === savedId(speakerId))
   if (!speaker || speaker.person_id) return null
   const messages = { done: `Renamed ${fromLabel} to ${label} in this transcript`, failed: `Couldn't rename ${fromLabel} to ${label}` }
@@ -345,9 +362,10 @@ export function renameLocalAction(
     }
   }
 
-  const changes = store.segments()
-    .filter((segment) => segmentIds.has(segment.id))
-    .map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id }))
+  // Naming a detected speaker moves its segments; renaming a label does not.
+  const segments = chosenNow(store, chosen)
+  if (segments === RESHAPED) return RESHAPED
+  const changes = segments.map(speakerChangeFrom)
   if (changes.length === 0) return null
   const provisional = provisionalSpeaker(store, { custom_label: label, person_id: null })
   const moved = (id: string) => changes.map((change) => ({ ...change, speaker_id: id }))

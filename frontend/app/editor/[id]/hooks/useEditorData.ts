@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 import {
   fetchEditorPeopleContext,
+  fetchSegmentWordSets,
   fetchTranscriptData,
-  fetchTranscriptWords,
   fetchSpeakers,
   fetchTranscriptById,
 } from '@/lib/supabase/queries'
@@ -14,11 +14,10 @@ import {
   type WaveformStatus,
 } from '@/contracts/db'
 import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
-import type { SourceWord } from '@/core/transcript/word-alignment'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
-import { toast } from '@/components/ui/toaster'
-import type { Seg, Speaker } from '../types'
-import { groupSourceWords } from '../utils'
+import { toast, type ToastOptions } from '@/components/ui/toaster'
+import type { Seg, Speaker, WordsBySegment } from '../types'
+import { groupSourceWords, revisionsMatch } from '../utils'
 
 const WaveformArtifactSchema = z.object({
   version: z.literal(WAVEFORM_ARTIFACT_VERSION),
@@ -30,7 +29,15 @@ const WaveformArtifactSchema = z.object({
 const WAVEFORM_POLL_INTERVAL_MS = 3000
 const WAVEFORM_POLL_TIMEOUT_MS = 2 * 60 * 1000
 const WAVEFORM_POLLABLE_STATUSES = new Set<WaveformStatus>(['pending', 'processing'])
-const NO_WORDS: ReadonlyMap<string, SourceWord[]> = new Map()
+const NO_WORDS: WordsBySegment = new Map()
+
+/** Word timings could not be loaded; Retry reloads segments and words. */
+export const wordTimingsFailedToast = (retry: () => void): ToastOptions => ({
+  title: "Couldn't load word timings",
+  description: 'Word highlighting is off for this transcript.',
+  variant: 'error',
+  action: { label: 'Retry', onClick: retry },
+})
 
 export function chooseEditorDuration(
   transcriptDurationSecs: number | null,
@@ -58,12 +65,17 @@ export function mergeSpeakerAssignments(
   )
 }
 
-export function useEditorData(transcriptId: string) {
+/**
+ * `reloadContent` reloads segments and words together, keeping unsaved text.
+ * It is called when words arrive out of step with the segments shown, and
+ * from Retry after words failed to load. It must be stable.
+ */
+export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
   // Deepgram's words per segment: the fixed timing record edited text aligns to.
-  const [wordsBySegment, setWordsBySegment] = useState<ReadonlyMap<string, SourceWord[]>>(NO_WORDS)
+  const [wordsBySegment, setWordsBySegment] = useState<WordsBySegment>(NO_WORDS)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
@@ -73,9 +85,15 @@ export function useEditorData(transcriptId: string) {
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
+  // Set once init has shown this transcript's segments. Until then init holds
+  // the freshest data, and anything loaded alongside it could be overwritten
+  // by its rows, read a moment earlier.
+  const loadedRef = useRef(false)
+  const isLoaded = useCallback(() => loadedRef.current, [])
 
   useEffect(() => {
     let cancelled = false
+    loadedRef.current = false
     let waveformPollId: ReturnType<typeof setInterval> | null = null
     let waveformPollStartedAt = 0
     setPeaks(null)
@@ -178,24 +196,34 @@ export function useEditorData(transcriptId: string) {
       })
     }
 
+    // The segments init shows, once it shows them; null if it never does.
+    let resolveSegmentsShown!: (rows: Seg[] | null) => void
+    const segmentsShown = new Promise<Seg[] | null>((resolve) => { resolveSegmentsShown = resolve })
+
     // Words load beside the segments and never hold them up. Until they arrive,
     // or if they fail, cards show no playing-word highlight and clicks aim at an
-    // even spread across the segment, as before word timings existed.
+    // even spread across the segment, as before word timings existed. Each
+    // segment's words arrive with its revision: if a split or rejoin elsewhere
+    // has moved any segment on from the one shown, the words are not used, and
+    // segments and words reload together instead.
     // Async so even a synchronous throw lands in reportWordLoadFailure.
-    const loadWords = async () => fetchTranscriptWords(transcriptId)
-    const showWords = (rows: readonly unknown[]) => {
-      if (cancelled) return
-      setWordsBySegment(groupSourceWords(rows))
+    const loadWords = async () => fetchSegmentWordSets(transcriptId)
+    const showWords = async (sets: Awaited<ReturnType<typeof fetchSegmentWordSets>>) => {
+      const shown = await segmentsShown
+      if (cancelled || !shown) return
+      if (!revisionsMatch(shown, sets)) {
+        reloadContent()
+        return
+      }
+      // A reload, or a split here, may have stored newer words while these
+      // were in flight; those already match the segments, so keep them.
+      const grouped = groupSourceWords(sets.flatMap((set) => set.words))
+      setWordsBySegment((current) => (current === NO_WORDS ? grouped : current))
     }
     const reportWordLoadFailure = (error: unknown) => {
       if (cancelled) return
       console.error(`[useEditorData] failed to load word timings for transcript ${transcriptId}:`, error)
-      toast({
-        title: "Couldn't load word timings",
-        description: 'Word highlighting is off for this transcript.',
-        variant: 'error',
-        action: { label: 'Retry', onClick: () => { void loadWords().then(showWords, reportWordLoadFailure) } },
-      })
+      toast(wordTimingsFailedToast(reloadContent))
     }
 
     const init = async () => {
@@ -239,6 +267,8 @@ export function useEditorData(transcriptId: string) {
         const speakersResult = await speakersPromise
         if (cancelled) return
         setSegments(transcriptResult.data.items)
+        loadedRef.current = true
+        resolveSegmentsShown(transcriptResult.data.items)
         if (speakersResult.data) showSpeakers(speakersResult.data)
         else reportSpeakerLoadFailure(speakersResult.error)
 
@@ -253,6 +283,8 @@ export function useEditorData(transcriptId: string) {
       } catch (e: any) {
         console.error(e)
         setStatus(`Error: ${e.message || e}`)
+      } finally {
+        resolveSegmentsShown(null)
       }
     }
     init()
@@ -260,13 +292,13 @@ export function useEditorData(transcriptId: string) {
       cancelled = true
       stopWaveformPolling()
     }
-  }, [transcriptId])
+  }, [transcriptId, reloadContent])
 
   return {
     audioSrc, setAudioSrc,
     status, setStatus,
     segments, setSegments,
-    wordsBySegment,
+    wordsBySegment, setWordsBySegment,
     speakers, setSpeakers,
     peopleContext, setPeopleContext,
     transcriptTitle, setTranscriptTitle,
@@ -276,5 +308,6 @@ export function useEditorData(transcriptId: string) {
     waveformDurationSecs,
     peaks,
     waveformStatus,
+    isLoaded,
   }
 }

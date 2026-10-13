@@ -4,6 +4,8 @@ import { TEXT_LIMITS } from '@/contracts/limits'
 export const CONFLICT_TOAST = 'Changed in another tab — refreshed'
 export const STALE_TOAST = "Changed in another tab — couldn't refresh"
 export const NOT_READY_MESSAGE = 'Speaker changes are available when transcription is complete.'
+/** Said with CONFLICT_TOAST when a reload drops text typed against a segment's old shape. */
+export const DROPPED_DRAFT_MESSAGE = "Your last edit to a segment that changed wasn't saved."
 
 function errorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null
@@ -22,6 +24,23 @@ export function isGone(error: unknown): boolean {
 
 export function isNotReady(error: unknown): boolean {
   return errorCode(error) === 'SP004'
+}
+
+/**
+ * A segment text save matched no row: the segment was split or rejoined since
+ * the text was edited (its revision moved on), or it is gone.
+ */
+export function isStaleSegmentSave(error: unknown): boolean {
+  return errorCode(error) === 'PGRST116'
+}
+
+/**
+ * No answer came back from the database (a network failure or a lost
+ * response), so the write may or may not have happened. postgrest-js reports
+ * these with an empty code; a database refusal always carries one.
+ */
+export function isUncertainOutcome(error: unknown): boolean {
+  return !errorCode(error)
 }
 
 /** A user-facing message for a failed directory write. */

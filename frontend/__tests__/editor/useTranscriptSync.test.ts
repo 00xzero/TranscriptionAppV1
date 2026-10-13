@@ -16,6 +16,7 @@ function makeSegment(overrides: Partial<Seg> = {}): Seg {
     is_edited: false,
     is_filler: false,
     algo_version: 'test',
+    revision: 0,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,

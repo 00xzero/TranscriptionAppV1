@@ -21,7 +21,7 @@ it('server-renders the current segment without a store error and without highlig
         segment={{
           id: 's1', transcript_id: 't1', speaker_id: null, diarization_index: null,
           start_ms: 1000, end_ms: 3000, text: 'Hello there, friend.',
-          is_edited: false, is_filler: false, algo_version: 'test',
+          is_edited: false, is_filler: false, algo_version: 'test', revision: 0,
           created_at: '2026-10-12T00:00:00Z', updated_at: '2026-10-12T00:00:00Z',
         }}
         sourceWords={[
@@ -44,6 +44,10 @@ it('server-renders the current segment without a store error and without highlig
         setEditingId={() => {}}
         setEditingTexts={() => {}}
         scheduleSave={() => {}}
+        busy={undefined}
+        onSplit={() => {}}
+        onRetryUnconfirmed={() => {}}
+        caretHint={() => undefined}
       />
     </TooltipProvider>
   )

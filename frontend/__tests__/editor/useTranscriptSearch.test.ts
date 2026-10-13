@@ -16,6 +16,7 @@ const defaultParams = {
   setSpeakerPopover: jest.fn(),
   closeSpeakerPopover: jest.fn(),
   exportModalOpen: false,
+  canReplace: true,
 }
 
 describe('useTranscriptSearch', () => {
@@ -168,5 +169,25 @@ describe('useTranscriptSearch', () => {
     })
 
     expect(result.current.findReplaceOpen).toBe(true)
+  })
+
+  it('does not replace while a split or undo is pending', () => {
+    const scheduleSave = jest.fn()
+    const { result } = renderHook(() => useTranscriptSearch({ ...defaultParams, scheduleSave, canReplace: false }))
+
+    act(() => {
+      result.current.setFindInput('Hello')
+      result.current.setReplaceTerm('Hi')
+    })
+    act(() => {
+      jest.advanceTimersByTime(800)
+    })
+    expect(result.current.totalMatches).toBe(2)
+
+    act(() => {
+      result.current.handleReplace()
+      result.current.handleReplaceAll()
+    })
+    expect(scheduleSave).not.toHaveBeenCalled()
   })
 })

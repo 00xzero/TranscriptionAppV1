@@ -136,7 +136,7 @@ test('an organisation is set by id, by a new name, or cleared', async () => {
 })
 
 test('remove returns the changes it made, for Undo', async () => {
-  const changes = [{ segment_id: segmentId, expected_speaker_id: speakerId, speaker_id: null }]
+  const changes = [{ segment_id: segmentId, expected_speaker_id: speakerId, expected_revision: 0, speaker_id: null }]
   mockRpc.mockResolvedValue({ data: changes, error: null })
   await expect(removePersonFromTranscript(personId, transcriptId)).resolves.toEqual(changes)
   expect(mockRpc).toHaveBeenCalledWith('remove_person_from_transcript', {

@@ -17,7 +17,7 @@ const speaker = (id: string, ordinal: number, extra: Partial<Speaker> = {}): Spe
 
 const seg = (id: string, speaker_id: string | null, start_ms: number, text: string): Seg => ({
   id, transcript_id: 't', speaker_id, diarization_index: null, start_ms, end_ms: start_ms + 1000, text,
-  is_edited: false, is_filler: false, algo_version: '1', created_at: '', updated_at: '',
+  is_edited: false, is_filler: false, algo_version: '1', revision: 0, created_at: '', updated_at: '',
 })
 
 /** Paul talks most; Speaker 2 (unnamed) has two turns; Speaker 3 one. */

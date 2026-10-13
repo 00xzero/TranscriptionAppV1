@@ -26,6 +26,7 @@ export interface FindReplaceModalProps {
   onClear: () => void
   matchSummary: string
   canNavigate: boolean
+  /** False while replacing must wait; the buttons are disabled, not hidden. */
   canReplace: boolean
   matches: Array<{ segId: string; index: number; length: number }>
   segments: Array<{ id: string; text: string }>
@@ -207,7 +208,7 @@ export default function FindReplaceModal({
           </Toggle>
         </div>
 
-        {canReplace && findTerm && (
+        {findTerm && (
           <div className="flex h-14 items-center gap-3 border-b border-(--border)/60 px-5">
             <svg className="h-4 w-4 shrink-0 text-ink/30 dark:text-paper/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -225,7 +226,7 @@ export default function FindReplaceModal({
               size="sm"
               className="rounded-lg disabled:opacity-40"
               onClick={onReplace}
-              disabled={!canNavigate}
+              disabled={!canNavigate || !canReplace}
               title="Replace current match"
             >
               Replace
@@ -236,7 +237,7 @@ export default function FindReplaceModal({
               size="sm"
               className="rounded-lg disabled:opacity-40"
               onClick={onReplaceAll}
-              disabled={!canNavigate}
+              disabled={!canNavigate || !canReplace}
               title="Replace all matches"
             >
               Replace all

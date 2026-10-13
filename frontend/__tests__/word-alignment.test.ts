@@ -1,6 +1,6 @@
 import {
     MAX_ALIGNMENT_CELLS,
-    alignTextToWords,
+    alignTokens,
     type AlignedToken,
     type SourceWord,
 } from "@/core/transcript/word-alignment";
@@ -15,7 +15,7 @@ function triples(tokens: AlignedToken[]): Array<[string, number, number]> {
 }
 
 function align(text: string, words: SourceWord[], segStartMs: number, segEndMs: number) {
-    const tokens = alignTextToWords(text, words, segStartMs, segEndMs);
+    const tokens = alignTokens(text, words, segStartMs, segEndMs);
     // The card's search highlighting counts characters across tokens.
     if (text !== "") expect(tokens.map((t) => t.text).join("")).toBe(text);
     return tokens;
@@ -29,7 +29,7 @@ const GREETING = [
     w("you?", 1400, 1800),
 ];
 
-describe("alignTextToWords", () => {
+describe("alignTokens", () => {
     it("gives unchanged text the exact word timings", () => {
         expect(triples(align("Hello there. How are you?", GREETING, 0, 1800))).toEqual([
             ["Hello ", 0, 400],
@@ -157,7 +157,7 @@ describe("alignTextToWords", () => {
 
     it("covers whitespace-only text with one token and returns nothing for empty text", () => {
         expect(triples(align("   ", GREETING, 0, 1800))).toEqual([["   ", 0, 1800]]);
-        expect(alignTextToWords("", GREETING, 0, 1800)).toEqual([]);
+        expect(alignTokens("", GREETING, 0, 1800)).toEqual([]);
     });
 
     it("keeps leading, trailing and doubled whitespace on the tokens", () => {
@@ -200,4 +200,36 @@ describe("alignTextToWords", () => {
         expect(tokens[1].startMs).toBe(101);
         expect(tokens[199].endMs).toBe(20100);
     });
+});
+
+describe("alignTokens: the words each token stands for", () => {
+    /** [text, offset, wordFrom, wordTo] per token. */
+    function spans(text: string, words: SourceWord[]) {
+        return alignTokens(text, words, 0, 2000).map((t) => [t.text, t.offset, t.wordFrom, t.wordTo]);
+    }
+
+    it("gives each token its offset and the word it matched or corrected", () => {
+        expect(spans("I saw there car.", [w("I", 0, 200), w("saw", 200, 500), w("their", 500, 800), w("car.", 800, 1200)])).toEqual([
+            ["I ", 0, 0, 1],
+            ["saw ", 2, 1, 2],
+            ["there ", 6, 2, 3],
+            ["car.", 12, 3, 4],
+        ]);
+    });
+
+    it("lets a rewritten stretch share its words and gives typed-in words none", () => {
+        const words = [w("so", 0, 100), w("gonna", 100, 400), w("go", 400, 600)];
+        expect(spans("so going to go", words)).toEqual([
+            ["so ", 0, 0, 1],
+            ["going ", 3, 1, 2],
+            ["to ", 9, 1, 2],
+            ["go", 12, 2, 3],
+        ]);
+        expect(spans("well so go", [w("so", 0, 100), w("go", 400, 600)])).toEqual([
+            ["well ", 0, 0, 0],
+            ["so ", 5, 0, 1],
+            ["go", 8, 1, 2],
+        ]);
+    });
+
 });

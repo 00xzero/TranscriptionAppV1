@@ -7,9 +7,11 @@ import {
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import { toast } from '@/components/ui/toaster'
+import { UNDO_WINDOW_MS } from '@/lib/undo'
 import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
 import type { Seg } from '../types'
+import { revisionsMatch } from '../utils'
 import { mergeSpeakerAssignments } from './useEditorData'
 import {
   correctAction,
@@ -17,6 +19,7 @@ import {
   removeAction,
   renameLocalAction,
   renamePersonAction,
+  RESHAPED,
   savedId,
   type ApplyTo,
   type SpeakerAction,
@@ -24,6 +27,8 @@ import {
   type SpeakerTarget,
   type SpeakerUndo,
 } from './speakerActions'
+import type { Enqueue } from './useEditorWriteQueue'
+import { useLiveStore, type LiveStore } from './useLiveStore'
 
 export type { ApplyTo, SpeakerTarget } from './speakerActions'
 
@@ -31,55 +36,50 @@ type Measurable = { getBoundingClientRect(): DOMRect }
 export type SpeakerPopoverCloseReason = 'dismiss' | 'outside' | 'selection' | 'external'
 type SpeakerPopoverState = { segmentId: string; speakerId: string | null; anchorMeasurable: Measurable; triggerElement: HTMLElement | null }
 
-const UNDO_WINDOW_MS = 8000
-
 function createStableMeasurable(el: HTMLElement): Measurable {
   let lastRect = el.getBoundingClientRect()
   return { getBoundingClientRect() { if (el.isConnected) lastRect = el.getBoundingClientRect(); return lastRect } }
 }
 
-export function useSpeakerAssignments({ transcriptId, speakers, segments, peopleContext,
-  setSpeakers, setSegments, setPeopleContext }: {
+export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentsStore, peopleContext,
+  setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded }: {
   transcriptId: string
   speakers: Speaker[]
   segments: Seg[]
+  /** The same segments, live: actions read and change them through it. */
+  segmentsStore: LiveStore<Seg[]>
   peopleContext: EditorPeopleContext
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
-  setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
+  enqueue: Enqueue
+  /** Reloads segments and words when they were split or rejoined elsewhere. */
+  reloadSegments: () => Promise<boolean>
+  /** False until the editor's first load has shown segments. */
+  isLoaded: () => boolean
 }) {
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
   const lastTriggerElementRef = useRef<HTMLElement | null>(null)
   const closeReasonRef = useRef<SpeakerPopoverCloseReason | null>(null)
   const anchorRef = useRef<Measurable>({ getBoundingClientRect: () => new DOMRect() })
 
-  // Speaker actions run one at a time and read the latest state from these
-  // refs, which every change updates at once. The setters get updater
-  // functions, so a change composes with a text edit made in the meantime.
-  const speakersRef = useRef(speakers)
-  const segmentsRef = useRef(segments)
-  const peopleRef = useRef(peopleContext)
-  useEffect(() => { speakersRef.current = speakers }, [speakers])
-  useEffect(() => { segmentsRef.current = segments }, [segments])
-  useEffect(() => { peopleRef.current = peopleContext }, [peopleContext])
+  // Speaker actions run one at a time in the editor's write queue and read the
+  // latest state from live stores, which every change updates at once and
+  // composes with a text edit made in the meantime.
+  const speakersStore = useLiveStore(speakers, setSpeakers)
+  const peopleStore = useLiveStore(peopleContext, setPeopleContext)
   const store = useMemo<SpeakerStore>(() => ({
     transcriptId,
-    speakers: () => speakersRef.current,
-    segments: () => segmentsRef.current,
-    people: () => peopleRef.current,
-    updateSpeakers(edit) { speakersRef.current = edit(speakersRef.current); setSpeakers(edit) },
-    updateSegments(edit) { segmentsRef.current = edit(segmentsRef.current); setSegments(edit) },
-    updatePeople(edit) { peopleRef.current = edit(peopleRef.current); setPeopleContext(edit) },
-  }), [transcriptId, setSpeakers, setSegments, setPeopleContext])
+    speakers: speakersStore.get,
+    segments: segmentsStore.get,
+    people: peopleStore.get,
+    updateSpeakers: speakersStore.update,
+    updateSegments: segmentsStore.update,
+    updatePeople: peopleStore.update,
+  }), [transcriptId, speakersStore, segmentsStore, peopleStore])
 
-  const queueRef = useRef(Promise.resolve())
-  const enqueue = useCallback((task: () => Promise<void>) => {
-    const next = queueRef.current.then(task, task)
-    queueRef.current = next.catch(() => undefined)
-    return next
-  }, [])
-
-  // Reloads speaker data and segment assignments, never segment text.
+  // Reloads speaker data and segment assignments, never segment text — unless
+  // a segment was split or rejoined elsewhere (its id or revision differs),
+  // when segments and words reload whole and keep only drafts still valid.
   // Resolves false when it fails, so a caller can undo its optimistic change.
   const refresh = useCallback(async (): Promise<boolean> => {
     try {
@@ -88,7 +88,13 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
         fetchSpeakers(store.transcriptId),
         fetchEditorPeopleContext(store.transcriptId),
       ])
-      store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
+      const shown = store.segments()
+      const reshaped = assignments.length !== shown.length || !revisionsMatch(shown, assignments)
+      if (reshaped) {
+        if (!(await reloadSegments())) return false
+      } else {
+        store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
+      }
       store.updateSpeakers(() => speakerRows)
       store.updatePeople(() => people)
       return true
@@ -96,17 +102,19 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
       console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
       return false
     }
-  }, [store])
+  }, [store, reloadSegments])
 
   // Refresh when the user comes back to the tab. A tab switch fires both
-  // events; the refresh the first one starts covers the second.
+  // events; the refresh the first one starts covers the second. Not before the
+  // first load has shown segments: that load is the freshest data, and its
+  // rows, read a moment earlier, would land over whatever this reloaded.
   useEffect(() => {
     let refreshing = false
     const onReturn = () => {
       if (document.visibilityState === 'hidden' || refreshing) return
       refreshing = true
       void enqueue(async () => {
-        try { await refresh() } finally { refreshing = false }
+        try { if (isLoaded()) await refresh() } finally { refreshing = false }
       })
     }
     window.addEventListener('focus', onReturn)
@@ -115,7 +123,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
       window.removeEventListener('focus', onReturn)
       document.removeEventListener('visibilitychange', onReturn)
     }
-  }, [enqueue, refresh])
+  }, [enqueue, refresh, isLoaded])
 
   const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segments, peopleContext.people),
     [speakers, segments, peopleContext.people])
@@ -179,9 +187,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
   /**
    * Runs an action in the queue (spec §7): apply optimistically, write, then
    * offer Undo. A refused write refreshes speaker data; any other failure
-   * rolls back only the action's own change and offers Retry.
+   * rolls back only the action's own change and offers Retry. An action on
+   * segments is turned away if a split or undo queued ahead of it reshaped
+   * one of them after it was chosen.
    */
-  const execute = useCallback((build: () => SpeakerAction | null) => {
+  const execute = useCallback((build: () => SpeakerAction | typeof RESHAPED | null) => {
     closeSpeakerPopover('selection')
 
     // After a refused write: refresh, and say it refreshed only if it did.
@@ -195,6 +205,10 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
     function run() {
       void enqueue(async () => {
         const action = build()
+        if (action === RESHAPED) {
+          toast({ title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.', variant: 'error' })
+          return
+        }
         if (!action) {
           await refreshAfterConflict(CONFLICT_TOAST)
           return
@@ -242,19 +256,19 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
   const fromLabel = labelForSpeaker(selectedSegment?.speaker_id)
 
   const selectTarget = useCallback((target: SpeakerTarget, applyTo: ApplyTo) => {
-    const segmentIds = new Set(scopes[applyTo].map((segment) => segment.id))
-    execute(() => correctAction(store, { segmentIds, applyTo, target, fromLabel, labelForSpeaker }))
+    const chosen = scopes[applyTo]
+    execute(() => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }))
   }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
   const removeSpeaker = useCallback((applyTo: ApplyTo) => {
-    const segmentIds = new Set(scopes[applyTo].map((segment) => segment.id))
-    execute(() => removeAction(store, { segmentIds, applyTo, fromLabel, labelForSpeaker }))
+    const chosen = scopes[applyTo]
+    execute(() => removeAction(store, { chosen, applyTo, fromLabel, labelForSpeaker }))
   }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
   const renameLocal = useCallback((label: string) => {
     const speakerId = currentSpeaker?.id
-    const segmentIds = new Set(scopes.speaker.map((segment) => segment.id))
-    if (speakerId) execute(() => renameLocalAction(store, { speakerId, label, segmentIds, fromLabel }))
+    const chosen = scopes.speaker
+    if (speakerId) execute(() => renameLocalAction(store, { speakerId, label, chosen, fromLabel }))
   }, [currentSpeaker, scopes, execute, store, fromLabel])
 
   const renameLinkedPerson = useCallback((name: string) => {

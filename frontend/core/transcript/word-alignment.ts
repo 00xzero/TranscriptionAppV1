@@ -21,6 +21,20 @@ export interface AlignedToken {
     endMs: number;
 }
 
+/**
+ * A token with its place in the text and the stored words it stands for, as
+ * the half-open index range [wordFrom, wordTo). A token that matches or
+ * corrects one word covers that word; the tokens of a rewritten stretch share
+ * the stretch's whole range; a typed-in token covers none and sits just before
+ * word `wordFrom`.
+ */
+export interface TokenAlignment extends AlignedToken {
+    /** Where the token starts in the text. */
+    offset: number;
+    wordFrom: number;
+    wordTo: number;
+}
+
 // Above this many LCS cells (a large paste), alignment is skipped and the
 // tokens are spread evenly across the words' window instead.
 export const MAX_ALIGNMENT_CELLS = 40_000;
@@ -85,12 +99,13 @@ function matchAnchors(tokenKeys: string[], wordKeys: string[]): Array<[number, n
     return anchors;
 }
 
-export function alignTextToWords(
+/** Every token of the text, with its time, its offset and the words it stands for. */
+export function alignTokens(
     text: string,
     words: readonly SourceWord[],
     segStartMs: number,
     segEndMs: number
-): AlignedToken[] {
+): TokenAlignment[] {
     if (text === "") return [];
 
     const lo = segStartMs;
@@ -98,10 +113,12 @@ export function alignTextToWords(
     const pieces = tokenize(text);
 
     if (pieces.length === 0) {
-        return [{ text, startMs: lo, endMs: hi }];
+        return [{ text, startMs: lo, endMs: hi, offset: 0, wordFrom: 0, wordTo: 0 }];
     }
 
     const times: Array<{ startMs: number; endMs: number }> = new Array(pieces.length);
+    // Without alignment every token shares the whole word range.
+    const spans: Array<[number, number]> = new Array(pieces.length).fill([0, words.length]);
 
     if (words.length === 0) {
         spread(pieces.length, lo, hi).forEach((t, i) => { times[i] = t; });
@@ -123,8 +140,11 @@ export function alignTextToWords(
                     for (let k = 0; k < tokenCount; k++) {
                         const w = words[prevWord + 1 + k];
                         times[prevToken + 1 + k] = { startMs: w.startMs, endMs: w.endMs };
+                        spans[prevToken + 1 + k] = [prevWord + 1 + k, prevWord + 2 + k];
                     }
                 } else {
+                    // Rewritten tokens share their words; inserted ones have none.
+                    for (let k = 0; k < tokenCount; k++) spans[prevToken + 1 + k] = [prevWord + 1, anchorWord];
                     let startMs: number;
                     let endMs: number;
                     if (wordCount > 0) {
@@ -146,6 +166,7 @@ export function alignTextToWords(
             if (anchorToken < pieces.length) {
                 const w = words[anchorWord];
                 times[anchorToken] = { startMs: w.startMs, endMs: w.endMs };
+                spans[anchorToken] = [anchorWord, anchorWord + 1];
             }
             prevToken = anchorToken;
             prevWord = anchorWord;
@@ -154,10 +175,13 @@ export function alignTextToWords(
 
     // Keep every time inside the segment, starts non-decreasing, and end >= start.
     let floor = lo;
+    let offset = 0;
     return pieces.map((piece, i) => {
         const startMs = Math.min(hi, Math.max(floor, times[i].startMs));
         const endMs = Math.min(hi, Math.max(startMs, times[i].endMs));
         floor = startMs;
-        return { text: piece, startMs, endMs };
+        const token = { text: piece, startMs, endMs, offset, wordFrom: spans[i][0], wordTo: spans[i][1] };
+        offset += piece.length;
+        return token;
     });
 }

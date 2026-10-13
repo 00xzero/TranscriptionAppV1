@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { useSpeakerAssignments } from '../../app/editor/[id]/hooks/useSpeakerAssignments'
+import { useEditorWriteQueue } from '../../app/editor/[id]/hooks/useEditorWriteQueue'
+import { useLiveStore } from '../../app/editor/[id]/hooks/useLiveStore'
 import { SPEAKER_COLORS } from '@/lib/speakers/palette'
 import type { EditorPeopleContext, EditorPerson, Speaker } from '@/contracts/db'
 import type { Seg } from '../../app/editor/[id]/types'
@@ -33,7 +35,7 @@ const named = (id: string, ordinal: number, patch: Pick<Speaker, 'custom_label' 
 })
 const segment = (id: string, speaker_id: string | null, start_ms: number, diarization_index: number | null = 0): Seg => ({
   id, transcript_id: 't1', speaker_id, diarization_index, start_ms, end_ms: start_ms + 1000, text: `text ${id}`,
-  is_edited: false, is_filler: false, algo_version: 'test', created_at: stamp, updated_at: stamp,
+  is_edited: false, is_filler: false, algo_version: 'test', revision: 0, created_at: stamp, updated_at: stamp,
 })
 const alex: EditorPerson = {
   id: 'p1', user_id: 'u1', name: 'Alex', organisation_id: null, organisation_name: null,
@@ -44,18 +46,26 @@ const context: EditorPeopleContext = { people: [alex] }
 const anchor = { getBoundingClientRect: () => new DOMRect() }
 const alexHere = named('c', 3, { custom_label: null, person_id: 'p1' })
 
+/** Whether the editor's first load has shown segments; most tests start after it. */
+let loaded = true
+
 function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
   initialSegments = [segment('s1', 'a', 0), segment('s2', 'a', 1000)]) {
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValue([])
+  // By default a refresh finds the database as the editor holds it.
+  queries.fetchSegmentSpeakerAssignments.mockImplementation(async () => rendered.result.current.segments
+    .map(({ id, speaker_id, revision }) => ({ id, speaker_id, revision })))
   queries.fetchSpeakers.mockResolvedValue(initialSpeakers)
   queries.fetchEditorPeopleContext.mockResolvedValue(context)
+  const reloadSegments = jest.fn().mockResolvedValue(true)
   const rendered = renderHook(() => {
     const [speakers, setSpeakers] = useState(initialSpeakers)
     const [segments, setSegments] = useState(initialSegments)
     const [peopleContext, setPeopleContext] = useState(context)
-    const hook = useSpeakerAssignments({ transcriptId: 't1', speakers, segments, peopleContext,
-      setSpeakers, setSegments, setPeopleContext })
-    return { ...hook, segments, speakers, peopleContext }
+    const enqueue = useEditorWriteQueue()
+    const segmentsStore = useLiveStore(segments, setSegments)
+    const hook = useSpeakerAssignments({ transcriptId: 't1', speakers, segments, segmentsStore, peopleContext,
+      setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded: () => loaded })
+    return { ...hook, segments, speakers, peopleContext, enqueue, segmentsStore }
   })
   const open = (id = 's1') => act(() => rendered.result.current.setSpeakerPopover({
     segmentId: id,
@@ -63,7 +73,7 @@ function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
     anchorMeasurable: anchor, triggerElement: null,
   }))
   const speakerIds = () => rendered.result.current.segments.map((row) => row.speaker_id)
-  return { ...rendered, open, speakerIds }
+  return { ...rendered, open, speakerIds, reloadSegments }
 }
 
 const toastWith = (label: string) => toast.mock.calls
@@ -72,6 +82,7 @@ const toastWith = (label: string) => toast.mock.calls
 
 beforeEach(() => {
   jest.clearAllMocks()
+  loaded = true
   queries.reassignSegments.mockImplementation(async (_: string, changes: { segment_id: string; speaker_id: string | null }[]) =>
     changes.map(({ segment_id, speaker_id }) => ({ segment_id, speaker_id })))
 })
@@ -94,7 +105,7 @@ test('Remove restores an attributed segment that Deepgram left Unknown', async (
   act(() => result.current.removeSpeaker('segment'))
   await waitFor(() => expect(speakerIds()).toEqual([null]))
   expect(queries.reassignSegments).toHaveBeenCalledWith('t1', [{
-    segment_id: 's1', expected_speaker_id: 'c', speaker_id: null,
+    segment_id: 's1', expected_speaker_id: 'c', expected_revision: 0, speaker_id: null,
   }])
   expect(toastWith('Undo')!.title).toBe('Removed Alex from this segment — back to Unknown speaker')
   act(() => toastWith('Undo')!.action!.onClick())
@@ -117,7 +128,7 @@ test('a passage correction settles on the speaker the database chose', async () 
   act(() => result.current.selectTarget({ kind: 'person', id: 'p1' }, 'segment'))
   await waitFor(() => expect(speakerIds()).toEqual(['c', 'a']))
   expect(queries.correctSegmentsToPerson).toHaveBeenCalledWith('t1',
-    [{ segment_id: 's1', expected_speaker_id: 'a' }], { personId: 'p1' })
+    [{ segment_id: 's1', expected_speaker_id: 'a', expected_revision: 0 }], { personId: 'p1' })
   expect(result.current.speakers.map((row) => row.id)).toEqual(['a', 'b', 'c'])
   expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Moved this segment to Alex' }))
   expect(queries.fetchSpeakers).not.toHaveBeenCalled()
@@ -129,9 +140,97 @@ test('a continuous turn sends every segment showing the identity', async () => {
   act(() => result.current.selectTarget({ kind: 'speaker', id: 'b' }, 'turn'))
   await waitFor(() => expect(queries.reassignSegments).toHaveBeenCalledTimes(1))
   expect(queries.reassignSegments.mock.calls[0][1]).toEqual([
-    { segment_id: 's1', expected_speaker_id: 'a', speaker_id: 'b' },
-    { segment_id: 's2', expected_speaker_id: 'a', speaker_id: 'b' },
+    { segment_id: 's1', expected_speaker_id: 'a', expected_revision: 0, speaker_id: 'b' },
+    { segment_id: 's2', expected_speaker_id: 'a', expected_revision: 0, speaker_id: 'b' },
   ])
+})
+
+// Codex: a split keeps the segment's id and speaker, so a correction chosen
+// while it was whole must name the shape it saw, and so must its Undo.
+test('a correction and its Undo name the revision of each segment they change', async () => {
+  const { result, open, speakerIds } = setup(undefined,
+    [{ ...segment('s1', 'a', 0), revision: 2 }, segment('s2', 'a', 1000)])
+  open()
+  act(() => result.current.selectTarget({ kind: 'speaker', id: 'b' }, 'turn'))
+  await waitFor(() => expect(toastWith('Undo')).toBeDefined())
+  expect(queries.reassignSegments.mock.calls[0][1]).toEqual([
+    { segment_id: 's1', expected_speaker_id: 'a', expected_revision: 2, speaker_id: 'b' },
+    { segment_id: 's2', expected_speaker_id: 'a', expected_revision: 0, speaker_id: 'b' },
+  ])
+
+  act(() => toastWith('Undo')!.action!.onClick())
+  await waitFor(() => expect(speakerIds()).toEqual(['a', 'a']))
+  expect(queries.reassignSegments).toHaveBeenLastCalledWith('t1', [
+    { segment_id: 's1', expected_speaker_id: 'b', expected_revision: 2, speaker_id: 'a' },
+    { segment_id: 's2', expected_speaker_id: 'b', expected_revision: 0, speaker_id: 'a' },
+  ])
+})
+
+// Codex: an action runs after the writes queued ahead of it. One chosen for a
+// whole segment while its split waited in the queue must not change only the
+// first half.
+describe('chosen while a split of the segment waits in the queue', () => {
+  /** Queue a split of s1 at 500 ms that lands when the returned function runs. */
+  async function pendingSplit(result: ReturnType<typeof setup>['result']) {
+    let land!: () => void
+    // Async, so the queue starts the task before anything is chosen.
+    await act(async () => {
+      void result.current.enqueue(() => new Promise<void>((resolve) => {
+        land = () => {
+          result.current.segmentsStore.update((rows) => [
+            { ...rows[0], revision: 1, end_ms: 400 },
+            { ...rows[0], id: 's1b', start_ms: 500, revision: 0 },
+            ...rows.slice(1),
+          ])
+          resolve()
+        }
+      }))
+    })
+    return () => act(async () => { land() })
+  }
+
+  test.each([
+    ['a correction', (r: ReturnType<typeof setup>['result']) => r.current.selectTarget({ kind: 'speaker', id: 'b' }, 'segment')],
+    ['a removal', (r: ReturnType<typeof setup>['result']) => r.current.removeSpeaker('segment')],
+    ['naming the detected speaker', (r: ReturnType<typeof setup>['result']) => r.current.renameLocal('Host')],
+  ])('%s is turned away, and nothing is written', async (_name, choose) => {
+    // s1 sits on b, though Deepgram gave it a, so Remove has work to do.
+    const { result, open, speakerIds } = setup(undefined, [segment('s1', 'b', 0), segment('s2', 'a', 1000)])
+    const land = await pendingSplit(result)
+    open()
+    act(() => choose(result))
+    await land()
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.',
+    })))
+    expect(queries.reassignSegments).not.toHaveBeenCalled()
+    expect(queries.createLocalSpeaker).not.toHaveBeenCalled()
+    expect(speakerIds()).toEqual(['b', 'b', 'a'])
+  })
+
+  test('one chosen after the split landed goes ahead, naming the new revision', async () => {
+    const { result, open } = setup()
+    const land = await pendingSplit(result)
+    await land()
+    open()
+    act(() => result.current.selectTarget({ kind: 'speaker', id: 'b' }, 'segment'))
+    await waitFor(() => expect(queries.reassignSegments).toHaveBeenCalledTimes(1))
+    expect(queries.reassignSegments.mock.calls[0][1]).toEqual([
+      { segment_id: 's1', expected_speaker_id: 'a', expected_revision: 1, speaker_id: 'b' },
+    ])
+  })
+
+  test('renaming a speaker label is not held up by a split', async () => {
+    const guest = named('l', 3, { custom_label: 'Guest', person_id: null })
+    queries.setSpeakerCustomLabel.mockResolvedValueOnce({ ...guest, custom_label: 'Host' })
+    const { result, open } = setup([detected('a', 0), guest], [segment('s1', 'l', 0), segment('s2', 'a', 1000)])
+    const land = await pendingSplit(result)
+    open()
+    act(() => result.current.renameLocal('Host'))
+    await land()
+    await waitFor(() => expect(queries.setSpeakerCustomLabel).toHaveBeenCalledWith('l', 'Guest', 'Host'))
+  })
 })
 
 test('ordinary failure restores only the affected assignment and names the action as shown', async () => {
@@ -222,7 +321,7 @@ test('identifying a detected speaker moves all its segments, and Undo moves them
   act(() => result.current.selectTarget({ kind: 'person', id: 'p1' }, 'speaker'))
   await waitFor(() => expect(toastWith('Undo')).toBeDefined())
   expect(queries.correctSegmentsToPerson).toHaveBeenCalledWith('t1', [
-    { segment_id: 's1', expected_speaker_id: 'a' }, { segment_id: 's2', expected_speaker_id: 'a' },
+    { segment_id: 's1', expected_speaker_id: 'a', expected_revision: 0 }, { segment_id: 's2', expected_speaker_id: 'a', expected_revision: 0 },
   ], { personId: 'p1' })
   expect(toastWith('Undo')).toMatchObject({ title: 'Identified Speaker 1 as Alex', durationMs: 8000 })
   expect(result.current.labelForSpeaker(speakerIds()[0])).toBe('Alex')
@@ -231,8 +330,8 @@ test('identifying a detected speaker moves all its segments, and Undo moves them
   act(() => toastWith('Undo')!.action!.onClick())
   await waitFor(() => expect(speakerIds()).toEqual(['a', 'a']))
   expect(queries.reassignSegments).toHaveBeenLastCalledWith('t1', [
-    { segment_id: 's1', expected_speaker_id: 'c', speaker_id: 'a' },
-    { segment_id: 's2', expected_speaker_id: 'c', speaker_id: 'a' },
+    { segment_id: 's1', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
+    { segment_id: 's2', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
   ])
   expect(queries.fetchSpeakers).not.toHaveBeenCalled()
 })
@@ -257,7 +356,7 @@ test('naming a detected speaker in this transcript moves its segments to a new l
   act(() => result.current.renameLocal('Host'))
   await waitFor(() => expect(toastWith('Undo')).toBeDefined())
   expect(queries.createLocalSpeaker).toHaveBeenCalledWith('t1', 'Host', [
-    { segment_id: 's1', expected_speaker_id: 'a' }, { segment_id: 's2', expected_speaker_id: 'a' },
+    { segment_id: 's1', expected_speaker_id: 'a', expected_revision: 0 }, { segment_id: 's2', expected_speaker_id: 'a', expected_revision: 0 },
   ])
   expect(toastWith('Undo')!.title).toBe('Renamed Speaker 1 to Host in this transcript')
   expect(speakerIds()).toEqual(['l', 'l'])
@@ -302,8 +401,8 @@ test('Remove sends segments back to the speaker Deepgram gave them, and nothing 
   act(() => result.current.removeSpeaker('speaker'))
   await waitFor(() => expect(speakerIds()).toEqual(['a', 'a', 'a']))
   expect(queries.reassignSegments).toHaveBeenLastCalledWith('t1', [
-    { segment_id: 's1', expected_speaker_id: 'c', speaker_id: 'a' },
-    { segment_id: 's3', expected_speaker_id: 'c', speaker_id: 'a' },
+    { segment_id: 's1', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
+    { segment_id: 's3', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
   ])
   expect(result.current.presentation.identities.map((identity) => identity.label)).toEqual(['Speaker 1'])
 })
@@ -324,6 +423,41 @@ test('refreshes speaker data when the tab regains focus', async () => {
   setup()
   act(() => window.dispatchEvent(new Event('focus')))
   await waitFor(() => expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1))
+})
+
+// Codex: a refresh racing the first load could be overwritten by that load's
+// rows, read a moment earlier, pairing old segments with newer words.
+test('a tab return before the first load has shown segments leaves the load to it', async () => {
+  loaded = false
+  const { reloadSegments } = setup([detected('a', 0)], [])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await act(async () => {})
+  expect(queries.fetchSegmentSpeakerAssignments).not.toHaveBeenCalled()
+  expect(reloadSegments).not.toHaveBeenCalled()
+
+  loaded = true
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(queries.fetchSegmentSpeakerAssignments).toHaveBeenCalledTimes(1))
+})
+
+test('a segment split or rejoined elsewhere reloads segments and words on return', async () => {
+  const { reloadSegments } = setup()
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'a', revision: 1 }, { id: 's2', speaker_id: 'a', revision: 0 }, { id: 's3', speaker_id: 'a', revision: 0 },
+  ])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(reloadSegments).toHaveBeenCalledTimes(1))
+  expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1)
+})
+
+test('an unchanged shape on return merges assignments without reloading', async () => {
+  const { reloadSegments, speakerIds } = setup()
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
+  ])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(speakerIds()).toEqual(['b', 'a']))
+  expect(reloadSegments).not.toHaveBeenCalled()
 })
 
 test('a tab switch that fires both events refreshes once', async () => {
@@ -366,8 +500,8 @@ test('Undo after inline creation moves the segments back and removes the unchang
   await waitFor(() => expect(queries.undoCreatedPerson).toHaveBeenCalledWith({
     transcriptId: 't1', speakerId: 'c', person: expect.objectContaining({ id: 'created', updated_at: createdPerson.updated_at }),
     changes: [
-      { segment_id: 's1', expected_speaker_id: 'c', speaker_id: 'a' },
-      { segment_id: 's2', expected_speaker_id: 'c', speaker_id: 'a' },
+      { segment_id: 's1', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
+      { segment_id: 's2', expected_speaker_id: 'c', expected_revision: 0, speaker_id: 'a' },
     ],
   }))
   await waitFor(() => expect(result.current.peopleContext.people.map((person) => person.id)).toEqual(['p1']))
@@ -378,7 +512,9 @@ test('Undo after inline creation moves the segments back and removes the unchang
 test('an open picker closes when a refresh moves its segment to another speaker', async () => {
   const { result, open } = setup()
   open()
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([{ id: 's1', speaker_id: 'b' }])
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
+  ])
   act(() => window.dispatchEvent(new Event('focus')))
   // Its Current row would still say Speaker 1 while All acted on Speaker 2.
   await waitFor(() => expect(result.current.speakerPopover).toBeNull())
@@ -426,7 +562,7 @@ test('a person picked while their creation is still saving is written under thei
   await act(async () => save({ speaker: blairHere, person: blair, assignments: [{ segment_id: 's1', speaker_id: 'c' }] }))
   await waitFor(() => expect(speakerIds()).toEqual(['c', 'c']))
   expect(queries.correctSegmentsToPerson).toHaveBeenLastCalledWith('t1',
-    [{ segment_id: 's2', expected_speaker_id: 'a' }], { personId: 'created' })
+    [{ segment_id: 's2', expected_speaker_id: 'a', expected_revision: 0 }], { personId: 'created' })
   expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Moved this segment to Blair' }))
 })
 
@@ -445,7 +581,7 @@ test('a local speaker picked while it is still saving is written under its saved
     assignments: [{ segment_id: 's1', speaker_id: 'l' }] }))
   await waitFor(() => expect(speakerIds()).toEqual(['l', 'l']))
   expect(queries.reassignSegments).toHaveBeenLastCalledWith('t1',
-    [{ segment_id: 's2', expected_speaker_id: 'b', speaker_id: 'l' }])
+    [{ segment_id: 's2', expected_speaker_id: 'b', expected_revision: 0, speaker_id: 'l' }])
   expect(toast).toHaveBeenLastCalledWith(expect.objectContaining({ title: 'Moved this segment to Host' }))
 })
 

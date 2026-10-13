@@ -12,10 +12,12 @@ import { Dialog, DialogCloseButton, DialogContent, DialogDescription, DialogTitl
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from '@/components/ui/toaster'
+import { UNDO_WINDOW_MS } from '@/lib/undo'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { appearanceTotals, mergeDirectoryPeople, updateDirectoryPerson } from '@/core/people/directory'
+import { reverseSpeakerChange } from '@/core/speakers/changes'
 import { isConflict, isGone, isNotReady, mapPeopleWriteError, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
@@ -44,9 +46,6 @@ import { formatPeopleDate, formatTalk } from './format'
 
 type NestedDialog = 'rename' | 'merge' | 'delete' | null
 type Picker = 'organisation' | 'colour' | null
-
-/** As long as the editor's Undo (spec §7). */
-const UNDO_WINDOW_MS = 8000
 
 const ICON = 'h-4 w-4'
 
@@ -253,9 +252,7 @@ export function PersonDialog({ personId }: { personId: string }) {
   // segment has moved since.
   async function undoRemove(appearance: PersonAppearance, changes: SegmentSpeakerChange[]) {
     try {
-      await reassignSegments(appearance.transcript_id, changes.map((change) => ({
-        segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-      })))
+      await reassignSegments(appearance.transcript_id, changes.map(reverseSpeakerChange))
       showAppearance(appearance)
     } catch (error) {
       toast(isNotReady(error)
