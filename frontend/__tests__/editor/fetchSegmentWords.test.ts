@@ -6,7 +6,7 @@ export {}
 type Call = [method: string, ...args: unknown[]]
 
 const mockCalls: Call[] = []
-let mockRows: Array<{ id: string; order_index: number }> = []
+let mockRows: Array<{ id: string; revision: number; words: unknown[] }> = []
 
 // A chainable stand-in for the PostgREST builder that records every call and
 // serves `range(from, to)` slices of mockRows.
@@ -28,22 +28,26 @@ function mockBuilder() {
 jest.mock('@/infra/supabase/client', () => ({ createClient: () => mockBuilder() }))
 
 // jest.setup.ts globally mocks this module, so reach past it for the real code.
-const { fetchTranscriptWords } = jest.requireActual<typeof import('@/lib/supabase/queries')>('@/lib/supabase/queries')
+const { fetchSegmentWordSets, fetchSegmentsWithWords } =
+  jest.requireActual<typeof import('@/lib/supabase/queries')>('@/lib/supabase/queries')
+
+const WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
 
 beforeEach(() => {
   mockCalls.length = 0
 })
 
-test('pages past the 1,000-row cap and returns every word in order', async () => {
+test('pages through segments, each with all its words, past the 1,000-row cap', async () => {
   mockRows = Array.from({ length: 2345 }, (_, i) => ({
     id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
-    order_index: i,
+    revision: i % 3,
+    words: [{ id: `w${i}` }],
   }))
 
-  const rows = await fetchTranscriptWords('t1')
+  const sets = await fetchSegmentWordSets('t1')
 
-  expect(rows).toHaveLength(2345)
-  expect(rows.map((r) => r.order_index)).toEqual(mockRows.map((r) => r.order_index))
+  expect(sets).toHaveLength(2345)
+  expect(sets[2344]).toEqual(mockRows[2344])
   expect(mockCalls.filter(([m]) => m === 'range')).toEqual([
     ['range', 0, 999],
     ['range', 1000, 1999],
@@ -51,16 +55,29 @@ test('pages past the 1,000-row cap and returns every word in order', async () =>
   ])
 })
 
-test('filters by transcript through segments without returning segment columns', async () => {
+test("reads each segment's words in the same query as its revision", async () => {
   mockRows = []
-  await fetchTranscriptWords('t1')
+  await fetchSegmentWordSets('t1')
 
   expect(mockCalls).toEqual([
-    ['from', 'words'],
-    ['select', 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index, segments!inner()'],
-    ['eq', 'segments.transcript_id', 't1'],
-    ['order', 'segment_id', { ascending: true }],
-    ['order', 'order_index', { ascending: true }],
+    ['from', 'segments'],
+    ['select', `id, revision, words(${WORD_COLUMNS})`],
+    ['eq', 'transcript_id', 't1'],
+    ['order', 'start_ms', { ascending: true }],
+    ['order', 'id', { ascending: true }],
+    ['range', 0, 999],
+  ])
+})
+
+test('reloads whole segments with their words in the same row', async () => {
+  mockRows = []
+  await fetchSegmentsWithWords('t1')
+
+  expect(mockCalls).toEqual([
+    ['from', 'segments'],
+    ['select', `*, words(${WORD_COLUMNS})`],
+    ['eq', 'transcript_id', 't1'],
+    ['order', 'start_ms', { ascending: true }],
     ['order', 'id', { ascending: true }],
     ['range', 0, 999],
   ])

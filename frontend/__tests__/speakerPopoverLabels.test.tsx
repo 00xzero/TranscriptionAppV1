@@ -12,7 +12,7 @@ const stamp = '2026-01-01T00:00:00Z'
 const speaker: Speaker = { id: 's1', transcript_id: 't1', user_id: 'u1', ordinal: 0,
   custom_label: null, diarization_index: 0, person_id: null, created_at: stamp, updated_at: stamp }
 const segment: Seg = { id: 'seg1', transcript_id: 't1', speaker_id: 's1', diarization_index: 0, start_ms: 1000,
-  end_ms: 2000, text: 'Hello', is_edited: false, is_filler: false, algo_version: 'test',
+  end_ms: 2000, text: 'Hello', is_edited: false, is_filler: false, algo_version: 'test', revision: 0,
   created_at: stamp, updated_at: stamp }
 const peopleContext: EditorPeopleContext = { people: [
   { id: 'p1', user_id: 'u1', name: 'Alex', organisation_id: null, organisation_name: 'Example Org',

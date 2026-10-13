@@ -7,7 +7,7 @@ import {
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import { toast } from '@/components/ui/toaster'
-import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
+import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
 import type { Seg } from '../types'
 import { mergeSpeakerAssignments } from './useEditorData'
@@ -24,6 +24,9 @@ import {
   type SpeakerTarget,
   type SpeakerUndo,
 } from './speakerActions'
+import { UNDO_WINDOW_MS, type Enqueue } from './useEditorWriteQueue'
+import type { LiveStore } from './useLiveStore'
+import type { ReloadResult } from './useTranscriptMutations'
 
 export type { ApplyTo, SpeakerTarget } from './speakerActions'
 
@@ -31,55 +34,51 @@ type Measurable = { getBoundingClientRect(): DOMRect }
 export type SpeakerPopoverCloseReason = 'dismiss' | 'outside' | 'selection' | 'external'
 type SpeakerPopoverState = { segmentId: string; speakerId: string | null; anchorMeasurable: Measurable; triggerElement: HTMLElement | null }
 
-const UNDO_WINDOW_MS = 8000
-
 function createStableMeasurable(el: HTMLElement): Measurable {
   let lastRect = el.getBoundingClientRect()
   return { getBoundingClientRect() { if (el.isConnected) lastRect = el.getBoundingClientRect(); return lastRect } }
 }
 
-export function useSpeakerAssignments({ transcriptId, speakers, segments, peopleContext,
-  setSpeakers, setSegments, setPeopleContext }: {
+export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentsStore, peopleContext,
+  setSpeakers, setPeopleContext, enqueue, reloadSegments }: {
   transcriptId: string
   speakers: Speaker[]
   segments: Seg[]
+  /** The same segments, live: actions read and change them through it. */
+  segmentsStore: LiveStore<Seg[]>
   peopleContext: EditorPeopleContext
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
-  setSegments: React.Dispatch<React.SetStateAction<Seg[]>>
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
+  enqueue: Enqueue
+  /** Reloads segments and words when they were split or rejoined elsewhere. */
+  reloadSegments: () => Promise<ReloadResult | null>
 }) {
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
   const lastTriggerElementRef = useRef<HTMLElement | null>(null)
   const closeReasonRef = useRef<SpeakerPopoverCloseReason | null>(null)
   const anchorRef = useRef<Measurable>({ getBoundingClientRect: () => new DOMRect() })
 
-  // Speaker actions run one at a time and read the latest state from these
-  // refs, which every change updates at once. The setters get updater
-  // functions, so a change composes with a text edit made in the meantime.
+  // Speaker actions run one at a time in the editor's write queue and read the
+  // latest state from these refs and the segments store, which every change
+  // updates at once. The setters get updater functions, so a change composes
+  // with a text edit made in the meantime.
   const speakersRef = useRef(speakers)
-  const segmentsRef = useRef(segments)
   const peopleRef = useRef(peopleContext)
   useEffect(() => { speakersRef.current = speakers }, [speakers])
-  useEffect(() => { segmentsRef.current = segments }, [segments])
   useEffect(() => { peopleRef.current = peopleContext }, [peopleContext])
   const store = useMemo<SpeakerStore>(() => ({
     transcriptId,
     speakers: () => speakersRef.current,
-    segments: () => segmentsRef.current,
+    segments: () => segmentsStore.get(),
     people: () => peopleRef.current,
     updateSpeakers(edit) { speakersRef.current = edit(speakersRef.current); setSpeakers(edit) },
-    updateSegments(edit) { segmentsRef.current = edit(segmentsRef.current); setSegments(edit) },
+    updateSegments(edit) { segmentsStore.update(edit) },
     updatePeople(edit) { peopleRef.current = edit(peopleRef.current); setPeopleContext(edit) },
-  }), [transcriptId, setSpeakers, setSegments, setPeopleContext])
+  }), [transcriptId, segmentsStore, setSpeakers, setPeopleContext])
 
-  const queueRef = useRef(Promise.resolve())
-  const enqueue = useCallback((task: () => Promise<void>) => {
-    const next = queueRef.current.then(task, task)
-    queueRef.current = next.catch(() => undefined)
-    return next
-  }, [])
-
-  // Reloads speaker data and segment assignments, never segment text.
+  // Reloads speaker data and segment assignments, never segment text — unless
+  // a segment was split or rejoined elsewhere (its id or revision differs),
+  // when segments and words reload whole and keep only drafts still valid.
   // Resolves false when it fails, so a caller can undo its optimistic change.
   const refresh = useCallback(async (): Promise<boolean> => {
     try {
@@ -88,7 +87,16 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
         fetchSpeakers(store.transcriptId),
         fetchEditorPeopleContext(store.transcriptId),
       ])
-      store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
+      const localRevision = new Map(store.segments().map((segment) => [segment.id, segment.revision]))
+      const reshaped = assignments.length !== localRevision.size ||
+        assignments.some((a) => localRevision.get(a.id) !== a.revision)
+      if (reshaped) {
+        const reloaded = await reloadSegments()
+        if (!reloaded) return false
+        if (reloaded.droppedDrafts > 0) toast({ title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error' })
+      } else {
+        store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
+      }
       store.updateSpeakers(() => speakerRows)
       store.updatePeople(() => people)
       return true
@@ -96,7 +104,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, people
       console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
       return false
     }
-  }, [store])
+  }, [store, reloadSegments])
 
   // Refresh when the user comes back to the tab. A tab switch fires both
   // events; the refresh the first one starts covers the second.

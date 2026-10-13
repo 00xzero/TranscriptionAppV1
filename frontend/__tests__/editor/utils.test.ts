@@ -66,19 +66,24 @@ describe('groupSourceWords', () => {
   afterEach(() => warn.mockRestore())
 
   it('groups rows per segment in spoken order, preferring the punctuated text', () => {
-    const grouped = groupSourceWords([
-      wordRow({ segment_id: SEG_B, order_index: 0, text: 'again', punctuated_text: 'Again.', start_ms: 900, end_ms: 1200 }),
-      wordRow({ order_index: 1, text: 'world', punctuated_text: 'world.', start_ms: 300, end_ms: 600 }),
-      wordRow({ order_index: 0, text: 'hello', punctuated_text: 'Hello', start_ms: 0, end_ms: 300 }),
-      wordRow({ order_index: 2, text: 'ok', punctuated_text: null, start_ms: 600, end_ms: 700 }),
-    ])
+    const again = wordRow({ segment_id: SEG_B, order_index: 0, text: 'again', punctuated_text: 'Again.', start_ms: 900, end_ms: 1200 })
+    const world = wordRow({ order_index: 1, text: 'world', punctuated_text: 'world.', start_ms: 300, end_ms: 600 })
+    const hello = wordRow({ order_index: 0, text: 'hello', punctuated_text: 'Hello', start_ms: 0, end_ms: 300 })
+    const ok = wordRow({ order_index: 2, text: 'ok', punctuated_text: null, start_ms: 600, end_ms: 700 })
+    const grouped = groupSourceWords([again, world, hello, ok])
     expect(grouped.get(SEG_A)).toEqual([
-      { text: 'Hello', startMs: 0, endMs: 300 },
-      { text: 'world.', startMs: 300, endMs: 600 },
-      { text: 'ok', startMs: 600, endMs: 700 },
+      { id: hello.id, text: 'Hello', startMs: 0, endMs: 300 },
+      { id: world.id, text: 'world.', startMs: 300, endMs: 600 },
+      { id: ok.id, text: 'ok', startMs: 600, endMs: 700 },
     ])
-    expect(grouped.get(SEG_B)).toEqual([{ text: 'Again.', startMs: 900, endMs: 1200 }])
+    expect(grouped.get(SEG_B)).toEqual([{ id: again.id, text: 'Again.', startMs: 900, endMs: 1200 }])
     expect(warn).not.toHaveBeenCalled()
+  })
+
+  it('orders words that share an order index by id, as the database splits them', () => {
+    const later = wordRow({ id: '00000000-0000-4000-8000-0000000000b2', order_index: 0, text: 'later' })
+    const earlier = wordRow({ id: '00000000-0000-4000-8000-0000000000b1', order_index: 0, text: 'earlier' })
+    expect(groupSourceWords([later, earlier]).get(SEG_A)!.map((w) => w.text)).toEqual(['earlier', 'later'])
   })
 
   it('drops rows with impossible timing or a bad shape and keeps the rest', () => {
@@ -91,7 +96,7 @@ describe('groupSourceWords', () => {
       wordRow({ order_index: 5, segment_id: undefined }),
       null,
     ])
-    expect(grouped.get(SEG_A)).toEqual([{ text: 'kept', startMs: 0, endMs: 100 }])
+    expect(grouped.get(SEG_A)).toMatchObject([{ text: 'kept', startMs: 0, endMs: 100 }])
     expect(grouped.size).toBe(1)
     expect(warn).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls[0][0]).toContain('dropped 6 word row(s)')

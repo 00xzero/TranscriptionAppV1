@@ -1,5 +1,5 @@
 "use client"
-import { useCallback, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { useScrubberFocus } from '@/lib/audio/useScrubberFocus'
 import AudioPlayer from '@/components/AudioPlayer'
@@ -11,6 +11,8 @@ import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
 import { Popover, PopoverAnchor, PopoverContent, PopoverFrozenWhileClosed } from '@/components/ui/popover'
 import { LoadingStatus } from '@/components/ui/loading-status'
+import { toast } from '@/components/ui/toaster'
+import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE } from '@/lib/people/errors'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
 import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
@@ -24,6 +26,9 @@ import { useEditorData } from './hooks/useEditorData'
 import { useTranscriptTitleEditing } from './hooks/useTranscriptTitleEditing'
 import { useTranscriptMutations } from './hooks/useTranscriptMutations'
 import { useSpeakerAssignments } from './hooks/useSpeakerAssignments'
+import { useEditorWriteQueue } from './hooks/useEditorWriteQueue'
+import { useLiveStore } from './hooks/useLiveStore'
+import { useSegmentSplit } from './hooks/useSegmentSplit'
 import { useTranscriptSync } from './hooks/useTranscriptSync'
 import { useEditorPlayback } from './hooks/useEditorPlayback'
 import { useTranscriptSearch } from './hooks/useTranscriptSearch'
@@ -39,8 +44,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const router = useRouter()
   const { mutateTranscripts } = useTranscriptsData()
 
-  // 1. Data layer
-  const data = useEditorData(transcriptId)
+  // 1. Data layer. Words that arrive out of step with the segments shown, or
+  // that failed to load, come back with a reload of both, set up below once
+  // the write queue and the text drafts exist.
+  const reloadContentRef = useRef<() => void>(() => {})
+  const reloadContent = useCallback(() => reloadContentRef.current(), [])
+  const data = useEditorData(transcriptId, reloadContent)
   const actionTarget = transcriptActionTarget({
     id: transcriptId,
     title: data.transcriptTitle,
@@ -48,19 +57,54 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   }, `Untitled (${transcriptId.slice(0, 8)}...)`)
   const transcriptActions = useTranscriptActions()
 
-  // 2. Mutation hooks
+  // 2. Mutation hooks. Every write (text saves, speaker actions, splits) runs
+  // through one queue, and reads segments and words from the live stores.
+  const enqueue = useEditorWriteQueue()
+  const segmentsStore = useLiveStore(data.segments, data.setSegments)
+  const wordsStore = useLiveStore(data.wordsBySegment, data.setWordsBySegment)
   const editing = useTranscriptMutations({
-    setSegments: data.setSegments,
+    transcriptId,
+    segments: segmentsStore,
+    words: wordsStore,
+    enqueue,
   })
 
   const speakerHook = useSpeakerAssignments({
     transcriptId,
     speakers: data.speakers,
     segments: data.segments,
+    segmentsStore,
     peopleContext: data.peopleContext,
     setSpeakers: data.setSpeakers,
-    setSegments: data.setSegments,
     setPeopleContext: data.setPeopleContext,
+    enqueue,
+    reloadSegments: editing.reloadSegments,
+  })
+
+  const { reloadSegments } = editing
+  useEffect(() => {
+    reloadContentRef.current = () => {
+      void enqueue(async () => {
+        const reloaded = await reloadSegments()
+        if (!reloaded) {
+          toast({ title: "Couldn't load word timings", description: 'Word highlighting is off for this transcript.',
+            variant: 'error', action: { label: 'Retry', onClick: reloadContent } })
+        } else if (reloaded.droppedDrafts > 0) {
+          toast({ title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error' })
+        }
+      })
+    }
+  }, [enqueue, reloadSegments, reloadContent])
+
+  const splitting = useSegmentSplit({
+    segments: segmentsStore,
+    words: wordsStore,
+    enqueue,
+    editingId: editing.editingId,
+    setEditingTexts: editing.setEditingTexts,
+    flushSave: editing.flushSave,
+    reloadSegments: editing.reloadSegments,
+    openEditorAt: editing.openEditorAt,
   })
 
   const handleTitleSaved = useCallback((newTitle: string) => {
@@ -134,6 +178,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     suspendFollow: sync.suspendFollow,
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
+    canReplace: !splitting.anyBusy,
   })
 
   const openExportModal = useCallback(() => {
@@ -256,7 +301,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         onClear={search.clearSearch}
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
-        canReplace={true}
+        // Replacing waits while a split or undo is pending: its text would be
+        // edited against a shape about to change.
+        canReplace={!splitting.anyBusy}
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}
@@ -376,6 +423,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
             <TranscriptList
               segments={data.segments}
               wordsBySegment={data.wordsBySegment}
+              busy={splitting.busy}
               playbackClock={playbackClock}
               scrollParent={sync.scrollParent}
               virtuosoRef={sync.virtuosoRef}
@@ -393,6 +441,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               setEditingId={editing.setEditingId}
               setEditingTexts={editing.setEditingTexts}
               scheduleSave={editing.scheduleSave}
+              onSplit={splitting.split}
+              caretHint={editing.caretHint}
             />
           </div>
 

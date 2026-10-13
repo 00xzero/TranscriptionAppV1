@@ -1,7 +1,9 @@
 import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/editor'
-import type { SourceWord } from '@/core/transcript/word-alignment'
+import type { EditorWord } from './types'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
+// Waits before replaying a split or undo whose answer was lost.
+export const REPLAY_DELAYS_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? [1, 1, 1] : [1000, 2000, 4000]
 export const SYNC_OFFSET_MS = 150
 export const SEEK_LOCK_MS = 3000
 export const PROGRAMMATIC_SCROLL_RESET_MS = 250
@@ -33,7 +35,7 @@ export const isUnicodeWordChar = (char: string) => {
  * order. Rows with a bad shape or impossible timing are dropped, so nothing
  * malformed reaches alignment or the playback binary searches.
  */
-export function groupSourceWords(rows: readonly unknown[]): Map<string, SourceWord[]> {
+export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWord[]> {
   const rowsBySegment = new Map<string, EditorSourceWord[]>()
   let dropped = 0
   for (const row of rows) {
@@ -50,16 +52,32 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, SourceWo
     console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
   }
 
-  const wordsBySegment = new Map<string, SourceWord[]>()
+  const wordsBySegment = new Map<string, EditorWord[]>()
   for (const [segmentId, list] of rowsBySegment) {
-    list.sort((a, b) => a.order_index - b.order_index)
+    // (order_index, id): the order the database splits and joins words in.
+    list.sort((a, b) => a.order_index - b.order_index || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     wordsBySegment.set(segmentId, list.map((word) => ({
+      id: word.id,
       text: word.punctuated_text ?? word.text,
       startMs: word.start_ms,
       endMs: word.end_ms,
     })))
   }
   return wordsBySegment
+}
+
+/**
+ * Whether segment word sets, read after the segments were shown, still
+ * describe those segments. A split or rejoin always bumps the revision of a
+ * segment that exists both before and after it, so it is enough that every
+ * set belongs to a shown segment at the same revision.
+ */
+export function wordSetsInStep(
+  shown: readonly { id: string; revision: number }[],
+  sets: readonly { id: string; revision: number }[]
+): boolean {
+  const revisions = new Map(shown.map((segment) => [segment.id, segment.revision]))
+  return sets.every((set) => revisions.get(set.id) === set.revision)
 }
 
 /** Index of the last item that starts at or before `ms`, or -1 if none has. */

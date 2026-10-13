@@ -2,13 +2,15 @@ import React from 'react'
 import { Virtuoso, VirtuosoHandle, ListRange } from 'react-virtuoso'
 import TranscriptSegmentCard from './TranscriptSegmentCard'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
-import type { SourceWord } from '@/core/transcript/word-alignment'
 import type { PlaybackClock } from '../playbackClock'
-import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import type { BusyKind } from '../hooks/useSegmentSplit'
+import type { Seg, SegmentMatch, SaveStatusBySegment, WordsBySegment } from '../types'
 
 export type TranscriptListProps = {
   segments: Seg[]
-  wordsBySegment: ReadonlyMap<string, SourceWord[]>
+  wordsBySegment: WordsBySegment
+  /** Segments whose split or undo is waiting on the database. */
+  busy: ReadonlyMap<string, BusyKind>
   playbackClock: PlaybackClock
   scrollParent: HTMLElement | null
   virtuosoRef: React.RefObject<VirtuosoHandle | null>
@@ -27,11 +29,14 @@ export type TranscriptListProps = {
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
+  onSplit: (segId: string, text: string, caret: number) => void
+  caretHint: (segId: string) => number | undefined
 }
 
 export default function TranscriptList({
   segments,
   wordsBySegment,
+  busy,
   playbackClock,
   scrollParent,
   virtuosoRef,
@@ -49,6 +54,8 @@ export default function TranscriptList({
   setEditingId,
   setEditingTexts,
   scheduleSave,
+  onSplit,
+  caretHint,
 }: TranscriptListProps) {
   if (!scrollParent) return null
   return (
@@ -57,6 +64,9 @@ export default function TranscriptList({
         ref={virtuosoRef}
         customScrollParent={scrollParent}
         data={segments}
+        // Keyed by segment, so a split or undo inserting or removing a row
+        // never hands one card's state (its textarea, caret) to another.
+        computeItemKey={(_idx: number, s: Seg) => s.id}
         overscan={1200}
         rangeChanged={onRangeChanged}
         itemContent={(idx: number, s: Seg) => {
@@ -72,6 +82,7 @@ export default function TranscriptList({
               <TranscriptSegmentCard
                 segment={s}
                 sourceWords={wordsBySegment.get(s.id)}
+                busy={busy.get(s.id)}
                 isActive={activeSegId === s.id}
                 playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
@@ -87,6 +98,8 @@ export default function TranscriptList({
                 setEditingId={setEditingId}
                 setEditingTexts={setEditingTexts}
                 scheduleSave={scheduleSave}
+                onSplit={onSplit}
+                caretHint={caretHint}
               />
             </div>
           )

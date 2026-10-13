@@ -171,6 +171,8 @@ export const SegmentSchema = z.object({
   is_edited: z.boolean(),
   is_filler: z.boolean(),
   algo_version: z.string(),
+  /** Counts shape changes (split, rejoin); every write names the revision it was made against. */
+  revision: z.number().int().nonnegative(),
   created_at: z.string(),
   updated_at: z.string(),
 })
@@ -212,11 +214,19 @@ export const TranscriptWaveformInternalUpdateSchema = z.object({
 })
 
 // Only text is directly writable; a segment's speaker changes through the
-// guarded speaker functions below.
+// guarded speaker functions below, and its shape through the split functions.
 export const SegmentUpdateSchema = z.object({
   text: z.string().optional(),
   is_edited: z.boolean().optional(),
 })
+
+// === RPC: segment split ===
+// Each call names the revision it was made against; the database refuses a
+// mismatch (SP002). A replay of a completed call returns its result. See:
+//   infra/supabase/migrations/20261013000000_segment_split.sql
+
+// split_segment returns the segment and its new second half, in display order.
+export const SplitSegmentResultSchema = z.array(SegmentSchema).length(2)
 
 // === RPC: guarded speaker writes ===
 // Each call carries the values it expects to replace; the database refuses a

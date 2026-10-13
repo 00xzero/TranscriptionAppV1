@@ -12,6 +12,7 @@ export function useTranscriptSearch({
   suspendFollow,
   closeSpeakerPopover,
   exportModalOpen,
+  canReplace,
 }: {
   segments: Seg[]
   editingTexts: Record<string, string>
@@ -22,6 +23,8 @@ export function useTranscriptSearch({
   suspendFollow: (reason?: 'search' | 'ui') => void
   closeSpeakerPopover: (reason?: 'dismiss' | 'outside' | 'selection' | 'external') => void
   exportModalOpen: boolean
+  /** False while a split or undo is pending: replaced text would land on a changing shape. */
+  canReplace: boolean
 }) {
   const [findInput, setFindInput] = useState('')
   const [findTerm, setFindTerm] = useState('')
@@ -119,7 +122,7 @@ export function useTranscriptSearch({
   const handleNext = useCallback(() => goToDelta(1), [goToDelta])
 
   const handleReplace = useCallback(() => {
-    if (!currentMatch) return
+    if (!currentMatch || !canReplace) return
     const seg = segments.find((s: Seg) => s.id === currentMatch.segId)
     if (!seg) return
     const text = editingTexts[seg.id] ?? seg.text ?? ''
@@ -129,10 +132,10 @@ export function useTranscriptSearch({
     setEditingTexts((prev: Record<string, string>) => ({ ...prev, [seg.id]: updated }))
     scheduleSave(seg.id, updated)
     handleNext()
-  }, [currentMatch, segments, editingTexts, replaceTerm, scheduleSave, handleNext, setEditingTexts])
+  }, [currentMatch, canReplace, segments, editingTexts, replaceTerm, scheduleSave, handleNext, setEditingTexts])
 
   const handleReplaceAll = useCallback(() => {
-    if (!totalMatches) return
+    if (!totalMatches || !canReplace) return
     const baseTexts: Record<string, string> = {}
     segments.forEach((seg: Seg) => {
       baseTexts[seg.id] = editingTexts[seg.id] ?? seg.text ?? ''
@@ -155,7 +158,7 @@ export function useTranscriptSearch({
     if (Object.keys(updatedTexts).length === 0) return
     setEditingTexts((prev: Record<string, string>) => ({ ...prev, ...updatedTexts }))
     Object.entries(updatedTexts).forEach(([segId, text]) => scheduleSave(segId, text))
-  }, [totalMatches, matches, segments, editingTexts, replaceTerm, scheduleSave, setEditingTexts])
+  }, [totalMatches, canReplace, matches, segments, editingTexts, replaceTerm, scheduleSave, setEditingTexts])
 
   // Debounce findInput into findTerm
   useEffect(() => {

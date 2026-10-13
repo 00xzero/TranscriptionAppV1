@@ -42,11 +42,12 @@ import {
     ProjectSpeakerSummariesResultSchema,
     ReassignSegmentsResultSchema,
     RemovePersonResultSchema,
+    SegmentSchema,
     SegmentSpeakerChangeSchema,
     SpeakerSchema,
+    SplitSegmentResultSchema,
     TranscriptSummarySchema,
 } from '@/contracts/db'
-import type { EditorSourceWord } from '@/contracts/editor'
 import { z } from 'zod'
 
 const PAGE_SIZE = 1000
@@ -379,17 +380,18 @@ export async function fetchSegments(transcriptId: string): Promise<Segment[]> {
 }
 
 /**
- * Fetch each segment's speaker assignment only: the columns a speaker refresh
- * needs, without re-downloading every segment's text.
+ * Fetch each segment's speaker assignment and revision only: the columns a
+ * speaker refresh needs, and enough to notice a segment split or rejoined
+ * elsewhere, without re-downloading every segment's text.
  */
 export async function fetchSegmentSpeakerAssignments(
     transcriptId: string
-): Promise<Pick<Segment, 'id' | 'speaker_id'>[]> {
+): Promise<Pick<Segment, 'id' | 'speaker_id' | 'revision'>[]> {
     const supabase = createClient()
-    return paginateRows<Pick<Segment, 'id' | 'speaker_id'>>((from, to) =>
+    return paginateRows<Pick<Segment, 'id' | 'speaker_id' | 'revision'>>((from, to) =>
         supabase
             .from('segments')
-            .select('id, speaker_id')
+            .select('id, speaker_id, revision')
             .eq('transcript_id', transcriptId)
             .order('start_ms', { ascending: true })
             .order('id', { ascending: true })
@@ -397,22 +399,45 @@ export async function fetchSegmentSpeakerAssignments(
     )
 }
 
+const STORED_WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
+
+/** A segment's stored words, read in the same query as its revision. Word rows are unvalidated; see groupSourceWords. */
+export type SegmentWordSet = { id: string; revision: number; words: unknown[] }
+
 /**
- * Fetch every stored Deepgram word of a transcript, in segment and spoken
- * order. The empty `segments!inner()` embed filters by transcript without
- * returning segment columns. Rows are unvalidated; see groupSourceWords.
+ * Fetch every segment's stored Deepgram words with the segment's revision. A
+ * segment's words change only when its revision does (a split or rejoin), and
+ * here both come from one query, so the words are exactly that revision's:
+ * words read this way can be trusted for a segment shown at the same revision.
+ * Words are embedded per segment, so the 1,000-row page cap counts segments.
  */
-export async function fetchTranscriptWords(transcriptId: string): Promise<EditorSourceWord[]> {
+export async function fetchSegmentWordSets(transcriptId: string): Promise<SegmentWordSet[]> {
     const supabase = createClient()
-    return paginateRows<EditorSourceWord>((from, to) =>
+    return paginateRows<SegmentWordSet>((from, to) =>
         supabase
-            .from('words')
-            .select('id, segment_id, start_ms, end_ms, text, punctuated_text, order_index, segments!inner()')
-            .eq('segments.transcript_id', transcriptId)
-            .order('segment_id', { ascending: true })
-            .order('order_index', { ascending: true })
+            .from('segments')
+            .select(`id, revision, words(${STORED_WORD_COLUMNS})`)
+            .eq('transcript_id', transcriptId)
+            .order('start_ms', { ascending: true })
             .order('id', { ascending: true }) // tie-breaker for deterministic pagination
-            .range(from, to) as unknown as PromiseLike<PageResult<EditorSourceWord>>
+            .range(from, to) as unknown as PromiseLike<PageResult<SegmentWordSet>>
+    )
+}
+
+/**
+ * Fetch every segment with its stored words in the same row, so each
+ * segment's words always belong to the revision it is shown at.
+ */
+export async function fetchSegmentsWithWords(transcriptId: string): Promise<Array<Segment & { words: unknown[] }>> {
+    const supabase = createClient()
+    return paginateRows<Segment & { words: unknown[] }>((from, to) =>
+        supabase
+            .from('segments')
+            .select(`*, words(${STORED_WORD_COLUMNS})`)
+            .eq('transcript_id', transcriptId)
+            .order('start_ms', { ascending: true })
+            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
+            .range(from, to) as unknown as PromiseLike<PageResult<Segment & { words: unknown[] }>>
     )
 }
 
@@ -430,9 +455,15 @@ export async function fetchTranscriptData(transcriptId: string): Promise<{
 /**
  * Update a segment's text. Its speaker changes only through reassignSegments.
  */
+/**
+ * Update a segment's text, only while it still has the shape the text was
+ * edited against. A segment split or rejoined since has a new revision, so
+ * the update matches no row and fails with PGRST116 (see isConflict).
+ */
 export async function updateSegment(
     id: string,
-    updates: SegmentUpdate
+    updates: SegmentUpdate,
+    expectedRevision: number
 ): Promise<Segment> {
     const payload = updates.text !== undefined
         ? { ...updates, is_edited: true }
@@ -443,11 +474,71 @@ export async function updateSegment(
         .from('segments')
         .update(payload)
         .eq('id', id)
+        .eq('revision', expectedRevision)
         .select()
         .single()
 
     if (error) throw error
     return data
+}
+
+export type SplitSegmentRequest = {
+    segmentId: string
+    expectedRevision: number
+    splitWordId: string
+    firstText: string
+    secondText: string
+    newSegmentId: string
+}
+
+/**
+ * Split a segment before one of its words: that word onward, with secondText,
+ * becomes the new segment. Returns both rows in display order. Replaying the
+ * same request after a lost response returns the split it already made.
+ */
+export async function splitSegment(request: SplitSegmentRequest): Promise<[Segment, Segment]> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('split_segment', {
+        p_segment_id: request.segmentId,
+        p_expected_revision: request.expectedRevision,
+        p_split_word_id: request.splitWordId,
+        p_first_text: request.firstText,
+        p_second_text: request.secondText,
+        p_new_segment_id: request.newSegmentId,
+    })
+
+    if (error) throw error
+    const [first, second] = SplitSegmentResultSchema.parse(data)
+    return [first, second]
+}
+
+export type RejoinSegmentsRequest = {
+    segmentId: string
+    expectedRevision: number
+    nextSegmentId: string
+    expectedNextRevision: number
+    nextFirstWordId: string
+    text: string
+}
+
+/**
+ * Join the segment directly after a segment back into it, under the given
+ * text. Returns the joined row. Replaying the same request after a lost
+ * response returns the join it already made.
+ */
+export async function rejoinSegments(request: RejoinSegmentsRequest): Promise<Segment> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('rejoin_segments', {
+        p_segment_id: request.segmentId,
+        p_expected_revision: request.expectedRevision,
+        p_next_segment_id: request.nextSegmentId,
+        p_expected_next_revision: request.expectedNextRevision,
+        p_next_first_word_id: request.nextFirstWordId,
+        p_text: request.text,
+    })
+
+    if (error) throw error
+    return SegmentSchema.parse(data)
 }
 
 // ============================================================================

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { useSpeakerAssignments } from '../../app/editor/[id]/hooks/useSpeakerAssignments'
+import { useEditorWriteQueue } from '../../app/editor/[id]/hooks/useEditorWriteQueue'
+import { useLiveStore } from '../../app/editor/[id]/hooks/useLiveStore'
 import { SPEAKER_COLORS } from '@/lib/speakers/palette'
 import type { EditorPeopleContext, EditorPerson, Speaker } from '@/contracts/db'
 import type { Seg } from '../../app/editor/[id]/types'
@@ -33,7 +35,7 @@ const named = (id: string, ordinal: number, patch: Pick<Speaker, 'custom_label' 
 })
 const segment = (id: string, speaker_id: string | null, start_ms: number, diarization_index: number | null = 0): Seg => ({
   id, transcript_id: 't1', speaker_id, diarization_index, start_ms, end_ms: start_ms + 1000, text: `text ${id}`,
-  is_edited: false, is_filler: false, algo_version: 'test', created_at: stamp, updated_at: stamp,
+  is_edited: false, is_filler: false, algo_version: 'test', revision: 0, created_at: stamp, updated_at: stamp,
 })
 const alex: EditorPerson = {
   id: 'p1', user_id: 'u1', name: 'Alex', organisation_id: null, organisation_name: null,
@@ -46,15 +48,20 @@ const alexHere = named('c', 3, { custom_label: null, person_id: 'p1' })
 
 function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
   initialSegments = [segment('s1', 'a', 0), segment('s2', 'a', 1000)]) {
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValue([])
+  // By default a refresh finds the database as the editor holds it.
+  queries.fetchSegmentSpeakerAssignments.mockImplementation(async () => rendered.result.current.segments
+    .map(({ id, speaker_id, revision }) => ({ id, speaker_id, revision })))
   queries.fetchSpeakers.mockResolvedValue(initialSpeakers)
   queries.fetchEditorPeopleContext.mockResolvedValue(context)
+  const reloadSegments = jest.fn().mockResolvedValue({ droppedDrafts: 0 })
   const rendered = renderHook(() => {
     const [speakers, setSpeakers] = useState(initialSpeakers)
     const [segments, setSegments] = useState(initialSegments)
     const [peopleContext, setPeopleContext] = useState(context)
-    const hook = useSpeakerAssignments({ transcriptId: 't1', speakers, segments, peopleContext,
-      setSpeakers, setSegments, setPeopleContext })
+    const enqueue = useEditorWriteQueue()
+    const segmentsStore = useLiveStore(segments, setSegments)
+    const hook = useSpeakerAssignments({ transcriptId: 't1', speakers, segments, segmentsStore, peopleContext,
+      setSpeakers, setPeopleContext, enqueue, reloadSegments })
     return { ...hook, segments, speakers, peopleContext }
   })
   const open = (id = 's1') => act(() => rendered.result.current.setSpeakerPopover({
@@ -63,7 +70,7 @@ function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
     anchorMeasurable: anchor, triggerElement: null,
   }))
   const speakerIds = () => rendered.result.current.segments.map((row) => row.speaker_id)
-  return { ...rendered, open, speakerIds }
+  return { ...rendered, open, speakerIds, reloadSegments }
 }
 
 const toastWith = (label: string) => toast.mock.calls
@@ -326,6 +333,38 @@ test('refreshes speaker data when the tab regains focus', async () => {
   await waitFor(() => expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1))
 })
 
+test('a segment split or rejoined elsewhere reloads segments and words on return', async () => {
+  const { reloadSegments } = setup()
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'a', revision: 1 }, { id: 's2', speaker_id: 'a', revision: 0 }, { id: 's3', speaker_id: 'a', revision: 0 },
+  ])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(reloadSegments).toHaveBeenCalledTimes(1))
+  expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1)
+})
+
+test('a reload on return that drops unsaved text says so', async () => {
+  const { reloadSegments } = setup()
+  reloadSegments.mockResolvedValueOnce({ droppedDrafts: 1 })
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'a', revision: 1 }, { id: 's2', speaker_id: 'a', revision: 0 },
+  ])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+    title: 'Changed in another tab — refreshed', description: "Your last edit to a segment that changed wasn't saved.",
+  })))
+})
+
+test('an unchanged shape on return merges assignments without reloading', async () => {
+  const { reloadSegments, speakerIds } = setup()
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
+  ])
+  act(() => window.dispatchEvent(new Event('focus')))
+  await waitFor(() => expect(speakerIds()).toEqual(['b', 'a']))
+  expect(reloadSegments).not.toHaveBeenCalled()
+})
+
 test('a tab switch that fires both events refreshes once', async () => {
   let finish!: (rows: Speaker[]) => void
   const { result } = setup()
@@ -378,7 +417,9 @@ test('Undo after inline creation moves the segments back and removes the unchang
 test('an open picker closes when a refresh moves its segment to another speaker', async () => {
   const { result, open } = setup()
   open()
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([{ id: 's1', speaker_id: 'b' }])
+  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
+    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
+  ])
   act(() => window.dispatchEvent(new Event('focus')))
   // Its Current row would still say Speaker 1 while All acted on Speaker 2.
   await waitFor(() => expect(result.current.speakerPopover).toBeNull())

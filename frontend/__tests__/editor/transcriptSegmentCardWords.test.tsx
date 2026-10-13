@@ -8,7 +8,7 @@ import type { Seg } from '@/app/editor/[id]/types'
 const segment: Seg = {
   id: 's1', transcript_id: 't1', speaker_id: null, diarization_index: null,
   start_ms: 1000, end_ms: 3000, text: 'Hello there, friend.',
-  is_edited: false, is_filler: false, algo_version: 'test',
+  is_edited: false, is_filler: false, algo_version: 'test', revision: 0,
   created_at: '2026-10-12T00:00:00Z', updated_at: '2026-10-12T00:00:00Z',
 }
 
@@ -41,6 +41,9 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     setEditingId: jest.fn(),
     setEditingTexts: jest.fn(),
     scheduleSave: jest.fn(),
+    busy: undefined,
+    onSplit: jest.fn(),
+    caretHint: () => undefined,
     ...overrides,
   }
   const view = render(<TooltipProvider><TranscriptSegmentCard {...props} /></TooltipProvider>)
