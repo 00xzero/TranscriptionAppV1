@@ -117,7 +117,7 @@ Each swappable concern (lock, presence, persistence) ships a real implementation
 
 Supabase tables: `transcripts`, `speakers`, `segments`, `words`, `jobs`, `job_events`, `failed_events`, `webhook_receipts`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
 
-`segments.revision` counts shape changes (split, rejoin). Every write to a segment names the revision it was made against, so text typed against an old shape is refused rather than written into the new one, where it would duplicate the moved text.
+`segments.revision` counts shape changes (split, rejoin). Every write to a segment names the revision it was made against, text saves and speaker changes alike, so text typed against an old shape is refused rather than written into the new one, where it would duplicate the moved text, and a speaker change chosen while a segment was whole is refused rather than applied to its first half only.
 
 Historical notes for reading migrations: `projects` was renamed to `transcripts`, and the `chunks`/`chunk_words` consolidation tables were dropped — don't reintroduce either.
 
