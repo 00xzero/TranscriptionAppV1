@@ -38,6 +38,7 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     setEditingTexts: jest.fn(),
     scheduleSave: jest.fn(),
     onSplit: jest.fn(),
+    onRetryUnconfirmed: jest.fn(),
     caretHint: () => undefined,
     ...overrides,
   }
@@ -119,6 +120,21 @@ describe('splitting from the segment editor', () => {
     expect(props.onSplit).toHaveBeenCalledTimes(1)
   })
 
+  // Codex: the toast's Retry can be dismissed; the card must keep one.
+  it('offers Retry on the card while a split is not confirmed, without seeking', () => {
+    const { props, textarea } = setup({ busy: 'unconfirmed' })
+    expect(textarea).toHaveAttribute('readonly')
+    expect(screen.getByText('Not confirmed')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(props.onRetryUnconfirmed).toHaveBeenCalledWith('s1')
+    expect(props.onSegmentClick).not.toHaveBeenCalled()
+  })
+
+  it('has no Retry while a split is only pending', () => {
+    setup({ busy: 'splitting' })
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
   it('opens with the caret where a split put it', () => {
     const { textarea } = setup({ caretHint: (id) => (id === 's1' ? 0 : undefined) })
     expect(textarea.selectionStart).toBe(0)
@@ -164,7 +180,7 @@ describe('splitting from the segment editor', () => {
           needHeader editingId={null} editingTexts={{}} saveStatus={{}}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
           setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
-          onSplit={jest.fn()} caretHint={() => undefined}
+          onSplit={jest.fn()} onRetryUnconfirmed={jest.fn()} caretHint={() => undefined}
         />
       </TooltipProvider>
     )

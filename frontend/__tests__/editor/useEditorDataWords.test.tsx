@@ -103,6 +103,25 @@ it('waits for the segments before judging words that arrive first', async () => 
   expect(reloadContent).not.toHaveBeenCalled()
 })
 
+// Codex: until init shows its segments, a tab-return refresh must wait, or
+// init's older rows land over what it reloaded.
+it('counts as loaded once its segments are shown, and starts over for another transcript', async () => {
+  const data = deferred<{ items: unknown[] }>()
+  fetchTranscriptData.mockReturnValue(data.promise)
+  fetchSegmentWordSets.mockResolvedValue([])
+  const { result, rerender } = render('t1')
+  await act(async () => {})
+  expect(result.current.isLoaded()).toBe(false)
+
+  await act(async () => { data.resolve({ items: [segment(SEG, 0)] }) })
+  await waitFor(() => expect(result.current.segments).toHaveLength(1))
+  expect(result.current.isLoaded()).toBe(true)
+
+  fetchTranscriptData.mockReturnValue(new Promise(() => {}))
+  rerender({ transcriptId: 't2' })
+  expect(result.current.isLoaded()).toBe(false)
+})
+
 it('shows segments without waiting for the words', async () => {
   fetchSegmentWordSets.mockReturnValue(new Promise(() => {}))
   const { result } = render()

@@ -67,7 +67,7 @@ describe('reassignSegments', () => {
     const rows = [{ segment_id: SEGMENT, speaker_id: OTHER_SPEAKER }]
     mockRpc.mockResolvedValueOnce({ data: rows, error: null })
 
-    const changes = [{ segment_id: SEGMENT, expected_speaker_id: SPEAKER, speaker_id: OTHER_SPEAKER }]
+    const changes = [{ segment_id: SEGMENT, expected_speaker_id: SPEAKER, expected_revision: 0, speaker_id: OTHER_SPEAKER }]
     await expect(reassignSegments(TRANSCRIPT, changes)).resolves.toEqual(rows)
     expect(mockRpc).toHaveBeenCalledWith('reassign_segments', {
       p_transcript_id: TRANSCRIPT,
@@ -78,13 +78,23 @@ describe('reassignSegments', () => {
   test('a null target means Unknown speaker', async () => {
     mockRpc.mockResolvedValueOnce({ data: [{ segment_id: SEGMENT, speaker_id: null }], error: null })
 
-    await reassignSegments(TRANSCRIPT, [{ segment_id: SEGMENT, expected_speaker_id: SPEAKER, speaker_id: null }])
+    await reassignSegments(TRANSCRIPT, [{ segment_id: SEGMENT, expected_speaker_id: SPEAKER, expected_revision: 0, speaker_id: null }])
     expect(mockRpc.mock.calls[0][1].p_changes[0].speaker_id).toBeNull()
   })
 
   test('refuses to send a malformed change', async () => {
     await expect(
-      reassignSegments(TRANSCRIPT, [{ segment_id: 'not-a-uuid', expected_speaker_id: null, speaker_id: null }])
+      reassignSegments(TRANSCRIPT, [{ segment_id: 'not-a-uuid', expected_speaker_id: null, expected_revision: 0, speaker_id: null }])
+    ).rejects.toThrow()
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+
+  // Codex: a split keeps the segment's id and speaker, so a change must also
+  // name the shape it was chosen against.
+  test('refuses to send a change without the revision it was chosen against', async () => {
+    const unversioned = { segment_id: SEGMENT, expected_speaker_id: SPEAKER, speaker_id: OTHER_SPEAKER }
+    await expect(
+      reassignSegments(TRANSCRIPT, [unversioned as Parameters<typeof reassignSegments>[1][number]])
     ).rejects.toThrow()
     expect(mockRpc).not.toHaveBeenCalled()
   })
@@ -94,7 +104,7 @@ describe('reassignSegments', () => {
     mockRpc.mockResolvedValueOnce({ data: null, error: conflict })
 
     await expect(
-      reassignSegments(TRANSCRIPT, [{ segment_id: SEGMENT, expected_speaker_id: null, speaker_id: SPEAKER }])
+      reassignSegments(TRANSCRIPT, [{ segment_id: SEGMENT, expected_speaker_id: null, expected_revision: 0, speaker_id: SPEAKER }])
     ).rejects.toBe(conflict)
   })
 })

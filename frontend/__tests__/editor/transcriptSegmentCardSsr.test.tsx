@@ -46,6 +46,7 @@ it('server-renders the current segment without a store error and without highlig
         scheduleSave={() => {}}
         busy={undefined}
         onSplit={() => {}}
+        onRetryUnconfirmed={() => {}}
         caretHint={() => undefined}
       />
     </TooltipProvider>

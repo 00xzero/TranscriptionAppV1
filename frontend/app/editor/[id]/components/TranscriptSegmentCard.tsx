@@ -33,6 +33,7 @@ type SegmentHeaderRowProps = {
   /** Splitting is offered only while editing; null hides the button. */
   canSplit: boolean | null
   onSplitClick: () => void
+  onRetryClick: () => void
   onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
@@ -55,6 +56,7 @@ function SegmentHeaderRow({
   editingId,
   canSplit,
   onSplitClick,
+  onRetryClick,
   onSpeakerClick,
   setEditingId,
   setEditingTexts,
@@ -92,8 +94,24 @@ function SegmentHeaderRow({
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
       <span className="text-[10px] font-mono">
-        {busy ? (
-          <span className={busy === 'unconfirmed' ? 'text-ember-red' : 'text-trust-blue'}>{BUSY_LABEL[busy]}</span>
+        {busy === 'unconfirmed' ? (
+          <span className="text-ember-red">
+            {BUSY_LABEL[busy]}
+            {/* Stays here after the toast that also offers it is gone. */}
+            <button
+              type="button"
+              className="ml-1.5 font-semibold underline underline-offset-2 hover:no-underline rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ember-red/40"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                // A click on the card seeks; this one only retries.
+                e.stopPropagation()
+                onRetryClick()
+              }}
+            >
+              Retry
+            </button>
+          </span>
+        ) : busy ? (
+          <span className="text-trust-blue">{BUSY_LABEL[busy]}</span>
         ) : (
           <>
             {saveStatus[segmentId] === 'saving' && <span className="text-trust-blue">Saving…</span>}
@@ -218,6 +236,8 @@ export type TranscriptSegmentCardProps = {
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
+  /** Retries a split or undo the database has not confirmed. */
+  onRetryUnconfirmed: (segId: string) => void
   /** Where the caret goes when this card's editor opens; at the end if none. */
   caretHint: (segId: string) => number | undefined
 }
@@ -242,6 +262,7 @@ export default function TranscriptSegmentCard({
   setEditingTexts,
   scheduleSave,
   onSplit,
+  onRetryUnconfirmed,
   caretHint,
 }: TranscriptSegmentCardProps) {
   const isEditing = editingId === s.id
@@ -376,6 +397,7 @@ export default function TranscriptSegmentCard({
           editingId={editingId}
           canSplit={canSplit}
           onSplitClick={splitAtCaret}
+          onRetryClick={() => onRetryUnconfirmed(s.id)}
           onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             onSpeakerClick(e, s.id, s.speaker_id ?? null)

@@ -234,9 +234,13 @@ export const SplitSegmentResultSchema = z.array(SegmentSchema).length(2)
 //   infra/supabase/migrations/20260924000000_speaker_identity_foundations.sql
 
 // One segment of a reassign_segments call. speaker_id null means Unknown.
+// expected_revision is the segment's shape the change was chosen against: a
+// split or rejoin since refuses it, like a changed speaker. See
+//   infra/supabase/migrations/20261013000000_segment_split.sql
 export const SegmentSpeakerChangeSchema = z.object({
   segment_id: UuidSchema,
   expected_speaker_id: UuidSchema.nullable(),
+  expected_revision: z.number().int().nonnegative(),
   speaker_id: UuidSchema.nullable(),
 })
 

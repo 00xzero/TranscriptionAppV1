@@ -79,6 +79,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     setPeopleContext: data.setPeopleContext,
     enqueue,
     reloadSegments: editing.reloadSegments,
+    isLoaded: data.isLoaded,
   })
 
   const { reloadSegments } = editing
@@ -442,6 +443,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               setEditingTexts={editing.setEditingTexts}
               scheduleSave={editing.scheduleSave}
               onSplit={splitting.split}
+              onRetryUnconfirmed={splitting.retry}
               caretHint={editing.caretHint}
             />
           </div>

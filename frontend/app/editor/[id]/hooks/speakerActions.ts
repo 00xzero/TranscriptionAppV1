@@ -7,6 +7,7 @@ import {
   undoCreatedPerson,
 } from '@/lib/supabase/queries'
 import { leastUsedSpeakerColor } from '@/lib/speakers/palette'
+import { reverseSpeakerChange } from '@/core/speakers/changes'
 import type {
   EditorPeopleContext,
   EditorPerson,
@@ -48,6 +49,22 @@ export type SpeakerStore = {
 }
 
 export type SpeakerUndo = { apply(): void; restore(): void; write(): Promise<void> }
+
+/** The segments an action was chosen for, each with the revision it had then. */
+export type Selection = ReadonlyMap<string, number>
+
+export const selectionOf = (segments: readonly Seg[]): Selection =>
+  new Map(segments.map((segment) => [segment.id, segment.revision]))
+
+/**
+ * True when a chosen segment has been split, rejoined or removed since it was
+ * chosen. An action runs after the writes queued ahead of it; applied to part
+ * of a segment chosen whole, it would do less than was asked.
+ */
+export function selectionReshaped(store: SpeakerStore, selection: Selection): boolean {
+  const current = new Map(store.segments().map((segment) => [segment.id, segment.revision]))
+  return [...selection].some(([id, revision]) => current.get(id) !== revision)
+}
 
 export type SpeakerAction = {
   /** Success toast, e.g. "Identified Speaker 1 as Hamza". */
@@ -121,7 +138,7 @@ export function removalChanges(speakers: readonly Speaker[], segments: readonly 
   return segments.flatMap((segment) => {
     const home = homeSpeakerId(speakers, segment)
     return home !== undefined && home !== segment.speaker_id
-      ? [{ segment_id: segment.id, expected_speaker_id: segment.speaker_id, speaker_id: home }]
+      ? [{ segment_id: segment.id, expected_speaker_id: segment.speaker_id, expected_revision: segment.revision, speaker_id: home }]
       : []
   })
 }
@@ -133,9 +150,7 @@ function reassignUndo(store: SpeakerStore, changes: readonly SegmentSpeakerChang
   return {
     apply: () => moveTo((change) => change.expected_speaker_id),
     restore: () => moveTo((change) => change.speaker_id),
-    write: async () => assignSegments(store, await reassignSegments(store.transcriptId, changes.map((change) => ({
-      segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-    })))),
+    write: async () => assignSegments(store, await reassignSegments(store.transcriptId, changes.map(reverseSpeakerChange))),
   }
 }
 
@@ -209,7 +224,8 @@ export function correctAction(
   }
 ): SpeakerAction | null {
   const segments = store.segments().filter((segment) => segmentIds.has(segment.id))
-  const changes = segments.map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id }))
+  const changes = segments.map((segment) =>
+    ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id, expected_revision: segment.revision }))
   // A target made by an action queued ahead of this one was chosen under its
   // provisional id: find and write it under the saved one, but label it as it
   // was shown when chosen.
@@ -269,9 +285,7 @@ export function correctAction(
         async write() {
           await undoCreatedPerson({
             transcriptId: store.transcriptId, speakerId: result.speaker.id, person: result.person,
-            changes: moved(result.speaker.id).map((change) => ({
-              segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-            })),
+            changes: moved(result.speaker.id).map(reverseSpeakerChange),
           })
           // The correction's speaker stays, unlinked and silent.
           patchSpeaker(store, result.speaker.id, { person_id: null })
@@ -347,7 +361,7 @@ export function renameLocalAction(
 
   const changes = store.segments()
     .filter((segment) => segmentIds.has(segment.id))
-    .map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id }))
+    .map((segment) => ({ segment_id: segment.id, expected_speaker_id: segment.speaker_id, expected_revision: segment.revision }))
   if (changes.length === 0) return null
   const provisional = provisionalSpeaker(store, { custom_label: label, person_id: null })
   const moved = (id: string) => changes.map((change) => ({ ...change, speaker_id: id }))

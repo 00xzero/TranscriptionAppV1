@@ -30,6 +30,7 @@ export type TranscriptListProps = {
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
+  onRetryUnconfirmed: (segId: string) => void
   caretHint: (segId: string) => number | undefined
 }
 
@@ -55,6 +56,7 @@ export default function TranscriptList({
   setEditingTexts,
   scheduleSave,
   onSplit,
+  onRetryUnconfirmed,
   caretHint,
 }: TranscriptListProps) {
   if (!scrollParent) return null
@@ -99,6 +101,7 @@ export default function TranscriptList({
                 setEditingTexts={setEditingTexts}
                 scheduleSave={scheduleSave}
                 onSplit={onSplit}
+                onRetryUnconfirmed={onRetryUnconfirmed}
                 caretHint={caretHint}
               />
             </div>

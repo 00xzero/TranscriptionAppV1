@@ -16,6 +16,7 @@ import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { appearanceTotals, mergeDirectoryPeople, updateDirectoryPerson } from '@/core/people/directory'
+import { reverseSpeakerChange } from '@/core/speakers/changes'
 import { isConflict, isGone, isNotReady, mapPeopleWriteError, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
@@ -253,9 +254,7 @@ export function PersonDialog({ personId }: { personId: string }) {
   // segment has moved since.
   async function undoRemove(appearance: PersonAppearance, changes: SegmentSpeakerChange[]) {
     try {
-      await reassignSegments(appearance.transcript_id, changes.map((change) => ({
-        segment_id: change.segment_id, expected_speaker_id: change.speaker_id, speaker_id: change.expected_speaker_id,
-      })))
+      await reassignSegments(appearance.transcript_id, changes.map(reverseSpeakerChange))
       showAppearance(appearance)
     } catch (error) {
       toast(isNotReady(error)

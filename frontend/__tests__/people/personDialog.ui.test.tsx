@@ -249,7 +249,7 @@ describe('delete', () => {
 })
 
 describe('remove from this transcript', () => {
-  const changes = [{ segment_id: SEGMENT_ID, expected_speaker_id: LINKED_SPEAKER, speaker_id: DETECTED_SPEAKER }]
+  const changes = [{ segment_id: SEGMENT_ID, expected_speaker_id: LINKED_SPEAKER, expected_revision: 0, speaker_id: DETECTED_SPEAKER }]
 
   test('removes the person there and offers Undo, which swaps each change back', async () => {
     let finish: (value: typeof changes) => void = () => {}
@@ -269,7 +269,7 @@ describe('remove from this transcript', () => {
 
     await clickToastAction('Undo')
     expect(reassignSegments).toHaveBeenCalledWith(TRANSCRIPT_B, [
-      { segment_id: SEGMENT_ID, expected_speaker_id: DETECTED_SPEAKER, speaker_id: LINKED_SPEAKER },
+      { segment_id: SEGMENT_ID, expected_speaker_id: DETECTED_SPEAKER, expected_revision: 0, speaker_id: LINKED_SPEAKER },
     ])
   })
 

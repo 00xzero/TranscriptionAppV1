@@ -132,7 +132,9 @@ const toastWith = (pick: (options: { title: string; action?: { label: string } }
   toast.mock.calls.map(([options]: [{ title: string; action?: { label: string; onClick: () => void } }]) => options).find(pick)
 const splitRequests = (): SplitSegmentRequest[] => queries.splitSegment.mock.calls.map(([req]: [SplitSegmentRequest]) => req)
 
+/** Split A at the caret, from its open editor, as Enter does. */
 function split(result: Hook, text = TEXT, caret = CARET) {
+  act(() => result.current.editing.setEditingId(A))
   act(() => result.current.splitting.split(A, text, caret))
 }
 
@@ -284,9 +286,8 @@ describe('split', () => {
       await waitFor(() => expect(result.current.splitting.busy.get(A)).toBe('unconfirmed'))
       // The first try and three replays.
       expect(splitRequests()).toHaveLength(4)
-      const retry = toastWith((o) => o.action?.label === 'Retry') as { title: string; durationMs: number; action: { onClick: () => void } }
+      const retry = toastWith((o) => o.action?.label === 'Retry') as { title: string; action: { onClick: () => void } }
       expect(retry.title).toBe("Couldn't reach the server to finish the split")
-      expect(retry.durationMs).toBe(Infinity)
       expect(ids(result)).toEqual([BEFORE, A])
 
       queries.splitSegment.mockImplementation(async (req: SplitSegmentRequest) => fake.split(req))
@@ -294,6 +295,63 @@ describe('split', () => {
       await waitFor(() => expect(ids(result)).toHaveLength(3))
       expect(new Set(splitRequests().map((req) => req.newSegmentId)).size).toBe(1)
       expect(result.current.splitting.anyBusy).toBe(false)
+    })
+
+    // Codex: the toast can be swiped away; the card keeps Retry.
+    it('retries from the card once the toast is gone, and a late toast Retry then does nothing', async () => {
+      queries.splitSegment.mockRejectedValue(LOST)
+      const { result } = setup()
+      split(result)
+      await waitFor(() => expect(result.current.splitting.busy.get(A)).toBe('unconfirmed'))
+      const toastRetry = toastWith((o) => o.action?.label === 'Retry') as { action: { onClick: () => void } }
+
+      queries.splitSegment.mockImplementation(async (req: SplitSegmentRequest) => fake.split(req))
+      act(() => {
+        result.current.splitting.retry(A)
+        // A second click before the replay runs is turned away.
+        result.current.splitting.retry(A)
+      })
+      await waitFor(() => expect(ids(result)).toHaveLength(3))
+      expect(splitRequests()).toHaveLength(5)
+      expect(result.current.splitting.anyBusy).toBe(false)
+
+      act(() => toastRetry.action.onClick())
+      await act(async () => {})
+      expect(splitRequests()).toHaveLength(5)
+      expect(toast.mock.calls.filter(([o]: [{ title: string }]) => o.title === 'Segment split')).toHaveLength(1)
+    })
+
+    // Codex: a refresh can show the new half while the split is unconfirmed;
+    // typing there would be overwritten when the replay confirms the split.
+    it('keeps the new half closed while unconfirmed, even once a reload shows it', async () => {
+      queries.splitSegment.mockRejectedValue(LOST)
+      queries.splitSegment.mockImplementationOnce(async (req: SplitSegmentRequest) => {
+        fake.split(req)
+        throw LOST
+      })
+      const { result } = setup()
+      split(result)
+      await waitFor(() => expect(result.current.splitting.busy.get(A)).toBe('unconfirmed'))
+      const newId = splitRequests()[0].newSegmentId
+
+      // Back on the tab, the refresh finds the split the lost answer hid.
+      await act(async () => { await result.current.editing.reloadSegments() })
+      expect(ids(result)).toEqual([BEFORE, A, newId])
+      expect(result.current.splitting.busy.get(newId)).toBe('unconfirmed')
+
+      // Retry from the new half's card settles it, and frees both halves.
+      queries.splitSegment.mockImplementation(async (req: SplitSegmentRequest) => fake.split(req))
+      act(() => result.current.splitting.retry(newId))
+      await waitFor(() => expect(result.current.splitting.anyBusy).toBe(false))
+      expect(new Set(splitRequests().map((req) => req.newSegmentId)).size).toBe(1)
+      expect(texts(result)).toEqual(['Before.', 'One two.', 'Three four.'])
+    })
+
+    it('offers no card Retry for a segment that is not waiting on one', async () => {
+      const { result } = setup()
+      act(() => result.current.splitting.retry(A))
+      await act(async () => {})
+      expect(queries.splitSegment).not.toHaveBeenCalled()
     })
 
     // Codex: a replay must not apply captured words after a later change.
@@ -346,6 +404,54 @@ describe('split', () => {
     expect(ids(result)).toEqual([BEFORE, A])
     expect(result.current.splitting.anyBusy).toBe(false)
     consoleSpy.mockRestore()
+  })
+})
+
+// Codex: a late answer must not pull the editor off a segment the user moved to.
+describe('where editing goes once the split is confirmed', () => {
+  function answerLater() {
+    let answer!: () => void
+    queries.splitSegment.mockImplementationOnce((req: SplitSegmentRequest) =>
+      new Promise((resolve) => { answer = () => resolve(fake.split(req)) }))
+    return () => answer()
+  }
+
+  it('stays on another segment the user started editing meanwhile', async () => {
+    const answer = answerLater()
+    const { result } = setup()
+    split(result)
+    await waitFor(() => expect(queries.splitSegment).toHaveBeenCalled())
+    act(() => result.current.editing.setEditingId(BEFORE))
+
+    await act(async () => { answer() })
+    await waitFor(() => expect(ids(result)).toHaveLength(3))
+    expect(result.current.editing.editingId).toBe(BEFORE)
+    expect(toastWith((o) => o.action?.label === 'Undo')).toBeTruthy()
+  })
+
+  it('stays closed if the user closed the editor meanwhile', async () => {
+    const answer = answerLater()
+    const { result } = setup()
+    split(result)
+    await waitFor(() => expect(queries.splitSegment).toHaveBeenCalled())
+    act(() => result.current.editing.setEditingId(null))
+
+    await act(async () => { answer() })
+    await waitFor(() => expect(ids(result)).toHaveLength(3))
+    expect(result.current.editing.editingId).toBeNull()
+  })
+
+  it('also stays put when the split is found after a reload', async () => {
+    queries.splitSegment.mockImplementationOnce(async (req: SplitSegmentRequest) => {
+      const [, made] = fake.split(req)
+      fake.split({ segmentId: made.id, expectedRevision: 0, splitWordId: W[3], firstText: 'Three', secondText: 'four.', newSegmentId: uuid(0xe2) })
+      throw LOST
+    })
+    const { result } = setup()
+    split(result)
+    act(() => result.current.editing.setEditingId(BEFORE))
+    await waitFor(() => expect(ids(result)).toHaveLength(4))
+    expect(result.current.editing.editingId).toBe(BEFORE)
   })
 })
 
@@ -421,6 +527,30 @@ describe('undo', () => {
       nextFirstWordId: W[2], text: 'One two. Three',
     }))
     await waitFor(() => expect(texts(result)).toEqual(['Before.', 'One two. Three', 'four.']))
+  })
+
+  // Codex: a split of the new half that ends unconfirmed may never have
+  // happened; joining over it would orphan its Retry and leave the editor busy.
+  it('is turned away while a split of either half is unconfirmed, and nothing is joined', async () => {
+    const { result } = setup()
+    const undo = await splitThenUndoToast(result)
+    const newId = splitRequests()[0].newSegmentId
+    // The second split never reaches the database.
+    queries.splitSegment.mockRejectedValue(LOST)
+    act(() => result.current.splitting.split(newId, 'Three four.', 'Three '.length))
+    act(() => undo.action.onClick())
+
+    await waitFor(() => expect(toastWith((o) => o.title === "Can't undo yet")).toBeTruthy())
+    expect(queries.rejoinSegments).not.toHaveBeenCalled()
+    expect(ids(result)).toEqual([BEFORE, A, newId])
+    expect(result.current.splitting.busy.get(newId)).toBe('unconfirmed')
+    expect(result.current.splitting.busy.has(A)).toBe(false)
+
+    // Its Retry is still reachable, and settles the editor.
+    queries.splitSegment.mockImplementation(async (req: SplitSegmentRequest) => fake.split(req))
+    act(() => result.current.splitting.retry(newId))
+    await waitFor(() => expect(result.current.splitting.anyBusy).toBe(false))
+    expect(ids(result)).toHaveLength(4)
   })
 
   it('reloads and says so when the halves changed elsewhere', async () => {

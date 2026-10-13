@@ -43,6 +43,7 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     scheduleSave: jest.fn(),
     busy: undefined,
     onSplit: jest.fn(),
+    onRetryUnconfirmed: jest.fn(),
     caretHint: () => undefined,
     ...overrides,
   }

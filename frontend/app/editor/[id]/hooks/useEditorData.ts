@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
 import {
   fetchEditorPeopleContext,
@@ -77,9 +77,15 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
+  // Set once init has shown this transcript's segments. Until then init holds
+  // the freshest data, and anything loaded alongside it could be overwritten
+  // by its rows, read a moment earlier.
+  const loadedRef = useRef(false)
+  const isLoaded = useCallback(() => loadedRef.current, [])
 
   useEffect(() => {
     let cancelled = false
+    loadedRef.current = false
     let waveformPollId: ReturnType<typeof setInterval> | null = null
     let waveformPollStartedAt = 0
     setPeaks(null)
@@ -258,6 +264,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
         const speakersResult = await speakersPromise
         if (cancelled) return
         setSegments(transcriptResult.data.items)
+        loadedRef.current = true
         resolveSegmentsShown(transcriptResult.data.items)
         if (speakersResult.data) showSpeakers(speakersResult.data)
         else reportSpeakerLoadFailure(speakersResult.error)
@@ -298,5 +305,6 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     waveformDurationSecs,
     peaks,
     waveformStatus,
+    isLoaded,
   }
 }

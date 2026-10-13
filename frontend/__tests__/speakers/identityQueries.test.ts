@@ -40,7 +40,7 @@ test('naming locally moves the given segments and validates the result', async (
   const local = { ...speaker, person_id: null, custom_label: 'Host' }
   const assignments = [{ segment_id: segmentId, speaker_id: speakerId }]
   mockRpc.mockResolvedValueOnce({ data: { speaker: local, assignments }, error: null })
-  const changes = [{ segment_id: segmentId, expected_speaker_id: null }]
+  const changes = [{ segment_id: segmentId, expected_speaker_id: null, expected_revision: 0 }]
   await expect(createLocalSpeaker(transcriptId, 'Host', changes)).resolves.toEqual({ speaker: local, assignments })
   expect(mockRpc).toHaveBeenCalledWith('create_local_speaker', {
     p_transcript_id: transcriptId, p_custom_label: 'Host', p_changes: changes,
@@ -61,7 +61,7 @@ test('a refused write reaches the caller with its SQLSTATE', async () => {
 test('a correction to an existing or new person is one RPC', async () => {
   mockRpc.mockResolvedValue({ data: { speaker, person,
     assignments: [{ segment_id: segmentId, speaker_id: speakerId }] }, error: null })
-  const changes = [{ segment_id: segmentId, expected_speaker_id: null }]
+  const changes = [{ segment_id: segmentId, expected_speaker_id: null, expected_revision: 0 }]
   await correctSegmentsToPerson(transcriptId, changes, { personId })
   expect(mockRpc).toHaveBeenLastCalledWith('correct_segments_to_person', {
     p_transcript_id: transcriptId, p_changes: changes, p_person_id: personId, p_new_person_name: null,
@@ -75,7 +75,7 @@ test('a correction to an existing or new person is one RPC', async () => {
 
 test('creation Undo sends row versions and assignment guards', async () => {
   mockRpc.mockResolvedValue({ data: null, error: null })
-  const changes = [{ segment_id: segmentId, expected_speaker_id: speakerId, speaker_id: null }]
+  const changes = [{ segment_id: segmentId, expected_speaker_id: speakerId, expected_revision: 0, speaker_id: null }]
   await undoCreatedPerson({ transcriptId, speakerId, person, changes })
   expect(mockRpc).toHaveBeenCalledWith('undo_created_person_action', {
     p_transcript_id: transcriptId, p_person_id: personId, p_person_updated_at: stamp, p_speaker_id: speakerId,
