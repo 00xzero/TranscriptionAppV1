@@ -1,6 +1,7 @@
 import {
     MAX_ALIGNMENT_CELLS,
     alignTextToWords,
+    alignTokens,
     type AlignedToken,
     type SourceWord,
 } from "@/core/transcript/word-alignment";
@@ -199,5 +200,42 @@ describe("alignTextToWords", () => {
         expect(tokens[0].startMs).toBe(0);
         expect(tokens[1].startMs).toBe(101);
         expect(tokens[199].endMs).toBe(20100);
+    });
+});
+
+describe("alignTokens", () => {
+    /** [text, offset, wordFrom, wordTo] per token. */
+    function spans(text: string, words: SourceWord[]) {
+        return alignTokens(text, words, 0, 2000).map((t) => [t.text, t.offset, t.wordFrom, t.wordTo]);
+    }
+
+    it("gives each token its offset and the word it matched or corrected", () => {
+        expect(spans("I saw there car.", [w("I", 0, 200), w("saw", 200, 500), w("their", 500, 800), w("car.", 800, 1200)])).toEqual([
+            ["I ", 0, 0, 1],
+            ["saw ", 2, 1, 2],
+            ["there ", 6, 2, 3],
+            ["car.", 12, 3, 4],
+        ]);
+    });
+
+    it("lets a rewritten stretch share its words and gives typed-in words none", () => {
+        const words = [w("so", 0, 100), w("gonna", 100, 400), w("go", 400, 600)];
+        expect(spans("so going to go", words)).toEqual([
+            ["so ", 0, 0, 1],
+            ["going ", 3, 1, 2],
+            ["to ", 9, 1, 2],
+            ["go", 12, 2, 3],
+        ]);
+        expect(spans("well so go", [w("so", 0, 100), w("go", 400, 600)])).toEqual([
+            ["well ", 0, 0, 0],
+            ["so ", 5, 0, 1],
+            ["go", 8, 1, 2],
+        ]);
+    });
+
+    it("matches alignTextToWords' times", () => {
+        const text = "Hello there, how are you";
+        expect(alignTokens(text, GREETING, 0, 1800).map(({ text: t, startMs, endMs }) => ({ text: t, startMs, endMs })))
+            .toEqual(alignTextToWords(text, GREETING, 0, 1800));
     });
 });
