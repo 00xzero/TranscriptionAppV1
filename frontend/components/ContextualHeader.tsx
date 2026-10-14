@@ -1,6 +1,7 @@
 "use client"
 
 import { usePathname } from 'next/navigation'
+import { Redo2, Undo2 } from 'lucide-react'
 import { useModal } from '@/lib/ModalContext'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -11,8 +12,16 @@ import { ProjectsHeaderTitle } from '@/components/Projects/ProjectsHeaderTitle'
 import { PeopleHeaderTitle } from '@/components/People/PeopleHeaderTitle'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { projectIdFromPathname } from '@/lib/projects/routes'
+import { useUndoControls } from '@/lib/editor/undoControls'
+import { useApplePlatform } from '@/lib/editor/undoShortcut'
+import { cn } from '@/lib/utils'
+
+// The editor's square header buttons: undo, redo and export.
+const HEADER_ICON_BUTTON = 'group flex h-[30px] w-[30px] items-center justify-center rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface'
 
 export default function ContextualHeader() {
+  const undoControls = useUndoControls()
+  const apple = useApplePlatform()
   const { openCaptureModal } = useModal()
   const { userId, ready } = useAuth()
   const pathname = usePathname()
@@ -70,11 +79,42 @@ export default function ContextualHeader() {
       {isAuthenticated && isEditorRoute && (
         <div className="flex shrink-0 items-center gap-2">
           <RecordingPill />
+          {/* Shown while an edit waits for the connection; undo and redo pause meanwhile. */}
+          {undoControls?.reconnecting && (
+            <span role="status" className="rounded-full border border-subtle-border bg-subtle px-2.5 py-0.5 font-sans text-[10px] leading-[16px] text-ink/60 dark:text-paper/60 whitespace-nowrap">
+              Reconnecting…
+            </span>
+          )}
+          {/* Undo and redo, Word-style: the tooltip names the step. */}
+          {(['undo', 'redo'] as const).map((action) => {
+            const enabled = action === 'undo' ? undoControls?.canUndo : undoControls?.canRedo
+            const label = action === 'undo' ? undoControls?.undoLabel : undoControls?.redoLabel
+            const shortcut = apple ? (action === 'undo' ? '⌘Z' : '⇧⌘Z') : (action === 'undo' ? 'Ctrl+Z' : 'Ctrl+Y')
+            const name = `${action === 'undo' ? 'Undo' : 'Redo'}${label ? ` ${label}` : ''}`
+            const Icon = action === 'undo' ? Undo2 : Redo2
+            return (
+              <Tooltip key={action}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(HEADER_ICON_BUTTON, 'disabled:opacity-30 disabled:cursor-default disabled:hover:border-subtle-border')}
+                    disabled={!enabled}
+                    aria-label={name}
+                    aria-keyshortcuts={action === 'undo' ? 'Control+Z Meta+Z' : 'Control+Y Meta+Shift+Z'}
+                    onClick={() => undoControls?.[action]()}
+                  >
+                    <Icon className="h-3.5 w-3.5 opacity-60 group-hover:opacity-90 transition-opacity" aria-hidden />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{`${name} (${shortcut})`}</TooltipContent>
+              </Tooltip>
+            )
+          })}
           {/* Export icon button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                className="group flex h-[30px] w-[30px] items-center justify-center rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface"
+                className={HEADER_ICON_BUTTON}
                 onClick={() => window.dispatchEvent(new CustomEvent('open-export'))}
                 aria-label="Export"
               >

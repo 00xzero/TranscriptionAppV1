@@ -1,5 +1,6 @@
-import { createEvent, fireEvent, render, screen } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import TranscriptSegmentCard, { type TranscriptSegmentCardProps } from '@/app/editor/[id]/components/TranscriptSegmentCard'
+import { useEditorKeyboardShortcuts } from '@/app/editor/[id]/hooks/useEditorKeyboardShortcuts'
 import { createPlaybackClock } from '@/app/editor/[id]/playbackClock'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Seg } from '@/app/editor/[id]/types'
@@ -22,6 +23,7 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     segment,
     sourceWords,
     busy: undefined,
+    locked: false,
     isActive: false,
     playbackClock: createPlaybackClock(),
     matchesForSeg: [],
@@ -38,8 +40,11 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     setEditingTexts: jest.fn(),
     scheduleSave: jest.fn(),
     onSplit: jest.fn(),
-    onRetryUnconfirmed: jest.fn(),
     caretHint: () => undefined,
+    flashing: false,
+    onTextInput: jest.fn(),
+    sealTyping: jest.fn(),
+    onHistory: jest.fn(),
     ...overrides,
   }
   const view = render(<TooltipProvider><TranscriptSegmentCard {...props} /></TooltipProvider>)
@@ -120,25 +125,32 @@ describe('splitting from the segment editor', () => {
     expect(props.onSplit).toHaveBeenCalledTimes(1)
   })
 
-  // Codex: the toast's Retry can be dismissed; the card must keep one.
-  it('offers Retry on the card while a split is not confirmed, without seeking', () => {
-    const { props, textarea } = setup({ busy: 'unconfirmed' })
+  it('a waiting write closes the field without a label of its own, showing the save status instead', () => {
+    const { textarea } = setup({ busy: 'pending', saveStatus: { s1: 'saving' } })
     expect(textarea).toHaveAttribute('readonly')
-    expect(screen.getByText('Not confirmed')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-    expect(props.onRetryUnconfirmed).toHaveBeenCalledWith('s1')
-    expect(props.onSegmentClick).not.toHaveBeenCalled()
-  })
-
-  it('has no Retry while a split is only pending', () => {
-    setup({ busy: 'splitting' })
+    expect(screen.getByText('Saving…')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 
+  it('keeps its speaker picker closed while a write about to change it waits', () => {
+    setup({ locked: true })
+    expect(screen.getByRole('button', { name: 'Change speaker (Speaker 1)' })).toBeDisabled()
+    // A speaker change waiting doesn't close the text.
+    expect(screen.getByRole('textbox')).not.toHaveAttribute('readonly')
+  })
+
   it('opens with the caret where a split put it', () => {
-    const { textarea } = setup({ caretHint: (id) => (id === 's1' ? 0 : undefined) })
+    const { textarea } = setup({ caretHint: (id) => (id === 's1' ? { start: 0, end: 0, seq: 1 } : undefined) })
     expect(textarea.selectionStart).toBe(0)
     expect(document.activeElement).toBe(textarea)
+  })
+
+  it('selects what an undo restored, when its text changes from outside', () => {
+    let hint: { start: number; end: number; seq: number } | undefined
+    const { textarea, rerender } = setup({ caretHint: () => hint })
+    hint = { start: 6, end: 11, seq: 2 }
+    rerender({ editingTexts: { s1: 'Hello world, friend.' }, caretHint: () => hint })
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([6, 11])
   })
 
   // Codex: an undo (or reload, or replace) changes the text without an input
@@ -180,10 +192,133 @@ describe('splitting from the segment editor', () => {
           needHeader editingId={null} editingTexts={{}} saveStatus={{}}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
           setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
-          onSplit={jest.fn()} onRetryUnconfirmed={jest.fn()} caretHint={() => undefined}
+          onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}
+          onTextInput={jest.fn()} sealTyping={jest.fn()} onHistory={jest.fn()}
         />
       </TooltipProvider>
     )
     expect(screen.queryByRole('button', { name: 'Split segment here' })).toBeNull()
+  })
+})
+
+describe('the undo history from the segment editor', () => {
+  it('records each typed edit with the text and selection before and after', () => {
+    const { props, textarea } = setup()
+    textarea.setSelectionRange(5, 5)
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'insertText', data: '!', bubbles: true, cancelable: true }))
+    fireEvent.change(textarea, { target: { value: 'Hello! there, friend.', selectionStart: 6, selectionEnd: 6 } })
+    expect(props.onTextInput).toHaveBeenCalledWith('s1', {
+      inputType: 'insertText',
+      before: { text: TEXT, start: 5, end: 5 },
+      after: expect.objectContaining({ text: 'Hello! there, friend.' }),
+    })
+    expect(props.scheduleSave).toHaveBeenCalledWith('s1', 'Hello! there, friend.')
+  })
+
+  it('sends Ctrl+Z and Ctrl+Y to the history, not the field', () => {
+    const { props, textarea } = setup()
+    const undo = createEvent.keyDown(textarea, { key: 'z', ctrlKey: true })
+    fireEvent(textarea, undo)
+    expect(undo.defaultPrevented).toBe(true)
+    fireEvent.keyDown(textarea, { key: 'y', ctrlKey: true })
+    fireEvent.keyDown(textarea, { key: 'Z', metaKey: true, shiftKey: true })
+    expect(jest.mocked(props.onHistory).mock.calls).toEqual([['undo'], ['redo'], ['redo']])
+  })
+
+  it('handles Ctrl+Z once, with the editor-wide shortcut also listening', () => {
+    const windowUndo = jest.fn()
+    function Shortcuts() {
+      useEditorKeyboardShortcuts({
+        togglePlay: jest.fn(), seekRelative: jest.fn(), openFindReplaceModal: jest.fn(), openExportModal: jest.fn(),
+        handleReturnToTop: jest.fn(), onHistory: windowUndo,
+      })
+      return null
+    }
+    render(<Shortcuts />)
+    const { props, textarea } = setup()
+    fireEvent.keyDown(textarea, { key: 'z', ctrlKey: true })
+    expect(props.onHistory).toHaveBeenCalledWith('undo')
+    expect(windowUndo).not.toHaveBeenCalled()
+    // Outside any field, the editor-wide shortcut undoes.
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+    expect(windowUndo).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes the browser menu\'s undo to the history and cancels its own', () => {
+    const { props, textarea } = setup()
+    const menuUndo = new InputEvent('beforeinput', { inputType: 'historyUndo', bubbles: true, cancelable: true })
+    textarea.dispatchEvent(menuUndo)
+    expect(menuUndo.defaultPrevented).toBe(true)
+    expect(props.onHistory).toHaveBeenCalledWith('undo')
+  })
+
+  it('ends its typing step when the caret moves, and only its own when it leaves the screen', () => {
+    const { props, textarea } = setup()
+    fireEvent.keyDown(textarea, { key: 'ArrowLeft' })
+    expect(props.sealTyping).toHaveBeenLastCalledWith('s1')
+    ;(props.sealTyping as jest.Mock).mockClear()
+    fireEvent.pointerDown(textarea)
+    expect(props.sealTyping).toHaveBeenLastCalledWith('s1')
+  })
+
+  it('a card scrolling away ends only its own segment\'s typing step', () => {
+    const sealTyping = jest.fn()
+    const { unmount } = render(
+      <TooltipProvider>
+        <TranscriptSegmentCard
+          segment={segment} sourceWords={sourceWords} busy={undefined} isActive={false}
+          playbackClock={createPlaybackClock()} matchesForSeg={[]} matchIndex={-1}
+          speaker={{ label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null }}
+          needHeader editingId={null} editingTexts={{}} saveStatus={{}}
+          onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
+          setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
+          onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}
+          onTextInput={jest.fn()} sealTyping={sealTyping} onHistory={jest.fn()}
+        />
+      </TooltipProvider>
+    )
+    unmount()
+    expect(sealTyping).toHaveBeenCalledWith('s1')
+    expect(sealTyping).not.toHaveBeenCalledWith()
+  })
+
+  it.each([
+    ['input before compositionend (Chrome)', 'inputFirst'],
+    ['compositionend before input (Safari)', 'endFirst'],
+  ])('records an input-method composition once, %s', (_name, order) => {
+    jest.useFakeTimers()
+    try {
+      const { props, textarea } = setup()
+      textarea.setSelectionRange(TEXT.length, TEXT.length)
+      const composed = `${TEXT}日本`
+      fireEvent.compositionStart(textarea)
+      fireEvent.change(textarea, { target: { value: `${TEXT}にほ` } })
+      if (order === 'inputFirst') {
+        fireEvent.change(textarea, { target: { value: composed } })
+        // The harness's texts don't update, so put back what the field holds.
+        textarea.value = composed
+        fireEvent.compositionEnd(textarea)
+      } else {
+        textarea.value = composed
+        fireEvent.compositionEnd(textarea)
+        fireEvent.change(textarea, { target: { value: composed } })
+      }
+      act(() => { jest.runOnlyPendingTimers() })
+      expect(props.onTextInput).toHaveBeenCalledTimes(1)
+      expect(props.onTextInput).toHaveBeenCalledWith('s1', expect.objectContaining({
+        inputType: 'insertCompositionText', composition: true,
+        before: expect.objectContaining({ text: TEXT }), after: expect.objectContaining({ text: composed }),
+      }))
+      expect(props.scheduleSave).toHaveBeenCalledTimes(1)
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  it('keeps the edit ring while lit after an undo', () => {
+    setup({ flashing: true })
+    const card = screen.getByTestId('segment-card')
+    expect(card.className).toContain('ring-1')
+    expect(card.className).toContain('bg-warm-highlight')
   })
 })

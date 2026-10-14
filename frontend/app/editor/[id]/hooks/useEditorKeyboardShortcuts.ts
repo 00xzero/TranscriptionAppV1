@@ -1,17 +1,19 @@
 import { useEffect } from 'react'
+import { undoShortcut } from '@/lib/editor/undoShortcut'
 
 export function useEditorKeyboardShortcuts({
   togglePlay,
   seekRelative,
   openFindReplaceModal,
   openExportModal,
-  handleReturnToTop,
+  handleReturnToTop, onHistory,
 }: {
   togglePlay: () => void
   seekRelative: (sec: number) => void
   openFindReplaceModal: (event?: WindowEventMap['open-find-replace']) => void
   openExportModal: (event?: WindowEventMap['open-export']) => void
   handleReturnToTop: (event?: WindowEventMap['editor-scroll-to-top']) => void
+  onHistory: (dir: 'undo' | 'redo') => void
 }) {
   // Keyboard shortcuts
   useEffect(() => {
@@ -27,6 +29,11 @@ export function useEditorKeyboardShortcuts({
       const isAltGraph =
         e.getModifierState?.('AltGraph') ||
         (e.ctrlKey && e.altKey && !e.metaKey)
+
+      const historyAction = undoShortcut(e)
+      if (historyAction && !e.defaultPrevented && !isEditableTarget && !target?.closest('[role="dialog"]')) {
+        e.preventDefault(); onHistory(historyAction); return
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault()
@@ -47,7 +54,7 @@ export function useEditorKeyboardShortcuts({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, seekRelative, openFindReplaceModal, openExportModal])
+  }, [togglePlay, seekRelative, openFindReplaceModal, openExportModal, onHistory])
 
   // Custom event listeners
   useEffect(() => {

@@ -562,7 +562,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     await user.click(replaceBtn)
     await user.click(replaceAllBtn)
-    expect(supabaseQueries.updateSegment).not.toHaveBeenCalled()
+    expect(supabaseQueries.setSegmentTexts).not.toHaveBeenCalled()
 
     await waitForMatchSummary(/0 matches/i)
     expect(replaceBtn).toBeDisabled()
@@ -652,17 +652,21 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await user.type(replaceInput, 'earth')
 
     await user.click(screen.getByRole('button', { name: /^Replace$/i }))
+    // Every segment's text written so far, across however many writes.
+    const writtenEdits = () => (supabaseQueries.setSegmentTexts as jest.Mock).mock.calls.flatMap(([edits]) => edits)
     await waitFor(() => {
-      expect(supabaseQueries.updateSegment).toHaveBeenCalledTimes(1)
+      expect(writtenEdits()).toHaveLength(1)
     }, { timeout: 1500 })
     await waitForMatchSummary(/of 2 matches/i)
 
     const replaceAllBtn = screen.getByRole('button', { name: /Replace all/i })
     await user.click(replaceAllBtn)
 
+    // Replace All writes its segments together, as one step.
     await waitFor(() => {
-      expect(supabaseQueries.updateSegment).toHaveBeenCalledTimes(3)
+      expect(writtenEdits()).toHaveLength(3)
     }, { timeout: 1500 })
+    expect(supabaseQueries.setSegmentTexts).toHaveBeenCalledTimes(2)
   })
 
   test('opens Export modal via custom event and closes with Escape', async () => {
@@ -924,7 +928,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
 
     expect(within(dialog).queryByRole('option', { name: 'Alice' })).not.toBeInTheDocument()
     expect(within(dialog).getByText('Unknown speaker')).toBeInTheDocument()
-    expect(supabaseQueries.updateSegment).not.toHaveBeenCalled()
+    expect(supabaseQueries.setSegmentTexts).not.toHaveBeenCalled()
   })
 
   test('labels unassigned segments Unknown speaker', async () => {

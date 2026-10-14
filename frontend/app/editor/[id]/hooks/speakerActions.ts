@@ -3,14 +3,19 @@ import {
   createLocalSpeaker,
   reassignSegments,
   renamePerson,
+  restoreCreatedPerson,
   setSpeakerCustomLabel,
   undoCreatedPerson,
 } from '@/lib/supabase/queries'
 import { leastUsedSpeakerColor } from '@/lib/speakers/palette'
 import { reverseSpeakerChange, speakerChangeFrom } from '@/core/speakers/changes'
+import { randomUuid } from '@/lib/ids'
+import type { Send } from '@/lib/editor/untilAnswered'
+import { changedSince } from '@/lib/people/errors'
 import type {
   EditorPeopleContext,
   EditorPerson,
+  NewSpeakerSegmentChange,
   PersonCorrectionResult,
   SegmentSpeakerAssignment,
   SegmentSpeakerChange,
@@ -22,9 +27,15 @@ import { revisionsMatch } from '../utils'
 /**
  * Editor speaker actions (spec §5–§7). Each one applies optimistically, writes
  * with one guarded database call, settles local state from that call's result
- * and returns its own Undo. A builder returns null when the state it was asked
- * to change is gone, which the editor treats like a refused write, and
- * RESHAPED when a segment it was chosen for has been split or rejoined since.
+ * and returns the op that undoes it; every op's write returns the op that
+ * reverses it again, so undo and redo alternate for as long as the history
+ * keeps the step. A builder returns null when the state it was asked to change
+ * is gone, which the editor treats like a refused write; RESHAPED when a
+ * segment it was chosen for has been split or rejoined since; and UNCHANGED
+ * when it would change nothing, such as a rename to the same name.
+ *
+ * Every write is built in full before it is sent, so a resend after a lost
+ * answer is the same request; the database recognises one it already made.
  *
  * A detected speaker (Deepgram's `Speaker N`) never carries a name. Naming one
  * moves its segments to a named speaker, and Remove moves segments back to the
@@ -42,6 +53,8 @@ export type ApplyTo = 'speaker' | 'segment' | 'turn'
 /** The editor state the actions read and change. Reads see every change at once. */
 export type SpeakerStore = {
   transcriptId: string
+  /** Sends a write until the database answers it. */
+  send: Send
   speakers(): Speaker[]
   segments(): Seg[]
   people(): EditorPeopleContext
@@ -50,9 +63,18 @@ export type SpeakerStore = {
   updatePeople(edit: (context: EditorPeopleContext) => EditorPeopleContext): void
 }
 
-export type SpeakerUndo = { apply(): void; restore(): void; write(): Promise<void> }
+/** One direction of a step: shown at once, written once, answering with the op that reverses it. */
+export type SpeakerOp = { apply(): void; restore(): void; write(): Promise<SpeakerOp> }
+
+/** Shows an op, then writes it, putting it back if the write fails. Resolves to the op that reverses it. */
+export async function runOp(op: SpeakerOp, applied?: () => void): Promise<SpeakerOp> {
+  op.apply()
+  applied?.()
+  try { return await op.write() } catch (error) { op.restore(); throw error }
+}
 
 export const RESHAPED = 'reshaped'
+export const UNCHANGED = 'unchanged'
 
 /**
  * The segments an action was chosen for, as they are now; RESHAPED if any has
@@ -66,19 +88,16 @@ function chosenNow(store: SpeakerStore, chosen: readonly Seg[]): Seg[] | typeof 
   return store.segments().filter((segment) => ids.has(segment.id))
 }
 
-export type SpeakerAction = {
-  /** Success toast, e.g. "Identified Speaker 1 as Hamza". */
-  done: string
+export type SpeakerAction = SpeakerOp & {
   /** Failure toast, e.g. "Couldn't identify Speaker 1 as Hamza". */
   failed: string
-  apply(): void
-  restore(): void
-  write(): Promise<SpeakerUndo>
 }
 
 // Ids for rows shown before the database has created them, and the ids the
 // database then gave them. An action queued behind the one that created a row
-// was chosen while the row still had its provisional id.
+// was chosen while the row still had its provisional id. A new person or local
+// speaker takes the id the editor chose, so only a person's speaker, which the
+// database makes, needs this.
 let provisionalCount = 0
 const provisionalId = () => `pending-${++provisionalCount}`
 const savedIds = new Map<string, string>()
@@ -91,11 +110,11 @@ function patchSpeaker(store: SpeakerStore, id: string, patch: Partial<Speaker>) 
 }
 
 /** A speaker as the database will create it, shown until it answers. */
-function provisionalSpeaker(store: SpeakerStore, patch: Pick<Speaker, 'custom_label' | 'person_id'>): Speaker {
+function provisionalSpeaker(store: SpeakerStore, patch: Pick<Speaker, 'custom_label' | 'person_id'>, id = provisionalId()): Speaker {
   const speakers = store.speakers()
   const now = new Date().toISOString()
   return {
-    id: provisionalId(), transcript_id: store.transcriptId, user_id: speakers[0]?.user_id ?? '',
+    id, transcript_id: store.transcriptId, user_id: speakers[0]?.user_id ?? '',
     ordinal: Math.max(-1, ...speakers.map((speaker) => speaker.ordinal)) + 1,
     diarization_index: null, created_at: now, updated_at: now, ...patch,
   }
@@ -103,9 +122,9 @@ function provisionalSpeaker(store: SpeakerStore, patch: Pick<Speaker, 'custom_la
 
 /** Put the database's row in place, dropping the provisional row it replaces. */
 function settleSpeaker(store: SpeakerStore, row: Speaker, replacesId?: string) {
-  if (replacesId) savedIds.set(replacesId, row.id)
+  if (replacesId && replacesId !== row.id) savedIds.set(replacesId, row.id)
   store.updateSpeakers((rows) => {
-    const rest = rows.filter((existing) => existing.id !== replacesId)
+    const rest = replacesId && replacesId !== row.id ? rows.filter((existing) => existing.id !== replacesId) : rows
     return rest.some((existing) => existing.id === row.id)
       ? rest.map((existing) => (existing.id === row.id ? row : existing))
       : [...rest, row]
@@ -143,31 +162,45 @@ export function removalChanges(speakers: readonly Speaker[], segments: readonly 
   })
 }
 
-/** Undo for a reassignment: each segment goes back to the speaker it had. */
-function reassignUndo(store: SpeakerStore, changes: readonly SegmentSpeakerChange[]): SpeakerUndo {
-  const moveTo = (pick: (change: SegmentSpeakerChange) => string | null) =>
-    assignSegments(store, changes.map((change) => ({ segment_id: change.segment_id, speaker_id: pick(change) })))
-  return {
-    apply: () => moveTo((change) => change.expected_speaker_id),
-    restore: () => moveTo((change) => change.speaker_id),
-    write: async () => assignSegments(store, await reassignSegments(store.transcriptId, changes.map(reverseSpeakerChange))),
+const segmentsById = (store: SpeakerStore) => new Map(store.segments().map((segment) => [segment.id, segment]))
+
+/**
+ * Fill in each change's revision from the segments as they are now: split and
+ * rejoin raise it, and the history runs a step only once every later split has
+ * been undone, so the segment has the shape the change was chosen for. A
+ * segment that is gone has changed elsewhere.
+ */
+function withRevisionsNow<T extends { segment_id: string }>(store: SpeakerStore, changes: readonly T[]): (T & { expected_revision: number })[] {
+  const segments = segmentsById(store)
+  return changes.map((change) => {
+    const segment = segments.get(change.segment_id)
+    if (!segment) throw changedSince('A segment changed since')
+    return { ...change, expected_revision: segment.revision }
+  })
+}
+
+/** Throws unless every segment still shows the speaker the step left it on. */
+function expectSpeakers(store: SpeakerStore, changes: readonly SegmentSpeakerChange[]) {
+  const segments = segmentsById(store)
+  if (changes.some((change) => segments.get(change.segment_id)?.speaker_id !== change.speaker_id)) {
+    throw changedSince('A segment changed since')
   }
 }
 
-/** Move segments to the speakers the changes name, as one guarded write. */
-function reassignAction(
-  store: SpeakerStore,
-  changes: readonly SegmentSpeakerChange[],
-  messages: Pick<SpeakerAction, 'done' | 'failed'>
-): SpeakerAction {
-  const undo = reassignUndo(store, changes)
+/** Moves segments to the speakers the changes name, as one guarded write, and back again. */
+function reassignOp(store: SpeakerStore, changes: readonly SegmentSpeakerChange[]): SpeakerOp {
+  const moveTo = (pick: (change: SegmentSpeakerChange) => string | null) =>
+    assignSegments(store, changes.map((change) => ({ segment_id: change.segment_id, speaker_id: pick(change) })))
   return {
-    ...messages,
-    apply: undo.restore,
-    restore: undo.apply,
+    apply() {
+      expectSpeakers(store, changes.map(reverseSpeakerChange))
+      moveTo((change) => change.speaker_id)
+    },
+    restore: () => moveTo((change) => change.expected_speaker_id),
     async write() {
-      assignSegments(store, await reassignSegments(store.transcriptId, [...changes]))
-      return undo
+      const request = withRevisionsNow(store, changes)
+      assignSegments(store, await store.send(() => reassignSegments(store.transcriptId, request)))
+      return reassignOp(store, changes.map(reverseSpeakerChange))
     },
   }
 }
@@ -176,7 +209,7 @@ const findPerson = (store: SpeakerStore, id: string) =>
   store.people().people.find((person) => person.id === id)
 
 function addPerson(store: SpeakerStore, person: EditorPerson) {
-  store.updatePeople((context) => ({ ...context, people: [...context.people, person] }))
+  store.updatePeople((context) => ({ ...context, people: [...context.people.filter((row) => row.id !== person.id), person] }))
 }
 
 function removePerson(store: SpeakerStore, personId: string) {
@@ -189,23 +222,65 @@ const NEW_PERSON = {
   in_project: false,
 } as const
 
-/** A person as they will look once created, shown while the database works. */
+/** A person as they will look once created, under the id the editor chose for them. */
 function provisionalPerson(store: SpeakerStore, name: string, userId: string): EditorPerson {
   const now = new Date().toISOString()
   return {
-    id: provisionalId(), user_id: userId, name, organisation_id: null,
+    id: randomUuid(), user_id: userId, name, organisation_id: null,
     preferred_color: leastUsedSpeakerColor(store.people().people), hidden: false,
     created_at: now, updated_at: now, ...NEW_PERSON,
   }
 }
 
-/** Replace a provisional person with the one the database created. */
-function settlePerson(store: SpeakerStore, replacesId: string, result: PersonCorrectionResult) {
-  savedIds.set(replacesId, result.person.id)
+/** Put the person the database created (or restored) in place of the one shown. */
+function settlePerson(store: SpeakerStore, result: PersonCorrectionResult, replacesId?: string) {
   store.updatePeople((context) => ({
     ...context,
-    people: [...context.people.filter((row) => row.id !== replacesId), { ...result.person, ...NEW_PERSON }],
+    people: [...context.people.filter((row) => row.id !== result.person.id && row.id !== replacesId), { ...result.person, ...NEW_PERSON }],
   }))
+}
+
+/**
+ * Undo and redo of a correction that created a person. Undo moves the segments
+ * back and deletes the person, refused unless the person still has the name
+ * and colour they were created with; redo brings them back under the same id,
+ * relinking the speaker the undo left silent.
+ */
+function createdPersonOp(store: SpeakerStore, created: PersonCorrectionResult['person'], speakerId: string,
+  changes: readonly NewSpeakerSegmentChange[], remove: boolean): SpeakerOp {
+  const person = { id: created.id, name: created.name, preferred_color: created.preferred_color }
+  const forward: SegmentSpeakerChange[] = changes.map((change) => ({ ...change, speaker_id: speakerId }))
+  const move = reassignOp(store, remove ? forward.map(reverseSpeakerChange) : forward)
+  return {
+    apply() {
+      move.apply()
+      if (remove) return
+      addPerson(store, { ...created, ...NEW_PERSON })
+      patchSpeaker(store, speakerId, { person_id: person.id })
+    },
+    restore() {
+      move.restore()
+      if (remove) return
+      removePerson(store, person.id)
+      patchSpeaker(store, speakerId, { person_id: null })
+    },
+    async write() {
+      if (remove) {
+        const request = { transcriptId: store.transcriptId, speakerId, person, changes: withRevisionsNow(store, forward.map(reverseSpeakerChange)) }
+        await store.send(() => undoCreatedPerson(request))
+        // The correction's speaker stays, unlinked and silent.
+        patchSpeaker(store, speakerId, { person_id: null })
+        removePerson(store, person.id)
+      } else {
+        const request = { transcriptId: store.transcriptId, person, speakerId, changes: withRevisionsNow(store, changes) }
+        const restored = await store.send(() => restoreCreatedPerson(request))
+        settlePerson(store, restored)
+        settleSpeaker(store, restored.speaker)
+        assignSegments(store, restored.assignments)
+      }
+      return createdPersonOp(store, created, speakerId, changes, !remove)
+    },
+  }
 }
 
 /**
@@ -238,15 +313,12 @@ export function correctAction(
 
   const detected = new Set(store.speakers().flatMap((speaker) => speaker.diarization_index === null ? [] : [speaker.id]))
   const identifying = segments.every((segment) => segment.speaker_id !== null && detected.has(segment.speaker_id))
-  const [done, failed] = applyTo !== 'speaker'
-    ? [`Moved this ${applyTo} to ${targetName}`, `Couldn't move this ${applyTo} to ${targetName}`]
-    : identifying
-      ? [`Identified ${fromLabel} as ${targetName}`, `Couldn't identify ${fromLabel} as ${targetName}`]
-      : [`Changed ${fromLabel} to ${targetName}`, `Couldn't change ${fromLabel} to ${targetName}`]
+  const failed = applyTo !== 'speaker' ? `Couldn't move this ${applyTo} to ${targetName}`
+    : identifying ? `Couldn't identify ${fromLabel} as ${targetName}` : `Couldn't change ${fromLabel} to ${targetName}`
 
   if (target.kind === 'speaker') {
     const speakerId = savedId(target.id)
-    return reassignAction(store, changes.map((change) => ({ ...change, speaker_id: speakerId })), { done, failed })
+    return { failed, ...reassignOp(store, changes.map((change) => ({ ...change, speaker_id: speakerId }))) }
   }
 
   // Until the database answers, the segments sit on any speaker already linked
@@ -258,41 +330,32 @@ export function correctAction(
   const linked = store.speakers().find((speaker) => speaker.person_id === personId)
   const provisional = linked ? null : provisionalSpeaker(store, { custom_label: null, person_id: personId })
   const shownId = linked?.id ?? provisional!.id
-  const moved = (speakerId: string) => changes.map((change) => ({ ...change, speaker_id: speakerId }))
-  const shown = reassignUndo(store, moved(shownId))
+  const shown = changes.map((change) => ({ segment_id: change.segment_id, from: change.expected_speaker_id }))
+  const showOn = (speakerOf: (from: string | null) => string | null) =>
+    assignSegments(store, shown.map(({ segment_id, from }) => ({ segment_id, speaker_id: speakerOf(from) })))
+  const request = target.kind === 'person' ? { personId } : { newPersonName: target.name, newPersonId: created!.id }
 
   return {
-    done, failed,
+    failed,
     apply() {
       if (created) addPerson(store, created)
       if (provisional) store.updateSpeakers((rows) => [...rows, provisional])
-      shown.restore()
+      showOn(() => shownId)
     },
     restore() {
-      shown.apply()
+      showOn((from) => from)
       if (provisional) store.updateSpeakers((rows) => rows.filter((row) => row.id !== provisional.id))
       if (created) removePerson(store, created.id)
     },
     async write() {
-      const result = await correctSegmentsToPerson(store.transcriptId, changes,
-        target.kind === 'person' ? { personId } : { newPersonName: target.name })
-      if (created) settlePerson(store, created.id, result)
+      const result = await store.send(() => correctSegmentsToPerson(store.transcriptId, changes, request))
+      if (created) settlePerson(store, result, created.id)
       settleSpeaker(store, result.speaker, provisional?.id)
       assignSegments(store, result.assignments)
-      const undo = reassignUndo(store, moved(result.speaker.id))
-      if (target.kind === 'person') return undo
-      return {
-        ...undo,
-        async write() {
-          await undoCreatedPerson({
-            transcriptId: store.transcriptId, speakerId: result.speaker.id, person: result.person,
-            changes: moved(result.speaker.id).map(reverseSpeakerChange),
-          })
-          // The correction's speaker stays, unlinked and silent.
-          patchSpeaker(store, result.speaker.id, { person_id: null })
-          removePerson(store, result.person.id)
-        },
+      if (target.kind === 'person') {
+        return reassignOp(store, changes.map((change) => reverseSpeakerChange({ ...change, speaker_id: result.speaker.id })))
       }
+      return createdPersonOp(store, result.person, result.speaker.id, changes, true)
     },
   }
 }
@@ -303,24 +366,34 @@ export function correctAction(
  */
 export function removeAction(
   store: SpeakerStore,
-  { chosen, applyTo, fromLabel, labelForSpeaker }: {
+  { chosen, applyTo, fromLabel }: {
     chosen: readonly Seg[]
     applyTo: ApplyTo
     fromLabel: string
-    labelForSpeaker: (speakerId: string | null) => string
   }
 ): SpeakerAction | typeof RESHAPED | null {
   const segments = chosenNow(store, chosen)
   if (segments === RESHAPED) return RESHAPED
   const changes = removalChanges(store.speakers(), segments)
   if (changes.length === 0) return null
-  const homes = [...new Set(changes.map((change) => change.speaker_id))]
   const where = applyTo === 'speaker' ? '' : ` from this ${applyTo}`
-  const back = homes.length === 1 ? ` — back to ${labelForSpeaker(homes[0])}` : ''
-  return reassignAction(store, changes, {
-    done: `Removed ${fromLabel}${where}${back}`,
-    failed: `Couldn't remove ${fromLabel}${where}`,
-  })
+  return { failed: `Couldn't remove ${fromLabel}${where}`, ...reassignOp(store, changes) }
+}
+
+/**
+ * Sets a name, guarded by the one it replaces, and back again: shown only
+ * while what is shown is still `expected`, written expecting it too.
+ */
+function renameOp(read: () => string | null | undefined, show: (value: string) => void,
+  save: (expected: string, value: string) => Promise<string>, expected: string, value: string): SpeakerOp {
+  return {
+    apply() {
+      if (read() !== expected) throw changedSince('The name changed since')
+      show(value)
+    },
+    restore: () => show(expected),
+    async write() { return renameOp(read, show, save, await save(expected, value), expected) },
+  }
 }
 
 /**
@@ -337,29 +410,22 @@ export function renameLocalAction(
     chosen: readonly Seg[]
     fromLabel: string
   }
-): SpeakerAction | typeof RESHAPED | null {
+): SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null {
   const speaker = store.speakers().find((row) => row.id === savedId(speakerId))
   if (!speaker || speaker.person_id) return null
-  const messages = { done: `Renamed ${fromLabel} to ${label} in this transcript`, failed: `Couldn't rename ${fromLabel} to ${label}` }
+  const messages = { failed: `Couldn't rename ${fromLabel} to ${label}` }
 
   const previous = speaker.custom_label
   if (previous !== null) {
-    const setLabel = (value: string) => patchSpeaker(store, speaker.id, { custom_label: value })
-    return {
-      ...messages,
-      apply: () => setLabel(label),
-      restore: () => setLabel(previous),
-      async write() {
-        const saved = await setSpeakerCustomLabel(speaker.id, previous, label)
-        settleSpeaker(store, saved)
-        const savedLabel = saved.custom_label ?? label
-        return {
-          apply: () => setLabel(previous),
-          restore: () => setLabel(savedLabel),
-          write: async () => settleSpeaker(store, await setSpeakerCustomLabel(speaker.id, savedLabel, previous)),
-        }
-      },
+    if (previous === label) return UNCHANGED
+    const read = () => store.speakers().find((s) => s.id === speaker.id)?.custom_label
+    const show = (value: string) => patchSpeaker(store, speaker.id, { custom_label: value })
+    const save = async (expected: string, value: string) => {
+      const row = await store.send(() => setSpeakerCustomLabel(speaker.id, expected, value))
+      settleSpeaker(store, row)
+      return row.custom_label ?? value
     }
+    return { ...messages, ...renameOp(read, show, save, previous, label) }
   }
 
   // Naming a detected speaker moves its segments; renaming a label does not.
@@ -367,52 +433,42 @@ export function renameLocalAction(
   if (segments === RESHAPED) return RESHAPED
   const changes = segments.map(speakerChangeFrom)
   if (changes.length === 0) return null
-  const provisional = provisionalSpeaker(store, { custom_label: label, person_id: null })
-  const moved = (id: string) => changes.map((change) => ({ ...change, speaker_id: id }))
-  const shown = reassignUndo(store, moved(provisional.id))
+  // The new speaker takes the id chosen here, so a resend finds the one it made.
+  const provisional = provisionalSpeaker(store, { custom_label: label, person_id: null }, randomUuid())
+  const moved: SegmentSpeakerChange[] = changes.map((change) => ({ ...change, speaker_id: provisional.id }))
   return {
     ...messages,
     apply() {
       store.updateSpeakers((rows) => [...rows, provisional])
-      shown.restore()
+      assignSegments(store, moved.map(({ segment_id, speaker_id }) => ({ segment_id, speaker_id })))
     },
     restore() {
-      shown.apply()
+      assignSegments(store, moved.map(({ segment_id, expected_speaker_id }) => ({ segment_id, speaker_id: expected_speaker_id })))
       store.updateSpeakers((rows) => rows.filter((row) => row.id !== provisional.id))
     },
     async write() {
-      const result = await createLocalSpeaker(store.transcriptId, label, changes)
+      const result = await store.send(() => createLocalSpeaker(store.transcriptId, label, changes, provisional.id))
       settleSpeaker(store, result.speaker, provisional.id)
       assignSegments(store, result.assignments)
-      // Undo moves the segments back; the emptied local speaker stays, hidden.
-      return reassignUndo(store, moved(result.speaker.id))
+      // Undo moves the segments back; the emptied local speaker stays, hidden,
+      // and a redo moves them to it again.
+      return reassignOp(store, moved.map(reverseSpeakerChange))
     },
   }
 }
 
 /** Rename person everywhere: every linked transcript shows the new name. */
-export function renamePersonAction(store: SpeakerStore, personId: string, name: string): SpeakerAction | null {
+export function renamePersonAction(store: SpeakerStore, personId: string, name: string): SpeakerAction | typeof UNCHANGED | null {
   const person = findPerson(store, savedId(personId))
   if (!person) return null
-  const previous = person.name
-  const setName = (value: string) => store.updatePeople((context) => ({
-    ...context,
-    people: context.people.map((row) => (row.id === person.id ? { ...row, name: value } : row)),
-  }))
-
-  return {
-    done: `Renamed ${previous} to ${name} everywhere`,
-    failed: `Couldn't rename ${previous} to ${name}`,
-    apply: () => setName(name),
-    restore: () => setName(previous),
-    async write() {
-      const saved = await renamePerson(person.id, previous, name)
-      setName(saved.name)
-      return {
-        apply: () => setName(previous),
-        restore: () => setName(saved.name),
-        write: async () => setName((await renamePerson(person.id, saved.name, previous)).name),
-      }
-    },
+  if (person.name === name) return UNCHANGED
+  const id = person.id
+  const show = (value: string) => store.updatePeople((context) => ({ ...context,
+    people: context.people.map((row) => row.id === id ? { ...row, name: value } : row) }))
+  const save = async (expected: string, value: string) => {
+    const row = await store.send(() => renamePerson(id, expected, value))
+    store.updatePeople((context) => ({ ...context, people: context.people.map((p) => p.id === row.id ? { ...p, ...row } : p) }))
+    return row.name
   }
+  return { failed: `Couldn't rename ${person.name}`, ...renameOp(() => findPerson(store, id)?.name, show, save, person.name, name) }
 }

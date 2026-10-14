@@ -1,0 +1,48 @@
+import { useCallback, useRef } from 'react'
+import { TYPING_STEP_MAX, canExtend, classifyInput, type OpenTyping, type TextInput } from '@/core/editor/typing-steps'
+import type { EditorHistory, HistoryStep } from './useEditorHistory'
+import type { TextEdit, useTranscriptMutations } from './useTranscriptMutations'
+export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<ReturnType<typeof useTranscriptMutations>, 'applyTexts'>) {
+  const open = useRef<(OpenTyping & { edit: TextEdit; after: { start: number; end: number } }) | null>(null)
+  // Ends the open typing step, Word-style; with a segment, only if the step is that segment's.
+  const seal = useCallback((segmentId?: string) => {
+    if (open.current && (!segmentId || open.current.segmentId === segmentId)) open.current.sealed = true
+  }, [])
+  const recordEdits = useCallback((label: string, edits: TextEdit[], before?: { start: number; end: number }, after?: { start: number; end: number }) => {
+    const changed = edits.filter(e => e.before !== e.after)
+    if (!changed.length) return false
+    const ids = changed.map(e => e.segId)
+    const selection = { before, after }
+    const step: HistoryStep = {
+      label, releaseOnApply: true, touches: ids,
+      run: (dir, applied) => applyTexts(changed, dir, applied),
+      target: dir => ({ ids, selection: changed.length === 1 ? selection[dir === 'undo' ? 'before' : 'after'] : undefined }),
+    }
+    history.record(step)
+    return true
+  }, [history, applyTexts])
+  const onTextInput = useCallback((segmentId: string, input: TextInput) => {
+    if (input.before.text === input.after.text) return
+    const kind = classifyInput(input.inputType, input.before.start !== input.before.end)
+    const inserted = Math.max(0, input.after.text.length - input.before.text.length)
+    if (open.current && canExtend(open.current, segmentId, kind, history.historyVersion()) &&
+        (input.composition || open.current.characters + inserted <= TYPING_STEP_MAX)) {
+      open.current.edit.after = input.after.text
+      open.current.after.start = input.after.start; open.current.after.end = input.after.end
+      open.current.characters += inserted
+      if (open.current.characters >= TYPING_STEP_MAX) open.current.sealed = true
+      return
+    }
+    seal()
+    const edit = { segId: segmentId, before: input.before.text, after: input.after.text }
+    const after = { start: input.after.start, end: input.after.end }
+    const recorded = recordEdits(kind, [edit], { start: input.before.start, end: input.before.end }, after)
+    if (recorded && kind === 'typing') open.current = { segmentId, version: history.historyVersion(), characters: inserted,
+      sealed: inserted >= TYPING_STEP_MAX, edit, after }
+  }, [history, recordEdits, seal])
+  const recordReplace = useCallback((edits: TextEdit[], selection?: { start: number; end: number }, all = false) => {
+    seal(); recordEdits(all ? 'replace all' : 'replace', edits, selection,
+      selection && edits[0] ? { start: selection.start, end: selection.start + Math.max(0, edits[0].after.length - edits[0].before.length + selection.end - selection.start) } : undefined)
+  }, [seal, recordEdits])
+  return { onTextInput, seal, recordReplace }
+}

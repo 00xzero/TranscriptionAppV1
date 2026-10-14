@@ -2,15 +2,19 @@ import React from 'react'
 import { Virtuoso, VirtuosoHandle, ListRange } from 'react-virtuoso'
 import TranscriptSegmentCard from './TranscriptSegmentCard'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
+import type { TextInput } from '@/core/editor/typing-steps'
 import type { PlaybackClock } from '../playbackClock'
-import type { BusyKind } from '../hooks/useSegmentSplit'
+import type { BusyKind } from '../hooks/useSegmentHolds'
+import type { CaretHint } from '../hooks/useTranscriptMutations'
 import type { Seg, SegmentMatch, SaveStatusBySegment, WordsBySegment } from '../types'
 
 export type TranscriptListProps = {
   segments: Seg[]
   wordsBySegment: WordsBySegment
-  /** Segments whose split or undo is waiting on the database. */
+  /** Segments a waiting write is about to change the text or shape of. */
   busy: ReadonlyMap<string, BusyKind>
+  /** Segments any waiting write is about to change: their speaker can't be changed meanwhile. */
+  locked: ReadonlySet<string>
   playbackClock: PlaybackClock
   scrollParent: HTMLElement | null
   virtuosoRef: React.RefObject<VirtuosoHandle | null>
@@ -30,14 +34,19 @@ export type TranscriptListProps = {
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
-  onRetryUnconfirmed: (segId: string) => void
-  caretHint: (segId: string) => number | undefined
+  caretHint: (segId: string) => CaretHint | undefined
+  /** Segments briefly lit after an undo or redo changed them. */
+  flashing: ReadonlySet<string>
+  onTextInput: (segId: string, input: TextInput) => void
+  sealTyping: (segId: string) => void
+  onHistory: (dir: 'undo' | 'redo') => void
 }
 
 export default function TranscriptList({
   segments,
   wordsBySegment,
   busy,
+  locked,
   playbackClock,
   scrollParent,
   virtuosoRef,
@@ -56,8 +65,11 @@ export default function TranscriptList({
   setEditingTexts,
   scheduleSave,
   onSplit,
-  onRetryUnconfirmed,
   caretHint,
+  flashing,
+  onTextInput,
+  sealTyping,
+  onHistory,
 }: TranscriptListProps) {
   if (!scrollParent) return null
   return (
@@ -85,6 +97,7 @@ export default function TranscriptList({
                 segment={s}
                 sourceWords={wordsBySegment.get(s.id)}
                 busy={busy.get(s.id)}
+                locked={locked.has(s.id)}
                 isActive={activeSegId === s.id}
                 playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
@@ -101,8 +114,11 @@ export default function TranscriptList({
                 setEditingTexts={setEditingTexts}
                 scheduleSave={scheduleSave}
                 onSplit={onSplit}
-                onRetryUnconfirmed={onRetryUnconfirmed}
                 caretHint={caretHint}
+                flashing={flashing.has(s.id)}
+                onTextInput={onTextInput}
+                sealTyping={sealTyping}
+                onHistory={onHistory}
               />
             </div>
           )

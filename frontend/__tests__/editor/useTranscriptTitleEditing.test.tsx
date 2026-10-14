@@ -2,9 +2,15 @@ import React, { useState } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useTranscriptTitleEditing } from '@/app/editor/[id]/hooks/useTranscriptTitleEditing'
-import { updateTranscript } from '@/lib/supabase/queries'
+import { useEditorHistory, type EditorHistory } from '@/app/editor/[id]/hooks/useEditorHistory'
+import { useEditorWriteQueue } from '@/app/editor/[id]/hooks/useEditorWriteQueue'
+import { useSegmentHolds } from '@/app/editor/[id]/hooks/useSegmentHolds'
+import { updateTranscriptTitleGuarded } from '@/lib/supabase/queries'
+import type { Send } from '@/lib/editor/untilAnswered'
 
-const updateTranscriptMock = updateTranscript as jest.MockedFunction<typeof updateTranscript>
+const updateTitleMock = updateTranscriptTitleGuarded as jest.MockedFunction<typeof updateTranscriptTitleGuarded>
+type Saved = Awaited<ReturnType<typeof updateTranscriptTitleGuarded>>
+const sendOnce: Send = (call) => call()
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -16,8 +22,14 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function TitleHarness({ onTitleSaved }: { onTitleSaved: (title: string) => void }) {
+function TitleHarness({ onTitleSaved, exposeHistory }: { onTitleSaved: (title: string) => void; exposeHistory?: (history: EditorHistory) => void }) {
   const [title, setTitle] = useState<string | null>('Original title')
+  const enqueue = useEditorWriteQueue()
+  const holds = useSegmentHolds()
+  const history = useEditorHistory({
+    enqueue, holds, reveal: () => {}, refresh: async () => true, isReconnecting: () => false, reconnecting: false,
+  })
+  exposeHistory?.(history)
   const {
     editingTitle,
     titleInput,
@@ -31,6 +43,9 @@ function TitleHarness({ onTitleSaved }: { onTitleSaved: (title: string) => void 
     transcriptTitle: title,
     setTranscriptTitle: setTitle,
     onTitleSaved,
+    send: sendOnce,
+    history,
+    holds,
   })
 
   return (
@@ -54,7 +69,7 @@ function TitleHarness({ onTitleSaved }: { onTitleSaved: (title: string) => void 
 
 describe('useTranscriptTitleEditing', () => {
   beforeEach(() => {
-    updateTranscriptMock.mockReset()
+    updateTitleMock.mockReset()
   })
 
   test('an over-long title is not saved and stays open until it fits or Escape cancels', async () => {
@@ -69,7 +84,7 @@ describe('useTranscriptTitleEditing', () => {
     await user.keyboard('{Enter}')
     act(() => input.blur())
 
-    expect(updateTranscriptMock).not.toHaveBeenCalled()
+    expect(updateTitleMock).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Transcript title')).toHaveValue('x'.repeat(130))
     expect(screen.getByText('Titles must be 120 characters or fewer.')).toBeInTheDocument()
 
@@ -82,8 +97,8 @@ describe('useTranscriptTitleEditing', () => {
 
   test('publishes a saved title after persistence resolves and before editing closes', async () => {
     const user = userEvent.setup()
-    const save = deferred<Awaited<ReturnType<typeof updateTranscript>>>()
-    updateTranscriptMock.mockReturnValueOnce(save.promise)
+    const save = deferred<Saved>()
+    updateTitleMock.mockReturnValueOnce(save.promise)
     const onTitleSaved = jest.fn(() => {
       expect(screen.getByRole('textbox', { name: 'Transcript title' })).toBeInTheDocument()
       expect(screen.getByTestId('saved-title')).toHaveTextContent('Original title')
@@ -95,10 +110,10 @@ describe('useTranscriptTitleEditing', () => {
     await user.clear(input)
     await user.type(input, 'Updated title{enter}')
 
-    expect(updateTranscriptMock).toHaveBeenCalledWith('transcript-1', { title: 'Updated title' })
+    await waitFor(() => expect(updateTitleMock).toHaveBeenCalledWith('transcript-1', 'Original title', 'Updated title'))
     expect(onTitleSaved).not.toHaveBeenCalled()
 
-    await act(async () => save.resolve({} as Awaited<ReturnType<typeof updateTranscript>>))
+    await act(async () => save.resolve({ title: 'Updated title' } as Saved))
 
     expect(onTitleSaved).toHaveBeenCalledWith('Updated title')
     await waitFor(() => {
@@ -109,8 +124,9 @@ describe('useTranscriptTitleEditing', () => {
 
   test('leaves provider and local title state untouched when persistence fails', async () => {
     const user = userEvent.setup()
-    updateTranscriptMock.mockRejectedValueOnce(new Error('save failed'))
+    updateTitleMock.mockRejectedValueOnce({ code: 'XX000', message: 'save failed' })
     const onTitleSaved = jest.fn()
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
     render(<TitleHarness onTitleSaved={onTitleSaved} />)
 
     await user.click(screen.getByRole('button', { name: 'Edit title' }))
@@ -122,5 +138,28 @@ describe('useTranscriptTitleEditing', () => {
     expect(onTitleSaved).not.toHaveBeenCalled()
     expect(screen.getByTestId('saved-title')).toHaveTextContent('Original title')
     expect(screen.getByRole('textbox', { name: 'Transcript title' })).toHaveValue('Rejected title')
+    consoleSpy.mockRestore()
+  })
+
+  test('a save takes its place in the history at once, so Undo reverses it first', async () => {
+    const user = userEvent.setup()
+    updateTitleMock.mockImplementation(async (id, _expected, title) => ({ id, title }) as Saved)
+    let history!: EditorHistory
+    render(<TitleHarness onTitleSaved={jest.fn()} exposeHistory={(h) => { history = h }} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit title' }))
+    const input = screen.getByRole('textbox', { name: 'Transcript title' })
+    await user.clear(input)
+    await user.type(input, 'Updated title')
+    // Clicking Undo blurs the field first: the blur's save is recorded before the click lands.
+    act(() => input.blur())
+    expect(history.undoLabel).toBe('title')
+    act(() => history.undo())
+
+    await waitFor(() => expect(screen.getByTestId('saved-title')).toHaveTextContent('Original title'))
+    expect(updateTitleMock.mock.calls.map(([, expected, title]) => [expected, title])).toEqual([
+      ['Original title', 'Updated title'],
+      ['Updated title', 'Original title'],
+    ])
   })
 })

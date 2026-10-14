@@ -21,7 +21,6 @@ import type {
     Project,
     ProjectSpeakerSummary,
     Speaker,
-    SegmentUpdate,
     SegmentSpeakerChange,
     SegmentSpeakerAssignment,
     TranscriptSummary,
@@ -46,6 +45,7 @@ import {
     SegmentSpeakerChangeSchema,
     SpeakerSchema,
     SplitSegmentResultSchema,
+    TranscriptSchema,
     TranscriptSummarySchema,
 } from '@/contracts/db'
 import { z } from 'zod'
@@ -312,6 +312,27 @@ export async function updateTranscript(
     return data
 }
 
+/**
+ * Set a transcript's title, expecting the title it replaces. A title changed
+ * elsewhere since is refused (SP002); already holding the new title passes, so
+ * a save whose answer was lost can be sent again.
+ */
+export async function updateTranscriptTitleGuarded(
+    id: string,
+    expectedTitle: string | null,
+    title: string | null
+): Promise<Transcript> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('update_transcript_title_guarded', {
+        p_transcript_id: id,
+        p_expected_title: expectedTitle,
+        p_title: title,
+    })
+
+    if (error) throw error
+    return TranscriptSchema.parse(data)
+}
+
 // ============================================================================
 // Transcript Rows
 // ============================================================================
@@ -448,32 +469,26 @@ export async function fetchTranscriptData(transcriptId: string): Promise<{
     return { items: segments }
 }
 
-/**
- * Update a segment's text, only while it still has the shape the text was
- * edited against. A segment split or rejoined since has a new revision, so
- * the update matches no row and fails with PGRST116 (see isStaleSegmentSave).
- * Its speaker changes only through the speaker functions.
- */
-export async function updateSegment(
-    id: string,
-    updates: SegmentUpdate,
-    expectedRevision: number
-): Promise<Segment> {
-    const payload = updates.text !== undefined
-        ? { ...updates, is_edited: true }
-        : updates
+/** One segment's text edit, naming the revision and the text it replaces. */
+export type SegmentTextEdit = {
+    segment_id: string
+    expected_revision: number
+    expected_text: string
+    text: string
+}
 
+/**
+ * Write segments' text, all or nothing. Each edit names the revision and the
+ * text it expects, so text typed against an old shape, or over a change made
+ * elsewhere, is refused (SP002). A segment already holding the new text
+ * passes, so a write whose answer was lost can be sent again.
+ */
+export async function setSegmentTexts(edits: readonly SegmentTextEdit[]): Promise<Segment[]> {
     const supabase = createClient()
-    const { data, error } = await supabase
-        .from('segments')
-        .update(payload)
-        .eq('id', id)
-        .eq('revision', expectedRevision)
-        .select()
-        .single()
+    const { data, error } = await supabase.rpc('set_segment_texts_guarded', { p_edits: edits })
 
     if (error) throw error
-    return data
+    return z.array(SegmentSchema).parse(data ?? [])
 }
 
 export type SplitSegmentRequest = {
@@ -483,6 +498,8 @@ export type SplitSegmentRequest = {
     firstText: string
     secondText: string
     newSegmentId: string
+    expectedText: string
+    expectedSpeakerId: string | null
 }
 
 /**
@@ -499,6 +516,8 @@ export async function splitSegment(request: SplitSegmentRequest): Promise<[Segme
         p_first_text: request.firstText,
         p_second_text: request.secondText,
         p_new_segment_id: request.newSegmentId,
+        p_expected_text: request.expectedText,
+        p_expected_speaker_id: request.expectedSpeakerId,
     })
 
     if (error) throw error
@@ -513,6 +532,10 @@ export type RejoinSegmentsRequest = {
     expectedNextRevision: number
     nextFirstWordId: string
     text: string
+    expectedText: string
+    expectedNextText: string
+    expectedSpeakerId: string | null
+    expectedNextSpeakerId: string | null
 }
 
 /**
@@ -529,6 +552,10 @@ export async function rejoinSegments(request: RejoinSegmentsRequest): Promise<Se
         p_expected_next_revision: request.expectedNextRevision,
         p_next_first_word_id: request.nextFirstWordId,
         p_text: request.text,
+        p_expected_text: request.expectedText,
+        p_expected_speaker_id: request.expectedSpeakerId,
+        p_expected_next_text: request.expectedNextText,
+        p_expected_next_speaker_id: request.expectedNextSpeakerId,
     })
 
     if (error) throw error
@@ -633,18 +660,21 @@ export async function renamePerson(
 
 /**
  * Name a detected speaker in this transcript only: the segments move to a new
- * speaker with the label, as one operation.
+ * speaker with the label, as one operation. The new speaker takes the id the
+ * editor chose, so a resend finds the speaker it already made.
  */
 export async function createLocalSpeaker(
     transcriptId: string,
     customLabel: string,
-    changes: NewSpeakerSegmentChange[]
+    changes: NewSpeakerSegmentChange[],
+    speakerId: string
 ): Promise<LocalSpeakerResult> {
     const supabase = createClient()
     const { data, error } = await supabase.rpc('create_local_speaker', {
         p_transcript_id: transcriptId,
         p_custom_label: customLabel,
         p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
+        p_speaker_id: speakerId,
     })
 
     if (error) throw error
@@ -653,12 +683,13 @@ export async function createLocalSpeaker(
 
 /**
  * Move segments to an existing or new person, as one operation. The database
- * reuses the person's speaker in this transcript or creates one.
+ * reuses the person's speaker in this transcript or creates one. A new person
+ * takes the id the editor chose, so a resend finds the person it already made.
  */
 export async function correctSegmentsToPerson(
     transcriptId: string,
     changes: NewSpeakerSegmentChange[],
-    target: { personId: string } | { newPersonName: string }
+    target: { personId: string } | { newPersonName: string; newPersonId: string }
 ): Promise<PersonCorrectionResult> {
     const supabase = createClient()
     const { data, error } = await supabase.rpc('correct_segments_to_person', {
@@ -666,6 +697,7 @@ export async function correctSegmentsToPerson(
         p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
         p_person_id: 'personId' in target ? target.personId : null,
         p_new_person_name: 'newPersonName' in target ? target.newPersonName : null,
+        p_new_person_id: 'newPersonId' in target ? target.newPersonId : null,
     })
 
     if (error) throw error
@@ -674,25 +706,50 @@ export async function correctSegmentsToPerson(
 
 /**
  * Undo a correction that created a person: move the segments back and delete
- * the person. The database refuses if anything the correction wrote has
- * changed since, judged by the person's `updated_at`.
+ * the person. The database refuses unless the person still has the name and
+ * colour it was created with, no organisation, and is not hidden.
  */
 export async function undoCreatedPerson(args: {
     transcriptId: string
     speakerId: string
-    person: Pick<Person, 'id' | 'updated_at'>
+    person: Pick<Person, 'id' | 'name' | 'preferred_color'>
     changes: SegmentSpeakerChange[]
 }): Promise<void> {
     const supabase = createClient()
     const { error } = await supabase.rpc('undo_created_person_action', {
         p_transcript_id: args.transcriptId,
         p_person_id: args.person.id,
-        p_person_updated_at: args.person.updated_at,
+        p_expected_name: args.person.name,
+        p_expected_color: args.person.preferred_color,
         p_speaker_id: args.speakerId,
         p_changes: z.array(SegmentSpeakerChangeSchema).parse(args.changes),
     })
 
     if (error) throw error
+}
+
+/**
+ * Redo a correction that created a person: the person comes back under the
+ * same id, name and colour, and relinks the speaker its undo left silent.
+ */
+export async function restoreCreatedPerson(args: {
+    transcriptId: string
+    person: Pick<Person, 'id' | 'name' | 'preferred_color'>
+    speakerId: string
+    changes: NewSpeakerSegmentChange[]
+}): Promise<PersonCorrectionResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('restore_created_person', {
+        p_transcript_id: args.transcriptId,
+        p_person_id: args.person.id,
+        p_name: args.person.name,
+        p_preferred_color: args.person.preferred_color,
+        p_speaker_id: args.speakerId,
+        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(args.changes),
+    })
+
+    if (error) throw error
+    return PersonCorrectionResultSchema.parse(data)
 }
 
 // ============================================================================

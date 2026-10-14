@@ -2,8 +2,6 @@ import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/edito
 import type { EditorWord } from './types'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
-// Waits before replaying a split or undo whose answer was lost.
-export const REPLAY_DELAYS_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? [1, 1, 1] : [1000, 2000, 4000]
 export const SYNC_OFFSET_MS = 150
 export const SEEK_LOCK_MS = 3000
 export const PROGRAMMATIC_SCROLL_RESET_MS = 250

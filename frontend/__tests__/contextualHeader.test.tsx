@@ -1,4 +1,6 @@
 import React from 'react'
+import { publishUndoControls } from '@/lib/editor/undoControls'
+import { act } from '@testing-library/react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import ContextualHeader from '../components/ContextualHeader'
@@ -45,10 +47,40 @@ describe('ContextualHeader', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    publishUndoControls(null)
     usePathnameMock.mockReturnValue('/editor/p1')
     setTestAuth({ userId: 'u1', ready: true })
     useProjectsDataMock.mockReturnValue(projectProviderData([]))
     useTranscriptsDataMock.mockReturnValue(transcriptProviderData([]))
+  })
+
+  test('undo and redo precede Export, reflect labels and invoke the active editor', async () => {
+    const user = userEventLib.setup(); const undo = jest.fn(); const redo = jest.fn()
+    publishUndoControls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo, redo, reconnecting: false })
+    renderHeader()
+    const back = screen.getByRole('button', { name: /^Undo typing/ })
+    const forward = screen.getByRole('button', { name: /^Redo/ })
+    expect(forward).toBeDisabled()
+    expect(back.compareDocumentPosition(screen.getByRole('button', { name: 'Export' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await user.click(back); expect(undo).toHaveBeenCalledTimes(1)
+    act(() => publishUndoControls({ canUndo: false, canRedo: true, redoLabel: 'split', undo, redo, reconnecting: false }))
+    await user.click(screen.getByRole('button', { name: /^Redo split/ })); expect(redo).toHaveBeenCalledTimes(1)
+    act(() => publishUndoControls(null))
+    expect(screen.getByRole('button', { name: /^Undo/ })).toBeDisabled()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  test('says Reconnecting while an edit waits for the connection, with undo and redo paused', () => {
+    publishUndoControls({ canUndo: false, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: true })
+    renderHeader()
+    const pill = screen.getByRole('status')
+    expect(pill).toHaveTextContent('Reconnecting…')
+    const back = screen.getByRole('button', { name: /^Undo typing/ })
+    expect(back).toBeDisabled()
+    // Left of the undo buttons.
+    expect(pill.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    act(() => publishUndoControls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: false }))
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   test('dispatches editor-scroll-to-top when the transcript breadcrumb is activated', async () => {

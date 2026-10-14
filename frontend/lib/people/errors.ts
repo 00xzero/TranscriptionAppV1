@@ -7,7 +7,7 @@ export const NOT_READY_MESSAGE = 'Speaker changes are available when transcripti
 /** Said with CONFLICT_TOAST when a reload drops text typed against a segment's old shape. */
 export const DROPPED_DRAFT_MESSAGE = "Your last edit to a segment that changed wasn't saved."
 
-function errorCode(error: unknown): string | null {
+export function errorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null
   return typeof error.code === 'string' ? error.code : null
 }
@@ -17,6 +17,9 @@ export function isConflict(error: unknown): boolean {
   return errorCode(error) === 'SP002'
 }
 
+/** Refuses, as the database would (SP002), a write a local check found built on something changed since. */
+export const changedSince = (message: string) => ({ code: 'SP002', message })
+
 /** What the write acted on is gone, e.g. the person was merged away in another tab (SP001). */
 export function isGone(error: unknown): boolean {
   return errorCode(error) === 'SP001'
@@ -24,14 +27,6 @@ export function isGone(error: unknown): boolean {
 
 export function isNotReady(error: unknown): boolean {
   return errorCode(error) === 'SP004'
-}
-
-/**
- * A segment text save matched no row: the segment was split or rejoined since
- * the text was edited (its revision moved on), or it is gone.
- */
-export function isStaleSegmentSave(error: unknown): boolean {
-  return errorCode(error) === 'PGRST116'
 }
 
 /**

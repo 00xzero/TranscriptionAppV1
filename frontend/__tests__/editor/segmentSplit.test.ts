@@ -2,7 +2,6 @@ import {
   applyRejoinSegments,
   applyRejoinWords,
   applySplitWords,
-  joinSegmentTexts,
   upsertSegments,
 } from '@/app/editor/[id]/hooks/segmentSplit'
 import type { EditorWord, Seg, WordsBySegment } from '@/app/editor/[id]/types'
@@ -84,8 +83,4 @@ describe('upsertSegments', () => {
     expect(upsertSegments([before, whole, after], [tie]).map((s) => s.id)).toEqual(['a', 'b', 'bb', 'c'])
     expect(upsertSegments([before, whole, after], [seg('0', 1000, 1100, 'tie')]).map((s) => s.id)).toEqual(['a', '0', 'b', 'c'])
   })
-})
-
-it('joins two halves with one space at the seam, and says where the second starts', () => {
-  expect(joinSegmentTexts('One two.  ', '  Three four.')).toEqual({ text: 'One two. Three four.', seam: 'One two. '.length })
 })

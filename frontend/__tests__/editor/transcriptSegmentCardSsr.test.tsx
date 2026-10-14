@@ -45,9 +45,13 @@ it('server-renders the current segment without a store error and without highlig
         setEditingTexts={() => {}}
         scheduleSave={() => {}}
         busy={undefined}
+        locked={false}
         onSplit={() => {}}
-        onRetryUnconfirmed={() => {}}
         caretHint={() => undefined}
+        flashing={false}
+        onTextInput={() => {}}
+        sealTyping={() => {}}
+        onHistory={() => {}}
       />
     </TooltipProvider>
   )
