@@ -114,7 +114,7 @@ Interview A and Meeting B contain the same person because they share `hamza-id`.
 
 ## 5. The editor speaker control
 
-Clicking any speaker label or avatar opens one popover, laid out like Otter's speaker picker: a search field at the top, one list of people and voices, and nothing to confirm. Choosing a row applies at once, and the Undo toast (§7) is the safety net.
+Clicking any speaker label or avatar opens one popover, laid out like Otter's speaker picker: a search field at the top, one list of people and voices, and nothing to confirm. Choosing a row applies at once, and the editor undo history (§7) is the safety net.
 
 Under the search field, an **Apply to** control sets the scope before anything is chosen:
 
@@ -177,7 +177,7 @@ A correction cannot create a new local-only label.
 ## 7. Saving, undo and conflicts
 
 - Every editor speaker action is one call to an atomic database function. The editor applies it optimistically.
-- **Undo.** After identify, change person, remove, local rename, rename person and passage correction, a toast describes the change and offers **Undo** for about 8 seconds. Undo restores only if the affected rows still hold what the action wrote; otherwise it reports "Can't undo — changed since". Merge people has no Undo.
+- **Undo.** Identify, change person, remove, local rename, rename person and passage correction are steps in the editor's undo/redo history (Cmd/Ctrl+Z or ↶, redo with ↷), with no toast. An undo or redo is refused if what it would change has changed elsewhere since; the editor then refreshes and clears the history. Merge people has no Undo. The People page keeps its own Undo toast.
 - **Failure.** Only the affected segments or speaker are rolled back in local state. The transcript is not reloaded, so unsaved text edits are never replaced. An error toast names the failed action ("Couldn't identify Speaker 1 as Hamza Abikar") and offers **Retry**. Nothing fails silently to the console.
 - **Guarded writes.** Each call carries the values it expects to replace: the expected `speaker_id` of each segment it moves, the expected label when renaming, and the expected name when renaming a person. If they do not match, the database refuses the write. The editor then reloads only speaker data and segment assignments, never text, and shows "Changed in another tab — refreshed".
 - **Ordering.** Within one tab, speaker actions for a transcript run one at a time through a queue, so they cannot complete out of order.
@@ -382,12 +382,13 @@ These actions must not share an ambiguous **Tag**, **Rename** or **Reset** label
 | 37 | The Current row, with **Remove**, stays visible while searching. | Removing should never need the search cleared first. |
 | 38 | Only identities with segments are compared for namesakes. | Remove and identify leave empty speakers behind, and they must not rename a visible one. |
 | 39 | Project avatars take a linked speaker's person name and colour in slice 2. | A linked speaker's own row has no label, so without it the avatar reads as a `Speaker N` that does not exist. |
+| 40 | Editor actions share one undo/redo history, kept in page memory: typing, replacements, split, speaker actions and the title. Ctrl/Cmd+Z and the header's ↶ ↷ use it, and editor success/Undo toasts are gone. This replaces the editor toast part of decisions 14 and 29; the People page keeps its own Undo toast. | Word-style undo and redo, without an eight-second deadline. |
 
 ### Details filled in while writing this spec (not discussed in review)
 
 - Organisation rename and delete live in the People list's organisation filter, since there is no separate management screen.
 - The Participants block also lists unlinked voices; Unknown is not listed.
-- The Undo window is about 8 seconds.
+- The editor's undo history lasts until the page is left or reloaded, and keeps 1,000 steps. The People page's Undo toast still lasts about 8 seconds.
 - **Remove** replaces **Reset to generic name** (decision 33).
 - **Remove from this transcript** on the person page sends every segment showing the person in that transcript back to Deepgram's speakers.
 - Organisation names use the same 50-character limit as person names.
