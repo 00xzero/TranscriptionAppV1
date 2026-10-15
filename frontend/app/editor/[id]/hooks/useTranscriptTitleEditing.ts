@@ -23,7 +23,7 @@ export function useTranscriptTitleEditing({
   transcriptId: string
   transcriptTitle: string | null
   setTranscriptTitle: (title: string | null) => void
-  onTitleSaved: (title: string) => void
+  onTitleSaved: (title: string | null) => void
   send: Send
   history: EditorHistory
   holds: SegmentHolds
@@ -73,7 +73,7 @@ export function useTranscriptTitleEditing({
       const row = await send(() => updateTranscriptTitleGuarded(transcriptId, expected, title))
       current.current = row.title
       setTranscriptTitle(row.title)
-      onTitleSaved(row.title ?? '')
+      onTitleSaved(row.title)
     }
     const step: HistoryStep = {
       label: 'title', failure: "Couldn't rename the transcript", scope: 'title', touches: ['title'], target: () => ({ title: true }),

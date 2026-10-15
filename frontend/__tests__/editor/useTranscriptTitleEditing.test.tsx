@@ -22,7 +22,7 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function TitleHarness({ onTitleSaved, exposeHistory }: { onTitleSaved: (title: string) => void; exposeHistory?: (history: EditorHistory) => void }) {
+function TitleHarness({ onTitleSaved, exposeHistory }: { onTitleSaved: (title: string | null) => void; exposeHistory?: (history: EditorHistory) => void }) {
   const [title, setTitle] = useState<string | null>('Original title')
   const enqueue = useEditorWriteQueue()
   const holds = useSegmentHolds()

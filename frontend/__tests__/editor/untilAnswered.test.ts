@@ -34,6 +34,16 @@ describe('sending until answered', () => {
     expect(reconnecting).not.toHaveBeenCalled()
   })
 
+  it("resends after a gateway page postgrest-js can't read, which carries no code", async () => {
+    const { sender } = setup()
+    const gateway = { message: '<html>502 Bad Gateway</html>' }
+    const call = jest.fn<Promise<string>, []>().mockRejectedValueOnce(gateway).mockResolvedValue('done')
+    const sent = sender.send(call)
+    await jest.advanceTimersByTimeAsync(RESEND_DELAYS_MS[0])
+    await expect(sent).resolves.toBe('done')
+    expect(call).toHaveBeenCalledTimes(2)
+  })
+
   it('shows Reconnecting while one attempt stays out, without sending it again', async () => {
     const { sender, reconnecting } = setup()
     let answer!: (value: string) => void

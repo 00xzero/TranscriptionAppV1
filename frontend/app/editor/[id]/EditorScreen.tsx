@@ -124,7 +124,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
 
-  const handleTitleSaved = useCallback((newTitle: string) => {
+  const handleTitleSaved = useCallback((newTitle: string | null) => {
     mutateTranscripts((current) =>
       current.map((transcript) =>
         transcript.id === transcriptId
@@ -165,7 +165,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         const [speakersRead, row] = await Promise.all([speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId))])
         if (!speakersRead || !row) return false
         data.setTranscriptTitle(row.title)
-        handleTitleSaved(row.title ?? '')
+        handleTitleSaved(row.title)
         return true
       },
       reveal(target) {

@@ -32,11 +32,14 @@ export function isNotReady(error: unknown): boolean {
 /**
  * No answer came back from the database (a network failure or a lost
  * response), so the write may or may not have happened. postgrest-js reports
- * these with an empty code; a database refusal always carries one. An error
- * with no code at all was thrown before or after the request, by the app.
+ * a failed fetch with an empty code, and a body it can't read as JSON (a
+ * gateway's 502 page) as a plain `{ message }` with no code at all. A
+ * database refusal always carries a code. An Error with no code was thrown
+ * by the app itself, before or after the request.
  */
 export function isUncertainOutcome(error: unknown): boolean {
-  return errorCode(error) === ''
+  if (errorCode(error) === '') return true
+  return !!error && typeof error === 'object' && !(error instanceof Error) && !('code' in error) && 'message' in error
 }
 
 /** A user-facing message for a failed directory write. */
