@@ -11,13 +11,15 @@ export type Direction = 'undo' | 'redo'
 export type HistoryTarget = { ids?: readonly string[]; selection?: { start: number; end: number }; title?: boolean }
 export type HistoryStep = {
   label: string
+  /** What its action failing is called, when "Couldn't <label>" doesn't read right. */
+  failure?: string
   /** What a typing step typed, when short enough to quote in the undo list. */
   quote?(): string | undefined
   /** False once the action that recorded it failed: a press queued for it does nothing. */
   alive?: boolean
   /** The status its held segments show while it runs; `pending` shows none. */
   busy?: Partial<Record<Direction, BusyKind>>
-  /** What its hold closes; text unless it only changes speakers. */
+  /** What its hold closes; text unless it only changes speakers, or the title. */
   scope?: HoldScope
   /** A text step lets go of its segments once it is on screen; others when written. */
   releaseOnApply?: boolean
@@ -191,7 +193,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
         drop(step)
         if (error !== NOTHING_CHANGED) await failed(error, CONFLICT_TOAST, () => {
           if (onFailed) onFailed(error)
-          else toast({ title: `Couldn't ${step.label}`, variant: 'error' })
+          else toast({ title: step.failure ?? `Couldn't ${step.label}`, variant: 'error' })
         })
       } finally {
         unsettled.current.delete(step)

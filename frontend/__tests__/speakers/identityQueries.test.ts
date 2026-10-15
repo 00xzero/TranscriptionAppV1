@@ -114,6 +114,17 @@ test('segment text names the revision and text each edit replaces, all in one ca
   await expect(setSegmentTexts(edits)).rejects.toBe(conflict)
 })
 
+test('malformed text edits are refused before anything is sent, as the database refuses invalid arguments', async () => {
+  const edit = { segment_id: segmentId, expected_revision: 2, expected_text: 'Old.', text: 'New.' }
+  // A coded refusal, never a ZodError, which the editor would take for an
+  // answer that could not be read after the write may have happened.
+  await expect(setSegmentTexts([])).rejects.toMatchObject({ code: 'SP003' })
+  await expect(setSegmentTexts([{ ...edit, expected_revision: -1 }])).rejects.toMatchObject({ code: 'SP003' })
+  await expect(createLocalSpeaker(transcriptId, 'Host', [{ segment_id: 'not-a-segment' } as never], localId))
+    .rejects.toMatchObject({ code: 'SP003' })
+  expect(mockRpc).not.toHaveBeenCalled()
+})
+
 test('the title expects the one it replaces', async () => {
   const conflict = { code: 'SP002', message: 'title changed since it was read' }
   mockRpc.mockResolvedValueOnce({ data: null, error: conflict })

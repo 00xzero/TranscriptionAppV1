@@ -13,8 +13,8 @@ export type TranscriptListProps = {
   wordsBySegment: WordsBySegment
   /** Segments a waiting write is about to change the text or shape of. */
   busy: ReadonlyMap<string, BusyKind>
-  /** Segments any waiting write is about to change: their speaker can't be changed meanwhile. */
-  locked: ReadonlySet<string>
+  /** Whether a segment can't be split or have its speaker changed: a waiting write is about to change it, or the editor is reconnecting. */
+  isLocked: (segmentId: string) => boolean
   playbackClock: PlaybackClock
   scrollParent: HTMLElement | null
   virtuosoRef: React.RefObject<VirtuosoHandle | null>
@@ -39,6 +39,7 @@ export type TranscriptListProps = {
   flashing: ReadonlySet<string>
   onTextInput: (segId: string, input: TextInput) => void
   sealTyping: (segId: string) => void
+  endDrag?: () => void
   onHistory: (dir: 'undo' | 'redo') => void
 }
 
@@ -46,7 +47,7 @@ export default function TranscriptList({
   segments,
   wordsBySegment,
   busy,
-  locked,
+  isLocked,
   playbackClock,
   scrollParent,
   virtuosoRef,
@@ -69,6 +70,7 @@ export default function TranscriptList({
   flashing,
   onTextInput,
   sealTyping,
+  endDrag,
   onHistory,
 }: TranscriptListProps) {
   if (!scrollParent) return null
@@ -97,7 +99,7 @@ export default function TranscriptList({
                 segment={s}
                 sourceWords={wordsBySegment.get(s.id)}
                 busy={busy.get(s.id)}
-                locked={locked.has(s.id)}
+                locked={isLocked(s.id)}
                 isActive={activeSegId === s.id}
                 playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
@@ -118,6 +120,7 @@ export default function TranscriptList({
                 flashing={flashing.has(s.id)}
                 onTextInput={onTextInput}
                 sealTyping={sealTyping}
+                endDrag={endDrag}
                 onHistory={onHistory}
               />
             </div>

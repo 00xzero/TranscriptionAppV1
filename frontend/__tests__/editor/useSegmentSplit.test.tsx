@@ -10,7 +10,8 @@ import { compareSegments } from '@/app/editor/[id]/hooks/segmentSplit'
 import { groupSourceWords } from '@/app/editor/[id]/utils'
 import type { Seg, WordsBySegment } from '@/app/editor/[id]/types'
 import { RESEND_DELAYS_MS, createSender, type Send } from '@/lib/editor/untilAnswered'
-import type { RejoinSegmentsRequest, SegmentTextEdit, SplitSegmentRequest } from '@/lib/supabase/queries'
+import type { RejoinSegmentsRequest, SplitSegmentRequest } from '@/lib/supabase/queries'
+import type { SegmentTextEdit } from '@/contracts/db'
 
 jest.mock('@/lib/supabase/queries', () => ({
   setSegmentTexts: jest.fn(),
@@ -130,7 +131,7 @@ function setup({ resend = false } = {}) {
     const wordsStore = useLiveStore(words, setWords)
     const holds = useSegmentHolds()
     const sender = useMemo(() => createSender(() => {}), [])
-    useEffect(() => { sender.open(); return () => sender.close() }, [sender])
+    useEffect(() => () => sender.close(), [sender])
     const send = resend ? sender.send : sendOnce
     const editing = useTranscriptMutations({ transcriptId: uuid(0x70), segments: segmentsStore, words: wordsStore, enqueue, send })
     const history = useEditorHistory({

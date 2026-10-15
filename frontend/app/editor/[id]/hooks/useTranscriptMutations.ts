@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchSegmentsWithWords, setSegmentTexts, type SegmentTextEdit } from '@/lib/supabase/queries'
+import { fetchSegmentsWithWords, setSegmentTexts } from '@/lib/supabase/queries'
+import type { SegmentTextEdit } from '@/contracts/db'
 import { toast } from '@/components/ui/toaster'
 import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, STALE_TOAST, changedSince } from '@/lib/people/errors'
 import { OutcomeUnknown, SendClosed, type Send } from '@/lib/editor/untilAnswered'
+import { toastUnsaved } from '@/lib/editor/unsavedToasts'
 import type { Seg, SaveStatusBySegment, WordsBySegment } from '../types'
 import { SAVE_DEBOUNCE_MS, groupSourceWords } from '../utils'
 import type { Enqueue } from './useEditorWriteQueue'
@@ -10,10 +12,13 @@ import type { LiveStore } from './useLiveStore'
 import { changedElsewhere, type Direction } from './useEditorHistory'
 
 export type TextEdit = { segId: string; before: string; after: string }
+
 export type CaretHint = { start: number; end: number; seq: number }
 
 /** Unsaved text for a segment, and the revision it was edited against. */
 type Draft = { text: string; revision: number }
+/** A segment's draft as a save took it; gone if there was none. */
+type SentDraft = { segId: string; draft: Draft | undefined }
 
 export function useTranscriptMutations({
   transcriptId,
@@ -59,15 +64,6 @@ export function useTranscriptMutations({
     if (caretHintRef.current && caretHintRef.current.segId !== editingId) caretHintRef.current = null
   }, [editingId])
 
-  useEffect(() => {
-    return () => {
-      Object.values(saveTimers.current).forEach((timerId) => window.clearTimeout(timerId))
-      Object.values(saveStatusResetTimers.current).forEach((timerId) => window.clearTimeout(timerId))
-      saveTimers.current = {}
-      saveStatusResetTimers.current = {}
-    }
-  }, [])
-
   const clearSaveTimer = useCallback((segId: string) => {
     const t = saveTimers.current[segId]
     if (t) { window.clearTimeout(t); delete saveTimers.current[segId] }
@@ -92,6 +88,7 @@ export function useTranscriptMutations({
    * by a change made elsewhere and is dropped, and the user is told, with its
    * text to copy. Resolves false if the database refused the read, leaving
    * everything as it was; an unanswered read is sent again until answered.
+   * Once the editor has closed it reads nothing and throws SendClosed.
    *
    * It writes nothing, so it runs inside a queued task, never queueing one.
    */
@@ -103,7 +100,8 @@ export function useTranscriptMutations({
       rows = fetched.map(({ words: _words, ...row }) => row)
       wordRows = fetched.flatMap((row) => row.words)
     } catch (error) {
-      if (!(error instanceof SendClosed)) console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
+      if (error instanceof SendClosed) throw error
+      console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
       return false
     }
 
@@ -150,13 +148,7 @@ export function useTranscriptMutations({
     ))
     setEditingId((prev) => (prev && textById.has(prev) ? prev : null))
     if (external) onExternalChange?.(dropped.length > 0)
-    if (dropped.length > 0) {
-      const text = dropped.join('\n\n')
-      toast({
-        title: CONFLICT_TOAST, description: DROPPED_DRAFT_MESSAGE, variant: 'error', durationMs: 15000,
-        action: { label: 'Copy text', onClick: () => { void navigator.clipboard?.writeText(text).catch(() => undefined) } },
-      })
-    }
+    if (dropped.length > 0) toastUnsaved(CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, dropped)
     return true
   }, [transcriptId, segments, words, send, clearSaveTimer, showSaveStatus, adopt, onExternalChange])
 
@@ -209,6 +201,17 @@ export function useTranscriptMutations({
     }
   }, [writeTexts, showSaveStatus])
 
+  useEffect(() => {
+    const timers = saveTimers.current
+    const statusTimers = saveStatusResetTimers.current
+    return () => {
+      Object.values(timers).forEach((timerId) => window.clearTimeout(timerId))
+      Object.values(statusTimers).forEach((timerId) => window.clearTimeout(timerId))
+      for (const id of Object.keys(timers)) delete timers[id]
+      for (const id of Object.keys(statusTimers)) delete statusTimers[id]
+    }
+  }, [])
+
   /**
    * Runs a text step of the history inside the write queue: the drafts of its
    * segments are written first, then each segment, still showing what the
@@ -243,6 +246,49 @@ export function useTranscriptMutations({
     }
   }, [writeDrafts, segments, writeTexts])
 
+  /**
+   * Saves every waiting draft, together, in the write queue, unless a save of
+   * them is already queued and has not started.
+   */
+  const saveAll = useCallback(() => {
+    if (saveAllQueued.current) return
+    saveAllQueued.current = true
+    void enqueue(async () => {
+      saveAllQueued.current = false
+      // Every draft waiting now is saved with this one, so the drafts a
+      // Replace All made together are written together, not one by one.
+      let batch = [...drafts.current.keys()]
+      batch.forEach(clearSaveTimer)
+      while (batch.length) {
+        const sent: SentDraft[] = batch.map((segId) => ({ segId, draft: drafts.current.get(segId) }))
+        try {
+          await writeDrafts(batch)
+          return
+        } catch (error) {
+          // Shown as not saved, or the editor has closed.
+          if (!changedElsewhere(error)) return
+        }
+        // One conflict refuses the whole batch. The database's segments
+        // settle it: the reload drops the drafts it overtook and keeps the
+        // rest, which are written again, except any typed over since: typing
+        // queues its own save.
+        let reloaded: boolean
+        try { reloaded = await reloadSegments() } catch (error) {
+          if (error instanceof SendClosed) return
+          // A bug, not a refusal: the drafts stay, shown as not saved below.
+          console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
+          reloaded = false
+        }
+        if (!reloaded) toast({ title: STALE_TOAST, variant: 'error' })
+        const kept = sent.filter(({ segId, draft }) => drafts.current.get(segId) === draft).map(({ segId }) => segId)
+        // None settled, dropped or typed over: the reload or the write was
+        // refused for another reason. Stop, and say so.
+        if (kept.length === batch.length) { kept.forEach((id) => showSaveStatus(id, 'error')); return }
+        batch = kept
+      }
+    }, 'save')
+  }, [transcriptId, showSaveStatus, clearSaveTimer, enqueue, writeDrafts, reloadSegments])
+
   const scheduleSave = useCallback((segId: string, newText: string) => {
     const segment = segments.get().find((s) => s.id === segId)
     if (!segment) return
@@ -259,36 +305,35 @@ export function useTranscriptMutations({
     clearSaveTimer(segId)
     saveTimers.current[segId] = window.setTimeout(() => {
       delete saveTimers.current[segId]
-      if (saveAllQueued.current) return
-      saveAllQueued.current = true
-      void enqueue(async () => {
-        saveAllQueued.current = false
-        // Every draft waiting now is saved with this one, so the drafts a
-        // Replace All made together are written together, not one by one.
-        let batch = [...drafts.current.keys()]
-        batch.forEach(clearSaveTimer)
-        while (batch.length) {
-          const sent = batch.map((id) => drafts.current.get(id))
-          try {
-            await writeDrafts(batch)
-            return
-          } catch (error) {
-            if (!changedElsewhere(error)) return
-          }
-          // One conflict refuses the whole batch. The database's segments
-          // settle it: the reload drops the drafts it overtook and keeps the
-          // rest, which are written again, except any typed over since: typing
-          // queues its own save.
-          if (!(await reloadSegments())) toast({ title: STALE_TOAST, variant: 'error' })
-          const kept = batch.filter((id, i) => drafts.current.get(id) === sent[i])
-          // None settled, dropped or typed over: the reload or the write was
-          // refused for another reason. Stop, and say so.
-          if (kept.length === batch.length) { kept.forEach((id) => showSaveStatus(id, 'error')); return }
-          batch = kept
-        }
-      })
+      saveAll()
     }, SAVE_DEBOUNCE_MS)
-  }, [segments, showSaveStatus, clearSaveTimer, enqueue, writeDrafts, reloadSegments])
+  }, [segments, showSaveStatus, clearSaveTimer, saveAll])
+
+  /** Starts saving every waiting draft now, without waiting for its debounce. */
+  const saveNow = useCallback(() => {
+    if (!drafts.current.size) return
+    Object.keys(saveTimers.current).forEach(clearSaveTimer)
+    saveAll()
+  }, [clearSaveTimer, saveAll])
+
+  /** Whether any text is not saved yet. */
+  const hasDrafts = useCallback(() => drafts.current.size > 0, [])
+
+  /**
+   * The writes that would save every waiting draft, built as a save would
+   * build them, and the drafts' text. Read as the editor closes, to send them
+   * once.
+   */
+  const draftEdits = useCallback(() => {
+    const edits: SegmentTextEdit[] = []
+    const texts: string[] = []
+    for (const [segId, draft] of drafts.current) {
+      texts.push(draft.text)
+      const known = baseline.current.get(segId)
+      if (known) edits.push({ segment_id: segId, expected_revision: draft.revision, expected_text: known.text, text: draft.text })
+    }
+    return { edits, texts }
+  }, [])
 
   /** Open the editor on a segment with the caret at an offset, or a selection. */
   const openEditorAt = useCallback((segId: string, selection: number | { start: number; end: number }) => {
@@ -305,6 +350,9 @@ export function useTranscriptMutations({
     editingTexts, setEditingTexts,
     saveStatus,
     scheduleSave,
+    saveNow,
+    hasDrafts,
+    draftEdits,
     writeDrafts,
     applyTexts,
     reloadSegments,

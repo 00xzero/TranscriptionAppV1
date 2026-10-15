@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ZodError } from 'zod'
 import { isUncertainOutcome } from '@/lib/people/errors'
+import { useAfterUnmount } from '@/lib/hooks/useAfterUnmount'
 
 /** Waits between resends of an unanswered request; the last repeats. */
 export const RESEND_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
@@ -16,10 +17,10 @@ export class OutcomeUnknown extends Error {
   }
 }
 
-/** The editor closed while a write was waiting; nothing further is sent. */
+/** The editor closed while a request was waiting; nothing further is sent. */
 export class SendClosed extends Error {
   constructor() {
-    super('The editor closed before the write was answered')
+    super('The editor closed before the request was answered')
   }
 }
 
@@ -29,7 +30,6 @@ export type Sender = {
   send: Send
   /** True while a call has gone unanswered twice in a row and is still being resent. */
   isReconnecting(): boolean
-  open(): void
   close(): void
 }
 
@@ -43,18 +43,21 @@ export type Sender = {
  * overlap: the next is made only after the last failed and its wait ended,
  * at the backoff timer or the window's `online` event, whichever is first.
  * Closing settles every send at once with SendClosed, including one whose
- * request is still out; its answer, if it comes, is ignored.
+ * request is still out; its answer, if it comes, is ignored. A closed
+ * sender stays closed.
  */
 export function createSender(onReconnecting: (reconnecting: boolean) => void): Sender {
   let closed = false
-  let reconnecting = 0
+  // The sends showing Reconnecting; closing forgets them all.
+  const reconnecting = new Set<object>()
   const wakers = new Set<() => void>()
   const stoppers = new Set<() => void>()
 
-  const setReconnecting = (delta: number) => {
-    const was = reconnecting > 0
-    reconnecting += delta
-    if (was !== reconnecting > 0) onReconnecting(reconnecting > 0)
+  const showReconnecting = (token: object, on: boolean) => {
+    const was = reconnecting.size > 0
+    if (on) reconnecting.add(token)
+    else reconnecting.delete(token)
+    if (was !== reconnecting.size > 0) onReconnecting(reconnecting.size > 0)
   }
 
   const wait = (ms: number) => new Promise<void>((resolve) => {
@@ -78,8 +81,8 @@ export function createSender(onReconnecting: (reconnecting: boolean) => void): S
 
   const send: Send = async (call) => {
     if (closed) throw new SendClosed()
+    const token = {}
     let unanswered = 0
-    let shown = false
     try {
       for (;;) {
         try {
@@ -92,36 +95,38 @@ export function createSender(onReconnecting: (reconnecting: boolean) => void): S
           if (!isUncertainOutcome(error)) throw unanswered > 0 ? new OutcomeUnknown(error) : error
         }
         unanswered++
-        // One lost answer is a blip; a second one in a row is worth showing.
-        if (unanswered === 2) { shown = true; setReconnecting(1) }
         if (closed) throw new SendClosed()
+        // One lost answer is a blip; a second one in a row is worth showing.
+        if (unanswered === 2) showReconnecting(token, true)
         await wait(RESEND_DELAYS_MS[Math.min(unanswered, RESEND_DELAYS_MS.length) - 1])
         if (closed) throw new SendClosed()
       }
     } finally {
-      if (shown) setReconnecting(-1)
+      showReconnecting(token, false)
     }
   }
 
   return {
     send,
-    isReconnecting: () => reconnecting > 0,
-    open() { closed = false },
+    isReconnecting: () => reconnecting.size > 0,
     close() {
       closed = true
+      if (reconnecting.size > 0) { reconnecting.clear(); onReconnecting(false) }
       for (const stop of [...stoppers]) stop()
       for (const wake of [...wakers]) wake()
     },
   }
 }
 
-/** The editor's sender, open while the editor is mounted. */
+/**
+ * The editor's sender, open while the editor is mounted. Closing waits for
+ * the current task: an effect run again at once (Fast Refresh, Strict Mode)
+ * finds it still open, so sends out at that moment are not given up while
+ * the editor stays.
+ */
 export function useUntilAnswered(): { send: Send; reconnecting: boolean; isReconnecting(): boolean } {
   const [reconnecting, setReconnecting] = useState(false)
   const sender = useMemo(() => createSender(setReconnecting), [])
-  useEffect(() => {
-    sender.open()
-    return () => sender.close()
-  }, [sender])
+  useAfterUnmount(useCallback(() => () => sender.close(), [sender]))
   return { send: sender.send, reconnecting, isReconnecting: sender.isReconnecting }
 }

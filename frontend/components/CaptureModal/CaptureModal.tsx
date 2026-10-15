@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
@@ -55,7 +55,7 @@ function getRecordDisabledTooltip(input: {
 }
 
 export default function CaptureModal() {
-  const router = useRouter()
+  const guardedNav = useGuardedNavigate()
   const { isCaptureModalOpen, captureModalIntent, closeCaptureModal } = useModal()
   const recordingActions = useRecordingActions()
   const recordingSnapshot = useRecordingSession()
@@ -249,7 +249,8 @@ export default function CaptureModal() {
       // ownership flag so closing the modal doesn't stop the live tracks.
       micTest.transferStream()
       try {
-        router.push('/recording/new')
+        // An editor with changes not saved yet saves them first.
+        guardedNav.push('/recording/new')
       } catch (err) {
         recordingActions.discard()
         micTest.release()

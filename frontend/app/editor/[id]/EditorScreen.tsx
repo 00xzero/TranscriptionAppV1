@@ -38,7 +38,9 @@ import { createSegmentLocator } from './utils'
 import { useSegmentHolds } from './hooks/useSegmentHolds'
 import { useEditorHistory, type HistoryTarget } from './hooks/useEditorHistory'
 import { useTextHistory } from './hooks/useTextHistory'
-import { useUntilAnswered } from '@/lib/editor/untilAnswered'
+import { useLeaveEditor } from './hooks/useLeaveEditor'
+import LeaveEditorDialog from './components/LeaveEditorDialog'
+import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
 import { publishUndoControls } from '@/lib/editor/undoControls'
 import { fetchTranscriptById } from '@/lib/supabase/queries'
 
@@ -68,7 +70,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // recognises its own earlier success, so a resend is always safe.
   const enqueue = useEditorWriteQueue()
   const { send, reconnecting, isReconnecting } = useUntilAnswered()
-  const holds = useSegmentHolds(isReconnecting)
+  const holds = useSegmentHolds(isReconnecting, reconnecting)
   // The history reveals and refreshes through hooks set up after it.
   const bridge = useRef({ reveal: (_target: HistoryTarget) => {}, refresh: async () => false })
   const reveal = useCallback((target: HistoryTarget) => bridge.current.reveal(target), [])
@@ -89,6 +91,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     onExternalChange: externalChange,
   })
   const textHistory = useTextHistory(history, editing)
+  // Leaving waits for what the editor has not saved yet.
+  const leaving = useLeaveEditor({ queue: enqueue, editing, reconnecting })
 
   const speakerHook = useSpeakerAssignments({
     transcriptId,
@@ -111,6 +115,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     reloadContentRef.current = () => {
       void enqueue(async () => {
         if (!(await reloadSegments())) toast(wordTimingsFailedToast(reloadContent))
+      }, 'read').catch((error: unknown) => {
+        // A closed editor has nothing to show it on; anything else is a bug.
+        if (!(error instanceof SendClosed)) console.error('[editor] failed to reload word timings:', error)
       })
     }
   }, [enqueue, reloadSegments, reloadContent])
@@ -463,7 +470,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         ) : undefined}
               status={data.status}
               editingTitle={title.editingTitle}
-              titleBusy={holds.busy.has('title')}
+              titleBusy={holds.locked.has('title')}
               titleInput={title.titleInput}
               setTitleInput={title.setTitleInput}
               titleInputRef={title.titleInputRef}
@@ -479,7 +486,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               segments={data.segments}
               wordsBySegment={data.wordsBySegment}
               busy={holds.busy}
-              locked={holds.locked}
+              isLocked={holds.isLocked}
               playbackClock={playbackClock}
               scrollParent={sync.scrollParent}
               virtuosoRef={sync.virtuosoRef}
@@ -502,6 +509,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               flashing={flashing}
               onTextInput={textHistory.onTextInput}
               sealTyping={textHistory.seal}
+              endDrag={textHistory.endDrag}
               onHistory={history.press}
             />
           </div>
@@ -541,7 +549,15 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         />
       )}
 
-      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => router.replace('/transcripts')} />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => { leaving.abandon(); router.replace('/transcripts') }} />
+
+      <LeaveEditorDialog
+        phase={leaving.phase}
+        hasUnsaved={leaving.hasUnsaved()}
+        onStay={leaving.stay}
+        onLeave={leaving.leaveAnyway}
+        onCopy={() => { void leaving.copyUnsaved() }}
+      />
 
       <Popover
         open={!!speakerHook.speakerPopover}

@@ -228,6 +228,17 @@ export const SegmentUpdateSchema = z.object({
 // split_segment returns the segment and its new second half, in display order.
 export const SplitSegmentResultSchema = z.array(SegmentSchema).length(2)
 
+// One edit of a set_segment_texts_guarded call: the text to write, and the
+// revision and text it replaces. See:
+//   infra/supabase/migrations/20261013120000_editor_history_guards.sql
+export const SegmentTextEditSchema = z.object({
+  segment_id: UuidSchema,
+  expected_revision: z.number().int().nonnegative(),
+  expected_text: z.string(),
+  text: z.string(),
+})
+export type SegmentTextEdit = z.infer<typeof SegmentTextEditSchema>
+
 // === RPC: guarded speaker writes ===
 // Each call carries the values it expects to replace; the database refuses a
 // write whose expectation no longer holds (SQLSTATE SP002). See:

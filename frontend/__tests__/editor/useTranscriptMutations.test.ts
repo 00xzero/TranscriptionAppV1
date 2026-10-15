@@ -5,8 +5,9 @@ import { useEditorWriteQueue } from '../../app/editor/[id]/hooks/useEditorWriteQ
 import { useLiveStore } from '../../app/editor/[id]/hooks/useLiveStore'
 import type { Seg, WordsBySegment } from '../../app/editor/[id]/types'
 import { SAVE_DEBOUNCE_MS } from '../../app/editor/[id]/utils'
+import { STALE_TOAST } from '@/lib/people/errors'
 import { RESEND_DELAYS_MS, createSender, type Send } from '@/lib/editor/untilAnswered'
-import type { SegmentTextEdit } from '@/lib/supabase/queries'
+import type { SegmentTextEdit } from '@/contracts/db'
 
 const mockSetSegmentTexts = jest.fn()
 const mockFetchSegmentsWithWords = jest.fn()
@@ -51,7 +52,7 @@ function setup(initial: Seg[] = [seg('seg-1', 'original text')], { send = sendOn
 /** A real sender, open for the test: lost answers are sent again. */
 function useRealSender(): Send {
   const sender = useMemo(() => createSender(() => {}), [])
-  useEffect(() => { sender.open(); return () => sender.close() }, [sender])
+  useEffect(() => () => sender.close(), [sender])
   return sender.send
 }
 
@@ -518,5 +519,42 @@ describe('useTranscriptMutations', () => {
     expect(result.current.caretHint('b')).toMatchObject({ start: 1, end: 3 })
     act(() => { result.current.setEditingId(null) })
     expect(result.current.caretHint('b')).toBeUndefined()
+  })
+
+  it('logs a bug in the reload after a refused save, and says the refresh failed', async () => {
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {})
+    mockSetSegmentTexts.mockRejectedValue(CHANGED)
+    mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('seg-1', 'changed elsewhere text'))])
+    const onExternalChange = jest.fn(() => { throw new Error('bug') })
+    const { result } = setup(undefined, { onExternalChange })
+    act(() => { result.current.scheduleSave('seg-1', 'typed') })
+    await settle(SAVE_DEBOUNCE_MS)
+    expect(onExternalChange).toHaveBeenCalled()
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('failed to reload segments'), expect.any(Error))
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: STALE_TOAST }))
+    error.mockRestore()
+  })
+
+  describe('saving before leaving', () => {
+    it('saves a waiting draft now, without waiting for its debounce', async () => {
+      const { result } = setup()
+      act(() => { result.current.scheduleSave('seg-1', 'typed') })
+      expect(result.current.hasDrafts()).toBe(true)
+      act(() => { result.current.saveNow() })
+      await settle(1)
+      expect(mockSetSegmentTexts).toHaveBeenCalledTimes(1)
+      expect(result.current.hasDrafts()).toBe(false)
+      await settle(SAVE_DEBOUNCE_MS)
+      expect(mockSetSegmentTexts).toHaveBeenCalledTimes(1)
+    })
+
+    it('builds the writes for the waiting drafts as a save would, with their text', () => {
+      const { result } = setup()
+      act(() => { result.current.scheduleSave('seg-1', 'typed') })
+      expect(result.current.draftEdits()).toEqual({
+        edits: [{ segment_id: 'seg-1', expected_revision: 0, expected_text: 'original text', text: 'typed' }],
+        texts: ['typed'],
+      })
+    })
   })
 })

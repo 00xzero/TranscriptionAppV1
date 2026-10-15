@@ -76,7 +76,7 @@ export function useTranscriptTitleEditing({
       onTitleSaved(row.title ?? '')
     }
     const step: HistoryStep = {
-      label: 'title', touches: ['title'], target: () => ({ title: true }),
+      label: 'title', failure: "Couldn't rename the transcript", scope: 'title', touches: ['title'], target: () => ({ title: true }),
       async run(dir, applied) {
         await write(dir === 'undo' ? after : before, dir === 'undo' ? before : after)
         applied()

@@ -6,9 +6,9 @@ export type BusyKind = 'splitting' | 'undoing' | 'pending'
 /**
  * What a hold closes. `text`: typing, splitting, replacing and the speaker
  * picker. `speaker`: only the speaker picker, so a speaker change waiting on
- * the database never locks a segment's text.
+ * the database never locks a segment's text. `title`: only the title.
  */
-export type HoldScope = 'text' | 'speaker'
+export type HoldScope = 'text' | 'speaker' | 'title'
 
 export type Held = { release(): void }
 
@@ -21,7 +21,7 @@ const neverReconnecting = () => false
  * a queued write is about to change. Read synchronously, so a second action
  * before the next render is still turned away.
  */
-export function useSegmentHolds(isReconnecting: () => boolean = neverReconnecting) {
+export function useSegmentHolds(isReconnecting: () => boolean = neverReconnecting, reconnecting = false) {
   const holds = useRef(new Map<object, Hold>())
   const [version, setVersion] = useState(0)
   const publish = useCallback(() => setVersion((v) => v + 1), [])
@@ -38,7 +38,8 @@ export function useSegmentHolds(isReconnecting: () => boolean = neverReconnectin
   /** Whether an action on these ids must wait: one is held, or the editor is reconnecting. */
   const blocked = useCallback((ids: readonly string[]) => isReconnecting() || ids.some(has), [isReconnecting, has])
 
-  // The newest text hold names the status a segment shows; any hold closes its picker.
+  // The newest text hold names the status a segment shows; any hold closes its
+  // picker. Only segments are held for text: `busy` holds nothing else.
   const { busy, locked } = useMemo(() => {
     void version
     const busy = new Map<string, BusyKind>()
@@ -50,6 +51,10 @@ export function useSegmentHolds(isReconnecting: () => boolean = neverReconnectin
     return { busy: busy as ReadonlyMap<string, BusyKind>, locked: locked as ReadonlySet<string> }
   }, [version])
 
-  return useMemo(() => ({ busy, locked, hold, has, blocked, any: busy.size > 0 }), [busy, locked, hold, has, blocked])
+  // Whether any segment's text or shape is held.
+  const any = busy.size > 0
+  /** Whether a segment's speaker can't be changed, nor the segment split: it is held, or the editor is reconnecting. */
+  const isLocked = useCallback((id: string) => reconnecting || locked.has(id), [reconnecting, locked])
+  return useMemo(() => ({ busy, locked, isLocked, hold, has, blocked, any }), [busy, locked, isLocked, hold, has, blocked, any])
 }
 export type SegmentHolds = ReturnType<typeof useSegmentHolds>

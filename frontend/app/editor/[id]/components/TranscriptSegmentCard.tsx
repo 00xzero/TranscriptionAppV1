@@ -216,7 +216,7 @@ export type TranscriptSegmentCardProps = {
   sourceWords: readonly SourceWord[] | undefined
   /** Set while a write about to change this segment's text or shape waits its turn. */
   busy: BusyKind | undefined
-  /** Set while any write about to change this segment waits: its speaker can't be changed meanwhile. */
+  /** Set while any write about to change this segment waits, or the editor is reconnecting: its speaker can't be changed, nor the segment split, meanwhile. */
   locked: boolean
   /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
@@ -243,6 +243,8 @@ export type TranscriptSegmentCardProps = {
   onTextInput: (segId: string, input: TextInput) => void
   /** Ends this segment's open typing step, as moving the caret does in Word. */
   sealTyping: (segId: string) => void
+  /** A drag from this field ended, wherever its text was dropped. */
+  endDrag?: () => void
   /** Undo or redo in the editor's history. */
   onHistory: (dir: 'undo' | 'redo') => void
 }
@@ -272,6 +274,7 @@ export default function TranscriptSegmentCard({
   flashing,
   onTextInput,
   sealTyping,
+  endDrag,
   onHistory,
 }: TranscriptSegmentCardProps) {
   const isEditing = editingId === s.id
@@ -383,7 +386,7 @@ export default function TranscriptSegmentCard({
       node.setSelectionRange(at, at)
     }
   }, [isEditing, text, caretHint, s.id])
-  const canSplit = isEditing && !busy && caret !== null &&
+  const canSplit = isEditing && !busy && !locked && caret !== null &&
     findSplit(tokens, sourceWords ?? [], text, caret, s.start_ms) !== null
   const splitAtCaret = () => {
     const node = textAreaRef.current
@@ -479,6 +482,7 @@ export default function TranscriptSegmentCard({
               trackCaret(node.selectionStart)
             }}
             onPointerDown={() => sealTyping(s.id)}
+            onDragEnd={() => endDrag?.()}
             onBlur={() => sealTyping(s.id)}
             onCompositionStart={(e: React.CompositionEvent<HTMLTextAreaElement>) => { composition.current = snapshot(e.currentTarget) }}
             onCompositionEnd={(e: React.CompositionEvent<HTMLTextAreaElement>) => {

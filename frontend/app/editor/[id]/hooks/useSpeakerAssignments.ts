@@ -8,7 +8,7 @@ import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } fro
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import { toast } from '@/components/ui/toaster'
 import { changedSince, errorCode, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
-import type { Send } from '@/lib/editor/untilAnswered'
+import { SendClosed, type Send } from '@/lib/editor/untilAnswered'
 import { NOTHING_CHANGED, type EditorHistory, type HistoryStep } from './useEditorHistory'
 import type { SegmentHolds } from './useSegmentHolds'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
@@ -72,7 +72,10 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
   enqueue: Enqueue
-  /** Reloads segments and words when they were split or rejoined elsewhere. */
+  /**
+   * Reloads segments and words when they were split or rejoined elsewhere.
+   * False if the database refused the read; throws SendClosed once the editor has closed.
+   */
   reloadSegments: () => Promise<boolean>
   /** False until the editor's first load has shown segments. */
   isLoaded: () => boolean
@@ -145,7 +148,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       store.updatePeople(() => people)
       return true
     } catch (error) {
-      console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
+      if (!(error instanceof SendClosed)) console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
       return false
     }
   }, [store, send, reloadSegments, clearHistory])
@@ -161,7 +164,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       refreshing = true
       void enqueue(async () => {
         try { if (isLoaded()) await refresh() } finally { refreshing = false }
-      })
+      }, 'read')
     }
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)

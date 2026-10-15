@@ -308,3 +308,19 @@ it('restoring a snapshot never brings back a dropped action', async () => {
   act(() => result.current.history.drop(b))
   expect(result.current.history.canUndo).toBe(false)
 })
+
+it('holds the title apart from segments: Replace is not closed while the title saves', async () => {
+  let save!: () => void
+  const { result } = setup()
+  act(() => {
+    result.current.history.original(step('title', undefined, { touches: ['title'], scope: 'title' }),
+      () => new Promise<void>((resolve) => { save = resolve }))
+  })
+  await waitFor(() => expect(save).toBeDefined())
+  expect(result.current.holds.locked.has('title')).toBe(true)
+  expect(result.current.holds.busy.has('title')).toBe(false)
+  expect(result.current.holds.any).toBe(false)
+  act(() => save())
+  await waitFor(() => expect(result.current.holds.locked.has('title')).toBe(false))
+})
+

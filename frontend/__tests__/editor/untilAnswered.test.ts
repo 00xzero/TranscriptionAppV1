@@ -1,5 +1,7 @@
+import { StrictMode, createElement, type ReactNode } from 'react'
+import { renderHook } from '@testing-library/react'
 import { z } from 'zod'
-import { OutcomeUnknown, RESEND_DELAYS_MS, SendClosed, createSender } from '@/lib/editor/untilAnswered'
+import { OutcomeUnknown, RESEND_DELAYS_MS, SendClosed, createSender, useUntilAnswered } from '@/lib/editor/untilAnswered'
 
 const LOST = { code: '', message: 'TypeError: Failed to fetch' }
 const REFUSED = { code: 'SP002', message: 'changed since' }
@@ -14,7 +16,6 @@ describe('sending until answered', () => {
   function setup() {
     const reconnecting = jest.fn()
     const sender = createSender(reconnecting)
-    sender.open()
     return { sender, reconnecting }
   }
 
@@ -151,5 +152,33 @@ describe('sending until answered', () => {
     await closed
     expect(sender.isReconnecting()).toBe(false)
     expect(reconnecting).toHaveBeenLastCalledWith(false)
+  })
+})
+
+describe('the editor\'s sender', () => {
+  beforeEach(() => jest.useFakeTimers())
+  afterEach(() => jest.useRealTimers())
+
+  const strict = ({ children }: { children: ReactNode }) => createElement(StrictMode, null, children)
+
+  it('stays open through an effect run again at once, resending what goes unanswered', async () => {
+    const { result } = renderHook(() => useUntilAnswered(), { wrapper: strict })
+    await jest.advanceTimersByTimeAsync(1)
+    const call = jest.fn().mockRejectedValueOnce(LOST).mockResolvedValue('read')
+    const out = result.current.send(call)
+    await jest.advanceTimersByTimeAsync(RESEND_DELAYS_MS[0])
+    await expect(out).resolves.toBe('read')
+    expect(call).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes once the editor has gone, settling a request that is out', async () => {
+    const { result, unmount } = renderHook(() => useUntilAnswered())
+    const out = result.current.send(() => new Promise<string>(() => {}))
+    const settled = expect(out).rejects.toEqual(expect.any(SendClosed))
+    await flush()
+    unmount()
+    // Closed by a task of its own.
+    await jest.advanceTimersByTimeAsync(1)
+    await settled
   })
 })

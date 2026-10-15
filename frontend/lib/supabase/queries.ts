@@ -22,6 +22,7 @@ import type {
     ProjectSpeakerSummary,
     Speaker,
     SegmentSpeakerChange,
+    SegmentTextEdit,
     SegmentSpeakerAssignment,
     TranscriptSummary,
     TranscriptUpdate,
@@ -44,6 +45,7 @@ import {
     SegmentSchema,
     SegmentSpeakerChangeSchema,
     SpeakerSchema,
+    SegmentTextEditSchema,
     SplitSegmentResultSchema,
     TranscriptSchema,
     TranscriptSummarySchema,
@@ -51,6 +53,21 @@ import {
 import { z } from 'zod'
 
 const PAGE_SIZE = 1000
+
+/**
+ * A request's arguments, checked before anything is sent. A malformed one is
+ * refused as the database refuses invalid arguments (SP003), so it is never
+ * taken for an answer that could not be read, whose write may have happened.
+ */
+function requestArgs<T>(schema: z.ZodType<T>, value: unknown): T {
+    const parsed = schema.safeParse(value)
+    if (!parsed.success) throw Object.assign(new Error(`Invalid request: ${parsed.error.message}`), { code: 'SP003' })
+    return parsed.data
+}
+
+const SegmentTextEditsSchema = z.array(SegmentTextEditSchema).min(1)
+const SegmentSpeakerChangesSchema = z.array(SegmentSpeakerChangeSchema)
+const NewSpeakerSegmentChangesSchema = z.array(NewSpeakerSegmentChangeSchema)
 
 type PageResult<T> = {
     data: T[] | null
@@ -469,14 +486,6 @@ export async function fetchTranscriptData(transcriptId: string): Promise<{
     return { items: segments }
 }
 
-/** One segment's text edit, naming the revision and the text it replaces. */
-export type SegmentTextEdit = {
-    segment_id: string
-    expected_revision: number
-    expected_text: string
-    text: string
-}
-
 /**
  * Write segments' text, all or nothing. Each edit names the revision and the
  * text it expects, so text typed against an old shape, or over a change made
@@ -485,7 +494,9 @@ export type SegmentTextEdit = {
  */
 export async function setSegmentTexts(edits: readonly SegmentTextEdit[]): Promise<Segment[]> {
     const supabase = createClient()
-    const { data, error } = await supabase.rpc('set_segment_texts_guarded', { p_edits: edits })
+    const { data, error } = await supabase.rpc('set_segment_texts_guarded', {
+        p_edits: requestArgs(SegmentTextEditsSchema, edits),
+    })
 
     if (error) throw error
     return z.array(SegmentSchema).parse(data ?? [])
@@ -614,7 +625,7 @@ export async function reassignSegments(
     const supabase = createClient()
     const { data, error } = await supabase.rpc('reassign_segments', {
         p_transcript_id: transcriptId,
-        p_changes: z.array(SegmentSpeakerChangeSchema).parse(changes),
+        p_changes: requestArgs(SegmentSpeakerChangesSchema, changes),
     })
 
     if (error) throw error
@@ -673,7 +684,7 @@ export async function createLocalSpeaker(
     const { data, error } = await supabase.rpc('create_local_speaker', {
         p_transcript_id: transcriptId,
         p_custom_label: customLabel,
-        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
+        p_changes: requestArgs(NewSpeakerSegmentChangesSchema, changes),
         p_speaker_id: speakerId,
     })
 
@@ -694,7 +705,7 @@ export async function correctSegmentsToPerson(
     const supabase = createClient()
     const { data, error } = await supabase.rpc('correct_segments_to_person', {
         p_transcript_id: transcriptId,
-        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(changes),
+        p_changes: requestArgs(NewSpeakerSegmentChangesSchema, changes),
         p_person_id: 'personId' in target ? target.personId : null,
         p_new_person_name: 'newPersonName' in target ? target.newPersonName : null,
         p_new_person_id: 'newPersonId' in target ? target.newPersonId : null,
@@ -722,7 +733,7 @@ export async function undoCreatedPerson(args: {
         p_expected_name: args.person.name,
         p_expected_color: args.person.preferred_color,
         p_speaker_id: args.speakerId,
-        p_changes: z.array(SegmentSpeakerChangeSchema).parse(args.changes),
+        p_changes: requestArgs(SegmentSpeakerChangesSchema, args.changes),
     })
 
     if (error) throw error
@@ -745,7 +756,7 @@ export async function restoreCreatedPerson(args: {
         p_name: args.person.name,
         p_preferred_color: args.person.preferred_color,
         p_speaker_id: args.speakerId,
-        p_changes: z.array(NewSpeakerSegmentChangeSchema).parse(args.changes),
+        p_changes: requestArgs(NewSpeakerSegmentChangesSchema, args.changes),
     })
 
     if (error) throw error

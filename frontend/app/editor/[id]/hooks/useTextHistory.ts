@@ -3,9 +3,12 @@ import { TYPING_STEP_MAX, canExtend, classifyInput, type OpenTyping, type TextIn
 import { typedQuote } from '@/core/editor/step-names'
 import type { EditorHistory, HistoryStep } from './useEditorHistory'
 import type { TextEdit, useTranscriptMutations } from './useTranscriptMutations'
-export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<ReturnType<typeof useTranscriptMutations>, 'applyTexts'>) {
+export function useTextHistory({ record, historyVersion }: Pick<EditorHistory, 'record' | 'historyVersion'>,
+  { applyTexts }: Pick<ReturnType<typeof useTranscriptMutations>, 'applyTexts'>) {
   const open = useRef<(OpenTyping & { edit: TextEdit; after: { start: number; end: number } }) | null>(null)
-  // The step of a text just dragged out of a segment, which the drop in that same segment completes.
+  // The step of a text just dragged out of a segment, which the drop in that
+  // same segment completes. The drag's end forgets it, so a drop that lands
+  // elsewhere leaves nothing for a later, unrelated drop to join.
   const dragged = useRef<{ segmentId: string; version: number; edit: TextEdit; after: { start: number; end: number } } | null>(null)
   // Ends the open typing step, Word-style; with a segment, only if the step is that segment's.
   const seal = useCallback((segmentId?: string) => {
@@ -23,22 +26,22 @@ export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<Retu
       run: (dir, applied) => applyTexts(changed, dir, applied),
       target: dir => ({ ids, selection: changed.length === 1 ? selection[dir === 'undo' ? 'before' : 'after'] : undefined }),
     }
-    history.record(step)
+    record(step)
     return true
-  }, [history, applyTexts])
+  }, [record, applyTexts])
   const onTextInput = useCallback((segmentId: string, input: TextInput) => {
     if (input.before.text === input.after.text) return
     // A move within a segment, reported in two halves (as Chrome does), is one step.
     const move = dragged.current
     dragged.current = null
-    if (move && input.inputType === 'insertFromDrop' && move.segmentId === segmentId && move.version === history.historyVersion()) {
+    if (move && input.inputType === 'insertFromDrop' && move.segmentId === segmentId && move.version === historyVersion()) {
       move.edit.after = input.after.text
       move.after.start = input.after.start; move.after.end = input.after.end
       return
     }
     const kind = classifyInput(input.inputType, input.before.start !== input.before.end)
     const inserted = Math.max(0, input.after.text.length - input.before.text.length)
-    if (open.current && canExtend(open.current, segmentId, kind, history.historyVersion()) &&
+    if (open.current && canExtend(open.current, segmentId, kind, historyVersion()) &&
         (input.composition || open.current.characters + inserted <= TYPING_STEP_MAX)) {
       open.current.edit.after = input.after.text
       open.current.after.start = input.after.start; open.current.after.end = input.after.end
@@ -50,13 +53,14 @@ export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<Retu
     const edit = { segId: segmentId, before: input.before.text, after: input.after.text }
     const after = { start: input.after.start, end: input.after.end }
     const recorded = recordEdits(kind === 'drag' ? 'drag and drop' : kind, [edit], { start: input.before.start, end: input.before.end }, after)
-    if (recorded && input.inputType === 'deleteByDrag') dragged.current = { segmentId, version: history.historyVersion(), edit, after }
-    if (recorded && kind === 'typing') open.current = { segmentId, version: history.historyVersion(), characters: inserted,
+    if (recorded && input.inputType === 'deleteByDrag') dragged.current = { segmentId, version: historyVersion(), edit, after }
+    if (recorded && kind === 'typing') open.current = { segmentId, version: historyVersion(), characters: inserted,
       sealed: inserted >= TYPING_STEP_MAX, edit, after }
-  }, [history, recordEdits, seal])
+  }, [historyVersion, recordEdits, seal])
   const recordReplace = useCallback((edits: TextEdit[], selection?: { start: number; end: number }, all = false) => {
     seal(); recordEdits(all ? 'replace all' : 'replace', edits, selection,
       selection && edits[0] ? { start: selection.start, end: selection.start + Math.max(0, edits[0].after.length - edits[0].before.length + selection.end - selection.start) } : undefined)
   }, [seal, recordEdits])
-  return { onTextInput, seal, recordReplace }
+  const endDrag = useCallback(() => { dragged.current = null }, [])
+  return { onTextInput, seal, recordReplace, endDrag }
 }
