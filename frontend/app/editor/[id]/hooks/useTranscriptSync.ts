@@ -304,6 +304,7 @@ export function useTranscriptSync({
     findActiveSegmentId,
     handleRangeChanged,
     scrollToSegmentIndex,
+    isSegmentSafelyVisible: isActiveSegmentSafelyVisible,
     markProgrammaticScroll,
     handleReturnToTop,
     onAudioTick,

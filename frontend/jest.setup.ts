@@ -79,7 +79,10 @@ jest.mock('./lib/supabase/queries', () => ({
   fetchSegments: jest.fn().mockResolvedValue([]),
   fetchSegmentSpeakerAssignments: jest.fn().mockResolvedValue([]),
   updateTranscript: jest.fn().mockResolvedValue({}),
-  updateSegment: jest.fn().mockResolvedValue({}),
+  // The editor's guarded writes answer with what they wrote.
+  updateTranscriptTitleGuarded: jest.fn(async (id: string, _expected: string | null, title: string | null) => ({ id, title })),
+  setSegmentTexts: jest.fn(async (edits: { segment_id: string; text: string; expected_revision: number }[]) =>
+    edits.map((edit) => ({ id: edit.segment_id, text: edit.text, revision: edit.expected_revision }))),
   reassignSegments: jest.fn().mockResolvedValue([]),
   setSpeakerCustomLabel: jest.fn(),
   fetchEditorPeopleContext: jest.fn().mockResolvedValue({ people: [] }),
@@ -87,6 +90,7 @@ jest.mock('./lib/supabase/queries', () => ({
   renamePerson: jest.fn(),
   correctSegmentsToPerson: jest.fn(),
   undoCreatedPerson: jest.fn(),
+  restoreCreatedPerson: jest.fn(),
   fetchPeopleDirectory: jest.fn().mockResolvedValue({ people: [], organisations: [] }),
   fetchPersonAppearances: jest.fn().mockResolvedValue([]),
   fetchMergePreview: jest.fn(),

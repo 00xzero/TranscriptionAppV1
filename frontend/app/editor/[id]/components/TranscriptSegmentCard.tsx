@@ -8,7 +8,10 @@ import { findSplit } from '@/core/transcript/segment-split'
 import type { PlaybackClock } from '../playbackClock'
 import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
 import { useCurrentWordIndex } from '../hooks/useCurrentWordIndex'
-import type { BusyKind } from '../hooks/useSegmentSplit'
+import type { BusyKind } from '../hooks/useSegmentHolds'
+import type { CaretHint } from '../hooks/useTranscriptMutations'
+import type { TextInput, SelectionText } from '@/core/editor/typing-steps'
+import { undoShortcut } from '@/lib/editor/undoShortcut'
 import { formatElapsedTime } from '@/lib/utils'
 
 // Keeps the edit textarea exactly as tall as its content so entering edit mode
@@ -27,22 +30,24 @@ type SegmentHeaderRowProps = {
   timestamp: string
   saveStatus: SaveStatusBySegment
   busy: BusyKind | undefined
+  /** A write about to change this segment is waiting: its speaker can't be changed meanwhile. */
+  locked: boolean
   segmentId: string
   segmentText: string
   editingId: string | null
   /** Whether the caret is at a place the segment can split; the button shows only while editing. */
   canSplit: boolean
   onSplitClick: () => void
-  onRetryClick: () => void
   onSpeakerClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
 }
 
-const BUSY_LABEL: Record<BusyKind, string> = {
+// A pending write shows no status of its own; the save status shows instead.
+const BUSY_LABEL: Record<BusyKind, string | null> = {
   splitting: 'Splitting…',
   undoing: 'Undoing…',
-  unconfirmed: 'Not confirmed',
+  pending: null,
 }
 
 function SegmentHeaderRow({
@@ -51,12 +56,12 @@ function SegmentHeaderRow({
   timestamp,
   saveStatus,
   busy,
+  locked,
   segmentId,
   segmentText,
   editingId,
   canSplit,
   onSplitClick,
-  onRetryClick,
   onSpeakerClick,
   setEditingId,
   setEditingTexts,
@@ -79,6 +84,7 @@ function SegmentHeaderRow({
               className={speakerButtonClassName}
               onClick={onSpeakerClick}
               aria-label={`Change speaker (${speakerLabel})`}
+              disabled={locked}
               aria-haspopup="dialog"
               data-speaker-trigger=""
               tabIndex={0}
@@ -94,23 +100,7 @@ function SegmentHeaderRow({
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
       <span className="text-[10px] font-mono">
-        {busy === 'unconfirmed' ? (
-          <span className="text-ember-red">
-            {BUSY_LABEL[busy]}
-            {/* Stays here after the toast that also offers it is gone. */}
-            <button
-              type="button"
-              className="ml-1.5 font-semibold underline underline-offset-2 hover:no-underline rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ember-red/40"
-              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                // A click on the card seeks; this one only retries.
-                e.stopPropagation()
-                onRetryClick()
-              }}
-            >
-              Retry
-            </button>
-          </span>
-        ) : busy ? (
+        {busy && BUSY_LABEL[busy] ? (
           <span className="text-trust-blue">{BUSY_LABEL[busy]}</span>
         ) : (
           <>
@@ -194,6 +184,13 @@ const SEGMENT_EDIT_SURFACE =
 const SEGMENT_EDIT_FILL_RESTING = 'bg-control'
 const SEGMENT_EDIT_FILL_ACTIVE = 'bg-accent-soft'
 
+// Brief fill after an undo or redo changed the segment. While editing it
+// replaces only the fill, so the edit ring stays.
+const SEGMENT_FLASH = 'bg-warm-highlight dark:bg-warm-highlight/15'
+
+// Keys that move the caret, which ends a typing step as in Word.
+const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'])
+
 // The textarea carries no box of its own: same width, zero padding, no border, so the
 // text sits exactly where the read view painted it.
 const SEGMENT_EDIT_FIELD =
@@ -217,8 +214,10 @@ export type TranscriptSegmentCardProps = {
   segment: Seg
   /** Deepgram's words for this segment; the text is aligned against them for timing. */
   sourceWords: readonly SourceWord[] | undefined
-  /** Set while a split or undo of this segment waits on the database. */
+  /** Set while a write about to change this segment's text or shape waits its turn. */
   busy: BusyKind | undefined
+  /** Set while any write about to change this segment waits, or the editor is reconnecting: its speaker can't be changed, nor the segment split, meanwhile. */
+  locked: boolean
   /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
   playbackClock: PlaybackClock
@@ -236,16 +235,25 @@ export type TranscriptSegmentCardProps = {
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
-  /** Retries a split or undo the database has not confirmed. */
-  onRetryUnconfirmed: (segId: string) => void
-  /** Where the caret goes when this card's editor opens; at the end if none. */
-  caretHint: (segId: string) => number | undefined
+  /** Where the caret (or selection) goes when this card's editor opens, or its text changes from outside. */
+  caretHint: (segId: string) => CaretHint | undefined
+  /** Briefly lit after an undo or redo changed it. */
+  flashing: boolean
+  /** Reports each edit typed into the field, with the text and selection before and after, for the history. */
+  onTextInput: (segId: string, input: TextInput) => void
+  /** Ends this segment's open typing step, as moving the caret does in Word. */
+  sealTyping: (segId: string) => void
+  /** A drag from this field ended, wherever its text was dropped. */
+  endDrag?: () => void
+  /** Undo or redo in the editor's history. */
+  onHistory: (dir: 'undo' | 'redo') => void
 }
 
 export default function TranscriptSegmentCard({
   segment: s,
   sourceWords,
   busy,
+  locked,
   isActive,
   playbackClock,
   matchesForSeg,
@@ -262,14 +270,52 @@ export default function TranscriptSegmentCard({
   setEditingTexts,
   scheduleSave,
   onSplit,
-  onRetryUnconfirmed,
   caretHint,
+  flashing,
+  onTextInput,
+  sealTyping,
+  endDrag,
+  onHistory,
 }: TranscriptSegmentCardProps) {
   const isEditing = editingId === s.id
   const speakerLabel = speaker.label
   // Where keyboard focus returns when Escape closes the editor.
   const cardRef = React.useRef<HTMLDivElement | null>(null)
   const textAreaRef = React.useRef<HTMLTextAreaElement | null>(null)
+  // The edit about to happen, from the field's native beforeinput: its kind,
+  // and the text and selection it starts from.
+  const beforeInput = React.useRef<{ inputType: string; before: SelectionText } | null>(null)
+  // The text and selection an input-method composition started from, while one runs.
+  const composition = React.useRef<SelectionText | null>(null)
+  // The text the last composition ended on: some browsers fire its final input
+  // after compositionend, and that edit is already recorded.
+  const composedText = React.useRef<string | null>(null)
+  // The caret hint last applied, so each is applied once.
+  const hintSequence = React.useRef(-1)
+  // The selection as the last edit left it; a change from that is a caret move.
+  const selection = React.useRef<{ start: number; end: number } | null>(null)
+  const snapshot = (node: HTMLTextAreaElement): SelectionText => ({ text: node.value, start: node.selectionStart, end: node.selectionEnd })
+  // The browser's own undo (Edit menu, context menu) goes to the editor's history.
+  React.useLayoutEffect(() => {
+    const node = textAreaRef.current
+    if (!isEditing || !node) return
+    const listener = (e: InputEvent) => {
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+        e.preventDefault()
+        onHistory(e.inputType === 'historyUndo' ? 'undo' : 'redo')
+        return
+      }
+      // A move within the field is one edit. Safari sends the drop's
+      // beforeinput before the input of the drag that removed the text, so
+      // the edit keeps the text from before the move.
+      if (e.inputType === 'insertFromDrop' && beforeInput.current?.inputType === 'deleteByDrag') return
+      beforeInput.current = { inputType: e.inputType, before: snapshot(node) }
+    }
+    node.addEventListener('beforeinput', listener)
+    return () => node.removeEventListener('beforeinput', listener)
+  }, [isEditing, onHistory])
+  // Leaving the screen (the list is virtualized) ends only this segment's typing step.
+  React.useEffect(() => () => sealTyping(s.id), [sealTyping, s.id])
   // The caret in the textarea while editing; the split button follows it.
   const [caret, setCaret] = React.useState<number | null>(null)
   const caretRef = React.useRef<number | null>(null)
@@ -291,8 +337,10 @@ export default function TranscriptSegmentCard({
     // mode must hand focus over; caret goes to the end (or where a split or
     // undo put it), scroll stays put. The caret is placed first so the focus
     // handler reads it.
-    const at = Math.min(caretHint(s.id) ?? node.value.length, node.value.length)
-    node.setSelectionRange(at, at)
+    const hint = caretHint(s.id)
+    const end = node.value.length
+    node.setSelectionRange(Math.min(hint?.start ?? end, end), Math.min(hint?.end ?? end, end))
+    if (hint) hintSequence.current = hint.seq
     node.focus({ preventScroll: true })
     typedRef.current = node.value
     // Re-fit on width changes only; reacting to our own height writes would loop.
@@ -315,19 +363,30 @@ export default function TranscriptSegmentCard({
   )
   // Fit the field to its text on every change, typed or not: an undo, a reload
   // or a replace changes it without an input event. A change from outside also
-  // moves the browser's caret to the end, so put it back where the user had it.
+  // moves the browser's caret to the end, so put it back where the user had it,
+  // or where an undo or redo says the change was.
   React.useLayoutEffect(() => {
     const node = textAreaRef.current
     if (!isEditing || !node) return
     autosize(node)
+    const hint = caretHint(s.id)
+    if (hint && hint.seq !== hintSequence.current) {
+      hintSequence.current = hint.seq
+      node.setSelectionRange(Math.min(hint.start, text.length), Math.min(hint.end, text.length))
+      node.focus({ preventScroll: true })
+      trackCaret(node.selectionStart)
+      selection.current = { start: node.selectionStart, end: node.selectionEnd }
+      typedRef.current = text
+      return
+    }
     if (text === typedRef.current) return
     typedRef.current = text
     if (document.activeElement === node && caretRef.current !== null) {
       const at = Math.min(caretRef.current, text.length)
       node.setSelectionRange(at, at)
     }
-  }, [isEditing, text])
-  const canSplit = isEditing && !busy && caret !== null &&
+  }, [isEditing, text, caretHint, s.id])
+  const canSplit = isEditing && !busy && !locked && caret !== null &&
     findSplit(tokens, sourceWords ?? [], text, caret, s.start_ms) !== null
   const splitAtCaret = () => {
     const node = textAreaRef.current
@@ -355,7 +414,7 @@ export default function TranscriptSegmentCard({
       ref={cardRef}
       data-testid="segment-card"
       data-segment-id={s.id}
-      className={`group rounded-xl cursor-pointer flex gap-3 transition-[background-color,box-shadow] ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isEditing ? `${SEGMENT_EDIT_SURFACE} ${isActive ? SEGMENT_EDIT_FILL_ACTIVE : SEGMENT_EDIT_FILL_RESTING}` : isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-subtle'}`}
+      className={`group rounded-xl cursor-pointer flex gap-3 transition-[background-color,box-shadow] motion-reduce:transition-none ${needHeader ? 'p-3 mt-4' : 'py-2 px-3'} ${isEditing ? `${SEGMENT_EDIT_SURFACE} ${flashing ? SEGMENT_FLASH : isActive ? SEGMENT_EDIT_FILL_ACTIVE : SEGMENT_EDIT_FILL_RESTING}` : flashing ? SEGMENT_FLASH : isActive ? 'bg-trust-blue/10 dark:bg-trust-blue/15' : 'hover:bg-subtle'}`}
       onClick={() => {
         onSegmentClick(s.id, s.start_ms)
         // Clicking the card chrome always syncs playback, editing or not — but a
@@ -391,12 +450,12 @@ export default function TranscriptSegmentCard({
           timestamp={formatElapsedTime(s.start_ms)}
           saveStatus={saveStatus}
           busy={busy}
+          locked={locked}
           segmentId={s.id}
           segmentText={s.text}
           editingId={editingId}
           canSplit={canSplit}
           onSplitClick={splitAtCaret}
-          onRetryClick={() => onRetryUnconfirmed(s.id)}
           onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
             e.stopPropagation()
             onSpeakerClick(e, s.id, s.speaker_id ?? null)
@@ -415,17 +474,56 @@ export default function TranscriptSegmentCard({
             // Closed to edits while a split or undo waits on the database.
             readOnly={!!busy}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart)}
-            onSelect={(e: React.SyntheticEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart)}
+            onSelect={(e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+              const node = e.currentTarget
+              // A selection the last edit didn't leave is a caret move.
+              if (selection.current && (selection.current.start !== node.selectionStart || selection.current.end !== node.selectionEnd)) sealTyping(s.id)
+              selection.current = { start: node.selectionStart, end: node.selectionEnd }
+              trackCaret(node.selectionStart)
+            }}
+            onPointerDown={() => sealTyping(s.id)}
+            onDragEnd={() => endDrag?.()}
+            onBlur={() => sealTyping(s.id)}
+            onCompositionStart={(e: React.CompositionEvent<HTMLTextAreaElement>) => { composition.current = snapshot(e.currentTarget) }}
+            onCompositionEnd={(e: React.CompositionEvent<HTMLTextAreaElement>) => {
+              // A composition is one edit, recorded here whichever order the
+              // browser fires this and its last input event in.
+              const before = composition.current
+              composition.current = null
+              const after = snapshot(e.currentTarget)
+              composedText.current = after.text
+              window.setTimeout(() => { composedText.current = null }, 0)
+              if (before) onTextInput(s.id, { inputType: 'insertCompositionText', before, after, composition: true })
+              scheduleSave(s.id, after.text)
+            }}
             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
               const value = e.target.value
               // Typed: the caret is already where the user put it. The fit
               // follows from the effect above.
+              const after = snapshot(e.currentTarget)
+              selection.current = { start: after.start, end: after.end }
+              // During a composition, and for its last input once it has ended,
+              // compositionend records and saves.
+              const composed = composition.current !== null || composedText.current === value
+              if (!composed) {
+                const input = beforeInput.current ?? { inputType: (e.nativeEvent as InputEvent).inputType || 'edit', before: { text, start: caretRef.current ?? text.length, end: caretRef.current ?? text.length } }
+                onTextInput(s.id, { ...input, after })
+              }
+              beforeInput.current = null
               typedRef.current = value
               setEditingTexts((prev: Record<string, string>) => ({ ...prev, [s.id]: value }))
-              scheduleSave(s.id, value)
+              if (!composed) scheduleSave(s.id, value)
             }}
             onClick={(e: React.MouseEvent<HTMLTextAreaElement>) => e.stopPropagation()}
             onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+              // Undo and redo are the editor's, not the field's own.
+              const action = undoShortcut(e.nativeEvent)
+              if (action) {
+                e.preventDefault()
+                onHistory(action)
+                return
+              }
+              if (CARET_KEYS.has(e.key)) sealTyping(s.id)
               // Escape ends the edit session (edits already saved via scheduleSave)
               // and returns keyboard focus to the card, mirroring the X button.
               if (e.key === 'Escape') {

@@ -35,6 +35,14 @@ import { useEditorKeyboardShortcuts } from './hooks/useEditorKeyboardShortcuts'
 import { useSpeakerOverview } from './hooks/useSpeakerOverview'
 import { useKeepReadingPosition } from './hooks/useKeepReadingPosition'
 import { createSegmentLocator } from './utils'
+import { useSegmentHolds } from './hooks/useSegmentHolds'
+import { useEditorHistory, type HistoryTarget } from './hooks/useEditorHistory'
+import { useTextHistory } from './hooks/useTextHistory'
+import { useLeaveEditor } from './hooks/useLeaveEditor'
+import LeaveEditorDialog from './components/LeaveEditorDialog'
+import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
+import { publishUndoControls } from '@/lib/editor/undoControls'
+import { fetchTranscriptById } from '@/lib/supabase/queries'
 
 const noSegmentOnServer = () => undefined
 const noPositionOnServer = () => false
@@ -56,9 +64,22 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   }, `Untitled (${transcriptId.slice(0, 8)}...)`)
   const transcriptActions = useTranscriptActions()
 
-  // 2. Mutation hooks. Every write (text saves, speaker actions, splits) runs
-  // through one queue, and reads segments and words from the live stores.
+  // 2. Mutation hooks. Every write (text saves, speaker actions, splits,
+  // titles) runs through one queue, and reads segments and words from the live
+  // stores. Each write is sent until the database answers it; every one
+  // recognises its own earlier success, so a resend is always safe.
   const enqueue = useEditorWriteQueue()
+  const { send, reconnecting, isReconnecting } = useUntilAnswered()
+  const holds = useSegmentHolds(isReconnecting, reconnecting)
+  // The history reveals and refreshes through hooks set up after it.
+  const bridge = useRef({ reveal: (_target: HistoryTarget) => {}, refresh: async () => false })
+  const reveal = useCallback((target: HistoryTarget) => bridge.current.reveal(target), [])
+  const refreshAll = useCallback(() => bridge.current.refresh(), [])
+  const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, isReconnecting, reconnecting })
+  const { clear: clearHistory } = history
+  const externalChange = useCallback((quiet: boolean) => {
+    clearHistory(quiet ? undefined : 'This changed elsewhere')
+  }, [clearHistory])
   const segmentsStore = useLiveStore(data.segments, data.setSegments)
   const wordsStore = useLiveStore(data.wordsBySegment, data.setWordsBySegment)
   const editing = useTranscriptMutations({
@@ -66,7 +87,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     segments: segmentsStore,
     words: wordsStore,
     enqueue,
+    send,
+    onExternalChange: externalChange,
   })
+  const textHistory = useTextHistory(history, editing)
+  // Leaving waits for what the editor has not saved yet.
+  const leaving = useLeaveEditor({ queue: enqueue, editing, reconnecting })
 
   const speakerHook = useSpeakerAssignments({
     transcriptId,
@@ -79,6 +105,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     enqueue,
     reloadSegments: editing.reloadSegments,
     isLoaded: data.isLoaded,
+    send,
+    history,
+    holds,
   })
 
   const { reloadSegments } = editing
@@ -86,22 +115,16 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     reloadContentRef.current = () => {
       void enqueue(async () => {
         if (!(await reloadSegments())) toast(wordTimingsFailedToast(reloadContent))
+      }, 'read').catch((error: unknown) => {
+        // A closed editor has nothing to show it on; anything else is a bug.
+        if (!(error instanceof SendClosed)) console.error('[editor] failed to reload word timings:', error)
       })
     }
   }, [enqueue, reloadSegments, reloadContent])
 
-  const splitting = useSegmentSplit({
-    segments: segmentsStore,
-    words: wordsStore,
-    enqueue,
-    editingId: editing.editingId,
-    setEditingTexts: editing.setEditingTexts,
-    flushSave: editing.flushSave,
-    reloadSegments: editing.reloadSegments,
-    openEditorAt: editing.openEditorAt,
-  })
+  const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
 
-  const handleTitleSaved = useCallback((newTitle: string) => {
+  const handleTitleSaved = useCallback((newTitle: string | null) => {
     mutateTranscripts((current) =>
       current.map((transcript) =>
         transcript.id === transcriptId
@@ -116,6 +139,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     transcriptTitle: data.transcriptTitle,
     setTranscriptTitle: data.setTranscriptTitle,
     onTitleSaved: handleTitleSaved,
+    send,
+    history,
+    holds,
   })
 
   // 3. Sync
@@ -124,6 +150,45 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     editingId: editing.editingId,
     speakerPopover: speakerHook.speakerPopover,
   })
+
+  // Undo and redo show where they changed something: the page scrolls there if
+  // it is out of view, and the segments briefly light up.
+  const [flashing, setFlashing] = useState<ReadonlySet<string>>(() => new Set())
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
+  useEffect(() => {
+    bridge.current = {
+      // Runs inside the write queue after a change made elsewhere: segments,
+      // then speakers and people alongside the title, each read until answered.
+      refresh: async () => {
+        if (!(await editing.reloadSegments())) return false
+        const [speakersRead, row] = await Promise.all([speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId))])
+        if (!speakersRead || !row) return false
+        data.setTranscriptTitle(row.title)
+        handleTitleSaved(row.title)
+        return true
+      },
+      reveal(target) {
+        sync.suspendFollow('ui')
+        if (target.title) { sync.handleReturnToTop(); return }
+        const ids = target.ids ?? []
+        const first = ids[0]
+        const index = segmentsStore.get().findIndex((s) => s.id === first)
+        if (index >= 0 && !sync.isSegmentSafelyVisible(first)) sync.scrollToSegmentIndex(index)
+        setFlashing(new Set(ids))
+        if (flashTimer.current) clearTimeout(flashTimer.current)
+        flashTimer.current = setTimeout(() => setFlashing(new Set()), 1200)
+        if (first && target.selection) editing.openEditorAt(first, target.selection)
+      },
+    }
+  })
+  useEffect(() => {
+    publishUndoControls({ canUndo: history.canUndo, canRedo: history.canRedo, undoLabel: history.undoLabel,
+      redoLabel: history.redoLabel, version: history.version, undo: history.undo, redo: history.redo, undoNames: history.undoNames,
+      undoMany: history.undoMany, reconnecting })
+    return () => publishUndoControls(null)
+  }, [history.canUndo, history.canRedo, history.undoLabel, history.redoLabel, history.version, history.undo, history.redo,
+    history.undoNames, history.undoMany, reconnecting])
 
   // 4. Playback
   const playback = useEditorPlayback({
@@ -162,9 +227,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // 5. Search + Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false)
 
-  // Replacing waits while a split or undo is pending: its text would be
-  // edited against a shape about to change.
-  const canReplace = !splitting.anyBusy
+  // Replacing waits while a split or undo is pending, its text would be edited
+  // against a shape about to change, and while the editor is reconnecting.
+  const canReplace = !holds.any && !reconnecting
   const search = useTranscriptSearch({
     segments: data.segments,
     editingTexts: editing.editingTexts,
@@ -175,15 +240,18 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     suspendFollow: sync.suspendFollow,
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
-    canReplace,
+    canReplace, recordReplace: textHistory.recordReplace,
   })
 
+  const { setFindReplaceOpen } = search
+  const { setEditingId } = editing
+  const { closeSpeakerPopover } = speakerHook
   const openExportModal = useCallback(() => {
-    search.setFindReplaceOpen(false)
-    editing.setEditingId(null)
-    speakerHook.closeSpeakerPopover('external')
+    setFindReplaceOpen(false)
+    setEditingId(null)
+    closeSpeakerPopover('external')
     setExportModalOpen(true)
-  }, [search.setFindReplaceOpen, editing.setEditingId, speakerHook.closeSpeakerPopover, setExportModalOpen])
+  }, [setFindReplaceOpen, setEditingId, closeSpeakerPopover])
 
   // 6. Keyboard shortcuts
   useEditorKeyboardShortcuts({
@@ -191,7 +259,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     seekRelative: playback.seekRelative,
     openFindReplaceModal: search.openFindReplaceModal,
     openExportModal,
-    handleReturnToTop: sync.handleReturnToTop,
+    handleReturnToTop: sync.handleReturnToTop, onHistory: history.press,
   })
 
   // 7. Speakers sidebar
@@ -224,8 +292,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     else keepReadingPosition(() => setSpeakersOpen(true))
   }, [speakersOpen, closeSpeakers, keepReadingPosition])
 
-  const { closeSpeakerPopover } = speakerHook
-  const { setEditingId } = editing
   const { onSegmentJump } = sync
   const { seekToMs } = playback
 
@@ -404,6 +470,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         ) : undefined}
               status={data.status}
               editingTitle={title.editingTitle}
+              titleBusy={holds.locked.has('title')}
               titleInput={title.titleInput}
               setTitleInput={title.setTitleInput}
               titleInputRef={title.titleInputRef}
@@ -418,7 +485,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
             <TranscriptList
               segments={data.segments}
               wordsBySegment={data.wordsBySegment}
-              busy={splitting.busy}
+              busy={holds.busy}
+              isLocked={holds.isLocked}
               playbackClock={playbackClock}
               scrollParent={sync.scrollParent}
               virtuosoRef={sync.virtuosoRef}
@@ -437,8 +505,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               setEditingTexts={editing.setEditingTexts}
               scheduleSave={editing.scheduleSave}
               onSplit={splitting.split}
-              onRetryUnconfirmed={splitting.retry}
               caretHint={editing.caretHint}
+              flashing={flashing}
+              onTextInput={textHistory.onTextInput}
+              sealTyping={textHistory.seal}
+              endDrag={textHistory.endDrag}
+              onHistory={history.press}
             />
           </div>
 
@@ -477,7 +549,15 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         />
       )}
 
-      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => router.replace('/transcripts')} />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => { leaving.abandon(); router.replace('/transcripts') }} />
+
+      <LeaveEditorDialog
+        phase={leaving.phase}
+        hasUnsaved={leaving.hasUnsaved()}
+        onStay={leaving.stay}
+        onLeave={leaving.leaveAnyway}
+        onCopy={() => { void leaving.copyUnsaved() }}
+      />
 
       <Popover
         open={!!speakerHook.speakerPopover}

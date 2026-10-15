@@ -42,9 +42,13 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     setEditingTexts: jest.fn(),
     scheduleSave: jest.fn(),
     busy: undefined,
+    locked: false,
     onSplit: jest.fn(),
-    onRetryUnconfirmed: jest.fn(),
     caretHint: () => undefined,
+    flashing: false,
+    onTextInput: jest.fn(),
+    sealTyping: jest.fn(),
+    onHistory: jest.fn(),
     ...overrides,
   }
   const view = render(<TooltipProvider><TranscriptSegmentCard {...props} /></TooltipProvider>)

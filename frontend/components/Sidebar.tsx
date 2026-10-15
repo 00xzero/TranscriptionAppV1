@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Contact, FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
+import { holdLeave } from '@/lib/editor/leaveGuard'
 import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { toast } from '@/components/ui/toaster'
@@ -100,6 +101,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       })
       return
     }
+    // Changes the editor has not saved yet are saved first, while still signed in.
+    if (holdLeave(() => { void handleSignOut() })) return
     try {
       await signOut()
     } catch (error) {

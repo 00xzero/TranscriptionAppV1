@@ -7,8 +7,10 @@ import {
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import { toast } from '@/components/ui/toaster'
-import { UNDO_WINDOW_MS } from '@/lib/undo'
-import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
+import { changedSince, errorCode, isNotReady, NOT_READY_MESSAGE } from '@/lib/people/errors'
+import { SendClosed, type Send } from '@/lib/editor/untilAnswered'
+import { NOTHING_CHANGED, type EditorHistory, type HistoryStep } from './useEditorHistory'
+import type { SegmentHolds } from './useSegmentHolds'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
 import type { Seg } from '../types'
 import { revisionsMatch } from '../utils'
@@ -20,12 +22,14 @@ import {
   renameLocalAction,
   renamePersonAction,
   RESHAPED,
+  UNCHANGED,
+  runOp,
   savedId,
   type ApplyTo,
   type SpeakerAction,
   type SpeakerStore,
   type SpeakerTarget,
-  type SpeakerUndo,
+  type SpeakerOp,
 } from './speakerActions'
 import type { Enqueue } from './useEditorWriteQueue'
 import { useLiveStore, type LiveStore } from './useLiveStore'
@@ -41,8 +45,24 @@ function createStableMeasurable(el: HTMLElement): Measurable {
   return { getBoundingClientRect() { if (el.isConnected) lastRect = el.getBoundingClientRect(); return lastRect } }
 }
 
+/**
+ * A speaker action's step: each undo or redo runs the op the last run
+ * answered with. Built apart from the action, so the history keeps only what
+ * the step needs, not the segments the action was chosen for.
+ */
+function speakerStep(label: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
+  return {
+    label, scope: 'speaker', touches: ids,
+    target: () => ({ ids: ids.filter((id) => !id.includes(':')) }),
+    async run(_dir, applied) {
+      if (!ops.next) throw changedSince('The action never completed')
+      ops.next = await runOp(ops.next, applied)
+    },
+  }
+}
+
 export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentsStore, peopleContext,
-  setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded }: {
+  setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded, send, history, holds }: {
   transcriptId: string
   speakers: Speaker[]
   segments: Seg[]
@@ -52,11 +72,22 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   setSpeakers: React.Dispatch<React.SetStateAction<Speaker[]>>
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
   enqueue: Enqueue
-  /** Reloads segments and words when they were split or rejoined elsewhere. */
+  /**
+   * Reloads segments and words when they were split or rejoined elsewhere.
+   * False if the database refused the read; throws SendClosed once the editor has closed.
+   */
   reloadSegments: () => Promise<boolean>
   /** False until the editor's first load has shown segments. */
   isLoaded: () => boolean
+  /** Sends a write or read until the database answers it. */
+  send: Send
+  history: EditorHistory
+  /** Speaker changes wait while a segment is held, and while the editor is reconnecting. */
+  holds: SegmentHolds
 }) {
+  // The stable parts: history and holds themselves change with every step and hold.
+  const { clear: clearHistory, original } = history
+  const { blocked } = holds
   const [speakerPopover, setSpeakerPopover] = useState<SpeakerPopoverState | null>(null)
   const lastTriggerElementRef = useRef<HTMLElement | null>(null)
   const closeReasonRef = useRef<SpeakerPopoverCloseReason | null>(null)
@@ -68,27 +99,45 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   const speakersStore = useLiveStore(speakers, setSpeakers)
   const peopleStore = useLiveStore(peopleContext, setPeopleContext)
   const store = useMemo<SpeakerStore>(() => ({
-    transcriptId,
+    transcriptId, send,
     speakers: speakersStore.get,
     segments: segmentsStore.get,
     people: peopleStore.get,
     updateSpeakers: speakersStore.update,
     updateSegments: segmentsStore.update,
     updatePeople: peopleStore.update,
-  }), [transcriptId, speakersStore, segmentsStore, peopleStore])
+  }), [transcriptId, speakersStore, segmentsStore, peopleStore, send])
 
   // Reloads speaker data and segment assignments, never segment text — unless
   // a segment was split or rejoined elsewhere (its id or revision differs),
   // when segments and words reload whole and keep only drafts still valid.
-  // Resolves false when it fails, so a caller can undo its optimistic change.
+  // Anything changed elsewhere that the history's steps rest on (a segment's
+  // speaker, a speaker here, a person linked to one) clears the history. The
+  // reads are sent until answered; false means the database refused one.
   const refresh = useCallback(async (): Promise<boolean> => {
     try {
-      const [assignments, speakerRows, people] = await Promise.all([
+      const [assignments, speakerRows, people] = await send(() => Promise.all([
         fetchSegmentSpeakerAssignments(store.transcriptId),
         fetchSpeakers(store.transcriptId),
         fetchEditorPeopleContext(store.transcriptId),
-      ])
+      ]))
+      const linkedHere = new Set(store.speakers().flatMap((sp) => sp.person_id ? [savedId(sp.person_id)] : []))
+      const peopleById = new Map(people.people.map((row) => [row.id, row]))
+      const externalPeople = store.people().people.some((p) => {
+        if (!linkedHere.has(p.id)) return false
+        const row = peopleById.get(p.id)
+        return !row || row.name !== p.name || row.preferred_color !== p.preferred_color ||
+          row.organisation_id !== p.organisation_id || row.hidden !== p.hidden
+      })
+      const speakersById = new Map(speakerRows.map((row) => [row.id, row]))
+      const externalSpeakers = store.speakers().some((p) => {
+        const row = speakersById.get(p.id)
+        return !row || row.person_id !== p.person_id || row.custom_label !== p.custom_label
+      })
       const shown = store.segments()
+      const shownSpeaker = new Map(shown.map((s) => [s.id, s.speaker_id]))
+      const externalAssignments = assignments.some((a) => shownSpeaker.get(a.id) !== a.speaker_id)
+      if (externalPeople || externalSpeakers || externalAssignments) clearHistory('This changed elsewhere')
       const reshaped = assignments.length !== shown.length || !revisionsMatch(shown, assignments)
       if (reshaped) {
         if (!(await reloadSegments())) return false
@@ -99,10 +148,10 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       store.updatePeople(() => people)
       return true
     } catch (error) {
-      console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
+      if (!(error instanceof SendClosed)) console.error(`Failed to refresh speakers for transcript ${store.transcriptId}:`, error)
       return false
     }
-  }, [store, reloadSegments])
+  }, [store, send, reloadSegments, clearHistory])
 
   // Refresh when the user comes back to the tab. A tab switch fires both
   // events; the refresh the first one starts covers the second. Not before the
@@ -115,7 +164,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       refreshing = true
       void enqueue(async () => {
         try { if (isLoaded()) await refresh() } finally { refreshing = false }
-      })
+      }, 'read')
     }
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
@@ -170,6 +219,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   }, [])
   const handleAvatarClick = useCallback((event: React.MouseEvent, segmentId: string, speakerId: string | null) => {
     event.stopPropagation()
+    if (blocked([segmentId])) return
     const element = event.currentTarget as HTMLElement
     const anchorMeasurable = createStableMeasurable(element)
     anchorRef.current = anchorMeasurable
@@ -178,106 +228,77 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     // A second click on the name the picker is open for closes it.
     setSpeakerPopover((open) => open?.segmentId === segmentId
       ? null : { segmentId, speakerId, anchorMeasurable, triggerElement: element })
-  }, [])
+  }, [blocked])
   useEffect(() => {
     if (speakerPopover?.anchorMeasurable) anchorRef.current = speakerPopover.anchorMeasurable
     if (speakerPopover?.triggerElement) lastTriggerElementRef.current = speakerPopover.triggerElement
   }, [speakerPopover])
 
   /**
-   * Runs an action in the queue (spec §7): apply optimistically, write, then
-   * offer Undo. A refused write refreshes speaker data; any other failure
+   * Runs a speaker action as a step of the editor's history (spec §7): its
+   * step is recorded at once, so presses keep their order, then in the write
+   * queue it applies optimistically and writes. A refusal because something
+   * changed elsewhere clears the history and reads again; any other failure
    * rolls back only the action's own change and offers Retry. An action on
-   * segments is turned away if a split or undo queued ahead of it reshaped
-   * one of them after it was chosen.
+   * segments chosen before a split or join queued ahead of it changes nothing.
    */
-  const execute = useCallback((build: () => SpeakerAction | typeof RESHAPED | null) => {
+  const execute = useCallback(function executeAction(
+    label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[]
+  ): void {
     closeSpeakerPopover('selection')
-
-    // After a refused write: refresh, and say it refreshed only if it did.
-    async function refreshAfterConflict(title: string): Promise<boolean> {
-      const refreshed = await refresh()
-      toast(refreshed ? { title, variant: 'error' } : { title: STALE_TOAST, variant: 'error',
-        action: { label: 'Retry', onClick: () => void enqueue(async () => { await refreshAfterConflict(title) }) } })
-      return refreshed
+    if (blocked(ids)) {
+      toast({ title: "Can't change the speaker yet", description: 'A change here is still saving. Nothing changed. Try again in a moment.',
+        variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+      return
     }
-
-    function run() {
-      void enqueue(async () => {
-        const action = build()
-        if (action === RESHAPED) {
-          toast({ title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.', variant: 'error' })
-          return
-        }
-        if (!action) {
-          await refreshAfterConflict(CONFLICT_TOAST)
-          return
-        }
-        action.apply()
-        try {
-          const undo = await action.write()
-          toast({ title: action.done, durationMs: UNDO_WINDOW_MS,
-            action: { label: 'Undo', onClick: () => void enqueue(() => runUndo(undo)) } })
-        } catch (error) {
-          if (isConflict(error) || isGone(error)) {
-            if (!(await refreshAfterConflict(isGone(error) ? 'That person or speaker no longer exists.' : CONFLICT_TOAST))) action.restore()
-          } else if (isNotReady(error)) {
-            action.restore()
-            toast({ title: NOT_READY_MESSAGE, variant: 'error' })
-          } else {
-            action.restore()
-            toast({ title: action.failed, variant: 'error', action: { label: 'Retry', onClick: run } })
-          }
-        }
-      })
+    const ops: { next?: SpeakerOp } = {}
+    let failedMessage = `Couldn't ${label}`
+    const perform = async () => {
+      const action = build()
+      if (action === UNCHANGED) throw NOTHING_CHANGED
+      if (action === RESHAPED) throw { code: 'RESHAPED' }
+      if (!action) throw changedSince('What the action changes is gone')
+      failedMessage = action.failed
+      ops.next = await runOp(action)
     }
-
-    async function runUndo(undo: SpeakerUndo) {
-      undo.apply()
-      try {
-        await undo.write()
-      } catch (error) {
-        if (isConflict(error) || isGone(error)) {
-          if (!(await refreshAfterConflict("Can't undo — changed since"))) undo.restore()
-        } else if (isNotReady(error)) {
-          undo.restore()
-          toast({ title: NOT_READY_MESSAGE, variant: 'error' })
-        } else {
-          undo.restore()
-          toast({ title: "Couldn't undo", variant: 'error',
-            action: { label: 'Retry', onClick: () => void enqueue(() => runUndo(undo)) } })
-        }
-      }
-    }
-
-    run()
-  }, [closeSpeakerPopover, enqueue, refresh])
+    original(speakerStep(label, ids, ops), perform, (error) => {
+      if (isNotReady(error)) toast({ title: NOT_READY_MESSAGE, variant: 'error' })
+      else if (errorCode(error) === 'RESHAPED') {
+        toast({ title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.', variant: 'error' })
+      } else toast({ title: failedMessage, variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+    })
+  }, [closeSpeakerPopover, original, blocked])
 
   const fromLabel = labelForSpeaker(selectedSegment?.speaker_id)
 
   const selectTarget = useCallback((target: SpeakerTarget, applyTo: ApplyTo) => {
     const chosen = scopes[applyTo]
-    execute(() => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }))
+    execute('speaker change', () => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }), [...chosen.map(s => s.id), ...(target.kind === 'person' ? [`person:${target.id}`] : [])])
   }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
   const removeSpeaker = useCallback((applyTo: ApplyTo) => {
     const chosen = scopes[applyTo]
-    execute(() => removeAction(store, { chosen, applyTo, fromLabel, labelForSpeaker }))
-  }, [scopes, execute, store, fromLabel, labelForSpeaker])
+    execute('remove speaker', () => removeAction(store, { chosen, applyTo, fromLabel }), chosen.map(s => s.id))
+  }, [scopes, execute, store, fromLabel])
 
   const renameLocal = useCallback((label: string) => {
     const speakerId = currentSpeaker?.id
     const chosen = scopes.speaker
-    if (speakerId) execute(() => renameLocalAction(store, { speakerId, label, chosen, fromLabel }))
-  }, [currentSpeaker, scopes, execute, store, fromLabel])
+    // Unchanged: nothing to write, nothing to record.
+    if (currentSpeaker?.custom_label === label) { closeSpeakerPopover('selection'); return }
+    if (speakerId) execute('rename speaker', () => renameLocalAction(store, { speakerId, label, chosen, fromLabel }), [...chosen.map(s => s.id), `speaker:${speakerId}`])
+  }, [currentSpeaker, scopes, execute, store, fromLabel, closeSpeakerPopover])
 
   const renameLinkedPerson = useCallback((name: string) => {
     const personId = currentSpeaker?.person_id
-    if (personId) execute(() => renamePersonAction(store, personId, name))
-  }, [currentSpeaker, execute, store])
+    if (personId && store.people().people.find((p) => p.id === savedId(personId))?.name === name) {
+      closeSpeakerPopover('selection'); return
+    }
+    if (personId) execute('rename person', () => renamePersonAction(store, personId, name), [...store.segments().filter(s => store.speakers().some(sp => sp.id === s.speaker_id && sp.person_id === personId)).map(s => s.id), `person:${personId}`])
+  }, [currentSpeaker, execute, store, closeSpeakerPopover])
 
   return { speakerPopover, setSpeakerPopover, closeSpeakerPopover, closeReasonRef,
     lastTriggerElementRef, anchorRef, presentation, displayForSpeaker, labelForSpeaker,
     currentSpeaker, selectedSegment, scopes, removable,
-    handleAvatarClick, selectTarget, removeSpeaker, renameLocal, renameLinkedPerson }
+    handleAvatarClick, selectTarget, removeSpeaker, renameLocal, renameLinkedPerson, refresh }
 }

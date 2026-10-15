@@ -56,9 +56,3 @@ export function applyRejoinWords(
   next.delete(nextId)
   return next
 }
-
-/** The text two halves join under, with one space at the seam, and where the second half starts in it. */
-export function joinSegmentTexts(first: string, second: string): { text: string; seam: number } {
-  const head = first.trimEnd()
-  return { text: `${head} ${second.trimStart()}`, seam: head.length + 1 }
-}

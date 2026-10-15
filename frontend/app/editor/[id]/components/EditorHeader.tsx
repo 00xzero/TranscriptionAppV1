@@ -22,7 +22,7 @@ export default function EditorHeader({
   onTitleKeyDown,
   onTitleBlur,
   onDeleteClick,
-  onMoveClick,
+  onMoveClick, titleBusy,
 }: {
   displayTitle: string
   transcriptCreatedAt: string | null
@@ -40,6 +40,7 @@ export default function EditorHeader({
   onTitleBlur: () => void
   onDeleteClick: () => void
   onMoveClick: () => void
+  titleBusy: boolean
 }) {
   const titleCountId = useId()
   const titleEditHintId = useId()
@@ -55,6 +56,7 @@ export default function EditorHeader({
               ref={titleInputRef}
               className={`font-serif italic text-4xl md:text-5xl tracking-tight bg-transparent border-b-2 px-1 py-0.5 text-ink dark:text-paper min-w-[300px] focus:outline-hidden mb-4 ${titleSaveError ? 'border-ember-red' : 'border-trust-blue'}`}
               value={titleInput}
+              readOnly={titleBusy}
               onChange={(e) => setTitleInput(e.target.value)}
               onKeyDown={onTitleKeyDown}
               onBlur={onTitleBlur}
