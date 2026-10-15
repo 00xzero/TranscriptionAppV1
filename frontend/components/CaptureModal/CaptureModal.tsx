@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
+import { holdLeave } from '@/lib/editor/leaveGuard'
 import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
@@ -179,6 +180,9 @@ export default function CaptureModal() {
       setRecordSubmitError('Sign in before starting a recording.')
       return
     }
+    // An editor with changes not saved yet saves them before anything
+    // starts: if the user stays in it instead, nothing is recording.
+    if (holdLeave(() => { void handleStartRecording() })) return
     setStartingRecording(true)
     const abortController = new AbortController()
     recordingStartAbortRef.current?.abort()
@@ -249,7 +253,6 @@ export default function CaptureModal() {
       // ownership flag so closing the modal doesn't stop the live tracks.
       micTest.transferStream()
       try {
-        // An editor with changes not saved yet saves them first.
         guardedNav.push('/recording/new')
       } catch (err) {
         recordingActions.discard()

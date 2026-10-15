@@ -10,15 +10,15 @@ it('caps history, moves steps, drops originals, and clears redo on a new edit', 
   expect(history.takeRedo(undone)[0].done.at(-1)).toBe(1000)
   expect(history.record(undone, 2000).undone).toEqual([])
 })
-it('classifies deletions, selection replacement, paste, and compositions', () => {
-  expect(classifyInput('deleteContentBackward', false)).toBe('delete')
-  expect(classifyInput('deleteByCut', true)).toBe('cut')
-  expect(classifyInput('insertText', true)).toBe('replace')
-  expect(classifyInput('insertFromPaste', false)).toBe('paste')
-  expect(classifyInput('insertCompositionText', false)).toBe('typing')
+it('classifies deletions, typing (over a selection too), paste, and compositions', () => {
+  expect(classifyInput('deleteContentBackward')).toBe('delete')
+  expect(classifyInput('deleteByCut')).toBe('cut')
+  expect(classifyInput('insertText')).toBe('typing')
+  expect(classifyInput('insertFromPaste')).toBe('paste')
+  expect(classifyInput('insertCompositionText')).toBe('typing')
   const open = { segmentId: 'x', characters: 127, version: 1, sealed: false }
   expect(canExtend(open, 'x', 'typing', 1)).toBe(true)
-  expect(canExtend(open, 'x', 'replace', 1)).toBe(false)
+  expect(canExtend(open, 'x', 'paste', 1)).toBe(false)
   expect(canExtend(open, 'y', 'typing', 1)).toBe(false)
   expect(canExtend(open, 'x', 'typing', 2)).toBe(false)
   expect(canExtend({ ...open, sealed: true }, 'x', 'typing', 1)).toBe(false)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Seg, Match, SegmentMatch } from '../types'
 import { isUnicodeWordChar } from '../utils'
+import type { TextEdit } from './useTranscriptMutations'
 
 export function useTranscriptSearch({
   segments,
@@ -25,7 +26,7 @@ export function useTranscriptSearch({
   exportModalOpen: boolean
   /** False while a split or undo is pending: replaced text would land on a changing shape. */
   canReplace: boolean
-  recordReplace?: (edits: { segId: string; before: string; after: string }[], selection?: { start: number; end: number }, all?: boolean) => void
+  recordReplace?: (edits: TextEdit[], selection?: { start: number; end: number }, all?: boolean) => void
 }) {
   const [findInput, setFindInput] = useState('')
   const [findTerm, setFindTerm] = useState('')

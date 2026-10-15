@@ -39,9 +39,11 @@ export function useTextHistory({ record, historyVersion }: Pick<EditorHistory, '
       move.after.start = input.after.start; move.after.end = input.after.end
       return
     }
-    const kind = classifyInput(input.inputType, input.before.start !== input.before.end)
+    const kind = classifyInput(input.inputType)
     const inserted = Math.max(0, input.after.text.length - input.before.text.length)
-    if (open.current && canExtend(open.current, segmentId, kind, historyVersion()) &&
+    // Typing over a selection starts a typing step, which later keys extend.
+    const overSelection = input.before.start !== input.before.end
+    if (open.current && !overSelection && canExtend(open.current, segmentId, kind, historyVersion()) &&
         (input.composition || open.current.characters + inserted <= TYPING_STEP_MAX)) {
       open.current.edit.after = input.after.text
       open.current.after.start = input.after.start; open.current.after.end = input.after.end

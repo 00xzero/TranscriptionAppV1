@@ -246,7 +246,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[]
   ): void {
     closeSpeakerPopover('selection')
-    if (blocked(ids)) return
+    if (blocked(ids)) {
+      toast({ title: "Can't change the speaker yet", description: 'A change here is still saving. Nothing changed. Try again in a moment.',
+        variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+      return
+    }
     const ops: { next?: SpeakerOp } = {}
     let failedMessage = `Couldn't ${label}`
     const perform = async () => {

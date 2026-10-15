@@ -46,9 +46,10 @@ it('compositions remain indivisible and cancellation creates no step', async () 
   const h = setup(); h.input('', 'insertCompositionText', true); expect(h.result.current.history.canUndo).toBe(false)
   h.input('字'.repeat(150), 'insertCompositionText', true); await h.undo(); expect(h.getText()).toBe('')
 })
-it('a selection replacement and subsequent typing are distinct steps', async () => {
+it('typing over a selection starts one typing step with the keys that follow', async () => {
   const h = setup(); h.input('abc'); h.input('z', 'insertText', false, { start: 0, end: 3 }); h.input('zy')
-  await h.undo(); await h.undo(); expect(h.states).toEqual(['z', 'abc'])
+  await h.undo(); await h.undo(); expect(h.states).toEqual(['abc', ''])
+  expect(h.result.current.history.undoLabel).toBeUndefined()
 })
 it('a card leaving the screen ends only its own segment\'s typing step', async () => {
   const h = setup(); h.input('abc')

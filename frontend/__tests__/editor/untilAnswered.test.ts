@@ -1,7 +1,7 @@
 import { StrictMode, createElement, type ReactNode } from 'react'
 import { renderHook } from '@testing-library/react'
 import { z } from 'zod'
-import { OutcomeUnknown, RESEND_DELAYS_MS, SendClosed, createSender, useUntilAnswered } from '@/lib/editor/untilAnswered'
+import { ATTEMPT_STALL_MS, OutcomeUnknown, RESEND_DELAYS_MS, SendClosed, createSender, useUntilAnswered } from '@/lib/editor/untilAnswered'
 
 const LOST = { code: '', message: 'TypeError: Failed to fetch' }
 const REFUSED = { code: 'SP002', message: 'changed since' }
@@ -23,6 +23,30 @@ describe('sending until answered', () => {
     const { sender, reconnecting } = setup()
     await expect(sender.send(async () => 'done')).resolves.toBe('done')
     expect(reconnecting).not.toHaveBeenCalled()
+  })
+
+  it('reports an error thrown by the app at once, never resending it', async () => {
+    const { sender, reconnecting } = setup()
+    const bug = new TypeError('cannot read properties of undefined')
+    const call = jest.fn<Promise<string>, []>().mockRejectedValue(bug)
+    await expect(sender.send(call)).rejects.toBe(bug)
+    expect(call).toHaveBeenCalledTimes(1)
+    expect(reconnecting).not.toHaveBeenCalled()
+  })
+
+  it('shows Reconnecting while one attempt stays out, without sending it again', async () => {
+    const { sender, reconnecting } = setup()
+    let answer!: (value: string) => void
+    const call = jest.fn(() => new Promise<string>((resolve) => { answer = resolve }))
+    const sent = sender.send(call)
+    await jest.advanceTimersByTimeAsync(ATTEMPT_STALL_MS - 1)
+    expect(reconnecting).not.toHaveBeenCalled()
+    await jest.advanceTimersByTimeAsync(1)
+    expect(reconnecting).toHaveBeenLastCalledWith(true)
+    expect(call).toHaveBeenCalledTimes(1)
+    answer('done')
+    await expect(sent).resolves.toBe('done')
+    expect(reconnecting).toHaveBeenLastCalledWith(false)
   })
 
   it('resends the same call on the backoff schedule until answered', async () => {

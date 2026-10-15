@@ -5,6 +5,8 @@ import { useAfterUnmount } from '@/lib/hooks/useAfterUnmount'
 
 /** Waits between resends of an unanswered request; the last repeats. */
 export const RESEND_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
+/** How long one attempt may stay out before the editor says it is reconnecting. */
+export const ATTEMPT_STALL_MS = 10000
 
 /**
  * A refusal that came after an earlier attempt went unanswered. That attempt
@@ -85,6 +87,10 @@ export function createSender(onReconnecting: (reconnecting: boolean) => void): S
     let unanswered = 0
     try {
       for (;;) {
+        // An attempt out this long shows Reconnecting, which pauses undo and
+        // tells leaving the editor. It is not resent: the request may still
+        // arrive, and attempts never overlap. The browser fails it in time.
+        const stalled = window.setTimeout(() => showReconnecting(token, true), ATTEMPT_STALL_MS)
         try {
           return await attempt(call)
         } catch (error) {
@@ -93,6 +99,8 @@ export function createSender(onReconnecting: (reconnecting: boolean) => void): S
           // acted: whether the write happened is unknown, never a refusal.
           if (error instanceof ZodError) throw new OutcomeUnknown(error)
           if (!isUncertainOutcome(error)) throw unanswered > 0 ? new OutcomeUnknown(error) : error
+        } finally {
+          window.clearTimeout(stalled)
         }
         unanswered++
         if (closed) throw new SendClosed()

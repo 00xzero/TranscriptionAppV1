@@ -1,12 +1,13 @@
 export type SelectionText = { text: string; start: number; end: number }
 export type TextInput = { inputType: string; before: SelectionText; after: SelectionText; composition?: boolean }
-export type InputKind = 'typing' | 'replace' | 'delete' | 'paste' | 'cut' | 'drag' | 'edit'
-export function classifyInput(inputType: string, hadSelection: boolean): InputKind {
+export type InputKind = 'typing' | 'delete' | 'paste' | 'cut' | 'drag' | 'edit'
+/** Typing over a selection is typing too, as in Word: its undo brings the selection back. */
+export function classifyInput(inputType: string): InputKind {
   if (inputType === 'deleteByCut') return 'cut'
   if (inputType.includes('Drag') || inputType.includes('Drop')) return 'drag'
   if (inputType.startsWith('delete')) return 'delete'
   if (inputType.includes('Paste')) return 'paste'
-  if (['insertText', 'insertCompositionText', 'insertLineBreak'].includes(inputType)) return hadSelection ? 'replace' : 'typing'
+  if (['insertText', 'insertCompositionText', 'insertLineBreak'].includes(inputType)) return 'typing'
   return 'edit'
 }
 /** A typing step is sealed once it holds this many characters, as in Word. */

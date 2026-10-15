@@ -83,7 +83,7 @@ export default function ContextualHeader() {
           <RecordingPill />
           {/* Shown while an edit waits for the connection; undo and redo pause meanwhile. */}
           {undoControls?.reconnecting && (
-            <span role="status" className="rounded-full border border-subtle-border bg-subtle px-2.5 py-0.5 font-sans text-[10px] leading-[16px] text-ink/60 dark:text-paper/60 whitespace-nowrap">
+            <span role="status" className="rounded-full border border-subtle-border bg-subtle px-2.5 py-0.5 font-sans text-[10px] leading-[16px] text-muted whitespace-nowrap">
               Reconnecting…
             </span>
           )}
