@@ -215,6 +215,22 @@ describe('the undo history from the segment editor', () => {
     expect(props.scheduleSave).toHaveBeenCalledWith('s1', 'Hello! there, friend.')
   })
 
+  it('records a Safari text move as one edit from the text before the move', () => {
+    // Safari's order: both beforeinputs, the source already removed at the second, then the input.
+    const { props, textarea } = setup()
+    textarea.setSelectionRange(0, 6)
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'deleteByDrag', bubbles: true, cancelable: true }))
+    textarea.value = 'there, friend.'
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'insertFromDrop', data: 'Hello ', bubbles: true, cancelable: true }))
+    fireEvent.change(textarea, { target: { value: 'there, friend.Hello ' } })
+    expect(props.onTextInput).toHaveBeenCalledTimes(1)
+    expect(props.onTextInput).toHaveBeenCalledWith('s1', expect.objectContaining({
+      inputType: 'deleteByDrag',
+      before: { text: TEXT, start: 0, end: 6 },
+      after: expect.objectContaining({ text: 'there, friend.Hello ' }),
+    }))
+  })
+
   it('sends Ctrl+Z and Ctrl+Y to the history, not the field', () => {
     const { props, textarea } = setup()
     const undo = createEvent.keyDown(textarea, { key: 'z', ctrlKey: true })

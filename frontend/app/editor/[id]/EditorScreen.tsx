@@ -177,9 +177,11 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   })
   useEffect(() => {
     publishUndoControls({ canUndo: history.canUndo, canRedo: history.canRedo, undoLabel: history.undoLabel,
-      redoLabel: history.redoLabel, undo: history.undo, redo: history.redo, reconnecting })
+      redoLabel: history.redoLabel, version: history.version, undo: history.undo, redo: history.redo, undoNames: history.undoNames,
+      undoMany: history.undoMany, reconnecting })
     return () => publishUndoControls(null)
-  }, [history.canUndo, history.canRedo, history.undoLabel, history.redoLabel, history.undo, history.redo, reconnecting])
+  }, [history.canUndo, history.canRedo, history.undoLabel, history.redoLabel, history.version, history.undo, history.redo,
+    history.undoNames, history.undoMany, reconnecting])
 
   // 4. Playback
   const playback = useEditorPlayback({

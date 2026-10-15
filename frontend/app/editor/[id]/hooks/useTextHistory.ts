@@ -1,9 +1,12 @@
 import { useCallback, useRef } from 'react'
 import { TYPING_STEP_MAX, canExtend, classifyInput, type OpenTyping, type TextInput } from '@/core/editor/typing-steps'
+import { typedQuote } from '@/core/editor/step-names'
 import type { EditorHistory, HistoryStep } from './useEditorHistory'
 import type { TextEdit, useTranscriptMutations } from './useTranscriptMutations'
 export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<ReturnType<typeof useTranscriptMutations>, 'applyTexts'>) {
   const open = useRef<(OpenTyping & { edit: TextEdit; after: { start: number; end: number } }) | null>(null)
+  // The step of a text just dragged out of a segment, which the drop in that same segment completes.
+  const dragged = useRef<{ segmentId: string; version: number; edit: TextEdit; after: { start: number; end: number } } | null>(null)
   // Ends the open typing step, Word-style; with a segment, only if the step is that segment's.
   const seal = useCallback((segmentId?: string) => {
     if (open.current && (!segmentId || open.current.segmentId === segmentId)) open.current.sealed = true
@@ -15,6 +18,8 @@ export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<Retu
     const selection = { before, after }
     const step: HistoryStep = {
       label, releaseOnApply: true, touches: ids,
+      // A typing step's edit grows while it is open, so what it typed is read when asked.
+      quote: label === 'typing' ? () => typedQuote(changed[0].before, changed[0].after) : undefined,
       run: (dir, applied) => applyTexts(changed, dir, applied),
       target: dir => ({ ids, selection: changed.length === 1 ? selection[dir === 'undo' ? 'before' : 'after'] : undefined }),
     }
@@ -23,6 +28,14 @@ export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<Retu
   }, [history, applyTexts])
   const onTextInput = useCallback((segmentId: string, input: TextInput) => {
     if (input.before.text === input.after.text) return
+    // A move within a segment, reported in two halves (as Chrome does), is one step.
+    const move = dragged.current
+    dragged.current = null
+    if (move && input.inputType === 'insertFromDrop' && move.segmentId === segmentId && move.version === history.historyVersion()) {
+      move.edit.after = input.after.text
+      move.after.start = input.after.start; move.after.end = input.after.end
+      return
+    }
     const kind = classifyInput(input.inputType, input.before.start !== input.before.end)
     const inserted = Math.max(0, input.after.text.length - input.before.text.length)
     if (open.current && canExtend(open.current, segmentId, kind, history.historyVersion()) &&
@@ -36,7 +49,8 @@ export function useTextHistory(history: EditorHistory, { applyTexts }: Pick<Retu
     seal()
     const edit = { segId: segmentId, before: input.before.text, after: input.after.text }
     const after = { start: input.after.start, end: input.after.end }
-    const recorded = recordEdits(kind, [edit], { start: input.before.start, end: input.before.end }, after)
+    const recorded = recordEdits(kind === 'drag' ? 'drag and drop' : kind, [edit], { start: input.before.start, end: input.before.end }, after)
+    if (recorded && input.inputType === 'deleteByDrag') dragged.current = { segmentId, version: history.historyVersion(), edit, after }
     if (recorded && kind === 'typing') open.current = { segmentId, version: history.historyVersion(), characters: inserted,
       sealed: inserted >= TYPING_STEP_MAX, edit, after }
   }, [history, recordEdits, seal])

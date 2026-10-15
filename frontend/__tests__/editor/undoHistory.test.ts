@@ -1,5 +1,6 @@
 import * as history from '@/core/editor/undo-history'
 import { classifyInput, canExtend } from '@/core/editor/typing-steps'
+import { stepName, typedQuote } from '@/core/editor/step-names'
 import { undoShortcut } from '@/lib/editor/undoShortcut'
 it('caps history, moves steps, drops originals, and clears redo on a new edit', () => {
   let h = history.emptyHistory<number>()
@@ -30,4 +31,13 @@ it('recognizes shortcuts across layouts without swallowing AltGraph or compositi
   expect(undoShortcut({ ...key, key: 'я' })).toBe('undo')
   expect(undoShortcut({ ...key, isComposing: true })).toBeNull()
   expect(undoShortcut({ ...key, getModifierState: () => true })).toBeNull()
+})
+it('names undo list steps plainly, quoting only short typing on one line', () => {
+  expect(stepName('replace all')).toBe('Replace All')
+  expect(stepName('drag and drop')).toBe('Drag and Drop')
+  expect(stepName('typing', typedQuote('Hello', 'Hello sno'))).toBe('Typing " sno"')
+  expect(typedQuote('ab', 'aXYb')).toBe('XY')
+  expect(typedQuote('abc', 'ab')).toBeUndefined()
+  expect(typedQuote('', 'a much longer run')).toBeUndefined()
+  expect(typedQuote('a', 'a\nb')).toBeUndefined()
 })

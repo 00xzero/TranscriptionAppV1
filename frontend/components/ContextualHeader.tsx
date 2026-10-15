@@ -14,9 +14,11 @@ import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { projectIdFromPathname } from '@/lib/projects/routes'
 import { useUndoControls } from '@/lib/editor/undoControls'
 import { useApplePlatform } from '@/lib/editor/undoShortcut'
+import { UndoList } from '@/components/UndoList'
 import { cn } from '@/lib/utils'
 
 // The editor's square header buttons: undo, redo and export.
+const HEADER_ICON_DISABLED = 'disabled:opacity-30 disabled:cursor-default disabled:hover:border-subtle-border'
 const HEADER_ICON_BUTTON = 'group flex h-[30px] w-[30px] items-center justify-center rounded-md border border-subtle-border bg-field/10 backdrop-blur-xs transition-all hover:border-trust-blue/30 hover:bg-field active:scale-95 dark:bg-subtle dark:hover:bg-surface'
 
 export default function ContextualHeader() {
@@ -85,19 +87,19 @@ export default function ContextualHeader() {
               Reconnecting…
             </span>
           )}
-          {/* Undo and redo, Word-style: the tooltip names the step. */}
+          {/* Undo and redo, Word-style: the tooltip names the step; undo's list undoes several at once. */}
           {(['undo', 'redo'] as const).map((action) => {
             const enabled = action === 'undo' ? undoControls?.canUndo : undoControls?.canRedo
             const label = action === 'undo' ? undoControls?.undoLabel : undoControls?.redoLabel
             const shortcut = apple ? (action === 'undo' ? '⌘Z' : '⇧⌘Z') : (action === 'undo' ? 'Ctrl+Z' : 'Ctrl+Y')
             const name = `${action === 'undo' ? 'Undo' : 'Redo'}${label ? ` ${label}` : ''}`
             const Icon = action === 'undo' ? Undo2 : Redo2
-            return (
+            const button = (
               <Tooltip key={action}>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className={cn(HEADER_ICON_BUTTON, 'disabled:opacity-30 disabled:cursor-default disabled:hover:border-subtle-border')}
+                    className={cn(HEADER_ICON_BUTTON, HEADER_ICON_DISABLED, action === 'undo' && 'rounded-r-none')}
                     disabled={!enabled}
                     aria-label={name}
                     aria-keyshortcuts={action === 'undo' ? 'Control+Z Meta+Z' : 'Control+Y Meta+Shift+Z'}
@@ -108,6 +110,19 @@ export default function ContextualHeader() {
                 </TooltipTrigger>
                 <TooltipContent>{`${name} (${shortcut})`}</TooltipContent>
               </Tooltip>
+            )
+            if (action === 'redo') return button
+            return (
+              <div key={action} className="flex">
+                {button}
+                <UndoList
+                  disabled={!enabled}
+                  version={undoControls?.version ?? 0}
+                  names={() => undoControls?.undoNames() ?? []}
+                  undoMany={(count) => undoControls?.undoMany(count)}
+                  className={cn(HEADER_ICON_BUTTON, HEADER_ICON_DISABLED, 'w-4 rounded-l-none border-l-0')}
+                />
+              </div>
             )
           })}
           {/* Export icon button */}

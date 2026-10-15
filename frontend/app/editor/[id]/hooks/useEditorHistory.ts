@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as stack from '@/core/editor/undo-history'
+import { stepName } from '@/core/editor/step-names'
 import { toast } from '@/components/ui/toaster'
 import { CONFLICT_TOAST, STALE_TOAST, isConflict, isGone } from '@/lib/people/errors'
 import { OutcomeUnknown, SendClosed } from '@/lib/editor/untilAnswered'
@@ -10,6 +11,8 @@ export type Direction = 'undo' | 'redo'
 export type HistoryTarget = { ids?: readonly string[]; selection?: { start: number; end: number }; title?: boolean }
 export type HistoryStep = {
   label: string
+  /** What a typing step typed, when short enough to quote in the undo list. */
+  quote?(): string | undefined
   /** False once the action that recorded it failed: a press queued for it does nothing. */
   alive?: boolean
   /** The status its held segments show while it runs; `pending` shows none. */
@@ -131,7 +134,8 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
     await repair()
   }, [clear, repair])
 
-  const press = useCallback((dir: Direction) => {
+  /** One undo or redo; `reveals` false when a later press of the same click will show where it landed. */
+  const press = useCallback((dir: Direction, reveals = true) => {
     if (repairing.current || isReconnecting()) return
     const before = history.current
     const [after, step] = dir === 'undo' ? stack.takeUndo(before) : stack.takeRedo(before)
@@ -145,7 +149,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
       try {
         await step.run(dir, () => {
           if (step.releaseOnApply) held.release()
-          if (mounted.current) reveal(step.target(dir))
+          if (mounted.current && reveals) reveal(step.target(dir))
         })
       } catch (error) {
         await failed(error, `Can't ${dir} — this changed elsewhere`, () => {
@@ -164,6 +168,12 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
   }, [hold, notify, enqueue, reveal, failed, cancelPending, emptied, isReconnecting])
   const undo = useCallback(() => press('undo'), [press])
   const redo = useCallback(() => press('redo'), [press])
+  /** Undoes the last `count` steps, as that many presses, showing only where the last one landed. */
+  const undoMany = useCallback((count: number) => {
+    for (let i = 1; i <= count; i++) press('undo', i === count)
+  }, [press])
+  /** The undo list's names, newest first. Read when the list opens: a typing step's name grows as it is typed. */
+  const undoNames = useCallback(() => history.current.done.map((s) => stepName(s.label, s.quote?.())).reverse(), [])
 
   /**
    * Records an action's step at once, so presses keep their order, and runs
@@ -192,10 +202,11 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
 
   const historyVersion = useCallback(() => history.current.version, [])
   const paused = reconnecting || rendered.repairing
-  return useMemo(() => ({ record, drop, original, press, undo, redo, clear, paused, historyVersion,
+  return useMemo(() => ({ record, drop, original, press, undo, redo, undoMany, undoNames, clear, paused, historyVersion,
     canUndo: !paused && rendered.history.done.length > 0,
     canRedo: !paused && rendered.history.undone.length > 0,
     undoLabel: rendered.history.done.at(-1)?.label, redoLabel: rendered.history.undone.at(-1)?.label,
-  }), [record, drop, original, press, undo, redo, clear, paused, historyVersion, rendered.history])
+    version: rendered.history.version,
+  }), [record, drop, original, press, undo, redo, undoMany, undoNames, clear, paused, historyVersion, rendered.history])
 }
 export type EditorHistory = ReturnType<typeof useEditorHistory>

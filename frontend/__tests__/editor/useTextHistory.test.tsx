@@ -71,3 +71,24 @@ it('Replace All is one step across segments, labelled as such', () => {
   ], undefined, true))
   expect(h.result.current.history.undoLabel).toBe('replace all')
 })
+it('names steps for the undo list as Word does, quoting short typing', async () => {
+  const h = setup(); h.input('sno'); h.input('sno ', 'insertText')
+  act(() => h.result.current.typing.seal()); h.input('sno a very long run of typing')
+  act(() => h.result.current.typing.seal()); h.input('sno a very long run of typin', 'deleteContentBackward')
+  expect(h.result.current.history.undoNames()).toEqual(['Delete', 'Typing', 'Typing "sno "'])
+})
+it('a text move is one step, even where the browser reports its two halves as two edits', async () => {
+  const h = setup(); h.input('Hello there, friend.')
+  act(() => h.result.current.typing.seal())
+  // Chrome: the source is removed and reported, then the drop is inserted and reported.
+  h.input('there, friend.', 'deleteByDrag'); h.input('there, friend.Hello ', 'insertFromDrop')
+  expect(h.result.current.history.undoNames()).toEqual(['Drag and Drop', 'Typing'])
+  await h.undo()
+  expect(h.getText()).toBe('Hello there, friend.')
+})
+it('two separate drops are two steps', async () => {
+  const h = setup(); h.input('ab cd')
+  act(() => h.result.current.typing.seal())
+  h.input('ab cd ab', 'insertFromDrop'); h.input('ab cd ab cd', 'insertFromDrop')
+  expect(h.result.current.history.undoNames()).toEqual(['Drag and Drop', 'Drag and Drop', 'Typing "ab cd"'])
+})

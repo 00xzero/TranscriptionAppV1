@@ -302,6 +302,10 @@ export default function TranscriptSegmentCard({
         onHistory(e.inputType === 'historyUndo' ? 'undo' : 'redo')
         return
       }
+      // A move within the field is one edit. Safari sends the drop's
+      // beforeinput before the input of the drag that removed the text, so
+      // the edit keeps the text from before the move.
+      if (e.inputType === 'insertFromDrop' && beforeInput.current?.inputType === 'deleteByDrag') return
       beforeInput.current = { inputType: e.inputType, before: snapshot(node) }
     }
     node.addEventListener('beforeinput', listener)

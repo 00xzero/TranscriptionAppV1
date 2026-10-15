@@ -8,6 +8,12 @@ export type UndoControls = {
   redoLabel?: string
   undo(): void
   redo(): void
+  /** Changes with every change to the history: the undo list is only good for the version it opened on. */
+  version: number
+  /** The undo list's step names, newest first. */
+  undoNames(): string[]
+  /** Undoes the newest `count` steps. */
+  undoMany(count: number): void
   /** A write is waiting for the connection; undo and redo are paused meanwhile. */
   reconnecting: boolean
 }

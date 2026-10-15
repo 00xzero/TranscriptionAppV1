@@ -1,5 +1,5 @@
 import React from 'react'
-import { publishUndoControls } from '@/lib/editor/undoControls'
+import { publishUndoControls, type UndoControls } from '@/lib/editor/undoControls'
 import { act } from '@testing-library/react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
@@ -37,6 +37,12 @@ jest.mock('@/lib/projects/ProjectsProvider', () => ({
   useTranscriptsData: () => useTranscriptsDataMock(),
 }))
 
+/** An open editor's undo controls: nothing to undo or redo unless a test says so. */
+const controls = (overrides: Partial<UndoControls> = {}): UndoControls => ({
+  canUndo: false, canRedo: false, version: 0, undo: jest.fn(), redo: jest.fn(), undoNames: () => [], undoMany: jest.fn(),
+  reconnecting: false, ...overrides,
+})
+
 describe('ContextualHeader', () => {
   const renderHeader = () =>
     render(
@@ -56,22 +62,77 @@ describe('ContextualHeader', () => {
 
   test('undo and redo precede Export, reflect labels and invoke the active editor', async () => {
     const user = userEventLib.setup(); const undo = jest.fn(); const redo = jest.fn()
-    publishUndoControls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo, redo, reconnecting: false })
+    publishUndoControls(controls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo, redo, reconnecting: false }))
     renderHeader()
     const back = screen.getByRole('button', { name: /^Undo typing/ })
     const forward = screen.getByRole('button', { name: /^Redo/ })
     expect(forward).toBeDisabled()
     expect(back.compareDocumentPosition(screen.getByRole('button', { name: 'Export' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await user.click(back); expect(undo).toHaveBeenCalledTimes(1)
-    act(() => publishUndoControls({ canUndo: false, canRedo: true, redoLabel: 'split', undo, redo, reconnecting: false }))
+    act(() => publishUndoControls(controls({ canUndo: false, canRedo: true, redoLabel: 'split', undo, redo, reconnecting: false })))
     await user.click(screen.getByRole('button', { name: /^Redo split/ })); expect(redo).toHaveBeenCalledTimes(1)
     act(() => publishUndoControls(null))
-    expect(screen.getByRole('button', { name: /^Undo/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Undo list' })).toBeDisabled()
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  test('the undo list names the steps newest first and undoes up to the one chosen', async () => {
+    const user = userEventLib.setup(); const undoMany = jest.fn()
+    publishUndoControls(controls({ canUndo: true, undoLabel: 'title', undoNames: () => ['Title', 'Split', 'Typing "sno"'], undoMany }))
+    renderHeader()
+    await user.click(screen.getByRole('button', { name: 'Undo list' }))
+    const items = screen.getAllByRole('menuitem')
+    expect(items.map((item) => item.textContent)).toEqual(['Title', 'Split', 'Typing "sno"'])
+    await user.hover(items[1])
+    expect(screen.getByText('Undo 2 Actions')).toBeInTheDocument()
+    await user.click(items[1])
+    expect(undoMany).toHaveBeenCalledWith(2)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  test('the undo list closes when the history changes while it is open, so a row never undoes another step', async () => {
+    const user = userEventLib.setup(); const undoMany = jest.fn()
+    publishUndoControls(controls({ canUndo: true, version: 1, undoNames: () => ['Replace All', 'Split', 'Typing'], undoMany }))
+    renderHeader()
+    await user.click(screen.getByRole('button', { name: 'Undo list' }))
+    expect(screen.getAllByRole('menuitem')).toHaveLength(3)
+    // Cmd+Z, a replace or a save lands while the list is open.
+    act(() => publishUndoControls(controls({ canUndo: true, version: 2, undoNames: () => ['Split', 'Typing'], undoMany })))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(undoMany).not.toHaveBeenCalled()
+  })
+
+  test('the undo list stays closed after undoing everything from it, when Redo makes undo available again', async () => {
+    const user = userEventLib.setup()
+    publishUndoControls(controls({ canUndo: true, version: 1, undoNames: () => ['Split', 'Typing'] }))
+    renderHeader()
+    await user.click(screen.getByRole('button', { name: 'Undo list' }))
+    // Choosing the oldest row undoes everything: undo is unavailable at once.
+    act(() => publishUndoControls(controls({ canUndo: false, canRedo: true, version: 3 })))
+    // Redo.
+    act(() => publishUndoControls(controls({ canUndo: true, canRedo: true, version: 4, undoNames: () => ['Typing'] })))
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  test('the undo list stays closed once reconnecting has closed it, though the history has not changed', async () => {
+    const user = userEventLib.setup(); const undoMany = jest.fn()
+    publishUndoControls(controls({ canUndo: true, version: 1, undoNames: () => ['Typing'], undoMany }))
+    renderHeader()
+    await user.click(screen.getByRole('button', { name: 'Undo list' }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    // A write goes unanswered: undo pauses, the list closes.
+    act(() => publishUndoControls(controls({ canUndo: false, version: 1, reconnecting: true, undoNames: () => ['Typing'], undoMany })))
+    expect(screen.queryByRole('menu')).toBeNull()
+    // The answer comes: undo is back, at the same version.
+    act(() => publishUndoControls(controls({ canUndo: true, version: 1, undoNames: () => ['Typing'], undoMany })))
+    expect(screen.queryByRole('menu')).toBeNull()
+    await user.keyboard('{Enter}')
+    expect(undoMany).not.toHaveBeenCalled()
+  })
+
   test('says Reconnecting while an edit waits for the connection, with undo and redo paused', () => {
-    publishUndoControls({ canUndo: false, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: true })
+    publishUndoControls(controls({ canUndo: false, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: true }))
     renderHeader()
     const pill = screen.getByRole('status')
     expect(pill).toHaveTextContent('Reconnecting…')
@@ -79,7 +140,7 @@ describe('ContextualHeader', () => {
     expect(back).toBeDisabled()
     // Left of the undo buttons.
     expect(pill.compareDocumentPosition(back) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    act(() => publishUndoControls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: false }))
+    act(() => publishUndoControls(controls({ canUndo: true, canRedo: false, undoLabel: 'typing', undo: jest.fn(), redo: jest.fn(), reconnecting: false })))
     expect(screen.queryByRole('status')).toBeNull()
   })
 

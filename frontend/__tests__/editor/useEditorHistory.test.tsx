@@ -40,6 +40,38 @@ it('runs rapid presses in order, holding their segments until each has run', asy
   expect(result.current.history.redoLabel).toBe('a')
 })
 
+it('undoes several steps from the list in order, showing only where the last one landed', async () => {
+  const calls: string[] = []
+  const { result, reveal } = setup()
+  act(() => {
+    for (const label of ['a', 'b', 'c']) result.current.history.record(step(label, async (_dir, applied) => { calls.push(label); applied() },
+      { target: () => ({ ids: [label] }) }))
+  })
+  expect(result.current.history.undoNames()).toEqual(['C', 'B', 'A'])
+  act(() => result.current.history.undoMany(2))
+  // The history moves at once, as for two quick presses.
+  expect(result.current.history.undoLabel).toBe('a')
+  await waitFor(() => expect(calls).toEqual(['c', 'b']))
+  expect(reveal.mock.calls).toEqual([[{ ids: ['b'] }]])
+  expect(result.current.history.redoLabel).toBe('b')
+})
+
+it('a step refused partway through a list undo cancels the rest', async () => {
+  const calls: string[] = []
+  const { result, refresh } = setup()
+  act(() => {
+    result.current.history.record(step('a', async () => { calls.push('a') }))
+    result.current.history.record(step('b', async () => { throw { code: 'SP002' } }))
+    result.current.history.record(step('c', async () => { calls.push('c') }))
+  })
+  act(() => result.current.history.undoMany(3))
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(result.current.holds.any).toBe(false))
+  expect(calls).toEqual(['c'])
+  expect(toast).toHaveBeenCalledTimes(1)
+  expect(result.current.history.canUndo).toBe(false)
+})
+
 it('reveals each step as soon as it is on screen', async () => {
   const { result, reveal } = setup()
   act(() => result.current.history.record(step('typing')))
