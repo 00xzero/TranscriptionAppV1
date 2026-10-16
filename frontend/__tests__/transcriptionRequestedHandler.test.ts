@@ -49,7 +49,7 @@ describe('handleTranscriptionRequested', () => {
         jest.clearAllMocks()
         jest.spyOn(console, 'log').mockImplementation(() => {})
         jobQueuedMock.mockResolvedValue(true)
-        transcriptMaybeSingleMock.mockResolvedValue({ data: { source_object_key: preparedKey }, error: null })
+        transcriptMaybeSingleMock.mockResolvedValue({ data: { user_id: userId, source_object_key: preparedKey, waveform_status: 'ready' }, error: null })
         getMediaUrlForDeepgramMock.mockResolvedValue({ url: 'https://storage.test/prepared', error: null })
         startAsyncTranscriptionMock.mockResolvedValue({ requestId: 'dg-1' })
         transitionJobMock.mockResolvedValue({ outcome: 'updated' })
@@ -67,6 +67,21 @@ describe('handleTranscriptionRequested', () => {
             keyTerms: ['Dechra'],
         }))
         expect(result).toMatchObject({ status: 'processing', requestId: 'dg-1' })
+    })
+
+    test.each([
+        ["another user's row", { user_id: '44444444-4444-4444-8444-444444444444', source_object_key: preparedKey }],
+        ["a key outside the transcript's folder", { user_id: userId, source_object_key: `${userId}/other/${jobId}.m4a` }],
+        ['no media', { user_id: userId, source_object_key: null }],
+    ])('does not send %s to Deepgram', async (_name, row) => {
+        jest.spyOn(console, 'error').mockImplementation(() => {})
+        transcriptMaybeSingleMock.mockResolvedValue({ data: { ...row, waveform_status: 'ready' }, error: null })
+
+        const { error } = await execute()
+
+        expect(getMediaUrlForDeepgramMock).not.toHaveBeenCalled()
+        expect(startAsyncTranscriptionMock).not.toHaveBeenCalled()
+        expect(error).toBeDefined()
     })
 
     test('does not call Deepgram for a job that is no longer queued', async () => {

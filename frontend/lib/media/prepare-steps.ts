@@ -13,7 +13,6 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Transcript } from '@/contracts/db'
 import {
     acceptPrepared,
     decidePreparation,
@@ -23,8 +22,9 @@ import {
 } from '@/core/media/prepare-policy'
 import { jobLive, jobQueued, queuedJobAgeMs, TRANSCRIPTION_TIMEOUT_MS, type JobIds } from '@/lib/inngest/job-checks'
 import { createAbortableAdminClient } from '@/infra/supabase/admin'
-import { getSignedMediaUrl, isMissingStorageObjectError, MEDIA_BUCKET } from '@/infra/supabase/storage'
-import { prepareAudioFile, probeSourceMedia, ProcessTimeoutError } from '@/lib/audio/ffmpeg'
+import { getMediaPath, getSignedMediaUrl, isMissingStorageObjectError, MEDIA_BUCKET } from '@/infra/supabase/storage'
+import { ownedSourceKey, readSourceRow } from '@/lib/media/source-row'
+import { prepareAudioFile, probeSourceMedia, ProcessTimeoutError, scanAudioDuration } from '@/lib/audio/ffmpeg'
 
 // The Inngest route allows 300 s per invocation; one step works to 270 s so
 // cleanup and the step's own reply still fit.
@@ -41,19 +41,7 @@ const SIGNED_URL_TTL_SECONDS = 15 * 60
 export const PREPARE_START_LIMIT_MS = Math.min(10 * 60_000, Math.floor(TRANSCRIPTION_TIMEOUT_MS / 4))
 
 export function preparedObjectKey(userId: string, transcriptId: string, jobId: string): string {
-    return `${userId}/${transcriptId}/${jobId}.m4a`
-}
-
-type SourceRow = Pick<Transcript, 'user_id' | 'source_object_key' | 'waveform_status'>
-
-async function readSourceRow(admin: SupabaseClient, transcriptId: string): Promise<SourceRow | null> {
-    const { data, error } = await admin
-        .from('transcripts')
-        .select('user_id, source_object_key, waveform_status')
-        .eq('id', transcriptId)
-        .maybeSingle()
-    if (error) throw new Error(`Failed to read transcript ${transcriptId}: ${error.message}`)
-    return (data as SourceRow | null) ?? null
+    return getMediaPath(userId, transcriptId, `${jobId}.m4a`)
 }
 
 async function removeMediaObject(admin: SupabaseClient, key: string): Promise<void> {
@@ -85,18 +73,15 @@ export async function loadSource(
     admin: SupabaseClient,
     ids: JobIds & { userId: string }
 ): Promise<LoadSourceResult> {
-    const waitedMs = await queuedJobAgeMs(admin, ids)
+    const [waitedMs, row] = await Promise.all([queuedJobAgeMs(admin, ids), readSourceRow(admin, ids.transcriptId)])
     if (waitedMs === null) return { proceed: false, reason: 'job_not_current' }
-    const row = await readSourceRow(admin, ids.transcriptId)
     if (!row) return { proceed: false, reason: 'transcript_gone' }
-    const prefix = `${row.user_id}/${ids.transcriptId}/`
-    if (row.user_id !== ids.userId || !row.source_object_key || !row.source_object_key.startsWith(prefix)) {
-        return { proceed: false, reason: 'invalid_source' }
-    }
+    const sourceKey = ownedSourceKey(row, ids)
+    if (!sourceKey) return { proceed: false, reason: 'invalid_source' }
     const waveformBusy = row.waveform_status === 'pending' || row.waveform_status === 'processing'
     return {
         proceed: true,
-        sourceKey: row.source_object_key,
+        sourceKey,
         skip: waveformBusy ? 'waveform_busy' : waitedMs > PREPARE_START_LIMIT_MS ? 'waited_too_long' : null,
     }
 }
@@ -150,8 +135,20 @@ export async function convertAndUpload(
 
     const dir = await mkdtemp(join(tmpdir(), 'media-prepare-'))
     const outPath = join(dir, 'prepared.m4a')
+    const scanController = new AbortController()
     try {
         const convertMs = Math.min(deadline - AFTER_CONVERT_RESERVE_MS - now(), CONVERT_MAX_MS)
+        // Without a header duration (MediaRecorder WebM), the source's sound is
+        // measured from its packets while it converts: a count of its own, so
+        // a conversion that stopped early is still caught.
+        const sourceSeconds: Promise<number | null> = input.probe.audioDurationSeconds !== null
+            ? Promise.resolve(input.probe.audioDurationSeconds)
+            : scanAudioDuration(signed.url, { timeoutMs: convertMs, signal: scanController.signal }).catch((err) => {
+                if (!scanController.signal.aborted) {
+                    console.warn(`[media-prepare] Could not measure ${input.transcriptId}'s sound:`, err instanceof Error ? err.message : err)
+                }
+                return null
+            })
         try {
             await prepareAudioFile(
                 signed.url,
@@ -174,7 +171,10 @@ export async function convertAndUpload(
         } catch (err) {
             console.warn(`[media-prepare] Could not probe the prepared file for ${input.transcriptId}:`, err instanceof Error ? err.message : err)
         }
-        const verdict = acceptPrepared(input.probe, { sizeBytes: size, audioDurationSeconds: outputDuration })
+        const verdict = acceptPrepared(
+            { ...input.probe, audioDurationSeconds: await sourceSeconds },
+            { sizeBytes: size, audioDurationSeconds: outputDuration }
+        )
         if (!verdict.ok) {
             console.warn(`[media-prepare] Prepared file rejected for ${input.transcriptId}: ${verdict.reason}`)
             return { outcome: 'rejected', reason: verdict.reason }
@@ -203,6 +203,7 @@ export async function convertAndUpload(
         }
         return { outcome: 'uploaded' }
     } finally {
+        scanController.abort()
         await rm(dir, { recursive: true, force: true }).catch(() => {})
     }
 }
@@ -288,10 +289,8 @@ export type WaveformClaim = { dispatch: true; sourceObjectKey: string } | { disp
  * waveform job checks the key itself.
  */
 export async function claimWaveform(admin: SupabaseClient, ids: JobIds): Promise<WaveformClaim> {
-    if (!(await jobLive(admin, ids))) return { dispatch: false }
-
-    const row = await readSourceRow(admin, ids.transcriptId)
-    if (!row?.source_object_key) return { dispatch: false }
+    const [live, row] = await Promise.all([jobLive(admin, ids), readSourceRow(admin, ids.transcriptId)])
+    if (!live || !row?.source_object_key) return { dispatch: false }
     if (row.waveform_status === 'pending') return { dispatch: true, sourceObjectKey: row.source_object_key }
     if (row.waveform_status !== 'skipped') return { dispatch: false }
 

@@ -3,6 +3,7 @@
 import {
     acceptPrepared,
     CEILING_MARGIN_BYTES,
+    RECORDING_AAC_BITS_PER_SECOND,
     decidePreparation,
     durationTolerance,
     MAX_OUTPUT_BYTES,
@@ -16,6 +17,7 @@ function audio(overrides: Partial<SourceProbe> & { kbps?: number; minutes?: numb
     return {
         audioStreamCount: 1,
         hasVideo: false,
+        attachedPictureBytes: 0,
         audioCodec: 'aac',
         audioBitRate: kbps * 1000,
         channels: 2,
@@ -85,8 +87,28 @@ describe('decidePreparation rules', () => {
 
     test('a file that cannot be read is kept', () => {
         expect(decidePreparation(null)).toEqual({ action: 'keep', reason: 'unreadable' })
-        expect(decidePreparation(audio({ audioDurationSeconds: null }))).toEqual({ action: 'keep', reason: 'unreadable' })
+        expect(decidePreparation(audio({ audioCodec: null }))).toEqual({ action: 'keep', reason: 'unreadable' })
         expect(decidePreparation(audio({ audioStreamCount: 0, audioCodec: null }))).toEqual({ action: 'keep', reason: 'no_audio' })
+    })
+
+    test('a file of unknown size is kept, with or without a duration', () => {
+        expect(decidePreparation(audio({ audioCodec: 'pcm_s16le', kbps: 1411, sizeBytes: 0 })))
+            .toEqual({ action: 'keep', reason: 'not_worth_it' })
+        expect(decidePreparation(audio({ hasVideo: true, audioBitRate: null, audioDurationSeconds: null, sizeBytes: 0 })))
+            .toEqual({ action: 'keep', reason: 'not_worth_it' })
+    })
+
+    test('without a duration nothing is predicted: the output check judges it', () => {
+        // A browser-recorded WebM video: no track bitrate, no header duration.
+        expect(decidePreparation(audio({ hasVideo: true, audioCodec: 'opus', audioBitRate: null, audioDurationSeconds: null, mb: 400 })))
+            .toEqual({ action: 'transcode', predictedBytes: null, sampleRate: 48_000 })
+        expect(decidePreparation(audio({ hasVideo: true, kbps: 96, audioDurationSeconds: null, mb: 400 })))
+            .toEqual({ action: 'copy-audio', predictedBytes: null })
+        // Oversized sound with a track bitrate still needs no duration to be recognised.
+        expect(decidePreparation(audio({ kbps: 256, audioDurationSeconds: null, mb: 60 })).action).toBe('transcode')
+        // Without either, lossy sound's bitrate is unknown.
+        expect(decidePreparation(audio({ audioBitRate: null, audioDurationSeconds: null, mb: 60 })))
+            .toEqual({ action: 'keep', reason: 'unknown_bitrate' })
     })
 
     test('without a stream bitrate, the file average decides', () => {
@@ -102,8 +124,32 @@ describe('decidePreparation rules', () => {
             .toEqual({ action: 'keep', reason: 'already_small' })
     })
 
-    test("a video's AAC without a track bitrate is copied, not judged by the video's average", () => {
-        expect(decidePreparation(audio({ hasVideo: true, audioBitRate: null, mb: 300 }))).toMatchObject({ action: 'copy-audio' })
+    test("a video's AAC without a track bitrate is repacked to a known size, not judged by the video's average", () => {
+        expect(decidePreparation(audio({ hasVideo: true, audioBitRate: null, mb: 300 }))).toMatchObject({ action: 'transcode' })
+    })
+
+    test('without a stream bitrate, cover art is taken out of the file average', () => {
+        // 20 minutes of 64 kbps sound (about 9.6 MB) plus 8 MB of artwork: small.
+        expect(decidePreparation(audio({ audioBitRate: null, attachedPictureBytes: 8 * MB, minutes: 20, mb: 17.6 })))
+            .toEqual({ action: 'keep', reason: 'already_small' })
+        // Three hours of 256 kbps sound (about 330 MB) plus 1 MB of artwork: oversized.
+        expect(decidePreparation(audio({ audioBitRate: null, attachedPictureBytes: MB, minutes: 180, mb: 331 })).action)
+            .toBe('transcode')
+        // Artwork of unknown size leaves the bitrate unknown.
+        expect(decidePreparation(audio({ audioBitRate: null, attachedPictureBytes: null, minutes: 180, mb: 331 })))
+            .toEqual({ action: 'keep', reason: 'unknown_bitrate' })
+        // With a track bitrate the artwork does not matter.
+        expect(decidePreparation(audio({ kbps: 256, attachedPictureBytes: null, mb: 60 })).action).toBe('transcode')
+    })
+
+    test('our own AAC recordings are kept, even without a track bitrate', () => {
+        // A Safari recording: fragmented MP4, an hour long, a few percent of container on top.
+        const kbps = RECORDING_AAC_BITS_PER_SECOND / 1000
+        const mb = (kbps * 1000 * 3600 * 1.05) / 8 / MB
+        expect(decidePreparation(audio({ kbps, minutes: 60, mb })))
+            .toEqual({ action: 'keep', reason: 'already_small' })
+        expect(decidePreparation(audio({ audioBitRate: null, minutes: 60, mb })))
+            .toEqual({ action: 'keep', reason: 'already_small' })
     })
 
     test('a repack predicted above 75% of the original is not worth it', () => {

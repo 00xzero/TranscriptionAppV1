@@ -21,11 +21,13 @@ export class FakeMediaRecorder extends EventTarget {
   state: FakeRecorderState = 'inactive'
   readonly stream: MediaStream
   readonly mimeType: string
+  readonly options: MediaRecorderOptions | undefined
 
   constructor(stream: MediaStream, options?: MediaRecorderOptions) {
     super()
     this.stream = stream
     this.mimeType = options?.mimeType ?? ''
+    this.options = options
     FakeMediaRecorder.lastInstance = this
   }
 

@@ -5,8 +5,8 @@
  * (core/media/prepare-policy.ts). The prepared file replaces the original.
  * Then it asks for the transcription and the waveform.
  *
- * Preparation never blocks a transcript: when anything fails, the workflow
- * goes on with whichever file the row points at. Every job and row check runs
+ * Preparation never blocks a transcript: when probing or converting fails, the
+ * workflow goes on with whichever file the row points at. Every job and row check runs
  * inside a step, so a replay after Deepgram has moved the job on does not stop
  * the waveform steps.
  */
@@ -84,30 +84,28 @@ export const handleMediaPrepare = inngest.createFunction(
             return { status: "stopped", reason } as const;
         };
 
-        // A row that can't be read or a file that can't be probed only means
-        // nothing is prepared: the transcription step reads the row itself.
-        let source: LoadSourceResult | null = null;
-        try {
-            source = await step.run("load-source", () =>
-                loadSource(createAdminClient(), { ...ids, userId })
-            );
-        } catch (err) {
-            console.warn(`[inngest] Could not load the source for ${transcriptId}; not preparing:`, err instanceof Error ? err.message : err);
-        }
-        let sourceKey: string | null = null;
-        if (source && !source.proceed) {
+        // The source check is what keeps another user's file away from
+        // Deepgram, so it is never skipped: if the job and row can't be read,
+        // this throws and onFailure fails the job (nothing could go on to
+        // Deepgram without them anyway). A file that can't be probed only
+        // means nothing is prepared.
+        const source: LoadSourceResult = await step.run("load-source", () =>
+            loadSource(createAdminClient(), { ...ids, userId })
+        );
+        if (!source.proceed) {
             console.log(`[inngest] Media preparation stopped for ${transcriptId}: ${source.reason}`);
             if (source.reason === "invalid_source") {
                 return await failJob("invalid_source", "The transcript's media does not belong to this request");
             }
             return { status: "stopped", reason: source.reason };
         }
-        if (source?.skip) {
+        let sourceKey: string | null = null;
+        if (source.skip) {
             // waveform_busy: an earlier job's waveform may still be reading
             // the original. waited_too_long: the job waited in line long
             // enough already; it goes on to Deepgram as it is.
             console.log(`[inngest] Keeping ${transcriptId}'s upload as it is: ${source.skip}`);
-        } else if (source) {
+        } else {
             sourceKey = source.sourceKey;
         }
         const preparedKey = preparedObjectKey(userId, transcriptId, jobId);

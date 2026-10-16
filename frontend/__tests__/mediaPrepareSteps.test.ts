@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const prepareAudioFileMock = jest.fn()
 const probeSourceMediaMock = jest.fn()
+const scanAudioDurationMock = jest.fn()
 const uploadMock = jest.fn()
 let uploadSignal: AbortSignal | null = null
 
@@ -21,6 +22,7 @@ jest.mock('@/lib/audio/ffmpeg', () => {
         ProcessTimeoutError,
         prepareAudioFile: (...args: unknown[]) => prepareAudioFileMock(...args),
         probeSourceMedia: (...args: unknown[]) => probeSourceMediaMock(...args),
+        scanAudioDuration: (...args: unknown[]) => scanAudioDurationMock(...args),
     }
 })
 
@@ -356,6 +358,7 @@ describe('convertAndUpload', () => {
     const probe: SourceProbe = {
         audioStreamCount: 1,
         hasVideo: false,
+        attachedPictureBytes: 0,
         audioCodec: 'aac',
         audioBitRate: 130_000,
         channels: 2,
@@ -433,6 +436,46 @@ describe('convertAndUpload', () => {
     test('an output whose duration does not match is rejected', async () => {
         probeSourceMediaMock.mockResolvedValue({ ...probe, audioDurationSeconds: 3500 })
         await expect(run(setup())).resolves.toMatchObject({ outcome: 'rejected', reason: 'duration_mismatch' })
+    })
+
+    test('a probe with a duration is not scanned', async () => {
+        await run(setup())
+        expect(scanAudioDurationMock).not.toHaveBeenCalled()
+    })
+
+    describe('without a header duration', () => {
+        const unsized = { ...probe, audioDurationSeconds: null }
+        const runUnsized = (db: FakeAdmin) =>
+            convertAndUpload(db.asClient(), { ...ids, sourceKey, preparedKey, probe: unsized, decision })
+
+        test("the source's sound is measured alongside the conversion and checked against", async () => {
+            scanAudioDurationMock.mockResolvedValue(3600)
+            await expect(runUnsized(setup())).resolves.toEqual({ outcome: 'uploaded' })
+            expect(scanAudioDurationMock).toHaveBeenCalledWith('https://storage.test/source', { timeoutMs: 150_000, signal: expect.any(AbortSignal) })
+
+            // A conversion that stopped at 3500 s of 3600 is caught.
+            probeSourceMediaMock.mockResolvedValue({ ...probe, audioDurationSeconds: 3500 })
+            await expect(runUnsized(setup())).resolves.toMatchObject({ outcome: 'rejected', reason: 'duration_mismatch' })
+        })
+
+        test('a scan that fails rejects the output', async () => {
+            jest.spyOn(console, 'warn').mockImplementation(() => {})
+            scanAudioDurationMock.mockRejectedValue(new Error('ffprobe packets exited with code 1'))
+            await expect(runUnsized(setup())).resolves.toMatchObject({ outcome: 'rejected', reason: 'duration_mismatch' })
+            expect(uploadMock).not.toHaveBeenCalled()
+        })
+
+        test('a failed conversion stops the scan', async () => {
+            jest.spyOn(console, 'warn').mockImplementation(() => {})
+            let scanSignal: AbortSignal | null = null
+            scanAudioDurationMock.mockImplementation((_url: string, opts: { signal: AbortSignal }) => {
+                scanSignal = opts.signal
+                return new Promise((_resolve, reject) => opts.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+            })
+            prepareAudioFileMock.mockRejectedValue(new Error('ffmpeg exited with code 1'))
+            await expect(runUnsized(setup())).resolves.toEqual({ outcome: 'rejected', reason: 'convert_failed' })
+            expect(scanSignal!.aborted).toBe(true)
+        })
     })
 
     test('an upload still running at the deadline is aborted and may have landed', async () => {

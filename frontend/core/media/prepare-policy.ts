@@ -7,8 +7,9 @@
  *
  * The aim is to shrink files that are much bigger than speech needs, not to
  * squeeze every file. Anything already sensibly sized (WhatsApp audio, Voice
- * Memos, our own recordings) is kept untouched, because repacking lossy audio
- * loses a little each time and saves little.
+ * Memos, our own recordings: Opus, or AAC at RECORDING_AAC_BITS_PER_SECOND) is
+ * kept untouched, because repacking lossy audio loses a little each time and
+ * saves little.
  */
 
 export const TARGET_KBPS = 64
@@ -16,6 +17,9 @@ export const MAX_SAMPLE_RATE = 48_000
 export const REPACK_ABOVE_KBPS = 96
 export const COPY_AUDIO_MAX_KBPS = 96
 export const MIN_REPACK_BYTES = 10 * 1024 * 1024
+// What our own AAC recordings (Safari's audio/mp4) ask MediaRecorder for
+// (lib/recording/codecs.ts): under the repack line, so they are kept as they are.
+export const RECORDING_AAC_BITS_PER_SECOND = 64_000
 export const MAX_SIZE_RATIO = 0.75
 export const MAX_OUTPUT_BYTES = 200 * 1024 * 1024
 // ffmpeg's -fs may overshoot slightly; anything this close to the ceiling may
@@ -27,12 +31,18 @@ export const LOSSLESS_CODECS: ReadonlySet<string> = new Set(['flac', 'alac', 'wa
 export type SourceProbe = {
     audioStreamCount: number
     hasVideo: boolean
+    /**
+     * Bytes of cover art, counted in the file's size but not sound: 0 without
+     * any, null when there is some of unknown size.
+     */
+    attachedPictureBytes: number | null
     audioCodec: string | null
     /** Bits per second of the first sound track, when ffprobe reports it. */
     audioBitRate: number | null
     channels: number | null
     sampleRate: number | null
     sizeBytes: number
+    /** The sound's length, when a header says; otherwise measured as it converts. */
     audioDurationSeconds: number | null
 }
 
@@ -41,13 +51,15 @@ export type KeepReason =
     | 'no_audio'
     | 'multiple_audio_tracks'
     | 'already_small'
+    | 'unknown_bitrate'
     | 'not_worth_it'
     | 'over_budget'
 
+/** `predictedBytes` is null when the duration is unknown: the output check then judges the size. */
 export type PreparationDecision =
     | { action: 'keep'; reason: KeepReason }
-    | { action: 'copy-audio'; predictedBytes: number }
-    | { action: 'transcode'; predictedBytes: number; sampleRate: number }
+    | { action: 'copy-audio'; predictedBytes: number | null }
+    | { action: 'transcode'; predictedBytes: number | null; sampleRate: number }
 
 function isLossless(codec: string): boolean {
     return codec.startsWith('pcm_') || LOSSLESS_CODECS.has(codec)
@@ -55,21 +67,24 @@ function isLossless(codec: string): boolean {
 
 /**
  * The first sound track's bitrate, or, for a sound-only file, the whole file's
- * average when ffprobe has none. A video's average counts its picture, so a
- * video without a track bitrate has none.
+ * average less its cover art when ffprobe has none. A video's average counts
+ * its picture, so it has none without a track bitrate.
  */
 export function effectiveAudioBitRate(probe: SourceProbe): number | null {
     if (probe.audioBitRate && probe.audioBitRate > 0) return probe.audioBitRate
-    if (!probe.hasVideo && probe.audioDurationSeconds && probe.audioDurationSeconds > 0 && probe.sizeBytes > 0) {
-        return (probe.sizeBytes * 8) / probe.audioDurationSeconds
-    }
-    return null
+    const duration = probe.audioDurationSeconds
+    if (probe.hasVideo || probe.attachedPictureBytes === null || !duration || duration <= 0) return null
+    const audioBytes = probe.sizeBytes - probe.attachedPictureBytes
+    return audioBytes > 0 ? (audioBytes * 8) / duration : null
 }
 
 function guardSize(
     probe: SourceProbe,
-    predictedBytes: number,
+    predictedBytes: number | null,
 ): KeepReason | null {
+    // An unknown size (0) can't be shown to shrink.
+    if (probe.sizeBytes <= 0) return 'not_worth_it'
+    if (predictedBytes === null) return null
     if (predictedBytes > probe.sizeBytes * MAX_SIZE_RATIO) return 'not_worth_it'
     if (predictedBytes >= MAX_OUTPUT_BYTES - CEILING_MARGIN_BYTES) return 'over_budget'
     return null
@@ -79,8 +94,7 @@ export function decidePreparation(probe: SourceProbe | null): PreparationDecisio
     // Opus is already efficient for speech, and it is what our own Chrome and
     // Firefox recordings are (their WebM has no track bitrate or header
     // duration, and the file average can sit above the repack line):
-    // repacking it only loses quality. Decided before the duration, which the
-    // probe does not scan for here.
+    // repacking it only loses quality.
     if (
         probe &&
         !probe.hasVideo &&
@@ -90,22 +104,24 @@ export function decidePreparation(probe: SourceProbe | null): PreparationDecisio
         return { action: 'keep', reason: 'already_small' }
     }
 
-    const duration = probe?.audioDurationSeconds
-    if (!probe || !duration || duration <= 0 || !probe.audioCodec) {
+    if (!probe || !probe.audioCodec) {
         return { action: 'keep', reason: probe && probe.audioStreamCount === 0 ? 'no_audio' : 'unreadable' }
     }
     if (probe.audioStreamCount > 1) return { action: 'keep', reason: 'multiple_audio_tracks' }
 
+    // Without a header duration nothing can be predicted; the output check
+    // compares the result with the measured sound instead.
+    const duration = probe.audioDurationSeconds && probe.audioDurationSeconds > 0 ? probe.audioDurationSeconds : null
     const codec = probe.audioCodec.toLowerCase()
     const bitRate = effectiveAudioBitRate(probe)
 
     if (probe.hasVideo) {
         // The video's own sound track is often already a sensible AAC: copy it
-        // out untouched. Its size is about bitrate × duration; without a track
-        // bitrate it is sized at the copy limit, and the output check sees
-        // the real size.
-        if (codec === 'aac' && (bitRate === null || bitRate <= COPY_AUDIO_MAX_KBPS * 1000)) {
-            const predictedBytes = Math.ceil(((bitRate ?? COPY_AUDIO_MAX_KBPS * 1000) * duration) / 8)
+        // out untouched. Without a track bitrate (common in MKV and WebM) its
+        // size is unknown and may be surround sound at several hundred kbps,
+        // so it is repacked to a known size instead.
+        if (codec === 'aac' && bitRate !== null && bitRate <= COPY_AUDIO_MAX_KBPS * 1000) {
+            const predictedBytes = duration === null ? null : Math.ceil((bitRate * duration) / 8)
             const blocked = guardSize(probe, predictedBytes)
             return blocked ? { action: 'keep', reason: blocked } : { action: 'copy-audio', predictedBytes }
         }
@@ -114,19 +130,17 @@ export function decidePreparation(probe: SourceProbe | null): PreparationDecisio
 
     if (isLossless(codec)) return transcodeOrKeep(probe, duration)
 
-    if (
-        bitRate !== null &&
-        bitRate > REPACK_ABOVE_KBPS * 1000 &&
-        probe.sizeBytes >= MIN_REPACK_BYTES
-    ) {
+    // Lossy sound is repacked only when known to be oversized.
+    if (bitRate === null) return { action: 'keep', reason: 'unknown_bitrate' }
+    if (bitRate > REPACK_ABOVE_KBPS * 1000 && probe.sizeBytes >= MIN_REPACK_BYTES) {
         return transcodeOrKeep(probe, duration)
     }
 
     return { action: 'keep', reason: 'already_small' }
 }
 
-function transcodeOrKeep(probe: SourceProbe, duration: number): PreparationDecision {
-    const predictedBytes = Math.ceil((TARGET_KBPS * 1000 * duration) / 8)
+function transcodeOrKeep(probe: SourceProbe, duration: number | null): PreparationDecision {
+    const predictedBytes = duration === null ? null : Math.ceil((TARGET_KBPS * 1000 * duration) / 8)
     const blocked = guardSize(probe, predictedBytes)
     if (blocked) return { action: 'keep', reason: blocked }
     const sampleRate = Math.min(probe.sampleRate && probe.sampleRate > 0 ? probe.sampleRate : MAX_SAMPLE_RATE, MAX_SAMPLE_RATE)

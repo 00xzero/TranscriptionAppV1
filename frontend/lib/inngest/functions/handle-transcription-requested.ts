@@ -18,6 +18,7 @@ import {
 import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
 import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
 import { jobQueued } from "@/lib/inngest/job-checks";
+import { ownedSourceKey, readSourceRow } from "@/lib/media/source-row";
 import { readPositiveIntEnv } from "@/lib/env";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
@@ -73,7 +74,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { transcriptId, jobId, keyTerms } = event.data;
+        const { transcriptId, jobId, userId, keyTerms } = event.data;
 
         console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 
@@ -85,18 +86,14 @@ export const handleTranscriptionRequested = inngest.createFunction(
             if (!(await jobQueued(supabase, { transcriptId, jobId }))) {
                 return { skipped: true as const };
             }
-            const { data: transcript, error: transcriptError } = await supabase
-                .from("transcripts")
-                .select("source_object_key")
-                .eq("id", transcriptId)
-                .maybeSingle();
-            if (transcriptError) {
-                throw new Error(`Failed to read transcript ${transcriptId}: ${transcriptError.message}`);
+            // The same check media preparation makes: only this user's own
+            // file, inside the transcript's folder, goes to Deepgram.
+            const row = await readSourceRow(supabase, transcriptId);
+            const sourceKey = row && ownedSourceKey(row, { transcriptId, userId });
+            if (!sourceKey) {
+                throw new Error(`Transcript ${transcriptId} has no media of its own`);
             }
-            if (!transcript?.source_object_key) {
-                throw new Error(`Transcript ${transcriptId} has no media`);
-            }
-            const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key);
+            const mediaUrlResult = await getMediaUrlForDeepgram(supabase, sourceKey);
             if (mediaUrlResult.error || !mediaUrlResult.url) {
                 throw new Error(mediaUrlResult.error ?? "Failed to generate media URL");
             }

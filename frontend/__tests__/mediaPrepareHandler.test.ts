@@ -42,7 +42,7 @@ const event = {
     data: { transcriptId, jobId, userId, keyTerms: ['Dechra'] },
 } as const
 
-const probe = { audioStreamCount: 1, hasVideo: false, audioCodec: 'aac', audioBitRate: 130_000, channels: 2, sampleRate: 48_000, sizeBytes: 60_000_000, audioDurationSeconds: 3600 }
+const probe = { audioStreamCount: 1, hasVideo: false, attachedPictureBytes: 0, audioCodec: 'aac', audioBitRate: 130_000, channels: 2, sampleRate: 48_000, sizeBytes: 60_000_000, audioDurationSeconds: 3600 }
 const transcode = { decision: { action: 'transcode', predictedBytes: 28_800_000, sampleRate: 48_000 }, probe }
 const keep = { decision: { action: 'keep', reason: 'already_small' }, probe }
 
@@ -334,14 +334,22 @@ describe('handleMediaPrepare', () => {
         expect(result).toMatchObject({ status: 'requested' })
     })
 
-    test.each(['load-source', 'decide'])('a failed %s step keeps the file and still transcribes', async (stepId) => {
+    test('a failed decide step keeps the file and still transcribes', async () => {
         steps.claimWaveform.mockResolvedValue({ dispatch: true, sourceObjectKey: sourceKey })
 
-        const { result, ctx } = await execute([], { [stepId]: 'storage down' })
+        const { result, ctx } = await execute([], { decide: 'storage down' })
 
         expect(steps.convertAndUpload).not.toHaveBeenCalled()
         expect(result).toMatchObject({ status: 'requested', media: 'kept' })
         expect(sentEvents(ctx)).toEqual([transcriptionRequest, waveformRequest(sourceKey)])
+    })
+
+    test('a failed load-source step fails the run rather than skip the source check', async () => {
+        const { error: runError, ctx } = await execute([], { 'load-source': 'database down' })
+
+        expect(String((runError as Error)?.message ?? runError)).toContain('database down')
+        expect(steps.decide).not.toHaveBeenCalled()
+        expect(sentEvents(ctx)).toEqual([])
     })
 
     test.each(['waveform_busy', 'waited_too_long'])('a %s source keeps the original and still transcribes', async (skip) => {
