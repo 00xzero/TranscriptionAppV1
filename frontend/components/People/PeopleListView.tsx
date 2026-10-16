@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Contact, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
+import { EmptyState } from '@/components/EmptyState'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { DestructiveMenuItem, RowActionsMenu } from '@/components/RowActionsMenu'
 import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
@@ -151,20 +152,13 @@ export function PeopleListView() {
       </section>
 
       {people.length === 0 ? (
-        <ProjectList>
-          <div className="flex flex-col items-center px-6 py-12 text-center">
-            <Contact className="h-10 w-10 text-muted" aria-hidden="true" />
-            <h2 className="mt-4 font-serif text-2xl text-foreground">No people yet</h2>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
-              There are two ways to add someone. In a transcript, click a speaker and identify them as a person.
-              Or create a person here, then identify their voice in any transcript.
-            </p>
-            <Button className="mt-5 gap-1.5" size="sm" variant="primary" onClick={() => setDialog('create')}>
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              New person
-            </Button>
-          </div>
-        </ProjectList>
+        <EmptyState
+          figure="rolodex"
+          eyebrow="People"
+          title="Room for familiar voices"
+          description="Name a speaker in any transcript, or add someone here and match their voice later."
+          action={{ label: 'New person', onClick: () => setDialog('create'), creates: true }}
+        />
       ) : (
         <section aria-label="People">
           <ProjectList>

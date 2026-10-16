@@ -16,6 +16,7 @@ import { useUndoControls } from '@/lib/editor/undoControls'
 import { useApplePlatform } from '@/lib/editor/undoShortcut'
 import { UndoList } from '@/components/UndoList'
 import { cn } from '@/lib/utils'
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 
 // The editor's square header buttons: undo, redo and export.
 const HEADER_ICON_DISABLED = 'disabled:opacity-30 disabled:cursor-default disabled:hover:border-subtle-border'
@@ -31,6 +32,7 @@ export default function ContextualHeader() {
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
   const isPeopleRoute = pathname === '/people' || pathname?.startsWith('/people/')
+  const isTranscriptsRoute = pathname === '/transcripts'
   const routeProjectId = projectIdFromPathname(pathname)
   const routeProject = routeProjectId ? tree.byId.get(routeProjectId) : null
   const hideCapture = Boolean(
@@ -70,6 +72,18 @@ export default function ContextualHeader() {
           <PeopleHeaderTitle pathname={pathname} />
         ) : isEditorRoute ? (
           <EditorHeaderTitle pathname={pathname} />
+        ) : isTranscriptsRoute ? (
+          // Transcripts lives under the Library, so it reads as a step down from it.
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 font-serif text-xl italic">
+            <Link
+              href="/"
+              className="rounded-sm text-muted hover:text-trust-blue focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-trust-blue/60"
+            >
+              Library
+            </Link>
+            <span aria-hidden="true" className="not-italic text-muted">/</span>
+            <span aria-current="page" className="truncate text-ink dark:text-paper">Transcripts</span>
+          </nav>
         ) : (
           <span className="font-serif text-xl italic text-ink dark:text-paper">
             Library

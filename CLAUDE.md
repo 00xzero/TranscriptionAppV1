@@ -152,6 +152,8 @@ Use semantic role utilities (`text-foreground`, `bg-surface`, `border-border`, a
 
 UI primitives in `components/ui/` are Radix-based. Icons are `lucide-react`.
 
+Empty states use one component, `components/EmptyState.tsx`: a line drawing, a mono label, a serif line, a sentence and at most one action, in a `full` size (centred under a page title, unboxed) or a `compact` one (beside a section heading: Library, Unfiled). While a page is empty its action lives in the empty state, not the header. The drawing is a Hairline figure from `lib/hairline/` (a vendored MIT kernel plus our own figures, plain JS with an `index.d.ts`), mounted in the browser into a box reserved on the server. Only the drawing answers the pointer: the part under it moves (that key, that card), and off the drawing it rests; the action previews its answer, and it makes one short entrance (skipped under reduced motion); `mountFigure` returns those controls. Its lines are mixed from `--text` into `--bg` in `globals.css`. Keep the pointer answers subtle. Previews and decisions are in `.docs/empty-state-illustrations/`.
+
 ### Testing
 
 Jest + React Testing Library, config in `jest.config.js` via `next/jest`. Tests in `frontend/__tests__/` (~80 files), mocks in `frontend/__mocks__/` (AudioPlayer, MediaRecorder, getUserMedia, react-virtuoso, recording-session). `fake-indexeddb` backs the persistence tests.

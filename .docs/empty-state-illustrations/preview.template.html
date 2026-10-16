@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empty States in Ink</title>
+<!-- Template: build-preview.mjs fills KERNEL and FIGURES and writes preview.html. Edit this file, not preview.html. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  /* Layout: two full-width bands, paper then night, each a row of three figures over an eyebrow and a serif line, as in the reference. */
+  :root {
+    --paper: #E4E1D9;
+    --ink: #1D1E18;
+    --paper-muted: #6F6B63;
+    --night: #1D1E18;
+    --cream: #EDE8DC;
+    --night-muted: #A39E94;
+    --serif: "Newsreader", Georgia, serif;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55 }
+
+  .band { padding-block: 44px 52px }
+  .inner {
+    max-width: 1180px; margin: 0 auto; display: grid; gap: 28px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .band-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px }
+  .band-head h2 { font-family: var(--mono); font-weight: 400; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; margin: 0 }
+  .band-head p { margin: 0; font-size: 13px; max-width: 60ch }
+
+  .row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px }
+  @media (max-width: 760px) { .row { grid-template-columns: minmax(0, 1fr); max-width: 380px; margin: 0 auto; width: 100% } }
+  figure { margin: 0; display: grid; gap: 10px; justify-items: center; text-align: center; min-width: 0 }
+  .stage { width: 100%; max-width: 360px }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase }
+  .line { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 27px); line-height: 1.2; text-wrap: balance }
+
+  /* Paper: the app's light theme. Plates take the paper itself; the highlight is full ink. */
+  .paper { background: var(--paper); color: var(--ink) }
+  .paper .band-head p, .paper .eyebrow { color: var(--paper-muted) }
+  .paper [data-hairline] {
+    --hairline-plate: #E4E1D9; --hairline-hi: #1D1E18; --hairline-edge: #847F75;
+    --hairline-mid: #ABA69B; --hairline-lo: #CCC8BE; --hairline-stroke: 1.2;
+  }
+
+  /* Night: the reference image. Warm near-black, cream line, the highlight in full cream. */
+  .night { background: var(--night); color: var(--cream) }
+  .night .band-head p, .night .eyebrow { color: var(--night-muted) }
+  .night [data-hairline] {
+    --hairline-plate: #1D1E18; --hairline-hi: #F2EDE1; --hairline-edge: #A8A295;
+    --hairline-mid: #77726A; --hairline-lo: #47463F; --hairline-stroke: 1.2;
+  }
+
+  .note { padding-block: 28px 40px; color: var(--paper-muted); font-size: 13px }
+  .note p { margin: 0; max-width: 70ch }
+</style>
+
+<section class="band paper" aria-labelledby="paper-title">
+  <div class="inner">
+    <div class="band-head">
+      <h2 id="paper-title">Paper · light theme</h2>
+      <p>The app's paper background with ink lines. The one highlighted part of each drawing is in full ink.</p>
+    </div>
+    <div class="row" data-theme-row="paper"></div>
+  </div>
+</section>
+
+<section class="band night" aria-labelledby="night-title">
+  <div class="inner">
+    <div class="band-head">
+      <h2 id="night-title">Night · dark theme</h2>
+      <p>Cream lines on warm near-black, as in your reference. The highlighted part is in bright cream.</p>
+    </div>
+    <div class="row" data-theme-row="night"></div>
+  </div>
+</section>
+
+<div class="note"><div class="inner"><p>Move the pointer over a drawing to see it respond. Headings are taken from your reference image. Nothing here is in the app yet.</p></div></div>
+
+<script>/*KERNEL*/</script>
+<script>
+  // Each figure registers itself here; the page mounts it once per band.
+  window.__figures = {};
+  window.hairline = (fig) => { window.__figures[fig.name] = fig; };
+</script>
+/*FIGURES*/
+<script>
+  (() => {
+    const order = [
+      { name: "drawer", eyebrow: "Projects", line: "Room for a project" },
+      { name: "typewriter", eyebrow: "Transcripts", line: "A page waiting for a voice" },
+      { name: "rolodex", eyebrow: "People", line: "Room for familiar voices" },
+    ];
+    HL.inject(document);
+    for (const row of document.querySelectorAll("[data-theme-row]")) {
+      for (const item of order) {
+        const fig = window.__figures[item.name];
+        const figure = document.createElement("figure");
+        const stage = document.createElement("div");
+        stage.className = "stage";
+        stage.setAttribute("data-hairline", fig.name);
+        stage.setAttribute("role", "img");
+        stage.setAttribute("aria-label", fig.means);
+        figure.appendChild(stage);
+        const cap = document.createElement("figcaption");
+        cap.innerHTML = '<div class="eyebrow"></div><div class="line"></div>';
+        cap.querySelector(".eyebrow").textContent = item.eyebrow;
+        cap.querySelector(".line").textContent = item.line;
+        figure.appendChild(cap);
+        row.appendChild(figure);
+        const svg = HL.mk("svg", { viewBox: "0 0 400 320", "aria-hidden": "true" }, stage);
+        fig.mount({ stage, svg, read: { textContent: "" } }, fig.range[1]);
+      }
+    }
+  })();
+</script>

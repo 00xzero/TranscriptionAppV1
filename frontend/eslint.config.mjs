@@ -14,7 +14,8 @@ const config = [
     },
   },
   {
-    ignores: ["node_modules/", ".next/"],
+    // lib/hairline/kernel.js is vendored from @lucasmarkes/hairline, unchanged.
+    ignores: ["node_modules/", ".next/", "lib/hairline/kernel.js"],
   },
 ];
 

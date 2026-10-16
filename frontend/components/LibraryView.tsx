@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth/AuthProvider'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { EmptyState } from '@/components/EmptyState'
+import { useModal } from '@/lib/ModalContext'
 import { ListRowSkeleton, ProjectList } from '@/components/Projects/ProjectList'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
@@ -41,6 +43,7 @@ export default function LibraryView() {
   const { projects, tree, projectsLoading } = useProjectsData()
   const { transcripts, transcriptsLoading: isLoading } = useTranscriptsData()
   const projectActions = useProjectActions()
+  const { openCaptureModal } = useModal()
   const transcriptActions = useTranscriptActions()
 
   const recentProjectCards = useMemo(
@@ -133,31 +136,35 @@ export default function LibraryView() {
               ))}
             </ProjectList>
           </LoadingStatus>
+        ) : transcripts.length === 0 ? (
+          <EmptyState
+            size="compact"
+            figure="typewriter"
+            eyebrow="Transcripts"
+            title="A page waiting for a voice"
+            description="Record a conversation or upload a file, and its transcript lands here."
+            action={{ label: 'Capture', onClick: () => openCaptureModal() }}
+            titleAs="h4"
+          />
         ) : (
           <ProjectList>
-            {transcripts.length === 0 ? (
-              <div className="p-4 text-center text-ink/50 dark:text-paper/50 text-sm">
-                No transcripts yet. Click &ldquo;Capture&rdquo; to start your first transcription.
-              </div>
-            ) : (
-              transcripts.slice(0, 5).map((transcript) => {
-                const target = transcriptActionTarget(transcript)
-                return (
-                  <TranscriptRow
-                    key={transcript.id}
-                    transcript={transcript}
-                    projectPath={transcriptProjectLabel(tree, transcript.project_id)}
-                    actions={(
-                      <TranscriptActionsMenu
-                        title={target.title}
-                        onMove={() => transcriptActions.openMove(target)}
-                        onDelete={() => transcriptActions.openDelete(target)}
-                      />
-                    )}
-                  />
-                )
-              })
-            )}
+            {transcripts.slice(0, 5).map((transcript) => {
+              const target = transcriptActionTarget(transcript)
+              return (
+                <TranscriptRow
+                  key={transcript.id}
+                  transcript={transcript}
+                  projectPath={transcriptProjectLabel(tree, transcript.project_id)}
+                  actions={(
+                    <TranscriptActionsMenu
+                      title={target.title}
+                      onMove={() => transcriptActions.openMove(target)}
+                      onDelete={() => transcriptActions.openDelete(target)}
+                    />
+                  )}
+                />
+              )
+            })}
           </ProjectList>
         )}
       </section>

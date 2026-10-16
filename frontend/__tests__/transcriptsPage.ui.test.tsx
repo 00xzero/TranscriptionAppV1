@@ -111,7 +111,7 @@ describe('TranscriptsPage', () => {
     renderTranscriptsPage()
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading transcripts…')
-    expect(screen.queryByText('No transcripts yet.')).not.toBeInTheDocument()
+    expect(screen.queryByText('A page waiting for a voice')).not.toBeInTheDocument()
   })
 
   test('uses shared semantic styling for transcript actions without changing behavior', () => {
