@@ -1,3 +1,5 @@
+import { recorderOptions } from './codecs'
+
 export interface RecorderCallbacks {
   onChunk: (blob: Blob) => void
   onError: (reason: string) => void
@@ -40,7 +42,7 @@ export function createRecorderController(
   mime: string,
   callbacks: RecorderCallbacks
 ): RecorderController {
-  const recorder = new MediaRecorder(stream, { mimeType: mime })
+  const recorder = new MediaRecorder(stream, recorderOptions(mime))
   const state: InternalState = {
     recorder,
     stream,

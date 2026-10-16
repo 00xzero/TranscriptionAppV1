@@ -8,6 +8,7 @@
 import { eventType } from 'inngest'
 import type {
     TranscriptionRequestedData,
+    MediaPrepareRequestedData,
     TranscriptionWebhookData,
     TranscriptionCompletedData,
     TranscriptionFailedData,
@@ -15,6 +16,7 @@ import type {
 } from '@/contracts/events'
 import {
     TranscriptionRequestedDataSchema,
+    MediaPrepareRequestedDataSchema,
     TranscriptionWebhookDataSchema,
     TranscriptionCompletedDataSchema,
     TranscriptionFailedDataSchema,
@@ -23,6 +25,10 @@ import {
 
 export const transcriptionRequestedTrigger = eventType("transcription/requested", {
     schema: TranscriptionRequestedDataSchema,
+})
+
+export const mediaPrepareRequestedTrigger = eventType("media/prepare-requested", {
+    schema: MediaPrepareRequestedDataSchema,
 })
 
 export const transcriptionWebhookTrigger = eventType("transcription/webhook", {
@@ -44,6 +50,9 @@ export const waveformRequestedTrigger = eventType("waveform/requested", {
 export type TranscriptionEvents = {
     "transcription/requested": {
         data: TranscriptionRequestedData;
+    };
+    "media/prepare-requested": {
+        data: MediaPrepareRequestedData;
     };
     "transcription/webhook": {
         data: TranscriptionWebhookData;

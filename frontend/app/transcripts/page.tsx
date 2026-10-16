@@ -319,7 +319,9 @@ function TranscriptsPageContent() {
                       </Button>
                     )
                   })()}
-                  <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="text-accent hover:underline">Open</Link>
+                  {p.status === 'completed' && (
+                    <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="text-accent hover:underline">Open</Link>
+                  )}
                   <TranscriptActionsMenu
                     title={actionTarget.title}
                     onMove={() => transcriptActions.openMove(actionTarget)}

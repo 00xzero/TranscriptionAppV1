@@ -149,4 +149,18 @@ describe('recorder controller', () => {
     expect(chunkSizes(chunks)).toEqual([20])
     controller.dispose()
   })
+
+  test('asks for 64 kbps AAC, which media preparation keeps, and leaves Opus at the default', () => {
+    const callbacks = {
+      onChunk: jest.fn(),
+      onError: jest.fn(),
+      onTrackEnded: jest.fn(),
+      onTrackMutedSustained: jest.fn(),
+    }
+    createRecorderController(createFakeStream(), 'audio/mp4', callbacks).dispose()
+    expect(FakeMediaRecorder.lastInstance?.options).toEqual({ mimeType: 'audio/mp4', audioBitsPerSecond: 64_000 })
+
+    createRecorderController(createFakeStream(), 'audio/webm;codecs=opus', callbacks).dispose()
+    expect(FakeMediaRecorder.lastInstance?.options).toEqual({ mimeType: 'audio/webm;codecs=opus' })
+  })
 })

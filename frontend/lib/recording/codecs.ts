@@ -1,3 +1,5 @@
+import { RECORDING_AAC_BITS_PER_SECOND } from '@/core/media/prepare-policy'
+
 export interface CodecSelection {
   mime: string
   extension: 'webm' | 'mp4'
@@ -43,4 +45,16 @@ export function findCodecByMime(mime: string | null | undefined): CodecSelection
   }
 
   return null
+}
+
+/**
+ * MediaRecorder options for a chosen MIME. AAC (Safari's audio/mp4) is asked
+ * for at a speech bitrate under media preparation's repack line, so the server
+ * keeps the recording as it is rather than encoding it a second time. Opus is
+ * left at the browser's default: preparation keeps Opus whatever its bitrate.
+ */
+export function recorderOptions(mime: string): MediaRecorderOptions {
+  return mime.startsWith('audio/mp4')
+    ? { mimeType: mime, audioBitsPerSecond: RECORDING_AAC_BITS_PER_SECOND }
+    : { mimeType: mime }
 }

@@ -1,10 +1,12 @@
 /**
- * Server-side ffmpeg / ffprobe wrappers for waveform peak generation.
+ * Server-side ffmpeg / ffprobe wrappers for waveform peaks and media preparation.
  *
  * - probeMedia: returns total sample count + duration for bucket sizing
  * - spawnPcmStream: spawns ffmpeg, returns ChildProcess; caller pipes stdout
+ * - probeSourceMedia / scanAudioDuration / prepareAudioFile: probe an upload,
+ *   measure its sound, copy or repack it
  *
- * Both accept HTTP(S) URLs as input — ffmpeg fetches lazily over the network,
+ * All accept HTTP(S) URLs as input — ffmpeg fetches lazily over the network,
  * preserving end-to-end streaming. Never download the media into a Buffer.
  */
 
@@ -12,6 +14,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { lookup } from 'node:dns/promises'
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import ffprobeInstaller from '@ffprobe-installer/ffprobe'
+import { TARGET_KBPS, type SourceProbe } from '@/core/media/prepare-policy'
+import { readPositiveIntEnv } from '@/lib/env'
 
 export const FFMPEG_PATH = ffmpegInstaller.path
 export const FFPROBE_PATH = ffprobeInstaller.path
@@ -35,13 +39,6 @@ export class ProcessTimeoutError extends Error {
         super(`${command} timed out after ${timeoutMs}ms`)
         this.name = 'ProcessTimeoutError'
     }
-}
-
-function readPositiveIntEnv(name: string, fallback: number): number {
-    const raw = process.env[name]
-    if (!raw) return fallback
-    const parsed = Number.parseInt(raw, 10)
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
 }
 
 function armProcessTimeout(
@@ -82,166 +79,185 @@ async function resolveUrlHost(url: string): Promise<string> {
     }
 }
 
+type ProcessOutcome = { code: number | null; stdout: string; stderr: string }
+
+// ffmpeg can log an error per broken frame of a long file; only the start of
+// stderr is ever reported. stdout is ffprobe's JSON, small and parsed whole.
+const STDERR_KEEP_CHARS = 64 * 1024
+
+/**
+ * Run a process to exit. stdout is collected whole, or, with `onStdout`,
+ * handed over chunk by chunk and not kept. Aborting `signal` kills it.
+ */
+function runToCompletion(
+    command: string,
+    path: string,
+    args: string[],
+    timeoutMs: number,
+    opts: { onStdout?: (chunk: string) => void; signal?: AbortSignal } = {}
+): Promise<ProcessOutcome> {
+    const { onStdout, signal } = opts
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(new Error(`${command} aborted`))
+            return
+        }
+        const proc = spawn(path, args)
+        let settled = false
+        const onAbort = () => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            if (!proc.killed && proc.exitCode === null) proc.kill('SIGKILL')
+            reject(new Error(`${command} aborted`))
+        }
+        const timeout = armProcessTimeout(proc, command, timeoutMs, (error) => {
+            if (settled) return
+            settled = true
+            signal?.removeEventListener('abort', onAbort)
+            reject(error)
+        })
+        signal?.addEventListener('abort', onAbort, { once: true })
+        let stdout = ''
+        let stderr = ''
+        proc.stdout.on('data', (chunk) => {
+            if (onStdout) onStdout(chunk.toString())
+            else stdout += chunk.toString()
+        })
+        proc.stderr.on('data', (chunk) => {
+            if (stderr.length < STDERR_KEEP_CHARS) stderr = (stderr + chunk.toString()).slice(0, STDERR_KEEP_CHARS)
+        })
+        proc.on('error', (err) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            signal?.removeEventListener('abort', onAbort)
+            reject(err)
+        })
+        proc.on('close', (code) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            signal?.removeEventListener('abort', onAbort)
+            resolve({ code, stdout, stderr })
+        })
+    })
+}
+
+type FfprobeJson = {
+    streams?: Array<Record<string, unknown>>
+    format?: Record<string, unknown>
+    packets?: Array<Record<string, unknown>>
+}
+
+/** Run ffprobe with JSON output on an already resolved input, and parse it. */
+async function runFfprobeJson(resolved: string, args: string[], timeoutMs: number): Promise<FfprobeJson> {
+    const { code, stdout, stderr } = await runToCompletion(
+        'ffprobe',
+        FFPROBE_PATH,
+        ['-v', 'error', '-print_format', 'json', ...args, resolved],
+        timeoutMs
+    )
+    if (code !== 0) {
+        throw new Error(`ffprobe exited with code ${code}: ${stderr.slice(0, 500)}`)
+    }
+    try {
+        return JSON.parse(stdout)
+    } catch (err) {
+        throw new Error(`ffprobe output parse failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+}
+
 export type ProbeResult = {
     totalSamples: number
     durationSeconds: number
     sampleRate: number
 }
 
-async function probeDurationFromPackets(resolvedUrl: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-        const args = [
+async function probeDurationFromPackets(
+    resolvedUrl: string,
+    timeoutMs = readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS),
+    signal?: AbortSignal
+): Promise<number> {
+    let buffered = ''
+    let lastDurationEnd = 0
+
+    const ingestLine = (line: string) => {
+        const [ptsRaw, durationRaw] = line.trim().split(',')
+        const pts = Number(ptsRaw)
+        const duration = Number(durationRaw)
+        if (!Number.isFinite(pts) || !Number.isFinite(duration)) return
+        const packetEnd = pts + duration
+        if (packetEnd > lastDurationEnd) {
+            lastDurationEnd = packetEnd
+        }
+    }
+
+    const { code, stderr } = await runToCompletion(
+        'ffprobe-packets',
+        FFPROBE_PATH,
+        [
             '-v', 'error',
             '-select_streams', 'a:0',
             '-show_packets',
             '-show_entries', 'packet=pts_time,duration_time',
             '-of', 'csv=p=0',
             resolvedUrl,
-        ]
-        const proc = spawn(FFPROBE_PATH, args)
-        let settled = false
-        const timeout = armProcessTimeout(
-            proc,
-            'ffprobe-packets',
-            readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS),
-            (error) => {
-                if (settled) return
-                settled = true
-                reject(error)
-            }
-        )
-
-        let stderr = ''
-        let buffered = ''
-        let lastDurationEnd = 0
-
-        const ingestLine = (line: string) => {
-            const [ptsRaw, durationRaw] = line.trim().split(',')
-            const pts = Number(ptsRaw)
-            const duration = Number(durationRaw)
-            if (!Number.isFinite(pts) || !Number.isFinite(duration)) return
-            const packetEnd = pts + duration
-            if (packetEnd > lastDurationEnd) {
-                lastDurationEnd = packetEnd
-            }
+        ],
+        timeoutMs,
+        {
+            signal,
+            onStdout: (chunk) => {
+                buffered += chunk
+                const lines = buffered.split('\n')
+                buffered = lines.pop() ?? ''
+                for (const line of lines) ingestLine(line)
+            },
         }
-
-        proc.stdout.on('data', (chunk) => {
-            buffered += chunk.toString()
-            const lines = buffered.split('\n')
-            buffered = lines.pop() ?? ''
-            for (const line of lines) ingestLine(line)
-        })
-        proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
-
-        proc.on('error', (err) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timeout)
-            reject(err)
-        })
-        proc.on('close', (code) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timeout)
-            if (buffered) ingestLine(buffered)
-            if (code !== 0) {
-                reject(new Error(`ffprobe packets exited with code ${code}: ${stderr.slice(0, 500)}`))
-                return
-            }
-            if (!Number.isFinite(lastDurationEnd) || lastDurationEnd <= 0) {
-                reject(new Error('ffprobe packets returned no usable duration'))
-                return
-            }
-            resolve(lastDurationEnd)
-        })
-    })
+    )
+    if (buffered) ingestLine(buffered)
+    if (code !== 0) {
+        throw new Error(`ffprobe packets exited with code ${code}: ${stderr.slice(0, 500)}`)
+    }
+    if (!Number.isFinite(lastDurationEnd) || lastDurationEnd <= 0) {
+        throw new Error('ffprobe packets returned no usable duration')
+    }
+    return lastDurationEnd
 }
 
 export async function probeMedia(url: string): Promise<ProbeResult> {
     const resolved = await resolveUrlHost(url)
-    return new Promise((resolve, reject) => {
-        const args = [
-            '-v', 'error',
-            '-print_format', 'json',
-            '-show_format',
-            '-show_streams',
-            '-select_streams', 'a:0',
-            resolved,
-        ]
-        const proc = spawn(FFPROBE_PATH, args)
-        let settled = false
-        const timeout = armProcessTimeout(
-            proc,
-            'ffprobe',
-            readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS),
-            (error) => {
-                if (settled) return
-                settled = true
-                reject(error)
-            }
-        )
+    const parsed = await runFfprobeJson(
+        resolved,
+        ['-show_format', '-show_streams', '-select_streams', 'a:0'],
+        readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS)
+    )
+    const stream = parsed.streams?.[0]
+    const format = parsed.format
+    if (!stream || !format) {
+        throw new Error('ffprobe returned no audio stream')
+    }
 
-        let stdout = ''
-        let stderr = ''
-        proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
-        proc.stderr.on('data', (chunk) => { stderr += chunk.toString() })
-
-        proc.on('error', (err) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timeout)
-            reject(err)
+    // MediaRecorder-produced WebM can omit container duration even though
+    // packet timestamps are valid. Fall back to the final audio packet end so
+    // waveform generation still works.
+    let durationSeconds = firstPositiveNumber(format.duration, stream.duration)
+    if (durationSeconds == null) {
+        durationSeconds = await probeDurationFromPackets(resolved).catch((packetErr) => {
+            throw new Error(
+                `ffprobe returned invalid duration: ${format.duration}; packet fallback failed: ${
+                    packetErr instanceof Error ? packetErr.message : String(packetErr)
+                }`
+            )
         })
-        proc.on('close', (code) => {
-            if (settled) return
-            settled = true
-            clearTimeout(timeout)
-            if (code !== 0) {
-                reject(new Error(`ffprobe exited with code ${code}: ${stderr.slice(0, 500)}`))
-                return
-            }
-            try {
-                const parsed = JSON.parse(stdout)
-                const stream = parsed.streams?.[0]
-                const format = parsed.format
-                if (!stream || !format) {
-                    reject(new Error('ffprobe returned no audio stream'))
-                    return
-                }
-                const headerDurationSeconds = firstPositiveNumber(format.duration, stream.duration)
-                const finish = (durationSeconds: number) => {
-                    // Computed against the target decode rate, not the source rate.
-                    const totalSamples = Math.floor(durationSeconds * PEAK_SAMPLE_RATE)
-                    resolve({
-                        totalSamples,
-                        durationSeconds,
-                        sampleRate: PEAK_SAMPLE_RATE,
-                    })
-                }
+    }
 
-                if (headerDurationSeconds != null) {
-                    finish(headerDurationSeconds)
-                    return
-                }
-
-                // MediaRecorder-produced WebM can omit container duration even
-                // though packet timestamps are valid. Fall back to the final
-                // audio packet end so waveform generation still works.
-                void probeDurationFromPackets(resolved)
-                    .then(finish)
-                    .catch((packetErr) => {
-                        reject(new Error(
-                            `ffprobe returned invalid duration: ${format.duration}; packet fallback failed: ${
-                                packetErr instanceof Error ? packetErr.message : String(packetErr)
-                            }`
-                        ))
-                    })
-            } catch (err) {
-                reject(new Error(`ffprobe output parse failed: ${err instanceof Error ? err.message : String(err)}`))
-            }
-        })
-    })
+    return {
+        // Computed against the target decode rate, not the source rate.
+        totalSamples: Math.floor(durationSeconds * PEAK_SAMPLE_RATE),
+        durationSeconds,
+        sampleRate: PEAK_SAMPLE_RATE,
+    }
 }
 
 export async function spawnPcmStream(url: string): Promise<ChildProcessWithoutNullStreams> {
@@ -265,4 +281,132 @@ export async function spawnPcmStream(url: string): Promise<ChildProcessWithoutNu
     proc.once('close', () => clearTimeout(timeout))
     proc.once('error', () => clearTimeout(timeout))
     return proc
+}
+
+// ---------------------------------------------------------------------------
+// Media preparation: one probe of the upload, and the copy/repack to .m4a.
+// ---------------------------------------------------------------------------
+
+/** A Matroska/WebM `DURATION` tag ("01:02:03.456000000"), in seconds. */
+function tagDurationSeconds(tags: unknown): number | null {
+    if (!tags || typeof tags !== 'object') return null
+    for (const [key, value] of Object.entries(tags as Record<string, unknown>)) {
+        if (!/^DURATION(-\w+)?$/i.test(key) || typeof value !== 'string') continue
+        const match = /^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/.exec(value.trim())
+        if (!match) continue
+        const seconds = Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])
+        if (seconds > 0) return seconds
+    }
+    return null
+}
+
+/** The bytes of a file's first `count` cover pictures, or null if ffprobe can't say. */
+async function probePictureBytes(resolved: string, count: number, timeoutMs: number): Promise<number | null> {
+    // Cover art is read with the header, so reading `count` picture packets
+    // stops long before the sound.
+    const parsed = await runFfprobeJson(
+        resolved,
+        ['-select_streams', 'v', '-show_entries', 'packet=size', '-read_intervals', `%+#${count}`],
+        timeoutMs
+    )
+    const sizes = (parsed.packets ?? []).map((p) => firstPositiveNumber(p.size))
+    if (sizes.length !== count || sizes.some((size) => size === null)) return null
+    return sizes.reduce<number>((sum, size) => sum + (size ?? 0), 0)
+}
+
+/**
+ * One ffprobe of every stream in the upload, for the preparation policy.
+ * Accepts a URL or a local path. It reads headers only: the sound's duration
+ * is its track's own (or its Matroska tag), and only a sound-only file falls
+ * back to the container's, since a video's may be its picture's. Without one
+ * it is null; scanAudioDuration measures it. The size is ffprobe's own count
+ * of the input's bytes; when it can't tell, 0, which the policy treats as
+ * "keep".
+ */
+export async function probeSourceMedia(input: string): Promise<SourceProbe> {
+    const resolved = await resolveUrlHost(input)
+    const timeoutMs = readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS)
+    const parsed = await runFfprobeJson(resolved, ['-show_format', '-show_streams'], timeoutMs)
+    const streams = parsed.streams ?? []
+    const audio = streams.filter((s) => s.codec_type === 'audio')
+    // Cover art in an m4a or mp3 is a "video" stream with attached_pic set; it is not video.
+    const isAttachedPicture = (s: Record<string, unknown>) =>
+        !!s.disposition && (s.disposition as Record<string, unknown>).attached_pic === 1
+    const hasVideo = streams.some((s) => s.codec_type === 'video' && !isAttachedPicture(s))
+    const pictureCount = streams.filter((s) => s.codec_type === 'video' && isAttachedPicture(s)).length
+    const first = audio[0]
+    const audioBitRate = first ? firstPositiveNumber(first.bit_rate) : null
+    const audioDurationSeconds = first
+        ? firstPositiveNumber(first.duration) ??
+          tagDurationSeconds(first.tags) ??
+          (hasVideo ? null : firstPositiveNumber(parsed.format?.duration))
+        : null
+    // Cover art only matters to a sound-only file without a track bitrate,
+    // whose bitrate is then its average less the pictures.
+    let attachedPictureBytes: number | null = pictureCount === 0 ? 0 : null
+    if (pictureCount > 0 && first && !hasVideo && audioBitRate === null) {
+        attachedPictureBytes = await probePictureBytes(resolved, pictureCount, timeoutMs).catch(() => null)
+    }
+    return {
+        audioStreamCount: audio.length,
+        hasVideo,
+        attachedPictureBytes,
+        audioCodec: typeof first?.codec_name === 'string' ? first.codec_name : null,
+        audioBitRate,
+        channels: first ? firstPositiveNumber(first.channels) : null,
+        sampleRate: first ? firstPositiveNumber(first.sample_rate) : null,
+        sizeBytes: firstPositiveNumber(parsed.format?.size) ?? 0,
+        audioDurationSeconds,
+    }
+}
+
+/**
+ * The first sound track's length, from the end of its last packet. Reads the
+ * whole input, so it runs only when the header has no duration (MediaRecorder
+ * WebM), and alongside the conversion that reads it anyway.
+ */
+export async function scanAudioDuration(
+    input: string,
+    opts: { timeoutMs: number; signal?: AbortSignal }
+): Promise<number> {
+    return probeDurationFromPackets(await resolveUrlHost(input), opts.timeoutMs, opts.signal)
+}
+
+export type PrepareMode =
+    | { kind: 'copy-audio' }
+    | { kind: 'transcode'; sampleRate: number }
+
+/**
+ * Write the upload's first sound track to `outPath` as .m4a: copied untouched,
+ * or repacked to mono AAC at TARGET_KBPS. `-fs` stops ffmpeg near `maxBytes`
+ * (it may overshoot slightly; the caller checks the real size). Killed after
+ * `timeoutMs`, rejecting with ProcessTimeoutError.
+ */
+export async function prepareAudioFile(
+    input: string,
+    outPath: string,
+    mode: PrepareMode,
+    opts: { timeoutMs: number; maxBytes: number }
+): Promise<void> {
+    const resolved = await resolveUrlHost(input)
+    const codecArgs = mode.kind === 'copy-audio'
+        ? ['-c:a', 'copy']
+        : ['-ac', '1', '-ar', String(mode.sampleRate), '-c:a', 'aac', '-b:a', `${TARGET_KBPS}k`]
+    const args = [
+        '-v', 'error',
+        '-nostdin',
+        '-y',
+        '-i', resolved,
+        '-map', '0:a:0',
+        '-vn', '-sn', '-dn',
+        ...codecArgs,
+        '-fs', String(opts.maxBytes),
+        '-movflags', '+faststart',
+        '-f', 'mp4',
+        outPath,
+    ]
+    const { code, stderr } = await runToCompletion('ffmpeg-prepare', FFMPEG_PATH, args, opts.timeoutMs)
+    if (code !== 0) {
+        throw new Error(`ffmpeg exited with code ${code}: ${stderr.slice(0, 500)}`)
+    }
 }

@@ -60,6 +60,9 @@ async function dispatchOne(row: { id: string; user_id: string; source_object_key
     }
     await inngest.send({
         name: 'waveform/requested',
+        // Same id as media preparation's dispatch (handle-media-prepare.ts), so
+        // Inngest drops whichever of the two arrives second.
+        id: `waveform:${row.id}:${row.source_object_key}`,
         data: {
             transcriptId: row.id,
             userId: row.user_id,

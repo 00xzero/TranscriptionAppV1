@@ -129,7 +129,7 @@ async function resumableUpload(
                 }
             },
             onError: (error: Error) => {
-                finish(() => reject(new Error(`Upload failed: ${error.message}`)))
+                finish(() => reject(new Error(resumableErrorMessage(error))))
             },
             onSuccess: () => {
                 finish(() => resolve())
@@ -143,6 +143,20 @@ async function resumableUpload(
         options.signal?.addEventListener('abort', onAbort)
         upload.start()
     })
+}
+
+/**
+ * Storage refuses a file over its size limit as the upload is created (TUS
+ * sends the length first), with a 413 the raw tus message buries. The bucket
+ * allows 500 MB, but a project's global upload limit can be lower, so say
+ * plainly that the file is too large.
+ */
+function resumableErrorMessage(error: Error): string {
+    const response = (error as { originalResponse?: { getStatus(): number } | null }).originalResponse
+    if (response?.getStatus() === 413) {
+        return 'Upload failed: this file is larger than storage accepts.'
+    }
+    return `Upload failed: ${error.message}`
 }
 
 async function getAccessToken(

@@ -15,14 +15,15 @@ import {
     getCallbackUrl,
     classifyError,
 } from "@/infra/deepgram";
+import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
 import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
+import { jobQueued } from "@/lib/inngest/job-checks";
+import { ownedSourceKey, readSourceRow } from "@/lib/media/source-row";
+import { readPositiveIntEnv } from "@/lib/env";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 // Configurable concurrency limit for Deepgram API calls
-const DEEPGRAM_CONCURRENCY = parseInt(
-    process.env.DEEPGRAM_CONCURRENCY_LIMIT || "5",
-    10
-);
+const DEEPGRAM_CONCURRENCY = readPositiveIntEnv("DEEPGRAM_CONCURRENCY_LIMIT", 5);
 
 export const handleTranscriptionRequested = inngest.createFunction(
     {
@@ -73,12 +74,31 @@ export const handleTranscriptionRequested = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { transcriptId, jobId, mediaUrl, keyTerms } = event.data;
+        const { transcriptId, jobId, userId, keyTerms } = event.data;
 
         console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 
-        // Step 1: Call Deepgram async API
+        // Step 1: Call Deepgram async API, for the file the row points at now
+        // (preparation may have replaced the upload), and only while this job
+        // is still the transcript's waiting job.
         const result = await step.run("call-deepgram-async", async () => {
+            const supabase = createAdminClient();
+            if (!(await jobQueued(supabase, { transcriptId, jobId }))) {
+                return { skipped: true as const };
+            }
+            // The same check media preparation makes: only this user's own
+            // file, inside the transcript's folder, goes to Deepgram.
+            const row = await readSourceRow(supabase, transcriptId);
+            const sourceKey = row && ownedSourceKey(row, { transcriptId, userId });
+            if (!sourceKey) {
+                throw new Error(`Transcript ${transcriptId} has no media of its own`);
+            }
+            const mediaUrlResult = await getMediaUrlForDeepgram(supabase, sourceKey);
+            if (mediaUrlResult.error || !mediaUrlResult.url) {
+                throw new Error(mediaUrlResult.error ?? "Failed to generate media URL");
+            }
+            const mediaUrl = mediaUrlResult.url;
+
             const callbackUrl = getCallbackUrl();
             console.log(`[inngest] Using callback URL: ${callbackUrl}`);
 
@@ -93,8 +113,13 @@ export const handleTranscriptionRequested = inngest.createFunction(
                 throw new Error(response.error);
             }
 
-            return { requestId: response.requestId };
+            return { skipped: false as const, requestId: response.requestId };
         });
+
+        if (result.skipped) {
+            console.log(`[inngest] Job ${jobId} is no longer queued; not calling Deepgram`);
+            return { status: "skipped", transcriptId, jobId };
+        }
 
         // Step 2: Transition job to processing (transcript status derived by trigger)
         await step.run("update-job-status", async () => {
