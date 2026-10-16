@@ -63,7 +63,14 @@ export async function POST(request: NextRequest) {
     console.log("[deepgram-webhook] Step 2: Parsing JSON payload");
     // Keep the body as text: it is stored exactly as Deepgram sent it.
     const rawBody = await request.text();
-    const rawPayload = JSON.parse(rawBody);
+    let rawPayload;
+    try {
+      rawPayload = JSON.parse(rawBody);
+    } catch {
+      // A retry cannot fix a body that is not JSON, and it names no job to fail.
+      console.warn("[deepgram-webhook] Body is not JSON");
+      return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
+    }
     const payloadParsed = DeepgramWebhookPayloadSchema.safeParse(rawPayload);
 
     if (!payloadParsed.success) {

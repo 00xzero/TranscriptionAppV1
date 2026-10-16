@@ -531,10 +531,25 @@ describe('Deepgram webhook route', () => {
     expect(jobUpdateMock).not.toHaveBeenCalled()
   })
 
-  test('returns 500 for a body that is not JSON', async () => {
+  test('returns 400 for a body that is not JSON, so Deepgram does not retry it', async () => {
     const request = {
       headers: new Headers({ 'dg-token': 'test-token' }),
       text: async () => '{not json',
+    } as any
+
+    const res = await POST(request)
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Invalid payload structure')
+    expect(mockUpload).not.toHaveBeenCalled()
+    expect(receiptInsertMock).not.toHaveBeenCalled()
+    const { inngest } = await import('@/infra/inngest/client')
+    expect(inngest.send).not.toHaveBeenCalled()
+  })
+
+  test('returns 500 when the body cannot be read, so Deepgram retries', async () => {
+    const request = {
+      headers: new Headers({ 'dg-token': 'test-token' }),
+      text: async () => { throw new Error('connection reset') },
     } as any
 
     const res = await POST(request)
