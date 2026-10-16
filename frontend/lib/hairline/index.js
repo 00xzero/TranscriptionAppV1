@@ -12,7 +12,7 @@ import typewriter from "./figures/typewriter.js";
 const FIGURES = { drawer, rolodex, typewriter };
 
 /**
- * Two points on each figure's empty-state area, as fractions across and down:
+ * Two positions for each figure's follow(u, v), as fractions across and down:
  * what the action previews, and where the entrance reaches before settling.
  */
 const GUIDES = {

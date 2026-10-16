@@ -27,7 +27,7 @@ This folder holds only the preview:
 node .docs/empty-state-illustrations/build-preview.mjs
 ```
 
-Then open `.docs/empty-state-illustrations/preview.html` in a browser. `preview.html` is generated, so edit the template or the figures instead.
+Then open `.docs/empty-state-illustrations/preview.html` in a browser. `preview.html` is generated and git-ignored, so edit the template or the figures instead.
 
 ## Colour
 

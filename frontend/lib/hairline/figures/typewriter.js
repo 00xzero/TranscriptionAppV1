@@ -162,9 +162,9 @@ function mount({ stage, svg, read }, value) {
   }
 
   /**
-   * An area around the figure drives it on both axes, as if typing: across
-   * moves the carriage and picks the key in that column, down picks the row,
-   * and down nudges the carriage a little too, so no direction is dead.
+   * A position (u, v), each 0 to 1, for the button preview and the entrance,
+   * as if typing: across moves the carriage and picks the key in that column,
+   * down picks the row.
    */
   const ROW_START = ROWS.map((_, r) => ROWS.slice(0, r).reduce((n, row) => n + row.n, 0));
   function follow(u, v) {

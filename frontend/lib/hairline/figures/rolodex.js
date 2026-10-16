@@ -228,7 +228,7 @@ function mount({ stage, svg, read }, value) {
 
 const figure = {
   name: "rolodex",
-  means: "A rotary card file of blank cards: the pointer nudges the wheel, and each card that falls open has no name on it.",
+  means: "A rotary card file of blank cards: the pointer runs through them like a finger, and each card that falls open has no name on it.",
   rules: [1, 4, 5, 6],
   range: [12, 16, 20],
   tour: [[150, 160], [250, 160], null],

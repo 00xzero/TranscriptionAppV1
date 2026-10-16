@@ -160,10 +160,9 @@ function mount({ stage, svg, read }, value) {
   bag.add(pointer(stage, { move: (p) => setActive(hit(p)), leave: () => setActive(-1) }));
 
   /**
-   * An area around the figure drives it on both axes. The cards stand along
-   * the down-left diagonal, front card lowest, so moving left or down walks
-   * towards the front and right or up towards the back. Down weighs more
-   * than across, so a sweep along a card's own width still walks the cards.
+   * A position (u, v), each 0 to 1, for the button preview and the entrance.
+   * The cards stand along the down-left diagonal, front card lowest, so left
+   * or down picks towards the front and right or up towards the back.
    */
   function follow(u, v) {
     const t = clamp(0.5 + 1.0 * (0.5 - u) + 1.4 * (v - 0.5), 0, 1);
