@@ -129,7 +129,12 @@ export function EmptyState({
           className="gap-1.5"
           onClick={action.onClick}
           onPointerEnter={preview}
-          onPointerLeave={() => { previewingRef.current = false }}
+          onPointerLeave={(event) => {
+            // A focused button keeps its preview until blur releases it; otherwise
+            // leaving the button is leaving the drawing's answer, so it rests.
+            if (event.currentTarget === document.activeElement) previewingRef.current = false
+            else release()
+          }}
           onFocus={preview}
           onBlur={release}
         >
