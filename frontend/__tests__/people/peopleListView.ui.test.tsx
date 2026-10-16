@@ -250,8 +250,8 @@ describe('adding a person', () => {
   })
   test('an empty directory explains both ways to add someone', async () => {
     await renderPage({ people: [], organisations: [] })
-    expect(screen.getByText(/In a transcript, click a speaker and identify them as a person/)).toBeInTheDocument()
-    expect(screen.getByText(/Or create a person here/)).toBeInTheDocument()
+    expect(screen.getByText(/Name a speaker in any transcript, or add someone here and match their voice later/))
+      .toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New person' })).toBeInTheDocument()
   })
 

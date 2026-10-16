@@ -1,30 +1,39 @@
-import { FolderOpen } from 'lucide-react'
+import { EmptyState } from '@/components/EmptyState'
 
 type ProjectsEmptyStateVariant = 'no-projects' | 'empty-project' | 'empty-unfiled'
 
-const copy: Record<ProjectsEmptyStateVariant, { title: string; description: string }> = {
-  'no-projects': {
-    title: 'No projects yet',
-    description: 'Projects and unfiled transcripts will appear here.',
-  },
-  'empty-project': {
-    title: 'This project is empty',
-    description: 'Nested projects and transcripts will appear here.',
-  },
-  'empty-unfiled': {
-    title: 'No unfiled transcripts',
-    description: 'Transcripts without a project will appear here.',
-  },
-}
-
-export function ProjectsEmptyState({ variant }: { variant: ProjectsEmptyStateVariant }) {
-  const content = copy[variant]
-
+export function ProjectsEmptyState({ variant, onAction }: { variant: ProjectsEmptyStateVariant; onAction?: () => void }) {
+  if (variant === 'empty-unfiled') {
+    // Nothing unfiled is good news: everything has a project.
+    return (
+      <EmptyState
+        size="compact"
+        figure="drawer"
+        eyebrow="Unfiled"
+        title="Everything’s filed"
+        description="Transcripts that aren’t in a project yet will wait here."
+        titleAs="h3"
+      />
+    )
+  }
+  if (variant === 'empty-project') {
+    return (
+      <EmptyState
+        figure="drawer"
+        eyebrow="This project"
+        title="Room for transcripts"
+        description="Add transcripts to this project, or give it a sub-project as it grows."
+        action={onAction && { label: 'Add transcripts', onClick: onAction, creates: true }}
+      />
+    )
+  }
   return (
-    <div className="flex min-h-44 flex-col items-center justify-center px-6 py-10 text-center">
-      <FolderOpen className="h-8 w-8 text-muted" aria-hidden="true" />
-      <h2 className="mt-3 font-serif text-xl text-foreground">{content.title}</h2>
-      <p className="mt-1 text-sm text-muted">{content.description}</p>
-    </div>
+    <EmptyState
+      figure="drawer"
+      eyebrow="Projects"
+      title="Room for a project"
+      description="Group related conversations into a project. Projects can hold sub-projects as they grow."
+      action={onAction && { label: 'New project', onClick: onAction, creates: true }}
+    />
   )
 }

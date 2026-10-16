@@ -220,7 +220,7 @@ describe('ProjectPage', () => {
     render(<ProjectPage />)
 
     expect(screen.getByText('This project is being deleted')).toBeInTheDocument()
-    expect(screen.queryByText('This project is empty')).not.toBeInTheDocument()
+    expect(screen.queryByText('Room for transcripts')).not.toBeInTheDocument()
   })
 
   test('renders the empty-project state when there are no children or direct transcripts', () => {
@@ -228,7 +228,7 @@ describe('ProjectPage', () => {
 
     render(<ProjectPage />)
 
-    expect(screen.getByText('This project is empty')).toBeInTheDocument()
+    expect(screen.getByText('Room for transcripts')).toBeInTheDocument()
   })
 
   test('creates a nested project and exposes add, project, and transcript actions', async () => {

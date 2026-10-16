@@ -158,6 +158,18 @@ body {
   --scrollbar-thumb-hover: #888888;
 }
 
+/* Empty-state line drawings (lib/hairline, shown by EmptyState). The kernel
+   reads these five roles. The plate is the page background the drawing stands
+   on; the lines are the theme's text mixed into it, so both themes follow. */
+[data-hairline] {
+  --hairline-plate: var(--bg);
+  --hairline-hi: var(--text);
+  --hairline-edge: color-mix(in oklab, var(--text) 55%, var(--hairline-plate));
+  --hairline-mid: color-mix(in oklab, var(--text) 36%, var(--hairline-plate));
+  --hairline-lo: color-mix(in oklab, var(--text) 17%, var(--hairline-plate));
+  --hairline-stroke: 1.2;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);

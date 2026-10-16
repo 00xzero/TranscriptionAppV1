@@ -69,7 +69,7 @@ describe('ProjectsPage', () => {
     render(<ProjectsPage />)
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Loading projects…'))
-    expect(screen.queryByText('No projects yet')).not.toBeInTheDocument()
+    expect(screen.queryByText('Room for a project')).not.toBeInTheDocument()
   })
 
   test('renders the combined empty state only when projects and Unfiled are empty', () => {
@@ -78,7 +78,7 @@ describe('ProjectsPage', () => {
     render(<ProjectsPage />)
 
     expect(screen.getByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument()
-    expect(screen.getByText('No projects yet')).toBeInTheDocument()
+    expect(screen.getByText('Room for a project')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Unfiled' })).not.toBeInTheDocument()
   })
 
@@ -87,7 +87,7 @@ describe('ProjectsPage', () => {
 
     render(<ProjectsPage />)
 
-    expect(screen.getByText('No unfiled transcripts')).toBeInTheDocument()
+    expect(screen.getByText('Everything’s filed')).toBeInTheDocument()
   })
 
   test('keeps a page heading when only Unfiled transcripts exist', () => {

@@ -59,7 +59,9 @@ export default function ProjectsPage() {
       <section aria-labelledby="projects-heading">
         <div className="mb-3 flex items-center justify-between border-b border-border pb-2">
           <h1 id="projects-heading" className="font-serif text-2xl text-foreground">Projects</h1>
-          <Button size="sm" variant="secondary" onClick={() => projectActions.openCreate(null)}>New Project</Button>
+          {!isEmpty && (
+            <Button size="sm" variant="secondary" onClick={() => projectActions.openCreate(null)}>New Project</Button>
+          )}
         </div>
         {hasProjects && (
           <ProjectList>
@@ -80,11 +82,7 @@ export default function ProjectsPage() {
             ))}
           </ProjectList>
         )}
-        {isEmpty && (
-          <ProjectList>
-            <ProjectsEmptyState variant="no-projects" />
-          </ProjectList>
-        )}
+        {isEmpty && <ProjectsEmptyState variant="no-projects" onAction={() => projectActions.openCreate(null)} />}
       </section>
 
       {!isEmpty && (
@@ -98,11 +96,11 @@ export default function ProjectsPage() {
             title="Unfiled"
             meta={countLabel(unfiled.length, 'transcript', 'transcripts')}
           />
-          <ProjectList>
-            {unfiled.length === 0 ? (
-              <ProjectsEmptyState variant="empty-unfiled" />
-            ) : (
-              unfiled.map((transcript) => {
+          {unfiled.length === 0 ? (
+            <ProjectsEmptyState variant="empty-unfiled" />
+          ) : (
+            <ProjectList>
+              {unfiled.map((transcript) => {
                 const target = transcriptActionTarget(transcript)
                 return (
                   <TranscriptRow
@@ -117,9 +115,9 @@ export default function ProjectsPage() {
                     )}
                   />
                 )
-              })
-            )}
-          </ProjectList>
+              })}
+            </ProjectList>
+          )}
         </section>
       )}
       <ProjectActionDialogs actions={projectActions} />

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import type { Project } from '@/contracts/db'
+import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { cn } from '@/lib/utils'
@@ -130,7 +131,8 @@ export function RecentProjectsCarousel({
   }
 
   const slideCount = (loading ? 3 : cards.length) + 1
-  const showControls = !loading && !boundaries.fits
+  const isEmpty = !loading && cards.length === 0
+  const showControls = !loading && !isEmpty && !boundaries.fits
 
   return (
     <section aria-labelledby="recent-projects-heading">
@@ -182,59 +184,75 @@ export function RecentProjectsCarousel({
         <LoadingStatus message="Loading recent projects…" className="sr-only" />
       )}
 
-      <div
-        ref={trackRef}
-        role="region"
-        aria-roledescription="carousel"
-        aria-label="Recent projects"
-        className={cn(
-          'flex items-stretch gap-6 overflow-x-auto overscroll-x-contain',
-          'scroll-smooth motion-reduce:scroll-auto snap-x snap-mandatory',
-          // Without this the browser anchors the scroll offset to whichever card sat
-          // under it, so gaining a slide jumps the track to the end.
-          '[overflow-anchor:none]',
-          // The cards lift on hover and carry a tab above their top edge, so the track
-          // needs slack the negative margins give straight back to the layout.
-          '-mx-1 -my-4 px-1 py-4 scroll-px-1',
-          '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
-          slideWidthClasses(slideCount)
-        )}
-      >
-        {loading
-          ? [0, 1, 2].map((item) => (
-              <div key={item} className={SLIDE}>
-                <RecentProjectCardSkeleton />
-              </div>
-            ))
-          : cards.map((card, index) => (
-              <div
-                key={card.project.id}
-                role="group"
-                aria-roledescription="slide"
-                aria-label={`${index + 1} of ${cards.length}`}
-                className={SLIDE}
-              >
-                <RecentProjectCard {...card} actions={renderCardActions?.(card.project)} />
-              </div>
-            ))}
-
-        <button
-          type="button"
-          onClick={onCreate}
-          aria-label="New project folder"
+      {isEmpty ? (
+        // As tall as the card row it replaces, so the sections below hold still
+        // when loading ends with no projects.
+        <div className="flex min-h-52 items-center">
+          <EmptyState
+            size="compact"
+            figure="drawer"
+            eyebrow="Projects"
+            title="Room for a project"
+            description="Group related conversations, and give each project sub-projects as it grows."
+            action={{ label: 'New project', onClick: onCreate, creates: true }}
+            titleAs="h4"
+          />
+        </div>
+      ) : (
+        <div
+          ref={trackRef}
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Recent projects"
           className={cn(
-            SLIDE,
-            // Tracks RecentProjectCard's min-height; if one changes so must
-            // the other, or the last slide stands shorter than the rest.
-            'group flex min-h-52 flex-col items-center justify-center gap-2 rounded-lg',
-            'border-2 border-dashed border-border text-muted transition-all',
-            'hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue'
+            'flex items-stretch gap-6 overflow-x-auto overscroll-x-contain',
+            'scroll-smooth motion-reduce:scroll-auto snap-x snap-mandatory',
+            // Without this the browser anchors the scroll offset to whichever card sat
+            // under it, so gaining a slide jumps the track to the end.
+            '[overflow-anchor:none]',
+            // The cards lift on hover and carry a tab above their top edge, so the track
+            // needs slack the negative margins give straight back to the layout.
+            '-mx-1 -my-4 px-1 py-4 scroll-px-1',
+            '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            slideWidthClasses(slideCount)
           )}
         >
-          <Plus className="h-6 w-6" aria-hidden="true" />
-          <span className="font-serif text-sm italic">New Project Folder</span>
-        </button>
-      </div>
+          {loading
+            ? [0, 1, 2].map((item) => (
+                <div key={item} className={SLIDE}>
+                  <RecentProjectCardSkeleton />
+                </div>
+              ))
+            : cards.map((card, index) => (
+                <div
+                  key={card.project.id}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`${index + 1} of ${cards.length}`}
+                  className={SLIDE}
+                >
+                  <RecentProjectCard {...card} actions={renderCardActions?.(card.project)} />
+                </div>
+              ))}
+
+          <button
+            type="button"
+            onClick={onCreate}
+            aria-label="New project folder"
+            className={cn(
+              SLIDE,
+              // Tracks RecentProjectCard's min-height; if one changes so must
+              // the other, or the last slide stands shorter than the rest.
+              'group flex min-h-52 flex-col items-center justify-center gap-2 rounded-lg',
+              'border-2 border-dashed border-border text-muted transition-all',
+              'hover:border-trust-blue/50 hover:bg-trust-blue/5 hover:text-trust-blue'
+            )}
+          >
+            <Plus className="h-6 w-6" aria-hidden="true" />
+            <span className="font-serif text-sm italic">New Project Folder</span>
+          </button>
+        </div>
+      )}
     </section>
   )
 }

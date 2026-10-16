@@ -6,6 +6,7 @@ import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { fetchJobError } from '@/lib/supabase/queries'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { useModal } from '@/lib/ModalContext'
@@ -225,12 +226,14 @@ function TranscriptsPageContent() {
   return (
     <>
       <div className="space-y-4 pt-[80px] px-6 md:px-10">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Transcripts</h1>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
-          <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
-        </div>
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h1 className="font-serif text-2xl text-foreground">Transcripts</h1>
+        {transcripts.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+            <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
+          </div>
+        )}
       </div>
       {actionError && (
         <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -273,8 +276,17 @@ function TranscriptsPageContent() {
           <span aria-hidden="true">Loading transcripts…</span>
         </LoadingStatus>
       )}
-      {!isLoading && transcripts.length === 0 && <div className="text-muted">No transcripts yet.</div>}
-      <ul className="space-y-2">
+      {!isLoading && transcripts.length === 0 && (
+        <EmptyState
+          figure="typewriter"
+          eyebrow="Transcripts"
+          title="A page waiting for a voice"
+          description="Record a conversation or upload a file. When it’s transcribed, it lands here, ready to edit."
+          action={{ label: 'Capture', onClick: () => openCaptureModal() }}
+        />
+      )}
+      {transcripts.length > 0 && (
+      <ul className="divide-y divide-border rounded-sm border border-border bg-panel">
         {transcripts.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const errorLoadError = transcriptErrorLoadErrors[p.id]
@@ -282,7 +294,7 @@ function TranscriptsPageContent() {
           const actionTarget = transcriptActionTarget(p)
 
           return (
-            <li key={p.id} className="bg-surface border border-border rounded-sm p-3">
+            <li key={p.id} className="px-4 py-3">
               <div className="flex justify-between items-center">
                 <div>
                   <div className="font-medium">{p.title || p.id}</div>
@@ -351,6 +363,7 @@ function TranscriptsPageContent() {
           )
         })}
       </ul>
+      )}
 
       </div>
       <TranscriptActionDialogs actions={transcriptActions} />

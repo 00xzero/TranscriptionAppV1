@@ -4,6 +4,7 @@ import userEventLib from '@testing-library/user-event'
 import LibraryView from '../components/LibraryView'
 import type { Project, Transcript } from '../contracts/db'
 import { TooltipProvider } from '../components/ui/tooltip'
+import { ModalProvider } from '../lib/ModalContext'
 import { makeProject, projectProviderData, transcriptProviderData } from './projects/fixtures'
 import { setTestAuth, testUser } from '@/__tests__/helpers/auth'
 
@@ -84,9 +85,11 @@ jest.mock('next/link', () => {
 describe('LibraryView', () => {
   const renderLibraryView = () =>
     render(
-      <TooltipProvider delayDuration={0}>
-        <LibraryView />
-      </TooltipProvider>
+      <ModalProvider>
+        <TooltipProvider delayDuration={0}>
+          <LibraryView />
+        </TooltipProvider>
+      </ModalProvider>
     )
 
   beforeEach(() => {
@@ -115,9 +118,11 @@ describe('LibraryView', () => {
       user: testUser('user-b', { email: 'grace@example.com' }),
     })
     rerender(
-      <TooltipProvider delayDuration={0}>
-        <LibraryView />
-      </TooltipProvider>
+      <ModalProvider>
+        <TooltipProvider delayDuration={0}>
+          <LibraryView />
+        </TooltipProvider>
+      </ModalProvider>
     )
     expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, grace\.$/)
     expect(screen.getByRole('heading', { level: 2, name: /^Good / })).not.toHaveTextContent('Ada')
@@ -153,7 +158,7 @@ describe('LibraryView', () => {
     expect((await screen.findByText('Loading recent projects…')).closest('[role="status"]')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
     expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
-    expect(screen.queryByText(/No transcripts yet/)).not.toBeInTheDocument()
+    expect(screen.queryByText('A page waiting for a voice')).not.toBeInTheDocument()
   })
 
   test('opens dropdown on trigger click and closes on Escape', async () => {
@@ -388,8 +393,8 @@ describe('LibraryView', () => {
     expect(screen.getByRole('group', { name: '2 of 2' })).toBeInTheDocument()
   })
 
+  // With no projects the carousel gives way to the empty state, tested below.
   test.each([
-    ['no', 0],
     ['a few', 3],
     ['more than the carousel shows', 7],
   ])('always ends the carousel with the creation tile (%s projects)', (_label, count) => {
@@ -498,7 +503,7 @@ describe('LibraryView', () => {
     expect(mockFetchBranchCount).toHaveBeenCalledWith('p2')
   })
 
-  test('shows the invitation when every project is marked for deletion', () => {
+  test('shows the empty projects state when every project is marked for deletion', () => {
     const projects = [
       makeProject({
         id: 'deleting',
@@ -510,7 +515,9 @@ describe('LibraryView', () => {
 
     renderLibraryView()
 
-    expect(screen.getByRole('button', { name: 'New project folder' })).toBeInTheDocument()
+    expect(screen.getByText('Room for a project')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New project' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New project folder' })).not.toBeInTheDocument()
     expect(screen.queryByText('Deleting project')).not.toBeInTheDocument()
   })
 })

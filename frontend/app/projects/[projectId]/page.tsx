@@ -178,11 +178,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         )}
       />
 
-      {isEmpty && (
-        <ProjectList>
-          <ProjectsEmptyState variant="empty-project" />
-        </ProjectList>
-      )}
+      {isEmpty && <ProjectsEmptyState variant="empty-project" onAction={() => setAddOpen(true)} />}
       {children.length > 0 && (
         <section aria-labelledby="project-subprojects-heading">
           <ListSectionHeading
