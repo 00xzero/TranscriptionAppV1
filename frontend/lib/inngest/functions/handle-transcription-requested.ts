@@ -59,15 +59,14 @@ export const handleTranscriptionRequested = inngest.createFunction(
             } catch (sendError) {
                 console.error("[inngest] Failed to emit transcription/failed:", sendError);
                 // Fallback: write error directly so the UI can surface it
-                const payload = {
-                    error: classified.message,
-                    error_type: classified.type,
-                    raw_error: errorMessage.slice(0, 500),
-                };
                 await writeTranscriptionFailureFallback({
                     transcriptId,
                     jobId,
-                    payload,
+                    error: {
+                        error_message: classified.message,
+                        error_type: classified.type,
+                        error_detail: errorMessage.slice(0, 500),
+                    },
                     context: "onFailure",
                 });
             }

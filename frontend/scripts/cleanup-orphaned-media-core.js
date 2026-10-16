@@ -5,6 +5,7 @@ const DEFAULT_MIN_AGE_HOURS = 24
 const TARGETS = [
   { bucket: 'media' },
   { bucket: 'waveforms' },
+  { bucket: 'transcription-results' },
 ]
 
 function parseCleanupOptions(args) {
@@ -29,17 +30,11 @@ function parseCleanupOptions(args) {
   }
 }
 
-async function listReferencedKeys(supabase) {
-  const keys = {
-    media: new Set(),
-    waveforms: new Set(),
-  }
+async function forEachRow(supabase, table, columns, visit) {
   let lastId = null
 
   while (true) {
-    let query = supabase
-      .from('transcripts')
-      .select('id, source_object_key, waveform_object_key')
+    let query = supabase.from(table).select(columns)
     if (lastId) query = query.gt('id', lastId)
     const { data, error } = await query
       .order('id', { ascending: true })
@@ -48,14 +43,27 @@ async function listReferencedKeys(supabase) {
     if (error) throw error
     if (!data || data.length === 0) break
 
-    for (const row of data) {
-      if (row.source_object_key) keys.media.add(row.source_object_key)
-      if (row.waveform_object_key) keys.waveforms.add(row.waveform_object_key)
-    }
+    for (const row of data) visit(row)
 
     if (data.length < PAGE_SIZE) break
     lastId = data[data.length - 1].id
   }
+}
+
+async function listReferencedKeys(supabase) {
+  const keys = {
+    media: new Set(),
+    waveforms: new Set(),
+    'transcription-results': new Set(),
+  }
+
+  await forEachRow(supabase, 'transcripts', 'id, source_object_key, waveform_object_key', (row) => {
+    if (row.source_object_key) keys.media.add(row.source_object_key)
+    if (row.waveform_object_key) keys.waveforms.add(row.waveform_object_key)
+  })
+  await forEachRow(supabase, 'jobs', 'id, result_object_key', (row) => {
+    if (row.result_object_key) keys['transcription-results'].add(row.result_object_key)
+  })
 
   return keys
 }

@@ -8,7 +8,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { JobStatus } from "@/core/transcription/machine";
-import { TransitionJobInputSchema } from "@/contracts/state-machine";
+import { TransitionJobInputSchema, type ExtraJobFields } from "@/contracts/state-machine";
 
 export interface TransitionJobResult {
   outcome: "applied" | "noop" | "conflict" | "invalid";
@@ -20,7 +20,7 @@ export async function transitionJob(opts: {
   supabase: SupabaseClient;
   jobId: string;
   to: JobStatus;
-  extraJobFields?: Record<string, unknown>;
+  extraJobFields?: ExtraJobFields;
   metadata?: Record<string, unknown>;
   context?: string;
 }): Promise<TransitionJobResult> {
@@ -80,7 +80,7 @@ export async function transitionJob(opts: {
 export async function forceJobError(opts: {
   supabase: SupabaseClient;
   jobId: string;
-  extraJobFields?: Record<string, unknown>;
+  extraJobFields?: ExtraJobFields;
   context?: string;
 }): Promise<void> {
   try {
@@ -93,8 +93,11 @@ export async function forceJobError(opts: {
       updated_at: now,
     };
 
-    if (extraJobFields?.payload !== undefined) {
-      updateFields.payload = extraJobFields.payload;
+    for (const field of ["error_message", "error_type", "error_detail"] as const) {
+      const value = extraJobFields?.[field];
+      if (value !== undefined) {
+        updateFields[field] = field === "error_detail" ? value.slice(0, 500) : value;
+      }
     }
 
     const { error } = await supabase

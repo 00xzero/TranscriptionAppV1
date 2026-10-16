@@ -23,6 +23,7 @@ type BeginDeleteRow = {
   transcript_ids: string[] | null
   media_keys: Array<string | null> | null
   waveform_keys: Array<string | null> | null
+  result_keys: Array<string | null> | null
 }
 
 type FinishDeleteRow = {
@@ -84,6 +85,7 @@ export async function POST(
   const transcriptIds = inventory.transcript_ids ?? []
   const mediaKeys = nonNullKeys(inventory.media_keys)
   const waveformKeys = nonNullKeys(inventory.waveform_keys)
+  const resultKeys = nonNullKeys(inventory.result_keys)
   let verificationSupabase: ReturnType<typeof createAdminClient>
   try {
     verificationSupabase = createAdminClient()
@@ -105,7 +107,7 @@ export async function POST(
     supabase,
     verificationSupabase,
     authData.user.id,
-    { media: mediaKeys, waveforms: waveformKeys },
+    { media: mediaKeys, waveforms: waveformKeys, results: resultKeys },
     DELETE_BATCH_SIZE
   )
 

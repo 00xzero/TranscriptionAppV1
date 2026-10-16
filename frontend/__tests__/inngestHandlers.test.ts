@@ -7,6 +7,10 @@ jest.mock('@/core/transcription/transition', () => ({
   forceJobError: jest.fn(async () => undefined),
 }))
 
+jest.mock('@/infra/supabase/transcription-results.server', () => ({
+  downloadTranscriptionResult: jest.fn(async () => JSON.stringify(mockDb.storedResponse)),
+}))
+
 type SelectRequest = {
   table: string
   columns: string
@@ -21,7 +25,8 @@ type RpcCall = {
 }
 
 const mockDb = {
-  jobPayload: null as Record<string, unknown> | null,
+  // What the transcription-results bucket holds for the job (null: no file linked).
+  storedResponse: null as unknown,
   rpcCalls: [] as RpcCall[],
 }
 
@@ -33,8 +38,11 @@ const transcriptUpdateEqMock = jest.fn(async () => ({ error: null }))
 const transcriptUpdateMock = jest.fn(() => ({ eq: transcriptUpdateEqMock }))
 const jobMaybeSingleMock = jest.fn(async (_request: SelectRequest) => ({ data: null, error: null }))
 const jobSingleMock = jest.fn(async (request: SelectRequest) => {
-  if (request.columns === 'payload') {
-    return { data: { payload: mockDb.jobPayload }, error: null }
+  if (request.columns === 'result_object_key') {
+    return {
+      data: { result_object_key: mockDb.storedResponse === null ? null : `user-1/${request.filters.id}.json.gz` },
+      error: null,
+    }
   }
 
   return { data: null, error: null }
@@ -114,9 +122,11 @@ import {
 } from '@/lib/inngest/functions'
 import { forceJobError, transitionJob } from '@/core/transcription/transition'
 import { writeTranscriptionFailureFallback } from '@/lib/inngest/functions/_shared'
+import { downloadTranscriptionResult } from '@/infra/supabase/transcription-results.server'
 
 const mockTransitionJob = transitionJob as jest.MockedFunction<typeof transitionJob>
 const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobError>
+const mockDownload = downloadTranscriptionResult as jest.MockedFunction<typeof downloadTranscriptionResult>
 
 const transcriptId = '11111111-1111-4111-8111-111111111111'
 const jobId = '22222222-2222-4222-8222-222222222222'
@@ -154,7 +164,7 @@ const webhookEvent = {
 } as const
 
 function resetMockDb() {
-  mockDb.jobPayload = null
+  mockDb.storedResponse = null
   mockDb.rpcCalls = []
   rpcResponseQueue.length = 0
 }
@@ -179,8 +189,11 @@ describe('Inngest handlers', () => {
     resetMockDb()
     jobMaybeSingleMock.mockResolvedValue({ data: null, error: null })
     jobSingleMock.mockImplementation(async (request: SelectRequest) => {
-      if (request.columns === 'payload') {
-        return { data: { payload: mockDb.jobPayload }, error: null }
+      if (request.columns === 'result_object_key') {
+        return {
+          data: { result_object_key: mockDb.storedResponse === null ? null : `user-1/${request.filters.id}.json.gz` },
+          error: null,
+        }
       }
 
       return { data: null, error: null }
@@ -279,49 +292,47 @@ describe('Inngest handlers', () => {
   })
 
   test('handleTranscriptionWebhook stores canonical segments with paragraph metadata', async () => {
-    mockDb.jobPayload = {
-      deepgram: {
-        results: {
-          channels: [{
-            alternatives: [{
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello there. Different voice. New paragraph.',
+            words: [
+              { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0, speaker_confidence: 0.91 },
+              { word: 'there', punctuated_word: 'there.', start: 0.22, end: 0.45, confidence: 0.98, speaker: 0 },
+              { word: 'Different', punctuated_word: 'Different', start: 0.5, end: 0.72, confidence: 0.97, speaker: 1, speaker_confidence: 0.89 },
+              { word: 'voice', punctuated_word: 'voice.', start: 0.74, end: 0.95, confidence: 0.97 },
+              { word: 'New', punctuated_word: 'New', start: 1.3, end: 1.5, confidence: 0.99, speaker: 1 },
+              { word: 'paragraph', punctuated_word: 'paragraph.', start: 1.52, end: 1.8, confidence: 0.99, speaker: 1 },
+            ],
+            paragraphs: {
               transcript: 'Hello there. Different voice. New paragraph.',
-              words: [
-                { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0, speaker_confidence: 0.91 },
-                { word: 'there', punctuated_word: 'there.', start: 0.22, end: 0.45, confidence: 0.98, speaker: 0 },
-                { word: 'Different', punctuated_word: 'Different', start: 0.5, end: 0.72, confidence: 0.97, speaker: 1, speaker_confidence: 0.89 },
-                { word: 'voice', punctuated_word: 'voice.', start: 0.74, end: 0.95, confidence: 0.97 },
-                { word: 'New', punctuated_word: 'New', start: 1.3, end: 1.5, confidence: 0.99, speaker: 1 },
-                { word: 'paragraph', punctuated_word: 'paragraph.', start: 1.52, end: 1.8, confidence: 0.99, speaker: 1 },
+              paragraphs: [
+                {
+                  speaker: 0,
+                  start: 0,
+                  end: 0.42,
+                  num_words: 2,
+                  sentences: [{ text: 'Hello there.', start: 0, end: 0.42 }],
+                },
+                {
+                  speaker: 1,
+                  start: 0.5,
+                  end: 0.98,
+                  num_words: 2,
+                  sentences: [{ text: 'Different voice.', start: 0.5, end: 0.98 }],
+                },
+                {
+                  speaker: 1,
+                  start: 1.28,
+                  end: 1.85,
+                  num_words: 2,
+                  sentences: [{ text: 'New paragraph.', start: 1.28, end: 1.85 }],
+                },
               ],
-              paragraphs: {
-                transcript: 'Hello there. Different voice. New paragraph.',
-                paragraphs: [
-                  {
-                    speaker: 0,
-                    start: 0,
-                    end: 0.42,
-                    num_words: 2,
-                    sentences: [{ text: 'Hello there.', start: 0, end: 0.42 }],
-                  },
-                  {
-                    speaker: 1,
-                    start: 0.5,
-                    end: 0.98,
-                    num_words: 2,
-                    sentences: [{ text: 'Different voice.', start: 0.5, end: 0.98 }],
-                  },
-                  {
-                    speaker: 1,
-                    start: 1.28,
-                    end: 1.85,
-                    num_words: 2,
-                    sentences: [{ text: 'New paragraph.', start: 1.28, end: 1.85 }],
-                  },
-                ],
-              },
-            }],
+            },
           }],
-        },
+        }],
       },
     }
 
@@ -397,16 +408,14 @@ describe('Inngest handlers', () => {
   })
 
   test('handleTranscriptionWebhook preserves the no-words fallback', async () => {
-    mockDb.jobPayload = {
-      deepgram: {
-        results: {
-          channels: [{
-            alternatives: [{
-              transcript: 'No spoken words detected.',
-              words: [],
-            }],
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'No spoken words detected.',
+            words: [],
           }],
-        },
+        }],
       },
     }
 
@@ -460,21 +469,19 @@ describe('Inngest handlers', () => {
   })
 
   test('handleTranscriptionWebhook builds segments without paragraph metadata', async () => {
-    mockDb.jobPayload = {
-      deepgram: {
-        results: {
-          channels: [{
-            alternatives: [{
-              transcript: 'Hello again. New speaker.',
-              words: [
-                { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
-                { word: 'again', punctuated_word: 'again.', start: 0.22, end: 0.45, confidence: 0.98 },
-                { word: 'New', punctuated_word: 'New', start: 0.5, end: 0.7, confidence: 0.97, speaker: 1 },
-                { word: 'speaker', punctuated_word: 'speaker.', start: 0.72, end: 0.95, confidence: 0.97 },
-              ],
-            }],
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello again. New speaker.',
+            words: [
+              { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
+              { word: 'again', punctuated_word: 'again.', start: 0.22, end: 0.45, confidence: 0.98 },
+              { word: 'New', punctuated_word: 'New', start: 0.5, end: 0.7, confidence: 0.97, speaker: 1 },
+              { word: 'speaker', punctuated_word: 'speaker.', start: 0.72, end: 0.95, confidence: 0.97 },
+            ],
           }],
-        },
+        }],
       },
     }
 
@@ -504,19 +511,17 @@ describe('Inngest handlers', () => {
   })
 
   test('handleTranscriptionWebhook does not send completed event when the RPC fails (atomicity guard)', async () => {
-    mockDb.jobPayload = {
-      deepgram: {
-        results: {
-          channels: [{
-            alternatives: [{
-              transcript: 'Hello world.',
-              words: [
-                { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
-                { word: 'world', punctuated_word: 'world.', start: 0.22, end: 0.45, confidence: 0.98, speaker: 0 },
-              ],
-            }],
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello world.',
+            words: [
+              { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
+              { word: 'world', punctuated_word: 'world.', start: 0.22, end: 0.45, confidence: 0.98, speaker: 0 },
+            ],
           }],
-        },
+        }],
       },
     }
 
@@ -551,18 +556,16 @@ describe('Inngest handlers', () => {
   })
 
   test('handleTranscriptionWebhook throws when the RPC returns a malformed summary', async () => {
-    mockDb.jobPayload = {
-      deepgram: {
-        results: {
-          channels: [{
-            alternatives: [{
-              transcript: 'Hello.',
-              words: [
-                { word: 'Hello', punctuated_word: 'Hello.', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
-              ],
-            }],
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello.',
+            words: [
+              { word: 'Hello', punctuated_word: 'Hello.', start: 0, end: 0.2, confidence: 0.98, speaker: 0 },
+            ],
           }],
-        },
+        }],
       },
     }
 
@@ -592,6 +595,40 @@ describe('Inngest handlers', () => {
     expect(error).toBeDefined()
   })
 
+  test('handleTranscriptionWebhook reads the response from the file the job links', async () => {
+    mockDb.storedResponse = {
+      results: { channels: [{ alternatives: [{ transcript: '', words: [] }] }] },
+    }
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+        { id: 'trigger-completed', handler: () => undefined },
+      ],
+    })
+
+    expect(mockDownload).toHaveBeenCalledWith(expect.anything(), `user-1/${jobId}.json.gz`)
+    expect(mockDb.rpcCalls.map((call) => call.fn)).toEqual(['save_transcript_segments'])
+  })
+
+  test('handleTranscriptionWebhook fails the step when the job has no stored response', async () => {
+    mockDb.storedResponse = null
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    const { error } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+      ],
+    })
+
+    expect(getErrorMessage(error)).toContain('has no stored Deepgram response')
+    expect(mockDownload).not.toHaveBeenCalled()
+    expect(mockDb.rpcCalls).toEqual([])
+  })
+
   test('handleTranscriptionFailed marks transcript error when no active job can be found', async () => {
     const engine = new InngestTestEngine({ function: handleTranscriptionFailed })
 
@@ -605,10 +642,10 @@ describe('Inngest handlers', () => {
   test('failure fallback marks transcript error when no job can be resolved', async () => {
     await writeTranscriptionFailureFallback({
       transcriptId,
-      payload: {
-        error: 'Transcription failed: send failed',
+      error: {
+        error_message: 'Transcription failed: send failed',
         error_type: 'transcription_error',
-        raw_error: 'send failed',
+        error_detail: 'send failed',
       },
       context: 'onFailure',
     })

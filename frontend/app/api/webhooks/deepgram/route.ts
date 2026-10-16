@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Parse and validate JSON payload
     console.log("[deepgram-webhook] Step 2: Parsing JSON payload");
-    const rawPayload = await request.json();
+    // Keep the body as text: it is stored exactly as Deepgram sent it.
+    const rawBody = await request.text();
+    const rawPayload = JSON.parse(rawBody);
     const payloadParsed = DeepgramWebhookPayloadSchema.safeParse(rawPayload);
 
     if (!payloadParsed.success) {
@@ -88,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Delegate to core
     const supabase = createAdminClient();
-    const result = await handleDeepgramWebhook({ supabase, requestId, transcriptId, payload });
+    const result = await handleDeepgramWebhook({ supabase, requestId, transcriptId, rawBody });
 
     switch (result.outcome) {
       case 'processed':

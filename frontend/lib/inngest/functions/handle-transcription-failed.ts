@@ -66,11 +66,9 @@ export const handleTranscriptionFailed = inngest.createFunction(
                     to: "error",
                     extraJobFields: {
                         finished_at: now,
-                        payload: {
-                            error: finalMessage,
-                            error_type: finalErrorType,
-                            raw_error: errorString.slice(0, 500),
-                        },
+                        error_message: finalMessage,
+                        error_type: finalErrorType,
+                        error_detail: errorString.slice(0, 500),
                     },
                     metadata: { error_type: finalErrorType },
                     context: "handleTranscriptionFailed",

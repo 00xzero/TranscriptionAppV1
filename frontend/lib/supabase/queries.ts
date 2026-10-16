@@ -282,8 +282,7 @@ export async function fetchTranscriptById(id: string): Promise<Transcript | null
 }
 
 /**
- * Fetch error info for a job.
- * Only fetches payload for jobs in error state to get error details.
+ * Fetch error info for a transcript's latest failed job.
  */
 export async function fetchJobError(transcriptId: string): Promise<{
     error: string
@@ -292,7 +291,7 @@ export async function fetchJobError(transcriptId: string): Promise<{
     const supabase = createClient()
     const { data, error } = await supabase
         .from('jobs')
-        .select('payload')
+        .select('error_message, error_type')
         .eq('transcript_id', transcriptId)
         .eq('status', 'error')
         .order('created_at', { ascending: false })
@@ -301,12 +300,11 @@ export async function fetchJobError(transcriptId: string): Promise<{
 
     if (error || !data) return null
 
-    const payload = data.payload as { error?: string; error_type?: string } | null
-    if (!payload?.error) return null
+    if (!data.error_message) return null
 
     return {
-        error: payload.error,
-        error_type: payload.error_type || 'transcription_error',
+        error: data.error_message,
+        error_type: data.error_type || 'transcription_error',
     }
 }
 

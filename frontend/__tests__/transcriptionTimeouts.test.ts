@@ -35,12 +35,6 @@ const staleSelectChain = {
   lt: staleLtMock,
 }
 
-const payloadMaybeSingleMock = jest.fn()
-const payloadEqMock = jest.fn(() => ({ maybeSingle: payloadMaybeSingleMock }))
-const payloadSelectChain = {
-  eq: payloadEqMock,
-}
-
 function getErrorMessage(error: unknown): string {
   if (!error) return ''
   if (error instanceof Error) return error.message
@@ -66,10 +60,7 @@ describe('Transcription timeouts', () => {
     staleEqMock.mockImplementation(() => staleSelectChain)
     staleIsMock.mockImplementation(() => staleSelectChain)
 
-    jobsSelectMock.mockImplementation((columns: string) => {
-      if (columns === 'payload') return payloadSelectChain
-      return staleSelectChain
-    })
+    jobsSelectMock.mockImplementation(() => staleSelectChain)
 
     fromMock.mockImplementation((table: string) => {
       if (table === 'jobs') {
@@ -100,11 +91,6 @@ describe('Transcription timeouts', () => {
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [job2], error: null })
 
-    payloadMaybeSingleMock.mockResolvedValueOnce({
-      data: { payload: { existing: true } },
-      error: null,
-    })
-
     transitionJobMock.mockResolvedValue({ outcome: 'applied' })
     const engine = new InngestTestEngine({ function: handleTranscriptionTimeouts })
 
@@ -121,8 +107,15 @@ describe('Transcription timeouts', () => {
         jobId: 'job-1',
         to: 'error',
         context: 'handleTranscriptionTimeouts',
+        extraJobFields: expect.objectContaining({
+          error_message: expect.stringContaining('Transcription timed out'),
+          error_type: 'transcription_error',
+          error_detail: 'timeout',
+        }),
       })
     )
+    // Errors go to their own columns; nothing reads the job row first.
+    expect(jobsSelectMock).not.toHaveBeenCalledWith('payload')
     expect(transitionJobMock).toHaveBeenCalledWith(
       expect.objectContaining({
         jobId: 'job-2',
@@ -169,16 +162,13 @@ describe('Transcription timeouts', () => {
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
 
-    payloadMaybeSingleMock.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'payload fetch failed' },
-    })
+    transitionJobMock.mockResolvedValueOnce({ outcome: 'invalid', error: 'transition rejected' })
 
     const engine = new InngestTestEngine({ function: handleTranscriptionTimeouts })
     const { error } = await engine.execute({ events: [scheduledEvent] })
 
     expect(error).not.toBeNull()
     expect(getErrorMessage(error)).toContain('job-1')
-    expect(getErrorMessage(error)).toContain('payload fetch failed')
+    expect(getErrorMessage(error)).toContain('transition rejected')
   })
 })

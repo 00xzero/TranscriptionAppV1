@@ -125,7 +125,7 @@ async function main() {
     while (Date.now() - startTime < timeout) {
         const { data: updatedJob } = await supabase
             .from("jobs")
-            .select("status, payload, finished_at")
+            .select("status, error_message, error_detail, result_object_key, finished_at")
             .eq("id", job.id)
             .single();
 
@@ -142,7 +142,7 @@ async function main() {
 
         if (updatedJob?.status === "error") {
             console.error("\n   ❌ Transcription failed!");
-            console.error("   Error:", updatedJob.payload);
+            console.error("   Error:", updatedJob.error_message, updatedJob.error_detail ?? "");
             process.exit(1);
         }
 
