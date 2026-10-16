@@ -22,7 +22,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/infra/supabase/admin";
-import { DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
+import { DeepgramErrorCallbackSchema, DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { UuidSchema } from "@/contracts/primitives";
 import { handleDeepgramWebhook, persistWebhookFailure } from "@/core/transcription/webhook";
 
@@ -71,6 +71,33 @@ export async function POST(request: NextRequest) {
       console.warn("[deepgram-webhook] Body is not JSON");
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
     }
+
+    // Deepgram reports a transcription it could not do (corrupt or unsupported
+    // audio) with only err_code, err_msg and request_id: no metadata, so no
+    // transcript_id. The request_id is the job's inngest_event_id.
+    const errorCallback = DeepgramErrorCallbackSchema.safeParse(rawPayload);
+    if (errorCallback.success) {
+      const { request_id: requestId, err_code: errCode, err_msg: errMsg } = errorCallback.data;
+      console.warn("[deepgram-webhook] Deepgram could not transcribe:", { requestId, errCode });
+      const supabase = createAdminClient();
+      const failed = await persistWebhookFailure({
+        supabase,
+        requestId,
+        message: `Transcription failed: ${errMsg.slice(0, 200)}`,
+        detail: JSON.stringify(errorCallback.data),
+      });
+      if (failed === 'nothing') {
+        // The callback can arrive before the job has stored its request_id, or
+        // the write can fail; either way Deepgram retries.
+        console.warn("[deepgram-webhook] Could not fail the job for request:", requestId);
+        return NextResponse.json(
+          { error: "Job not failed yet" },
+          { status: 503, headers: { "Retry-After": "30" } }
+        );
+      }
+      return NextResponse.json({ received: true });
+    }
+
     const payloadParsed = DeepgramWebhookPayloadSchema.safeParse(rawPayload);
 
     if (!payloadParsed.success) {

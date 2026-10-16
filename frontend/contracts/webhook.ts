@@ -67,6 +67,15 @@ export const DeepgramWebhookPayloadSchema = z.object({
   }).optional(),
 })
 
+// Deepgram's callback when it could not transcribe (e.g. corrupt or unsupported
+// audio): top-level fields only, no metadata, so no transcript_id.
+// Captured shape: { err_code: "Bad Request", err_msg: "Bad Request: failed to process audio: ...", request_id }
+export const DeepgramErrorCallbackSchema = z.object({
+  request_id: z.string().min(1),
+  err_code: z.string().optional(),
+  err_msg: z.string().min(1),
+})
+
 // Full receipt schema matching infra/supabase/migrations/20260321000000_webhook_receipts.sql
 export const WebhookReceiptInsertSchema = z.object({
   provider: z.literal('deepgram'),
@@ -83,6 +92,7 @@ export const WebhookReceiptInsertSchema = z.object({
 // Re-export inferred types
 export type DeepgramAsyncResponse = z.infer<typeof DeepgramAsyncResponseSchema>
 export type DeepgramWebhookPayload = z.infer<typeof DeepgramWebhookPayloadSchema>
+export type DeepgramErrorCallback = z.infer<typeof DeepgramErrorCallbackSchema>
 export type DeepgramWord = z.infer<typeof DeepgramWordSchema>
 export type DeepgramUtterance = z.infer<typeof DeepgramUtteranceSchema>
 export type DeepgramSentence = z.infer<typeof DeepgramSentenceSchema>

@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-16] - Deepgram Failure Callbacks
+
+When Deepgram cannot transcribe a file (corrupt or unsupported audio), the
+transcript now shows Deepgram's error within seconds instead of "Transcribing…"
+until the 45-minute timeout.
+
+### Fixed
+
+- **Failure callbacks** — Deepgram reports a failed transcription with only `err_code`, `err_msg` and `request_id`, without `metadata`, so the webhook rejected it for missing ids and the job stayed `processing`. The webhook now finds the job by `request_id` (the job's `inngest_event_id`) and fails it: `error_message` is "Transcription failed: " plus Deepgram's message, and `error_detail` holds Deepgram's body.
+- **Retries until saved** — The webhook answers 503 with `Retry-After: 30`, so Deepgram resends, when the job has not stored its `request_id` yet (a callback can arrive before the start handler saves it) or when saving the error fails. `forceJobError` now reports whether its write went through, and `persistWebhookFailure` reports what it failed.
+
+### Tests
+
+- **Frontend** — `167` suites / `1,975` tests passing; `npm run typecheck`; lint (`0` errors, no warnings in changed files); `git diff --check`. New webhook tests cover the failure callback, the retry before the job has its `request_id`, the retry when saving fails, and a failure body without `request_id`.
+- **Local stack** — 200 KB of random bytes uploaded as `audio/wav`: the job reached `error` 2–3 seconds after it was created, and /transcripts showed "Transcription failed: Bad Request: failed to process audio: corrupt or unsupported data".
+
+### Notes
+
+- No database changes or migrations are required.
+
 ## [2026-10-12] - Audio Scrubbing and Playback Continuity
 
 ### Fixed

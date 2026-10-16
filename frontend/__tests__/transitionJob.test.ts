@@ -181,7 +181,7 @@ describe('forceJobError', () => {
       from: jest.fn(() => ({ update: updateMock })),
     } as any
 
-    await forceJobError({
+    const saved = await forceJobError({
       supabase: client,
       jobId: VALID_JOB_ID,
       extraJobFields: {
@@ -192,6 +192,7 @@ describe('forceJobError', () => {
       context: 'test',
     })
 
+    expect(saved).toBe(true)
     expect(client.from).toHaveBeenCalledWith('jobs')
     expect(updateMock).toHaveBeenCalled()
     const [updateArg] = updateMock.mock.calls[0] as unknown as [Record<string, unknown>]
@@ -217,10 +218,10 @@ describe('forceJobError', () => {
       })),
     } as any
 
-    // Should not throw
+    // Should not throw, and says the write did not go through
     await expect(
       forceJobError({ supabase: client, jobId: VALID_JOB_ID, context: 'test' })
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(false)
   })
 
   test('does not overwrite completed jobs (WHERE clause guards)', async () => {

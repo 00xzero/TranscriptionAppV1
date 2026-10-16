@@ -24,12 +24,20 @@ export type WebhookHandleResult =
     | { outcome: 'retrying'; retryAfter: number }
     | { outcome: 'error'; reason: string }
 
+/**
+ * Fail the job a webhook names: by request id (the job's inngest_event_id),
+ * else the transcript's active job, else the transcript itself.
+ * Returns what it marked failed, or 'nothing' when it found nothing or its
+ * write did not go through, so a caller can ask Deepgram to retry.
+ */
 export async function persistWebhookFailure(params: {
     supabase: SupabaseClient
     transcriptId?: string | null
     requestId?: string | null
     message: string
-}): Promise<void> {
+    /** Defaults to the message. */
+    detail?: string
+}): Promise<'job' | 'transcript' | 'nothing'> {
     const { supabase } = params
     let resolvedTranscriptId = params.transcriptId || null
     let resolvedJobId: string | null = null
@@ -61,18 +69,21 @@ export async function persistWebhookFailure(params: {
     }
 
     if (resolvedJobId) {
-        await forceJobError({
+        const saved = await forceJobError({
             supabase,
             jobId: resolvedJobId,
             extraJobFields: {
                 finished_at: new Date().toISOString(),
                 error_message: params.message,
                 error_type: 'transcription_error',
-                error_detail: params.message.slice(0, 500),
+                error_detail: (params.detail ?? params.message).slice(0, 500),
             },
             context: 'persistWebhookFailure',
         })
-    } else if (resolvedTranscriptId) {
+        return saved ? 'job' : 'nothing'
+    }
+
+    if (resolvedTranscriptId) {
         const { error: insertError } = await supabase
             .from('failed_events')
             .insert({
@@ -91,8 +102,12 @@ export async function persistWebhookFailure(params: {
             .eq('id', resolvedTranscriptId)
         if (transcriptError) {
             console.error('[webhook] Failed to update transcript error status:', transcriptError)
+            return 'nothing'
         }
+        return 'transcript'
     }
+
+    return 'nothing'
 }
 
 export async function handleDeepgramWebhook(opts: {

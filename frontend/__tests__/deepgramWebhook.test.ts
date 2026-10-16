@@ -2,7 +2,7 @@
 
 jest.mock('@/core/transcription/transition', () => ({
   transitionJob: jest.fn(),
-  forceJobError: jest.fn(async () => undefined),
+  forceJobError: jest.fn(async () => true),
 }))
 
 jest.mock('@/infra/supabase/transcription-results.server', () => ({
@@ -261,6 +261,79 @@ describe('Deepgram webhook route', () => {
     })
     expect(transcriptUpdateMock).toHaveBeenCalledWith({ status: 'error' })
     expect(transcriptUpdateEq).toHaveBeenCalledWith('id', VALID_TRANSCRIPT_ID)
+    expect(mockForceJobError).not.toHaveBeenCalled()
+  })
+
+  // --- Deepgram error callback ---
+  // Captured from a corrupt-audio run: top-level fields only, no metadata.
+  const ERROR_CALLBACK = {
+    err_code: 'Bad Request',
+    err_msg: 'Bad Request: failed to process audio: corrupt or unsupported data',
+    request_id: 'req-failed',
+  }
+
+  test('fails the job named by the error callback request id with Deepgram\'s message', async () => {
+    jobMaybeSingle.mockResolvedValueOnce({
+      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
+      error: null,
+    })
+
+    const res = await POST(requestWithBody(ERROR_CALLBACK))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ received: true })
+    expect(jobSelectChain.eq).toHaveBeenCalledWith('inngest_event_id', 'req-failed')
+    expect(mockForceJobError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: 'job-1',
+        context: 'persistWebhookFailure',
+        extraJobFields: expect.objectContaining({
+          error_message: 'Transcription failed: Bad Request: failed to process audio: corrupt or unsupported data',
+          error_type: 'transcription_error',
+        }),
+      })
+    )
+    const detail = mockForceJobError.mock.calls[0][0].extraJobFields?.error_detail
+    expect(JSON.parse(detail ?? '')).toEqual(ERROR_CALLBACK)
+    expect(receiptInsertMock).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+    const { sendInngestEvent } = await import('@/infra/inngest/client')
+    expect(sendInngestEvent).not.toHaveBeenCalled()
+  })
+
+  test('asks Deepgram to retry an error callback that arrives before its job has the request id', async () => {
+    jobMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
+
+    const res = await POST(requestWithBody(ERROR_CALLBACK))
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('Retry-After')).toBe('30')
+    expect(mockForceJobError).not.toHaveBeenCalled()
+    expect(insertMock).not.toHaveBeenCalled()
+    expect(transcriptUpdateMock).not.toHaveBeenCalled()
+  })
+
+  test('asks Deepgram to retry when failing the job does not go through', async () => {
+    jobMaybeSingle.mockResolvedValueOnce({
+      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
+      error: null,
+    })
+    mockForceJobError.mockResolvedValueOnce(false)
+
+    const res = await POST(requestWithBody(ERROR_CALLBACK))
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('Retry-After')).toBe('30')
+    expect(mockForceJobError).toHaveBeenCalledWith(expect.objectContaining({ jobId: 'job-1' }))
+  })
+
+  test('an error callback without a request id names no job and is refused', async () => {
+    const { request_id: _requestId, ...withoutRequestId } = ERROR_CALLBACK
+
+    const res = await POST(requestWithBody(withoutRequestId))
+
+    expect(res.status).toBe(400)
+    expect(jobMaybeSingle).not.toHaveBeenCalled()
     expect(mockForceJobError).not.toHaveBeenCalled()
   })
 

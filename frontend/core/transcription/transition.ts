@@ -75,14 +75,15 @@ export async function transitionJob(opts: {
 /**
  * Force a job to error status — degraded-path only.
  * Guards against overwriting terminal success (completed).
- * Never throws.
+ * Never throws: returns false when the write did not go through.
+ * A job already finished counts as written (the guard leaves it alone).
  */
 export async function forceJobError(opts: {
   supabase: SupabaseClient;
   jobId: string;
   extraJobFields?: ExtraJobFields;
   context?: string;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const { supabase, jobId, extraJobFields, context } = opts;
     const now = new Date().toISOString();
@@ -108,8 +109,11 @@ export async function forceJobError(opts: {
 
     if (error) {
       console.error(`[forceJobError] Failed to force error for job ${jobId} (${context}):`, error);
+      return false;
     }
+    return true;
   } catch (err) {
     console.error(`[forceJobError] Unexpected error (${opts.context}):`, err);
+    return false;
   }
 }
