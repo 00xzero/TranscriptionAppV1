@@ -4,6 +4,7 @@
  * All transcription lifecycle handlers, re-exported from individual modules.
  */
 
+export { handleMediaPrepare } from "./handle-media-prepare";
 export { handleTranscriptionRequested } from "./handle-transcription-requested";
 export { handleTranscriptionWebhook } from "./handle-transcription-webhook";
 export { handleTranscriptionCompleted } from "./handle-transcription-completed";

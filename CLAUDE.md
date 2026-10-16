@@ -75,16 +75,19 @@ Note `/` renders `LibraryView` and is not in `PROTECTED_ROUTES`.
 
 ### Transcription Pipeline
 
-1. **Upload** → `POST /api/transcripts` creates the transcript row; the browser uploads the media straight to Supabase Storage and links its key
-2. **Start** → `POST /api/transcripts/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
-3. **Webhook** → `POST /api/webhooks/deepgram` stores the body exactly as Deepgram sent it, gzipped, in the server-only `transcription-results` bucket at `{user_id}/{transcript_id}/{job_id}.json.gz` (`infra/supabase/transcription-results.server.ts`), links it as `jobs.result_object_key`, and triggers Inngest `transcription/webhook`. A redelivery overwrites the same file; a new run is a new job and gets its own. The file stays as the record of what Deepgram returned.
-4. **Processing** → Inngest function downloads that file, stores canonical segments/words and assigns speaker-linked segments
-5. **Complete** → `transcription/completed`, transcript marked `completed`, UI updates via Supabase Realtime
+1. **Upload** → `POST /api/transcripts` creates the transcript row; the browser uploads the media straight to Supabase Storage and links its key (uploads up to 500 MB)
+2. **Start** → `POST /api/transcripts/[id]/start` creates the job and sends Inngest event `media/prepare-requested`
+3. **Prepare** → `handle-media-prepare` probes the upload once and applies `core/media/prepare-policy.ts`: a video's sound is copied out (or repacked), lossless or oversized sound (above 96 kbps and at least 10 MB) is repacked to mono 64 kbps AAC `.m4a`, everything else is kept untouched. A prepared file replaces the original at `{user_id}/{transcript_id}/{job_id}.m4a` (the admin client swaps `source_object_key` and deletes the original), so only one file is kept. Preparation never blocks a transcript: on any failure it goes on with whichever file the row points at. Then it sends `transcription/requested` and claims the waveform. Every job and row check runs inside a step (replays must not stop it once Deepgram has moved the job on), and a write whose answer is lost is settled by reading the row back
+4. **Transcribe** → `transcription/requested` signs the row's current key and calls Deepgram's async API with a callback URL, only while the job is still `queued`
+5. **Webhook** → `POST /api/webhooks/deepgram` stores the body exactly as Deepgram sent it, gzipped, in the server-only `transcription-results` bucket at `{user_id}/{transcript_id}/{job_id}.json.gz` (`infra/supabase/transcription-results.server.ts`), links it as `jobs.result_object_key`, and triggers Inngest `transcription/webhook`. A redelivery overwrites the same file; a new run is a new job and gets its own. The file stays as the record of what Deepgram returned.
+6. **Processing** → Inngest function downloads that file, stores canonical segments/words and assigns speaker-linked segments
+7. **Complete** → `transcription/completed`, transcript marked `completed`, UI updates via Supabase Realtime
 
-Inngest events: `transcription/requested`, `transcription/webhook`, `transcription/completed`, `transcription/failed`, `waveform/requested`.
+Inngest events: `media/prepare-requested`, `transcription/requested`, `transcription/webhook`, `transcription/completed`, `transcription/failed`, `waveform/requested`.
 
 Handlers live in `lib/inngest/functions/` (one file per handler, barrel-exported from `index.ts`), served via `app/api/inngest/route.ts`:
 
+- `handle-media-prepare` — probes and possibly shrinks the upload, then requests transcription and the waveform
 - `handle-transcription-requested` / `-webhook` / `-completed` / `-failed`
 - `handle-transcription-timeouts` — cron `*/10 * * * *`, reaps stuck jobs
 - `handle-waveform-requested` — generates waveform peaks
@@ -93,7 +96,7 @@ The state machine itself is pure and lives in `core/transcription/` (`machine.ts
 
 ### Waveform Pipeline
 
-Peaks are computed with ffmpeg/ffprobe (`lib/audio/ffmpeg.ts`, `lib/audio/compute-peaks.ts`) via the `waveform/requested` event, stored in the `waveforms` bucket, and served through `GET /api/transcripts/[id]/waveform-url`. The ffmpeg/ffprobe installer packages are listed in `serverExternalPackages` in `next.config.mjs` — they are native binaries and must not be bundled. `scripts/backfill-waveforms.ts` backfills existing transcripts.
+Peaks are computed with ffmpeg/ffprobe (`lib/audio/ffmpeg.ts`, `lib/audio/compute-peaks.ts`) via the `waveform/requested` event, which media preparation sends once the final file is linked, stored in the `waveforms` bucket, and served through `GET /api/transcripts/[id]/waveform-url`. The ffmpeg/ffprobe installer packages are listed in `serverExternalPackages` in `next.config.mjs` — they are native binaries and must not be bundled. `scripts/backfill-waveforms.ts` backfills existing transcripts.
 
 ### Recording Subsystem
 

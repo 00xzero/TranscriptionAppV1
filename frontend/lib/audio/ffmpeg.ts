@@ -1,10 +1,11 @@
 /**
- * Server-side ffmpeg / ffprobe wrappers for waveform peak generation.
+ * Server-side ffmpeg / ffprobe wrappers for waveform peaks and media preparation.
  *
  * - probeMedia: returns total sample count + duration for bucket sizing
  * - spawnPcmStream: spawns ffmpeg, returns ChildProcess; caller pipes stdout
+ * - probeSourceMedia / prepareAudioFile: probe an upload, copy or repack its sound
  *
- * Both accept HTTP(S) URLs as input — ffmpeg fetches lazily over the network,
+ * All accept HTTP(S) URLs as input — ffmpeg fetches lazily over the network,
  * preserving end-to-end streaming. Never download the media into a Buffer.
  */
 
@@ -12,6 +13,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { lookup } from 'node:dns/promises'
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import ffprobeInstaller from '@ffprobe-installer/ffprobe'
+import { TARGET_KBPS, type SourceProbe } from '@/core/media/prepare-policy'
 
 export const FFMPEG_PATH = ffmpegInstaller.path
 export const FFPROBE_PATH = ffprobeInstaller.path
@@ -265,4 +267,139 @@ export async function spawnPcmStream(url: string): Promise<ChildProcessWithoutNu
     proc.once('close', () => clearTimeout(timeout))
     proc.once('error', () => clearTimeout(timeout))
     return proc
+}
+
+// ---------------------------------------------------------------------------
+// Media preparation: one probe of the upload, and the copy/repack to .m4a.
+// ---------------------------------------------------------------------------
+
+type ProcessOutcome = { code: number | null; stdout: string; stderr: string }
+
+// ffmpeg can log an error per broken frame of a long file; only the start of
+// stderr is ever reported. stdout is ffprobe's JSON, small and parsed whole.
+const STDERR_KEEP_CHARS = 64 * 1024
+
+function runToCompletion(
+    command: string,
+    path: string,
+    args: string[],
+    timeoutMs: number
+): Promise<ProcessOutcome> {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(path, args)
+        let settled = false
+        const timeout = armProcessTimeout(proc, command, timeoutMs, (error) => {
+            if (settled) return
+            settled = true
+            reject(error)
+        })
+        let stdout = ''
+        let stderr = ''
+        proc.stdout.on('data', (chunk) => { stdout += chunk.toString() })
+        proc.stderr.on('data', (chunk) => {
+            if (stderr.length < STDERR_KEEP_CHARS) stderr = (stderr + chunk.toString()).slice(0, STDERR_KEEP_CHARS)
+        })
+        proc.on('error', (err) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            reject(err)
+        })
+        proc.on('close', (code) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timeout)
+            resolve({ code, stdout, stderr })
+        })
+    })
+}
+
+/**
+ * One ffprobe of every stream in the upload, for the preparation policy.
+ * Accepts a URL or a local path. The sound's duration comes from the first
+ * sound track, then the container, then its last packet (MediaRecorder WebM
+ * often has no header duration). The size is ffprobe's own count of the
+ * input's bytes; when it can't tell, 0, which the policy treats as "keep".
+ */
+export async function probeSourceMedia(input: string): Promise<SourceProbe> {
+    const resolved = await resolveUrlHost(input)
+    const timeoutMs = readPositiveIntEnv('FFPROBE_TIMEOUT_MS', DEFAULT_FFPROBE_TIMEOUT_MS)
+    const { code, stdout, stderr } = await runToCompletion(
+        'ffprobe',
+        FFPROBE_PATH,
+        ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', resolved],
+        timeoutMs
+    )
+    if (code !== 0) {
+        throw new Error(`ffprobe exited with code ${code}: ${stderr.slice(0, 500)}`)
+    }
+    let parsed: { streams?: Array<Record<string, unknown>>; format?: Record<string, unknown> }
+    try {
+        parsed = JSON.parse(stdout)
+    } catch (err) {
+        throw new Error(`ffprobe output parse failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+    const streams = parsed.streams ?? []
+    const audio = streams.filter((s) => s.codec_type === 'audio')
+    // Cover art in an m4a is a "video" stream with attached_pic set; it is not video.
+    const hasVideo = streams.some((s) =>
+        s.codec_type === 'video' &&
+        !(s.disposition && (s.disposition as Record<string, unknown>).attached_pic === 1)
+    )
+    const first = audio[0]
+    let audioDurationSeconds = first
+        ? firstPositiveNumber(first.duration, parsed.format?.duration)
+        : null
+    if (first && audioDurationSeconds == null) {
+        audioDurationSeconds = await probeDurationFromPackets(resolved).catch(() => null)
+    }
+    return {
+        audioStreamCount: audio.length,
+        hasVideo,
+        audioCodec: typeof first?.codec_name === 'string' ? first.codec_name : null,
+        audioBitRate: first ? firstPositiveNumber(first.bit_rate) : null,
+        channels: first ? firstPositiveNumber(first.channels) : null,
+        sampleRate: first ? firstPositiveNumber(first.sample_rate) : null,
+        sizeBytes: firstPositiveNumber(parsed.format?.size) ?? 0,
+        audioDurationSeconds,
+    }
+}
+
+export type PrepareMode =
+    | { kind: 'copy-audio' }
+    | { kind: 'transcode'; sampleRate: number }
+
+/**
+ * Write the upload's first sound track to `outPath` as .m4a: copied untouched,
+ * or repacked to mono AAC at TARGET_KBPS. `-fs` stops ffmpeg near `maxBytes`
+ * (it may overshoot slightly; the caller checks the real size). Killed after
+ * `timeoutMs`, rejecting with ProcessTimeoutError.
+ */
+export async function prepareAudioFile(
+    input: string,
+    outPath: string,
+    mode: PrepareMode,
+    opts: { timeoutMs: number; maxBytes: number }
+): Promise<void> {
+    const resolved = await resolveUrlHost(input)
+    const codecArgs = mode.kind === 'copy-audio'
+        ? ['-c:a', 'copy']
+        : ['-ac', '1', '-ar', String(mode.sampleRate), '-c:a', 'aac', '-b:a', `${TARGET_KBPS}k`]
+    const args = [
+        '-v', 'error',
+        '-nostdin',
+        '-y',
+        '-i', resolved,
+        '-map', '0:a:0',
+        '-vn', '-sn', '-dn',
+        ...codecArgs,
+        '-fs', String(opts.maxBytes),
+        '-movflags', '+faststart',
+        '-f', 'mp4',
+        outPath,
+    ]
+    const { code, stderr } = await runToCompletion('ffmpeg-prepare', FFMPEG_PATH, args, opts.timeoutMs)
+    if (code !== 0) {
+        throw new Error(`ffmpeg exited with code ${code}: ${stderr.slice(0, 500)}`)
+    }
 }

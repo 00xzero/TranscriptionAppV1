@@ -8,6 +8,7 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/infra/inngest/client";
 import {
+    handleMediaPrepare,
     handleTranscriptionRequested,
     handleTranscriptionWebhook,
     handleTranscriptionCompleted,
@@ -16,13 +17,15 @@ import {
     handleWaveformRequested,
 } from "@/lib/inngest/functions";
 
-// Waveform generation streams ffmpeg output for multi-hour files; allow up to 5min
-// per invocation. Vercel Pro/Enterprise plans honor this; Hobby is capped lower.
+// Waveform generation streams ffmpeg output for multi-hour files, and media
+// preparation converts within one step; allow up to 5min per invocation
+// (lib/media/prepare-steps.ts budgets 270s of it).
 export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
     client: inngest,
     functions: [
+        handleMediaPrepare,
         handleTranscriptionRequested,
         handleTranscriptionWebhook,
         handleTranscriptionCompleted,

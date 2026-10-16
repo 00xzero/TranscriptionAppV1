@@ -8,7 +8,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
-import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
 
@@ -102,13 +101,6 @@ export async function startTranscription(opts: {
         console.warn('[startTranscription] Failed to fetch key terms; proceeding without them:', keyTermsError.message)
     }
 
-    // Get media URL for Deepgram (handles proxy/rewrite env logic)
-    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key)
-    if (mediaUrlResult.error || !mediaUrlResult.url) {
-        return { outcome: 'error', reason: mediaUrlResult.error ?? 'Failed to generate media URL' }
-    }
-    const mediaUrl = mediaUrlResult.url
-
     // Jobs are server-owned: the authenticated role can read them but not write
     // them. The RLS read above has already established ownership.
     let adminSupabase: ReturnType<typeof createAdminClient>
@@ -176,13 +168,15 @@ export async function startTranscription(opts: {
     // Transcript status is derived by the DB trigger from job INSERT.
 
     try {
+        // Preparation probes the upload, may shrink it, then asks for the
+        // transcription and the waveform (handle-media-prepare.ts).
         await sendInngestEvent({
-            name: 'transcription/requested',
+            name: 'media/prepare-requested',
+            id: `media-prepare:${job.id}`,
             data: {
                 transcriptId,
                 jobId: job.id,
                 userId,
-                mediaUrl,
                 keyTerms: keyTerms?.map((k) => k.term) || [],
             },
         })
@@ -203,46 +197,6 @@ export async function startTranscription(opts: {
     }
 
     console.log(`[startTranscription] Started for transcript: ${transcriptId}, job: ${job.id}`)
-
-    // Waveform dispatch is a UI enhancement and MUST NOT fail the transcription
-    // start path. Admin client because waveform_status is server-owned (a BEFORE
-    // UPDATE trigger rejects writes from the authenticated role).
-    try {
-        const { data: waveformClaim, error: waveformStatusError } = await adminSupabase
-            .from('transcripts')
-            .update({ waveform_status: 'pending' })
-            .eq('id', transcriptId)
-            .eq('waveform_status', 'skipped')
-            .select('id')
-            .maybeSingle()
-        if (waveformStatusError) {
-            console.warn('[startTranscription] Failed to mark waveform pending:', waveformStatusError.message)
-            return { outcome: 'started', jobId: job.id }
-        }
-        if (!waveformClaim) {
-            console.warn(`[startTranscription] Skipping waveform/requested for ${transcriptId}; waveform status was not claimable`)
-            return { outcome: 'started', jobId: job.id }
-        }
-        await sendInngestEvent({
-            name: 'waveform/requested',
-            data: {
-                transcriptId,
-                userId,
-                sourceObjectKey: transcript.source_object_key,
-            },
-        })
-    } catch (waveformError) {
-        console.error('[startTranscription] Failed to dispatch waveform/requested (non-fatal):', waveformError)
-        try {
-            await adminSupabase
-                .from('transcripts')
-                .update({ waveform_status: 'skipped' })
-                .eq('id', transcriptId)
-                .eq('waveform_status', 'pending')
-        } catch (rollbackError) {
-            console.warn('[startTranscription] Failed to roll back waveform pending status:', rollbackError)
-        }
-    }
 
     return { outcome: 'started', jobId: job.id }
 }

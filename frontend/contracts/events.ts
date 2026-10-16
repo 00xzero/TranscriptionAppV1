@@ -5,7 +5,13 @@ export const TranscriptionRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
   jobId: UuidSchema,
   userId: UuidSchema,
-  mediaUrl: z.url(),
+  keyTerms: z.array(z.string()).optional(),
+})
+
+export const MediaPrepareRequestedDataSchema = z.object({
+  transcriptId: UuidSchema,
+  jobId: UuidSchema,
+  userId: UuidSchema,
   keyTerms: z.array(z.string()).optional(),
 })
 
@@ -34,6 +40,7 @@ export const WaveformRequestedDataSchema = z.object({
 })
 
 export type TranscriptionRequestedData = z.infer<typeof TranscriptionRequestedDataSchema>
+export type MediaPrepareRequestedData = z.infer<typeof MediaPrepareRequestedDataSchema>
 export type TranscriptionWebhookData = z.infer<typeof TranscriptionWebhookDataSchema>
 export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDataSchema>
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>

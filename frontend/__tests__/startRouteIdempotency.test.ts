@@ -4,12 +4,6 @@ const getUserMock = jest.fn()
 const fromMock = jest.fn()
 const adminFromMock = jest.fn()
 
-jest.mock('@/infra/supabase/storage', () => {
-  return {
-    getMediaUrlForDeepgram: jest.fn(),
-  }
-})
-
 jest.mock('@/infra/supabase/server', () => {
   return {
     createClient: () => ({
@@ -39,7 +33,7 @@ jest.mock('@/infra/inngest/client', () => {
 })
 
 import { POST } from '../app/api/transcripts/[id]/start/route'
-import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
+import { sendInngestEvent } from '@/infra/inngest/client'
 
 const transcriptSingleMock = jest.fn()
 const transcriptEqMock = jest.fn(() => ({ single: transcriptSingleMock }))
@@ -86,10 +80,6 @@ describe('Start route idempotency', () => {
     transcriptUpdateEqMock.mockResolvedValue({ error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: { id: 'job-new' }, error: null })
     watchlistEqMock.mockResolvedValue({ data: [], error: null })
-    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
-      url: 'https://example.com/media.mp3',
-      error: null,
-    })
 
     fromMock.mockImplementation((table: string) => {
       if (table === 'transcripts') {
@@ -104,15 +94,8 @@ describe('Start route idempotency', () => {
       return {}
     })
 
-    type ClaimChain = { eq: jest.Mock; select: jest.Mock; maybeSingle: jest.Mock }
-    const waveformClaimChain: ClaimChain = {
-      eq: jest.fn((): ClaimChain => waveformClaimChain),
-      select: jest.fn((): ClaimChain => waveformClaimChain),
-      maybeSingle: jest.fn(async () => ({ data: null, error: null })),
-    }
     adminFromMock.mockImplementation((table: string) => {
       if (table === 'jobs') return { insert: jobsInsertMock }
-      if (table === 'transcripts') return { update: jest.fn(() => waveformClaimChain) }
       return {}
     })
 
@@ -192,7 +175,7 @@ describe('Start route idempotency', () => {
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'This transcript is already completed.' })
     expect(jobsInsertMock).not.toHaveBeenCalled()
-    expect(getMediaUrlForDeepgram).not.toHaveBeenCalled()
+    expect(sendInngestEvent).not.toHaveBeenCalled()
   })
 
   test('a completed transcript still replays its original completed job', async () => {
@@ -260,6 +243,31 @@ describe('Start route idempotency', () => {
       type: 'transcription',
       idempotency_key: 'idem-new',
     })
+  })
+
+  test('hands a new job to media preparation, once per job', async () => {
+    transcriptSingleMock.mockResolvedValue({
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
+      error: null,
+    })
+    jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
+    watchlistEqMock.mockResolvedValue({ data: [{ term: 'Dechra' }], error: null })
+
+    const res = await POST(
+      { headers: new Headers({ 'x-idempotency-key': 'idem-prepare' }) } as any,
+      { params: Promise.resolve({ id: 'proj-1' }) } as any
+    )
+
+    expect(res.status).toBe(200)
+    // Preparation asks for the transcription and the waveform itself, after
+    // it has settled which file the transcript keeps.
+    expect(sendInngestEvent).toHaveBeenCalledTimes(1)
+    expect(sendInngestEvent).toHaveBeenCalledWith({
+      name: 'media/prepare-requested',
+      id: 'media-prepare:job-new',
+      data: { transcriptId: 'proj-1', jobId: 'job-new', userId: 'user-1', keyTerms: ['Dechra'] },
+    })
+    expect(adminFromMock).not.toHaveBeenCalledWith('transcripts')
   })
 
   test('continues when idempotency lookup fails', async () => {

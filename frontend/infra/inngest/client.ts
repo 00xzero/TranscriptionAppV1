@@ -13,6 +13,8 @@ type TranscriptionEventPayload = {
     [Name in keyof TranscriptionEvents]: {
         name: Name;
         data: TranscriptionEvents[Name]["data"];
+        // Inngest drops a second send with the same id for 24 hours.
+        id?: string;
     };
 }[keyof TranscriptionEvents];
 
