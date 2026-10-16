@@ -96,6 +96,16 @@ describe('decidePreparation rules', () => {
         expect(decidePreparation(audio({ audioBitRate: null, mb: 12 })).action).toBe('keep')
     })
 
+    test('Opus sound, as our own recordings are, is kept even above the repack line', () => {
+        // A Chrome recording: no track bitrate, about 128 kbps on average.
+        expect(decidePreparation(audio({ audioCodec: 'opus', audioBitRate: null, minutes: 15, mb: 14 })))
+            .toEqual({ action: 'keep', reason: 'already_small' })
+    })
+
+    test("a video's AAC without a track bitrate is copied, not judged by the video's average", () => {
+        expect(decidePreparation(audio({ hasVideo: true, audioBitRate: null, mb: 300 }))).toMatchObject({ action: 'copy-audio' })
+    })
+
     test('a repack predicted above 75% of the original is not worth it', () => {
         // 64 kbps for 60 min is about 27.5 MB; the file is 32 MB.
         expect(decidePreparation(audio({ audioCodec: 'pcm_s16le', kbps: 1411, minutes: 60, mb: 32 })))

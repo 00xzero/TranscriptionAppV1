@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { existsSync } from 'node:fs'
+import { existsSync, ReadStream } from 'node:fs'
 import { truncate, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -43,6 +43,8 @@ import {
     claimWaveform,
     convertAndUpload,
     linkPrepared,
+    loadSource,
+    PREPARE_START_LIMIT_MS,
     removeOriginal,
     settleUnlinked,
 } from '@/lib/media/prepare-steps'
@@ -155,9 +157,14 @@ const sourceKey = `${userId}/${transcriptId}/call.m4a`
 const preparedKey = `${userId}/${transcriptId}/${jobId}.m4a`
 const ids = { transcriptId, jobId }
 
-function setup(overrides: { jobStatus?: string; sourceObjectKey?: string | null; waveformStatus?: string } = {}) {
+function setup(overrides: { jobStatus?: string; sourceObjectKey?: string | null; waveformStatus?: string; waitedMs?: number } = {}) {
     const db = new FakeAdmin()
-    db.tables.jobs.set(jobId, { id: jobId, transcript_id: transcriptId, status: overrides.jobStatus ?? 'queued' })
+    db.tables.jobs.set(jobId, {
+        id: jobId,
+        transcript_id: transcriptId,
+        status: overrides.jobStatus ?? 'queued',
+        created_at: new Date(Date.now() - (overrides.waitedMs ?? 0)).toISOString(),
+    })
     db.tables.transcripts.set(transcriptId, {
         id: transcriptId,
         user_id: userId,
@@ -172,6 +179,37 @@ function setup(overrides: { jobStatus?: string; sourceObjectKey?: string | null;
 function keyOf(db: FakeAdmin) {
     return db.tables.transcripts.get(transcriptId)?.source_object_key
 }
+
+describe('loadSource', () => {
+    test('a settled waveform leaves the file free to prepare', async () => {
+        const db = setup({ waveformStatus: 'ready' })
+        await expect(loadSource(db.asClient(), { ...ids, userId })).resolves.toEqual({ proceed: true, sourceKey, skip: null })
+    })
+
+    test.each(['pending', 'processing'])('a %s waveform marks the file busy', async (waveformStatus) => {
+        const db = setup({ waveformStatus })
+        await expect(loadSource(db.asClient(), { ...ids, userId })).resolves.toEqual({ proceed: true, sourceKey, skip: 'waveform_busy' })
+    })
+
+    test('a job that waited in line past the limit keeps its upload as it is', async () => {
+        const db = setup({ waitedMs: PREPARE_START_LIMIT_MS + 1000 })
+        await expect(loadSource(db.asClient(), { ...ids, userId })).resolves.toEqual({ proceed: true, sourceKey, skip: 'waited_too_long' })
+    })
+
+    test('a row of another user, or without media in its folder, is an invalid source', async () => {
+        await expect(loadSource(setup().asClient(), { ...ids, userId: 'someone-else' }))
+            .resolves.toEqual({ proceed: false, reason: 'invalid_source' })
+        const db = setup()
+        db.tables.transcripts.get(transcriptId)!.source_object_key = 'elsewhere/file.webm'
+        await expect(loadSource(db.asClient(), { ...ids, userId }))
+            .resolves.toEqual({ proceed: false, reason: 'invalid_source' })
+    })
+
+    test('a job no longer queued stops the run', async () => {
+        const db = setup({ jobStatus: 'error' })
+        await expect(loadSource(db.asClient(), { ...ids, userId })).resolves.toEqual({ proceed: false, reason: 'job_not_current' })
+    })
+})
 
 describe('linkPrepared', () => {
     test('swaps the key from the original to the prepared file', async () => {
@@ -358,7 +396,7 @@ describe('convertAndUpload', () => {
             { kind: 'transcode', sampleRate: 48_000 },
             { timeoutMs: 150_000, maxBytes: MAX_OUTPUT_BYTES }
         )
-        expect(uploadMock).toHaveBeenCalledWith(preparedKey, expect.any(Buffer), { contentType: 'audio/mp4', upsert: true })
+        expect(uploadMock).toHaveBeenCalledWith(preparedKey, expect.any(ReadStream), { contentType: 'audio/mp4', upsert: true })
         expect(outDir && existsSync(outDir)).toBe(false)
     })
 
@@ -369,8 +407,13 @@ describe('convertAndUpload', () => {
 
     test('an ffmpeg timeout falls back without uploading', async () => {
         prepareAudioFileMock.mockRejectedValue(new ProcessTimeoutError('ffmpeg-prepare', 150_000))
-        await expect(run(setup())).resolves.toEqual({ outcome: 'rejected', reason: 'convert_timeout', mayHaveUploaded: false })
+        await expect(run(setup())).resolves.toEqual({ outcome: 'rejected', reason: 'convert_timeout' })
         expect(uploadMock).not.toHaveBeenCalled()
+    })
+
+    test('a job that has waited in line past the limit converts nothing', async () => {
+        await expect(run(setup({ waitedMs: PREPARE_START_LIMIT_MS + 1000 }))).resolves.toEqual({ outcome: 'rejected', reason: 'waited_too_long' })
+        expect(prepareAudioFileMock).not.toHaveBeenCalled()
     })
 
     test('an output that hit the 200 MB ceiling is rejected', async () => {
@@ -399,7 +442,7 @@ describe('convertAndUpload', () => {
         let calls = 0
         // The step starts at t=0 (deadline 270 s); by the upload it is 10 ms short of it.
         const now = () => (calls++ === 0 ? 0 : 269_990)
-        await expect(run(setup(), now)).resolves.toEqual({ outcome: 'rejected', reason: 'upload_timeout', mayHaveUploaded: true })
+        await expect(run(setup(), now)).resolves.toEqual({ outcome: 'rejected', reason: 'upload_timeout' })
         expect(uploadSignal!.aborted).toBe(true)
     })
 

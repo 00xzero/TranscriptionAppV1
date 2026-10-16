@@ -176,6 +176,22 @@ describe('transferToStorage', () => {
     ).rejects.toThrow('Upload failed: network died')
   })
 
+  test('a file over the storage size limit says so plainly', async () => {
+    onStart = () => {
+      const tooLarge = Object.assign(new Error('tus: unexpected response while creating upload'), {
+        originalResponse: { getStatus: () => 413 },
+      })
+      queueMicrotask(() => capturedOptions.onError(tooLarge))
+    }
+
+    await expect(
+      transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+        contentType: 'audio/webm',
+        upsert: false,
+      })
+    ).rejects.toThrow('Upload failed: this file is larger than storage accepts.')
+  })
+
   test('aborting the signal terminates the resumable upload and rejects AbortError', async () => {
     onStart = () => {} // never completes on its own
     const controller = new AbortController()

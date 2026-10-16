@@ -29,7 +29,7 @@ export async function GET(
         // Fetch transcript (RLS ensures user can only access their own)
         const { data: transcript, error: transcriptError } = await supabase
             .from('transcripts')
-            .select('id, source_object_key')
+            .select('id, source_object_key, status')
             .eq('id', transcriptId)
             .single()
 
@@ -37,6 +37,15 @@ export async function GET(
             return NextResponse.json(
                 { error: 'Transcript not found' },
                 { status: 404 }
+            )
+        }
+
+        // Until the transcript is finished, media preparation may replace and
+        // delete the file a URL would point at.
+        if (transcript.status !== 'completed') {
+            return NextResponse.json(
+                { error: 'Transcript is not finished yet' },
+                { status: 409 }
             )
         }
 

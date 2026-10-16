@@ -62,6 +62,7 @@ function execute(mockedSteps: MockedStep[] = [], failures: Record<string, string
             { id: 'request-transcription', handler: () => ({ ids: ['t'] }) },
             { id: 'request-waveform', handler: () => ({ ids: ['w'] }) },
             { id: 'fail-superseded', handler: () => ({ ids: ['f'] }) },
+            { id: 'fail-invalid_source', handler: () => ({ ids: ['f'] }) },
         ],
         transformCtx: (rawCtx) => {
             const ctx = mockCtx(rawCtx)
@@ -103,7 +104,7 @@ describe('handleMediaPrepare', () => {
         warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
         error = jest.spyOn(console, 'error').mockImplementation(() => {})
         jest.spyOn(console, 'log').mockImplementation(() => {})
-        steps.loadSource.mockResolvedValue({ proceed: true, sourceKey })
+        steps.loadSource.mockResolvedValue({ proceed: true, sourceKey, skip: null })
         steps.decide.mockResolvedValue(transcode)
         steps.convertAndUpload.mockResolvedValue({ outcome: 'uploaded' })
         steps.linkPrepared.mockResolvedValue({ outcome: 'linked' })
@@ -149,10 +150,25 @@ describe('handleMediaPrepare', () => {
         expect(steps.settleUnlinked).not.toHaveBeenCalled()
     })
 
-    test('a failed original delete after the swap goes on with the prepared file', async () => {
+    test('a failed original delete after the swap is tried once more, then goes on with the prepared file', async () => {
         steps.settleUnlinked.mockResolvedValue('prepared')
 
         const { result, ctx } = await execute([], { 'remove-original': 'storage down' })
+
+        expect(steps.removeOriginal).toHaveBeenCalledTimes(1)
+        expect(result).toMatchObject({ status: 'requested', media: 'prepared' })
+        expect(error.mock.calls.some(([message]) => String(message).includes('Original cleanup failed'))).toBe(false)
+        expect(warn.mock.calls.some(([message]) => String(message).includes('using original'))).toBe(false)
+        expect(sentEvents(ctx)).toEqual([transcriptionRequest, waveformRequest(preparedKey)])
+    })
+
+    test('an original that still cannot be deleted is logged and the run goes on', async () => {
+        steps.settleUnlinked.mockResolvedValue('prepared')
+
+        const { result, ctx } = await execute([], {
+            'remove-original': 'storage down',
+            'remove-original-after-failure': 'storage still down',
+        })
 
         expect(result).toMatchObject({ status: 'requested', media: 'prepared' })
         expect(error.mock.calls.some(([message]) => String(message).includes('Original cleanup failed'))).toBe(true)
@@ -172,7 +188,7 @@ describe('handleMediaPrepare', () => {
     })
 
     test('an aborted upload is reconciled before falling back', async () => {
-        steps.convertAndUpload.mockResolvedValue({ outcome: 'rejected', reason: 'upload_timeout', mayHaveUploaded: true })
+        steps.convertAndUpload.mockResolvedValue({ outcome: 'rejected', reason: 'upload_timeout' })
 
         const { result } = await execute()
 
@@ -181,14 +197,27 @@ describe('handleMediaPrepare', () => {
         expect(result).toMatchObject({ status: 'requested', media: 'fell_back' })
     })
 
-    test.each(['convert_timeout', 'hit_ceiling', 'not_worth_it'])('a %s rejection falls back without touching storage', async (reason) => {
-        steps.convertAndUpload.mockResolvedValue({ outcome: 'rejected', reason, mayHaveUploaded: false })
+    test.each(['convert_timeout', 'hit_ceiling', 'not_worth_it', 'waited_too_long'])('a %s rejection still settles against the row, then falls back', async (reason) => {
+        // A retry of the step can reject after an earlier attempt uploaded.
+        steps.convertAndUpload.mockResolvedValue({ outcome: 'rejected', reason })
 
         const { result } = await execute()
 
-        expect(steps.settleUnlinked).not.toHaveBeenCalled()
+        expect(steps.settleUnlinked).toHaveBeenCalledTimes(1)
+        expect(steps.settleUnlinked.mock.calls[0][1]).toEqual({ transcriptId, sourceKey, preparedKey })
         expect(steps.linkPrepared).not.toHaveBeenCalled()
         expect(result).toMatchObject({ status: 'requested', media: 'fell_back' })
+    })
+
+    test('a rejection whose earlier attempt was linked after all goes on with the prepared file', async () => {
+        steps.convertAndUpload.mockResolvedValue({ outcome: 'rejected', reason: 'convert_timeout' })
+        steps.settleUnlinked.mockResolvedValue('prepared')
+
+        const { result, ctx } = await execute()
+
+        expect(steps.removeOriginal).toHaveBeenCalledTimes(1)
+        expect(result).toMatchObject({ status: 'requested', media: 'prepared' })
+        expect(sentEvents(ctx)).toEqual([transcriptionRequest, waveformRequest(preparedKey)])
     })
 
     test('when the row cannot be read after a failure, the run fails rather than guessing', async () => {
@@ -274,7 +303,7 @@ describe('handleMediaPrepare', () => {
         // memoized results, as Inngest replays them. The job has since moved on.
         jobQueuedMock.mockResolvedValue(false)
         const { result, ctx } = await execute([
-            { id: 'load-source', handler: () => ({ proceed: true, sourceKey }) },
+            { id: 'load-source', handler: () => ({ proceed: true, sourceKey, skip: null }) },
             { id: 'decide', handler: () => transcode },
             { id: 'convert-and-upload', handler: () => ({ outcome: 'uploaded' }) },
             { id: 'link-prepared', handler: () => ({ outcome: 'linked' }) },
@@ -303,6 +332,42 @@ describe('handleMediaPrepare', () => {
 
         expect(runError).toBeUndefined()
         expect(result).toMatchObject({ status: 'requested' })
+    })
+
+    test.each(['load-source', 'decide'])('a failed %s step keeps the file and still transcribes', async (stepId) => {
+        steps.claimWaveform.mockResolvedValue({ dispatch: true, sourceObjectKey: sourceKey })
+
+        const { result, ctx } = await execute([], { [stepId]: 'storage down' })
+
+        expect(steps.convertAndUpload).not.toHaveBeenCalled()
+        expect(result).toMatchObject({ status: 'requested', media: 'kept' })
+        expect(sentEvents(ctx)).toEqual([transcriptionRequest, waveformRequest(sourceKey)])
+    })
+
+    test.each(['waveform_busy', 'waited_too_long'])('a %s source keeps the original and still transcribes', async (skip) => {
+        steps.loadSource.mockResolvedValue({ proceed: true, sourceKey, skip })
+
+        const { result, ctx } = await execute()
+
+        expect(steps.decide).not.toHaveBeenCalled()
+        expect(steps.convertAndUpload).not.toHaveBeenCalled()
+        expect(result).toMatchObject({ status: 'requested', media: 'kept' })
+        expect(sentEvents(ctx)[0]).toEqual(transcriptionRequest)
+    })
+
+    test('a source that is not this request\'s fails the job and never transcribes', async () => {
+        steps.loadSource.mockResolvedValue({ proceed: false, reason: 'invalid_source' })
+
+        const { result, ctx } = await execute()
+
+        expect(result).toEqual({ status: 'stopped', reason: 'invalid_source' })
+        expect(steps.decide).not.toHaveBeenCalled()
+        expect(sentEvents(ctx)).toEqual([{
+            stepId: 'fail-invalid_source',
+            name: 'transcription/failed',
+            id: `media-prepare-invalid_source:${jobId}`,
+            data: { transcriptId, jobId, error: "The transcript's media does not belong to this request", errorType: 'transcription_error' },
+        }])
     })
 
     test('a stopped load never decides or transcribes', async () => {

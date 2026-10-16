@@ -53,10 +53,14 @@ function isLossless(codec: string): boolean {
     return codec.startsWith('pcm_') || LOSSLESS_CODECS.has(codec)
 }
 
-/** The first sound track's bitrate, or the whole file's average when ffprobe has none. */
+/**
+ * The first sound track's bitrate, or, for a sound-only file, the whole file's
+ * average when ffprobe has none. A video's average counts its picture, so a
+ * video without a track bitrate has none.
+ */
 export function effectiveAudioBitRate(probe: SourceProbe): number | null {
     if (probe.audioBitRate && probe.audioBitRate > 0) return probe.audioBitRate
-    if (probe.audioDurationSeconds && probe.audioDurationSeconds > 0 && probe.sizeBytes > 0) {
+    if (!probe.hasVideo && probe.audioDurationSeconds && probe.audioDurationSeconds > 0 && probe.sizeBytes > 0) {
         return (probe.sizeBytes * 8) / probe.audioDurationSeconds
     }
     return null
@@ -72,6 +76,20 @@ function guardSize(
 }
 
 export function decidePreparation(probe: SourceProbe | null): PreparationDecision {
+    // Opus is already efficient for speech, and it is what our own Chrome and
+    // Firefox recordings are (their WebM has no track bitrate or header
+    // duration, and the file average can sit above the repack line):
+    // repacking it only loses quality. Decided before the duration, which the
+    // probe does not scan for here.
+    if (
+        probe &&
+        !probe.hasVideo &&
+        probe.audioStreamCount === 1 &&
+        probe.audioCodec?.toLowerCase() === 'opus'
+    ) {
+        return { action: 'keep', reason: 'already_small' }
+    }
+
     const duration = probe?.audioDurationSeconds
     if (!probe || !duration || duration <= 0 || !probe.audioCodec) {
         return { action: 'keep', reason: probe && probe.audioStreamCount === 0 ? 'no_audio' : 'unreadable' }
@@ -83,9 +101,11 @@ export function decidePreparation(probe: SourceProbe | null): PreparationDecisio
 
     if (probe.hasVideo) {
         // The video's own sound track is often already a sensible AAC: copy it
-        // out untouched. Its size is about bitrate × duration.
-        if (codec === 'aac' && bitRate !== null && bitRate <= COPY_AUDIO_MAX_KBPS * 1000) {
-            const predictedBytes = Math.ceil((bitRate * duration) / 8)
+        // out untouched. Its size is about bitrate × duration; without a track
+        // bitrate it is sized at the copy limit, and the output check sees
+        // the real size.
+        if (codec === 'aac' && (bitRate === null || bitRate <= COPY_AUDIO_MAX_KBPS * 1000)) {
+            const predictedBytes = Math.ceil(((bitRate ?? COPY_AUDIO_MAX_KBPS * 1000) * duration) / 8)
             const blocked = guardSize(probe, predictedBytes)
             return blocked ? { action: 'keep', reason: blocked } : { action: 'copy-audio', predictedBytes }
         }

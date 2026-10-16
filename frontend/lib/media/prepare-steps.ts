@@ -8,10 +8,12 @@
  * deleted once nothing points at it.
  */
 
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Transcript } from '@/contracts/db'
 import {
     acceptPrepared,
     decidePreparation,
@@ -19,7 +21,7 @@ import {
     type PreparationDecision,
     type SourceProbe,
 } from '@/core/media/prepare-policy'
-import { jobLive, jobQueued, type JobIds } from '@/lib/inngest/job-checks'
+import { jobLive, jobQueued, queuedJobAgeMs, TRANSCRIPTION_TIMEOUT_MS, type JobIds } from '@/lib/inngest/job-checks'
 import { createAbortableAdminClient } from '@/infra/supabase/admin'
 import { getSignedMediaUrl, isMissingStorageObjectError, MEDIA_BUCKET } from '@/infra/supabase/storage'
 import { prepareAudioFile, probeSourceMedia, ProcessTimeoutError } from '@/lib/audio/ffmpeg'
@@ -31,19 +33,23 @@ const CONVERT_MAX_MS = 150_000
 // Time kept back after ffmpeg for re-probing and the upload.
 const AFTER_CONVERT_RESERVE_MS = 60_000
 const SIGNED_URL_TTL_SECONDS = 15 * 60
-
-type Ids = JobIds
+// Preparation runs in a small pool, so a burst of uploads waits in line. A job
+// that has already waited this long goes on with its upload as it is, so the
+// line delays a transcript by minutes and never runs it into the timeout
+// reaper (TRANSCRIPTION_TIMEOUT_MS from creation): at most a quarter of it,
+// leaving the rest for one conversion, the upload and Deepgram's own line.
+export const PREPARE_START_LIMIT_MS = Math.min(10 * 60_000, Math.floor(TRANSCRIPTION_TIMEOUT_MS / 4))
 
 export function preparedObjectKey(userId: string, transcriptId: string, jobId: string): string {
     return `${userId}/${transcriptId}/${jobId}.m4a`
 }
 
-type SourceRow = { user_id: string; source_object_key: string | null }
+type SourceRow = Pick<Transcript, 'user_id' | 'source_object_key' | 'waveform_status'>
 
 async function readSourceRow(admin: SupabaseClient, transcriptId: string): Promise<SourceRow | null> {
     const { data, error } = await admin
         .from('transcripts')
-        .select('user_id, source_object_key')
+        .select('user_id, source_object_key, waveform_status')
         .eq('id', transcriptId)
         .maybeSingle()
     if (error) throw new Error(`Failed to read transcript ${transcriptId}: ${error.message}`)
@@ -59,25 +65,40 @@ async function removeMediaObject(admin: SupabaseClient, key: string): Promise<vo
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Why the upload is kept without looking at it: `waveform_busy`, a waveform
+ * job may be reading the file, so it must not be replaced; `waited_too_long`,
+ * the job spent PREPARE_START_LIMIT_MS in line already.
+ */
+export type SkipReason = 'waveform_busy' | 'waited_too_long'
+
+/**
+ * `invalid_source`: the row belongs to another user than the event names, or
+ * holds no media inside its own folder. Nothing may be sent to Deepgram, so
+ * the caller fails the job.
+ */
 export type LoadSourceResult =
-    | { proceed: true; sourceKey: string }
-    | { proceed: false; reason: 'job_not_current' | 'transcript_gone' }
+    | { proceed: true; sourceKey: string; skip: SkipReason | null }
+    | { proceed: false; reason: 'job_not_current' | 'transcript_gone' | 'invalid_source' }
 
 export async function loadSource(
     admin: SupabaseClient,
-    ids: Ids & { userId: string }
+    ids: JobIds & { userId: string }
 ): Promise<LoadSourceResult> {
-    if (!(await jobQueued(admin, ids))) return { proceed: false, reason: 'job_not_current' }
+    const waitedMs = await queuedJobAgeMs(admin, ids)
+    if (waitedMs === null) return { proceed: false, reason: 'job_not_current' }
     const row = await readSourceRow(admin, ids.transcriptId)
     if (!row) return { proceed: false, reason: 'transcript_gone' }
-    if (row.user_id !== ids.userId) {
-        throw new Error(`Transcript ${ids.transcriptId} user_id mismatch with event payload`)
-    }
     const prefix = `${row.user_id}/${ids.transcriptId}/`
-    if (!row.source_object_key || !row.source_object_key.startsWith(prefix)) {
-        throw new Error(`Transcript ${ids.transcriptId} has no media in its folder`)
+    if (row.user_id !== ids.userId || !row.source_object_key || !row.source_object_key.startsWith(prefix)) {
+        return { proceed: false, reason: 'invalid_source' }
     }
-    return { proceed: true, sourceKey: row.source_object_key }
+    const waveformBusy = row.waveform_status === 'pending' || row.waveform_status === 'processing'
+    return {
+        proceed: true,
+        sourceKey: row.source_object_key,
+        skip: waveformBusy ? 'waveform_busy' : waitedMs > PREPARE_START_LIMIT_MS ? 'waited_too_long' : null,
+    }
 }
 
 export type DecideResult = { decision: PreparationDecision; probe: SourceProbe | null }
@@ -96,14 +117,19 @@ export async function decide(admin: SupabaseClient, sourceKey: string): Promise<
     return { decision: decidePreparation(probe), probe }
 }
 
+/**
+ * `rejected`: the transcript goes on with its original. An earlier attempt of
+ * this step may still have uploaded the prepared file, so the caller always
+ * settles a rejection against the row (settleUnlinked).
+ */
 export type ConvertResult =
     | { outcome: 'uploaded' }
     | { outcome: 'not_current' }
-    | { outcome: 'rejected'; reason: string; mayHaveUploaded: boolean }
+    | { outcome: 'rejected'; reason: string }
 
 export async function convertAndUpload(
     admin: SupabaseClient,
-    input: Ids & {
+    input: JobIds & {
         sourceKey: string
         preparedKey: string
         probe: SourceProbe
@@ -113,7 +139,9 @@ export async function convertAndUpload(
 ): Promise<ConvertResult> {
     const now = input.now ?? Date.now
     const deadline = now() + STEP_BUDGET_MS
-    if (!(await jobQueued(admin, input))) return { outcome: 'not_current' }
+    const waitedMs = await queuedJobAgeMs(admin, input)
+    if (waitedMs === null) return { outcome: 'not_current' }
+    if (waitedMs > PREPARE_START_LIMIT_MS) return { outcome: 'rejected', reason: 'waited_too_long' }
 
     const signed = await getSignedMediaUrl(admin, input.sourceKey, SIGNED_URL_TTL_SECONDS)
     if (signed.error || !signed.url) {
@@ -136,7 +164,7 @@ export async function convertAndUpload(
         } catch (err) {
             const reason = err instanceof ProcessTimeoutError ? 'convert_timeout' : 'convert_failed'
             console.warn(`[media-prepare] ${reason} for ${input.transcriptId}:`, err instanceof Error ? err.message : err)
-            return { outcome: 'rejected', reason, mayHaveUploaded: false }
+            return { outcome: 'rejected', reason }
         }
 
         const { size } = await stat(outPath)
@@ -149,10 +177,10 @@ export async function convertAndUpload(
         const verdict = acceptPrepared(input.probe, { sizeBytes: size, audioDurationSeconds: outputDuration })
         if (!verdict.ok) {
             console.warn(`[media-prepare] Prepared file rejected for ${input.transcriptId}: ${verdict.reason}`)
-            return { outcome: 'rejected', reason: verdict.reason, mayHaveUploaded: false }
+            return { outcome: 'rejected', reason: verdict.reason }
         }
 
-        const body = await readFile(outPath)
+        const body = createReadStream(outPath)
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), Math.max(0, deadline - now()))
         try {
@@ -161,16 +189,17 @@ export async function convertAndUpload(
                 .from(MEDIA_BUCKET)
                 .upload(input.preparedKey, body, { contentType: 'audio/mp4', upsert: true })
             if (controller.signal.aborted) {
-                return { outcome: 'rejected', reason: 'upload_timeout', mayHaveUploaded: true }
+                return { outcome: 'rejected', reason: 'upload_timeout' }
             }
             if (error) throw new Error(`Failed to upload prepared media: ${error.message}`)
         } catch (err) {
             if (controller.signal.aborted) {
-                return { outcome: 'rejected', reason: 'upload_timeout', mayHaveUploaded: true }
+                return { outcome: 'rejected', reason: 'upload_timeout' }
             }
             throw err
         } finally {
             clearTimeout(timer)
+            body.destroy()
         }
         return { outcome: 'uploaded' }
     } finally {
@@ -191,7 +220,7 @@ export type LinkResult =
 
 export async function linkPrepared(
     admin: SupabaseClient,
-    input: Ids & { sourceKey: string; preparedKey: string }
+    input: JobIds & { sourceKey: string; preparedKey: string }
 ): Promise<LinkResult> {
     if (!(await jobQueued(admin, input))) {
         const settled = await settleUnlinked(admin, input)
@@ -253,23 +282,15 @@ export type WaveformClaim = { dispatch: true; sourceObjectKey: string } | { disp
 
 /**
  * Claim the waveform for the transcript's final file. A row already `pending`
- * is treated as this workflow's own earlier claim whose answer was lost: only
- * this workflow claims waveforms, and the waveform job checks the key itself.
+ * is dispatched again: it is this workflow's own earlier claim whose answer
+ * was lost, or the backfill's, and both send under the same event id
+ * (`waveform:{transcriptId}:{key}`), so Inngest runs the waveform once. The
+ * waveform job checks the key itself.
  */
-export async function claimWaveform(admin: SupabaseClient, ids: Ids): Promise<WaveformClaim> {
+export async function claimWaveform(admin: SupabaseClient, ids: JobIds): Promise<WaveformClaim> {
     if (!(await jobLive(admin, ids))) return { dispatch: false }
 
-    const read = async () => {
-        const { data, error } = await admin
-            .from('transcripts')
-            .select('source_object_key, waveform_status')
-            .eq('id', ids.transcriptId)
-            .maybeSingle()
-        if (error) throw new Error(`Failed to read waveform status: ${error.message}`)
-        return data as { source_object_key: string | null; waveform_status: string } | null
-    }
-
-    const row = await read()
+    const row = await readSourceRow(admin, ids.transcriptId)
     if (!row?.source_object_key) return { dispatch: false }
     if (row.waveform_status === 'pending') return { dispatch: true, sourceObjectKey: row.source_object_key }
     if (row.waveform_status !== 'skipped') return { dispatch: false }
@@ -283,7 +304,7 @@ export async function claimWaveform(admin: SupabaseClient, ids: Ids): Promise<Wa
         .maybeSingle()
     if (data && !error) return { dispatch: true, sourceObjectKey: row.source_object_key }
 
-    const after = await read()
+    const after = await readSourceRow(admin, ids.transcriptId)
     if (after?.waveform_status === 'pending' && after.source_object_key) {
         return { dispatch: true, sourceObjectKey: after.source_object_key }
     }

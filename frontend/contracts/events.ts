@@ -8,12 +8,8 @@ export const TranscriptionRequestedDataSchema = z.object({
   keyTerms: z.array(z.string()).optional(),
 })
 
-export const MediaPrepareRequestedDataSchema = z.object({
-  transcriptId: UuidSchema,
-  jobId: UuidSchema,
-  userId: UuidSchema,
-  keyTerms: z.array(z.string()).optional(),
-})
+// Preparation forwards its payload unchanged to transcription/requested.
+export const MediaPrepareRequestedDataSchema = TranscriptionRequestedDataSchema
 
 export const TranscriptionWebhookDataSchema = z.object({
   requestId: z.string(),

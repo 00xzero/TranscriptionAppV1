@@ -18,14 +18,11 @@ import {
 import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
 import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
 import { jobQueued } from "@/lib/inngest/job-checks";
+import { readPositiveIntEnv } from "@/lib/env";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 // Configurable concurrency limit for Deepgram API calls
-// Anything but a positive whole number falls back to 5.
-const DEEPGRAM_CONCURRENCY = (() => {
-    const parsed = Number(process.env.DEEPGRAM_CONCURRENCY_LIMIT);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : 5;
-})();
+const DEEPGRAM_CONCURRENCY = readPositiveIntEnv("DEEPGRAM_CONCURRENCY_LIMIT", 5);
 
 export const handleTranscriptionRequested = inngest.createFunction(
     {

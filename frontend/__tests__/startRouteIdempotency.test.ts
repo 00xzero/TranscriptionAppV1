@@ -4,6 +4,12 @@ const getUserMock = jest.fn()
 const fromMock = jest.fn()
 const adminFromMock = jest.fn()
 
+jest.mock('@/infra/supabase/storage', () => {
+  return {
+    getMediaUrlForDeepgram: jest.fn(),
+  }
+})
+
 jest.mock('@/infra/supabase/server', () => {
   return {
     createClient: () => ({
@@ -34,6 +40,7 @@ jest.mock('@/infra/inngest/client', () => {
 
 import { POST } from '../app/api/transcripts/[id]/start/route'
 import { sendInngestEvent } from '@/infra/inngest/client'
+import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 
 const transcriptSingleMock = jest.fn()
 const transcriptEqMock = jest.fn(() => ({ single: transcriptSingleMock }))
@@ -80,6 +87,10 @@ describe('Start route idempotency', () => {
     transcriptUpdateEqMock.mockResolvedValue({ error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: { id: 'job-new' }, error: null })
     watchlistEqMock.mockResolvedValue({ data: [], error: null })
+    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
+      url: 'https://example.com/media.mp3',
+      error: null,
+    })
 
     fromMock.mockImplementation((table: string) => {
       if (table === 'transcripts') {
@@ -264,10 +275,31 @@ describe('Start route idempotency', () => {
     expect(sendInngestEvent).toHaveBeenCalledTimes(1)
     expect(sendInngestEvent).toHaveBeenCalledWith({
       name: 'media/prepare-requested',
-      id: 'media-prepare:job-new',
       data: { transcriptId: 'proj-1', jobId: 'job-new', userId: 'user-1', keyTerms: ['Dechra'] },
     })
     expect(adminFromMock).not.toHaveBeenCalledWith('transcripts')
+  })
+
+  test('a file Deepgram could not be handed refuses the start, creating no job', async () => {
+    transcriptSingleMock.mockResolvedValue({
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
+      error: null,
+    })
+    jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
+    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
+      url: null,
+      error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET',
+    })
+
+    const res = await POST(
+      { headers: new Headers({ 'x-idempotency-key': 'idem-broken' }) } as any,
+      { params: Promise.resolve({ id: 'proj-1' }) } as any
+    )
+
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET' })
+    expect(jobsInsertMock).not.toHaveBeenCalled()
+    expect(sendInngestEvent).not.toHaveBeenCalled()
   })
 
   test('continues when idempotency lookup fails', async () => {

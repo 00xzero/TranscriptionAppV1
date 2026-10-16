@@ -5,8 +5,8 @@
  * 
  * This script:
  * 1. Uses an existing transcript with an audio file
- * 2. Generates a signed URL for Deepgram
- * 3. Triggers transcription via Inngest
+ * 2. Checks a Deepgram-ready URL can be made for its file
+ * 3. Triggers media preparation via Inngest, which hands on to transcription
  * 4. Polls for completion
  * 5. Saves results to a file
  */
@@ -56,17 +56,16 @@ async function main() {
         process.exit(1);
     }
 
-    // Step 2: Generate a Deepgram-ready media URL
-    console.log("\n2️⃣ Generating media URL for Deepgram...");
+    // Step 2: Check a Deepgram-ready media URL can be made, as the start route
+    // does. The transcription step makes its own for the file preparation keeps.
+    console.log("\n2️⃣ Checking a media URL can be made for Deepgram...");
     const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key);
 
     if (mediaUrlResult.error || !mediaUrlResult.url) {
         console.error("Failed to generate media URL:", mediaUrlResult.error);
         process.exit(1);
     }
-
-    const mediaUrl = mediaUrlResult.url;
-    console.log("   Media URL generated");
+    console.log("   Media URL can be made");
 
     // Step 3: Create job record
     console.log("\n3️⃣ Creating job record...");
@@ -88,7 +87,7 @@ async function main() {
     // Transcript status derived by trigger from job INSERT — no manual update needed
 
     // Step 4: Trigger Inngest event
-    console.log("\n4️⃣ Triggering Inngest transcription event...");
+    console.log("\n4️⃣ Triggering Inngest media preparation event...");
 
     // Send event to local Inngest dev server
     const inngestResponse = await fetch("http://localhost:8288/e/dev", {
@@ -97,12 +96,11 @@ async function main() {
             "Content-Type": "application/json",
         },
         body: JSON.stringify({
-            name: "transcription/requested",
+            name: "media/prepare-requested",
             data: {
                 transcriptId: transcript.id,
                 jobId: job.id,
                 userId: transcript.user_id,
-                mediaUrl: mediaUrl,
                 keyTerms: [],
             },
         }),

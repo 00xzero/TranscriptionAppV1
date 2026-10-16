@@ -8,6 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
+import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
 
@@ -101,6 +102,15 @@ export async function startTranscription(opts: {
         console.warn('[startTranscription] Failed to fetch key terms; proceeding without them:', keyTermsError.message)
     }
 
+    // Check now that Deepgram can be handed this file (it is stored, and the
+    // proxy/rewrite settings are complete), so a broken setup refuses the
+    // start instead of failing the job minutes later. The URL itself is made
+    // again at transcription time, for whichever file preparation keeps.
+    const mediaUrlCheck = await getMediaUrlForDeepgram(supabase, transcript.source_object_key)
+    if (mediaUrlCheck.error || !mediaUrlCheck.url) {
+        return { outcome: 'error', reason: mediaUrlCheck.error ?? 'Failed to generate media URL' }
+    }
+
     // Jobs are server-owned: the authenticated role can read them but not write
     // them. The RLS read above has already established ownership.
     let adminSupabase: ReturnType<typeof createAdminClient>
@@ -172,7 +182,6 @@ export async function startTranscription(opts: {
         // transcription and the waveform (handle-media-prepare.ts).
         await sendInngestEvent({
             name: 'media/prepare-requested',
-            id: `media-prepare:${job.id}`,
             data: {
                 transcriptId,
                 jobId: job.id,

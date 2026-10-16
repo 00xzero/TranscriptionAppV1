@@ -2,7 +2,7 @@
  * Supabase Storage utilities for media file handling.
  *
  * Storage path convention: {user_id}/{transcript_id}/{filename}
- * Bucket: 'media' (private, 500 MB uploads - NEXT_PUBLIC_MAX_FILE_SIZE_MB must match its limit)
+ * Bucket: 'media' (private, 500 MB uploads - NEXT_PUBLIC_MAX_FILE_SIZE_MB sets the app's limit)
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -13,8 +13,10 @@ export const WAVEFORM_BUCKET = 'waveforms'
 // admin client alone (transcription-results.server.ts).
 export const RESULTS_BUCKET = 'transcription-results'
 
-// Maximum upload size, from NEXT_PUBLIC_MAX_FILE_SIZE_MB (500, matching the
-// media bucket). The default of 50 only applies when the variable is unset.
+// Maximum upload size, from NEXT_PUBLIC_MAX_FILE_SIZE_MB, which must not exceed
+// the project's global upload limit (Storage Settings) or the media bucket's
+// 500 MB. Unset, 50 MB, the Free plan's global limit, so an unconfigured
+// deploy doesn't accept a file that storage then refuses.
 export const MAX_FILE_SIZE_BYTES = (() => {
     const mbFromEnv = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '50', 10)
     return mbFromEnv * 1024 * 1024
