@@ -81,28 +81,6 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
 
             for (const job of staleJobs) {
                 try {
-                    let currentPayload: Record<string, unknown> = {};
-                    if (job.status === "processing") {
-                        const { data: payloadRow, error: payloadError } = await supabase
-                            .from("jobs")
-                            .select("payload")
-                            .eq("id", job.id)
-                            .maybeSingle();
-                        if (payloadError) {
-                            throw new Error(`Failed to load payload for job ${job.id}: ${payloadError.message}`);
-                        }
-                        if (payloadRow?.payload && typeof payloadRow.payload === "object") {
-                            currentPayload = payloadRow.payload as Record<string, unknown>;
-                        }
-                    }
-
-                    const nextPayload = {
-                        ...currentPayload,
-                        error: errorMessage,
-                        error_type: "transcription_error",
-                        raw_error: "timeout",
-                    };
-
                     // Transition via RPC (transcript status derived by trigger)
                     const { outcome, error: transitionError } = await transitionJob({
                         supabase,
@@ -110,7 +88,9 @@ export const handleTranscriptionTimeouts = inngest.createFunction(
                         to: "error",
                         extraJobFields: {
                             finished_at: finishedAt,
-                            payload: nextPayload,
+                            error_message: errorMessage,
+                            error_type: "transcription_error",
+                            error_detail: "timeout",
                         },
                         metadata: { timeout_minutes: timeoutMinutes },
                         context: "handleTranscriptionTimeouts",

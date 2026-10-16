@@ -184,7 +184,11 @@ describe('forceJobError', () => {
     await forceJobError({
       supabase: client,
       jobId: VALID_JOB_ID,
-      extraJobFields: { payload: { error: 'timeout' } },
+      extraJobFields: {
+        error_message: 'Transcription timed out',
+        error_type: 'transcription_error',
+        error_detail: 'x'.repeat(600),
+      },
       context: 'test',
     })
 
@@ -192,7 +196,12 @@ describe('forceJobError', () => {
     expect(updateMock).toHaveBeenCalled()
     const [updateArg] = updateMock.mock.calls[0] as unknown as [Record<string, unknown>]
     expect(updateArg.status).toBe('error')
-    expect(updateArg.payload).toEqual({ error: 'timeout' })
+    expect(updateArg).toMatchObject({
+      error_message: 'Transcription timed out',
+      error_type: 'transcription_error',
+      error_detail: 'x'.repeat(500),
+    })
+    expect(updateArg).not.toHaveProperty('payload')
     expect(eqMock).toHaveBeenCalledWith('id', VALID_JOB_ID)
     expect(inMock).toHaveBeenCalledWith('status', ['queued', 'processing'])
   })

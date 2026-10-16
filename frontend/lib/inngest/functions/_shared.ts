@@ -4,22 +4,17 @@
 
 import { createAdminClient } from "@/infra/supabase/admin";
 import { forceJobError } from "@/core/transcription/transition";
-
-export type TranscriptionFailurePayload = {
-    error: string;
-    error_type: string;
-    raw_error: string;
-};
+import type { JobErrorFields } from "@/contracts/state-machine";
 
 export async function writeTranscriptionFailureFallback({
     transcriptId,
     jobId,
-    payload,
+    error,
     context,
 }: {
     transcriptId: string;
     jobId?: string;
-    payload: TranscriptionFailurePayload;
+    error: JobErrorFields;
     context: string;
 }) {
     try {
@@ -31,7 +26,7 @@ export async function writeTranscriptionFailureFallback({
                 jobId,
                 extraJobFields: {
                     finished_at: new Date().toISOString(),
-                    payload,
+                    ...error,
                 },
                 context: `${context}/fallback`,
             });

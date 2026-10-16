@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
+import { downloadTranscriptionResult } from "@/infra/supabase/transcription-results.server";
 import {
     DEFAULT_SEGMENT_BUILDER_CONFIG,
     buildSegments,
@@ -160,15 +161,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             } catch (sendError) {
                 console.error("[inngest] Failed to emit transcription/failed:", sendError);
                 // Fallback: write error directly so the UI can surface it
-                const payload = {
-                    error: `Transcription failed: ${errorMessage.slice(0, 200)}`,
-                    error_type: "transcription_error",
-                    raw_error: errorMessage.slice(0, 500),
-                };
                 await writeTranscriptionFailureFallback({
                     transcriptId,
                     jobId,
-                    payload,
+                    error: {
+                        error_message: `Transcription failed: ${errorMessage.slice(0, 200)}`,
+                        error_type: "transcription_error",
+                        error_detail: errorMessage.slice(0, 500),
+                    },
                     context: "onFailure",
                 });
             }
@@ -213,19 +213,22 @@ export const handleTranscriptionWebhook = inngest.createFunction(
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();
 
-            // Load Deepgram payload (stored by webhook route)
+            // Load the Deepgram response (stored by the webhook route)
             const { data: jobRow, error: jobRowError } = await supabase
                 .from("jobs")
-                .select("payload")
+                .select("result_object_key")
                 .eq("id", job.id)
                 .single();
 
             if (jobRowError || !jobRow) {
-                throw new Error(`Failed to load job payload: ${jobRowError?.message}`);
+                throw new Error(`Failed to load job: ${jobRowError?.message}`);
+            }
+            if (!jobRow.result_object_key) {
+                throw new Error(`Job ${job.id} has no stored Deepgram response`);
             }
 
-            const jobPayload = (jobRow as { payload: Record<string, unknown> | null }).payload;
-            const responseParsed = DeepgramWebhookPayloadSchema.safeParse(jobPayload?.deepgram);
+            const rawResponse = await downloadTranscriptionResult(supabase, jobRow.result_object_key);
+            const responseParsed = DeepgramWebhookPayloadSchema.safeParse(JSON.parse(rawResponse));
             if (!responseParsed.success) {
                 throw new Error(`Invalid Deepgram payload structure: ${responseParsed.error.issues[0]?.message ?? 'Invalid input'}`);
             }

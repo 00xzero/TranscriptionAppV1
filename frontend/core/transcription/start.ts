@@ -193,11 +193,9 @@ export async function startTranscription(opts: {
             supabase: adminSupabase,
             jobId: job.id,
             extraJobFields: {
-                payload: {
-                    error: 'Failed to start transcription. Please try again.',
-                    error_type: 'transcription_error',
-                    raw_error: errorMessage.slice(0, 500),
-                },
+                error_message: 'Failed to start transcription. Please try again.',
+                error_type: 'transcription_error',
+                error_detail: errorMessage.slice(0, 500),
             },
             context: 'startTranscription/inngestSendFailed',
         })

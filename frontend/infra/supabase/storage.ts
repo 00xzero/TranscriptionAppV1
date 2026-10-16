@@ -9,6 +9,9 @@ import { SupabaseClient } from '@supabase/supabase-js'
 
 export const MEDIA_BUCKET = 'media'
 export const WAVEFORM_BUCKET = 'waveforms'
+// Server-only: Deepgram's response per job, gzipped. Read and written by the
+// admin client alone (transcription-results.server.ts).
+export const RESULTS_BUCKET = 'transcription-results'
 
 // Maximum file size - configurable via environment variable
 // Default: 50MB (Supabase Free plan limit)
@@ -38,6 +41,14 @@ export function getMediaPath(userId: string, transcriptId: string, filename: str
         .slice(0, 200)
 
     return `${userId}/${transcriptId}/${sanitized || 'media'}`
+}
+
+/**
+ * Build the storage path for a job's Deepgram response. One file per job: a
+ * redelivered webhook overwrites it, a new transcription run gets its own.
+ */
+export function getTranscriptionResultPath(userId: string, transcriptId: string, jobId: string): string {
+    return `${userId}/${transcriptId}/${jobId}.json.gz`
 }
 
 /**

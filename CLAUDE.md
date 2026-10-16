@@ -63,9 +63,9 @@ Three separate Supabase client factories — use the correct one for the context
 
 Also in `infra/supabase/`: `cookie.ts` (auth cookie naming) and `storage.ts`.
 
-**Browser vs. server writes.** The server client runs as the same `authenticated` role as the browser, so a route only guards what that role cannot do itself. The browser talks to Supabase directly for reads and for single-step writes the database fully guards (RLS, column grants, triggers, or `SECURITY DEFINER` RPCs). Anything that needs a secret, touches Storage and the database together, or starts background work goes through a route. Guarantees belong in the database functions, not the route, because those functions are callable from the browser too. Pipeline state (`jobs`, transcript `status`/`duration_seconds`, waveform fields) is written only by the admin client. Segment and word rows are written by the admin client, except that the editor splits a segment and undoes the split through the guarded `split_segment` / `rejoin_segments` RPCs: they create and remove segment rows and move words between segments, but never change a word's text or timing. The browser's only segment text write is `set_segment_texts_guarded`, guarded by `revision` and the text it replaces.
+**Browser vs. server writes.** The server client runs as the same `authenticated` role as the browser, so a route only guards what that role cannot do itself. The browser talks to Supabase directly for reads and for single-step writes the database fully guards (RLS, column grants, triggers, or `SECURITY DEFINER` RPCs). Anything that needs a secret, touches Storage and the database together, or starts background work goes through a route. Guarantees belong in the database functions, not the route, because those functions are callable from the browser too. Pipeline state (`jobs`, including `result_object_key` and the `error_*` columns, transcript `status`/`duration_seconds`, waveform fields) is written only by the admin client. Segment and word rows are written by the admin client, except that the editor splits a segment and undoes the split through the guarded `split_segment` / `rejoin_segments` RPCs: they create and remove segment rows and move words between segments, but never change a word's text or timing. The browser's only segment text write is `set_segment_texts_guarded`, guarded by `revision` and the text it replaces.
 
-**Transcript files and deletion.** A transcript owns every object under `{user_id}/{transcript_id}/` in the `media` and `waveforms` buckets, linked or not; CHECK constraints keep its keys inside that folder, and `source_object_key` can be linked once but never cleared or replaced by the browser. `delete_transcript` and `finish_project_delete` refuse while a folder still holds a file, so both delete routes sweep the folder inventory (`transcript_delete_inventory`) first and once more after deleting. The folder check is point-in-time: an upload that commits after it is removed by its writer's compensation, the post-delete sweep, or `scripts/cleanup-orphaned-media.mjs`, which is a manual backstop that needs Inngest stopped and no uploads running.
+**Transcript files and deletion.** A transcript owns every object under `{user_id}/{transcript_id}/` in the `media`, `waveforms` and `transcription-results` buckets, linked or not; CHECK constraints keep its keys inside that folder, and `source_object_key` can be linked once but never cleared or replaced by the browser. `delete_transcript` and `finish_project_delete` refuse while a folder still holds a file, so both delete routes sweep the folder inventory (`transcript_delete_inventory`) first and once more after deleting. `transcription-results` has no user policies at all, so the routes remove those files with the admin client, using the user's own inventory. The folder check is point-in-time: an upload that commits after it is removed by its writer's compensation, the post-delete sweep, or `scripts/cleanup-orphaned-media.mjs`, which is a manual backstop that needs Inngest stopped and no uploads running.
 
 ### Auth & Proxy
 
@@ -77,8 +77,8 @@ Note `/` renders `LibraryView` and is not in `PROTECTED_ROUTES`.
 
 1. **Upload** → `POST /api/transcripts` creates the transcript row; the browser uploads the media straight to Supabase Storage and links its key
 2. **Start** → `POST /api/transcripts/[id]/start` sends Inngest event `transcription/requested`, which calls Deepgram's async API with a callback URL
-3. **Webhook** → `POST /api/webhooks/deepgram` receives results, triggers Inngest `transcription/webhook`
-4. **Processing** → Inngest function stores canonical segments/words and assigns speaker-linked segments directly from the webhook payload
+3. **Webhook** → `POST /api/webhooks/deepgram` stores the body exactly as Deepgram sent it, gzipped, in the server-only `transcription-results` bucket at `{user_id}/{transcript_id}/{job_id}.json.gz` (`infra/supabase/transcription-results.server.ts`), links it as `jobs.result_object_key`, and triggers Inngest `transcription/webhook`. A redelivery overwrites the same file; a new run is a new job and gets its own. The file stays as the record of what Deepgram returned.
+4. **Processing** → Inngest function downloads that file, stores canonical segments/words and assigns speaker-linked segments
 5. **Complete** → `transcription/completed`, transcript marked `completed`, UI updates via Supabase Realtime
 
 Inngest events: `transcription/requested`, `transcription/webhook`, `transcription/completed`, `transcription/failed`, `waveform/requested`.
@@ -121,7 +121,7 @@ Supabase tables: `transcripts`, `speakers`, `segments`, `words`, `jobs`, `job_ev
 
 Historical notes for reading migrations: `projects` was renamed to `transcripts`, and the `chunks`/`chunk_words` consolidation tables were dropped — don't reintroduce either.
 
-Storage buckets: media and `waveforms`.
+Storage buckets: `media`, `waveforms` and `transcription-results` (server-only; Deepgram responses). Job failures are recorded in `jobs.error_message`, `error_type` and `error_detail`; `transition_job_status` refuses fields it does not know.
 
 ### API Routes
 

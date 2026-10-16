@@ -6,8 +6,12 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { DeepgramWebhookPayload } from '@/contracts/webhook'
 import { sendInngestEvent } from '@/infra/inngest/client'
+import { getTranscriptionResultPath } from '@/infra/supabase/storage'
+import {
+    removeTranscriptionResult,
+    uploadTranscriptionResult,
+} from '@/infra/supabase/transcription-results.server'
 import { forceJobError } from '@/core/transcription/transition'
 import { randomUUID } from 'crypto'
 
@@ -56,19 +60,15 @@ export async function persistWebhookFailure(params: {
         }
     }
 
-    const payload = {
-        error: params.message,
-        error_type: 'transcription_error',
-        raw_error: params.message.slice(0, 500),
-    }
-
     if (resolvedJobId) {
         await forceJobError({
             supabase,
             jobId: resolvedJobId,
             extraJobFields: {
                 finished_at: new Date().toISOString(),
-                payload,
+                error_message: params.message,
+                error_type: 'transcription_error',
+                error_detail: params.message.slice(0, 500),
             },
             context: 'persistWebhookFailure',
         })
@@ -99,9 +99,10 @@ export async function handleDeepgramWebhook(opts: {
     supabase: SupabaseClient
     requestId: string
     transcriptId: string
-    payload: DeepgramWebhookPayload
+    /** The validated callback body, exactly as Deepgram sent it. */
+    rawBody: string
 }): Promise<WebhookHandleResult & { attemptId?: string }> {
-    const { supabase, requestId, transcriptId, payload } = opts
+    const { supabase, requestId, transcriptId, rawBody } = opts
 
     // Claim idempotency receipt
     const myAttemptId = randomUUID()
@@ -190,7 +191,7 @@ export async function handleDeepgramWebhook(opts: {
         }
     }
 
-    // Look up job to attach payload
+    // Look up the job the response belongs to
     const { data: exactJob, error: exactJobError } = await supabase
         .from('jobs')
         .select('id')
@@ -227,8 +228,21 @@ export async function handleDeepgramWebhook(opts: {
         jobIdToUpdate = fallbackJob?.id
     }
 
-    if (!jobIdToUpdate) {
-        console.error('[webhook] No job found to persist payload', { transcriptId, requestId })
+    // The owner names the folder the response is stored in.
+    const { data: transcript, error: transcriptError } = await supabase
+        .from('transcripts')
+        .select('user_id')
+        .eq('id', transcriptId)
+        .maybeSingle()
+
+    if (transcriptError) {
+        console.error('[webhook] Failed to lookup transcript owner:', transcriptError)
+        await markReceiptFailed(supabase, requestId, activeAttemptId, transcriptError.message)
+        throw new Error(`Failed to lookup transcript owner: ${transcriptError.message}`)
+    }
+
+    if (!jobIdToUpdate || !transcript) {
+        console.error('[webhook] No job found to store the response', { transcriptId, requestId })
         await persistWebhookFailure({
             supabase,
             transcriptId,
@@ -239,19 +253,39 @@ export async function handleDeepgramWebhook(opts: {
         throw new Error('Job not found for Deepgram webhook')
     }
 
-    // Persist payload to job row
-    const { error: updateError } = await supabase
+    // Store the response, then link it. A redelivery overwrites the same file.
+    const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, jobIdToUpdate)
+    try {
+        await uploadTranscriptionResult(supabase, resultKey, rawBody)
+    } catch (uploadError) {
+        const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
+        console.error('[webhook] Failed to store Deepgram response:', message)
+        await markReceiptFailed(supabase, requestId, activeAttemptId, message)
+        throw uploadError
+    }
+
+    const { data: linkedJob, error: updateError } = await supabase
         .from('jobs')
         .update({
-            payload: { deepgram: payload },
+            result_object_key: resultKey,
             inngest_event_id: requestId,
         })
         .eq('id', jobIdToUpdate)
+        .select('id')
+        .maybeSingle()
 
     if (updateError) {
-        console.error('[webhook] Failed to persist webhook payload:', updateError)
+        // The link may have landed; keep the file and let the retry overwrite it.
+        console.error('[webhook] Failed to link Deepgram response:', updateError)
         await markReceiptFailed(supabase, requestId, activeAttemptId, updateError.message)
-        throw new Error(`Failed to persist webhook payload: ${updateError.message}`)
+        throw new Error(`Failed to link Deepgram response: ${updateError.message}`)
+    }
+
+    if (!linkedJob) {
+        // The job went with its transcript while the file was uploading.
+        await removeTranscriptionResult(supabase, resultKey, 'webhook')
+        await markReceiptFailed(supabase, requestId, activeAttemptId, 'Job deleted during upload')
+        throw new Error('Job was deleted while storing the Deepgram response')
     }
 
     // Forward to Inngest for durable processing

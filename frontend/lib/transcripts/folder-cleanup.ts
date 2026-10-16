@@ -1,6 +1,7 @@
 /**
  * Server-side removal of transcript files. A transcript owns every object under
- * {user_id}/{transcript_id}/ in the media and waveforms buckets.
+ * {user_id}/{transcript_id}/ in the media, waveforms and transcription-results
+ * buckets.
  *
  * These helpers are strict: an unreadable inventory throws and failed removals
  * are always reported. Callers decide what a failure means — before a row is
@@ -10,12 +11,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   MEDIA_BUCKET,
   removeStorageObjectsBatched,
+  RESULTS_BUCKET,
   WAVEFORM_BUCKET,
 } from '@/infra/supabase/storage'
 
 export type TranscriptFileKeys = {
   media: string[]
   waveforms: string[]
+  results: string[]
 }
 
 export type BucketRemoval = {
@@ -26,18 +29,23 @@ export type BucketRemoval = {
 export type TranscriptFileRemoval = {
   media: BucketRemoval
   waveforms: BucketRemoval
-  /** Every key, from either bucket, that could not be confirmed removed. */
+  results: BucketRemoval
+  /** Every key, from any bucket, that could not be confirmed removed. */
   failed: string[]
 }
 
 type InventoryRow = {
   media_keys: string[] | null
   waveform_keys: string[] | null
+  result_keys: string[] | null
 }
 
 /**
- * Remove the given media and waveform objects in parallel. Removal goes through
- * the user's client; absence is verified through the trusted client.
+ * Remove the given objects from all three buckets in parallel. Media and
+ * waveforms are removed through the user's client and verified through the
+ * trusted one. transcription-results has no user policies, so the trusted client
+ * removes those; the keys still come from the user's own folder inventory and
+ * must sit under their folder.
  */
 export async function removeTranscriptFiles(
   supabase: SupabaseClient,
@@ -46,7 +54,7 @@ export async function removeTranscriptFiles(
   keys: TranscriptFileKeys,
   batchSize?: number
 ): Promise<TranscriptFileRemoval> {
-  const [media, waveforms] = await Promise.all([
+  const [media, waveforms, results] = await Promise.all([
     removeStorageObjectsBatched(
       supabase,
       verificationSupabase,
@@ -63,8 +71,21 @@ export async function removeTranscriptFiles(
       userId,
       batchSize
     ),
+    removeStorageObjectsBatched(
+      verificationSupabase,
+      verificationSupabase,
+      RESULTS_BUCKET,
+      keys.results,
+      userId,
+      batchSize
+    ),
   ])
-  return { media, waveforms, failed: [...media.failed, ...waveforms.failed] }
+  return {
+    media,
+    waveforms,
+    results,
+    failed: [...media.failed, ...waveforms.failed, ...results.failed],
+  }
 }
 
 /**
@@ -92,6 +113,7 @@ export async function sweepTranscriptFolders(
     {
       media: inventory?.media_keys ?? [],
       waveforms: inventory?.waveform_keys ?? [],
+      results: inventory?.result_keys ?? [],
     },
     batchSize
   )

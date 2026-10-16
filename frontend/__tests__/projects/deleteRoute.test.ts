@@ -34,6 +34,7 @@ function inventory(overrides: Record<string, unknown> = {}) {
     transcript_ids: ['22222222-2222-4222-8222-222222222222'],
     media_keys: ['user-1/t-1/audio.webm'],
     waveform_keys: ['user-1/t-1/waveform.json'],
+    result_keys: ['user-1/t-1/job-1.json.gz'],
     ...overrides,
   }
 }
@@ -63,7 +64,11 @@ describe('project delete route', () => {
       }),
       info: jest.fn(),
     }))
-    trustedStorageFromMock.mockImplementation(() => ({
+    trustedStorageFromMock.mockImplementation((bucket: string) => ({
+      remove: jest.fn(async (keys: string[]) => {
+        callOrder.push(`trusted:${bucket}`)
+        return { data: keys.map((name) => ({ name })), error: null }
+      }),
       info: jest.fn(async () => ({ data: null, error: { code: 'NoSuchKey' } })),
     }))
     createAdminClientMock.mockReturnValue({
@@ -94,11 +99,12 @@ describe('project delete route', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ deleted_projects: 1, deleted_transcripts: 1 })
     expect(callOrder[0]).toBe('begin_project_delete')
-    expect(callOrder.slice(1, 3)).toEqual(
-      expect.arrayContaining(['storage:media', 'storage:waveforms'])
+    // Results have no user policies, so the trusted client removes them.
+    expect(callOrder.slice(1, 4)).toEqual(
+      expect.arrayContaining(['storage:media', 'storage:waveforms', 'trusted:transcription-results'])
     )
-    expect(callOrder[3]).toBe('finish_project_delete')
-    expect(callOrder[4]).toBe('transcript_delete_inventory')
+    expect(callOrder[4]).toBe('finish_project_delete')
+    expect(callOrder[5]).toBe('transcript_delete_inventory')
   })
 
   test('maps PJ001 to gone without touching storage or finish', async () => {
@@ -186,7 +192,7 @@ describe('project delete route', () => {
 
   test('does not finish when trusted verification finds an object hidden from the user client', async () => {
     rpcMock.mockResolvedValueOnce({
-      data: [inventory({ media_keys: ['user-1/hidden'], waveform_keys: [] })],
+      data: [inventory({ media_keys: ['user-1/hidden'], waveform_keys: [], result_keys: [] })],
       error: null,
     })
     const authenticatedInfo = jest.fn().mockResolvedValue({

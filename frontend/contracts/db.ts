@@ -61,7 +61,11 @@ export const JobSchema = z.object({
   idempotency_key: z.string().nullable(),
   type: z.string(),
   status: JobStatusSchema,
-  payload: z.unknown().nullable(),
+  // The Deepgram response file in the transcription-results bucket.
+  result_object_key: z.string().nullable(),
+  error_message: z.string().nullable(),
+  error_type: z.string().nullable(),
+  error_detail: z.string().nullable(),
   created_at: z.string(),
   started_at: z.string().nullable(),
   finished_at: z.string().nullable(),
@@ -441,7 +445,6 @@ export type Transcript = z.infer<typeof TranscriptSchema>
 export type TranscriptSummary = z.infer<typeof TranscriptSummarySchema>
 export type Project = z.infer<typeof ProjectSchema>
 export type Job = z.infer<typeof JobSchema>
-export type JobSummary = Omit<Job, 'payload'>
 export type Speaker = z.infer<typeof SpeakerSchema>
 export type Person = z.infer<typeof PersonSchema>
 export type Organisation = z.infer<typeof OrganisationSchema>

@@ -23,16 +23,14 @@ type TranscriptRow = {
   waveform_object_key: string | null
 }
 
-function buildCleanupClient({
-  transcriptRows = [],
-  transcriptPages,
-  storageEntries = {},
-}: {
-  transcriptRows?: TranscriptRow[]
-  transcriptPages?: TranscriptRow[][]
-  storageEntries?: Record<string, StorageEntry[]>
-} = {}) {
-  const pages = transcriptPages ?? [transcriptRows]
+type JobRow = {
+  id: string
+  result_object_key: string | null
+}
+
+const BUCKETS = ['media', 'waveforms', 'transcription-results']
+
+function pagedQuery(pages: unknown[][]) {
   let pageIndex = 0
   const range = jest.fn(async () => ({ data: pages[pageIndex++] ?? [], error: null }))
   const query: { order: jest.Mock; gt: jest.Mock } = {
@@ -40,25 +38,38 @@ function buildCleanupClient({
     gt: jest.fn(),
   }
   query.gt.mockImplementation(() => query)
-  const select = jest.fn(() => query)
+  return { select: jest.fn(() => query), range, order: query.order, gt: query.gt }
+}
+
+function buildCleanupClient({
+  transcriptRows = [],
+  transcriptPages,
+  jobRows = [],
+  storageEntries = {},
+}: {
+  transcriptRows?: TranscriptRow[]
+  transcriptPages?: TranscriptRow[][]
+  jobRows?: JobRow[]
+  storageEntries?: Record<string, StorageEntry[]>
+} = {}) {
+  const transcripts = pagedQuery(transcriptPages ?? [transcriptRows])
+  const jobs = pagedQuery([jobRows])
   const from = jest.fn((table: string) => {
-    if (table !== 'transcripts') throw new Error(`Unexpected table: ${table}`)
-    return { select }
+    if (table === 'transcripts') return { select: transcripts.select }
+    if (table === 'jobs') return { select: jobs.select }
+    throw new Error(`Unexpected table: ${table}`)
   })
-  const removeByBucket: Record<string, jest.Mock> = {
-    media: jest.fn(async (paths: string[]) => ({
+  const removeByBucket: Record<string, jest.Mock> = Object.fromEntries(BUCKETS.map((bucket) => [
+    bucket,
+    jest.fn(async (paths: string[]) => ({
       data: paths.map((name) => ({ name })),
       error: null,
     })),
-    waveforms: jest.fn(async (paths: string[]) => ({
-      data: paths.map((name) => ({ name })),
-      error: null,
-    })),
-  }
-  const listByBucket: Record<string, jest.Mock> = {
-    media: jest.fn(async () => ({ data: storageEntries.media ?? [], error: null })),
-    waveforms: jest.fn(async () => ({ data: storageEntries.waveforms ?? [], error: null })),
-  }
+  ]))
+  const listByBucket: Record<string, jest.Mock> = Object.fromEntries(BUCKETS.map((bucket) => [
+    bucket,
+    jest.fn(async () => ({ data: storageEntries[bucket] ?? [], error: null })),
+  ]))
   const storageFrom = jest.fn((bucket: string) => ({
     list: listByBucket[bucket],
     remove: removeByBucket[bucket],
@@ -67,7 +78,7 @@ function buildCleanupClient({
   return {
     client: { from, storage: { from: storageFrom } },
     from,
-    transcriptQuery: { range, order: query.order, gt: query.gt },
+    transcriptQuery: { range: transcripts.range, order: transcripts.order, gt: transcripts.gt },
     removeByBucket,
   }
 }
@@ -120,13 +131,14 @@ describe('cleanup orphaned media', () => {
     ])
   })
 
-  test('scans transcript references and both buckets without deleting by default', async () => {
+  test('scans transcript and job references and all three buckets without deleting by default', async () => {
     const h = buildCleanupClient({
       transcriptRows: [{
         id: 'transcript-1',
         source_object_key: 'media-ref',
         waveform_object_key: 'wave-ref',
       }],
+      jobRows: [{ id: 'job-1', result_object_key: 'result-ref' }],
       storageEntries: {
         media: [
           entry('media-ref', '2026-09-01T00:00:00Z'),
@@ -137,6 +149,10 @@ describe('cleanup orphaned media', () => {
           entry('wave-ref', '2026-09-01T00:00:00Z'),
           entry('wave-old', '2026-09-01T00:00:00Z'),
         ],
+        'transcription-results': [
+          entry('result-ref', '2026-09-01T00:00:00Z'),
+          entry('result-old', '2026-09-01T00:00:00Z'),
+        ],
       },
     })
     const logger = { log: jest.fn() }
@@ -144,15 +160,18 @@ describe('cleanup orphaned media', () => {
     const result = await runCleanup(h.client, parseCleanupOptions([]), logger, 'local')
 
     expect(h.from).toHaveBeenCalledWith('transcripts')
+    expect(h.from).toHaveBeenCalledWith('jobs')
     expect(result.map((item: { bucket: string; orphaned: Array<{ path: string }> }) => ({
       bucket: item.bucket,
       paths: item.orphaned.map((object) => object.path),
     }))).toEqual([
       { bucket: 'media', paths: ['media-old'] },
       { bucket: 'waveforms', paths: ['wave-old'] },
+      { bucket: 'transcription-results', paths: ['result-old'] },
     ])
-    expect(h.removeByBucket.media).not.toHaveBeenCalled()
-    expect(h.removeByBucket.waveforms).not.toHaveBeenCalled()
+    for (const bucket of BUCKETS) {
+      expect(h.removeByBucket[bucket]).not.toHaveBeenCalled()
+    }
   })
 
   test('uses ordered keyset pagination so transcript references are not skipped', async () => {
@@ -214,6 +233,7 @@ describe('cleanup orphaned media', () => {
       storageEntries: {
         media: [entry('media-old', '2026-09-01T00:00:00Z')],
         waveforms: [entry('wave-old', '2026-09-01T00:00:00Z')],
+        'transcription-results': [entry('result-old', '2026-09-01T00:00:00Z')],
       },
     })
 
@@ -226,5 +246,6 @@ describe('cleanup orphaned media', () => {
 
     expect(h.removeByBucket.media).toHaveBeenCalledWith(['media-old'])
     expect(h.removeByBucket.waveforms).toHaveBeenCalledWith(['wave-old'])
+    expect(h.removeByBucket['transcription-results']).toHaveBeenCalledWith(['result-old'])
   })
 })
