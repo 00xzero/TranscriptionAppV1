@@ -183,6 +183,36 @@ describe('ProjectPeopleDialog', () => {
     expect(screen.getByText(/^Alice isn.t in any transcript in Dechra any more\.$/)).toBeInTheDocument()
   })
 
+  test('each screen brings its own close button to the same corner, one reachable at a time', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const onList = within(await screen.findByRole('dialog')).getByRole('button', { name: 'Close' })
+
+    await user.click(await screen.findByTestId('person-row-alice'))
+
+    const onPerson = within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' })
+    expect(onPerson).not.toBe(onList)
+    expect(onPerson.className).toBe(onList.className)
+    // The list's button left with its screen: out of reach, not removed.
+    expect(onList.closest('[inert]')).not.toBeNull()
+    expect(onPerson.closest('[inert]')).toBeNull()
+  })
+
+  test('the person screen stays drawn while it slides away', async () => {
+    const user = userEvent.setup()
+    mockFetchAppearances.mockResolvedValue([appearance('t-root', 'root', 'Risk assessment')])
+    render(<Harness />)
+    await user.click(await screen.findByTestId('person-row-alice'))
+    expect(await screen.findByTestId('appearance-t-root')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'People in Dechra' }))
+
+    // Back on the list, but Alice's screen is still there, out of reach, so the
+    // slide shows it leaving rather than an empty pane.
+    expect(screen.getByRole('dialog', { name: 'People in Dechra' })).toBeInTheDocument()
+    expect(screen.getByTestId('appearance-t-root').closest('[inert]')).not.toBeNull()
+  })
+
   test('Back returns to the list with focus on the person who was open', async () => {
     const user = userEvent.setup()
     render(<Harness />)

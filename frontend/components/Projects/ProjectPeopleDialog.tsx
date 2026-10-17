@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import type { Project, ProjectPeople, ProjectPerson, ProjectVoices } from '@/contracts/db'
 import { appearanceTotals, matchesPersonSearch } from '@/core/people/directory'
 import { activeBranchIds, type ProjectTree } from '@/core/projects/tree'
+import { markPersonDialogHandoff } from '@/lib/people/dialogHandoff'
 import { personHref } from '@/lib/people/routes'
 import { usePersonAppearances } from '@/lib/people/usePeopleData'
 import { projectSpeakerTotal, useProjectPeople } from '@/lib/projects/useProjectPeople'
@@ -32,6 +33,17 @@ function RowChevron() {
       className="h-4 w-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
     />
   )
+}
+
+/**
+ * Each screen's close button, in the same corner of both, so it slides away
+ * with one screen as an identical one slides in with the other and lands where
+ * the first stood. The hidden screen is inert and aria-hidden, so only one is
+ * ever reachable.
+ * Each header leaves room for it.
+ */
+function ScreenClose() {
+  return <DialogCloseButton className="absolute right-4 top-4 z-10" />
 }
 
 function isTextEntry(target: EventTarget): boolean {
@@ -60,7 +72,10 @@ export function ProjectPeopleDialog({ project, tree, branchTranscripts, returnFo
   onLoaded: (speakerTotal: number) => void
 }) {
   const people = useProjectPeople(project.id)
+  // The person stays chosen after Back, so their screen is still there, full,
+  // as it slides away; `showingPerson` is what moves the track.
   const [personId, setPersonId] = useState<string | null>(null)
+  const [onPerson, setOnPerson] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
   const backRef = useRef<HTMLButtonElement>(null)
   const filterRef = useRef<HTMLInputElement>(null)
@@ -74,16 +89,19 @@ export function ProjectPeopleDialog({ project, tree, branchTranscripts, returnFo
   }, [people.data])
 
   const person = personId ? people.data?.people.find((entry) => entry.id === personId) ?? null : null
-  const showingPerson = person !== null
+  const showingPerson = onPerson && person !== null
 
   useEffect(() => {
     if (showingPerson) backRef.current?.focus({ preventScroll: true })
   }, [showingPerson, personId])
 
-  const openPerson = (id: string) => setPersonId(id)
+  const openPerson = (id: string) => {
+    setPersonId(id)
+    setOnPerson(true)
+  }
   const back = () => {
     const from = personId
-    setPersonId(null)
+    setOnPerson(false)
     // The list stayed mounted, scrolled where it was; put focus back on the row.
     requestAnimationFrame(() => {
       listRef.current?.querySelector<HTMLElement>(`[data-testid="person-row-${from}"]`)?.focus({ preventScroll: true })
@@ -116,17 +134,22 @@ export function ProjectPeopleDialog({ project, tree, branchTranscripts, returnFo
         {...(showingPerson ? { 'aria-labelledby': headingId, 'aria-describedby': `${headingId}-summary` } : {})}
         className="top-[8vh] flex h-[min(640px,84vh)] w-[640px] max-w-[92vw] flex-col overflow-hidden p-0"
       >
+        {/* Both screens stay fully drawn and move as one strip, so the one coming
+            back is seen arriving rather than fading up from nothing. Under
+            reduced motion they swap with a short fade instead. */}
         <div
           className={cn(
-            'flex h-full w-[200%] transition-transform duration-300 ease-out motion-reduce:transition-none',
+            'flex h-full w-[200%] transition-transform duration-[380ms] ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none',
             showingPerson && '-translate-x-1/2'
           )}
         >
           <div
             ref={listRef}
             inert={showingPerson}
-            className={cn('flex h-full w-1/2 min-w-0 flex-col transition-opacity duration-300', showingPerson && 'opacity-0')}
+            aria-hidden={showingPerson || undefined}
+            className={cn('relative flex h-full w-1/2 min-w-0 flex-col motion-reduce:transition-opacity motion-reduce:duration-150', showingPerson && 'motion-reduce:opacity-0')}
           >
+            <ScreenClose />
             <PeopleScreen
               project={project}
               tree={tree}
@@ -140,8 +163,10 @@ export function ProjectPeopleDialog({ project, tree, branchTranscripts, returnFo
           </div>
           <div
             inert={!showingPerson}
-            className={cn('flex h-full w-1/2 min-w-0 flex-col transition-opacity duration-300', !showingPerson && 'opacity-0')}
+            aria-hidden={!showingPerson || undefined}
+            className={cn('relative flex h-full w-1/2 min-w-0 flex-col motion-reduce:transition-opacity motion-reduce:duration-150', !showingPerson && 'motion-reduce:opacity-0')}
           >
+            {person && <ScreenClose />}
             {person && (
               <PersonScreen
                 key={person.id}
@@ -177,7 +202,7 @@ function PeopleScreen({ project, tree, people, error, onRetry, branchTranscripts
   return (
     <>
       <div className="border-b border-border px-5 pb-4 pt-5">
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 pr-10">
           <div className="min-w-0 flex-1">
             <DialogTitle className="break-words text-2xl leading-tight">People in {project.name}</DialogTitle>
             {/* Holds its line while the people load, so nothing below moves. */}
@@ -189,7 +214,6 @@ function PeopleScreen({ project, tree, people, error, onRetry, branchTranscripts
               )}
             </DialogDescription>
           </div>
-          <DialogCloseButton />
         </div>
         {people && people.people.length >= FILTER_FROM && (
           <div className="relative mt-3">
@@ -362,7 +386,9 @@ function PersonScreen({ project, tree, person, headingId, backRef, onBack }: {
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
           People in {project.name}
         </button>
-        <PersonHeading person={person} titleId={headingId} actions={<DialogCloseButton className="ml-auto" />} />
+        <div className="pr-10">
+          <PersonHeading person={person} titleId={headingId} />
+        </div>
         {/* From the rows below, never the list's figures: the two are separate
             reads, and the line must not contradict what it sits above. It holds
             its height while they load, so nothing below moves. */}
@@ -374,6 +400,13 @@ function PersonScreen({ project, tree, person, headingId, backRef, onBack }: {
         </p>
         <Link
           href={personHref(person.id, null)}
+          // Their People dialog takes over from this one without fading in. A
+          // click that opens elsewhere (a new tab, say) leaves this tab as it is.
+          onClick={(event) => {
+            if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+              markPersonDialogHandoff()
+            }
+          }}
           className="mt-2 inline-flex items-center gap-1 rounded-sm text-xs font-medium text-trust-blue hover:underline"
         >
           Open in People

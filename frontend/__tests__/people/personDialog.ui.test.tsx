@@ -5,6 +5,7 @@ import PeopleLayout from '@/app/people/layout'
 import PersonPage from '@/app/people/[id]/page'
 import PeoplePage from '@/app/people/page'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { markPersonDialogHandoff } from '@/lib/people/dialogHandoff'
 import type { DirectoryPerson, MergePreview, PeopleDirectory, PersonAppearance } from '@/contracts/db'
 import {
   deletePerson,
@@ -155,6 +156,39 @@ test('Delete\'s tooltip says why it is unavailable', async () => {
   const user = await renderPage()
   await user.hover(screen.getByRole('button', { name: 'Delete person' }))
   expect(await screen.findByRole('tooltip')).toHaveTextContent('Delete person · Remove or merge first')
+})
+
+test('opens at once with the page, holding its shape while the directory loads', async () => {
+  let finish!: (value: PeopleDirectory) => void
+  jest.mocked(fetchPeopleDirectory).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+  jest.mocked(fetchPersonAppearances).mockResolvedValue(appearances)
+  render(tree())
+
+  // The dialog is there before the directory, not after the list has shown alone.
+  const dialog = screen.getByRole('dialog', { name: 'Person' })
+  await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('Loading person…'))
+  // The list behind, loading status and all, is out of reach meanwhile: the
+  // only status assistive tech can find is the dialog's own.
+  expect(screen.getByText('Loading people…').closest('[inert]')).not.toBeNull()
+  expect(screen.getAllByRole('status')).toEqual([within(dialog).getByRole('status')])
+
+  await act(async () => finish(directory))
+
+  // The same dialog fills in, rather than a second one opening.
+  expect(screen.getByRole('dialog', { name: 'Alex Morgan' })).toBe(dialog)
+})
+
+test('takes over from another dialog without fading in, but only right after the handoff', async () => {
+  markPersonDialogHandoff()
+  const { unmount } = render(tree())
+  const handedOver = await screen.findByRole('dialog')
+  expect(handedOver).toHaveClass('data-[state=open]:animate-none')
+  expect(document.querySelector('[data-slot=dialog-overlay]')).toHaveClass('data-[state=open]:animate-none')
+  unmount()
+
+  // The mark is used once: the next opening has its usual entrance.
+  render(tree())
+  expect(await screen.findByRole('dialog')).not.toHaveClass('data-[state=open]:animate-none')
 })
 
 test('arriving from the editor offers the way back', async () => {

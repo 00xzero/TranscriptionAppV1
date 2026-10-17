@@ -1,13 +1,15 @@
 'use client'
 
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, Eye, EyeOff, Merge, Palette, Pencil, Trash2, UserMinus } from 'lucide-react'
 import { countLabel, formatDuration, transcriptProjectLabel } from '@/components/Projects/format'
+import { ListRowSkeleton, ProjectList } from '@/components/Projects/ProjectList'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogCloseButton, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { IconButton } from '@/components/ui/icon-button'
+import { LoadingStatus } from '@/components/ui/loading-status'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { toast } from '@/components/ui/toaster'
 import { UNDO_WINDOW_MS } from '@/lib/undo'
@@ -16,6 +18,7 @@ import type { Organisation, Person, PersonAppearance, SegmentSpeakerChange } fro
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { appearanceTotals, mergeDirectoryPeople, updateDirectoryPerson } from '@/core/people/directory'
 import { reverseSpeakerChange } from '@/core/speakers/changes'
+import { clearPersonDialogHandoff, isPersonDialogHandoff } from '@/lib/people/dialogHandoff'
 import { isConflict, isGone, isNotReady, mapPeopleWriteError, NOT_READY_MESSAGE } from '@/lib/people/errors'
 import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
@@ -33,6 +36,7 @@ import {
   setPersonHidden,
   setPersonOrganisation,
 } from '@/lib/supabase/queries'
+import { cn } from '@/lib/utils'
 import { BackToTranscript } from './BackToTranscript'
 import { ColourPicker } from './ColourPicker'
 import { AppearanceList } from './AppearanceList'
@@ -68,9 +72,15 @@ function useClosePerson() {
 
 function PersonDialogFrame({ onClose, children }: { onClose: () => void; children: ReactNode }) {
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
+  // Opened from another dialog (a project's people): already open, so the
+  // backdrop stays dark across the route change instead of flashing the page.
+  const [handedOver] = useState(isPersonDialogHandoff)
+  useEffect(() => { clearPersonDialogHandoff() }, [])
+  const noEntrance = handedOver ? 'data-[state=open]:animate-none' : undefined
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent
+        overlayClassName={noEntrance}
         focusSelfOnOpen
         // The URL opens this dialog, so it has no trigger for Radix to return
         // focus to: go back to what had it, such as the list row.
@@ -79,7 +89,7 @@ function PersonDialogFrame({ onClose, children }: { onClose: () => void; childre
           event.preventDefault()
           restoreFocus()
         }}
-        className="top-[8vh] flex max-h-[84vh] w-[640px] max-w-[92vw] flex-col overflow-hidden p-0"
+        className={cn('top-[8vh] flex max-h-[84vh] w-[640px] max-w-[92vw] flex-col overflow-hidden p-0', noEntrance)}
       >
         {children}
       </DialogContent>
@@ -95,6 +105,35 @@ function PersonMessage({ title, description, children }: { title: string; descri
       <DialogDescription className="mt-2">{description}</DialogDescription>
       <div className="mt-5 flex justify-center gap-2">{children}</div>
     </div>
+  )
+}
+
+/**
+ * The person dialog's shape while the directory loads: heading, summary line
+ * and transcript rows as placeholders, so the filled dialog lands in place.
+ */
+function PersonLoading() {
+  return (
+    <>
+      <DialogTitle className="sr-only">Person</DialogTitle>
+      <DialogDescription className="sr-only">This person&apos;s details are loading.</DialogDescription>
+      <LoadingStatus message="Loading person…" className="flex min-h-0 flex-1 flex-col">
+        <div aria-hidden="true" className="border-b border-border px-5 pb-4 pt-5">
+          <div className="flex items-start gap-4">
+            <div className="h-14 w-14 shrink-0 animate-pulse rounded-full bg-subtle" />
+            <div className="flex-1 space-y-2 pt-1">
+              <div className="h-7 w-48 animate-pulse rounded-sm bg-subtle" />
+              <div className="h-4 w-32 animate-pulse rounded-sm bg-subtle" />
+            </div>
+          </div>
+          <div className="mt-3 h-4 w-64 animate-pulse rounded-sm bg-subtle" />
+        </div>
+        <div aria-hidden="true" className="px-5 pb-5 pt-4">
+          <div className="mb-2 h-4" />
+          <ProjectList><ListRowSkeleton /><ListRowSkeleton /></ProjectList>
+        </div>
+      </LoadingStatus>
+    </>
   )
 }
 
@@ -135,10 +174,17 @@ export function PersonDialog({ personId }: { personId: string }) {
   const [picker, setPicker] = useState<Picker>(null)
   const [hiding, setHiding] = useState(false)
 
-  // Opens once the directory has loaded; until then the list underneath says
-  // it is loading. Opening earlier would leave the list's live region, and so
-  // the list, exposed to assistive tech behind the dialog.
-  if (directory.loading) return null
+  // Opens at once, with the page, rather than after the directory lands: a
+  // dialog that appeared only once the list behind it had shown read as a
+  // second, separate step. Its own live region says it is loading; PeopleShell
+  // puts the list, and its loading status, out of reach behind it.
+  if (directory.loading) {
+    return (
+      <PersonDialogFrame onClose={close}>
+        <PersonLoading />
+      </PersonDialogFrame>
+    )
+  }
 
   if (!directory.data) {
     return (
