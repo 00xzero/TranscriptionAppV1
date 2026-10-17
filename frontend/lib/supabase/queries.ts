@@ -19,6 +19,7 @@ import type {
     PersonOrganisationResult,
     Transcript,
     Project,
+    ProjectPeople,
     ProjectSpeakerSummary,
     Speaker,
     SegmentSpeakerChange,
@@ -39,6 +40,7 @@ import {
     PersonCorrectionResultSchema,
     PersonOrganisationResultSchema,
     PersonSchema,
+    ProjectPeopleSchema,
     ProjectSpeakerSummariesResultSchema,
     ReassignSegmentsResultSchema,
     RemovePersonResultSchema,
@@ -261,6 +263,21 @@ export async function fetchProjectSpeakerSummaries(
         throw new Error('Malformed project_speaker_summaries response')
     }
     return new Map(parsed.data.map((row) => [row.project_id, row]))
+}
+
+/**
+ * The people and unlinked voices across a project and every project nested in
+ * it, for the project page's people dialog. Counted as the whole-branch
+ * summary counts them.
+ */
+export async function fetchProjectPeople(projectId: string): Promise<ProjectPeople> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('project_people', {
+        p_project_id: projectId,
+    })
+
+    if (error) throw error
+    return ProjectPeopleSchema.parse(data)
 }
 
 /**

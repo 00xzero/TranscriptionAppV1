@@ -28,6 +28,8 @@ type SpeakerAvatarGroupProps = {
    * does not navigate.
    */
   href?: string
+  /** A button around the group opens something, so the circles show a hand. */
+  interactive?: boolean
 }
 
 /**
@@ -77,8 +79,9 @@ const SIZES = {
   card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '', ring: 'ring-panel', maxFaces: 4, facesWithOverflow: 3 },
   // In the header the group shares a row with the counts and the action buttons,
   // so the count text drops out when that row is tight rather than wrapping the
-  // group onto a second line and making the card taller. The full count stays in
-  // the group's accessible name either way.
+  // group onto a second line and making the card taller; only on a phone-width
+  // row, where even the faces cannot fit, does the group wrap. The full count
+  // stays in the group's accessible name either way.
   //
   // A CONTAINER query, not a viewport one: the header card sits behind a nav rail
   // and the project archive panel, so its row is only 719px on a 1440px screen.
@@ -101,12 +104,11 @@ const SIZES = {
     count: 'font-mono text-xs @max-3xl:hidden',
     ghost: 'h-3.5 w-3.5',
     // Below @sm the counts alone fill the row (223px of 244px at 390px), so the
-    // group cannot share the line. The alternatives were worse: wrapping adds a
-    // second row and ~32px of header, and truncating the counts would drop real
-    // information for decorative circles. So the group steps aside entirely, and
-    // the header reads exactly as it did before this feature. Mobile still gets
-    // avatars on the Library cards, which have a row of their own.
-    group: '@max-sm:hidden',
+    // group wraps onto a line of its own beneath them. It once stepped aside
+    // there instead, saving ~32px of header, but the faces are now the button
+    // that opens the project's people dialog, and hiding them would leave
+    // phones no way in.
+    group: '',
     ring: 'ring-panel',
     maxFaces: 4,
     facesWithOverflow: 3,
@@ -188,12 +190,14 @@ export function SpeakerAvatarGroup({
   loading = false,
   className,
   href,
+  interactive = false,
 }: SpeakerAvatarGroupProps) {
   const styles = SIZES[size]
-  // A hand where clicking does something (a card's link, the editor's speaker
-  // button around the group), a plain arrow on the project header. Never a
-  // text caret: an I-beam would say the initials are copyable prose.
-  const cursorClass = href || size === 'editor' ? 'cursor-pointer' : 'cursor-default'
+  // A hand where clicking does something (a card's link, the speaker button
+  // around the group in the editor or a project header), a plain arrow
+  // otherwise. Never a text caret: an I-beam would say the initials are
+  // copyable prose.
+  const cursorClass = href || size === 'editor' || interactive ? 'cursor-pointer' : 'cursor-default'
 
   if (loading) {
     // Same height as the loaded row, so nothing shifts when the data lands.

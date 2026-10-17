@@ -1,8 +1,9 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import type { Project, ProjectSpeakerSummary } from '@/contracts/db'
 import { previewDisplay } from '@/lib/speakers/display'
+import { cn } from '@/lib/utils'
 import { countLabel, formatRelativeTime } from './format'
 import { SpeakerAvatarGroup } from './SpeakerAvatarGroup'
 
@@ -11,11 +12,15 @@ interface ProjectHeaderCardProps {
   directTranscriptCount: number
   nestedProjectCount: number
   /**
-   * Speakers of this project's DIRECT transcripts, matching
-   * `directTranscriptCount`. A nested project's speakers belong to its own page.
+   * Speakers of this project and every project nested in it, as its people
+   * dialog lists them.
    */
   speakerSummary?: ProjectSpeakerSummary
   speakersLoading: boolean
+  /** Opens the people dialog; the faces become its button once there is someone to show. */
+  onOpenSpeakers?: () => void
+  speakersOpen?: boolean
+  speakersButtonRef?: Ref<HTMLButtonElement>
   actions: ReactNode
   /** The project's kebab menu, kept flush with the row kebabs below the card. */
   menu: ReactNode
@@ -28,9 +33,14 @@ export function ProjectHeaderCard({
   nestedProjectCount,
   speakerSummary,
   speakersLoading,
+  onOpenSpeakers,
+  speakersOpen = false,
+  speakersButtonRef,
   actions,
   menu,
 }: ProjectHeaderCardProps) {
+  const speakerCount = speakerSummary?.speaker_count ?? 0
+  const speakersClickable = Boolean(onOpenSpeakers && !speakersLoading && speakerSummary && speakerCount > 0)
   return (
     <section
       aria-labelledby="project-heading"
@@ -60,20 +70,43 @@ export function ProjectHeaderCard({
       {/* @container so the speaker count text can respond to THIS row's width
           rather than the viewport's — see SpeakerAvatarGroup's header size. */}
       <div className="@container mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        {/* Counts and avatars share one row so the card keeps its height; the
-            avatar group is never a second row of its own. */}
+        {/* Counts and avatars share one row wherever they fit, so the card keeps
+            its height; only on a phone-width row do the avatars wrap beneath. */}
         <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
           <p className="font-mono text-xs text-muted">
             {countLabel(directTranscriptCount, 'transcript', 'transcripts')} ·{' '}
             {countLabel(nestedProjectCount, 'nested project', 'nested projects')}
           </p>
           {/* Dropped entirely on failure: "0 speakers" would be a false claim. */}
-          {(speakersLoading || speakerSummary) && (
+          {speakersClickable ? (
+            // Styled as the editor's speaker button. Where the row is too narrow
+            // to share, it wraps beneath the counts rather than hiding.
+            <button
+              ref={speakersButtonRef}
+              type="button"
+              onClick={onOpenSpeakers}
+              aria-haspopup="dialog"
+              aria-expanded={speakersOpen}
+              aria-label={`Speakers in ${project.name}: ${countLabel(speakerCount, 'speaker', 'speakers')}`}
+              className={cn(
+                '-my-1 inline-flex cursor-pointer items-center rounded-full py-1 pl-1 pr-2.5 transition-colors',
+                'hover:bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/60',
+                speakersOpen && 'bg-subtle'
+              )}
+            >
+              <SpeakerAvatarGroup
+                size="header"
+                interactive
+                speakers={(speakerSummary?.preview ?? []).map(previewDisplay)}
+                totalCount={speakerCount}
+              />
+            </button>
+          ) : (speakersLoading || speakerSummary) && (
             <SpeakerAvatarGroup
               size="header"
               loading={speakersLoading}
               speakers={(speakerSummary?.preview ?? []).map(previewDisplay)}
-              totalCount={speakerSummary?.speaker_count ?? 0}
+              totalCount={speakerCount}
             />
           )}
         </div>

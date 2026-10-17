@@ -2,6 +2,7 @@ import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ProjectPage from '@/app/projects/[projectId]/page'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Project } from '@/contracts/db'
 import {
   makeProject,
@@ -12,9 +13,12 @@ import {
 } from './fixtures'
 
 const mockFetchSpeakerSummaries = jest.fn()
+const mockFetchProjectPeople = jest.fn()
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjectSpeakerSummaries: (...args: unknown[]) => mockFetchSpeakerSummaries(...args),
+  fetchProjectPeople: (...args: unknown[]) => mockFetchProjectPeople(...args),
+  fetchPersonAppearances: jest.fn().mockResolvedValue([]),
 }))
 
 const mockUseProjectsData = jest.fn()
@@ -56,17 +60,29 @@ describe('ProjectPage', () => {
   })
 
   describe('speakers', () => {
-    test('asks only for this project, not its branch', async () => {
+    test('asks for the whole branch, as the people dialog lists it', async () => {
       mockData([makeCurrent(), makeProject({ id: 'child', parent_id: 'current' })], [])
 
       render(<ProjectPage />)
 
-      // Direct scope, matching directTranscriptCount: the nested project's
-      // speakers are reported on that project's own page.
       await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(1))
       expect(mockFetchSpeakerSummaries).toHaveBeenCalledWith(['current'], {
-        includeDescendants: false,
+        includeDescendants: true,
       })
+    })
+
+    test('asks again when a transcript in a sub-project changes', async () => {
+      mockFetchSpeakerSummaries.mockResolvedValue(new Map())
+      const child = makeProject({ id: 'child', parent_id: 'current' })
+      const nested = makeTranscript({ id: 'nested', project_id: 'child', updated_at: '2026-09-01T00:00:00Z' })
+      mockData([makeCurrent(), child], [nested])
+      const { rerender } = render(<ProjectPage />)
+      await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(1))
+
+      mockData([makeCurrent(), child], [{ ...nested, updated_at: '2026-09-02T00:00:00Z' }])
+      rerender(<ProjectPage />)
+
+      await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(2))
     })
 
     test('does not ask until the project has resolved', async () => {
@@ -123,6 +139,82 @@ describe('ProjectPage', () => {
         await screen.findByRole('img', { name: '5 speakers: Kate, John, Sarah and 2 more' })
       ).toBeInTheDocument()
       expect(screen.getByText('+2')).toBeInTheDocument()
+    })
+
+    describe('people dialog', () => {
+      const summary = (count: number) => new Map([[
+        'current',
+        {
+          project_id: 'current',
+          speaker_count: count,
+          preview: [{ kind: 'person', id: 's1', name: 'Kate', color: '#4F638C', organisationName: null }],
+        },
+      ]])
+      const people = (names: string[]) => ({
+        people: names.map((name, index) => ({
+          id: `p${index}`, name, preferred_color: '#4F638C', organisation_name: null, hidden: false,
+          transcript_count: 1, talk_ms: 60_000, last_seen_at: '2026-10-01T00:00:00Z',
+        })),
+        voices: [],
+      })
+
+      test('the speaker faces open it', async () => {
+        const user = userEvent.setup()
+        mockFetchSpeakerSummaries.mockResolvedValue(summary(2))
+        mockFetchProjectPeople.mockResolvedValue(people(['Kate', 'John']))
+        mockData([makeCurrent()], [])
+        render(<ProjectPage />, { wrapper: TooltipProvider })
+
+        const button = await screen.findByRole('button', { name: 'Speakers in Current: 2 speakers' })
+        expect(button).toHaveAttribute('aria-haspopup', 'dialog')
+        expect(mockFetchProjectPeople).not.toHaveBeenCalled()
+
+        await user.click(button)
+
+        expect(await screen.findByRole('dialog', { name: 'People in Current' })).toBeInTheDocument()
+        expect(await screen.findByTestId('person-row-p1')).toBeInTheDocument()
+        expect(mockFetchProjectPeople).toHaveBeenCalledWith('current')
+        expect(button).toHaveAttribute('aria-expanded', 'true')
+      })
+
+      test('the faces are no button while there is nobody to show', async () => {
+        mockFetchSpeakerSummaries.mockResolvedValue(new Map([['current', { project_id: 'current', speaker_count: 0, preview: [] }]]))
+        mockData([makeCurrent()], [])
+        render(<ProjectPage />, { wrapper: TooltipProvider })
+
+        expect(await screen.findByText('No speakers yet!')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /^Speakers in/ })).not.toBeInTheDocument()
+      })
+
+      test('a fresher count from the dialog makes the header read again, once', async () => {
+        const user = userEvent.setup()
+        mockFetchSpeakerSummaries.mockResolvedValue(summary(2))
+        mockFetchProjectPeople.mockResolvedValue(people(['Kate', 'John', 'Sarah']))
+        mockData([makeCurrent()], [])
+        render(<ProjectPage />, { wrapper: TooltipProvider })
+
+        await user.click(await screen.findByRole('button', { name: 'Speakers in Current: 2 speakers' }))
+        await screen.findByTestId('person-row-p2')
+
+        await waitFor(() => expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(2))
+        // The header still says 2: no second reload, no loop.
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+        expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(2)
+      })
+
+      test('a matching count leaves the header alone', async () => {
+        const user = userEvent.setup()
+        mockFetchSpeakerSummaries.mockResolvedValue(summary(2))
+        mockFetchProjectPeople.mockResolvedValue(people(['Kate', 'John']))
+        mockData([makeCurrent()], [])
+        render(<ProjectPage />, { wrapper: TooltipProvider })
+
+        await user.click(await screen.findByRole('button', { name: 'Speakers in Current: 2 speakers' }))
+        await screen.findByTestId('person-row-p1')
+
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)) })
+        expect(mockFetchSpeakerSummaries).toHaveBeenCalledTimes(1)
+      })
     })
   })
 

@@ -107,4 +107,5 @@ jest.mock('./lib/supabase/queries', () => ({
   // it to an empty map keeps those tests from hitting an undefined export and
   // silently exercising the hook's error path.
   fetchProjectSpeakerSummaries: jest.fn().mockResolvedValue(new Map()),
+  fetchProjectPeople: jest.fn().mockResolvedValue({ people: [], voices: [] }),
 }))

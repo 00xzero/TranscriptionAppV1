@@ -9,13 +9,17 @@ const UNFILED: TranscriptProjectLabel = { label: 'Unfiled', full: 'Unfiled' }
 /**
  * Only a null project id means Unfiled. A non-null id missing from the fetched
  * tree is unresolved, so omit the label rather than misclassifying the transcript.
+ * Seen from inside a project (`relativeTo`), its own transcripts need no label
+ * and nested ones name only the path below it.
  */
 export function transcriptProjectLabel(
   tree: ProjectTree,
-  projectId: string | null
+  projectId: string | null,
+  relativeTo?: string
 ): TranscriptProjectLabel | null {
   if (projectId === null) return UNFILED
-  const label = collapsedPathLabel(tree, projectId)
+  if (projectId === relativeTo) return null
+  const label = collapsedPathLabel(tree, projectId, 2, relativeTo)
   if (!label) return null
   return { label, full: pathLabel(tree, projectId) }
 }

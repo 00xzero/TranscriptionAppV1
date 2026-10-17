@@ -8,6 +8,12 @@ export type ProjectSpeakerSummariesState = {
   /** Keyed by project id. A missing key is "unknown", not "no speakers". */
   summaries: Map<string, ProjectSpeakerSummary>
   loading: boolean
+  /**
+   * Fetch again now, keeping the displayed summary until the answer lands. For
+   * a caller that has just learned the answer moved, such as a fresher count
+   * read elsewhere; the hook does not retry on its own.
+   */
+  reload: () => void
 }
 
 /** Shared instance: the map is never mutated, so every empty state can use it. */
@@ -115,6 +121,10 @@ export function useProjectSpeakerSummaries(
     return () => window.removeEventListener('focus', onFocus)
   }, [run])
 
+  const reload = useCallback(() => {
+    void run()
+  }, [run])
+
   // Derived rather than cleared in an effect, so a navigation drops the previous
   // project's avatars in the same render that changes the key — never a frame
   // showing another project's speakers.
@@ -122,5 +132,6 @@ export function useProjectSpeakerSummaries(
   return {
     summaries: (isCurrent ? state.summaries : EMPTY) as Map<string, ProjectSpeakerSummary>,
     loading: key !== '' && !(isCurrent && state.settled),
+    reload,
   }
 }

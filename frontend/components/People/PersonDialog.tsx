@@ -3,9 +3,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, Eye, EyeOff, Merge, Palette, Pencil, Trash2, UserMinus } from 'lucide-react'
-import { ListRowSkeleton, ProjectList } from '@/components/Projects/ProjectList'
 import { countLabel, formatDuration, transcriptProjectLabel } from '@/components/Projects/format'
-import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Dialog, DialogCloseButton, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -24,8 +22,7 @@ import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
 import { fromTranscriptId, peopleHref } from '@/lib/people/routes'
 import { usePersonAppearances } from '@/lib/people/usePeopleData'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
-import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { SPEAKER_COLOR_NAMES, speakerInitials, type SpeakerColor } from '@/lib/speakers/palette'
+import { SPEAKER_COLOR_NAMES, type SpeakerColor } from '@/lib/speakers/palette'
 import {
   deletePerson,
   mergePeople,
@@ -38,11 +35,12 @@ import {
 } from '@/lib/supabase/queries'
 import { BackToTranscript } from './BackToTranscript'
 import { ColourPicker } from './ColourPicker'
-import { HiddenBadge } from './HiddenBadge'
+import { AppearanceList } from './AppearanceList'
 import { MergePeopleDialog } from './MergePeopleDialog'
 import { OrganisationPicker } from './OrganisationPicker'
+import { PersonHeading } from './PersonHeading'
 import { PersonNameDialog } from './PersonNameDialog'
-import { formatPeopleDate, formatTalk } from './format'
+import { formatPeopleDate } from './format'
 
 type NestedDialog = 'rename' | 'merge' | 'delete' | null
 type Picker = 'organisation' | 'colour' | null
@@ -272,71 +270,66 @@ export function PersonDialog({ personId }: { personId: string }) {
     <PersonDialogFrame onClose={close}>
       <div className="border-b border-border px-5 pb-4 pt-5">
         <BackToTranscript from={from} />
-        <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          <Avatar color={person.preferred_color} className="h-14 min-w-14 text-base">
-            {speakerInitials(person.name)}
-          </Avatar>
-          <div className="min-w-0 flex-1 basis-48">
-            <DialogTitle className="break-words text-3xl leading-tight">{person.name}</DialogTitle>
-            <DialogDescription asChild>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-                <span>{person.organisation_name ?? 'No organisation'}</span>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: person.preferred_color }} />
-                  {colourName}
-                </span>
-                {person.hidden && <HiddenBadge />}
-              </div>
-            </DialogDescription>
-          </div>
-          <div role="group" aria-label={`Actions for ${person.name}`} className="ml-auto flex items-center gap-0.5">
-            <IconButton label="Rename person" icon={<Pencil className={ICON} aria-hidden="true" />}
-              onClick={() => setDialog('rename')} />
-            <Popover open={picker === 'organisation'} onOpenChange={pickerOpen('organisation')}>
-              <PopoverTrigger asChild>
-                <IconButton label="Change organisation" icon={<Building2 className={ICON} aria-hidden="true" />}
-                  active={picker === 'organisation'} />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="z-[110] w-80 p-0">
-                <OrganisationPicker
-                  organisations={directory.data.organisations}
-                  currentId={person.organisation_id}
-                  currentName={person.organisation_name}
-                  onChoose={(choice) => guarded(() => setPersonOrganisation(personId, person.organisation_id, choice),
-                    (result) => showPerson(result.person, result.organisation))
-                    .then(() => setPicker(null))}
-                />
-              </PopoverContent>
-            </Popover>
-            <Popover open={picker === 'colour'} onOpenChange={pickerOpen('colour')}>
-              <PopoverTrigger asChild>
-                <IconButton label="Change colour" icon={<Palette className={ICON} aria-hidden="true" />}
-                  active={picker === 'colour'} />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="z-[110] w-64">
-                <ColourPicker
-                  name={person.name}
-                  current={person.preferred_color}
-                  onChoose={(color) => guarded(() => setPersonColor(personId, person.preferred_color, color), showPerson)
-                    .then(() => setPicker(null))}
-                />
-              </PopoverContent>
-            </Popover>
-            <IconButton
-              label={person.hidden ? 'Unhide' : 'Hide'}
-              icon={person.hidden ? <Eye className={ICON} aria-hidden="true" /> : <EyeOff className={ICON} aria-hidden="true" />}
-              aria-busy={hiding || undefined}
-              onClick={() => { if (!hiding) void toggleHidden(!person.hidden, person.name) }}
-            />
-            <IconButton label="Merge people" icon={<Merge className={ICON} aria-hidden="true" />}
-              onClick={() => setDialog('merge')} />
-            <IconButton label="Delete person" icon={<Trash2 className={ICON} aria-hidden="true" />}
-              unavailableReason={deleteBlocked} onClick={() => setDialog('delete')} />
-            <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
-            <DialogCloseButton />
-          </div>
-        </div>
+        <PersonHeading
+          person={person}
+          details={(
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: person.preferred_color }} />
+                {colourName}
+              </span>
+            </>
+          )}
+          actions={(
+            <div role="group" aria-label={`Actions for ${person.name}`} className="ml-auto flex items-center gap-0.5">
+              <IconButton label="Rename person" icon={<Pencil className={ICON} aria-hidden="true" />}
+                onClick={() => setDialog('rename')} />
+              <Popover open={picker === 'organisation'} onOpenChange={pickerOpen('organisation')}>
+                <PopoverTrigger asChild>
+                  <IconButton label="Change organisation" icon={<Building2 className={ICON} aria-hidden="true" />}
+                    active={picker === 'organisation'} />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="z-[110] w-80 p-0">
+                  <OrganisationPicker
+                    organisations={directory.data.organisations}
+                    currentId={person.organisation_id}
+                    currentName={person.organisation_name}
+                    onChoose={(choice) => guarded(() => setPersonOrganisation(personId, person.organisation_id, choice),
+                      (result) => showPerson(result.person, result.organisation))
+                      .then(() => setPicker(null))}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Popover open={picker === 'colour'} onOpenChange={pickerOpen('colour')}>
+                <PopoverTrigger asChild>
+                  <IconButton label="Change colour" icon={<Palette className={ICON} aria-hidden="true" />}
+                    active={picker === 'colour'} />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="z-[110] w-64">
+                  <ColourPicker
+                    name={person.name}
+                    current={person.preferred_color}
+                    onChoose={(color) => guarded(() => setPersonColor(personId, person.preferred_color, color), showPerson)
+                      .then(() => setPicker(null))}
+                  />
+                </PopoverContent>
+              </Popover>
+              <IconButton
+                label={person.hidden ? 'Unhide' : 'Hide'}
+                icon={person.hidden ? <Eye className={ICON} aria-hidden="true" /> : <EyeOff className={ICON} aria-hidden="true" />}
+                aria-busy={hiding || undefined}
+                onClick={() => { if (!hiding) void toggleHidden(!person.hidden, person.name) }}
+              />
+              <IconButton label="Merge people" icon={<Merge className={ICON} aria-hidden="true" />}
+                onClick={() => setDialog('merge')} />
+              <IconButton label="Delete person" icon={<Trash2 className={ICON} aria-hidden="true" />}
+                unavailableReason={deleteBlocked} onClick={() => setDialog('delete')} />
+              <span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />
+              <DialogCloseButton />
+            </div>
+          )}
+        />
         {/* Holds its line while the appearances load, so nothing below moves. */}
         <p className="mt-3 min-h-4 font-mono text-xs text-muted">
           {totals === null ? '' : totals.transcripts === 0 ? 'Not in any transcript yet'
@@ -347,53 +340,21 @@ export function PersonDialog({ personId }: { personId: string }) {
 
       <section aria-labelledby="appearances-heading" className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-4">
         <h2 id="appearances-heading" className="mb-2 font-mono text-xs text-muted">Appearances</h2>
-        {rows === null ? (
-          appearances.error ? (
-            <ProjectList>
-              <p className="px-4 py-5 text-sm text-muted">
-                Couldn&apos;t load the transcripts.{' '}
-                <button type="button" className="text-trust-blue hover:underline" onClick={() => void appearances.reload()}>
-                  Try again
-                </button>
-              </p>
-            </ProjectList>
-          ) : (
-            <ProjectList><ListRowSkeleton /><ListRowSkeleton /></ProjectList>
-          )
-        ) : rows.length === 0 ? (
-          <ProjectList>
-            <p className="px-4 py-5 text-sm text-muted">
-              {person.name} isn&apos;t in any transcript yet. Open a transcript and click a speaker to identify them.
-            </p>
-          </ProjectList>
-        ) : (
-          <ProjectList>
-            {rows.map((appearance) => {
-              const title = appearance.title || 'Untitled'
-              const project = transcriptProjectLabel(tree, appearance.project_id)
-              return (
-                <div key={appearance.transcript_id} data-testid={`appearance-${appearance.transcript_id}`}
-                  className="group flex min-h-16 items-center gap-3 px-4 py-3 transition-colors hover:bg-subtle">
-                  <Link href={`/editor/${appearance.transcript_id}`} title={`Open ${title}`} className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink transition-colors group-hover:text-trust-blue dark:text-paper">
-                      {title}
-                    </p>
-                    <p className="truncate font-mono text-[10px] text-ink/50 dark:text-paper/50">
-                      {project && <span title={project.full}>{project.label} · </span>}
-                      {formatPeopleDate(appearance.created_at)} · {formatTalk(appearance.talk_ms, appearance.transcript_talk_ms)}
-                    </p>
-                  </Link>
-                  <IconButton
-                    label="Remove from this transcript"
-                    ariaLabel={`Remove ${person.name} from “${title}”`}
-                    icon={<UserMinus className={ICON} aria-hidden="true" />}
-                    onClick={() => void removeFrom(appearance, person.name)}
-                  />
-                </div>
-              )
-            })}
-          </ProjectList>
-        )}
+        <AppearanceList
+          rows={rows}
+          error={appearances.error}
+          onRetry={() => void appearances.reload()}
+          empty={<>{person.name} isn&apos;t in any transcript yet. Open a transcript and click a speaker to identify them.</>}
+          projectLabel={(projectId) => transcriptProjectLabel(tree, projectId)}
+          action={(appearance, title) => (
+            <IconButton
+              label="Remove from this transcript"
+              ariaLabel={`Remove ${person.name} from “${title}”`}
+              icon={<UserMinus className={ICON} aria-hidden="true" />}
+              onClick={() => void removeFrom(appearance, person.name)}
+            />
+          )}
+        />
       </section>
 
       {dialog === 'rename' && (
