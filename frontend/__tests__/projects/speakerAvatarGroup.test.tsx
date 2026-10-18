@@ -294,13 +294,13 @@ describe('SpeakerAvatarGroup', () => {
   // jsdom resolves no container queries, so these assert the contract in classes.
   // The measured behaviour they stand for was verified in the browser: at 390px
   // the header row is 244px wide and the counts alone take 223px, so the group
-  // cannot share the line and steps aside instead of adding a second row.
+  // wraps onto a line of its own.
   describe('tight containers', () => {
-    test('the header group hides when its container is too narrow for it', () => {
+    test('the header group never hides: it opens the people dialog, phones included', () => {
       render(
         <SpeakerAvatarGroup speakers={previews(['Kate'])} totalCount={1} size="header" />
       )
-      expect(screen.getByRole('img')).toHaveClass('@max-sm:hidden')
+      expect(screen.getByRole('img')).not.toHaveClass('@max-sm:hidden')
     })
 
     test('the header count text drops out before the group does', () => {

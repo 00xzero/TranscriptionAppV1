@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, type ReactNode } from 'react'
+import { usePathname } from 'next/navigation'
 import { ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { PeopleDirectoryProvider } from '@/lib/people/PeopleDirectoryContext'
@@ -12,12 +13,21 @@ import { PeopleListView } from './PeopleListView'
  * scroll and data while a person opens and closes (spec §4).
  */
 export function PeopleShell({ children }: { children: ReactNode }) {
+  // Anything below /people is a dialog over the list. The list is put out of
+  // reach while one is open: the dialog opens at once, while the list may still
+  // be loading, and the modal's own hiding deliberately leaves live regions,
+  // such as the list's loading status, exposed behind it.
+  const overlaid = usePathname()?.replace(/\/+$/, '') !== '/people'
   // useSearchParams (the editor's ?from) needs Suspense boundaries.
   return (
     <PeopleDirectoryProvider>
-      <Suspense fallback={<LoadingStatus message="Loading people…"><ProjectListSkeleton /></LoadingStatus>}>
-        <PeopleListView />
-      </Suspense>
+      {/* inert takes it from the keyboard and the pointer; aria-hidden says
+          the same to tools that do not read inert. */}
+      <div inert={overlaid} aria-hidden={overlaid || undefined}>
+        <Suspense fallback={<LoadingStatus message="Loading people…"><ProjectListSkeleton /></LoadingStatus>}>
+          <PeopleListView />
+        </Suspense>
+      </div>
       <Suspense fallback={null}>{children}</Suspense>
     </PeopleDirectoryProvider>
   )

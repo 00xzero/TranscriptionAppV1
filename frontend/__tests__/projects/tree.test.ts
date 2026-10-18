@@ -14,6 +14,7 @@ import {
   transcriptsInProject,
 } from '@/core/projects/tree'
 import type { Project, Transcript } from '@/contracts/db'
+import { transcriptProjectLabel } from '@/components/Projects/format'
 
 const project = (id: string, name: string, parentId: string | null = null): Project => ({
   id,
@@ -240,5 +241,41 @@ describe('collapsedPathLabel', () => {
 
   test('an unknown id has no path', () => {
     expect(collapsedPathLabel(deepTree, 'missing')).toBe('')
+  })
+})
+
+describe('collapsedPathLabel relative to a project', () => {
+  const deepTree = buildProjectTree([
+    project('a', 'Alpha'),
+    project('b', 'Beta', 'a'),
+    project('c', 'Gamma', 'b'),
+    project('d', 'Delta', 'c'),
+  ])
+
+  test('starts below the project it is seen from', () => {
+    expect(collapsedPathLabel(deepTree, 'b', 2, 'a')).toBe('Beta')
+    expect(collapsedPathLabel(deepTree, 'c', 2, 'a')).toBe('Beta / Gamma')
+    expect(collapsedPathLabel(deepTree, 'd', 2, 'a')).toBe('Beta / … / Delta')
+  })
+
+  test('a project that is not an ancestor leaves the whole path', () => {
+    expect(collapsedPathLabel(deepTree, 'b', 2, 'd')).toBe('Alpha / Beta')
+  })
+})
+
+describe('transcriptProjectLabel relative to a project', () => {
+  const tree = buildProjectTree([project('a', 'Alpha'), project('b', 'Beta', 'a')])
+
+  test("the project's own transcripts need no label", () => {
+    expect(transcriptProjectLabel(tree, 'a', 'a')).toBeNull()
+  })
+
+  test('a nested transcript names only the path below, with the full path to hover', () => {
+    expect(transcriptProjectLabel(tree, 'b', 'a')).toEqual({ label: 'Beta', full: 'Alpha / Beta' })
+  })
+
+  test('without a project to see from, the label is unchanged', () => {
+    expect(transcriptProjectLabel(tree, 'b')).toEqual({ label: 'Alpha / Beta', full: 'Alpha / Beta' })
+    expect(transcriptProjectLabel(tree, null)).toEqual({ label: 'Unfiled', full: 'Unfiled' })
   })
 })

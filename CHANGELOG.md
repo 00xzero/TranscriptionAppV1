@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-18] - Project People Dialog
+
+A project's header speaker faces now open a People dialog for the project and
+every project nested in it: who speaks there, and in which transcripts.
+
+### Added
+
+- **People dialog** — The faces ("+N", "N speakers") in a project's header are now a button. The first screen lists the people, most transcripts first, then most talk time. Voices nobody has named sit in a folded "unnamed voices" section, and each row opens its transcript. Long lists (9 or more people) get a filter by name or organisation. A project with no speakers says "Nobody here yet".
+- **Person screen** — Choosing someone slides to their transcripts in this folder, nested ones included, with their talk time. "Open in People" hands over to the People page without a fade or flash. Nothing in the dialog edits.
+- **Back and Forward** — The dialog lives in the address (`?people`, `?people=<person-id>`), so browser Back steps person → list → closed, and a person's screen can be linked. Coming back from a transcript or the People page finds the dialog as it was left: screen, person, filter, unnamed-voices section and both scroll positions, saved per history entry in `sessionStorage`. A click on the faces always starts fresh. The steps use `history.pushState`/`replaceState` with only our own `{ projectPeople }` state, since passing Next's internal fields back makes it skip its `useSearchParams` sync.
+
+### Changed
+
+- **Header count** — The project header now counts the whole folder, sub-projects included, matching the dialog: each named person once plus each unnamed voice. It used to count only the project's direct transcripts.
+- **Header on narrow screens** — On phones the faces now sit beneath the counts instead of hiding, since they are the only way into the dialog. Below a 448px row they always take that line, loading or not, so the card doesn't grow when they arrive.
+- **Shared People pieces** — `PersonRow`, `PersonHeading` (with a new `PersonHeadingSkeleton`) and `AppearanceList` are shared by the People page, the People dialog and this one. The People dialog now opens at once with placeholders while it loads.
+- **People list behind a dialog** — While a person dialog is open over the People list, the list is `inert` and hidden from assistive tech. Radix leaves `aria-live` regions exposed, so it wasn't before.
+
+### Fixed
+
+- **Double steps back** — ← and × ask the browser to go back, which it reports about 50ms later. A second press in that gap (× then Esc, a double click, a held arrow key) went back again, past the list or off the project page. Presses are now ignored while a step back is under way, for at most a second. Raised by CodeRabbit on #134.
+
+### Database
+
+- Migration `20261017000000_project_people` adds `project_people(p_project_id)`: `SECURITY DEFINER`, filtered by `auth.uid()`, and refusing (`SP001`) a project that isn't the caller's or is being deleted. It returns the people and unnamed voices across the project's active branch. Read-only; no tables change.
+- Applied locally only. Until it reaches hosted, the dialog there shows "Couldn't load the people".
+
+### Tests
+
+- **Frontend** — `177` suites / `2,162` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `58` existing warnings); `git diff --check`. New: the dialog's history logic (`peopleDialogHistory.test.ts`), the dialog itself (34 tests: ordering, filter, unnamed voices, focus, Back/Forward, restored views, failed loads, empty project, double presses), the header button and its address-opened state, and the query contract.
+- **SQL** — `smoke-test-project-people.sql` passes locally: ownership, deleted sub-projects, ordering and voice counts.
+- **Browser** — On the local Docker stack: open → choose a person → Back → Back → Forward → Forward, with focus on the right row or Back button at each step; opening a transcript from a person and coming back to the same screen, scroll and filter; a double ← and × then Esc each take one step. Layout shift on a project page: `0.0002`–`0.0032` at 375, 460, 600 and 1280px wide (baseline `0.004`).
+
+### Notes
+
+- Untried with many people: local data has 3. The filter and long-list scroll restore are covered by tests only.
+- The dialog refreshes its data when the window regains focus, not live while open.
+
 ## [2026-10-16] - Deepgram Failure Callbacks
 
 When Deepgram cannot transcribe a file (corrupt or unsupported audio), the

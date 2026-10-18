@@ -8,7 +8,6 @@ import { ErrorFallback } from '@/components/ErrorFallback'
 import { DestructiveMenuItem, RowActionsMenu } from '@/components/RowActionsMenu'
 import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { countLabel } from '@/components/Projects/format'
-import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
@@ -29,13 +28,11 @@ import { isConflict, isGone, mapPeopleWriteError } from '@/lib/people/errors'
 import { refreshAfterConflict } from '@/lib/people/refreshAfterConflict'
 import { usePeopleDirectoryContext } from '@/lib/people/PeopleDirectoryContext'
 import { fromTranscriptId, personHref, personIdFromPathname } from '@/lib/people/routes'
-import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
-import { speakerInitials } from '@/lib/speakers/palette'
 import { createPerson, deleteOrganisation, renameOrganisation } from '@/lib/supabase/queries'
 import { cn } from '@/lib/utils'
 import { BackToTranscript } from './BackToTranscript'
-import { HiddenBadge } from './HiddenBadge'
 import { PersonNameDialog } from './PersonNameDialog'
+import { PersonRow } from './PersonRow'
 import { formatPeopleDate } from './format'
 
 type Dialog = 'create' | 'rename-organisation' | 'delete-organisation' | null
@@ -184,7 +181,13 @@ export function PeopleListView() {
                   person={person}
                   href={personHref(person.id, from)}
                   open={person.id === openPersonId}
-                  onOpen={() => { openedFromListRef.current = true }}
+                  onClick={() => { openedFromListRef.current = true }}
+                  stats={(
+                    <>
+                      <span className="block">{countLabel(person.transcript_count, 'transcript', 'transcripts')}</span>
+                      <span className="block">{person.last_seen_at ? `Last seen ${formatPeopleDate(person.last_seen_at)}` : 'Not in any transcript yet'}</span>
+                    </>
+                  )}
                 />
               ))
             )}
@@ -318,38 +321,6 @@ function OrganisationFilter({ people, organisations, selected, onChange, menuOrg
         </span>
       ))}
     </div>
-  )
-}
-
-function PersonRow({ person, href, open, onOpen }: {
-  person: DirectoryPerson
-  href: string
-  /** This person's dialog is open over the list. */
-  open: boolean
-  onOpen: () => void
-}) {
-  return (
-    <Link
-      href={href}
-      onClick={onOpen}
-      data-testid={`person-row-${person.id}`}
-      className={cn('group grid min-h-18 grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 p-4 transition-colors hover:bg-subtle sm:flex', open && 'bg-subtle')}
-    >
-      <Avatar color={person.preferred_color} className="row-span-2 h-10 min-w-10 self-start text-xs sm:self-center">
-        {speakerInitials(person.name)}
-      </Avatar>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-medium text-ink transition-colors group-hover:text-trust-blue dark:text-paper">
-          <span className="truncate">{person.name}</span>
-          {person.hidden && <HiddenBadge />}
-        </p>
-        {person.organisation_name && <p className="truncate text-xs text-muted">{person.organisation_name}</p>}
-      </div>
-      <div className="col-start-2 min-w-0 font-mono text-[10px] text-muted sm:shrink-0 sm:text-right">
-        <p>{countLabel(person.transcript_count, 'transcript', 'transcripts')}</p>
-        <p>{person.last_seen_at ? `Last seen ${formatPeopleDate(person.last_seen_at)}` : 'Not in any transcript yet'}</p>
-      </div>
-    </Link>
   )
 }
 

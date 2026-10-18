@@ -25,7 +25,7 @@ export type ReloadingQuery<T> = {
  * no realtime subscription (spec §7), and another tab may have renamed,
  * merged or linked someone. Only the newest request may write state.
  */
-function useReloadingQuery<T>(load: () => Promise<T>): ReloadingQuery<T> {
+export function useReloadingQuery<T>(load: () => Promise<T>): ReloadingQuery<T> {
   const [state, setState] = useState<{ data: T | null; error: unknown; settled: boolean }>(
     { data: null, error: null, settled: false })
   const generationRef = useRef(0)

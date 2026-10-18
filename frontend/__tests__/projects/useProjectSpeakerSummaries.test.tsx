@@ -331,4 +331,21 @@ describe('useProjectSpeakerSummaries', () => {
 
     consoleError.mockRestore()
   })
+
+  test('reload fetches again and keeps the summary shown until the answer lands', async () => {
+    mockFetch.mockResolvedValueOnce(summaryMap('a', 5))
+    const { result } = renderHook(() => useProjectSpeakerSummaries(['a'], true))
+    await waitFor(() => expect(result.current.summaries.get('a')?.speaker_count).toBe(5))
+
+    const next = deferred<Map<string, ProjectSpeakerSummary>>()
+    mockFetch.mockReturnValueOnce(next.promise)
+    act(() => result.current.reload())
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    expect(result.current.summaries.get('a')?.speaker_count).toBe(5)
+    expect(result.current.loading).toBe(false)
+
+    await act(async () => next.resolve(summaryMap('a', 6)))
+    expect(result.current.summaries.get('a')?.speaker_count).toBe(6)
+  })
 })

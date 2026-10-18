@@ -437,6 +437,35 @@ export const ProjectSpeakerSummarySchema = z.object({
 // RETURNS TABLE means PostgREST hands back an array of rows even for one id.
 export const ProjectSpeakerSummariesResultSchema = z.array(ProjectSpeakerSummarySchema)
 
+// project_people RPC: the project page's people dialog, over the whole branch.
+// See infra/supabase/migrations/20261017000000_project_people.sql
+export const ProjectPersonSchema = z.object({
+  id: UuidSchema,
+  name: z.string(),
+  preferred_color: z.string(),
+  organisation_name: z.string().nullable(),
+  hidden: z.boolean(),
+  transcript_count: z.number().int().positive(),
+  talk_ms: z.number().int().nonnegative(),
+  last_seen_at: z.string(),
+})
+
+// A transcript with unlinked voices. `voice_ids` are those voices and `peers`
+// every identity with segments, both in order of first appearance.
+export const ProjectVoicesSchema = z.object({
+  transcript_id: UuidSchema,
+  title: z.string().nullable(),
+  project_id: UuidSchema,
+  created_at: z.string(),
+  voice_ids: z.array(UuidSchema).min(1),
+  peers: z.array(ProjectVoicePeerSchema),
+})
+
+export const ProjectPeopleSchema = z.object({
+  people: z.array(ProjectPersonSchema),
+  voices: z.array(ProjectVoicesSchema),
+})
+
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
@@ -475,6 +504,10 @@ export type PersonOrganisationResult = z.infer<typeof PersonOrganisationResultSc
 export type MergePreview = z.infer<typeof MergePreviewSchema>
 export type MergePreviewVoice = z.infer<typeof MergePreviewVoiceSchema>
 export type ProjectSpeakerSummary = z.infer<typeof ProjectSpeakerSummarySchema>
+export type ProjectVoicePeer = z.infer<typeof ProjectVoicePeerSchema>
+export type ProjectPerson = z.infer<typeof ProjectPersonSchema>
+export type ProjectVoices = z.infer<typeof ProjectVoicesSchema>
+export type ProjectPeople = z.infer<typeof ProjectPeopleSchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)
 export type Json =

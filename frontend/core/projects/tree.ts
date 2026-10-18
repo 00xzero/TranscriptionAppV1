@@ -183,17 +183,20 @@ export function activeDescendantCount(tree: ProjectTree, id: string): number {
 
 /**
  * A project's path with the middle elided: "Parent", "Parent / Child", or
- * "Parent / … / Leaf" once it runs deeper than `maxVisible`.
+ * "Parent / … / Leaf" once it runs deeper than `maxVisible`. With `relativeTo`
+ * an ancestor, the path starts below it, as seen from inside that project.
  */
 export function collapsedPathLabel(
   tree: ProjectTree,
   id: string,
-  maxVisible = 2
+  maxVisible = 2,
+  relativeTo?: string
 ): string {
   const project = tree.byId.get(id)
   if (!project) return ''
 
-  const names = [...(ancestorsOf(tree, id) ?? []), project].map((item) => item.name)
+  const chain = [...(ancestorsOf(tree, id) ?? []), project]
+  const names = chain.slice(chain.findIndex((item) => item.id === relativeTo) + 1).map((item) => item.name)
   const { leading, collapsed, trailing } = collapseBreadcrumbs(names, maxVisible)
 
   return [...leading, ...(collapsed.length > 0 ? ['…'] : []), ...trailing].join(' / ')

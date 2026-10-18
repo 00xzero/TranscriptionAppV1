@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { FolderClock, Plus } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
@@ -12,18 +12,21 @@ import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog
 import { ProjectActionDialogs } from '@/components/Projects/ProjectActionDialogs'
 import { ProjectActionsMenu } from '@/components/Projects/ProjectActionsMenu'
 import { ProjectHeaderCard } from '@/components/Projects/ProjectHeaderCard'
+import { ProjectPeopleDialog } from '@/components/Projects/ProjectPeopleDialog'
 import { ListSectionHeading, ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
 import { ProjectRow } from '@/components/Projects/ProjectRow'
 import { ProjectsEmptyState } from '@/components/Projects/ProjectsEmptyState'
 import { TranscriptRow } from '@/components/Projects/TranscriptRow'
 import { countLabel } from '@/components/Projects/format'
 import {
+  activeBranchIds,
   ancestorsOf,
   descendantCount,
   transcriptCountsByProject,
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { usePeopleDialogRoute } from '@/lib/projects/usePeopleDialogRoute'
 import { useProjectActions } from '@/lib/projects/useProjectActions'
 import {
   transcriptRevision,
@@ -45,7 +48,13 @@ function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) 
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
 
-  return <ProjectPageContent key={projectId} projectId={projectId} />
+  // The people dialog reads the address (useSearchParams), which needs a
+  // Suspense boundary.
+  return (
+    <Suspense fallback={<ProjectLoadingState />}>
+      <ProjectPageContent key={projectId} projectId={projectId} />
+    </Suspense>
+  )
 }
 
 function ProjectPageContent({ projectId }: { projectId: string }) {
@@ -63,8 +72,8 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false)
   const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
-  // Direct scope, to match directTranscriptCount below: a nested project's
-  // speakers are reported on that project's own page.
+  // The whole branch, as the people dialog lists it: a project's speakers
+  // include everyone in the projects nested in it.
   //
   // Gated on a resolved, active project. The hook itself must be called
   // unconditionally — the early returns below would otherwise skip it — so the
@@ -77,15 +86,29 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
     () => (speakerProject ? [speakerProject.id] : []),
     [speakerProject]
   )
-  // Only this project's own transcripts can change a direct-scope answer.
+  // Only the branch's transcripts can change a branch-scope answer.
+  const branchTranscripts = useMemo(() => {
+    if (!speakerProject) return []
+    const branch = new Set(activeBranchIds(tree, speakerProject.id))
+    return transcripts.filter((t) => t.project_id !== null && branch.has(t.project_id))
+  }, [tree, transcripts, speakerProject])
   const speakersRevision = useMemo(
-    () =>
-      speakerProject
-        ? transcriptRevision(transcripts.filter((t) => t.project_id === speakerProject.id))
-        : '',
-    [transcripts, speakerProject]
+    () => (speakerProject ? transcriptRevision(branchTranscripts) : ''),
+    [branchTranscripts, speakerProject]
   )
-  const speakers = useProjectSpeakerSummaries(speakerIds, false, speakersRevision)
+  const speakers = useProjectSpeakerSummaries(speakerIds, true, speakersRevision)
+  // Open while the address says so (`?people`, `?people=<person>`), so browser
+  // Back and Forward step through it and coming back finds it as it was.
+  const peopleRoute = usePeopleDialogRoute()
+  const peopleOpen = peopleRoute.screen.kind !== 'closed'
+  const speakersButtonRef = useRef<HTMLButtonElement>(null)
+  const headerSpeakerCount = speakerProject ? speakers.summaries.get(speakerProject.id)?.speaker_count : undefined
+  const reloadSpeakers = speakers.reload
+  // The dialog and the header load separately. When the dialog's fresher answer
+  // disagrees, the header reads again: once per dialog load, never in a loop.
+  const onPeopleLoaded = useCallback((total: number) => {
+    if (headerSpeakerCount !== undefined && headerSpeakerCount !== total) reloadSpeakers()
+  }, [headerSpeakerCount, reloadSpeakers])
 
   if (
     currentAncestorIds &&
@@ -157,6 +180,9 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         nestedProjectCount={descendantCount(tree, project.id)}
         speakerSummary={speakers.summaries.get(project.id)}
         speakersLoading={speakers.loading}
+        onOpenSpeakers={peopleRoute.open}
+        speakersOpen={peopleOpen}
+        speakersButtonRef={speakersButtonRef}
         actions={(
           <>
             <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => projectActions.openCreate(project.id)}>
@@ -234,6 +260,17 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
       )}
       <ProjectActionDialogs actions={projectActions} />
       {addOpen && <AddTranscriptsDialog projectId={project.id} onClose={() => setAddOpen(false)} />}
+      {peopleOpen && (
+        <ProjectPeopleDialog
+          key={project.id}
+          project={project}
+          tree={tree}
+          branchTranscripts={branchTranscripts}
+          returnFocusRef={speakersButtonRef}
+          route={peopleRoute}
+          onLoaded={onPeopleLoaded}
+        />
+      )}
       <TranscriptActionDialogs actions={transcriptActions} />
     </div>
   )
