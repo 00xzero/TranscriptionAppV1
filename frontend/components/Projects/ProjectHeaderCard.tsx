@@ -71,8 +71,12 @@ export function ProjectHeaderCard({
           rather than the viewport's — see SpeakerAvatarGroup's header size. */}
       <div className="@container mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         {/* Counts and avatars share one row wherever they fit, so the card keeps
-            its height; only on a phone-width row do the avatars wrap beneath. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            its height. Below a 448px row the avatars always take a line beneath
+            instead, loading or not: the loaded faces (with their badge and the
+            button's padding) are wider than the placeholder, so letting them
+            wrap only once they fit no longer would make the card jump as they
+            arrive. Above it, the widest counts and faces fit side by side. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 @max-md:flex-col @max-md:items-start">
           <p className="font-mono text-xs text-muted">
             {countLabel(directTranscriptCount, 'transcript', 'transcripts')} ·{' '}
             {countLabel(nestedProjectCount, 'nested project', 'nested projects')}
@@ -80,7 +84,7 @@ export function ProjectHeaderCard({
           {/* Dropped entirely on failure: "0 speakers" would be a false claim. */}
           {speakersClickable ? (
             // Styled as the editor's speaker button. Where the row is too narrow
-            // to share, it wraps beneath the counts rather than hiding.
+            // to share, it sits beneath the counts rather than hiding.
             <button
               ref={speakersButtonRef}
               type="button"

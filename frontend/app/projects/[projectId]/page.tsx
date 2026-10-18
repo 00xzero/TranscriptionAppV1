@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { notFound, useParams, useRouter } from 'next/navigation'
 import { FolderClock, Plus } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
@@ -26,6 +26,7 @@ import {
   transcriptsInProject,
 } from '@/core/projects/tree'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { usePeopleDialogRoute } from '@/lib/projects/usePeopleDialogRoute'
 import { useProjectActions } from '@/lib/projects/useProjectActions'
 import {
   transcriptRevision,
@@ -47,7 +48,13 @@ function ProjectLoadingState({ label = 'Loading project' }: { label?: string }) 
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>()
 
-  return <ProjectPageContent key={projectId} projectId={projectId} />
+  // The people dialog reads the address (useSearchParams), which needs a
+  // Suspense boundary.
+  return (
+    <Suspense fallback={<ProjectLoadingState />}>
+      <ProjectPageContent key={projectId} projectId={projectId} />
+    </Suspense>
+  )
 }
 
 function ProjectPageContent({ projectId }: { projectId: string }) {
@@ -90,7 +97,10 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
     [branchTranscripts, speakerProject]
   )
   const speakers = useProjectSpeakerSummaries(speakerIds, true, speakersRevision)
-  const [peopleOpen, setPeopleOpen] = useState(false)
+  // Open while the address says so (`?people`, `?people=<person>`), so browser
+  // Back and Forward step through it and coming back finds it as it was.
+  const peopleRoute = usePeopleDialogRoute()
+  const peopleOpen = peopleRoute.screen.kind !== 'closed'
   const speakersButtonRef = useRef<HTMLButtonElement>(null)
   const headerSpeakerCount = speakerProject ? speakers.summaries.get(speakerProject.id)?.speaker_count : undefined
   const reloadSpeakers = speakers.reload
@@ -170,7 +180,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
         nestedProjectCount={descendantCount(tree, project.id)}
         speakerSummary={speakers.summaries.get(project.id)}
         speakersLoading={speakers.loading}
-        onOpenSpeakers={() => setPeopleOpen(true)}
+        onOpenSpeakers={peopleRoute.open}
         speakersOpen={peopleOpen}
         speakersButtonRef={speakersButtonRef}
         actions={(
@@ -257,7 +267,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
           tree={tree}
           branchTranscripts={branchTranscripts}
           returnFocusRef={speakersButtonRef}
-          onClose={() => setPeopleOpen(false)}
+          route={peopleRoute}
           onLoaded={onPeopleLoaded}
         />
       )}

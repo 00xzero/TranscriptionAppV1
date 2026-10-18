@@ -42,7 +42,7 @@ import { ColourPicker } from './ColourPicker'
 import { AppearanceList } from './AppearanceList'
 import { MergePeopleDialog } from './MergePeopleDialog'
 import { OrganisationPicker } from './OrganisationPicker'
-import { PersonHeading } from './PersonHeading'
+import { PersonHeading, PersonHeadingSkeleton } from './PersonHeading'
 import { PersonNameDialog } from './PersonNameDialog'
 import { formatPeopleDate } from './format'
 
@@ -119,13 +119,7 @@ function PersonLoading() {
       <DialogDescription className="sr-only">This person&apos;s details are loading.</DialogDescription>
       <LoadingStatus message="Loading person…" className="flex min-h-0 flex-1 flex-col">
         <div aria-hidden="true" className="border-b border-border px-5 pb-4 pt-5">
-          <div className="flex items-start gap-4">
-            <div className="h-14 w-14 shrink-0 animate-pulse rounded-full bg-subtle" />
-            <div className="flex-1 space-y-2 pt-1">
-              <div className="h-7 w-48 animate-pulse rounded-sm bg-subtle" />
-              <div className="h-4 w-32 animate-pulse rounded-sm bg-subtle" />
-            </div>
-          </div>
+          <PersonHeadingSkeleton />
           <div className="mt-3 h-4 w-64 animate-pulse rounded-sm bg-subtle" />
         </div>
         <div aria-hidden="true" className="px-5 pb-5 pt-4">

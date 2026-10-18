@@ -79,9 +79,10 @@ const SIZES = {
   card: { avatar: 'md', row: 'min-h-7', overlap: '-ml-1.5', count: 'font-serif text-xs italic', ghost: 'h-4 w-4', group: '', ring: 'ring-panel', maxFaces: 4, facesWithOverflow: 3 },
   // In the header the group shares a row with the counts and the action buttons,
   // so the count text drops out when that row is tight rather than wrapping the
-  // group onto a second line and making the card taller; only on a phone-width
-  // row, where even the faces cannot fit, does the group wrap. The full count
-  // stays in the group's accessible name either way.
+  // group onto a second line and making the card taller; only on a narrow row,
+  // where even the faces might not fit, does the header put the group on a line
+  // of its own (ProjectHeaderCard). The full count stays in the group's
+  // accessible name either way.
   //
   // A CONTAINER query, not a viewport one: the header card sits behind a nav rail
   // and the project archive panel, so its row is only 719px on a 1440px screen.
@@ -104,7 +105,7 @@ const SIZES = {
     count: 'font-mono text-xs @max-3xl:hidden',
     ghost: 'h-3.5 w-3.5',
     // Below @sm the counts alone fill the row (223px of 244px at 390px), so the
-    // group wraps onto a line of its own beneath them. It once stepped aside
+    // group goes onto a line of its own beneath them. It once stepped aside
     // there instead, saving ~32px of header, but the faces are now the button
     // that opens the project's people dialog, and hiding them would leave
     // phones no way in.

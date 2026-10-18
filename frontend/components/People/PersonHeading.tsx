@@ -53,3 +53,16 @@ export function PersonHeading({ person, details, actions, titleId }: {
     </div>
   )
 }
+
+/** PersonHeading's shape while the person loads: face, name and organisation as placeholders. */
+export function PersonHeadingSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex items-start gap-4">
+      <div className="h-14 w-14 shrink-0 animate-pulse rounded-full bg-subtle" />
+      <div className="flex-1 space-y-2 pt-1">
+        <div className="h-7 w-48 animate-pulse rounded-sm bg-subtle" />
+        <div className="h-4 w-32 animate-pulse rounded-sm bg-subtle" />
+      </div>
+    </div>
+  )
+}

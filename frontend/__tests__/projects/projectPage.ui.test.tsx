@@ -37,6 +37,8 @@ jest.mock('next/navigation', () => ({
   useParams: () => ({ projectId: 'current' }),
   useRouter: () => ({ replace: mockReplace }),
   notFound: () => mockNotFound(),
+  // The people dialog lives in the address, as the router would report it.
+  useSearchParams: () => jest.requireActual('../helpers/locationSearchParams').useLocationSearchParams(),
 }))
 
 const makeCurrent = (overrides: Partial<Project> = {}) =>
@@ -57,6 +59,8 @@ describe('ProjectPage', () => {
     // resolving after the test body would settle state outside act(). Tests that
     // care about speakers resolve it themselves.
     mockFetchSpeakerSummaries.mockReturnValue(new Promise(() => {}))
+    window.history.replaceState(null, '', '/projects/current')
+    sessionStorage.clear()
   })
 
   describe('speakers', () => {
@@ -175,6 +179,19 @@ describe('ProjectPage', () => {
         expect(await screen.findByTestId('person-row-p1')).toBeInTheDocument()
         expect(mockFetchProjectPeople).toHaveBeenCalledWith('current')
         expect(button).toHaveAttribute('aria-expanded', 'true')
+        // Held in the address, so Back closes it and coming back reopens it.
+        expect(window.location.search).toBe('?people')
+      })
+
+      test('an address with the dialog in it opens the page with it open', async () => {
+        mockFetchSpeakerSummaries.mockResolvedValue(summary(2))
+        mockFetchProjectPeople.mockResolvedValue(people(['Kate', 'John']))
+        window.history.replaceState(null, '', '/projects/current?people')
+        mockData([makeCurrent()], [])
+        render(<ProjectPage />, { wrapper: TooltipProvider })
+
+        expect(await screen.findByRole('dialog', { name: 'People in Current' })).toBeInTheDocument()
+        expect(await screen.findByTestId('person-row-p1')).toBeInTheDocument()
       })
 
       test('the faces are no button while there is nobody to show', async () => {
