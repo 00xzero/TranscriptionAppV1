@@ -24,6 +24,8 @@ import { isPersonId } from '@/lib/people/routes'
 const VIEWS_KEY = 'project-people-views'
 const VIEWS_KEPT = 20
 const SAVE_PAUSE_MS = 150
+/** How long a step back may take before the dialog listens to ← and × again regardless. */
+const TRAVERSAL_LIMIT_MS = 1000
 
 type StoredViews = { order: string[]; views: Record<string, unknown> }
 
@@ -112,6 +114,23 @@ export function usePeopleDialogRoute(): PeopleDialogRoute {
   const openedHereRef = useRef(false)
   const timerRef = useRef<number | null>(null)
   const listenersRef = useRef(new Set<RestoreListener>())
+  // A step back (← or ×) runs a moment later, when the browser reports it.
+  // Until then the dialog still shows where it was, so a second press (× then
+  // Esc, a held arrow key) would go back again: past the list, or off the page.
+  // Presses in that gap are ignored; the limit keeps them from being ignored
+  // for good should the browser never report the step.
+  const traversingRef = useRef<number | null>(null)
+
+  const traverse = useCallback((delta: number) => {
+    traversingRef.current = window.setTimeout(() => { traversingRef.current = null }, TRAVERSAL_LIMIT_MS)
+    window.history.go(delta)
+  }, [])
+
+  const traversed = useCallback(() => {
+    if (traversingRef.current === null) return
+    window.clearTimeout(traversingRef.current)
+    traversingRef.current = null
+  }, [])
 
   const subscribeRestore = useCallback((listener: RestoreListener) => {
     listenersRef.current.add(listener)
@@ -149,6 +168,7 @@ export function usePeopleDialogRoute(): PeopleDialogRoute {
   // listener (registered before ours) can re-render the page and run the
   // effect below before our listener has heard the event at all.
   const adoptEntry = useCallback(() => {
+    traversed()
     const current = readEntry(window.history.state)
     if ((current?.entry ?? null) === (entryRef.current?.entry ?? null)) return
     flush()
@@ -156,7 +176,7 @@ export function usePeopleDialogRoute(): PeopleDialogRoute {
     if (!current) return
     const toPerson = readScreen(new URLSearchParams(window.location.search), isPersonId).kind === 'person'
     showView(storedView(current.entry) ?? { ...viewRef.current, personScroll: 0 }, toPerson)
-  }, [flush, showView])
+  }, [flush, showView, traversed])
 
   useEffect(() => {
     const onPageHide = () => flush()
@@ -167,8 +187,9 @@ export function usePeopleDialogRoute(): PeopleDialogRoute {
       window.removeEventListener('pagehide', onPageHide)
       // Leaving the page (a transcript, the People page): keep where it was.
       flush()
+      traversed()
     }
-  }, [adoptEntry, flush])
+  }, [adoptEntry, flush, traversed])
 
   // Every change of address: take up the entry it is on. One reached by
   // address with nothing of ours on it is marked, so what happens here is kept
@@ -218,26 +239,28 @@ export function usePeopleDialogRoute(): PeopleDialogRoute {
   }, [flush, showView])
 
   const backToList = useCallback(() => {
+    if (traversingRef.current !== null) return
     flush()
     if (backToListAction(entryRef.current) === 'history-back') {
-      window.history.back()
+      traverse(-1)
       return
     }
     const entry = entryRef.current ?? arrivedEntry(newEntryId())
     entryRef.current = entry
     window.history.replaceState(entryState(entry), '', addressFor({ kind: 'list' }))
-  }, [flush])
+  }, [flush, traverse])
 
   const close = useCallback(() => {
+    if (traversingRef.current !== null) return
     flush()
     const action = closeAction(entryRef.current)
     if (action.kind === 'go') {
-      window.history.go(action.delta)
+      traverse(action.delta)
       return
     }
     entryRef.current = null
     window.history.replaceState(null, '', addressFor({ kind: 'closed' }))
-  }, [flush])
+  }, [flush, traverse])
 
   const dropPerson = useCallback(() => {
     const entry = entryRef.current ?? arrivedEntry(newEntryId())

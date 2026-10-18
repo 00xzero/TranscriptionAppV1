@@ -150,7 +150,8 @@ export function ProjectPeopleDialog({ project, tree, branchTranscripts, returnFo
   }, [showingPerson, shownPersonId])
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === 'ArrowLeft' && showingPerson && !isTextEntry(event.target)) {
+    // A held key repeats; one press is one step back.
+    if (event.key === 'ArrowLeft' && !event.repeat && showingPerson && !isTextEntry(event.target)) {
       event.preventDefault()
       route.backToList()
     }

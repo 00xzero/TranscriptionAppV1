@@ -94,6 +94,24 @@ function savedViews(): Record<string, { query: string; voicesOpen: boolean; list
   return JSON.parse(sessionStorage.getItem('project-people-views') ?? '{"views":{}}').views
 }
 
+/**
+ * Every step the code asks the history to take, by back() or go(). Counted at
+ * the call, since jsdom merges steps asked for in the same moment where a
+ * browser need not.
+ */
+function historySteps() {
+  const back = jest.spyOn(window.history, 'back')
+  const go = jest.spyOn(window.history, 'go')
+  const calls: number[] = []
+  back.mockImplementation(function (this: History) { calls.push(-1); History.prototype.go.call(this, -1) })
+  go.mockImplementation(function (this: History, delta?: number) { calls.push(delta ?? 0); History.prototype.go.call(this, delta) })
+  return {
+    taken: () => [...calls],
+    reset: () => { calls.length = 0 },
+    restore: () => { back.mockRestore(); go.mockRestore() },
+  }
+}
+
 function currentEntry(): string {
   return (window.history.state as { projectPeople: { entry: string } }).projectPeople.entry
 }
@@ -420,6 +438,94 @@ describe('ProjectPeopleDialog', () => {
       act(() => window.history.forward())
       await act(() => popped)
       expect(await screen.findByRole('dialog', { name: 'Alice' })).toBeInTheDocument()
+    })
+
+    test('a second press while a step back is under way goes nowhere further', async () => {
+      const user = userEvent.setup()
+      const steps = historySteps()
+      arriveAt('')
+      render(<Harness />)
+      await user.click(screen.getByRole('button', { name: 'Speakers' }))
+      await user.click(await screen.findByTestId(`person-row-${ALICE}`))
+      await screen.findByRole('dialog', { name: 'Alice' })
+
+      // Both presses land before the browser reports the first step: one step back.
+      steps.reset()
+      const back = screen.getByRole('button', { name: 'People in Dechra' })
+      const popped = nextPopState()
+      act(() => {
+        back.click()
+        back.click()
+      })
+      await act(() => popped)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(steps.taken()).toEqual([-1])
+      expect(window.location.search).toBe('?people')
+      expect(screen.getByRole('dialog', { name: 'People in Dechra' })).toBeInTheDocument()
+
+      // Esc right after ×: closed, still on the project page.
+      await user.click(await screen.findByTestId(`person-row-${ALICE}`))
+      await screen.findByRole('dialog', { name: 'Alice' })
+      const close = screen.getAllByRole('button', { name: 'Close' }).find((button) => !button.closest('[inert]'))!
+      steps.reset()
+      const closed = nextPopState()
+      act(() => {
+        close.click()
+        close.click()
+      })
+      await act(() => closed)
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(steps.taken()).toEqual([-2])
+      expect(window.location.pathname).toBe('/projects/root')
+      expect(window.location.search).toBe('')
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+      // And once it has, the header opens it again as usual.
+      await user.click(screen.getByRole('button', { name: 'Speakers' }))
+      expect(await screen.findByRole('dialog', { name: 'People in Dechra' })).toBeInTheDocument()
+      steps.restore()
+    })
+
+    test('a step back the browser never reports stops holding ← and × after a second', async () => {
+      const user = userEvent.setup()
+      arriveAt('')
+      render(<Harness />)
+      await user.click(screen.getByRole('button', { name: 'Speakers' }))
+      await user.click(await screen.findByTestId(`person-row-${ALICE}`))
+      await screen.findByRole('dialog', { name: 'Alice' })
+
+      // A browser that swallows the step: no popstate ever comes.
+      const go = jest.spyOn(window.history, 'go').mockImplementation(() => {})
+      const back = screen.getByRole('button', { name: 'People in Dechra' })
+      act(() => back.click())
+      act(() => back.click())
+      expect(go).toHaveBeenCalledTimes(1)
+
+      await act(() => new Promise((resolve) => setTimeout(resolve, 1100)))
+      act(() => back.click())
+      expect(go).toHaveBeenCalledTimes(2)
+      go.mockRestore()
+    })
+
+    test('holding the left arrow steps back once, not once per repeat', async () => {
+      const user = userEvent.setup()
+      const steps = historySteps()
+      arriveAt('')
+      render(<Harness />)
+      await user.click(screen.getByRole('button', { name: 'Speakers' }))
+      await user.click(await screen.findByTestId(`person-row-${ALICE}`))
+      const dialog = await screen.findByRole('dialog', { name: 'Alice' })
+
+      steps.reset()
+      const popped = nextPopState()
+      act(() => {
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+        dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', repeat: true, bubbles: true }))
+      })
+      await act(() => popped)
+      expect(steps.taken()).toEqual([-1])
+      expect(window.location.search).toBe('?people')
+      steps.restore()
     })
 
     test('the history calls carry only our own data, never the router fields', async () => {
