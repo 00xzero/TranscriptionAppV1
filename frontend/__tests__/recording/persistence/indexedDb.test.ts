@@ -81,6 +81,13 @@ describe('IndexedDBSessionPersistence', () => {
     expect(PersistedSessionSchema.parse(legacy).transcriptionOptions).toEqual(DEFAULT_TRANSCRIPTION_OPTIONS)
   })
 
+  test('gives session rows saved before the engine could be chosen Deepgram, keeping their options', () => {
+    const options = { language: 'pt', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
+    const legacy = { ...makeSession('legacy'), transcriptionOptions: options }
+
+    expect(PersistedSessionSchema.parse(legacy).transcriptionOptions).toEqual({ ...options, engine: 'deepgram' })
+  })
+
   test('patchSession merges into an existing row', async () => {
     const store = new IndexedDBSessionPersistence()
     await store.putSession(makeSession('s1'))

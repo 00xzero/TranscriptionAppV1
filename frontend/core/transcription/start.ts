@@ -8,7 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { createAdminClient } from '@/infra/supabase/admin'
-import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
+import { getMediaUrlForEngine } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
 import {
@@ -30,12 +30,14 @@ export type StartTranscriptionResult =
  * transcripts completed before they were recorded, which never start again.
  */
 function optionsFromRow(row: {
+    engine: unknown
     language: unknown
     detect_speakers: unknown
     keep_filler_words: unknown
     mask_profanity: unknown
 }): TranscriptionOptions {
     return TranscriptionOptionsSchema.parse({
+        engine: row.engine,
         language: row.language,
         detect_speakers: row.detect_speakers,
         keep_filler_words: row.keep_filler_words ?? DEFAULT_TRANSCRIPTION_OPTIONS.keep_filler_words,
@@ -73,7 +75,7 @@ export async function startTranscription(opts: {
     // Fetch transcript (RLS ensures ownership)
     const { data: transcript, error: transcriptError } = await supabase
         .from('transcripts')
-        .select('id, source_object_key, status, language, detect_speakers, keep_filler_words, mask_profanity')
+        .select('id, source_object_key, status, engine, language, detect_speakers, keep_filler_words, mask_profanity')
         .eq('id', transcriptId)
         .single()
 
@@ -127,11 +129,11 @@ export async function startTranscription(opts: {
         console.warn('[startTranscription] Failed to fetch key terms; proceeding without them:', keyTermsError.message)
     }
 
-    // Check now that Deepgram can be handed this file (it is stored, and the
+    // Check now that the engine can be handed this file (it is stored, and the
     // proxy/rewrite settings are complete), so a broken setup refuses the
     // start instead of failing the job minutes later. The URL itself is made
     // again at transcription time, for whichever file preparation keeps.
-    const mediaUrlCheck = await getMediaUrlForDeepgram(supabase, transcript.source_object_key)
+    const mediaUrlCheck = await getMediaUrlForEngine(supabase, transcript.source_object_key)
     if (mediaUrlCheck.error || !mediaUrlCheck.url) {
         return { outcome: 'error', reason: mediaUrlCheck.error ?? 'Failed to generate media URL' }
     }

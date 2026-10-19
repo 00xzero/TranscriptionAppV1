@@ -74,7 +74,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
-  // Deepgram's words per segment: the fixed timing record edited text aligns to.
+  // The engine's words per segment: the fixed timing record edited text aligns to.
   const [wordsBySegment, setWordsBySegment] = useState<WordsBySegment>(NO_WORDS)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })

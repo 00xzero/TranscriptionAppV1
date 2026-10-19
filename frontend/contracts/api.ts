@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { TEXT_LIMITS } from './limits'
 import { UuidSchema } from './primitives'
-import { TranscriptionOptionsSchema } from './transcription-options'
+import { SavedTranscriptionOptionsSchema } from './transcription-options'
 
 export const MAX_KEY_TERMS = 100
 
@@ -14,7 +14,8 @@ export const CreateTranscriptBodySchema = z.object({
   // server dedupes transcript creation by (user_id, upload_intent_id).
   upload_intent_id: z.string().min(1).max(200).optional(),
   project_id: UuidSchema.optional(),
-  transcription_options: TranscriptionOptionsSchema.optional(),
+  // Saved shape: a tab opened before the engine could be chosen sends no engine.
+  transcription_options: SavedTranscriptionOptionsSchema.optional(),
 })
 
 export const CreateTranscriptWarningSchema = z.literal('project_missing')

@@ -335,7 +335,7 @@ describe('useCaptureForm', () => {
   })
 
   describe('transcription options', () => {
-    const chosen: TranscriptionOptions = { language: 'es', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
+    const chosen: TranscriptionOptions = { engine: 'deepgram', language: 'es', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
     const stored = () => JSON.parse(window.localStorage.getItem(TRANSCRIPTION_PREFERENCES_KEY) ?? 'null')
     const sample = () => new File(['audio'], 'sample.wav', { type: 'audio/wav' })
 
@@ -363,6 +363,12 @@ describe('useCaptureForm', () => {
     test('start from the options last saved', () => {
       window.localStorage.setItem(TRANSCRIPTION_PREFERENCES_KEY, JSON.stringify(chosen))
       expect(renderForm().result.current.transcriptionOptions).toEqual(chosen)
+    })
+
+    test('a choice saved before the engine could be chosen is kept, with Deepgram', () => {
+      const { engine: _engine, ...saved } = chosen
+      window.localStorage.setItem(TRANSCRIPTION_PREFERENCES_KEY, JSON.stringify(saved))
+      expect(renderForm().result.current.transcriptionOptions).toEqual({ ...saved, engine: 'deepgram' })
     })
 
     test('an upload sends them and saves them for next time', async () => {

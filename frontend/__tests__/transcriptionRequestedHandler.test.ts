@@ -4,7 +4,7 @@ import { InngestTestEngine } from '@inngest/test'
 
 const jobQueuedMock = jest.fn()
 const transcriptMaybeSingleMock = jest.fn()
-const getMediaUrlForDeepgramMock = jest.fn()
+const getMediaUrlForEngineMock = jest.fn()
 const startAsyncTranscriptionMock = jest.fn()
 const transitionJobMock = jest.fn()
 
@@ -19,12 +19,11 @@ jest.mock('@/infra/supabase/admin', () => ({
     }),
 }))
 jest.mock('@/infra/supabase/storage', () => ({
-    getMediaUrlForDeepgram: (...a: unknown[]) => getMediaUrlForDeepgramMock(...a),
+    getMediaUrlForEngine: (...a: unknown[]) => getMediaUrlForEngineMock(...a),
 }))
 jest.mock('@/infra/deepgram', () => ({
     startAsyncTranscription: (...a: unknown[]) => startAsyncTranscriptionMock(...a),
     getCallbackUrl: () => 'https://app.test/api/webhooks/deepgram',
-    classifyError: () => ({ type: 'transcription_error', message: 'failed' }),
 }))
 jest.mock('@/core/transcription/transition', () => ({
     transitionJob: (...a: unknown[]) => transitionJobMock(...a),
@@ -51,7 +50,7 @@ describe('handleTranscriptionRequested', () => {
         jest.spyOn(console, 'log').mockImplementation(() => {})
         jobQueuedMock.mockResolvedValue(true)
         transcriptMaybeSingleMock.mockResolvedValue({ data: { user_id: userId, source_object_key: preparedKey, waveform_status: 'ready' }, error: null })
-        getMediaUrlForDeepgramMock.mockResolvedValue({ url: 'https://storage.test/prepared', error: null })
+        getMediaUrlForEngineMock.mockResolvedValue({ url: 'https://storage.test/prepared', error: null })
         startAsyncTranscriptionMock.mockResolvedValue({ requestId: 'dg-1' })
         transitionJobMock.mockResolvedValue({ outcome: 'updated' })
     })
@@ -61,7 +60,7 @@ describe('handleTranscriptionRequested', () => {
     test("signs the row's current key, which preparation may have replaced", async () => {
         const { result } = await execute()
 
-        expect(getMediaUrlForDeepgramMock).toHaveBeenCalledWith(expect.anything(), preparedKey)
+        expect(getMediaUrlForEngineMock).toHaveBeenCalledWith(expect.anything(), preparedKey)
         expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(expect.objectContaining({
             mediaUrl: 'https://storage.test/prepared',
             transcriptId,
@@ -80,7 +79,7 @@ describe('handleTranscriptionRequested', () => {
 
         const { error } = await execute()
 
-        expect(getMediaUrlForDeepgramMock).not.toHaveBeenCalled()
+        expect(getMediaUrlForEngineMock).not.toHaveBeenCalled()
         expect(startAsyncTranscriptionMock).not.toHaveBeenCalled()
         expect(error).toBeDefined()
     })
@@ -96,11 +95,24 @@ describe('handleTranscriptionRequested', () => {
     })
 
     test('hands Deepgram the options the event carries', async () => {
-        const options = { language: 'hi', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
+        const options = { engine: 'deepgram', language: 'hi', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
 
         await execute({ transcriptionOptions: options })
 
-        expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(expect.objectContaining({ transcription: options }))
+        expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(expect.objectContaining({
+            transcription: options,
+            callbackUrl: 'https://app.test/api/webhooks/deepgram',
+        }))
+    })
+
+    test('an event sent before the engine could be chosen goes to Deepgram', async () => {
+        const options = { language: 'fr', detect_speakers: true, keep_filler_words: false, mask_profanity: false }
+
+        await execute({ transcriptionOptions: options })
+
+        expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(
+            expect.objectContaining({ transcription: { ...options, engine: 'deepgram' } })
+        )
     })
 
     test('an event sent before options existed gets what every transcript got then', async () => {

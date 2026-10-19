@@ -57,7 +57,7 @@ import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
-const RECOVERED_OPTIONS = { language: 'pt', detect_speakers: true, keep_filler_words: false, mask_profanity: true } as const
+const RECOVERED_OPTIONS = { engine: 'deepgram', language: 'pt', detect_speakers: true, keep_filler_words: false, mask_profanity: true } as const
 
 async function attachRecording(
   overrides: Partial<AttachAndStartParams> = {}

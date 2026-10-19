@@ -37,9 +37,9 @@ import { revisionsMatch } from '../utils'
  * Every write is built in full before it is sent, so a resend after a lost
  * answer is the same request; the database recognises one it already made.
  *
- * A detected speaker (Deepgram's `Speaker N`) never carries a name. Naming one
+ * A detected speaker (the engine's `Speaker N`) never carries a name. Naming one
  * moves its segments to a named speaker, and Remove moves segments back to the
- * detected speaker Deepgram gave them (spec §3).
+ * detected speaker the engine gave them (spec §3).
  */
 
 export type SpeakerTarget =
@@ -139,8 +139,8 @@ function assignSegments(store: SpeakerStore, assignments: readonly SegmentSpeake
 }
 
 /**
- * Where Remove sends a segment: the detected speaker Deepgram gave it, or null
- * (Unknown) when Deepgram gave it no number. Undefined when a numbered
+ * Where Remove sends a segment: the detected speaker the engine gave it, or null
+ * (Unknown) when the engine gave it no number. Undefined when a numbered
  * segment's detected speaker is missing, which the database's foreign key
  * rules out; such a segment is left alone rather than blanked to Unknown.
  */
@@ -152,7 +152,7 @@ function homeSpeakerId(
   return speakers.find((speaker) => speaker.diarization_index === segment.diarization_index)?.id
 }
 
-/** What Remove would change: each segment not on Deepgram's original assignment. */
+/** What Remove would change: each segment not on the engine's original assignment. */
 export function removalChanges(speakers: readonly Speaker[], segments: readonly Seg[]): SegmentSpeakerChange[] {
   return segments.flatMap((segment) => {
     const home = homeSpeakerId(speakers, segment)
@@ -361,8 +361,8 @@ export function correctAction(
 }
 
 /**
- * Remove: segments go back to Deepgram's assignment, including Unknown when
- * Deepgram gave no number. A segment already there is left alone.
+ * Remove: segments go back to the engine's assignment, including Unknown when
+ * the engine gave no number. A segment already there is left alone.
  */
 export function removeAction(
   store: SpeakerStore,

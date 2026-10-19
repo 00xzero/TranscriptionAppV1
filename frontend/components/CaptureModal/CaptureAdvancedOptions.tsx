@@ -3,9 +3,9 @@ import {
   TRANSCRIPTION_LANGUAGES,
   TRANSCRIPTION_LANGUAGE_LABELS,
   TranscriptionLanguageSchema,
-  fillerWordsApply,
   type TranscriptionOptions,
 } from '@/contracts/transcription-options'
+import { fillerWordsApply } from '@/core/transcription/engines/capabilities'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -27,7 +27,7 @@ export function summarizeTranscriptionOptions(options: TranscriptionOptions): st
     TRANSCRIPTION_LANGUAGE_LABELS[options.language],
     options.detect_speakers ? 'speakers on' : 'speakers off',
   ]
-  if (fillerWordsApply(options.language) && !options.keep_filler_words) parts.push('no um/uh')
+  if (fillerWordsApply(options.engine, options.language) && !options.keep_filler_words) parts.push('no um/uh')
   if (options.mask_profanity) parts.push('profanity masked')
   return parts.join(' · ')
 }
@@ -65,7 +65,7 @@ function OptionSwitch({
 // Closed whenever the dialog opens: the dialog's content mounts afresh each time.
 export default function CaptureAdvancedOptions({ options, onOptionsChange, disabled }: CaptureAdvancedOptionsProps) {
   const set = (patch: Partial<TranscriptionOptions>) => onOptionsChange({ ...options, ...patch })
-  const fillersApply = fillerWordsApply(options.language)
+  const fillersApply = fillerWordsApply(options.engine, options.language)
   const itemRef = useRef<HTMLDivElement>(null)
 
   // The section sits at the foot of the dialog's scroll area, so once open it

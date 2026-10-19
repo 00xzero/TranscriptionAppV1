@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "request_id": "00000000-0000-4000-8000-0000000000aa",
+    "duration": 4.2,
+    "channels": 1,
+    "models": [
+      "nova-3"
+    ],
+    "extra": {
+      "transcript_id": "00000000-0000-4000-8000-0000000000bb"
+    }
+  },
+  "results": {
+    "channels": [
+      {
+        "alternatives": [
+          {
+            "transcript": "",
+            "words": []
+          }
+        ]
+      }
+    ]
+  }
+}

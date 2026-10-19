@@ -1,5 +1,5 @@
 /**
- * Line a segment's (possibly edited) text up against the words Deepgram heard.
+ * Line a segment's (possibly edited) text up against the words the engine heard.
  *
  * The stored words are a fixed record of the audio; the segment text is the
  * user's version. Every token of the text gets a time: tokens that still match

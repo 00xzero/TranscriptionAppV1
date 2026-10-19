@@ -393,7 +393,7 @@ describe('handleMediaPrepare', () => {
     })
 
     describe('transcription options', () => {
-        const options = { language: 'ja', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
+        const options = { engine: 'deepgram', language: 'ja', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
         const withOptions = { ...event.data, transcriptionOptions: options }
         const requestWithOptions = { ...transcriptionRequest, data: withOptions }
 

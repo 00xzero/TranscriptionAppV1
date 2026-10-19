@@ -970,6 +970,7 @@ describe('CaptureModal advanced options', () => {
 
   test('starts collapsed, with the options summed up on its row', () => {
     mockCaptureFormState.transcriptionOptions = {
+      engine: 'deepgram',
       language: 'es',
       detect_speakers: false,
       keep_filler_words: true,

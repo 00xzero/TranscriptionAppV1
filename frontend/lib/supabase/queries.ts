@@ -472,7 +472,7 @@ function fetchSegmentRowsWithWords<T extends { id: string }>(transcriptId: strin
 }
 
 /**
- * Fetch every segment's stored Deepgram words with the segment's revision. A
+ * Fetch every segment's stored engine words with the segment's revision. A
  * segment's words change only when its revision does (a split or rejoin), and
  * here both come from one query, so the words are exactly that revision's:
  * words read this way can be trusted for a segment shown at the same revision.
@@ -897,7 +897,7 @@ export async function deletePerson(personId: string): Promise<void> {
 
 /**
  * Send every segment showing the person in one transcript back to what
- * Deepgram gave it. Returns the changes made, for Undo.
+ * the engine gave it. Returns the changes made, for Undo.
  */
 export async function removePersonFromTranscript(
     personId: string,

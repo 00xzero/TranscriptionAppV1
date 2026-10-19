@@ -27,7 +27,7 @@ async function readJob(admin: SupabaseClient, { transcriptId, jobId }: JobIds): 
     return { status: data.status as string, createdAt: data.created_at as string }
 }
 
-/** The job is this transcript's and still waiting: it may convert, swap and go to Deepgram. */
+/** The job is this transcript's and still waiting: it may convert, swap and go to the engine. */
 export async function jobQueued(admin: SupabaseClient, ids: JobIds): Promise<boolean> {
     return (await readJob(admin, ids))?.status === 'queued'
 }
@@ -44,7 +44,7 @@ export async function queuedJobAgeMs(admin: SupabaseClient, ids: JobIds): Promis
     return Number.isFinite(createdAt) ? Math.max(0, Date.now() - createdAt) : 0
 }
 
-/** The job is this transcript's and has not failed: Deepgram may already have moved it on. */
+/** The job is this transcript's and has not failed: the engine may already have moved it on. */
 export async function jobLive(admin: SupabaseClient, ids: JobIds): Promise<boolean> {
     const status = (await readJob(admin, ids))?.status
     return status === 'queued' || status === 'processing' || status === 'completed'

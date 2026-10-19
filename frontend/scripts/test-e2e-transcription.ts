@@ -13,7 +13,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
-import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
+import { getMediaUrlForEngine } from "@/infra/supabase/storage";
 import { resolveSpeakerLabels, speakerLabelFor } from "@/core/speakers/labels";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -59,7 +59,7 @@ async function main() {
     // Step 2: Check a Deepgram-ready media URL can be made, as the start route
     // does. The transcription step makes its own for the file preparation keeps.
     console.log("\n2️⃣ Checking a media URL can be made for Deepgram...");
-    const mediaUrlResult = await getMediaUrlForDeepgram(supabase, transcript.source_object_key);
+    const mediaUrlResult = await getMediaUrlForEngine(supabase, transcript.source_object_key);
 
     if (mediaUrlResult.error || !mediaUrlResult.url) {
         console.error("Failed to generate media URL:", mediaUrlResult.error);

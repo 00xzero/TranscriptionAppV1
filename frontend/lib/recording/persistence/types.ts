@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod'
-import { DEFAULT_TRANSCRIPTION_OPTIONS, TranscriptionOptionsSchema } from '@/contracts/transcription-options'
+import { SavedTranscriptionOptionsSchema, resolveTranscriptionOptions } from '@/contracts/transcription-options'
 
 export const PersistedSessionPhaseSchema = z.enum(['capturing', 'uploading'])
 
@@ -20,8 +20,9 @@ export const PersistedSessionSchema = z.object({
   title: z.string().nullable(),
   generatedTitle: z.string().nullable(),
   keyTerms: z.array(z.string()),
-  // Sessions saved before the options existed get what every transcript got then.
-  transcriptionOptions: TranscriptionOptionsSchema.default(DEFAULT_TRANSCRIPTION_OPTIONS),
+  // Sessions saved before the options existed get what every transcript got
+  // then, and those saved before the engine could be chosen get Deepgram.
+  transcriptionOptions: SavedTranscriptionOptionsSchema.optional().transform(resolveTranscriptionOptions),
   codecMime: z.string().nullable(),
   codecExtension: z.enum(['webm', 'mp4']).nullable(),
   deviceId: z.string().nullable(),
