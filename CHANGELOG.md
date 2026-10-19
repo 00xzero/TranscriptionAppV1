@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-19] - Transcription Options
+
+The capture dialog now lets you choose how a transcript is made: its language,
+whether speakers are told apart, whether "um" and "uh" stay, and whether
+swearing is masked. It offers your last choice next time.
+
+### Added
+
+- **Advanced section** — Below Key terms, closed each time the dialog opens. Its row sums up the choice ("English · speakers on", "Spanish · speakers off · profanity masked"), and opening it brings it into view. It replaces the two "coming soon" fields (Language, Speaker Diarization). Upload and Record share it.
+- **Language** — English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese, Hindi, Russian, or Mixed languages (Deepgram's `multi`, for audio that switches between those ten). Key terms work in all of them.
+- **Detect speakers** — Off, Deepgram is not asked to tell voices apart, and the transcript is saved with no speakers ("Unknown speaker" in the editor).
+- **Keep filler words** — Keeps "um" and "uh". English only: for other languages the switch is off and says so, and nothing is sent.
+- **Mask profanity** — Swear words come back as asterisks, in the text and its words.
+- **Last choice remembered** — Per browser, like the microphone. It's saved only once a transcript is created or a recording starts, so a change you cancel, or an upload or recording that fails to start, is forgotten. It's read each time the dialog opens, so a choice made in another tab is picked up (raised by Codex).
+
+### Changed
+
+- **Dropdowns** — At least as wide as their field and never taller than the room on the side they open to; a long list scrolls instead of running off the window.
+- **Results without speakers** — Deepgram leaves out the paragraph speaker when speaker detection is off. The webhook contract, and the segment builder and webhook types now derived from it, accept that.
+
+### Database
+
+- Migration `20261018000000_transcription_options` adds `language` (CHECK on the offered list), `detect_speakers`, `keep_filler_words` and `mask_profanity` to `transcripts`. They're granted for INSERT only, so the browser sets them when it creates a transcript and can never change them. Recordings carry them through IndexedDB and recovery; the start route sends them with the job.
+- Existing transcripts keep a true record: none ever sent a language (Deepgram used English), all detected speakers, and none masked profanity. Filler words were kept only from 2026-10-10 (`2834a9e`), so a completed transcript's `keep_filler_words` is NULL, meaning not recorded; ones not yet completed get `true`, which is what they'll get when they start. The backfill leaves `updated_at` alone.
+- Applied locally only. Until it reaches hosted, creating a transcript with options fails there.
+
+### Tests
+
+- **Frontend** — `177` suites / `2,197` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `58` existing warnings); `git diff --check`. New: the Deepgram request per option, create and start carrying the options, media preparation forwarding them on its normal, skipped and fallback paths, an event sent before options existed getting the old behaviour, a speakerless result parsed and saved with no speakers, old saved recordings getting the defaults, recovery keeping the options, and the dialog (collapsed by default, summary, English-only filler words, locked while uploading, saved only on a real start, read on each opening).
+- **SQL** — Locally, in a rolled-back transaction: a browser insert with options and one without, a language not offered refused, every UPDATE of an option refused, and the backfill on rows in each state. `supabase db diff --local` finds no drift.
+- **Browser** — On the local Docker stack, a spoken clip with "um", "uh" and a swear word, sent as English with speakers off, filler words off and profanity masked, came back as one Unknown-speaker segment with no fillers and the word as `****`. The dialog was checked in light and dark, and in a 420px-tall window.
+
+### Notes
+
+- A completed transcript's filler-word setting could be recovered later from its stored Deepgram response (one carrying the usage tag was made after the change). Nothing reads it today, so it's left NULL.
+
 ## [2026-10-18] - Project People Dialog
 
 A project's header speaker faces now open a People dialog for the project and
