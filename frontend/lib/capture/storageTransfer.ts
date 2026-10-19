@@ -25,6 +25,12 @@ export interface TransferOptions {
     upsert: boolean
     /** Aborts the resumable upload mid-flight (the single-PUT path can't be aborted). */
     signal?: AbortSignal
+    /**
+     * Bytes sent so far. The resumable path reports as it goes and never goes
+     * backwards, even when a chunk is resent; the single-PUT path can't
+     * measure, so it reports once, when the file is in.
+     */
+    onProgress?: (sentBytes: number, totalBytes: number) => void
 }
 
 /**
@@ -56,6 +62,7 @@ export async function transferToStorage(
         if (error) {
             throw new Error(`Upload failed: ${error.message}`)
         }
+        options.onProgress?.(file.size, file.size)
         return
     }
 
@@ -81,6 +88,7 @@ async function resumableUpload(
 
     await new Promise<void>((resolve, reject) => {
         let settled = false
+        let sentHighWater = 0
 
         const cleanup = () => {
             options.signal?.removeEventListener('abort', onAbort)
@@ -127,6 +135,13 @@ async function resumableUpload(
                 if (token) {
                     req.setHeader('authorization', `Bearer ${token}`)
                 }
+            },
+            onProgress: (bytesSent: number, bytesTotal: number) => {
+                // A resent chunk starts again from its offset; hold the count
+                // where it was until the resend passes it.
+                if (settled || bytesSent <= sentHighWater) return
+                sentHighWater = bytesSent
+                options.onProgress?.(bytesSent, bytesTotal)
             },
             onError: (error: Error) => {
                 finish(() => reject(new Error(resumableErrorMessage(error))))

@@ -147,6 +147,7 @@ export default function CaptureModal() {
     transcriptionOptions,
     setTranscriptionOptions,
     isUploading,
+    uploadBytes,
     handleSubmit,
     canSubmit,
     displayError,
@@ -462,6 +463,7 @@ export default function CaptureModal() {
           onSubmit={footerOnSubmit}
           buttonText={footerButtonText}
           disabledTooltip={footerDisabledTooltip}
+          uploadBytes={uploadBytes}
         />
       </DialogContent>
     </Dialog>
