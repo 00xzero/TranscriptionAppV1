@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-19] - Upload Progress
+
+The capture dialog now shows how far an upload has got, instead of a spinner
+alone.
+
+### Added
+
+- **Progress bar** — While a file uploads, a thin bar fills along the top edge of the dialog's footer, and the hint beside it reads "48 of 182 MB" in place of "60-min file ≈ 5 min process". It stays full through "Starting transcription…" and goes once the upload ends, fails or is cancelled. Screen readers hear "48 of 182 MB uploaded". The count sits in the footer rather than by the file name because the drop zone dims while uploading.
+- **`components/ui/progress.tsx`** — A Radix Progress wrapper in the style of the other `components/ui` primitives (`@radix-ui/react-progress` 1.1.16, the release built on the Radix internals already installed; newer ones were under two weeks old).
+
+### Changed
+
+- **Byte progress from the upload** — `transferToStorage` takes `onProgress(sent, total)`. Files over 6 MB (tus) report as they go and never go backwards: a resent chunk starts again from its offset, and the count holds until the resend passes it. Files of 6 MB or less (single PUT through supabase-js, which can't measure) report once, when the file is in. Nothing is reported after a cancel. `runCaptureUpload` passes it on as `onUploadBytes`, and `useCapture` keeps `{ sent, total }`. Recordings use the same path but don't show it yet.
+
+### Tests
+
+- **Frontend** — `179` suites / `2,209` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `58` existing warnings); `git diff --check`. New: progress forwarded and held still on a resend, once-only progress for small files, none after a failure or a cancel, the hook's count from zero to cleared, and the footer's bar, count and screen-reader text.
+- **Browser** — On the local Docker stack, with storage uploads sent through a proxy limited to 1.5 MB/s, a 30 MB WAV counted from "0 of 30 MB" to "30 of 30 MB" over about 19 seconds in 67 steps, never backwards, and the bar went once the dialog closed.
+
 ## [2026-10-19] - Transcription Options
 
 The capture dialog now lets you choose how a transcript is made: its language,
