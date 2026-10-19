@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { UuidSchema } from './primitives'
+import { TranscriptionEngineSchema } from './transcription-options'
 
 export const DeepgramWordSchema = z.object({
   word: z.string(),
@@ -79,7 +80,8 @@ export const DeepgramErrorCallbackSchema = z.object({
 
 // Full receipt schema matching infra/supabase/migrations/20260321000000_webhook_receipts.sql
 export const WebhookReceiptInsertSchema = z.object({
-  provider: z.literal('deepgram'),
+  // The engine whose callback this is.
+  provider: TranscriptionEngineSchema,
   request_id: z.string().min(1),
   transcript_id: UuidSchema.nullable().optional(),
   status: z.enum(['processing', 'completed', 'failed']).optional(),

@@ -1,114 +1,23 @@
 /**
- * Handle Deepgram webhook callback
- * Triggered when Deepgram completes transcription and sends results.
- * Parses utterances/words and stores in Supabase.
+ * Handle a transcription engine's result
+ * Triggered once an engine's callback has stored its result. Turns it into
+ * words with the transcript's engine, builds segments and stores them.
  *
  * On failure (after retries exhausted), emits transcription/failed event
  * so the UI can surface the error to the user.
  */
 
-import { randomUUID } from "crypto";
-
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { downloadTranscriptionResult } from "@/infra/supabase/transcription-results.server";
 import {
-    DEFAULT_SEGMENT_BUILDER_CONFIG,
-    buildSegments,
-    normalizeWords,
-    type ParagraphMetadata,
-} from "@/core/transcript/segment-builder";
-import { DeepgramWebhookPayloadSchema, type DeepgramWord } from "@/contracts/webhook";
-import {
-    SaveTranscriptSegmentsPayload,
     SaveTranscriptSegmentsPayloadSchema,
     SaveTranscriptSegmentsResultSchema,
 } from "@/contracts/db";
 import { transcriptionWebhookTrigger } from "@/lib/inngest/events";
+import { getEngine } from "@/lib/transcription/engines.server";
+import { buildRpcPayload } from "@/lib/transcription/segments-payload";
 import { writeTranscriptionFailureFallback } from "./_shared";
-
-/**
- * Minimal alternative shape used to derive paragraphs + transcript fallback.
- * Extracted to keep buildRpcPayload signature precise and testable.
- */
-type AlternativeForPayload = {
-    transcript?: string;
-    paragraphs?: ParagraphMetadata;
-} | undefined;
-
-/**
- * Build the SaveTranscriptSegmentsPayload from raw Deepgram words.
- *
- * - Runs the canonical normalize → buildSegments pipeline (same as before).
- * - Pre-generates a UUID per segment so the RPC can persist segments + words
- *   without a round-trip to discover inserted ids.
- * - Collects Deepgram's speaker numbers into a deduped `speakers` array — the
- *   RPC keys transcript speakers on them (diarization index) and resolves
- *   segment.speaker_id by joining on `speaker_num`. No labels are sent: a new
- *   speaker displays as `Speaker {ordinal}`.
- * - Falls back to a single empty segment when Deepgram returned no words,
- *   matching the pre-refactor behavior.
- */
-function buildRpcPayload(
-    rawWords: DeepgramWord[],
-    alt: AlternativeForPayload,
-): SaveTranscriptSegmentsPayload {
-    if (rawWords.length === 0) {
-        return {
-            speakers: [],
-            segments: [
-                {
-                    id: randomUUID(),
-                    speaker_num: null,
-                    start_ms: 0,
-                    end_ms: 0,
-                    text: alt?.transcript ?? "",
-                    is_filler: false,
-                    algo_version: DEFAULT_SEGMENT_BUILDER_CONFIG.algoVersion,
-                    words: [],
-                },
-            ],
-        };
-    }
-
-    const normalizedWords = normalizeWords(rawWords, alt?.paragraphs ?? null);
-    const builtSegments = buildSegments(normalizedWords, DEFAULT_SEGMENT_BUILDER_CONFIG);
-
-    const speakerNums = new Set<number>();
-    const segments = builtSegments.map((seg) => {
-        if (typeof seg.speakerNum === "number") {
-            speakerNums.add(seg.speakerNum);
-        }
-
-        return {
-            id: randomUUID(),
-            speaker_num: typeof seg.speakerNum === "number" ? seg.speakerNum : null,
-            start_ms: seg.startMs,
-            end_ms: seg.endMs,
-            text: seg.text,
-            is_filler: seg.isFiller,
-            algo_version: seg.algoVersion,
-            words: seg.words.map((w, idx) => ({
-                start_ms: w.startMs,
-                end_ms: w.endMs,
-                text: w.text,
-                confidence: w.confidence,
-                order_index: idx,
-                speaker: w.speaker,
-                speaker_confidence: w.speakerConfidence,
-                punctuated_text: w.punctuatedText,
-                paragraph_index: w.paragraphIndex,
-                sentence_end: w.sentenceEnd,
-            })),
-        };
-    });
-
-    const speakers = Array.from(speakerNums)
-        .sort((a, b) => a - b)
-        .map((num) => ({ num }));
-
-    return { speakers, segments };
-}
 
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
@@ -207,14 +116,14 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             return { status: "skipped", transcriptId, jobId: job.id };
         }
 
-        // Step 2: Parse Deepgram payload, build canonical transcript, and persist
+        // Step 2: Read the engine's result, build canonical transcript, and persist
         //         via a single atomic RPC call. The RPC replaces segments/words and
         //         creates missing speakers inside one Postgres transaction, so a mid-write
         //         failure cannot leave the transcript with partial data.
         const transcriptionResult = await step.run("store-transcription", async () => {
             const supabase = createAdminClient();
 
-            // Load the Deepgram response (stored by the webhook route)
+            // Load the engine's result (stored by its callback route)
             const { data: jobRow, error: jobRowError } = await supabase
                 .from("jobs")
                 .select("result_object_key")
@@ -225,24 +134,25 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 throw new Error(`Failed to load job: ${jobRowError?.message}`);
             }
             if (!jobRow.result_object_key) {
-                throw new Error(`Job ${job.id} has no stored Deepgram response`);
+                throw new Error(`Job ${job.id} has no stored engine result`);
+            }
+
+            // The engine the transcript was made with reads its own result.
+            const { data: transcriptRow, error: transcriptRowError } = await supabase
+                .from("transcripts")
+                .select("engine")
+                .eq("id", transcriptId)
+                .single();
+
+            if (transcriptRowError || !transcriptRow) {
+                throw new Error(`Failed to load transcript: ${transcriptRowError?.message}`);
             }
 
             const rawResponse = await downloadTranscriptionResult(supabase, jobRow.result_object_key);
-            const responseParsed = DeepgramWebhookPayloadSchema.safeParse(JSON.parse(rawResponse));
-            if (!responseParsed.success) {
-                throw new Error(`Invalid Deepgram payload structure: ${responseParsed.error.issues[0]?.message ?? 'Invalid input'}`);
-            }
-            const response = responseParsed.data;
-
-            // Parse Deepgram response — use channel words for word-level speaker grouping
-            const results = response.results || {};
-            const channels = results.channels || [];
-            const alt = channels[0]?.alternatives?.[0];
-            const words = alt?.words || [];
+            const engineWords = getEngine(transcriptRow.engine).resultToWords(rawResponse);
 
             // Build the canonical transcript in TypeScript. The RPC just persists it.
-            const payload = buildRpcPayload(words, alt);
+            const payload = buildRpcPayload(engineWords);
 
             // Defence-in-depth: validate the payload we're about to send.
             const validatedPayload = SaveTranscriptSegmentsPayloadSchema.parse(payload);

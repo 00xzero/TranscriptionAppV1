@@ -183,6 +183,10 @@ describe('Deepgram webhook route', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ received: true })
 
+    // The receipt is claimed and finalised under the engine the route names.
+    expect(receiptInsertMock).toHaveBeenCalledWith(expect.objectContaining({ provider: 'deepgram', request_id: 'req-123' }))
+    expect(receiptUpdateChain.eq).toHaveBeenCalledWith('provider', 'deepgram')
+
     expect(mockUpload).toHaveBeenCalledTimes(1)
     expect(mockUpload).toHaveBeenCalledWith(
       expect.anything(),

@@ -7,7 +7,7 @@
 import { inngest } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
-import { classifyError } from "@/infra/deepgram";
+import { classifyError } from "@/core/transcription/errors";
 import { transcriptionFailedTrigger } from "@/lib/inngest/events";
 
 export const handleTranscriptionFailed = inngest.createFunction(

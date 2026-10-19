@@ -212,7 +212,7 @@ function playbackWordClass(index: number, currentIndex: number | null): string {
 
 export type TranscriptSegmentCardProps = {
   segment: Seg
-  /** Deepgram's words for this segment; the text is aligned against them for timing. */
+  /** The engine's words for this segment; the text is aligned against them for timing. */
   sourceWords: readonly SourceWord[] | undefined
   /** Set while a write about to change this segment's text or shape waits its turn. */
   busy: BusyKind | undefined
@@ -393,9 +393,9 @@ export default function TranscriptSegmentCard({
     if (node) onSplit(s.id, node.value, node.selectionStart)
   }
   // The playing-word highlight is exact or off per segment: it runs only where
-  // the segment has Deepgram's stored words to align against. Inside such a
+  // the segment has the engine's stored words to align against. Inside such a
   // segment, edited text follows the alignment by design, so a word typed in
-  // where Deepgram heard nothing is placed in the gap it sits in and can be
+  // where the engine heard nothing is placed in the gap it sits in and can be
   // current. Without stored words the tokens are only an even spread across the
   // segment: enough to aim a click, as before word timings existed, but never
   // shown as playback.

@@ -148,7 +148,7 @@ export function exactOrganisation<T extends { name: string }>(organisations: rea
 /**
  * How a merge preview names a local voice: its own label, or the detected
  * speakers its segments came from, since a linked speaker's own ordinal names
- * no voice Deepgram heard.
+ * no voice the engine heard.
  */
 export function describeMergeVoice(voice: Pick<MergePreviewVoice, 'custom_label' | 'detected_ordinals'>): string {
   if (voice.custom_label) return voice.custom_label

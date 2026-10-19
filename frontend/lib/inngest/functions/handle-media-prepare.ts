@@ -7,7 +7,7 @@
  *
  * Preparation never blocks a transcript: when probing or converting fails, the
  * workflow goes on with whichever file the row points at. Every job and row check runs
- * inside a step, so a replay after Deepgram has moved the job on does not stop
+ * inside a step, so a replay after the engine has moved the job on does not stop
  * the waveform steps.
  */
 
@@ -85,9 +85,9 @@ export const handleMediaPrepare = inngest.createFunction(
         };
 
         // The source check is what keeps another user's file away from
-        // Deepgram, so it is never skipped: if the job and row can't be read,
+        // the engine, so it is never skipped: if the job and row can't be read,
         // this throws and onFailure fails the job (nothing could go on to
-        // Deepgram without them anyway). A file that can't be probed only
+        // the engine without them anyway). A file that can't be probed only
         // means nothing is prepared.
         const source: LoadSourceResult = await step.run("load-source", () =>
             loadSource(createAdminClient(), { ...ids, userId })
@@ -103,7 +103,7 @@ export const handleMediaPrepare = inngest.createFunction(
         if (source.skip) {
             // waveform_busy: an earlier job's waveform may still be reading
             // the original. waited_too_long: the job waited in line long
-            // enough already; it goes on to Deepgram as it is.
+            // enough already; it goes on to the engine as it is.
             console.log(`[inngest] Keeping ${transcriptId}'s upload as it is: ${source.skip}`);
         } else {
             sourceKey = source.sourceKey;

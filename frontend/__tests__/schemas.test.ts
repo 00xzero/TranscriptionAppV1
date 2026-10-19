@@ -139,6 +139,7 @@ describe('project schemas', () => {
         status: 'created',
         source_object_key: null,
         upload_intent_id: null,
+        engine: 'deepgram',
         language: 'en',
         detect_speakers: true,
         keep_filler_words: null,

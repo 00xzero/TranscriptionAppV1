@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UuidSchema } from './primitives'
-import { TranscriptionOptionsSchema } from './transcription-options'
+import { SavedTranscriptionOptionsSchema } from './transcription-options'
 
 export const TranscriptionRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
@@ -9,7 +9,7 @@ export const TranscriptionRequestedDataSchema = z.object({
   keyTerms: z.array(z.string()).optional(),
   // Optional for events sent before the options existed: read it through
   // resolveTranscriptionOptions.
-  transcriptionOptions: TranscriptionOptionsSchema.optional(),
+  transcriptionOptions: SavedTranscriptionOptionsSchema.optional(),
 })
 
 // Preparation forwards its payload unchanged to transcription/requested.

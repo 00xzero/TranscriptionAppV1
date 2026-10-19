@@ -24,7 +24,7 @@ import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { DeepgramErrorCallbackSchema, DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { UuidSchema } from "@/contracts/primitives";
-import { handleDeepgramWebhook, persistWebhookFailure } from "@/core/transcription/webhook";
+import { recordEngineResult, persistWebhookFailure } from "@/core/transcription/webhook";
 
 // Tell Vercel the maximum execution time — must match RECEIPT_LEASE_MS (Pro/Enterprise only)
 export const maxDuration = 300; // seconds
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       const supabase = createAdminClient();
       const failed = await persistWebhookFailure({
         supabase,
+        engine: "deepgram",
         requestId,
         message: `Transcription failed: ${errMsg.slice(0, 200)}`,
         detail: JSON.stringify(errorCallback.data),
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       const partialTranscriptId = UuidSchema.safeParse(rawPayload?.metadata?.extra?.transcript_id).data;
       console.warn("[deepgram-webhook] Malformed payload:", payloadParsed.error.issues[0]?.message ?? "Invalid input");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, transcriptId: partialTranscriptId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
+      await persistWebhookFailure({ supabase, engine: "deepgram", transcriptId: partialTranscriptId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
     }
 
@@ -118,13 +119,13 @@ export async function POST(request: NextRequest) {
     if (!transcriptId || !requestId) {
       console.warn("[deepgram-webhook] Missing transcript_id or request_id");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, transcriptId, requestId, message: "Deepgram webhook missing transcript_id or request_id." });
+      await persistWebhookFailure({ supabase, engine: "deepgram", transcriptId, requestId, message: "Deepgram webhook missing transcript_id or request_id." });
       return NextResponse.json({ error: "Missing transcript_id or request_id" }, { status: 400 });
     }
 
     // Step 3: Delegate to core
     const supabase = createAdminClient();
-    const result = await handleDeepgramWebhook({ supabase, requestId, transcriptId, rawBody });
+    const result = await recordEngineResult({ supabase, engine: "deepgram", requestId, transcriptId, rawBody });
 
     switch (result.outcome) {
       case 'processed':

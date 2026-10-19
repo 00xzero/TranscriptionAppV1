@@ -9,7 +9,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 
 export const MEDIA_BUCKET = 'media'
 export const WAVEFORM_BUCKET = 'waveforms'
-// Server-only: Deepgram's response per job, gzipped. Read and written by the
+// Server-only: the transcription engine's result per job, gzipped. Read and written by the
 // admin client alone (transcription-results.server.ts).
 export const RESULTS_BUCKET = 'transcription-results'
 
@@ -45,7 +45,7 @@ export function getMediaPath(userId: string, transcriptId: string, filename: str
 }
 
 /**
- * Build the storage path for a job's Deepgram response. One file per job: a
+ * Build the storage path for a job's engine result. One file per job: a
  * redelivered webhook overwrites it, a new transcription run gets its own.
  */
 export function getTranscriptionResultPath(userId: string, transcriptId: string, jobId: string): string {
@@ -85,7 +85,8 @@ export function localizeSignedUrl(signedUrl: string): string {
 }
 
 /**
- * Get a media URL suitable for Deepgram to fetch — applies proxy/rewrite env logic.
+ * Get a media URL the transcription engine can fetch — applies proxy/rewrite env logic.
+ * (The settings still carry Deepgram's name: it was the first engine.)
  *
  * Encapsulates deployment-specific transformations so core code stays env-agnostic:
  * - DEEPGRAM_USE_PROXY=true → proxy through /api/media-proxy (local dev, single ngrok tunnel)
@@ -96,7 +97,7 @@ export function localizeSignedUrl(signedUrl: string): string {
  * @param objectKey - Storage path (from transcript.source_object_key)
  * @returns Ready-to-use URL string, or error on failure
  */
-export async function getMediaUrlForDeepgram(
+export async function getMediaUrlForEngine(
     supabase: SupabaseClient,
     objectKey: string
 ): Promise<{ url: string; error: null } | { url: null; error: string }> {
@@ -117,12 +118,12 @@ export async function getMediaUrlForDeepgram(
             return { url: null, error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET' }
         }
         mediaUrl = `${callbackBase}/api/media-proxy?path=${encodeURIComponent(objectKey)}&token=${encodeURIComponent(proxySecret)}`
-        console.log(`[storage] Using media proxy for Deepgram (path: ${objectKey})`)
+        console.log(`[storage] Using media proxy for the engine (path: ${objectKey})`)
     } else if (process.env.DEEPGRAM_STORAGE_URL) {
         const localStoragePrefix = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
         if (localStoragePrefix && mediaUrl.includes(localStoragePrefix)) {
             mediaUrl = mediaUrl.replace(localStoragePrefix, process.env.DEEPGRAM_STORAGE_URL)
-            console.log(`[storage] Replaced media URL base for Deepgram: ${process.env.DEEPGRAM_STORAGE_URL}`)
+            console.log(`[storage] Replaced media URL base for the engine: ${process.env.DEEPGRAM_STORAGE_URL}`)
         }
     }
 

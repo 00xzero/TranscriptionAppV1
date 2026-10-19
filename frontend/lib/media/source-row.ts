@@ -1,6 +1,6 @@
 /**
  * The transcript row's media key, as the background steps read it: media
- * preparation before it may replace the file, and the Deepgram call after.
+ * preparation before it may replace the file, and the engine call after.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -21,7 +21,7 @@ export async function readSourceRow(admin: SupabaseClient, transcriptId: string)
 /**
  * The row's media key, when the row belongs to the user the event names and
  * the key is inside the transcript's own folder; otherwise null, and nothing
- * may be sent to Deepgram.
+ * may be sent to the engine.
  */
 export function ownedSourceKey(row: SourceRow, ids: { transcriptId: string; userId: string }): string | null {
     const prefix = `${row.user_id}/${ids.transcriptId}/`
