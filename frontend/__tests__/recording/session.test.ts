@@ -434,6 +434,43 @@ describe('recording session singleton', () => {
     await retryPromise
   })
 
+  test('uploading carries the bytes sent and drops them on leaving the state', async () => {
+    let options: Parameters<typeof runCaptureUpload>[3]
+    let resolveUpload: (
+      result: Awaited<ReturnType<typeof runCaptureUpload>>
+    ) => void = () => {}
+    mockRunCaptureUpload.mockImplementationOnce((_file, _title, _terms, opts) => {
+      options = opts
+      return new Promise((resolve) => {
+        resolveUpload = resolve
+      })
+    })
+
+    await attachRecording({ title: 'X', maxBytes: 1024 * 1024 })
+    recordChunk(new Blob([new Uint8Array(4096)]))
+    advanceClockPastEmptyFloor()
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await flushAsync()
+
+    expect(getSnapshot().state).toBe('uploading')
+    expect(getSnapshot().uploadBytes).toBeNull()
+
+    options?.onProgress?.('uploading')
+    expect(getSnapshot().uploadBytes).toEqual({ sent: 0, total: 4608 })
+    options?.onUploadBytes?.(2048, 4608)
+    expect(getSnapshot().uploadBytes).toEqual({ sent: 2048, total: 4608 })
+
+    resolveUpload({ kind: 'failure', message: 'upload boom' })
+    await stopPromise
+    expect(getSnapshot().state).toBe('error')
+    expect(getSnapshot().uploadBytes).toBeNull()
+
+    // A late report from the finished upload changes nothing.
+    options?.onUploadBytes?.(4608, 4608)
+    expect(getSnapshot().uploadBytes).toBeNull()
+  })
+
   test('markError preserves elapsed active time from an in-progress segment', () => {
     const baseTime = 3_000_000
     const now = jest.spyOn(Date, 'now')

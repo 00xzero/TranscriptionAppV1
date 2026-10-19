@@ -33,6 +33,7 @@ jest.mock('@/lib/capture/useCapture', () => ({
     isUploading: false,
     error: null,
     progress: 'idle',
+    uploadBytes: null,
     resetError: resetErrorMock,
   }),
 }))

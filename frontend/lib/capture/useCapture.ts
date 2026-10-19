@@ -5,6 +5,7 @@ import {
     runCaptureUpload,
     validateFile,
     type CaptureUploadSuccess,
+    type UploadBytes,
 } from '@/lib/capture/upload'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
@@ -12,6 +13,7 @@ type UseCapture = {
     isUploading: boolean
     error: string | null
     progress: 'idle' | 'creating' | 'uploading' | 'starting' | 'done'
+    uploadBytes: UploadBytes | null
   upload: (
         file: File,
         title: string,
@@ -35,6 +37,7 @@ export function useCapture(): UseCapture {
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [progress, setProgress] = useState<UseCapture['progress']>('idle')
+    const [uploadBytes, setUploadBytes] = useState<UploadBytes | null>(null)
 
     const resetError = useCallback(() => {
         setError(null)
@@ -51,10 +54,15 @@ export function useCapture(): UseCapture {
         setError(null)
         setIsUploading(true)
         setProgress('creating')
+        setUploadBytes(null)
 
         try {
             const result = await runCaptureUpload(file, title, keyTerms, {
-                onProgress: setProgress,
+                onProgress: (stage) => {
+                    setProgress(stage)
+                    if (stage === 'uploading') setUploadBytes({ sent: 0, total: file.size })
+                },
+                onUploadBytes: (sent, total) => setUploadBytes({ sent, total }),
                 projectId,
                 transcriptionOptions,
             })
@@ -78,6 +86,7 @@ export function useCapture(): UseCapture {
             }
         } finally {
             setIsUploading(false)
+            setUploadBytes(null)
         }
     }, [])
 
@@ -85,6 +94,7 @@ export function useCapture(): UseCapture {
         isUploading,
         error,
         progress,
+        uploadBytes,
         upload,
         resetError,
         validateFile

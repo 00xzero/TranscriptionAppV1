@@ -21,6 +21,7 @@ interface MockOptions {
   durable?: boolean
   captureHealthWarning?: string | null
   submissionResult?: SessionSnapshot['submissionResult']
+  uploadBytes?: SessionSnapshot['uploadBytes']
 }
 
 export function mockRecordingSession(options: MockOptions): void {
@@ -48,6 +49,10 @@ export function mockRecordingSession(options: MockOptions): void {
     partial.submissionResult = options.submissionResult ?? null
   __setSnapshotForTesting(partial)
   forceState(options.state)
+  // `forceState` runs the transition, which drops the count outside `uploading`.
+  if ('uploadBytes' in options) {
+    __setSnapshotForTesting({ uploadBytes: options.uploadBytes ?? null })
+  }
 
   // `forceState` routes through the real derived snapshot logic, which clears
   // retryability unless a finalized recording exists in runtime state. Tests

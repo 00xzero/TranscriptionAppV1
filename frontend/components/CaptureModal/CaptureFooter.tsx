@@ -1,5 +1,8 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import type { UploadBytes } from '@/lib/capture/upload'
+import { formatUploadedBytes } from '@/lib/utils'
 
 interface CaptureFooterProps {
   isUploading: boolean
@@ -10,6 +13,8 @@ interface CaptureFooterProps {
   onSubmit: () => void
   buttonText: string
   disabledTooltip?: string
+  /** Set while a file uploads: a bar on the footer's top edge and the count in the hint. */
+  uploadBytes?: UploadBytes | null
 }
 
 export default function CaptureFooter({
@@ -21,6 +26,7 @@ export default function CaptureFooter({
   onSubmit,
   buttonText,
   disabledTooltip,
+  uploadBytes,
 }: CaptureFooterProps) {
   const nativeTitle = disabledTooltip ?? (canSubmit
     ? isRecordMode ? 'Start Recording' : 'Begin transcription'
@@ -61,13 +67,26 @@ export default function CaptureFooter({
 
   // A phone-width dialog has no room for the hint beside the actions, so it
   // sits above them until the dialog reaches its full width.
+  const uploadedLabel = uploadBytes ? formatUploadedBytes(uploadBytes.sent, uploadBytes.total) : null
+
   return (
-    <div className="flex flex-col gap-3 border-t border-border bg-subtle p-6 sm:flex-row sm:items-center sm:justify-between dark:bg-surface-alt">
+    <div className="relative flex flex-col gap-3 border-t border-border bg-subtle p-6 sm:flex-row sm:items-center sm:justify-between dark:bg-surface-alt">
+      {uploadBytes && (
+        <Progress
+          value={uploadBytes.sent}
+          max={Math.max(1, uploadBytes.total)}
+          getValueLabel={() => `${uploadedLabel} uploaded`}
+          aria-label="Upload progress"
+          className="absolute inset-x-0 -top-px"
+        />
+      )}
       <div className="flex items-center gap-2 opacity-50">
         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span className="text-[10px] leading-tight sm:w-32 md:w-auto">60-min file ≈ 5 min process</span>
+        <span className="text-[10px] leading-tight tabular-nums sm:w-32 md:w-auto">
+          {uploadedLabel ?? '60-min file ≈ 5 min process'}
+        </span>
       </div>
       <div className="flex items-center justify-end gap-3">
         <button

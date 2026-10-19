@@ -6,7 +6,8 @@ import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { showCaptureWarning } from '@/lib/capture/warnings'
 import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { isProjectAvailable } from '@/core/projects/tree'
-import { captureTitleInputId, formatFileSize } from './shared'
+import { captureTitleInputId } from './shared'
+import { formatFileSize } from '@/lib/utils'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 import { readTranscriptionPreferences, saveTranscriptionPreferences } from '@/lib/capture/transcriptionPreferences'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
@@ -24,7 +25,7 @@ export function useCaptureForm({
   intentProjectId,
 }: UseCaptureFormParams) {
   const guardedNav = useGuardedNavigate()
-  const { upload, isUploading, error, progress, resetError } = useCapture()
+  const { upload, isUploading, error, progress, uploadBytes, resetError } = useCapture()
   const { tree, projectsLoading, projectError } = useProjectsData()
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -180,6 +181,7 @@ export function useCaptureForm({
     transcriptionOptions,
     setTranscriptionOptions,
     isUploading,
+    uploadBytes,
     handleSubmit,
     canSubmit,
     displayError,

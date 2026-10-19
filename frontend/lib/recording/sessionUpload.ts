@@ -11,6 +11,7 @@ import {
   markError,
   markSubmitted,
   setSubmissionResult,
+  setUploadBytes,
 } from './sessionCore'
 import { disposeController } from './sessionRuntime'
 import { store } from './sessionStore'
@@ -61,6 +62,10 @@ export async function submitFinalizedRecording(): Promise<void> {
       finalized.keyTerms,
       {
         signal: abortController.signal,
+        onProgress: (stage) => {
+          if (stage === 'uploading') setUploadBytes({ sent: 0, total: finalized.file.size })
+        },
+        onUploadBytes: (sent, total) => setUploadBytes({ sent, total }),
         uploadIntentId: store.runtime.uploadIntentId ?? undefined,
         projectId: finalized.projectId,
         transcriptionOptions: finalized.transcriptionOptions,

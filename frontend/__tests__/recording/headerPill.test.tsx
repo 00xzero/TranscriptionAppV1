@@ -147,6 +147,39 @@ describe('RecordingPill', () => {
     expect(pill).toHaveTextContent(label)
   })
 
+  test('fills behind its text with the share of the recording uploaded', () => {
+    act(() => {
+      mockRecordingSession({
+        state: 'uploading',
+        title: 'X',
+        uploadBytes: { sent: 12 * 1024 * 1024, total: 29 * 1024 * 1024 },
+      })
+    })
+    renderPill()
+    const pill = screen.getByTestId('recording-pill')
+    expect(pill).toHaveTextContent('Uploading 41%')
+    expect(pill).toHaveAccessibleName('Return to recording session, uploading, 41%')
+    expect(screen.getByTestId('recording-pill-upload-fill')).toHaveStyle({ width: '41%' })
+  })
+
+  test('says it is starting once the whole recording is in', () => {
+    act(() => {
+      mockRecordingSession({ state: 'uploading', title: 'X', uploadBytes: { sent: 500, total: 500 } })
+    })
+    renderPill()
+    expect(screen.getByTestId('recording-pill')).toHaveTextContent('Starting...')
+    expect(screen.getByTestId('recording-pill-upload-fill')).toHaveStyle({ width: '100%' })
+  })
+
+  test('shows no fill while there is nothing to count', () => {
+    act(() => {
+      mockRecordingSession({ state: 'uploading', title: 'X' })
+    })
+    renderPill()
+    expect(screen.getByTestId('recording-pill')).toHaveTextContent('Uploading...')
+    expect(screen.queryByTestId('recording-pill-upload-fill')).not.toBeInTheDocument()
+  })
+
   test('renders a retryable error variant', () => {
     act(() => {
       mockRecordingSession({ state: 'error', title: 'X', canRetryUpload: true })

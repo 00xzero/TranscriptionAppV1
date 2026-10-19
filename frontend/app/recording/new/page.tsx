@@ -24,6 +24,8 @@ import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { formatUploadedBytes } from '@/lib/utils'
 
 const COMPLETION_REDIRECT_DELAY_MS = 600
 const COMPLETION_REDIRECT_RETRY_MS = 1_500
@@ -353,6 +355,7 @@ export default function RecordingNewPage() {
   // recording / paused / finalizing / uploading
   const isInFlight =
     snapshot.state === 'finalizing' || snapshot.state === 'uploading'
+  const uploadBytes = snapshot.state === 'uploading' ? snapshot.uploadBytes : null
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 px-8 pt-24 pb-12">
@@ -376,7 +379,22 @@ export default function RecordingNewPage() {
 
       {!isInFlight && <RecordingKeyTerms />}
 
-      {isInFlight ? (
+      {uploadBytes ? (
+        <div className="flex flex-col gap-2" data-testid="recording-upload-progress">
+          <Progress
+            value={uploadBytes.sent}
+            max={Math.max(1, uploadBytes.total)}
+            getValueLabel={() => `${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)} uploaded`}
+            aria-label="Upload progress"
+            className="rounded-full"
+          />
+          <span className="text-sm tabular-nums text-ink/60 dark:text-paper/60">
+            {uploadBytes.sent >= uploadBytes.total
+              ? 'Starting transcription…'
+              : `Uploading… ${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)}`}
+          </span>
+        </div>
+      ) : isInFlight ? (
         <div
           className="flex items-center gap-3 text-sm text-ink/60 dark:text-paper/60"
           data-testid="recording-spinner"

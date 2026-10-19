@@ -25,6 +25,14 @@ export interface TransferOptions {
     upsert: boolean
     /** Aborts the resumable upload mid-flight (the single-PUT path can't be aborted). */
     signal?: AbortSignal
+    /**
+     * Bytes sent so far. The resumable path reports as it goes and never goes
+     * backwards, even when a chunk is resent; the single-PUT path can't
+     * measure, so it reports once, when the file is in. Either way the whole
+     * size is reported only once storage has accepted the file, and nothing
+     * is reported after a cancel.
+     */
+    onProgress?: (sentBytes: number, totalBytes: number) => void
 }
 
 /**
@@ -56,6 +64,11 @@ export async function transferToStorage(
         if (error) {
             throw new Error(`Upload failed: ${error.message}`)
         }
+        // A cancelled PUT can't be stopped and may still finish; its report
+        // must not land on whatever upload comes next.
+        if (!options.signal?.aborted) {
+            options.onProgress?.(file.size, file.size)
+        }
         return
     }
 
@@ -81,6 +94,7 @@ async function resumableUpload(
 
     await new Promise<void>((resolve, reject) => {
         let settled = false
+        let sentHighWater = 0
 
         const cleanup = () => {
             options.signal?.removeEventListener('abort', onAbort)
@@ -128,11 +142,25 @@ async function resumableUpload(
                     req.setHeader('authorization', `Bearer ${token}`)
                 }
             },
+            onProgress: (bytesSent: number, bytesTotal: number) => {
+                // Bytes sent are not bytes accepted: the last chunk can go out
+                // in full and still be refused and resent. Stop one byte short
+                // until onSuccess says storage has the whole file.
+                const sent = Math.min(bytesSent, bytesTotal - 1)
+                // A resent chunk starts again from its offset; hold the count
+                // where it was until the resend passes it.
+                if (settled || sent <= sentHighWater) return
+                sentHighWater = sent
+                options.onProgress?.(sent, bytesTotal)
+            },
             onError: (error: Error) => {
                 finish(() => reject(new Error(resumableErrorMessage(error))))
             },
             onSuccess: () => {
-                finish(() => resolve())
+                finish(() => {
+                    options.onProgress?.(file.size, file.size)
+                    resolve()
+                })
             },
         })
 
