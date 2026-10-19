@@ -217,6 +217,21 @@ describe('POST /api/transcripts', () => {
     expect(transcripts.insertMock.mock.calls[0]).toEqual([expect.objectContaining(options)])
   })
 
+  test.each(['es', 'multi'])('records filler words off for %s, where Deepgram is never asked for them', async (language) => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { language, detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+    })
+
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.objectContaining({ language, keep_filler_words: false }),
+    ])
+  })
+
   test('without options leaves them to the column defaults', async () => {
     const transcripts = makeTranscriptTable({
       insertResults: [{ data: makeRow(), error: null }],

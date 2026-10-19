@@ -16,7 +16,11 @@ ALTER TABLE public.transcripts
     CHECK (language IN ('en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'ja', 'hi', 'ru', 'multi')),
   ADD COLUMN detect_speakers BOOLEAN NOT NULL DEFAULT true,
   ADD COLUMN keep_filler_words BOOLEAN DEFAULT true,
-  ADD COLUMN mask_profanity BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN mask_profanity BOOLEAN NOT NULL DEFAULT false,
+  -- Deepgram keeps "um" and "uh" only in English, so no other language can
+  -- record them kept.
+  ADD CONSTRAINT transcripts_filler_words_english_only
+    CHECK (keep_filler_words IS NOT TRUE OR language = 'en');
 
 -- A backfill, not an edit: updated_at and the column guards stay out of it.
 ALTER TABLE public.transcripts DISABLE TRIGGER USER;
