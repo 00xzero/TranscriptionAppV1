@@ -9,7 +9,7 @@ import {
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { getElapsedActiveMs } from '@/lib/recording/session'
 import type { RecordingState } from '@/lib/recording/session'
-import { formatElapsedTime } from '@/lib/utils'
+import { formatElapsedTime, formatUploadedBytes } from '@/lib/utils'
 import {
   Tooltip,
   TooltipContent,
@@ -212,6 +212,8 @@ export default function RecordingPill() {
   let toneClass =
     'border-border bg-surface text-ink hover:bg-paper dark:bg-night-surface dark:text-paper dark:hover:bg-night-surface/80'
   let dotClass = 'bg-ember-red'
+  // Option B: the pill fills behind its text while the recording's bytes go up.
+  let uploadedPercent: number | null = null
 
   if (state === 'recording') {
     label = `Recording ${elapsed}`
@@ -231,11 +233,23 @@ export default function RecordingPill() {
     detail = 'The final audio file is being prepared.'
     dotClass = 'bg-trust-blue animate-spin'
   } else if (state === 'uploading') {
+    const bytes = snapshot.uploadBytes
     label = 'Uploading...'
     ariaLabel = 'Return to recording session, uploading'
     status = 'Uploading'
     detail = 'The recording is being saved for transcription.'
     dotClass = 'bg-trust-blue animate-pulse'
+    if (bytes && bytes.sent >= bytes.total) {
+      uploadedPercent = 100
+      label = 'Starting...'
+      ariaLabel = 'Return to recording session, starting transcription'
+      status = 'Starting transcription'
+    } else if (bytes) {
+      uploadedPercent = Math.floor((bytes.sent / Math.max(1, bytes.total)) * 100)
+      label = `Uploading ${uploadedPercent}%`
+      ariaLabel = `Return to recording session, uploading, ${uploadedPercent}%`
+      status = `Uploading ${formatUploadedBytes(bytes.sent, bytes.total)}`
+    }
   } else if (state === 'error') {
     label = 'Recording error'
     ariaLabel = 'Return to recording session, upload needs attention'
@@ -264,13 +278,21 @@ export default function RecordingPill() {
           onClick={() => guardedNav.push('/recording/new')}
           aria-label={ariaLabel}
           data-testid="recording-pill"
-          className={`inline-flex min-w-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium shadow-xs transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/35 active:scale-95 ${toneClass}`}
+          className={`relative inline-flex min-w-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs font-medium shadow-xs transition-all hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-trust-blue/35 active:scale-95 ${toneClass}`}
         >
+          {uploadedPercent !== null && (
+            <span
+              className="absolute inset-y-0 left-0 bg-trust-blue/15 transition-[width] dark:bg-trust-blue/40 duration-200 ease-linear motion-reduce:transition-none"
+              style={{ width: `${uploadedPercent}%` }}
+              aria-hidden="true"
+              data-testid="recording-pill-upload-fill"
+            />
+          )}
           <span
-            className={`h-2 w-2 shrink-0 rounded-full ${dotClass} ${isRecording ? 'animate-pulse' : ''}`}
+            className={`relative h-2 w-2 shrink-0 rounded-full ${dotClass} ${isRecording ? 'animate-pulse' : ''}`}
             aria-hidden="true"
           />
-          <span className="truncate font-mono">{label}</span>
+          <span className="relative truncate font-mono tabular-nums">{label}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent sideOffset={8}>

@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { IconButton } from '@/components/ui/icon-button'
 import { SUPPORTED_EXTENSIONS } from '@/lib/capture/upload'
-import { formatFileSize } from './shared'
+import { formatFileSize } from '@/lib/utils'
 
 interface FileDropZoneProps {
   selectedFile: File | null

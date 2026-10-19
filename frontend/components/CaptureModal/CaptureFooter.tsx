@@ -1,8 +1,8 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import type { UploadBytes } from '@/lib/capture/useCapture'
-import { formatUploadedBytes } from './shared'
+import type { UploadBytes } from '@/lib/capture/upload'
+import { formatUploadedBytes } from '@/lib/utils'
 
 interface CaptureFooterProps {
   isUploading: boolean

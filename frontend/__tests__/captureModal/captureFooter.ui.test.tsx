@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import CaptureFooter from '@/components/CaptureModal/CaptureFooter'
-import { formatUploadedBytes } from '@/components/CaptureModal/shared'
+import { formatUploadedBytes } from '@/lib/utils'
 
 const MB = 1024 * 1024
 

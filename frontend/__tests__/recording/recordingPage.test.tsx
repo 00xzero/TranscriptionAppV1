@@ -145,6 +145,39 @@ describe('Recording page', () => {
     ).toHaveStyle({ animationPlayState: 'paused' })
   })
 
+  test('uploading shows a bar and the count in place of the spinner', () => {
+    act(() => {
+      mockRecordingSession({
+        state: 'uploading',
+        title: 't',
+        uploadBytes: { sent: 12 * 1024 * 1024, total: 29 * 1024 * 1024 },
+      })
+    })
+    render(<RecordingNewPage />)
+
+    expect(screen.queryByTestId('recording-spinner')).not.toBeInTheDocument()
+    const bar = screen.getByRole('progressbar', { name: 'Upload progress' })
+    expect(bar).toHaveAttribute('aria-valuetext', '12 of 29 MB uploaded')
+    expect(screen.getByText('Uploading… 12 of 29 MB')).toBeInTheDocument()
+  })
+
+  test('uploading says it is starting transcription once the recording is in', () => {
+    act(() => {
+      mockRecordingSession({ state: 'uploading', title: 't', uploadBytes: { sent: 500, total: 500 } })
+    })
+    render(<RecordingNewPage />)
+    expect(screen.getByText('Starting transcription…')).toBeInTheDocument()
+  })
+
+  test('uploading with nothing to count keeps the spinner', () => {
+    act(() => {
+      mockRecordingSession({ state: 'uploading', title: 't' })
+    })
+    render(<RecordingNewPage />)
+    expect(screen.getByTestId('recording-spinner')).toHaveTextContent('Uploading…')
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
   // Phase 3: the beforeunload guard moved to RecordingSessionProvider (app-level),
   // so the page itself no longer installs it. Covered in beforeUnloadGuard.test.tsx.
   test('page does not install its own beforeunload listener', () => {

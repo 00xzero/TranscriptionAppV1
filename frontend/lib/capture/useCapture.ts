@@ -5,11 +5,9 @@ import {
     runCaptureUpload,
     validateFile,
     type CaptureUploadSuccess,
+    type UploadBytes,
 } from '@/lib/capture/upload'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
-
-/** How much of the file is in storage, from the moment it starts uploading. */
-export type UploadBytes = { sent: number; total: number }
 
 type UseCapture = {
     isUploading: boolean

@@ -73,6 +73,9 @@ const MAX_FILE_SIZE_BYTES = CONFIGURED_MAX_FILE_SIZE_BYTES
 
 export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'done'
 
+/** How much of the file is in storage, from the moment it starts uploading. */
+export type UploadBytes = { sent: number; total: number }
+
 export interface CaptureUploadOptions {
     onProgress?: (p: CaptureUploadProgress) => void
     /** Bytes of the file in storage so far, while it uploads. */

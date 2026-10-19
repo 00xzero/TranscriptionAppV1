@@ -149,6 +149,7 @@ function buildTransitionSnapshot(
     ...patch,
     state: target,
     ...(target !== 'recording' ? { lastResumeAt: null } : {}),
+    ...(target !== 'uploading' ? { uploadBytes: null } : {}),
     ...(foldsElapsedTime
       ? { pausedAccumulatedMs: snap.pausedAccumulatedMs + foldedMs }
       : {}),
@@ -271,6 +272,11 @@ export function finalize(): void {
 
 export function markUploading(): void {
   dispatch('markUploading')
+}
+
+export function setUploadBytes(uploadBytes: SessionSnapshot['uploadBytes']): void {
+  if (store.snapshot.state !== 'uploading') return
+  setSnapshot({ ...store.snapshot, uploadBytes })
 }
 
 export function setSubmissionResult(

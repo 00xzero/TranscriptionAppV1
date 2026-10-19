@@ -1,5 +1,5 @@
 import type { CodecSelection } from './codecs'
-import type { CaptureUploadSuccess } from '@/lib/capture/upload'
+import type { CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
@@ -74,6 +74,12 @@ export interface SessionSnapshot {
   // Populated only in the `recoverable` state; null otherwise.
   recoverable: RecoverableInfo | null
   submissionResult: Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> | null
+  /**
+   * How much of the recording is in storage. Set from the moment its bytes
+   * start going up and cleared on leaving `uploading`; null while there is
+   * nothing to count (before that, or a retry whose file was already in).
+   */
+  uploadBytes: UploadBytes | null
 }
 
 export interface FinalizedRecording {
@@ -140,6 +146,7 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   captureHealthWarning: null,
   recoverable: null,
   submissionResult: null,
+  uploadBytes: null,
 })
 
 export const SERVER_SNAPSHOT: SessionSnapshot = IDLE_SNAPSHOT
