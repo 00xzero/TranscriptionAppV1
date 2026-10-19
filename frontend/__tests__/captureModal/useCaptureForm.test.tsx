@@ -2,6 +2,8 @@ import { act, renderHook } from '@testing-library/react'
 import { useCaptureForm } from '@/components/CaptureModal/useCaptureForm'
 import { validateFile } from '@/lib/capture/upload'
 import { makeProject, projectProviderData } from '../projects/fixtures'
+import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
+import { TRANSCRIPTION_PREFERENCES_KEY } from '@/lib/capture/transcriptionPreferences'
 
 const pushMock = jest.fn()
 const uploadMock = jest.fn()
@@ -64,6 +66,7 @@ async function submitFile(intentProjectId?: string | null) {
 describe('useCaptureForm', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    window.localStorage.clear()
     mockUseProjectsData.mockReturnValue(projectProviderData(loadedProjects))
   })
 
@@ -91,7 +94,7 @@ describe('useCaptureForm', () => {
 
     await submitFile('project-1')
 
-    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], 'project-1')
+    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], 'project-1', DEFAULT_TRANSCRIPTION_OPTIONS)
     expect(showCaptureWarningMock).toHaveBeenCalledTimes(1)
     expect(showCaptureWarningMock).toHaveBeenCalledWith('project_missing')
     expect(pushMock).not.toHaveBeenCalled()
@@ -139,7 +142,7 @@ describe('useCaptureForm', () => {
       await result.current.handleSubmit()
     })
 
-    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), '', [], null)
+    expect(uploadMock).toHaveBeenCalledWith(expect.any(File), '', [], null, DEFAULT_TRANSCRIPTION_OPTIONS)
   })
 
   describe('the title follows the file', () => {
@@ -214,7 +217,7 @@ describe('useCaptureForm', () => {
       const { result } = renderForm('project-1')
       act(() => result.current.setProjectId('project-2'))
       await submit(result)
-      expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], 'project-2')
+      expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], 'project-2', DEFAULT_TRANSCRIPTION_OPTIONS)
     })
 
     test('picking Unfiled over an intent project uploads with no project', async () => {
@@ -222,7 +225,7 @@ describe('useCaptureForm', () => {
       act(() => result.current.setProjectId(null))
       expect(result.current.projectId).toBeNull()
       await submit(result)
-      expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], null)
+      expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], null, DEFAULT_TRANSCRIPTION_OPTIONS)
     })
 
     test('falls back to Unfiled when the project is being deleted', () => {
@@ -327,6 +330,67 @@ describe('useCaptureForm', () => {
 
       act(() => result.current.handleFileSelect(fileNamed(`${'y'.repeat(130)}.wav`)))
       expect(result.current.titleError).toBeNull()
+    })
+  })
+
+  describe('transcription options', () => {
+    const chosen: TranscriptionOptions = { language: 'es', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
+    const stored = () => JSON.parse(window.localStorage.getItem(TRANSCRIPTION_PREFERENCES_KEY) ?? 'null')
+    const sample = () => new File(['audio'], 'sample.wav', { type: 'audio/wav' })
+
+    function renderForm() {
+      return renderHook(
+        ({ open }: { open: boolean }) =>
+          useCaptureForm({ isCaptureModalOpen: open, closeCaptureModal: jest.fn(), intentProjectId: null }),
+        { initialProps: { open: true } }
+      )
+    }
+
+    async function submit(result: ReturnType<typeof renderForm>['result']) {
+      act(() => result.current.handleFileSelect(sample()))
+      await act(async () => {
+        await result.current.handleSubmit()
+      })
+    }
+
+    test('start from the defaults when nothing was saved, or what was saved is unreadable', () => {
+      expect(renderForm().result.current.transcriptionOptions).toEqual(DEFAULT_TRANSCRIPTION_OPTIONS)
+      window.localStorage.setItem(TRANSCRIPTION_PREFERENCES_KEY, '{"language":"klingon"}')
+      expect(renderForm().result.current.transcriptionOptions).toEqual(DEFAULT_TRANSCRIPTION_OPTIONS)
+    })
+
+    test('start from the options last saved', () => {
+      window.localStorage.setItem(TRANSCRIPTION_PREFERENCES_KEY, JSON.stringify(chosen))
+      expect(renderForm().result.current.transcriptionOptions).toEqual(chosen)
+    })
+
+    test('an upload sends them and saves them for next time', async () => {
+      uploadMock.mockResolvedValue({ outcome: 'started', transcriptId: 'transcript-1' })
+      const { result } = renderForm()
+      act(() => result.current.setTranscriptionOptions(chosen))
+      await submit(result)
+
+      expect(uploadMock).toHaveBeenCalledWith(expect.any(File), 'sample', [], null, chosen)
+      expect(stored()).toEqual(chosen)
+    })
+
+    test('an upload that creates no transcript saves nothing', async () => {
+      uploadMock.mockResolvedValue(null)
+      const { result } = renderForm()
+      act(() => result.current.setTranscriptionOptions(chosen))
+      await submit(result)
+
+      expect(stored()).toBeNull()
+    })
+
+    test('closing without beginning drops the change', () => {
+      const { result, rerender } = renderForm()
+      act(() => result.current.setTranscriptionOptions(chosen))
+      rerender({ open: false })
+      rerender({ open: true })
+
+      expect(result.current.transcriptionOptions).toEqual(DEFAULT_TRANSCRIPTION_OPTIONS)
+      expect(stored()).toBeNull()
     })
   })
 })

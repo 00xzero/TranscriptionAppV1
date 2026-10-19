@@ -12,6 +12,7 @@ import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 import { Toaster, __resetToastsForTesting } from '@/components/ui/toaster'
 import { saveRecovered, discardRecovered } from '@/lib/recording/session'
 import type { RecoverableInfo } from '@/lib/recording/session'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const mockSave = jest.mocked(saveRecovered)
 const mockDiscard = jest.mocked(discardRecovered)
@@ -24,6 +25,7 @@ function makeInfo(overrides: Partial<RecoverableInfo> = {}): RecoverableInfo {
     title: 'My recovered title',
     generatedTitle: null,
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     codecMime: 'audio/webm',
     codecExtension: 'webm',
     bytesSoFar: 2_000_000,

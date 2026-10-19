@@ -1,5 +1,7 @@
 import CaptureDetails from './CaptureDetails'
 import KeyTermsInput from './KeyTermsInput'
+import CaptureAdvancedOptions from './CaptureAdvancedOptions'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
 interface CaptureMetadataFieldsProps {
   projectId: string | null
@@ -14,6 +16,8 @@ interface CaptureMetadataFieldsProps {
   handleKeyTermKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
+  transcriptionOptions: TranscriptionOptions
+  onTranscriptionOptionsChange: (options: TranscriptionOptions) => void
   disabled: boolean
 }
 
@@ -30,6 +34,8 @@ export default function CaptureMetadataFields({
   handleKeyTermKeyDown,
   handleAddTermClick,
   removeTerm,
+  transcriptionOptions,
+  onTranscriptionOptionsChange,
   disabled,
 }: CaptureMetadataFieldsProps) {
   return (
@@ -51,6 +57,11 @@ export default function CaptureMetadataFields({
         onKeyDown={handleKeyTermKeyDown}
         onAddClick={handleAddTermClick}
         onRemoveTerm={removeTerm}
+      />
+      <CaptureAdvancedOptions
+        options={transcriptionOptions}
+        onOptionsChange={onTranscriptionOptionsChange}
+        disabled={disabled}
       />
     </>
   )

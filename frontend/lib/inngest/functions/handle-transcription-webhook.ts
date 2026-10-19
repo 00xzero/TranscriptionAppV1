@@ -16,6 +16,7 @@ import {
     DEFAULT_SEGMENT_BUILDER_CONFIG,
     buildSegments,
     normalizeWords,
+    type ParagraphMetadata,
 } from "@/core/transcript/segment-builder";
 import { DeepgramWebhookPayloadSchema, type DeepgramWord } from "@/contracts/webhook";
 import {
@@ -32,7 +33,7 @@ import { writeTranscriptionFailureFallback } from "./_shared";
  */
 type AlternativeForPayload = {
     transcript?: string;
-    paragraphs?: { paragraphs: Array<{ speaker: number; start: number; end: number; sentences: Array<{ text: string; start: number; end: number }> }> };
+    paragraphs?: ParagraphMetadata;
 } | undefined;
 
 /**

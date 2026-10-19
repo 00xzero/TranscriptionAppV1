@@ -5,6 +5,7 @@ import type {
   PersistedSessionPatch,
   SessionPersistence,
 } from '@/lib/recording/persistence/types'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const SESSION_ID = 'session-1'
 
@@ -17,6 +18,7 @@ function makeRecord(): PersistedSession {
     title: 'Test',
     generatedTitle: null,
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     codecMime: 'audio/webm',
     codecExtension: 'webm',
     deviceId: null,

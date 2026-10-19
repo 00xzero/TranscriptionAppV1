@@ -18,6 +18,7 @@ export interface DeepgramAsyncOptions {
     callbackUrl: string;
     transcriptId: string;
     keyTerms?: string[];
+    transcription: TranscriptionOptions;
     model?: string;
 }
 
@@ -30,6 +31,7 @@ import type {
     DeepgramSentence,
     DeepgramWebhookPayload as DeepgramResponse,
 } from '@/contracts/webhook'
+import { fillerWordsApply, type TranscriptionOptions } from '@/contracts/transcription-options'
 export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramParagraph, DeepgramSentence, DeepgramResponse }
 
 /**
@@ -91,19 +93,29 @@ export async function startAsyncTranscription(
         };
     }
 
-    const { mediaUrl, callbackUrl, transcriptId, keyTerms, model } = options;
+    const { mediaUrl, callbackUrl, transcriptId, keyTerms, transcription, model } = options;
 
     // Build query parameters
     const params = new URLSearchParams();
     params.append("model", model || getDeepgramModel());
     params.append("smart_format", "true");
     params.append("paragraphs", "true");
+    params.append("language", transcription.language);
     // Speaker detection. `diarize=true` is deprecated and always uses the v1
     // diarizer; `latest` follows Deepgram's newest batch diarizer. Deepgram
-    // rejects requests that send both.
-    params.append("diarize_model", "latest");
+    // rejects requests that send both. Left out, nobody is told apart.
+    if (transcription.detect_speakers) {
+        params.append("diarize_model", "latest");
+    }
     // Keep "uh" and "um" in the transcript; Deepgram drops them by default.
-    params.append("filler_words", "true");
+    // English only, so other languages never ask.
+    if (transcription.keep_filler_words && fillerWordsApply(transcription.language)) {
+        params.append("filler_words", "true");
+    }
+    // Swear words come back as asterisks, in the transcript and its words.
+    if (transcription.mask_profanity) {
+        params.append("profanity_filter", "true");
+    }
     // Keep the audio out of Deepgram's Model Improvement Program: Deepgram then
     // holds it only while processing, so deleting a transcript leaves no copy.
     params.append("mip_opt_out", "true");

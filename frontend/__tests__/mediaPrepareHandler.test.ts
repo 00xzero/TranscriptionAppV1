@@ -53,10 +53,14 @@ type MockedStep = { id: string; handler: () => unknown }
 // back as undefined. Inngest's real behaviour is to throw the step's final
 // error into the handler, so `failures` makes those steps' calls reject with
 // it. Event sends are mocked so nothing reaches Inngest.
-function execute(mockedSteps: MockedStep[] = [], failures: Record<string, string> = {}) {
+function execute(
+    mockedSteps: MockedStep[] = [],
+    failures: Record<string, string> = {},
+    data: Record<string, unknown> = event.data
+) {
     const engine = new InngestTestEngine({ function: handleMediaPrepare })
     return engine.execute({
-        events: [event],
+        events: [{ ...event, data } as typeof event],
         steps: [
             ...mockedSteps,
             { id: 'request-transcription', handler: () => ({ ids: ['t'] }) },
@@ -386,5 +390,35 @@ describe('handleMediaPrepare', () => {
         expect(result).toEqual({ status: 'stopped', reason: 'job_not_current' })
         expect(steps.decide).not.toHaveBeenCalled()
         expect(sentEvents(ctx)).toEqual([])
+    })
+
+    describe('transcription options', () => {
+        const options = { language: 'ja', detect_speakers: false, keep_filler_words: true, mask_profanity: true }
+        const withOptions = { ...event.data, transcriptionOptions: options }
+        const requestWithOptions = { ...transcriptionRequest, data: withOptions }
+
+        test('go on to transcription with a prepared file', async () => {
+            const { ctx } = await execute([], {}, withOptions)
+            expect(sentEvents(ctx)[0]).toEqual(requestWithOptions)
+        })
+
+        test('go on to transcription when preparation is skipped', async () => {
+            steps.loadSource.mockResolvedValue({ proceed: true, sourceKey, skip: 'waited_too_long' })
+            steps.claimWaveform.mockResolvedValue({ dispatch: true, sourceObjectKey: sourceKey })
+
+            const { ctx } = await execute([], {}, withOptions)
+
+            expect(steps.decide).not.toHaveBeenCalled()
+            expect(sentEvents(ctx)[0]).toEqual(requestWithOptions)
+        })
+
+        test('go on to transcription when preparation falls back', async () => {
+            steps.claimWaveform.mockResolvedValue({ dispatch: true, sourceObjectKey: sourceKey })
+
+            const { result, ctx } = await execute([], { 'convert-and-upload': 'upload failed' }, withOptions)
+
+            expect(result).toMatchObject({ media: 'fell_back' })
+            expect(sentEvents(ctx)[0]).toEqual(requestWithOptions)
+        })
     })
 })

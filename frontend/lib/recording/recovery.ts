@@ -202,6 +202,7 @@ export async function probeRecoverableSessions(
       title: row.title,
       generatedTitle: row.generatedTitle,
       keyTerms: row.keyTerms,
+      transcriptionOptions: row.transcriptionOptions,
       codecMime: mime as string,
       codecExtension: row.codecExtension,
       bytesSoFar: recoveredBytes,

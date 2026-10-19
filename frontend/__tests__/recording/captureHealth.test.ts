@@ -18,6 +18,7 @@ import {
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 const START = 1_000_000
@@ -29,6 +30,7 @@ async function attach(stream: MediaStream): Promise<void> {
     codec: CODEC,
     title: 'Health',
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,

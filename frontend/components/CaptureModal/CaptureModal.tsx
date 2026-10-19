@@ -21,6 +21,7 @@ import { useMicTest } from '@/lib/recording/useMicTest'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { isPrewarmAbortError } from '@/lib/recording/safariPrewarm'
+import { saveTranscriptionPreferences } from '@/lib/capture/transcriptionPreferences'
 import { useCaptureForm } from './useCaptureForm'
 import UploadAudioPanel from './UploadAudioPanel'
 import RecordAudioPanel from './RecordAudioPanel'
@@ -143,6 +144,8 @@ export default function CaptureModal() {
     handleKeyTermKeyDown,
     handleAddTermClick,
     removeTerm,
+    transcriptionOptions,
+    setTranscriptionOptions,
     isUploading,
     handleSubmit,
     canSubmit,
@@ -234,6 +237,7 @@ export default function CaptureModal() {
           codec,
           title: title.trim() ? title.trim() : null,
           keyTerms,
+          transcriptionOptions,
           projectId,
           deviceId: deviceId ?? null,
           maxBytes: MAX_FILE_SIZE_BYTES,
@@ -262,6 +266,8 @@ export default function CaptureModal() {
         )
         return
       }
+      // Recording has begun with these options: offer them next time.
+      saveTranscriptionPreferences(transcriptionOptions)
       handleClose()
     } finally {
       if (recordingStartAbortRef.current === abortController) {
@@ -413,6 +419,8 @@ export default function CaptureModal() {
                 handleKeyTermKeyDown={handleKeyTermKeyDown}
                 handleAddTermClick={handleAddTermClick}
                 removeTerm={removeTerm}
+                transcriptionOptions={transcriptionOptions}
+                onTranscriptionOptionsChange={setTranscriptionOptions}
                 isUploading={isUploading}
                 fieldsDisabled={actionInProgress}
                 displayError={displayError}
@@ -433,6 +441,8 @@ export default function CaptureModal() {
                 handleKeyTermKeyDown={handleKeyTermKeyDown}
                 handleAddTermClick={handleAddTermClick}
                 removeTerm={removeTerm}
+                transcriptionOptions={transcriptionOptions}
+                onTranscriptionOptionsChange={setTranscriptionOptions}
                 isUploading={isUploading}
                 fieldsDisabled={actionInProgress}
                 micTest={micTest}

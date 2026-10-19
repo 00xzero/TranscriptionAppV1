@@ -50,7 +50,7 @@ export async function createTranscript(
     userId: string,
     input: CreateTranscriptBody
 ): Promise<CreateTranscriptResult> {
-    const { title, filename, key_terms, upload_intent_id, project_id } = input
+    const { title, filename, key_terms, upload_intent_id, project_id, transcription_options } = input
 
     const buildResult = (
         transcript: TranscriptRow,
@@ -100,6 +100,8 @@ export async function createTranscript(
                 title: title || fitTranscriptTitle(filename),
                 ...(upload_intent_id ? { upload_intent_id } : {}),
                 ...(projectId !== undefined ? { project_id: projectId } : {}),
+                // Unset leaves the column defaults, which are the default options.
+                ...(transcription_options ?? {}),
             })
             .select(TRANSCRIPT_RESULT_COLUMNS)
             .single<TranscriptRow>()

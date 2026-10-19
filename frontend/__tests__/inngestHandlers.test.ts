@@ -510,6 +510,49 @@ describe('Inngest handlers', () => {
     expect(allWords.map((w) => w.sentence_end)).toEqual([false, true, false, true])
   })
 
+  test('handleTranscriptionWebhook stores a transcript made without speaker detection', async () => {
+    mockDb.storedResponse = {
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello there. New paragraph.',
+            words: [
+              { word: 'Hello', punctuated_word: 'Hello', start: 0, end: 0.2, confidence: 0.98 },
+              { word: 'there', punctuated_word: 'there.', start: 0.22, end: 0.45, confidence: 0.98 },
+              { word: 'New', punctuated_word: 'New', start: 1.3, end: 1.5, confidence: 0.99 },
+              { word: 'paragraph', punctuated_word: 'paragraph.', start: 1.52, end: 1.8, confidence: 0.99 },
+            ],
+            // Deepgram names no speaker on paragraphs when diarization is off.
+            paragraphs: {
+              transcript: 'Hello there. New paragraph.',
+              paragraphs: [
+                { start: 0, end: 0.42, num_words: 2, sentences: [{ text: 'Hello there.', start: 0, end: 0.42 }] },
+                { start: 1.28, end: 1.85, num_words: 2, sentences: [{ text: 'New paragraph.', start: 1.28, end: 1.85 }] },
+              ],
+            },
+          }],
+        }],
+      },
+    }
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+
+    const { result } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+        { id: 'trigger-completed', handler: () => undefined },
+      ],
+    })
+
+    expect(result).toEqual(expect.objectContaining({ status: 'stored', wordCount: 4 }))
+    const payload = getSavePayload()
+    expect(payload.speakers).toEqual([])
+    expect(payload.segments.every((segment) => segment.speaker_num === null)).toBe(true)
+    const allWords = payload.segments.flatMap((s) => (s.words as Record<string, unknown>[]))
+    expect(allWords.map((w) => w.paragraph_index)).toEqual([0, 0, 1, 1])
+  })
+
   test('handleTranscriptionWebhook does not send completed event when the RPC fails (atomicity guard)', async () => {
     mockDb.storedResponse = {
       results: {

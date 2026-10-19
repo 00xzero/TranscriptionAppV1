@@ -11,6 +11,11 @@ import { createAdminClient } from '@/infra/supabase/admin'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
 import { checkRateLimit, RATE_LIMITS } from '@/core/limits/rate-limit'
 import { forceJobError } from '@/core/transcription/transition'
+import {
+    DEFAULT_TRANSCRIPTION_OPTIONS,
+    TranscriptionOptionsSchema,
+    type TranscriptionOptions,
+} from '@/contracts/transcription-options'
 
 export type StartTranscriptionResult =
     | { outcome: 'started'; jobId: string }
@@ -19,6 +24,24 @@ export type StartTranscriptionResult =
     | { outcome: 'rate_limited'; limit: number; current: number; retryAfterSeconds: number }
     | { outcome: 'invalid'; reason: string; jobId?: string; jobStatus?: string }
     | { outcome: 'error'; reason: string }
+
+/**
+ * The options stored on the transcript. Filler words are null only on
+ * transcripts completed before they were recorded, which never start again.
+ */
+function optionsFromRow(row: {
+    language: unknown
+    detect_speakers: unknown
+    keep_filler_words: unknown
+    mask_profanity: unknown
+}): TranscriptionOptions {
+    return TranscriptionOptionsSchema.parse({
+        language: row.language,
+        detect_speakers: row.detect_speakers,
+        keep_filler_words: row.keep_filler_words ?? DEFAULT_TRANSCRIPTION_OPTIONS.keep_filler_words,
+        mask_profanity: row.mask_profanity,
+    })
+}
 
 export async function startTranscription(opts: {
     supabase: SupabaseClient
@@ -50,7 +73,7 @@ export async function startTranscription(opts: {
     // Fetch transcript (RLS ensures ownership)
     const { data: transcript, error: transcriptError } = await supabase
         .from('transcripts')
-        .select('id, source_object_key, status')
+        .select('id, source_object_key, status, language, detect_speakers, keep_filler_words, mask_profanity')
         .eq('id', transcriptId)
         .single()
 
@@ -92,6 +115,8 @@ export async function startTranscription(opts: {
     if (transcript.status === 'processing' || transcript.status === 'queued') {
         return { outcome: 'conflict' }
     }
+
+    const transcriptionOptions = optionsFromRow(transcript)
 
     // Fetch key terms
     const { data: keyTerms, error: keyTermsError } = await supabase
@@ -187,6 +212,7 @@ export async function startTranscription(opts: {
                 jobId: job.id,
                 userId,
                 keyTerms: keyTerms?.map((k) => k.term) || [],
+                transcriptionOptions,
             },
         })
     } catch (sendError) {

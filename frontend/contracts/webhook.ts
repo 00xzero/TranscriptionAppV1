@@ -26,7 +26,8 @@ export const DeepgramSentenceSchema = z.object({
 
 export const DeepgramParagraphSchema = z.object({
   sentences: z.array(DeepgramSentenceSchema),
-  speaker: z.number(),
+  // Absent when the transcript was made without speaker detection.
+  speaker: z.number().optional(),
   num_words: z.number(),
   start: z.number(),
   end: z.number(),

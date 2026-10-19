@@ -9,6 +9,7 @@ import {
 import { FakeOwnerLock, __setOwnerLockForTesting } from '@/lib/recording/lock'
 import { createFakeStream, installMediaRecorderMock } from '@/__mocks__/MediaRecorder'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 
@@ -18,6 +19,7 @@ function attach() {
     codec: CODEC,
     title: 'Dup',
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,

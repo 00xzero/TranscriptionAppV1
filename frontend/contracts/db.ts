@@ -6,6 +6,7 @@
 import { z } from 'zod'
 import { TEXT_LIMITS } from './limits'
 import { ProjectNameSchema, UuidSchema } from './primitives'
+import { TranscriptionLanguageSchema } from './transcription-options'
 
 // Status enums — canonical, imported by state-machine.ts and transition.ts
 export const JobStatusSchema = z.enum(['queued', 'processing', 'completed', 'error'])
@@ -23,6 +24,12 @@ export const TranscriptSchema = z.object({
   status: TranscriptStatusSchema,
   source_object_key: z.string().nullable(),
   upload_intent_id: z.string().nullable(),
+  // How the transcript was made (contracts/transcription-options.ts). Filler
+  // words are null on transcripts completed before they were recorded.
+  language: TranscriptionLanguageSchema,
+  detect_speakers: z.boolean(),
+  keep_filler_words: z.boolean().nullable(),
+  mask_profanity: z.boolean(),
   duration_seconds: z.number().nullable(),
   waveform_object_key: z.string().nullable(),
   waveform_status: WaveformStatusSchema,

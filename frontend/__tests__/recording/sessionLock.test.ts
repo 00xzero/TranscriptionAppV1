@@ -8,6 +8,7 @@ import {
   InMemorySessionPersistence,
   type PersistedSession,
 } from '@/lib/recording/persistence'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 describe('FakeSessionLock', () => {
   test('acquires a free session and reports it held; releases it', async () => {
@@ -45,6 +46,7 @@ describe('NoWebLocksSessionLock (degraded fallback)', () => {
       title: null,
       generatedTitle: null,
       keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       codecMime: 'audio/webm',
       codecExtension: 'webm',
       deviceId: null,

@@ -18,6 +18,7 @@ import { FakeOwnerLock, __setOwnerLockForTesting } from '@/lib/recording/lock'
 import { InMemorySessionPersistence, __setPersistenceForTesting } from '@/lib/recording/persistence'
 import { createFakeStream, installMediaRecorderMock } from '@/__mocks__/MediaRecorder'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 const START = 1_000_000
@@ -30,6 +31,7 @@ function attach() {
     codec: CODEC,
     title: 'HB',
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     projectId: null,
     deviceId: null,
     maxBytes: 1024 * 1024,

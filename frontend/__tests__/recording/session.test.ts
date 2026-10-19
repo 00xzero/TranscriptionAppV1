@@ -53,9 +53,11 @@ import {
   FakeRecordingPresence,
   __setPresenceForTesting,
 } from '@/lib/recording/presence'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
+const RECOVERED_OPTIONS = { language: 'pt', detect_speakers: true, keep_filler_words: false, mask_profanity: true } as const
 
 async function attachRecording(
   overrides: Partial<AttachAndStartParams> = {}
@@ -65,6 +67,7 @@ async function attachRecording(
     codec: DEFAULT_CODEC,
     title: null,
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     projectId: null,
     deviceId: null,
     maxBytes: 1024,
@@ -604,6 +607,7 @@ describe('recording session singleton', () => {
     await attachRecording({
       title: 'Retry me',
       keyTerms: ['alpha'],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       projectId: 'project-1',
       maxBytes: 1024 * 1024,
     })
@@ -1023,6 +1027,7 @@ describe('recording session durability mirror', () => {
       title: 'Old orphan',
       generatedTitle: null,
       keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       codecMime: 'audio/webm',
       codecExtension: 'webm',
       deviceId: null,
@@ -1071,6 +1076,7 @@ describe('recording session durability mirror', () => {
       title: 'Old orphan',
       generatedTitle: null,
       keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       codecMime: 'audio/webm',
       codecExtension: 'webm',
       deviceId: null,
@@ -1179,16 +1185,19 @@ describe('recording session durability mirror', () => {
       outcome: 'started',
     })
 
-    await attachRecording({ title: 'Saved cleanup', maxBytes: 1024 * 1024 })
+    const chosen = { ...DEFAULT_TRANSCRIPTION_OPTIONS, language: 'nl' as const, detect_speakers: false }
+    await attachRecording({ title: 'Saved cleanup', maxBytes: 1024 * 1024, transcriptionOptions: chosen })
     recordChunk(new Blob([new Uint8Array(4096)]))
     advanceClockPastEmptyFloor()
     await flushAsync()
-    expect(await persistence.listSessions()).toHaveLength(1)
+    const [persisted] = await persistence.listSessions()
+    expect(persisted.transcriptionOptions).toEqual(chosen)
 
     await stopAndFinalize()
     await flushAsync()
 
     expect(getSnapshot().state).toBe('submitted')
+    expect(mockRunCaptureUpload.mock.calls[0][3]).toMatchObject({ transcriptionOptions: chosen })
     expect(await persistence.listSessions()).toEqual([])
   })
 
@@ -1201,6 +1210,7 @@ describe('recording session durability mirror', () => {
       title: 'Recovered title',
       generatedTitle: null,
       keyTerms: ['alpha'],
+      transcriptionOptions: RECOVERED_OPTIONS,
       codecMime: 'audio/webm',
       codecExtension: 'webm',
       deviceId: null,
@@ -1228,6 +1238,7 @@ describe('recording session durability mirror', () => {
       state: 'recoverable',
       title: session.title,
       keyTerms: session.keyTerms,
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       recoverable: {
         sessionId: session.sessionId,
         uploadIntentId: session.uploadIntentId,
@@ -1235,6 +1246,7 @@ describe('recording session durability mirror', () => {
         title: session.title,
         generatedTitle: session.generatedTitle,
         keyTerms: session.keyTerms,
+        transcriptionOptions: session.transcriptionOptions,
         codecMime: session.codecMime,
         codecExtension: session.codecExtension,
         bytesSoFar: 8192,
@@ -1262,6 +1274,7 @@ describe('recording session durability mirror', () => {
     expect(mockRunCaptureUpload.mock.calls[0][3]).toMatchObject({
       projectId: 'project-recovered',
       allowUpsert: true,
+      transcriptionOptions: RECOVERED_OPTIONS,
     })
   })
 
@@ -1272,6 +1285,7 @@ describe('recording session durability mirror', () => {
       state: 'recoverable',
       title: 'Recovered title',
       keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       recoverable: {
         sessionId: 'recoverable-1',
         uploadIntentId: 'intent-1',
@@ -1279,6 +1293,7 @@ describe('recording session durability mirror', () => {
         title: 'Recovered title',
         generatedTitle: null,
         keyTerms: [],
+        transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
         codecMime: 'audio/webm',
         codecExtension: 'webm',
         bytesSoFar: 8192,

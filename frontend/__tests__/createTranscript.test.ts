@@ -204,4 +204,56 @@ describe('POST /api/transcripts', () => {
       expect.not.objectContaining({ status: expect.anything() }),
     ])
   })
+
+  test('stores the chosen transcription options on the row', async () => {
+    const options = { language: 'fr', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    const res = await postTranscript(transcripts, { filename: 'audio.mp3', transcription_options: options })
+
+    expect(res.status).toBe(200)
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([expect.objectContaining(options)])
+  })
+
+  test('without options leaves them to the column defaults', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    await postTranscript(transcripts, { filename: 'audio.mp3' })
+
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.not.objectContaining({ language: expect.anything() }),
+    ])
+  })
+
+  test('refuses a language not offered', async () => {
+    const transcripts = makeTranscriptTable({ insertResults: [] })
+
+    const res = await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { language: 'xx', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+    })
+
+    expect(res.status).toBe(400)
+    expect(transcripts.insertMock).not.toHaveBeenCalled()
+  })
+
+  test('an upload-intent dedup keeps the existing row, writing no options', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [],
+      existingResults: [makeRow({ project_id: null })],
+    })
+
+    const res = await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      upload_intent_id: 'intent-1',
+      transcription_options: { language: 'de', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+    })
+
+    expect(res.status).toBe(200)
+    expect(transcripts.insertMock).not.toHaveBeenCalled()
+  })
 })

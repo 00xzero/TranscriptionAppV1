@@ -116,6 +116,7 @@ export function forceState(target: RecordingState): void {
         title: snap.title ?? null,
         generatedTitle: snap.generatedTitle ?? null,
         keyTerms: snap.keyTerms,
+        transcriptionOptions: snap.transcriptionOptions,
         codecExtension: 'webm',
         bytesSoFar: 1_000_000,
         recoverable: {
@@ -125,6 +126,7 @@ export function forceState(target: RecordingState): void {
           title: snap.title ?? null,
           generatedTitle: snap.generatedTitle ?? null,
           keyTerms: snap.keyTerms,
+          transcriptionOptions: snap.transcriptionOptions,
           codecMime: 'audio/webm',
           codecExtension: 'webm',
           bytesSoFar: 1_000_000,

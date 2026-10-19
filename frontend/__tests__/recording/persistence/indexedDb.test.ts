@@ -17,6 +17,7 @@ import {
   PersistedSessionSchema,
   type PersistedSession,
 } from '@/lib/recording/persistence/types'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 function makeSession(
   sessionId: string,
@@ -30,6 +31,7 @@ function makeSession(
     title: 'Test',
     generatedTitle: null,
     keyTerms: ['alpha'],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     codecMime: 'audio/webm;codecs=opus',
     codecExtension: 'webm',
     deviceId: 'mic-1',
@@ -71,6 +73,12 @@ describe('IndexedDBSessionPersistence', () => {
     const { projectId: _projectId, ...legacy } = makeSession('legacy')
 
     expect(PersistedSessionSchema.parse(legacy).projectId).toBeNull()
+  })
+
+  test('gives legacy session rows without transcription options the defaults', () => {
+    const { transcriptionOptions: _options, ...legacy } = makeSession('legacy')
+
+    expect(PersistedSessionSchema.parse(legacy).transcriptionOptions).toEqual(DEFAULT_TRANSCRIPTION_OPTIONS)
   })
 
   test('patchSession merges into an existing row', async () => {

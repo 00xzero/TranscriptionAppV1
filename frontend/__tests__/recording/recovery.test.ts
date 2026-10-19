@@ -18,6 +18,7 @@ import {
 import { FakeSessionLock, type SessionLock } from '@/lib/recording/lock'
 import type { RecordingPresence } from '@/lib/recording/presence'
 import { probeRecoverableSessions } from '@/lib/recording/recovery'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const USER = 'user-1'
 const NOW = 10_000
@@ -31,6 +32,7 @@ function baseSession(overrides: Partial<PersistedSession> = {}): PersistedSessio
     title: 'A recording',
     generatedTitle: null,
     keyTerms: ['alpha'],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     codecMime: 'audio/webm',
     codecExtension: 'webm',
     deviceId: null,
