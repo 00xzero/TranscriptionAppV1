@@ -270,7 +270,56 @@ describe('transferToStorage', () => {
       [1_000_000, total],
       [7_000_000, total],
       [9_000_000, total],
+      [total, total],
     ])
+  })
+
+  test('large file reports the whole size only once storage has accepted it', async () => {
+    const total = RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1000
+    const onProgress = jest.fn()
+    let succeed: () => void = () => {}
+    onStart = () => {
+      queueMicrotask(() => {
+        // The last chunk goes out in full, is refused, and is resent.
+        capturedOptions.onProgress(total, total)
+        capturedOptions.onProgress(RESUMABLE_UPLOAD_THRESHOLD_BYTES, total)
+        capturedOptions.onProgress(total, total)
+        succeed = () => capturedOptions.onSuccess()
+      })
+    }
+
+    const promise = transferToStorage(supabase, 'u/p1/big.webm', makeFile(total), {
+      contentType: 'audio/webm',
+      upsert: false,
+      onProgress,
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onProgress.mock.calls).toEqual([[total - 1, total]])
+
+    succeed()
+    await promise
+    expect(onProgress.mock.calls).toEqual([
+      [total - 1, total],
+      [total, total],
+    ])
+  })
+
+  test('a cancelled small file that still finishes reports nothing', async () => {
+    const controller = new AbortController()
+    const onProgress = jest.fn()
+    putUploadMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return { error: null }
+    })
+
+    await transferToStorage(supabase, 'u/p1/rec.webm', makeFile(1024), {
+      contentType: 'audio/webm',
+      upsert: false,
+      signal: controller.signal,
+      onProgress,
+    })
+
+    expect(onProgress).not.toHaveBeenCalled()
   })
 
   test('large file reports nothing after it was aborted', async () => {

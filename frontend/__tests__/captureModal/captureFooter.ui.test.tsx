@@ -50,4 +50,11 @@ describe('formatUploadedBytes', () => {
     expect(formatUploadedBytes(181.6 * MB - 1, 181.6 * MB)).toBe('181 of 182 MB')
     expect(formatUploadedBytes(181.6 * MB, 181.6 * MB)).toBe('182 of 182 MB')
   })
+
+  test('stays a step below a total that was rounded down until it is all in', () => {
+    expect(formatUploadedBytes(6 * MB, 6.4 * MB)).toBe('5 of 6 MB')
+    expect(formatUploadedBytes(6.4 * MB - 1, 6.4 * MB)).toBe('5 of 6 MB')
+    expect(formatUploadedBytes(6.4 * MB, 6.4 * MB)).toBe('6 of 6 MB')
+    expect(formatUploadedBytes(1.3 * 1024 * MB, 1.34 * 1024 * MB)).toBe('1.2 of 1.3 GB')
+  })
 })

@@ -38,11 +38,15 @@ export function formatElapsedTime(ms: number): string {
 /** "48 of 182 MB": the part sent, in the whole file's unit. */
 export function formatUploadedBytes(sentBytes: number, totalBytes: number): string {
   const [totalShown, unit] = formatFileSize(totalBytes).split(' ')
-  // Rounded down until it is all in, so the count never says done too early.
+  // The count says the whole size only once it is all in. Until then it stays
+  // a step below the shown total, which is rounded and can sit under the real
+  // one (6.4 MB shows as "6 MB").
   if (sentBytes >= totalBytes) return `${totalShown} of ${totalShown} ${unit}`
   const scale = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[unit] ?? 1
-  const sent = sentBytes / scale
-  const shown = unit === 'GB' ? (Math.floor(sent * 10) / 10).toFixed(1) : String(Math.floor(sent))
+  const step = unit === 'GB' ? 0.1 : 1
+  const floored = Math.floor(sentBytes / scale / step) * step
+  const sent = Math.max(0, Math.min(floored, Number(totalShown) - step))
+  const shown = unit === 'GB' ? sent.toFixed(1) : String(Math.round(sent))
   return `${shown} of ${totalShown} ${unit}`
 }
 
