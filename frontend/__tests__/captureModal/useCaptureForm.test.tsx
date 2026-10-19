@@ -383,6 +383,15 @@ describe('useCaptureForm', () => {
       expect(stored()).toBeNull()
     })
 
+    test('opening reads what another tab saved while this dialog was closed', () => {
+      const { result, rerender } = renderForm()
+      rerender({ open: false })
+      window.localStorage.setItem(TRANSCRIPTION_PREFERENCES_KEY, JSON.stringify(chosen))
+      rerender({ open: true })
+
+      expect(result.current.transcriptionOptions).toEqual(chosen)
+    })
+
     test('closing without beginning drops the change', () => {
       const { result, rerender } = renderForm()
       act(() => result.current.setTranscriptionOptions(chosen))

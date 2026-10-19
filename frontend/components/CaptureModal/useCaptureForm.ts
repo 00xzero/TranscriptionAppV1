@@ -30,9 +30,16 @@ export function useCaptureForm({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
-  // The options of the last transcript begun here; read again on every close,
-  // so a change that was never used is dropped.
+  // The options of the last transcript begun in this browser, read as the
+  // dialog opens: another tab may have begun one since, and a change made here
+  // but never used is dropped.
   const [transcriptionOptions, setTranscriptionOptions] = useState<TranscriptionOptions>(readTranscriptionPreferences)
+  const [optionsReadForOpen, setOptionsReadForOpen] = useState(isCaptureModalOpen)
+  if (optionsReadForOpen !== isCaptureModalOpen) {
+    // Set while rendering the opening, so its first frame already shows them.
+    setOptionsReadForOpen(isCaptureModalOpen)
+    if (isCaptureModalOpen) setTranscriptionOptions(readTranscriptionPreferences())
+  }
   const [fileError, setFileError] = useState<string | null>(null)
   const [titleSubmitBlocked, setTitleSubmitBlocked] = useState(false)
   // The destination the user picked. Undefined until they pick one, so the
@@ -55,7 +62,6 @@ export function useCaptureForm({
       setSelectedFile(null)
       setTitle('')
       setKeyTerms([])
-      setTranscriptionOptions(readTranscriptionPreferences())
       setKeyTermInput('')
       setKeyTermsError(null)
       setFileError(null)
