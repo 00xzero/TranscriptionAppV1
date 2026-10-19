@@ -222,6 +222,29 @@ describe("normalizeWords", () => {
     });
 });
 
+describe("without speaker detection", () => {
+    it("builds segments with no speaker from paragraphs that name none", () => {
+        const words = [
+            createRawWord({ text: "Hello", punctuatedText: "Hello", startMs: 0, endMs: 250 }),
+            createRawWord({ text: "there", punctuatedText: "there.", startMs: 260, endMs: 520 }),
+            createRawWord({ text: "Again", punctuatedText: "Again.", startMs: 1050, endMs: 1280 }),
+        ];
+
+        const normalized = normalizeWords(words, {
+            paragraphs: [
+                { start: 0, end: 0.55, sentences: [{ text: "Hello there.", start: 0, end: 0.55 }] },
+                { start: 1.0, end: 1.3, sentences: [{ text: "Again.", start: 1.0, end: 1.3 }] },
+            ],
+        });
+        const segments = buildSegments(normalized, DEFAULT_SEGMENT_BUILDER_CONFIG);
+
+        expect(normalized.map((word) => word.paragraphIndex)).toEqual([0, 0, 1]);
+        expect(normalized.every((word) => word.speaker === null)).toBe(true);
+        expect(segments.length).toBeGreaterThan(0);
+        expect(segments.every((segment) => segment.speakerNum === null)).toBe(true);
+    });
+});
+
 describe("buildSegments", () => {
     it("returns an empty array for empty input", () => {
         expect(buildSegments([])).toEqual([]);

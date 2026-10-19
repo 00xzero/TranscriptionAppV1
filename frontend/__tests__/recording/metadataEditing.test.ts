@@ -24,6 +24,7 @@ import {
 } from '@/__mocks__/MediaRecorder'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const CODEC = { mime: 'audio/webm', extension: 'webm' as const }
 const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -123,6 +124,7 @@ describe('session metadata edit — persistence & presence', () => {
       codec: CODEC,
       title: 'Original',
       keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
       projectId: null,
       deviceId: null,
       maxBytes: 1024 * 1024,

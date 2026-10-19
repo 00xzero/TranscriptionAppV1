@@ -31,16 +31,17 @@ jest.mock('@/core/transcription/transition', () => ({
 }))
 
 import { handleTranscriptionRequested } from '@/lib/inngest/functions/handle-transcription-requested'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const transcriptId = '11111111-1111-4111-8111-111111111111'
 const userId = '22222222-2222-4222-8222-222222222222'
 const jobId = '33333333-3333-4333-8333-333333333333'
 const preparedKey = `${userId}/${transcriptId}/${jobId}.m4a`
 
-function execute() {
+function execute(extra: Record<string, unknown> = {}) {
     const engine = new InngestTestEngine({ function: handleTranscriptionRequested })
     return engine.execute({
-        events: [{ name: 'transcription/requested', data: { transcriptId, jobId, userId, keyTerms: ['Dechra'] } }],
+        events: [{ name: 'transcription/requested', data: { transcriptId, jobId, userId, keyTerms: ['Dechra'], ...extra } }],
     })
 }
 
@@ -92,5 +93,21 @@ describe('handleTranscriptionRequested', () => {
         expect(startAsyncTranscriptionMock).not.toHaveBeenCalled()
         expect(transitionJobMock).not.toHaveBeenCalled()
         expect(result).toEqual({ status: 'skipped', transcriptId, jobId })
+    })
+
+    test('hands Deepgram the options the event carries', async () => {
+        const options = { language: 'hi', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
+
+        await execute({ transcriptionOptions: options })
+
+        expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(expect.objectContaining({ transcription: options }))
+    })
+
+    test('an event sent before options existed gets what every transcript got then', async () => {
+        await execute()
+
+        expect(startAsyncTranscriptionMock).toHaveBeenCalledWith(
+            expect.objectContaining({ transcription: DEFAULT_TRANSCRIPTION_OPTIONS })
+        )
     })
 })

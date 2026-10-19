@@ -10,6 +10,7 @@ import type { CreateTranscriptBody, CreateTranscriptWarning } from '@/contracts/
 import { getMediaPath } from '@/infra/supabase/storage'
 import { isProjectGoneError } from '@/lib/supabase/project-errors'
 import { fitTranscriptTitle } from './title'
+import { fillerWordsApply, type TranscriptionOptions } from '@/contracts/transcription-options'
 
 export interface TranscriptCreated {
     id: string
@@ -45,12 +46,23 @@ interface TranscriptRow {
 const TRANSCRIPT_RESULT_COLUMNS =
     'id, status, title, project_id, source_object_key, created_at, updated_at'
 
+/**
+ * The options as Deepgram will be asked for them. Filler words are English
+ * only, so another language records them off, whatever the switch was left at.
+ */
+function recordedOptions(options: TranscriptionOptions): TranscriptionOptions {
+    return {
+        ...options,
+        keep_filler_words: options.keep_filler_words && fillerWordsApply(options.language),
+    }
+}
+
 export async function createTranscript(
     supabase: SupabaseClient,
     userId: string,
     input: CreateTranscriptBody
 ): Promise<CreateTranscriptResult> {
-    const { title, filename, key_terms, upload_intent_id, project_id } = input
+    const { title, filename, key_terms, upload_intent_id, project_id, transcription_options } = input
 
     const buildResult = (
         transcript: TranscriptRow,
@@ -100,6 +112,8 @@ export async function createTranscript(
                 title: title || fitTranscriptTitle(filename),
                 ...(upload_intent_id ? { upload_intent_id } : {}),
                 ...(projectId !== undefined ? { project_id: projectId } : {}),
+                // Unset leaves the column defaults, which are the default options.
+                ...(transcription_options ? recordedOptions(transcription_options) : {}),
             })
             .select(TRANSCRIPT_RESULT_COLUMNS)
             .single<TranscriptRow>()

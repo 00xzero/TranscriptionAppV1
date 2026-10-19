@@ -6,6 +6,7 @@ import {
     validateFile,
     type CaptureUploadSuccess,
 } from '@/lib/capture/upload'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
 type UseCapture = {
     isUploading: boolean
@@ -15,7 +16,8 @@ type UseCapture = {
         file: File,
         title: string,
         keyTerms: string[],
-        projectId?: string | null
+        projectId?: string | null,
+        transcriptionOptions?: TranscriptionOptions
     ) => Promise<CaptureUploadSuccess | null>
     resetError: () => void
     validateFile: (file: File) => string | null
@@ -43,7 +45,8 @@ export function useCapture(): UseCapture {
         file: File,
         title: string,
         keyTerms: string[],
-        projectId?: string | null
+        projectId?: string | null,
+        transcriptionOptions?: TranscriptionOptions
     ): Promise<CaptureUploadSuccess | null> => {
         setError(null)
         setIsUploading(true)
@@ -53,6 +56,7 @@ export function useCapture(): UseCapture {
             const result = await runCaptureUpload(file, title, keyTerms, {
                 onProgress: setProgress,
                 projectId,
+                transcriptionOptions,
             })
 
             if (result.kind === 'validation_error' || result.kind === 'failure') {

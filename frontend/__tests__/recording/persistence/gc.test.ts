@@ -4,6 +4,7 @@ import {
   SESSION_MAX_AGE_MS,
 } from '@/lib/recording/persistence/gc'
 import type { PersistedSession } from '@/lib/recording/persistence/types'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 function makeSession(
   sessionId: string,
@@ -17,6 +18,7 @@ function makeSession(
     title: null,
     generatedTitle: null,
     keyTerms: [],
+    transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
     codecMime: 'audio/webm',
     codecExtension: 'webm',
     deviceId: null,

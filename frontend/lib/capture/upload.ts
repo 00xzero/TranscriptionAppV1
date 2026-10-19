@@ -16,6 +16,7 @@ import {
 import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
 import { transferToStorage } from './storageTransfer'
 import { fitTranscriptTitle } from '@/core/transcripts/title'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
 /**
  * Supported file types for upload.
@@ -89,6 +90,8 @@ export interface CaptureUploadOptions {
      */
     allowUpsert?: boolean
   projectId?: string | null
+    /** How the transcript is made; unset gives the default options. */
+    transcriptionOptions?: TranscriptionOptions
 }
 
 export type CaptureUploadResult =
@@ -333,6 +336,7 @@ export async function runCaptureUpload(
                 key_terms: keyTerms.length > 0 ? keyTerms : undefined,
                 upload_intent_id: options?.uploadIntentId,
                 ...(options?.projectId ? { project_id: options.projectId } : {}),
+                ...(options?.transcriptionOptions ? { transcription_options: options.transcriptionOptions } : {}),
             })
         })
 

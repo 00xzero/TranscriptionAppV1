@@ -70,7 +70,7 @@ export const handleMediaPrepare = inngest.createFunction(
         },
     },
     async ({ event, step }) => {
-        const { transcriptId, jobId, userId, keyTerms } = event.data;
+        const { transcriptId, jobId, userId, keyTerms, transcriptionOptions } = event.data;
         const ids = { transcriptId, jobId };
 
         // Fail the job now through the usual error path rather than leave it
@@ -207,7 +207,7 @@ export const handleMediaPrepare = inngest.createFunction(
         await step.sendEvent("request-transcription", {
             name: "transcription/requested",
             id: `transcription-requested:${jobId}`,
-            data: { transcriptId, jobId, userId, keyTerms },
+            data: { transcriptId, jobId, userId, keyTerms, transcriptionOptions },
         });
 
         // The waveform is a UI enhancement: nothing here fails the run.

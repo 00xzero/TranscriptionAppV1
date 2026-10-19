@@ -67,6 +67,7 @@ function hydrateRecoverable(info: RecoverableInfo): void {
     title: info.title,
     generatedTitle: info.generatedTitle,
     keyTerms: info.keyTerms,
+    transcriptionOptions: info.transcriptionOptions,
     codecExtension: info.codecExtension,
     bytesSoFar: info.bytesSoFar,
     recoverable: info,
@@ -216,6 +217,7 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
       uploadIntentId: info.uploadIntentId ?? undefined,
       allowUpsert: true,
       projectId: info.projectId,
+      transcriptionOptions: info.transcriptionOptions,
     })
   } catch (err) {
     return {

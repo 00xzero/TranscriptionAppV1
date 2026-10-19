@@ -9,6 +9,7 @@ import {
 import { ProjectNameSchema } from '@/contracts/primitives'
 import { DeepgramWebhookPayloadSchema, DeepgramAsyncResponseSchema } from '@/contracts/webhook'
 import { TransitionJobInputSchema } from '@/contracts/state-machine'
+import { DEFAULT_TRANSCRIPTION_OPTIONS, TranscriptionOptionsSchema } from '@/contracts/transcription-options'
 import {
   JobStatusSchema,
   ProjectInsertSchema,
@@ -138,6 +139,10 @@ describe('project schemas', () => {
         status: 'created',
         source_object_key: null,
         upload_intent_id: null,
+        language: 'en',
+        detect_speakers: true,
+        keep_filler_words: null,
+        mask_profanity: false,
         duration_seconds: null,
         waveform_object_key: null,
         waveform_status: 'skipped',
@@ -291,5 +296,41 @@ describe('Status enum schemas', () => {
     for (const s of ['created', 'queued', 'processing', 'completed', 'error']) {
       expect(TranscriptStatusSchema.safeParse(s).success).toBe(true)
     }
+  })
+})
+
+describe('transcription options', () => {
+  test('accept the offered languages and refuse others', () => {
+    expect(TranscriptionOptionsSchema.safeParse(DEFAULT_TRANSCRIPTION_OPTIONS).success).toBe(true)
+    expect(TranscriptionOptionsSchema.safeParse({ ...DEFAULT_TRANSCRIPTION_OPTIONS, language: 'multi' }).success).toBe(true)
+    expect(TranscriptionOptionsSchema.safeParse({ ...DEFAULT_TRANSCRIPTION_OPTIONS, language: 'en-US' }).success).toBe(false)
+  })
+
+  test('are optional when creating a transcript', () => {
+    expect(CreateTranscriptBodySchema.safeParse({ filename: 'a.webm' }).success).toBe(true)
+    const parsed = CreateTranscriptBodySchema.parse({
+      filename: 'a.webm',
+      transcription_options: { ...DEFAULT_TRANSCRIPTION_OPTIONS, mask_profanity: true, extra: 'dropped' },
+    })
+    expect(parsed.transcription_options).toEqual({ ...DEFAULT_TRANSCRIPTION_OPTIONS, mask_profanity: true })
+  })
+
+  test('a Deepgram result made without speaker detection parses', () => {
+    const result = DeepgramWebhookPayloadSchema.safeParse({
+      metadata: { request_id: 'req-1' },
+      results: {
+        channels: [{
+          alternatives: [{
+            transcript: 'Hello there.',
+            words: [{ word: 'hello', start: 0, end: 0.4, confidence: 0.9 }],
+            paragraphs: {
+              transcript: 'Hello there.',
+              paragraphs: [{ sentences: [{ text: 'Hello there.', start: 0, end: 0.8 }], num_words: 2, start: 0, end: 0.8 }],
+            },
+          }],
+        }],
+      },
+    })
+    expect(result.success).toBe(true)
   })
 })

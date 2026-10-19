@@ -3,6 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import CaptureMetadataFields from './CaptureMetadataFields'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
 import type { MicTestApi } from '@/lib/recording/useMicTest'
 
 const micSelectId = 'capture-mic-select'
@@ -20,6 +21,8 @@ interface RecordAudioPanelProps {
   handleKeyTermKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleAddTermClick: () => void
   removeTerm: (index: number) => void
+  transcriptionOptions: TranscriptionOptions
+  onTranscriptionOptionsChange: (options: TranscriptionOptions) => void
   isUploading: boolean
   /** Locks the transcript details while an upload or recording start is in progress. */
   fieldsDisabled: boolean
@@ -41,6 +44,8 @@ export default function RecordAudioPanel({
   handleKeyTermKeyDown,
   handleAddTermClick,
   removeTerm,
+  transcriptionOptions,
+  onTranscriptionOptionsChange,
   isUploading,
   fieldsDisabled,
   micTest,
@@ -171,6 +176,8 @@ export default function RecordAudioPanel({
         handleKeyTermKeyDown={handleKeyTermKeyDown}
         handleAddTermClick={handleAddTermClick}
         removeTerm={removeTerm}
+        transcriptionOptions={transcriptionOptions}
+        onTranscriptionOptionsChange={onTranscriptionOptionsChange}
         disabled={fieldsDisabled}
       />
     </div>

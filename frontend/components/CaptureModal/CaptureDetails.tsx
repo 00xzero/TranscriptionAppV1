@@ -4,8 +4,6 @@ import { captureTitleInputId } from './shared'
 import { CharacterCount } from '@/components/ui/character-count'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import CaptureProjectField from './CaptureProjectField'
 
 const titleCountId = 'capture-title-count'
@@ -54,30 +52,6 @@ export default function CaptureDetails({
       </div>
 
       <CaptureProjectField projectId={projectId} onProjectChange={onProjectChange} disabled={disabled} />
-
-      <div className="space-y-1">
-        <Label className="text-xs font-medium opacity-80">
-          Language <span className="text-[10px] font-mono opacity-50 ml-1">(coming soon)</span>
-        </Label>
-        <Select disabled>
-          <SelectTrigger aria-label="Language" className="w-full bg-field/50 border-border rounded-sm px-3 py-2 text-sm cursor-not-allowed opacity-60">
-            <SelectValue placeholder="English (US)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="en-us">English (US)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-between pt-2">
-        <div>
-          <p className="text-xs font-medium opacity-80">
-            Speaker Diarization <span className="text-[10px] font-mono opacity-50">(coming soon)</span>
-          </p>
-          <p className="text-[10px] text-foreground/40">Automatically identify speakers</p>
-        </div>
-        <Switch disabled checked aria-label="Speaker diarization" className="data-[state=checked]:bg-ember-red" />
-      </div>
     </div>
   )
 }

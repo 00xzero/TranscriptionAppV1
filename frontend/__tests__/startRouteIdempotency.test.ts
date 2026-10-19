@@ -41,6 +41,10 @@ jest.mock('@/infra/inngest/client', () => {
 import { POST } from '../app/api/transcripts/[id]/start/route'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
+
+// The transcript columns as the database returns them.
+const STORED_OPTIONS = { ...DEFAULT_TRANSCRIPTION_OPTIONS }
 
 const transcriptSingleMock = jest.fn()
 const transcriptEqMock = jest.fn(() => ({ single: transcriptSingleMock }))
@@ -122,7 +126,7 @@ describe('Start route idempotency', () => {
 
   test('returns cached job when transcript is queued and idempotency key matches', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-1', source_object_key: 'source-1', status: 'queued' },
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'queued', ...STORED_OPTIONS },
       error: null,
     })
 
@@ -151,7 +155,7 @@ describe('Start route idempotency', () => {
 
   test('returns conflict when cached job is in error state', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-err', source_object_key: 'source-err', status: 'error' },
+      data: { id: 'proj-err', source_object_key: 'source-err', status: 'error', ...STORED_OPTIONS },
       error: null,
     })
 
@@ -179,7 +183,7 @@ describe('Start route idempotency', () => {
   })
 
   test.each(['new-key', null])('does not restart a completed transcript with key %s', async (key) => {
-    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed' }, error: null })
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
     const res = await POST({ headers: new Headers(key ? { 'x-idempotency-key': key } : {}) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
@@ -190,7 +194,7 @@ describe('Start route idempotency', () => {
   })
 
   test('a completed transcript still replays its original completed job', async () => {
-    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed' }, error: null })
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: { id: 'original', status: 'completed' }, error: null })
     const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'original-key' }) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
@@ -200,7 +204,7 @@ describe('Start route idempotency', () => {
   })
 
   test('completion between the initial read and job insertion is refused by the database guard', async () => {
-    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error' }, error: null })
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
     const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'new-key' }) } as any,
@@ -210,7 +214,7 @@ describe('Start route idempotency', () => {
   })
 
   test('a completion race still returns the original job for the same idempotency key', async () => {
-    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error' }, error: null })
+    transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: { id: 'original', status: 'completed' }, error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
@@ -222,7 +226,7 @@ describe('Start route idempotency', () => {
 
   test('creates a new job when no cached job exists', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created', ...STORED_OPTIONS },
       error: null,
     })
 
@@ -258,7 +262,7 @@ describe('Start route idempotency', () => {
 
   test('hands a new job to media preparation, once per job', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created', ...STORED_OPTIONS },
       error: null,
     })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
@@ -275,14 +279,20 @@ describe('Start route idempotency', () => {
     expect(sendInngestEvent).toHaveBeenCalledTimes(1)
     expect(sendInngestEvent).toHaveBeenCalledWith({
       name: 'media/prepare-requested',
-      data: { transcriptId: 'proj-1', jobId: 'job-new', userId: 'user-1', keyTerms: ['Dechra'] },
+      data: {
+        transcriptId: 'proj-1',
+        jobId: 'job-new',
+        userId: 'user-1',
+        keyTerms: ['Dechra'],
+        transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
+      },
     })
     expect(adminFromMock).not.toHaveBeenCalledWith('transcripts')
   })
 
   test('a file Deepgram could not be handed refuses the start, creating no job', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created' },
+      data: { id: 'proj-1', source_object_key: 'source-1', status: 'created', ...STORED_OPTIONS },
       error: null,
     })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
@@ -304,7 +314,7 @@ describe('Start route idempotency', () => {
 
   test('continues when idempotency lookup fails', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-2', source_object_key: 'source-2', status: 'created' },
+      data: { id: 'proj-2', source_object_key: 'source-2', status: 'created', ...STORED_OPTIONS },
       error: null,
     })
 
@@ -328,7 +338,7 @@ describe('Start route idempotency', () => {
 
   test('creates a job without idempotency key when header is missing', async () => {
     transcriptSingleMock.mockResolvedValue({
-      data: { id: 'proj-3', source_object_key: 'source-3', status: 'created' },
+      data: { id: 'proj-3', source_object_key: 'source-3', status: 'created', ...STORED_OPTIONS },
       error: null,
     })
 
@@ -351,5 +361,55 @@ describe('Start route idempotency', () => {
       type: 'transcription',
     })
     expect(insertPayload).not.toHaveProperty('idempotency_key')
+  })
+
+  test('sends the options stored on the transcript with the job', async () => {
+    transcriptSingleMock.mockResolvedValue({
+      data: {
+        id: 'proj-4',
+        source_object_key: 'source-4',
+        status: 'created',
+        language: 'multi',
+        detect_speakers: false,
+        keep_filler_words: false,
+        mask_profanity: true,
+      },
+      error: null,
+    })
+
+    const res = await POST(
+      { headers: new Headers() } as any,
+      { params: Promise.resolve({ id: 'proj-4' }) } as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(sendInngestEvent).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'media/prepare-requested',
+      data: expect.objectContaining({
+        transcriptionOptions: {
+          language: 'multi',
+          detect_speakers: false,
+          keep_filler_words: false,
+          mask_profanity: true,
+        },
+      }),
+    }))
+  })
+
+  test('filler words not recorded on the row start as kept', async () => {
+    transcriptSingleMock.mockResolvedValue({
+      data: { id: 'proj-5', source_object_key: 'source-5', status: 'error', ...STORED_OPTIONS, keep_filler_words: null },
+      error: null,
+    })
+
+    const res = await POST(
+      { headers: new Headers() } as any,
+      { params: Promise.resolve({ id: 'proj-5' }) } as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(sendInngestEvent).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS }),
+    }))
   })
 })

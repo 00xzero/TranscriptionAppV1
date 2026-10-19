@@ -42,7 +42,9 @@ const SelectContent = React.forwardRef<
       position={position}
       sideOffset={sideOffset}
       className={cn(
-        'z-[100] min-w-[8rem] overflow-hidden rounded-sm border border-border bg-surface text-current shadow-elevation',
+        // At least as wide as its field, and never taller than the room on the side
+        // it opens to: a long list scrolls rather than running off the window.
+        'z-[100] min-w-[max(8rem,var(--radix-select-trigger-width))] max-h-(--radix-select-content-available-height) overflow-hidden rounded-sm border border-border bg-surface text-current shadow-elevation',
         'data-[state=closed]:animate-[fadeOut_120ms_ease-in] data-[state=open]:animate-[fadeIn_150ms_ease-out]',
         'data-[side=bottom]:animate-[slideDown_150ms_ease-out] data-[side=top]:animate-[slideUp_150ms_ease-out]',
         className

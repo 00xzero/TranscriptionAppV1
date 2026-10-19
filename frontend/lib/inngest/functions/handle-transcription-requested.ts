@@ -20,6 +20,7 @@ import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
 import { jobQueued } from "@/lib/inngest/job-checks";
 import { ownedSourceKey, readSourceRow } from "@/lib/media/source-row";
 import { readPositiveIntEnv } from "@/lib/env";
+import { resolveTranscriptionOptions } from "@/contracts/transcription-options";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 // Configurable concurrency limit for Deepgram API calls
@@ -75,6 +76,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
     },
     async ({ event, step }) => {
         const { transcriptId, jobId, userId, keyTerms } = event.data;
+        const transcription = resolveTranscriptionOptions(event.data.transcriptionOptions);
 
         console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 
@@ -107,6 +109,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
                 callbackUrl,
                 transcriptId,
                 keyTerms,
+                transcription,
             });
 
             if (response.error) {

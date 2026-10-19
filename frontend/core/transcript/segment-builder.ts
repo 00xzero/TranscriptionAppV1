@@ -1,4 +1,4 @@
-import type { DeepgramWord } from "@/contracts/webhook";
+import type { DeepgramParagraph, DeepgramWord } from "@/contracts/webhook";
 import {
     DEFAULT_FILLER_PATTERNS,
     getWordCount,
@@ -23,16 +23,7 @@ export interface NormalizedWord {
 }
 
 export interface ParagraphMetadata {
-    paragraphs: Array<{
-        speaker: number;
-        start: number;
-        end: number;
-        sentences: Array<{
-            text: string;
-            start: number;
-            end: number;
-        }>;
-    }>;
+    paragraphs: Array<Pick<DeepgramParagraph, "speaker" | "start" | "end" | "sentences">>;
 }
 
 export interface SegmentBuilderConfig {

@@ -13,6 +13,7 @@ import {
 import { setIdentity } from '@/lib/recording/sessionIdentity'
 import { setTestAuth } from '@/__tests__/helpers/auth'
 import { makeProject, projectProviderData } from '@/__tests__/projects/fixtures'
+import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
 
 class FakeMediaRecorder extends EventTarget {
   static isTypeSupported = jest.fn(() => true)
@@ -63,8 +64,10 @@ const mockCaptureFormState = {
   isUploading: false,
   // The user's pick. Undefined falls back to the intent, as the real form does.
   projectId: undefined as string | null | undefined,
+  transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS as TranscriptionOptions,
 }
 const mockSetProjectId = jest.fn()
+const mockSetTranscriptionOptions = jest.fn()
 const mockUseProjectsData = jest.fn()
 const captureProjects = [
   makeProject({ id: 'project-1', name: 'Clients' }),
@@ -107,6 +110,8 @@ jest.mock('../components/CaptureModal/useCaptureForm', () => ({
     handleKeyTermKeyDown: jest.fn(),
     handleAddTermClick: jest.fn(),
     removeTerm: jest.fn(),
+    transcriptionOptions: mockCaptureFormState.transcriptionOptions,
+    setTranscriptionOptions: mockSetTranscriptionOptions,
     isUploading: mockCaptureFormState.isUploading,
     handleSubmit: jest.fn(),
     canSubmit: false,
@@ -153,6 +158,8 @@ function resetModalTestState(): void {
   mockModalState.captureModalIntent = null
   mockCaptureFormState.isUploading = false
   mockCaptureFormState.projectId = undefined
+  mockCaptureFormState.transcriptionOptions = DEFAULT_TRANSCRIPTION_OPTIONS
+  try { window.localStorage.clear() } catch {}
   mockUseProjectsData.mockReturnValue(projectProviderData(captureProjects))
   setMediaRecorder(undefined)
   Object.defineProperty(navigator, 'mediaDevices', {
@@ -344,8 +351,7 @@ describe('CaptureModal tabs', () => {
 
     // Shared CaptureDetails / KeyTermsInput fields
     expect(screen.getByLabelText(/^title$/i)).toBeInTheDocument()
-    expect(screen.getByText(/language/i)).toBeInTheDocument()
-    expect(screen.getByText(/speaker diarization/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /advanced/i })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByLabelText(/add key terms for transcription/i)).toBeInTheDocument()
   })
 
@@ -870,13 +876,13 @@ describe('CaptureModal project field', () => {
     expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeEnabled()
   })
 
-  test('sits between Title and Language', () => {
+  test('sits between Title and Key terms', () => {
     renderModal()
     const title = screen.getByLabelText(/^title$/i)
     const project = screen.getByRole('button', { name: 'Project Unfiled' })
-    const language = screen.getByRole('combobox', { name: 'Language' })
+    const keyTerms = screen.getByRole('textbox', { name: 'Add key terms for transcription' })
     expect(title.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(project.compareDocumentPosition(language) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(project.compareDocumentPosition(keyTerms) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   test('shows the project path, and keeps it when switching tabs', async () => {
@@ -944,5 +950,122 @@ describe('CaptureModal project field', () => {
     mockCaptureFormState.isUploading = true
     renderModal()
     expect(screen.getByRole('button', { name: 'Project Unfiled' })).toBeDisabled()
+  })
+})
+
+describe('CaptureModal advanced options', () => {
+  beforeEach(() => {
+    resetModalTestState()
+  })
+
+  function startableMic() {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockResolvedValue(makeMockStream({ deviceId: 'mic-1' })),
+        enumerateDevices: jest.fn().mockResolvedValue([]),
+      },
+    })
+  }
+
+  test('starts collapsed, with the options summed up on its row', () => {
+    mockCaptureFormState.transcriptionOptions = {
+      language: 'es',
+      detect_speakers: false,
+      keep_filler_words: true,
+      mask_profanity: true,
+    }
+    renderModal()
+
+    const trigger = screen.getByRole('button', { name: /advanced/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveTextContent('Spanish · speakers off · profanity masked')
+    expect(screen.queryByRole('switch', { name: 'Detect speakers' })).not.toBeInTheDocument()
+  })
+
+  test('opens to the language and the three switches, set to the form state', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+
+    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveTextContent('English')
+    expect(screen.getByRole('switch', { name: 'Detect speakers' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Keep filler words' })).toBeChecked()
+    expect(screen.getByRole('switch', { name: 'Mask profanity' })).not.toBeChecked()
+  })
+
+  test('a switch hands the whole changed options to the form', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+    await user.click(screen.getByRole('switch', { name: 'Mask profanity' }))
+
+    expect(mockSetTranscriptionOptions).toHaveBeenCalledWith({
+      ...DEFAULT_TRANSCRIPTION_OPTIONS,
+      mask_profanity: true,
+    })
+  })
+
+  test('filler words are English only', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.transcriptionOptions = { ...DEFAULT_TRANSCRIPTION_OPTIONS, language: 'fr' }
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+
+    const fillers = screen.getByRole('switch', { name: 'Keep filler words' })
+    expect(fillers).toBeDisabled()
+    expect(fillers).not.toBeChecked()
+    expect(screen.getByText('English only')).toBeInTheDocument()
+  })
+
+  test('locks while uploading', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.isUploading = true
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+
+    expect(screen.getByRole('switch', { name: 'Detect speakers' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Language' })).toBeDisabled()
+  })
+
+  test('a recording starts with the options and saves them for next time', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    startableMic()
+    const chosen = { ...DEFAULT_TRANSCRIPTION_OPTIONS, language: 'de' as const, detect_speakers: false }
+    mockCaptureFormState.transcriptionOptions = chosen
+    mockModalState.captureModalIntent = { initialTab: 'record' }
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    await waitFor(() => expect(getSnapshot().state).toBe('recording'))
+    expect(getSnapshot().transcriptionOptions).toEqual(chosen)
+    expect(JSON.parse(window.localStorage.getItem('capture.transcriptionOptions') ?? 'null')).toEqual(chosen)
+  })
+
+  test('a recording that fails to start saves nothing', async () => {
+    const user = userEventLib.setup()
+    enableFakeRecorder()
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: jest.fn().mockRejectedValue(
+          Object.assign(new Error('missing mic'), { name: 'NotFoundError' })
+        ),
+      },
+    })
+    mockCaptureFormState.transcriptionOptions = { ...DEFAULT_TRANSCRIPTION_OPTIONS, mask_profanity: true }
+    mockModalState.captureModalIntent = { initialTab: 'record' }
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /start recording/i }))
+
+    expect(await screen.findAllByText('No microphone was found.')).not.toHaveLength(0)
+    expect(window.localStorage.getItem('capture.transcriptionOptions')).toBeNull()
   })
 })

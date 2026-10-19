@@ -11,6 +11,7 @@ import {
   installMediaRecorderMock,
 } from '@/__mocks__/MediaRecorder'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
+import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const replaceMock = jest.fn()
 const pushMock = jest.fn()
@@ -42,6 +43,7 @@ describe('recording page entry conditions', () => {
         codec: CODEC,
         title: 'Live session',
         keyTerms: [],
+        transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
         projectId: null,
         deviceId: null,
         maxBytes: 1024 * 1024,

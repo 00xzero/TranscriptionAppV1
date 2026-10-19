@@ -2,6 +2,7 @@ import type { CodecSelection } from './codecs'
 import type { CaptureUploadSuccess } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
+import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
 
 export type RecordingState =
   | 'idle'
@@ -26,6 +27,7 @@ export interface RecoverableInfo {
   title: string | null
   generatedTitle: string | null
   keyTerms: string[]
+  transcriptionOptions: TranscriptionOptions
   codecMime: string | null
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
@@ -50,6 +52,8 @@ export interface SessionSnapshot {
   pausedAccumulatedMs: number
   errorMessage: string | null
   keyTerms: string[]
+  /** Chosen before recording starts and fixed from then on. */
+  transcriptionOptions: TranscriptionOptions
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
   salvageMessage: string | null
@@ -76,6 +80,7 @@ export interface FinalizedRecording {
   file: File
   title: string
   keyTerms: string[]
+  transcriptionOptions: TranscriptionOptions
   projectId: string | null
 }
 
@@ -126,6 +131,7 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   pausedAccumulatedMs: 0,
   errorMessage: null,
   keyTerms: EMPTY_KEY_TERMS,
+  transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
   codecExtension: null,
   bytesSoFar: 0,
   salvageMessage: null,
@@ -148,6 +154,7 @@ export interface AttachAndStartParams {
   codec: CodecSelection
   title: string | null
   keyTerms: string[]
+  transcriptionOptions: TranscriptionOptions
   projectId: string | null
   deviceId: string | null
   maxBytes: number

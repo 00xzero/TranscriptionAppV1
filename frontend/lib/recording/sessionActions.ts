@@ -223,6 +223,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     lastResumeAt: now,
     pausedAccumulatedMs: 0,
     keyTerms: params.keyTerms,
+    transcriptionOptions: params.transcriptionOptions,
     codecExtension: params.codec.extension,
     bytesSoFar: 0,
     // Unavailable-from-start detection: a no-op adapter never persists, so the
@@ -240,6 +241,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     title: params.title,
     generatedTitle,
     keyTerms: params.keyTerms,
+    transcriptionOptions: params.transcriptionOptions,
     codecMime: params.codec.mime,
     codecExtension: params.codec.extension,
     deviceId: params.deviceId,
@@ -337,6 +339,7 @@ export async function stopAndFinalize(): Promise<void> {
     file,
     title: persistedTitle,
     keyTerms: store.snapshot.keyTerms,
+    transcriptionOptions: store.snapshot.transcriptionOptions,
     projectId: store.snapshot.projectId,
   }
   store.runtime.chunks = []

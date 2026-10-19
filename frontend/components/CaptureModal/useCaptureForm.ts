@@ -8,6 +8,8 @@ import { useProjectsData } from '@/lib/projects/ProjectsProvider'
 import { isProjectAvailable } from '@/core/projects/tree'
 import { captureTitleInputId, formatFileSize } from './shared'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
+import { readTranscriptionPreferences, saveTranscriptionPreferences } from '@/lib/capture/transcriptionPreferences'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
 interface UseCaptureFormParams {
   isCaptureModalOpen: boolean
@@ -28,6 +30,16 @@ export function useCaptureForm({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [keyTerms, setKeyTerms] = useState<string[]>([])
+  // The options of the last transcript begun in this browser, read as the
+  // dialog opens: another tab may have begun one since, and a change made here
+  // but never used is dropped.
+  const [transcriptionOptions, setTranscriptionOptions] = useState<TranscriptionOptions>(readTranscriptionPreferences)
+  const [optionsReadForOpen, setOptionsReadForOpen] = useState(isCaptureModalOpen)
+  if (optionsReadForOpen !== isCaptureModalOpen) {
+    // Set while rendering the opening, so its first frame already shows them.
+    setOptionsReadForOpen(isCaptureModalOpen)
+    if (isCaptureModalOpen) setTranscriptionOptions(readTranscriptionPreferences())
+  }
   const [fileError, setFileError] = useState<string | null>(null)
   const [titleSubmitBlocked, setTitleSubmitBlocked] = useState(false)
   // The destination the user picked. Undefined until they pick one, so the
@@ -111,8 +123,10 @@ export function useCaptureForm({
 
     // A cleared title is sent empty so the upload's filename fallback, which fits
     // the name under the limit, names the transcript instead.
-    const result = await upload(selectedFile, title.trim(), keyTerms, projectId)
+    const result = await upload(selectedFile, title.trim(), keyTerms, projectId, transcriptionOptions)
     if (!result) return
+    // The transcript exists, made with these options: offer them next time.
+    saveTranscriptionPreferences(transcriptionOptions)
 
     closeCaptureModal()
     showCaptureWarning(result.warning)
@@ -127,7 +141,7 @@ export function useCaptureForm({
       }
       guardedNav.push(`/transcripts?${params.toString()}`)
     }
-  }, [selectedFile, title, keyTerms, projectId, isUploading, upload, closeCaptureModal, guardedNav, blockOverLongTitle])
+  }, [selectedFile, title, keyTerms, projectId, transcriptionOptions, isUploading, upload, closeCaptureModal, guardedNav, blockOverLongTitle])
 
   // Clears itself once the title fits again.
   const titleError = titleSubmitBlocked && transcriptTitleTooLong(title) ? TRANSCRIPT_TITLE_TOO_LONG : null
@@ -163,6 +177,8 @@ export function useCaptureForm({
     handleKeyTermKeyDown,
     handleAddTermClick,
     removeTerm,
+    transcriptionOptions,
+    setTranscriptionOptions,
     isUploading,
     handleSubmit,
     canSubmit,

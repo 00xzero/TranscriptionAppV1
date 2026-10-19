@@ -1,10 +1,14 @@
 /** @jest-environment node */
 
 import { startAsyncTranscription } from '@/infra/deepgram'
+import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
 
 const fetchMock = jest.fn()
 
-async function sentParams({ tag }: { tag?: string } = {}) {
+async function sentParams({
+  tag,
+  transcription = {},
+}: { tag?: string; transcription?: Partial<TranscriptionOptions> } = {}) {
   const saved = { ...process.env }
   process.env.DEEPGRAM_API_KEY = 'test-key'
   delete process.env.DEEPGRAM_MODEL
@@ -16,6 +20,7 @@ async function sentParams({ tag }: { tag?: string } = {}) {
       callbackUrl: 'https://app.example/api/webhooks/deepgram',
       transcriptId: 'transcript-1',
       keyTerms: ['Acme', 'Move X'],
+      transcription: { ...DEFAULT_TRANSCRIPTION_OPTIONS, ...transcription },
     })
   } finally {
     process.env = saved
@@ -60,5 +65,46 @@ describe('Deepgram request options', () => {
 
     fetchMock.mockClear()
     expect((await sentParams({ tag: 'local' })).get('tag')).toBe('local')
+  })
+
+  describe('transcription options', () => {
+    test('the defaults ask for English, speakers and filler words, unmasked', async () => {
+      const params = await sentParams()
+
+      expect(params.get('language')).toBe('en')
+      expect(params.get('diarize_model')).toBe('latest')
+      expect(params.get('filler_words')).toBe('true')
+      expect(params.has('profanity_filter')).toBe(false)
+    })
+
+    test('speakers off leaves out the diarizer', async () => {
+      const params = await sentParams({ transcription: { detect_speakers: false } })
+
+      expect(params.has('diarize_model')).toBe(false)
+      expect(params.has('diarize')).toBe(false)
+    })
+
+    test('filler words off leaves them out', async () => {
+      const params = await sentParams({ transcription: { keep_filler_words: false } })
+
+      expect(params.has('filler_words')).toBe(false)
+    })
+
+    test('filler words are never asked for outside English', async () => {
+      for (const language of ['es', 'multi'] as const) {
+        fetchMock.mockClear()
+        const params = await sentParams({ transcription: { language, keep_filler_words: true } })
+
+        expect(params.get('language')).toBe(language)
+        expect(params.has('filler_words')).toBe(false)
+      }
+    })
+
+    test('masking profanity asks for the filter, and key terms still go in any language', async () => {
+      const params = await sentParams({ transcription: { language: 'multi', mask_profanity: true } })
+
+      expect(params.get('profanity_filter')).toBe('true')
+      expect(params.getAll('keyterm')).toEqual(['Acme', 'Move X'])
+    })
   })
 })
