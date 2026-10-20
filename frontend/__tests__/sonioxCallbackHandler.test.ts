@@ -49,7 +49,7 @@ jest.mock('@/infra/inngest/client', () => {
   return { ...actual, sendInngestEvent: (...a: unknown[]) => mockSend(...a) }
 })
 
-import { handleSonioxCallback, onSonioxCallbackFailure } from '@/lib/inngest/functions/handle-soniox-callback'
+import { handleSonioxCallback, onSonioxCallbackFailure, sonioxRetryDelayMs } from '@/lib/inngest/functions/handle-soniox-callback'
 
 const transcriptId = '11111111-1111-4111-8111-111111111111'
 const jobId = '33333333-3333-4333-8333-333333333333'
@@ -210,6 +210,22 @@ describe('handleSonioxCallback', () => {
 
     expect(error).toBeTruthy()
     expect(mockDelete).not.toHaveBeenCalled()
+  })
+
+  test('a receipt held by a killed attempt: the retry is a RetryAfterError, and nothing is deleted', async () => {
+    mockRecord.mockResolvedValue({ outcome: 'retrying', retryAfter: 30, leaseRemainingMs: 240_000 })
+
+    const { error } = await run()
+
+    // The test engine hands the error back serialized: its name survives.
+    expect((error as { name?: string }).name).toBe('RetryAfterError')
+    expect(mockDelete).not.toHaveBeenCalled()
+  })
+
+  test('the retry waits past a held lease, and never less than the usual 30 seconds', () => {
+    expect(sonioxRetryDelayMs({ retryAfter: 30, leaseRemainingMs: 240_000 })).toBe(245_000)
+    expect(sonioxRetryDelayMs({ retryAfter: 30, leaseRemainingMs: 1_000 })).toBe(30_000)
+    expect(sonioxRetryDelayMs({ retryAfter: 30 })).toBe(30_000)
   })
 
   test('an attempt that changed after the check (the write found it stale) confirms and deletes nothing', async () => {

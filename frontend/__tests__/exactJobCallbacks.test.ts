@@ -140,6 +140,25 @@ describe('recordEngineResult with an exact job', () => {
     expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ status: 'failed' })])
   })
 
+  test('a receipt held by another attempt (one killed mid-step) says how long its lease has left', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestA }])
+    db.tables.webhook_receipts.push({
+      provider: 'soniox',
+      request_id: requestA,
+      status: 'processing',
+      attempt_id: 'killed-attempt',
+      claimed_at: new Date(Date.now() - 60_000).toISOString(),
+    })
+
+    const result = await record(db)
+
+    expect(result).toEqual(expect.objectContaining({ outcome: 'retrying', retryAfter: 30 }))
+    const remaining = (result as { leaseRemainingMs?: number }).leaseRemainingMs ?? 0
+    expect(remaining).toBeGreaterThan(235_000)
+    expect(remaining).toBeLessThanOrEqual(240_000)
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
   test('a refused link whose job then cannot be read is retried, not given up: the receipt is released first', async () => {
     const db = setup([{ id: jobA, inngest_event_id: requestA }])
     mockUpload.mockImplementationOnce(async () => {

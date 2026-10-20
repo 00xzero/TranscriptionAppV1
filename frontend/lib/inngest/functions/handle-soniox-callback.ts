@@ -12,6 +12,8 @@
  * replaced, is deleted straight away, since nothing of ours will ever read it.
  */
 
+import { RetryAfterError } from "inngest";
+
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import {
@@ -24,6 +26,18 @@ import type { SonioxCallbackData } from "@/contracts/events";
 import { sonioxCallbackTrigger } from "@/lib/inngest/events";
 import { readSonioxCallbackState, sonioxHandoffState } from "@/lib/inngest/soniox-callback-state";
 import { writeTranscriptionFailureFallback } from "./_shared";
+
+// Past a held receipt lease, so the retry finds it lapsed.
+const LEASE_MARGIN_MS = 5_000;
+
+/**
+ * How long a retry waits when storing was refused for now: past the lease of an
+ * attempt that still holds the receipt, and never less than the usual delay.
+ * Exported for tests.
+ */
+export function sonioxRetryDelayMs(result: { retryAfter: number; leaseRemainingMs?: number }): number {
+    return Math.max(result.retryAfter * 1000, (result.leaseRemainingMs ?? 0) + LEASE_MARGIN_MS);
+}
 
 /**
  * When retries run out. Soniox's copy is never deleted here: before the
@@ -139,10 +153,14 @@ export const handleSonioxCallback = inngest.createFunction(
                     if (result.outcome === "processed") return { state: "recorded" as const, attemptId: result.attemptId ?? null };
                     if (result.outcome === "duplicate") return { state: "recorded" as const, attemptId: null };
                     if (result.outcome === "stale") return { state: "stale" as const, attemptId: null };
-                    throw new Error(
-                        result.outcome === "error"
-                            ? `Storing the Soniox result failed: ${result.reason}`
-                            : "The Soniox result is being stored by another delivery"
+                    if (result.outcome === "error") throw new Error(`Storing the Soniox result failed: ${result.reason}`);
+                    // Another attempt holds the receipt, most likely one killed
+                    // mid-step: its lease must lapse before the receipt can be
+                    // taken over, so the retry waits that long instead of using
+                    // up its attempts on Inngest's quicker schedule.
+                    throw new RetryAfterError(
+                        "The Soniox result is being stored by another delivery",
+                        sonioxRetryDelayMs(result)
                     );
                 })
                 : await step.run("record-failure", async () => {

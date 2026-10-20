@@ -24,7 +24,16 @@ const RECEIPT_LEASE_MS = 300 * 1000
 export type WebhookHandleResult =
     | { outcome: 'processed' }
     | { outcome: 'duplicate' }
-    | { outcome: 'retrying'; retryAfter: number }
+    | {
+        outcome: 'retrying'
+        retryAfter: number
+        /**
+         * Set when another attempt holds the receipt's lease: how long until
+         * it lapses and the receipt can be taken over. A caller that retries
+         * on its own schedule waits at least this long.
+         */
+        leaseRemainingMs?: number
+    }
     | { outcome: 'error'; reason: string }
     // Only with a jobId: the attempt is no longer the one the callback is for
     // (failed, deleted, or another request), so nothing was written.
@@ -278,7 +287,8 @@ export async function recordEngineResult(opts: {
 
             if (existing.status === 'processing' && isFresh) {
                 console.log(`[webhook] In-flight duplicate for ${requestId} — retrying`)
-                return { outcome: 'retrying', retryAfter: 30 }
+                const leaseRemainingMs = new Date(existing.claimed_at).getTime() + RECEIPT_LEASE_MS - Date.now()
+                return { outcome: 'retrying', retryAfter: 30, leaseRemainingMs }
             }
 
             // Attempt conditional takeover
