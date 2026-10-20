@@ -11,16 +11,13 @@ Not wired into the main app.
    (or hardcode `const API_KEY = "..."` near the top of the `<script>`).
 3. Choose a media file and click **Transcribe**.
 
-The flow: `POST /v1/files` (upload) → `POST /v1/transcriptions` (create job,
-model `stt-async-v5`) → poll `GET /v1/transcriptions/{id}` →
-`GET /v1/transcriptions/{id}/transcript` → `DELETE` the transcription and the
-file, since Soniox otherwise keeps both for 30 days.
+The flow: `POST /v1/files` (upload) → `POST /v1/transcriptions` (create job) →
+poll `GET /v1/transcriptions/{id}` → `GET /v1/transcriptions/{id}/transcript`.
 
 ## If you hit a CORS / network error
 
-`api.soniox.com` allows browser calls from any origin (checked 2026-10-18), so
-the proxy should not be needed. If the activity log shows a network/CORS failure
-anyway:
+Browser-to-`api.soniox.com` calls may be blocked by CORS (the API likely expects
+server-side calls). If the activity log shows a network/CORS failure:
 
 ```bash
 node proxy.js          # requires Node 18+
