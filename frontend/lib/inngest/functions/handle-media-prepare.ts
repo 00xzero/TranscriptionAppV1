@@ -29,6 +29,8 @@ import {
     removeOriginal,
     settleUnlinked,
 } from "@/lib/media/prepare-steps";
+import { resolveTranscriptionOptions } from "@/contracts/transcription-options";
+import { engineLengthRefusal } from "@/core/transcription/engines/capabilities";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 const MEDIA_PREPARE_CONCURRENCY = readPositiveIntEnv("MEDIA_PREPARE_CONCURRENCY", 2);
@@ -75,7 +77,7 @@ export const handleMediaPrepare = inngest.createFunction(
 
         // Fail the job now through the usual error path rather than leave it
         // queued for the timeout reaper.
-        const failJob = async (reason: "superseded" | "invalid_source", error: string) => {
+        const failJob = async (reason: "superseded" | "invalid_source" | "too_long", error: string) => {
             await step.sendEvent(`fail-${reason}`, {
                 name: "transcription/failed",
                 id: `media-prepare-${reason}:${jobId}`,
@@ -124,6 +126,17 @@ export const handleMediaPrepare = inngest.createFunction(
             } catch (err) {
                 console.warn(`[inngest] Could not decide on ${transcriptId}'s media; keeping it:`, err instanceof Error ? err.message : err);
             }
+        }
+
+        // Outside the try above: a file too long for its engine is refused, not
+        // mistaken for one that could not be probed. An unknown length goes on,
+        // and the engine refuses it itself if it must.
+        const { engine } = resolveTranscriptionOptions(transcriptionOptions);
+        const probedSeconds = decided?.probe?.audioDurationSeconds ?? null;
+        const lengthRefusal = probedSeconds === null ? null : engineLengthRefusal(engine, probedSeconds);
+        if (lengthRefusal) {
+            console.log(`[inngest] ${transcriptId} is too long for ${engine} (${probedSeconds}s)`);
+            return await failJob("too_long", lengthRefusal);
         }
 
         let preparedOutcome: "kept" | "prepared" | "fell_back" = "kept";

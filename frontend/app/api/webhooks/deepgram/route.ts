@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ received: true });
 
       case 'duplicate':
+      case 'stale':
         return NextResponse.json({ received: true });
 
       case 'retrying':

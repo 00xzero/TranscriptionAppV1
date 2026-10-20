@@ -8,8 +8,10 @@ import 'server-only'
 
 import { TranscriptionEngineSchema } from '@/contracts/transcription-options'
 import { deepgramResultToWords } from '@/core/transcription/engines/deepgram-words'
+import { sonioxResultToWords } from '@/core/transcription/engines/soniox-words'
 import type { TranscriptionEngine } from '@/core/transcription/engines/types'
 import { getCallbackUrl, startAsyncTranscription } from '@/infra/deepgram'
+import { startSonioxTranscription } from '@/infra/soniox'
 
 const deepgram: TranscriptionEngine = {
     id: 'deepgram',
@@ -24,7 +26,13 @@ const deepgram: TranscriptionEngine = {
     resultToWords: deepgramResultToWords,
 }
 
-const ENGINES: Record<TranscriptionEngine['id'], TranscriptionEngine> = { deepgram }
+const soniox: TranscriptionEngine = {
+    id: 'soniox',
+    start: startSonioxTranscription,
+    resultToWords: sonioxResultToWords,
+}
+
+const ENGINES: Record<TranscriptionEngine['id'], TranscriptionEngine> = { deepgram, soniox }
 
 /** The engine of this name; refuses a name that is not one of ours. */
 export function getEngine(id: unknown): TranscriptionEngine {

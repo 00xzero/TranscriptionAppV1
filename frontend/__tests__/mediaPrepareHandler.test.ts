@@ -67,6 +67,7 @@ function execute(
             { id: 'request-waveform', handler: () => ({ ids: ['w'] }) },
             { id: 'fail-superseded', handler: () => ({ ids: ['f'] }) },
             { id: 'fail-invalid_source', handler: () => ({ ids: ['f'] }) },
+            { id: 'fail-too_long', handler: () => ({ ids: ['f'] }) },
         ],
         transformCtx: (rawCtx) => {
             const ctx = mockCtx(rawCtx)
@@ -419,6 +420,54 @@ describe('handleMediaPrepare', () => {
 
             expect(result).toMatchObject({ media: 'fell_back' })
             expect(sentEvents(ctx)[0]).toEqual(requestWithOptions)
+        })
+    })
+
+    describe('engine length limit', () => {
+        const sonioxOptions = { engine: 'soniox', language: 'en', detect_speakers: true, keep_filler_words: false, mask_profanity: false }
+        const withSoniox = { ...event.data, transcriptionOptions: sonioxOptions }
+        const sixHoursTwelve = 6 * 3600 + 12 * 60
+
+        test('a file longer than Soniox takes fails the job before anything is converted', async () => {
+            steps.decide.mockResolvedValue({ ...transcode, probe: { ...probe, audioDurationSeconds: sixHoursTwelve } })
+
+            const { result, ctx } = await execute([], {}, withSoniox)
+
+            expect(result).toEqual({ status: 'stopped', reason: 'too_long' })
+            expect(steps.convertAndUpload).not.toHaveBeenCalled()
+            expect(sentEvents(ctx)).toEqual([{
+                stepId: 'fail-too_long',
+                name: 'transcription/failed',
+                id: `media-prepare-too_long:${jobId}`,
+                data: {
+                    transcriptId,
+                    jobId,
+                    error: 'Soniox v5 accepts audio up to 5 h; this file is 6 h 12 min. Choose Deepgram Nova-3 for longer files.',
+                    errorType: 'transcription_error',
+                },
+            }])
+        })
+
+        test('a length that could not be measured goes on to Soniox', async () => {
+            steps.decide.mockResolvedValue({ ...keep, probe: { ...probe, audioDurationSeconds: null } })
+
+            const { ctx } = await execute([], {}, withSoniox)
+
+            expect(sentEvents(ctx)[0]).toEqual(expect.objectContaining({ name: 'transcription/requested' }))
+        })
+
+        test('a probe that failed goes on to Soniox', async () => {
+            const { ctx } = await execute([], { decide: 'probe failed' }, withSoniox)
+
+            expect(sentEvents(ctx)[0]).toEqual(expect.objectContaining({ name: 'transcription/requested' }))
+        })
+
+        test('Deepgram has no limit of its own', async () => {
+            steps.decide.mockResolvedValue({ ...keep, probe: { ...probe, audioDurationSeconds: sixHoursTwelve } })
+
+            const { ctx } = await execute()
+
+            expect(sentEvents(ctx)[0]).toEqual(transcriptionRequest)
         })
     })
 })

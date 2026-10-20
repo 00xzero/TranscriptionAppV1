@@ -26,23 +26,86 @@ export type WebhookHandleResult =
     | { outcome: 'duplicate' }
     | { outcome: 'retrying'; retryAfter: number }
     | { outcome: 'error'; reason: string }
+    // Only with a jobId: the attempt is no longer the one the callback is for
+    // (failed, deleted, or another request), so nothing was written.
+    | { outcome: 'stale' }
+
+/** Names one job attempt exactly: its job, its transcript, the engine's request. */
+type ExactJob = { jobId: string; transcriptId: string; requestId: string }
+
+type ExactJobState = 'proceed' | 'retrying' | 'duplicate' | 'stale'
+
+// Request ids go into a PostgREST filter, so only plain ids are accepted.
+const PLAIN_REQUEST_ID = /^[A-Za-z0-9_-]+$/
+
+/**
+ * What a callback may do to the exact attempt it names. Every write that
+ * follows repeats these checks in its own conditions (`exactJobFilter`), since
+ * the job can change in between.
+ */
+async function readExactJob(
+    supabase: SupabaseClient,
+    { jobId, transcriptId, requestId }: ExactJob
+): Promise<ExactJobState | { error: string }> {
+    if (!PLAIN_REQUEST_ID.test(requestId)) return 'stale'
+    const { data, error } = await supabase
+        .from('jobs')
+        .select('transcript_id, status, inngest_event_id')
+        .eq('id', jobId)
+        .maybeSingle()
+    if (error) return { error: error.message }
+    if (!data || data.transcript_id !== transcriptId) return 'stale'
+    if (data.inngest_event_id && data.inngest_event_id !== requestId) return 'stale'
+    switch (data.status) {
+        // The start has not saved the request id yet: try again shortly.
+        case 'queued': return 'retrying'
+        case 'processing': return 'proceed'
+        case 'completed': return 'duplicate'
+        default: return 'stale'
+    }
+}
+
+/** The PostgREST `or` filter: the job carries this request id, or none yet. */
+function sameRequest(requestId: string): string {
+    return `inngest_event_id.is.null,inngest_event_id.eq.${requestId}`
+}
+
+// PostgREST (v14) applies an update's `or` filter to the returned columns too,
+// so a write filtered on inngest_event_id must return it, or it fails with
+// "column jobs.inngest_event_id does not exist".
+const EXACT_JOB_RETURNING = 'id, inngest_event_id'
 
 /**
  * Fail the job a webhook names: by request id (the job's inngest_event_id),
  * else the transcript's active job, else the transcript itself.
  * Returns what it marked failed, or 'nothing' when it found nothing or its
  * write did not go through, so a caller can ask the engine to retry.
+ *
+ * With a jobId, only that exact attempt is failed, and only while it is
+ * processing this request: 'stale' when it no longer is.
  */
 export async function persistWebhookFailure(params: {
     supabase: SupabaseClient
     engine: TranscriptionEngine
     transcriptId?: string | null
     requestId?: string | null
+    /** The exact attempt; requires transcriptId and requestId. */
+    jobId?: string
     message: string
     /** Defaults to the message. */
     detail?: string
-}): Promise<'job' | 'transcript' | 'nothing'> {
+}): Promise<'job' | 'transcript' | 'nothing' | 'stale'> {
     const { supabase } = params
+
+    if (params.jobId) {
+        if (!params.transcriptId || !params.requestId) return 'stale'
+        return failExactJob(supabase, {
+            jobId: params.jobId,
+            transcriptId: params.transcriptId,
+            requestId: params.requestId,
+        }, params.message, params.detail)
+    }
+
     let resolvedTranscriptId = params.transcriptId || null
     let resolvedJobId: string | null = null
 
@@ -114,15 +177,65 @@ export async function persistWebhookFailure(params: {
     return 'nothing'
 }
 
+async function failExactJob(
+    supabase: SupabaseClient,
+    exact: ExactJob,
+    message: string,
+    detail?: string
+): Promise<'job' | 'nothing' | 'stale'> {
+    const state = await readExactJob(supabase, exact)
+    if (typeof state === 'object' || state === 'retrying') return 'nothing'
+    if (state !== 'proceed') return 'stale'
+
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+        .from('jobs')
+        .update({
+            status: 'error',
+            finished_at: now,
+            updated_at: now,
+            error_message: message,
+            error_type: 'transcription_error',
+            error_detail: (detail ?? message).slice(0, 500),
+        })
+        .eq('id', exact.jobId)
+        .eq('transcript_id', exact.transcriptId)
+        .eq('status', 'processing')
+        .or(sameRequest(exact.requestId))
+        .select(EXACT_JOB_RETURNING)
+    if (error) {
+        console.error('[webhook] Failed to fail the exact job:', error)
+        return 'nothing'
+    }
+    return data && data.length > 0 ? 'job' : 'stale'
+}
+
 export async function recordEngineResult(opts: {
     supabase: SupabaseClient
     engine: TranscriptionEngine
     requestId: string
     transcriptId: string
+    /**
+     * The exact attempt the result belongs to. Without it the job is found by
+     * request id, else the transcript's latest active job (Deepgram).
+     */
+    jobId?: string
     /** The validated result, exactly as the engine sent it. */
     rawBody: string
 }): Promise<WebhookHandleResult & { attemptId?: string }> {
     const { supabase, engine, requestId, transcriptId, rawBody } = opts
+    const exact: ExactJob | null = opts.jobId ? { jobId: opts.jobId, transcriptId, requestId } : null
+
+    if (exact) {
+        const state = await readExactJob(supabase, exact)
+        if (typeof state === 'object') {
+            console.error('[webhook] Failed to read the exact job:', state.error)
+            return { outcome: 'retrying', retryAfter: 30 }
+        }
+        if (state === 'retrying') return { outcome: 'retrying', retryAfter: 30 }
+        if (state === 'duplicate') return { outcome: 'duplicate' }
+        if (state === 'stale') return { outcome: 'stale' }
+    }
 
     // Claim idempotency receipt
     const myAttemptId = randomUUID()
@@ -212,14 +325,16 @@ export async function recordEngineResult(opts: {
     }
 
     // Look up the job the response belongs to
-    const { data: exactJob, error: exactJobError } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('transcript_id', transcriptId)
-        .eq('inngest_event_id', requestId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+    const { data: exactJob, error: exactJobError } = exact
+        ? { data: { id: exact.jobId }, error: null }
+        : await supabase
+            .from('jobs')
+            .select('id')
+            .eq('transcript_id', transcriptId)
+            .eq('inngest_event_id', requestId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
 
     if (exactJobError) {
         console.error('[webhook] Failed to lookup job by requestId:', exactJobError)
@@ -285,14 +400,22 @@ export async function recordEngineResult(opts: {
         throw uploadError
     }
 
-    const { data: linkedJob, error: updateError } = await supabase
+    let linkQuery = supabase
         .from('jobs')
         .update({
             result_object_key: resultKey,
             inngest_event_id: requestId,
         })
         .eq('id', jobIdToUpdate)
-        .select('id')
+    if (exact) {
+        // The exact attempt's checks, again, in the write itself.
+        linkQuery = linkQuery
+            .eq('transcript_id', transcriptId)
+            .eq('status', 'processing')
+            .or(sameRequest(requestId))
+    }
+    const { data: linkedJob, error: updateError } = await linkQuery
+        .select(exact ? EXACT_JOB_RETURNING : 'id')
         .maybeSingle()
 
     if (updateError) {
@@ -300,6 +423,20 @@ export async function recordEngineResult(opts: {
         console.error(`[webhook] Failed to link ${engine} result:`, updateError)
         await markReceiptFailed(supabase, engine, requestId, activeAttemptId, updateError.message)
         throw new Error(`Failed to link ${engine} result: ${updateError.message}`)
+    }
+
+    if (!linkedJob && exact) {
+        // The attempt changed while the file was uploading. The file is kept:
+        // this path is the job's own, and another delivery that completed the
+        // job may have linked the very same file. Deleting the transcript
+        // sweeps it if nothing else does.
+        const state = await readExactJob(supabase, exact)
+        if (state === 'duplicate') {
+            await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
+            return { outcome: 'duplicate' }
+        }
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job changed during upload')
+        return { outcome: 'stale' }
     }
 
     if (!linkedJob) {
@@ -322,20 +459,63 @@ export async function recordEngineResult(opts: {
         throw sendError
     }
 
-    // Finalize receipt
+    await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
+
+    return { outcome: 'processed', attemptId: activeAttemptId }
+}
+
+async function finalizeReceipt(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<void> {
     const { error: finalizeError } = await supabase
         .from('webhook_receipts')
         .update({ status: 'completed', processed_at: new Date().toISOString() })
         .eq('provider', engine)
         .eq('request_id', requestId)
-        .eq('attempt_id', activeAttemptId)
+        .eq('attempt_id', attemptId)
 
     if (finalizeError) {
         // Real work is done — leave as processing; lease expiry handles stale recovery
         console.error('[webhook] Finalize failed; receipt left as processing (will expire):', finalizeError)
     }
+}
 
-    return { outcome: 'processed', attemptId: activeAttemptId }
+/**
+ * Make a handoff durable: the receipt of the attempt that handed the result
+ * off ends `completed`. recordEngineResult tolerates a failed finalize (the
+ * work is done), so a caller that acts on "handed off" next (deleting the
+ * engine's copy) confirms it first. True once the receipt is completed, by
+ * this attempt or another; throws when the receipt cannot be read or written,
+ * so the caller retries.
+ */
+export async function confirmReceiptCompleted(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<boolean> {
+    const { data: finalized, error: finalizeError } = await supabase
+        .from('webhook_receipts')
+        .update({ status: 'completed', processed_at: new Date().toISOString() })
+        .eq('provider', engine)
+        .eq('request_id', requestId)
+        .eq('attempt_id', attemptId)
+        .select('status')
+    if (finalizeError) throw new Error(`Failed to complete receipt ${requestId}: ${finalizeError.message}`)
+    if (finalized && finalized.length > 0) return true
+
+    // Another attempt took the receipt over: it counts only if it finished.
+    const { data: receipt, error: readError } = await supabase
+        .from('webhook_receipts')
+        .select('status')
+        .eq('provider', engine)
+        .eq('request_id', requestId)
+        .maybeSingle()
+    if (readError) throw new Error(`Failed to read receipt ${requestId}: ${readError.message}`)
+    return receipt?.status === 'completed'
 }
 
 async function markReceiptFailed(

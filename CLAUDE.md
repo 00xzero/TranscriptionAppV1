@@ -49,7 +49,7 @@ The codebase is layered, and the layering is load-bearing — respect it when ad
 | `core/`      | Pure domain logic: transcription state machine, segment builder, exports, rate limiting | No framework or network imports.              |
 | `infra/`     | External adapters: Supabase clients, Deepgram, Inngest client, storage       | Only place that talks to third parties.       |
 | `lib/`       | App glue: recording engine, capture/upload, Inngest handlers, Supabase queries/hooks/realtime | Wires `core` to `infra` and React.            |
-| `app/`       | Next App Router: pages + 14 API routes                                      | Thin — delegate to `core`/`lib`.              |
+| `app/`       | Next App Router: pages + 15 API routes                                      | Thin — delegate to `core`/`lib`.              |
 
 `contracts/db.ts` is the source of truth for DB row shapes, mirroring `infra/supabase/migrations/`.
 
@@ -75,17 +75,18 @@ Note `/` renders `LibraryView` and is not in `PROTECTED_ROUTES`.
 
 ### Transcription Pipeline
 
-Each transcript is made by one **engine** (`transcripts.engine`, chosen with the other transcription options and fixed once the row exists; only `deepgram` so far). The pipeline talks to an engine only through the contract in `core/transcription/engines/types.ts`: `start` a job, and turn its stored result into our words (`resultToWords`). `lib/transcription/engines.server.ts` is the one place that maps an engine name to its code; `core/transcription/engines/capabilities.ts` says what each engine can do (languages, filler words, profanity masking, longest file) and is safe in the browser. Each engine has its own callback route. Options saved before the engine could be chosen (queued events, recordings waiting in the browser, remembered choices) go through `SavedTranscriptionOptionsSchema` and `resolveTranscriptionOptions`, which give them Deepgram. `__tests__/deepgramPipelineBaseline.test.ts` freezes what Deepgram results become; never update its snapshot to make a change pass.
+Each transcript is made by one **engine** (`transcripts.engine`, chosen with the other transcription options and fixed once the row exists): `deepgram` (Nova-3) or `soniox` (v5), picked by brand name in the capture dialog's Advanced section and shown in the editor header. The pipeline talks to an engine only through the contract in `core/transcription/engines/types.ts`: `start` a job, and turn its stored result into our words (`resultToWords`). `lib/transcription/engines.server.ts` is the one place that maps an engine name to its code; `core/transcription/engines/capabilities.ts` says what each engine can do (languages, filler words, profanity masking, longest file) and is safe in the browser. Each engine has its own callback route. Soniox keeps no filler words and masks no profanity (CHECKs on `transcripts` refuse those combinations) and takes audio up to 5 hours, which media preparation enforces once it has measured the file. Options saved before the engine could be chosen (queued events, recordings waiting in the browser, remembered choices) go through `SavedTranscriptionOptionsSchema` and `resolveTranscriptionOptions`, which give them Deepgram. `__tests__/deepgramPipelineBaseline.test.ts` freezes what Deepgram results become; never update its snapshot to make a change pass.
 
 1. **Upload** → `POST /api/transcripts` creates the transcript row; the browser uploads the media straight to Supabase Storage and links its key (uploads up to 500 MB)
 2. **Start** → `POST /api/transcripts/[id]/start` checks a media URL the engine can fetch can be made, creates the job and sends Inngest event `media/prepare-requested`
 3. **Prepare** → `handle-media-prepare` probes the upload once and applies `core/media/prepare-policy.ts`: a video's sound is copied out (or repacked), lossless or oversized sound (above 96 kbps and at least 10 MB) is repacked to mono 64 kbps AAC `.m4a`, everything else is kept untouched, including our own recordings (Opus, or AAC that `lib/recording/codecs.ts` asks for at 64 kbps). A video's AAC is copied only when its track bitrate is known to be at most 96 kbps. A prepared file replaces the original at `{user_id}/{transcript_id}/{job_id}.m4a` (the admin client swaps `source_object_key` and deletes the original), so only one file is kept. Preparation never blocks a transcript: if probing or converting fails it goes on with whichever file the row points at (only a job or row that can't be read at all fails the job, since the source check must not be skipped), and a job that has waited over 10 minutes in line (`PREPARE_START_LIMIT_MS`) skips it. Then it sends `transcription/requested` and claims the waveform. Every job and row check runs inside a step (replays must not stop it once the engine has moved the job on), and a write whose answer is lost is settled by reading the row back
 4. **Transcribe** → `transcription/requested` signs the row's current key and starts the job with the transcript's engine (Deepgram's async API, with a callback URL), only while the job is still `queued`. The step keeps its id `call-deepgram-async`: renaming a step lets a run caught mid-deploy repeat it
 5. **Webhook** → `POST /api/webhooks/deepgram` stores the body exactly as Deepgram sent it, gzipped, in the server-only `transcription-results` bucket at `{user_id}/{transcript_id}/{job_id}.json.gz` (`infra/supabase/transcription-results.server.ts`), links it as `jobs.result_object_key`, and triggers Inngest `transcription/webhook`. A redelivery overwrites the same file; a new run is a new job and gets its own. The file stays as the record of what Deepgram returned.
+   **Soniox** calls back with only its job id and status, on `POST /api/webhooks/soniox?transcript_id=…&job_id=…` (secret in `Authorization`). The route passes it to `handle-soniox-callback`, which reads our records first (a replayed callback fetches nothing), fetches the result, stores `{ transcription, transcript }` the same way through `recordEngineResult` for that exact job attempt, and only once it is handed off deletes the job at Soniox (otherwise kept 30 days). With a `jobId`, `recordEngineResult` and `persistWebhookFailure` act on that attempt only, with their checks repeated in the write; a callback for a failed or other attempt is `stale` and changes nothing. Running out of retries never deletes Soniox's copy.
 6. **Processing** → Inngest function downloads that file, has the transcript's engine turn it into words, stores canonical segments/words (`lib/transcription/segments-payload.ts`) and assigns speaker-linked segments
 7. **Complete** → `transcription/completed`, transcript marked `completed`, UI updates via Supabase Realtime
 
-Inngest events: `media/prepare-requested`, `transcription/requested`, `transcription/webhook`, `transcription/completed`, `transcription/failed`, `waveform/requested`.
+Inngest events: `media/prepare-requested`, `transcription/requested`, `transcription/webhook`, `transcription/completed`, `transcription/failed`, `waveform/requested`, `soniox/callback`.
 
 Handlers live in `lib/inngest/functions/` (one file per handler, barrel-exported from `index.ts`), served via `app/api/inngest/route.ts`:
 
@@ -93,6 +94,7 @@ Handlers live in `lib/inngest/functions/` (one file per handler, barrel-exported
 - `handle-transcription-requested` / `-webhook` / `-completed` / `-failed`
 - `handle-transcription-timeouts` — cron `*/10 * * * *`, reaps stuck jobs
 - `handle-waveform-requested` — generates waveform peaks
+- `handle-soniox-callback` — fetches, stores and hands off a Soniox result, then deletes it at Soniox
 
 The state machine itself is pure and lives in `core/transcription/` (`machine.ts`, `start.ts`, `transition.ts`, `webhook.ts`). Statuses: jobs `queued|processing|completed|error`; transcripts `created|queued|processing|completed|error`; waveforms `pending|processing|ready|error|skipped`.
 
@@ -143,6 +145,7 @@ Storage buckets: `media`, `waveforms` and `transcription-results` (server-only; 
 | `GET /api/transcripts/[id]/export/md`   | Export Markdown                                |
 | `GET /api/transcripts/[id]/export/txt`  | Export plain text                              |
 | `POST /api/webhooks/deepgram`           | Deepgram callback                              |
+| `POST /api/webhooks/soniox`             | Soniox callback (passed to Inngest)            |
 | `GET /api/webhooks/deepgram/health`     | Webhook health check                           |
 | `GET /api/media-proxy`                  | Proxy media with auth (local dev only)         |
 | `/api/inngest`                          | Inngest serve handler                          |

@@ -11,6 +11,8 @@ export interface EngineStartInput {
     /** A URL the engine can fetch the media from. */
     mediaUrl: string;
     transcriptId: string;
+    /** The job attempt; an engine whose callback can carry it names it there. */
+    jobId: string;
     keyTerms?: string[];
     options: TranscriptionOptions;
 }

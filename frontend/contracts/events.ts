@@ -33,6 +33,15 @@ export const TranscriptionFailedDataSchema = z.object({
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })
 
+// A Soniox job's callback, passed on by its route: the exact job attempt it
+// belongs to (named in the callback URL) and how Soniox says it ended.
+export const SonioxCallbackDataSchema = z.object({
+  transcriptId: UuidSchema,
+  jobId: UuidSchema,
+  requestId: z.string().min(1),
+  status: z.enum(['completed', 'error']),
+})
+
 export const WaveformRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
   userId: UuidSchema,
@@ -45,3 +54,4 @@ export type TranscriptionWebhookData = z.infer<typeof TranscriptionWebhookDataSc
 export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDataSchema>
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>
 export type WaveformRequestedData = z.infer<typeof WaveformRequestedDataSchema>
+export type SonioxCallbackData = z.infer<typeof SonioxCallbackDataSchema>

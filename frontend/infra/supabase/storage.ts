@@ -6,6 +6,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
+import { getPublicBaseUrl } from '@/infra/public-url'
 
 export const MEDIA_BUCKET = 'media'
 export const WAVEFORM_BUCKET = 'waveforms'
@@ -109,10 +110,7 @@ export async function getMediaUrlForEngine(
     let mediaUrl = signedUrlResult.url
 
     if (process.env.DEEPGRAM_USE_PROXY === 'true') {
-        const callbackBase =
-            process.env.DEEPGRAM_CALLBACK_URL?.replace('/api/webhooks/deepgram', '') ||
-            process.env.NEXT_PUBLIC_APP_URL ||
-            'http://localhost:3000'
+        const callbackBase = getPublicBaseUrl() ?? 'http://localhost:3000'
         const proxySecret = process.env.MEDIA_PROXY_SECRET
         if (!proxySecret) {
             return { url: null, error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET' }

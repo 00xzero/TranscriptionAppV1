@@ -1,16 +1,20 @@
 import { useRef } from 'react'
 import {
+  TRANSCRIPTION_ENGINES,
+  TRANSCRIPTION_ENGINE_LABELS,
   TRANSCRIPTION_LANGUAGES,
   TRANSCRIPTION_LANGUAGE_LABELS,
+  TranscriptionEngineSchema,
   TranscriptionLanguageSchema,
   type TranscriptionOptions,
 } from '@/contracts/transcription-options'
-import { fillerWordsApply } from '@/core/transcription/engines/capabilities'
+import { fillerWordsApply, profanityMaskingApplies } from '@/core/transcription/engines/capabilities'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
+const engineSelectId = 'capture-engine'
 const languageSelectId = 'capture-language'
 // Just past the content's 150ms opening animation.
 const OPEN_SETTLE_MS = 170
@@ -21,15 +25,32 @@ interface CaptureAdvancedOptionsProps {
   disabled: boolean
 }
 
-/** The closed row's one line: the language and speakers, then anything else changed. */
+/** The closed row's one line: the engine, language and speakers, then anything else changed. */
 export function summarizeTranscriptionOptions(options: TranscriptionOptions): string {
   const parts = [
+    TRANSCRIPTION_ENGINE_LABELS[options.engine],
     TRANSCRIPTION_LANGUAGE_LABELS[options.language],
     options.detect_speakers ? 'speakers on' : 'speakers off',
   ]
   if (fillerWordsApply(options.engine, options.language) && !options.keep_filler_words) parts.push('no um/uh')
-  if (options.mask_profanity) parts.push('profanity masked')
+  if (profanityMaskingApplies(options.engine) && options.mask_profanity) parts.push('profanity masked')
   return parts.join(' · ')
+}
+
+/** The hint a switch shows when the chosen engine can't do what it does. */
+function unavailableHint(options: TranscriptionOptions): string {
+  return `Not available with ${ENGINE_BRANDS[options.engine]}`
+}
+
+const ENGINE_BRANDS: Record<TranscriptionOptions['engine'], string> = {
+  deepgram: 'Deepgram',
+  soniox: 'Soniox',
+}
+
+/** Mixed languages: which ones each engine follows. */
+const MULTI_LANGUAGE_HINTS: Record<TranscriptionOptions['engine'], string> = {
+  deepgram: 'For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese, Hindi and Russian.',
+  soniox: 'For audio that switches between languages. Each passage is transcribed in the language spoken.',
 }
 
 function OptionSwitch({
@@ -66,6 +87,7 @@ function OptionSwitch({
 export default function CaptureAdvancedOptions({ options, onOptionsChange, disabled }: CaptureAdvancedOptionsProps) {
   const set = (patch: Partial<TranscriptionOptions>) => onOptionsChange({ ...options, ...patch })
   const fillersApply = fillerWordsApply(options.engine, options.language)
+  const profanityApplies = profanityMaskingApplies(options.engine)
   const itemRef = useRef<HTMLDivElement>(null)
 
   // The section sits at the foot of the dialog's scroll area, so once open it
@@ -86,6 +108,29 @@ export default function CaptureAdvancedOptions({ options, onOptionsChange, disab
           <span className="ml-auto truncate text-[11px] text-foreground/40">{summarizeTranscriptionOptions(options)}</span>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 pt-2">
+          <div className="space-y-1">
+            <Label className="text-xs font-medium opacity-80" htmlFor={engineSelectId}>Engine</Label>
+            <Select
+              value={options.engine}
+              onValueChange={(value) => {
+                const engine = TranscriptionEngineSchema.safeParse(value)
+                if (engine.success) set({ engine: engine.data })
+              }}
+              disabled={disabled}
+            >
+              <SelectTrigger id={engineSelectId} className="w-full bg-field/50 border-border rounded-sm px-3 py-2 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRANSCRIPTION_ENGINES.map((engine) => (
+                  <SelectItem key={engine} value={engine}>
+                    {TRANSCRIPTION_ENGINE_LABELS[engine]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="space-y-1">
             <Label className="text-xs font-medium opacity-80" htmlFor={languageSelectId}>Language</Label>
             <Select
@@ -108,9 +153,7 @@ export default function CaptureAdvancedOptions({ options, onOptionsChange, disab
               </SelectContent>
             </Select>
             {options.language === 'multi' && (
-              <p className="text-[10px] text-foreground/40">
-                For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese, Hindi and Russian.
-              </p>
+              <p className="text-[10px] text-foreground/40">{MULTI_LANGUAGE_HINTS[options.engine]}</p>
             )}
           </div>
 
@@ -123,17 +166,17 @@ export default function CaptureAdvancedOptions({ options, onOptionsChange, disab
           />
           <OptionSwitch
             label="Keep filler words"
-            hint={fillersApply ? 'Keep "um" and "uh"' : 'English only'}
+            hint={fillersApply ? 'Keep "um" and "uh"' : options.engine === 'deepgram' ? 'English only' : unavailableHint(options)}
             checked={fillersApply && options.keep_filler_words}
             onCheckedChange={(checked) => set({ keep_filler_words: checked })}
             disabled={disabled || !fillersApply}
           />
           <OptionSwitch
             label="Mask profanity"
-            hint="Swear words become ****"
-            checked={options.mask_profanity}
+            hint={profanityApplies ? 'Swear words become ****' : unavailableHint(options)}
+            checked={profanityApplies && options.mask_profanity}
             onCheckedChange={(checked) => set({ mask_profanity: checked })}
-            disabled={disabled}
+            disabled={disabled || !profanityApplies}
           />
         </AccordionContent>
       </AccordionItem>

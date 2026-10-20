@@ -13,6 +13,7 @@ import type {
     TranscriptionCompletedData,
     TranscriptionFailedData,
     WaveformRequestedData,
+    SonioxCallbackData,
 } from '@/contracts/events'
 import {
     TranscriptionRequestedDataSchema,
@@ -21,6 +22,7 @@ import {
     TranscriptionCompletedDataSchema,
     TranscriptionFailedDataSchema,
     WaveformRequestedDataSchema,
+    SonioxCallbackDataSchema,
 } from '@/contracts/events'
 
 export const transcriptionRequestedTrigger = eventType("transcription/requested", {
@@ -47,6 +49,10 @@ export const waveformRequestedTrigger = eventType("waveform/requested", {
     schema: WaveformRequestedDataSchema,
 })
 
+export const sonioxCallbackTrigger = eventType("soniox/callback", {
+    schema: SonioxCallbackDataSchema,
+})
+
 export type TranscriptionEvents = {
     "transcription/requested": {
         data: TranscriptionRequestedData;
@@ -65,5 +71,8 @@ export type TranscriptionEvents = {
     };
     "waveform/requested": {
         data: WaveformRequestedData;
+    };
+    "soniox/callback": {
+        data: SonioxCallbackData;
     };
 };
