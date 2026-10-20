@@ -256,4 +256,27 @@ describe("deepgramResultToWords spacing", () => {
 
         expect(words.map((word) => word.joinsPrevious ?? false)).toEqual([false, false, false, false]);
     });
+
+    it("a Japanese word Deepgram wrote differently only costs the spaces around it", () => {
+        // The words say は where the transcript says が; は comes again a
+        // sentence later, which must not pull the search there.
+        const pieces = ["会議", "は", "3", "時", "に", "始まり", "ます。", "資料", "は", "机", "に", "あります。"];
+        const raw = JSON.stringify({
+            results: {
+                channels: [{
+                    alternatives: [{
+                        transcript: "会議が3時に始まります。資料は机にあります。",
+                        words: pieces.map((text, i) =>
+                            createRawWord({ text, punctuatedText: text, startMs: i * 250, endMs: i * 250 + 200, speaker: 0 })
+                        ),
+                    }],
+                }],
+            },
+        });
+
+        const { words } = deepgramResultToWords(raw);
+        const [segment] = buildSegments(words, DEFAULT_SEGMENT_BUILDER_CONFIG);
+
+        expect(segment.text).toBe("会議 は 3時に始まります。資料は机にあります。");
+    });
 });

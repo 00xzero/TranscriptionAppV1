@@ -444,8 +444,16 @@ export async function recordEngineResult(opts: {
             await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
             return { outcome: 'duplicate' }
         }
-        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job changed during upload')
-        return { outcome: 'stale' }
+        if (state === 'stale') {
+            await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job changed during upload')
+            return { outcome: 'stale' }
+        }
+        // The job could not be read, or reads as still ours: nothing says to
+        // give up. The receipt is released first, so the retry takes it over
+        // at once instead of waiting out this attempt's lease.
+        const reason = typeof state === 'object' ? `Job unreadable after a refused link: ${state.error}` : 'Link refused; retrying'
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, reason)
+        return { outcome: 'retrying', retryAfter: 30 }
     }
 
     if (!linkedJob) {

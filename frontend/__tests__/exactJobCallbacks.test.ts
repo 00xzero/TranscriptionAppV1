@@ -140,6 +140,35 @@ describe('recordEngineResult with an exact job', () => {
     expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ status: 'failed' })])
   })
 
+  test('a refused link whose job then cannot be read is retried, not given up: the receipt is released first', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestA }])
+    mockUpload.mockImplementationOnce(async () => {
+      // The link is refused, and the read that would explain why fails.
+      job(db, jobA).status = 'queued'
+      db.failingReads.add('jobs')
+    })
+
+    await expect(record(db)).resolves.toEqual({ outcome: 'retrying', retryAfter: 30 })
+    expect(job(db, jobA).result_object_key).toBeNull()
+    expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ status: 'failed' })])
+
+    // The retry takes the released receipt over at once and completes.
+    job(db, jobA).status = 'processing'
+    db.failingReads.delete('jobs')
+    await expect(record(db)).resolves.toEqual(expect.objectContaining({ outcome: 'processed' }))
+    expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ status: 'completed' })])
+  })
+
+  test('a refused link on a job that went back to queued is retried too', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestA }])
+    mockUpload.mockImplementationOnce(async () => {
+      job(db, jobA).status = 'queued'
+    })
+
+    await expect(record(db)).resolves.toEqual({ outcome: 'retrying', retryAfter: 30 })
+    expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ status: 'failed' })])
+  })
+
   test('a failed hand-off leaves the file linked and the receipt failed; the retry overwrites the same file and completes', async () => {
     const db = setup([{ id: jobA, inngest_event_id: requestA }])
     mockSend.mockRejectedValueOnce(new Error('send failed'))
@@ -260,6 +289,13 @@ describe('sonioxHandoffState', () => {
       ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'db down' } }) }) }) }
       : client.from(table)) }
     await expect(sonioxHandoffState(broken as never, { jobId: jobA, requestId: requestA })).rejects.toThrow('db down')
+  })
+
+  test('a job running another request (this callback was an orphaned start) is not this callback\'s to fail', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestB, result_object_key: 'key-b' }])
+    await expect(read(db)).resolves.toEqual({ handedOff: true, resultLinked: false, jobExists: true })
+    const fresh = setup([{ id: jobA, inngest_event_id: requestB }])
+    await expect(read(fresh)).resolves.toEqual({ handedOff: true, resultLinked: false, jobExists: true })
   })
 
   test('a finished or deleted job has nothing left to fail', async () => {

@@ -69,8 +69,9 @@ export async function readSonioxCallbackState(
 
 /**
  * After retries ran out, how far did this callback get?
- * - `handedOff`: the result was handed off (receipt completed) or the job is
- *   already finished: only cleanup failed.
+ * - `handedOff`: the result was handed off (receipt completed), the job is
+ *   already finished, or the job runs another request (this one was an
+ *   orphaned start): only cleanup failed.
  * - `resultLinked`: our copy is linked but the handoff is not confirmed: the
  *   event may well have gone out and the job may still be processing, so it
  *   must not be failed; the timeout reaper settles it if nothing does.
@@ -83,7 +84,7 @@ export async function sonioxHandoffState(
     { jobId, requestId }: { jobId: string; requestId: string }
 ): Promise<{ handedOff: boolean; resultLinked: boolean; jobExists: boolean }> {
     const [{ data: job, error: jobError }, { data: receipt, error: receiptError }] = await Promise.all([
-        supabase.from("jobs").select("status, result_object_key").eq("id", jobId).maybeSingle(),
+        supabase.from("jobs").select("status, result_object_key, inngest_event_id").eq("id", jobId).maybeSingle(),
         supabase
             .from("webhook_receipts")
             .select("status")
@@ -94,9 +95,13 @@ export async function sonioxHandoffState(
     if (jobError || receiptError) {
         throw new Error(`Failed to read the Soniox callback's state: ${(jobError ?? receiptError)?.message}`);
     }
+    // A job running another request (this one was an orphaned start) is not
+    // this callback's to fail: its own request reports for it.
+    const otherRequest = !!job?.inngest_event_id && job.inngest_event_id !== requestId;
     const handedOff =
         receipt?.status === "completed" ||
+        otherRequest ||
         // A job that is gone or already finished has nothing left to fail.
         !job || job.status === "completed" || job.status === "error";
-    return { handedOff, resultLinked: !!job?.result_object_key, jobExists: !!job };
+    return { handedOff, resultLinked: !otherRequest && !!job?.result_object_key, jobExists: !!job };
 }

@@ -22,6 +22,8 @@ export class FakeAdmin {
     tables: Record<string, Row[]> = { jobs: [], transcripts: [], webhook_receipts: [], failed_events: [] }
     /** Updates of these tables fail without committing. */
     failingUpdates = new Set<string>()
+    /** Reads of these tables fail. */
+    failingReads = new Set<string>()
 
     from(table: string) {
         this.tables[table] ??= []
@@ -145,6 +147,7 @@ class FakeQuery implements PromiseLike<Result> {
             for (const row of rows) Object.assign(row, this.patch)
             return this.returning ? this.answer(rows) : { data: null, error: null }
         }
+        if (this.db.failingReads.has(this.table)) return { data: null, error: { message: 'read failed' } }
         return this.answer(this.matches())
     }
 }
