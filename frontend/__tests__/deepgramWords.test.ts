@@ -1,5 +1,5 @@
 import { DEFAULT_SEGMENT_BUILDER_CONFIG, buildSegments } from "@/core/transcript/segment-builder";
-import { normalizeWords } from "@/core/transcription/engines/deepgram-words";
+import { deepgramResultToWords, normalizeWords } from "@/core/transcription/engines/deepgram-words";
 import { createRawWord } from "./helpers/deepgramWord";
 
 describe("normalizeWords", () => {
@@ -91,6 +91,22 @@ describe("normalizeWords", () => {
         });
 
         expect(normalized.map((word) => word.paragraphIndex)).toEqual([0, 0, 1]);
+    });
+
+    it("treats a Japanese comma like a comma, against a metadata sentence change", () => {
+        const words = [
+            createRawWord({ text: "今日は、", punctuatedText: "今日は、", startMs: 0, endMs: 200, speaker: 0 }),
+            createRawWord({ text: "天気", punctuatedText: "天気", startMs: 1200, endMs: 1450, speaker: 0 }),
+        ];
+
+        const normalized = normalizeWords(words, {
+            paragraphs: [
+                { speaker: 0, start: 0, end: 0.22, sentences: [{ text: "今日は、", start: 0, end: 0.22 }] },
+                { speaker: 0, start: 1.1, end: 1.5, sentences: [{ text: "天気", start: 1.1, end: 1.5 }] },
+            ],
+        });
+
+        expect(normalized[0].sentenceEnd).toBe(false);
     });
 
     it("does not treat commas as sentence endings just because metadata says the sentence changed", () => {
@@ -213,5 +229,54 @@ describe("without speaker detection", () => {
         expect(normalized.every((word) => word.speaker === null)).toBe(true);
         expect(segments.length).toBeGreaterThan(0);
         expect(segments.every((segment) => segment.speakerNum === null)).toBe(true);
+    });
+});
+
+describe("deepgramResultToWords spacing", () => {
+    it("never joins English words, even when a word is found only inside a longer one", () => {
+        // "Dr." is not in the transcript, and "a" is first found inside "banana",
+        // right before "nana": the search must not glue "nana" to "a".
+        const raw = JSON.stringify({
+            results: {
+                channels: [{
+                    alternatives: [{
+                        transcript: "Doctor banana split.",
+                        words: [
+                            createRawWord({ text: "dr", punctuatedText: "Dr.", startMs: 0, endMs: 200 }),
+                            createRawWord({ text: "a", punctuatedText: "a", startMs: 200, endMs: 300 }),
+                            createRawWord({ text: "nana", punctuatedText: "nana", startMs: 300, endMs: 500 }),
+                            createRawWord({ text: "split", punctuatedText: "split.", startMs: 500, endMs: 800 }),
+                        ],
+                    }],
+                }],
+            },
+        });
+
+        const { words } = deepgramResultToWords(raw);
+
+        expect(words.map((word) => word.joinsPrevious ?? false)).toEqual([false, false, false, false]);
+    });
+
+    it("a Japanese word Deepgram wrote differently only costs the spaces around it", () => {
+        // The words say は where the transcript says が; は comes again a
+        // sentence later, which must not pull the search there.
+        const pieces = ["会議", "は", "3", "時", "に", "始まり", "ます。", "資料", "は", "机", "に", "あります。"];
+        const raw = JSON.stringify({
+            results: {
+                channels: [{
+                    alternatives: [{
+                        transcript: "会議が3時に始まります。資料は机にあります。",
+                        words: pieces.map((text, i) =>
+                            createRawWord({ text, punctuatedText: text, startMs: i * 250, endMs: i * 250 + 200, speaker: 0 })
+                        ),
+                    }],
+                }],
+            },
+        });
+
+        const { words } = deepgramResultToWords(raw);
+        const [segment] = buildSegments(words, DEFAULT_SEGMENT_BUILDER_CONFIG);
+
+        expect(segment.text).toBe("会議 は 3時に始まります。資料は机にあります。");
     });
 });

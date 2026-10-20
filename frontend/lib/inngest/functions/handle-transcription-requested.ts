@@ -29,9 +29,10 @@ export const handleTranscriptionRequested = inngest.createFunction(
         triggers: [{ event: transcriptionRequestedTrigger }],
         concurrency: {
             scope: "account",
-            // One queue while Deepgram is the only engine. A per-engine key must
-            // cope with events that name no engine: the scheduler reads this
-            // expression, not resolveTranscriptionOptions.
+            // One queue for every engine, named for the first one. It limits
+            // only the short start call, so sharing costs little, and a fixed
+            // key needs nothing from the event (the scheduler reads this
+            // expression, not resolveTranscriptionOptions).
             key: '"deepgram"',
             limit: DEEPGRAM_CONCURRENCY,
         },
@@ -104,6 +105,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
             const response = await getEngine(transcription.engine).start({
                 mediaUrl: mediaUrlResult.url,
                 transcriptId,
+                jobId,
                 keyTerms,
                 options: transcription,
             });

@@ -40,6 +40,18 @@ export function classifyError(errorText: string): {
         };
     }
 
+    // Soniox carries key terms in `context`, which has a size limit of its own.
+    if (
+        errorLower.includes("context") &&
+        ["limit", "exceed", "too long", "too large"].some((phrase) => errorLower.includes(phrase))
+    ) {
+        return {
+            type: ERROR_TYPE_KEYTERM,
+            message:
+                "Too many key terms for Soniox. Please use fewer or shorter terms.",
+        };
+    }
+
     // Generic keyterm error
     if (errorLower.includes("keyterm") || errorLower.includes("keyword")) {
         return {

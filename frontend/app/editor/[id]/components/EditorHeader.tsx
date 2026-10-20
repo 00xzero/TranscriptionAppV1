@@ -11,6 +11,7 @@ export default function EditorHeader({
   displayTitle,
   transcriptCreatedAt,
   transcriptDurationSecs,
+  engineLabel,
   speakerSummary,
   status,
   editingTitle,
@@ -27,7 +28,9 @@ export default function EditorHeader({
   displayTitle: string
   transcriptCreatedAt: string | null
   transcriptDurationSecs: number | null
-  /** The speaker summary button, after the date and duration. */
+  /** The engine that made the transcript, after the duration. */
+  engineLabel?: string | null
+  /** The speaker summary button, after the date, duration and engine. */
   speakerSummary?: React.ReactNode
   status: string
   editingTitle: boolean
@@ -107,6 +110,12 @@ export default function EditorHeader({
                   </>
                 )}
                 {transcriptDurationSecs !== null && <span>{formatClockTime(transcriptDurationSecs, 'always')}</span>}
+                {engineLabel && (
+                  <>
+                    {(transcriptCreatedAt || transcriptDurationSecs !== null) && <span>&bull;</span>}
+                    <span>{engineLabel}</span>
+                  </>
+                )}
                 {/* No bullet before the faces: they set themselves apart, and on a
                     narrow screen, where they wrap, a bullet would be left dangling. */}
                 {speakerSummary}

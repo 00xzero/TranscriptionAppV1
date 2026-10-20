@@ -233,6 +233,21 @@ describe('POST /api/transcripts', () => {
     ])
   })
 
+  test('a Soniox transcript records filler words and profanity masking off, which Soniox cannot do', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { engine: 'soniox', language: 'en', detect_speakers: true, keep_filler_words: true, mask_profanity: true },
+    })
+
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.objectContaining({ engine: 'soniox', language: 'en', keep_filler_words: false, mask_profanity: false }),
+    ])
+  })
+
   test('refuses an engine not offered', async () => {
     const transcripts = makeTranscriptTable({ insertResults: [] })
 

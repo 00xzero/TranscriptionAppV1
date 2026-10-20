@@ -10,7 +10,7 @@ import {
     type DeepgramWord,
 } from "@/contracts/webhook";
 import type { NormalizedWord } from "@/core/transcript/segment-builder";
-import { isSentenceBoundary } from "@/core/transcript/text-utils";
+import { isSentenceBoundary, NO_SPACE_CHAR } from "@/core/transcript/text-utils";
 import type { EngineWords } from "./types";
 
 const TIMESTAMP_TOLERANCE_MS = 50;
@@ -37,9 +37,10 @@ function inferSentenceEndFromMetadataHint(
     }
 
     // Explicit non-terminal punctuation (comma, semicolon, colon, dash) is strong
-    // counter-evidence to any metadata-based sentence boundary signal. Deepgram
-    // occasionally splits paragraphs mid-clause at a comma; trust the punctuation.
-    if (/[,;:\-]$/.test(word.punctuatedText.trimEnd())) {
+    // counter-evidence to any metadata-based sentence boundary signal, Japanese
+    // 、，；： included. Deepgram occasionally splits paragraphs mid-clause at a
+    // comma; trust the punctuation.
+    if (/[,;:\-、，；：]$/.test(word.punctuatedText.trimEnd())) {
         return false;
     }
 
@@ -208,7 +209,41 @@ export function deepgramResultToWords(rawJson: string): EngineWords {
     const alt = parsed.data.results?.channels?.[0]?.alternatives?.[0];
     const rawWords = alt?.words ?? [];
     return {
-        words: rawWords.length > 0 ? normalizeWords(rawWords, alt?.paragraphs ?? null) : [],
+        words: rawWords.length > 0 ? markWrittenJoins(normalizeWords(rawWords, alt?.paragraphs ?? null), alt?.transcript) : [],
         fallbackText: alt?.transcript ?? "",
     };
+}
+
+/**
+ * Deepgram's words carry no spacing, but its transcript does: Japanese is
+ * written with no space between words. Each word is found in the transcript in
+ * order, and one written straight after the word before is marked as joining
+ * it. A word that can't be found where expected keeps its space (the default),
+ * and the search steps past it only when it turns up a little further on.
+ * Only words next to a script written without spaces are ever joined, so a
+ * search that picks up inside a longer word can't glue two English words
+ * together.
+ */
+function markWrittenJoins(words: NormalizedWord[], transcript: string | undefined): NormalizedWord[] {
+    if (!transcript) return words;
+    let cursor = 0;
+    return words.map((word, index) => {
+        const leading = /^\s*/.exec(transcript.slice(cursor))?.[0].length ?? 0;
+        const at = cursor + leading;
+        if (transcript.startsWith(word.punctuatedText, at)) {
+            cursor = at + word.punctuatedText.length;
+            const joins = index > 0 && leading === 0 &&
+                (NO_SPACE_CHAR.test(word.punctuatedText) || NO_SPACE_CHAR.test(words[index - 1].punctuatedText));
+            return joins ? { ...word, joinsPrevious: true } : word;
+        }
+        // Look only a little ahead: far enough to step over a word Deepgram
+        // wrote differently in its transcript, never so far that a common
+        // one-character word is found again in a later sentence, which would
+        // leave every word after it unjoined. Not found nearby, the cursor stays.
+        const later = transcript.indexOf(word.punctuatedText, cursor);
+        if (later >= 0 && later - cursor <= Math.max(4, 2 * word.punctuatedText.length)) {
+            cursor = later + word.punctuatedText.length;
+        }
+        return word;
+    });
 }
