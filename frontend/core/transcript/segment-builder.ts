@@ -15,6 +15,11 @@ export interface NormalizedWord {
     speakerConfidence: number | null;
     paragraphIndex: number | null;
     sentenceEnd: boolean;
+    /**
+     * Written straight after the word before, with no space between them
+     * (scripts such as Japanese). Only some engines say so; unset means a space.
+     */
+    joinsPrevious?: boolean;
 }
 
 export interface SegmentBuilderConfig {
@@ -49,11 +54,27 @@ export const DEFAULT_SEGMENT_BUILDER_CONFIG: SegmentBuilderConfig = {
     algoVersion: "v2.0-segments",
 };
 
+/**
+ * The words as they were written: a word that joins the one before it is glued
+ * to it, so normalizeText puts spaces only where the engine had them.
+ */
+function joinWords(words: NormalizedWord[]): string[] {
+    const texts: string[] = [];
+    for (const [index, word] of words.entries()) {
+        if (index > 0 && word.joinsPrevious) {
+            texts[texts.length - 1] += word.punctuatedText.trim();
+        } else {
+            texts.push(word.punctuatedText);
+        }
+    }
+    return texts;
+}
+
 function finalizeSegment(
     words: NormalizedWord[],
     config: SegmentBuilderConfig
 ): BuiltSegment {
-    const text = normalizeText(words.map((word) => word.punctuatedText));
+    const text = normalizeText(joinWords(words));
     const isFillerSegment = (
         getWordCount(text) <= config.minAbsorbWords &&
         isFiller(text, config.fillerPatterns)

@@ -5,6 +5,7 @@
  */
 
 import {
+    TRANSCRIPTION_ENGINES,
     TRANSCRIPTION_ENGINE_LABELS,
     TRANSCRIPTION_LANGUAGES,
     type TranscriptionEngine,
@@ -62,6 +63,12 @@ function formatLength(totalMinutes: number): string {
 export function engineLengthRefusal(engine: TranscriptionEngine, durationSeconds: number): string | null {
     const limit = ENGINE_CAPABILITIES[engine].maxDurationSeconds;
     if (limit === null || durationSeconds <= limit) return null;
+    // A transcript's engine is fixed, so another one means uploading again.
+    const others = TRANSCRIPTION_ENGINES.filter((other) => {
+        const otherLimit = ENGINE_CAPABILITIES[other].maxDurationSeconds;
+        return otherLimit === null || durationSeconds <= otherLimit;
+    }).map((other) => TRANSCRIPTION_ENGINE_LABELS[other]);
+    const advice = others.length > 0 ? ` Upload it again and choose ${others.join(" or ")}.` : "";
     // The file's length rounds up, so it never reads as no longer than the limit.
-    return `${TRANSCRIPTION_ENGINE_LABELS[engine]} accepts audio up to ${formatLength(limit / 60)}; this file is ${formatLength(Math.ceil(durationSeconds / 60))}. Choose Deepgram Nova-3 for longer files.`;
+    return `${TRANSCRIPTION_ENGINE_LABELS[engine]} accepts audio up to ${formatLength(limit / 60)}; this file is ${formatLength(Math.ceil(durationSeconds / 60))}.${advice}`;
 }

@@ -219,9 +219,14 @@ describe('readSonioxCallbackState', () => {
     await expect(read(db)).resolves.toEqual({ state: 'stored', resultObjectKey: 'key' })
   })
 
-  test('a failed attempt, or another request: stale', async () => {
-    await expect(read(setup([{ id: jobA, status: 'error', inngest_event_id: requestA }]))).resolves.toEqual({ state: 'stale' })
-    await expect(read(setup([{ id: jobA, inngest_event_id: requestB }]))).resolves.toEqual({ state: 'stale' })
+  test('a failed attempt, or another request: stale, and only another request is an orphaned start', async () => {
+    await expect(read(setup([{ id: jobA, status: 'error', inngest_event_id: requestA }])))
+      .resolves.toEqual({ state: 'stale', otherRequest: false })
+    await expect(read(setup([{ id: jobA, inngest_event_id: requestB }])))
+      .resolves.toEqual({ state: 'stale', otherRequest: true })
+    // A failed job that another request had replaced is still an orphaned start.
+    await expect(read(setup([{ id: jobA, status: 'error', inngest_event_id: requestB }])))
+      .resolves.toEqual({ state: 'stale', otherRequest: true })
   })
 
   test('still queued: not ready', async () => {

@@ -1,0 +1,434 @@
+{
+ "transcription": {
+  "id": "00000000-0000-4000-8000-0000000000ee",
+  "status": "completed",
+  "model": "stt-async-v5",
+  "audio_duration_ms": null
+ },
+ "transcript": {
+  "id": "00000000-0000-4000-8000-0000000000ee",
+  "text": "おはようございます。今日はいい天気ですね。会議は3時に始まります。資料を準備してください。",
+  "tokens": [
+   {
+    "text": "お",
+    "start_ms": 150,
+    "end_ms": 210,
+    "confidence": 0.9999179840087891,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "は",
+    "start_ms": 270,
+    "end_ms": 330,
+    "confidence": 0.9986085891723633,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "よう",
+    "start_ms": 390,
+    "end_ms": 450,
+    "confidence": 0.9984181523323059,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ご",
+    "start_ms": 570,
+    "end_ms": 630,
+    "confidence": 0.9999771118164062,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ざ",
+    "start_ms": 630,
+    "end_ms": 690,
+    "confidence": 0.9999675750732422,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "い",
+    "start_ms": 750,
+    "end_ms": 810,
+    "confidence": 0.9999885559082031,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ま",
+    "start_ms": 810,
+    "end_ms": 870,
+    "confidence": 0.9999907612800598,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "す",
+    "start_ms": 930,
+    "end_ms": 990,
+    "confidence": 0.9999905228614807,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "。",
+    "start_ms": 1170,
+    "end_ms": 1230,
+    "confidence": 0.9978033900260925,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "今",
+    "start_ms": 1530,
+    "end_ms": 1590,
+    "confidence": 0.971207857131958,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "日",
+    "start_ms": 1650,
+    "end_ms": 1710,
+    "confidence": 0.999969482421875,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "は",
+    "start_ms": 1770,
+    "end_ms": 1830,
+    "confidence": 0.9999535083770752,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "い",
+    "start_ms": 2250,
+    "end_ms": 2310,
+    "confidence": 0.985606849193573,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "い",
+    "start_ms": 2370,
+    "end_ms": 2430,
+    "confidence": 0.9999809265136719,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "天",
+    "start_ms": 2550,
+    "end_ms": 2610,
+    "confidence": 0.9999828338623047,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "気",
+    "start_ms": 2670,
+    "end_ms": 2730,
+    "confidence": 0.9998798370361328,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "で",
+    "start_ms": 2790,
+    "end_ms": 2850,
+    "confidence": 0.9999980926513672,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "す",
+    "start_ms": 2910,
+    "end_ms": 2970,
+    "confidence": 0.9999942779541016,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ね",
+    "start_ms": 3030,
+    "end_ms": 3090,
+    "confidence": 0.9999866485595703,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "。",
+    "start_ms": 3390,
+    "end_ms": 3450,
+    "confidence": 0.6511743068695068,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "会",
+    "start_ms": 3690,
+    "end_ms": 3750,
+    "confidence": 0.9954100847244263,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "議",
+    "start_ms": 3810,
+    "end_ms": 3870,
+    "confidence": 0.9994527697563171,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "は",
+    "start_ms": 3990,
+    "end_ms": 4050,
+    "confidence": 0.9999618530273438,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "3",
+    "start_ms": 4410,
+    "end_ms": 4470,
+    "confidence": 0.9848777651786804,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "時",
+    "start_ms": 4590,
+    "end_ms": 4650,
+    "confidence": 0.9665398597717285,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "に",
+    "start_ms": 4770,
+    "end_ms": 4830,
+    "confidence": 0.9996491074562073,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "始",
+    "start_ms": 4950,
+    "end_ms": 5010,
+    "confidence": 0.99993896484375,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ま",
+    "start_ms": 5070,
+    "end_ms": 5130,
+    "confidence": 0.9999866485595703,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "り",
+    "start_ms": 5190,
+    "end_ms": 5250,
+    "confidence": 0.9999904632568359,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "ま",
+    "start_ms": 5250,
+    "end_ms": 5310,
+    "confidence": 0.9999980926513672,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "す",
+    "start_ms": 5370,
+    "end_ms": 5430,
+    "confidence": 0.9999980926513672,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "。",
+    "start_ms": 5610,
+    "end_ms": 5670,
+    "confidence": 0.7035650610923767,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "資料",
+    "start_ms": 6030,
+    "end_ms": 6090,
+    "confidence": 0.8481259346008301,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "を",
+    "start_ms": 6330,
+    "end_ms": 6390,
+    "confidence": 0.9999790191650391,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "準",
+    "start_ms": 6570,
+    "end_ms": 6630,
+    "confidence": 0.9996052384376526,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "備",
+    "start_ms": 6750,
+    "end_ms": 6810,
+    "confidence": 0.9997521042823792,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "して",
+    "start_ms": 6930,
+    "end_ms": 6990,
+    "confidence": 0.9999942779541016,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "く",
+    "start_ms": 7170,
+    "end_ms": 7230,
+    "confidence": 0.9999370574951172,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "だ",
+    "start_ms": 7290,
+    "end_ms": 7350,
+    "confidence": 0.9999923706054688,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "さ",
+    "start_ms": 7350,
+    "end_ms": 7410,
+    "confidence": 0.9999542832374573,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "い",
+    "start_ms": 7470,
+    "end_ms": 7530,
+    "confidence": 0.999937117099762,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   },
+   {
+    "text": "。",
+    "start_ms": 7530,
+    "end_ms": 7590,
+    "confidence": 0.9999828338623047,
+    "speaker": "1",
+    "language": null,
+    "is_audio_event": null,
+    "translation_status": null
+   }
+  ]
+ }
+}

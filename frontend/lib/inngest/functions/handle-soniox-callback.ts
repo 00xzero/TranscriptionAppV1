@@ -7,11 +7,13 @@
  * it for 30 days. Our own records are read first, so a replayed or late
  * callback fetches nothing. Soniox's copy is never deleted before ours is safe:
  * when retries run out it stays there, retrievable, until its 30 days are up.
+ * A stale callback keeps it too when its attempt failed (it may be wanted to
+ * recover the transcript); only an orphaned start, whose job another request
+ * replaced, is deleted straight away, since nothing of ours will ever read it.
  */
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
-import { downloadTranscriptionResult } from "@/infra/supabase/transcription-results.server";
 import {
     deleteSonioxTranscription,
     fetchSonioxTranscript,
@@ -104,30 +106,35 @@ export const handleSonioxCallback = inngest.createFunction(
             return state;
         });
 
-        if (checked.state === "stale") {
+        // A failed or missing attempt keeps Soniox's copy, retrievable; only an
+        // orphaned start (another request replaced it) is deleted there.
+        if (checked.state === "stale" && !checked.otherRequest) {
             console.log(`[inngest] Soniox callback ${requestId} is stale; leaving it`);
             return { status: "stale", transcriptId, jobId };
         }
+        const orphaned = checked.state === "stale";
+        if (orphaned) console.log(`[inngest] Soniox request ${requestId} was replaced on job ${jobId}; forgetting it at Soniox`);
 
         if (checked.state === "fresh" || checked.state === "stored") {
             const recorded = status === "completed"
                 ? await step.run("store-result", async () => {
                     const supabase = createAdminClient();
-                    // Resume from our own copy when it is already stored; the
-                    // transcript is never passed through a step's return value.
-                    const rawBody = checked.state === "stored"
-                        ? await downloadTranscriptionResult(supabase, checked.resultObjectKey)
-                        : JSON.stringify({
-                            transcription: (await fetchSonioxTranscription(requestId)).raw,
-                            transcript: (await fetchSonioxTranscript(requestId)).raw,
-                        });
+                    // Resume from our own copy, already stored and linked, without
+                    // storing it again; the transcript is never passed through a
+                    // step's return value.
+                    const stored = checked.state === "stored"
+                        ? { storedObjectKey: checked.resultObjectKey }
+                        : await Promise.all([fetchSonioxTranscription(requestId), fetchSonioxTranscript(requestId)])
+                            .then(([transcription, transcript]) => ({
+                                rawBody: JSON.stringify({ transcription: transcription.raw, transcript: transcript.raw }),
+                            }));
                     const result = await recordEngineResult({
                         supabase,
                         engine: "soniox",
                         jobId,
                         requestId,
                         transcriptId,
-                        rawBody,
+                        ...stored,
                     });
                     if (result.outcome === "processed") return { state: "recorded" as const, attemptId: result.attemptId ?? null };
                     if (result.outcome === "duplicate") return { state: "recorded" as const, attemptId: null };
@@ -157,6 +164,7 @@ export const handleSonioxCallback = inngest.createFunction(
                 });
 
             if (recorded.state === "stale") {
+                // Why it changed is unknown here, so Soniox's copy is kept.
                 console.log(`[inngest] Soniox job ${requestId} no longer matches job ${jobId}; leaving it`);
                 return { status: "stale", transcriptId, jobId };
             }
@@ -173,10 +181,10 @@ export const handleSonioxCallback = inngest.createFunction(
             }
         }
 
-        // Ours is safe (stored and handed off, or the failure recorded), or the
-        // transcript is gone: Soniox's copy can go.
+        // Ours is safe (stored and handed off, or the failure recorded), the
+        // transcript is gone, or the start was orphaned: Soniox's copy can go.
         await step.run("forget-at-soniox", () => deleteSonioxTranscription(requestId));
 
-        return { status: checked.state === "gone" ? "forgotten" : status, transcriptId, jobId };
+        return { status: orphaned ? "stale" : checked.state === "gone" ? "forgotten" : status, transcriptId, jobId };
     }
 );

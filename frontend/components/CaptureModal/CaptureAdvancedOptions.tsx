@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import {
   TRANSCRIPTION_ENGINES,
+  TRANSCRIPTION_ENGINE_BRANDS,
   TRANSCRIPTION_ENGINE_LABELS,
   TRANSCRIPTION_LANGUAGES,
   TRANSCRIPTION_LANGUAGE_LABELS,
@@ -39,12 +40,7 @@ export function summarizeTranscriptionOptions(options: TranscriptionOptions): st
 
 /** The hint a switch shows when the chosen engine can't do what it does. */
 function unavailableHint(options: TranscriptionOptions): string {
-  return `Not available with ${ENGINE_BRANDS[options.engine]}`
-}
-
-const ENGINE_BRANDS: Record<TranscriptionOptions['engine'], string> = {
-  deepgram: 'Deepgram',
-  soniox: 'Soniox',
+  return `Not available with ${TRANSCRIPTION_ENGINE_BRANDS[options.engine]}`
 }
 
 /** Mixed languages: which ones each engine follows. */

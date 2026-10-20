@@ -30,7 +30,7 @@ import {
     settleUnlinked,
 } from "@/lib/media/prepare-steps";
 import { resolveTranscriptionOptions } from "@/contracts/transcription-options";
-import { engineLengthRefusal } from "@/core/transcription/engines/capabilities";
+import { ENGINE_CAPABILITIES, engineLengthRefusal } from "@/core/transcription/engines/capabilities";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
 const MEDIA_PREPARE_CONCURRENCY = readPositiveIntEnv("MEDIA_PREPARE_CONCURRENCY", 2);
@@ -116,9 +116,14 @@ export const handleMediaPrepare = inngest.createFunction(
         const failSuperseded = () =>
             failJob("superseded", "The transcript's media changed while it was being prepared");
 
+        // An upload kept as it is is still measured when its engine has a
+        // length limit; only its length is used then, never its decision.
+        const { engine } = resolveTranscriptionOptions(transcriptionOptions);
+        const probeKey = sourceKey ?? (ENGINE_CAPABILITIES[engine].maxDurationSeconds !== null ? source.sourceKey : null);
+
         let decided: DecideResult | null = null;
-        if (sourceKey !== null) {
-            const key = sourceKey;
+        if (probeKey !== null) {
+            const key = probeKey;
             try {
                 decided = await step.run("decide", () => decide(createAdminClient(), key));
                 const { decision } = decided;
@@ -131,7 +136,6 @@ export const handleMediaPrepare = inngest.createFunction(
         // Outside the try above: a file too long for its engine is refused, not
         // mistaken for one that could not be probed. An unknown length goes on,
         // and the engine refuses it itself if it must.
-        const { engine } = resolveTranscriptionOptions(transcriptionOptions);
         const probedSeconds = decided?.probe?.audioDurationSeconds ?? null;
         const lengthRefusal = probedSeconds === null ? null : engineLengthRefusal(engine, probedSeconds);
         if (lengthRefusal) {

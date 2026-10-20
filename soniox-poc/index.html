@@ -36,7 +36,7 @@
   }
   label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
   .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
-  input[type="text"], input[type="password"], select {
+  input[type="text"], input[type="password"], select, textarea {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--line);
@@ -126,7 +126,7 @@
     <div class="row">
       <div class="field">
         <label for="model">Model</label>
-        <input type="text" id="model" value="stt-async-preview" />
+        <input type="text" id="model" value="stt-async-v5" />
       </div>
       <div class="field">
         <label for="langHints">Language hints <span class="hint">comma-separated, optional</span></label>
@@ -142,6 +142,19 @@
         <input type="checkbox" id="diarize" checked />
         <label for="diarize">Speaker diarization</label>
       </div>
+      <div class="field checkbox">
+        <input type="checkbox" id="audioEvents" />
+        <label for="audioEvents">Audio events <span class="hint">undocumented flag</span></label>
+      </div>
+    </div>
+    <div class="field">
+      <label for="context">Context <span class="hint">JSON for the <code>context</code> field, optional</span></label>
+      <textarea id="context" rows="6" spellcheck="false" style="font-family: ui-monospace, monospace; font-size: 12px;" placeholder='{"terms": ["Dechra"]}'>{
+  "general": [
+    { "key": "transcription_style", "value": "Strict verbatim. Keep every filler word (um, uh, er, ah), false start and repetition exactly as spoken." }
+  ],
+  "terms": ["Dechra", "Innoverv", "Partha", "Sana", "Shivam", "Deloitte"]
+}</textarea>
     </div>
   </div>
 
@@ -268,22 +281,31 @@
     $("log").innerHTML = "";
     setBadge("");
 
+    // Soniox keeps uploads and transcriptions for 30 days unless deleted.
+    let fileId = null;
+    let transcriptionId = null;
+
     try {
       // 1) upload file
       log(`Uploading "${selectedFile.name}" (${(selectedFile.size/1024/1024).toFixed(2)} MB)…`);
       const form = new FormData();
       form.append("file", selectedFile);
       const fileRes = await apiFetch("/v1/files", { method: "POST", headers: authHeaders(), body: form });
+      fileId = fileRes.id;
       log(`Uploaded. file_id = ${fileRes.id}`, "ok");
 
       // 2) create transcription
       const body = {
         file_id: fileRes.id,
-        model: $("model").value.trim() || "stt-async-preview",
+        model: $("model").value.trim() || "stt-async-v5",
         enable_speaker_diarization: $("diarize").checked,
       };
       const hints = $("langHints").value.split(",").map(s => s.trim()).filter(Boolean);
       if (hints.length) body.language_hints = hints;
+      // Not in Soniox's API reference, but the transcription object echoes it.
+      if ($("audioEvents").checked) body.enable_audio_event_detection = true;
+      const context = $("context").value.trim();
+      if (context) body.context = JSON.parse(context);
 
       log(`Creating transcription (model=${body.model}, diarization=${body.enable_speaker_diarization})…`);
       const job = await apiFetch("/v1/transcriptions", {
@@ -291,6 +313,7 @@
         headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      transcriptionId = job.id;
       log(`Job created. id = ${job.id}`, "ok");
 
       // 3) poll until completed/error
@@ -320,7 +343,19 @@
       log(e.message, "err");
       setBadge("error");
     } finally {
+      // The transcription, then the file it was made from.
+      if (transcriptionId) await cleanup(`/v1/transcriptions/${transcriptionId}`, "transcription");
+      if (fileId) await cleanup(`/v1/files/${fileId}`, "file");
       $("startBtn").disabled = false;
+    }
+  }
+
+  async function cleanup(path, what) {
+    try {
+      await apiFetch(path, { method: "DELETE", headers: authHeaders() });
+      log(`Deleted ${what} from Soniox.`, "dim");
+    } catch (e) {
+      log(`Could not delete ${what}: ${e.message}`, "err");
     }
   }
 

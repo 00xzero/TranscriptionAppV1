@@ -442,10 +442,31 @@ describe('handleMediaPrepare', () => {
                 data: {
                     transcriptId,
                     jobId,
-                    error: 'Soniox v5 accepts audio up to 5 h; this file is 6 h 12 min. Choose Deepgram Nova-3 for longer files.',
+                    error: 'Soniox v5 accepts audio up to 5 h; this file is 6 h 12 min. Upload it again and choose Deepgram Nova-3.',
                     errorType: 'transcription_error',
                 },
             }])
+        })
+
+        test('an upload kept as it is is still measured, and refused when too long, but never converted', async () => {
+            steps.loadSource.mockResolvedValue({ proceed: true, sourceKey, skip: 'waited_too_long' })
+            steps.decide.mockResolvedValue({ ...transcode, probe: { ...probe, audioDurationSeconds: sixHoursTwelve } })
+
+            const { result } = await execute([], {}, withSoniox)
+
+            expect(steps.decide).toHaveBeenCalled()
+            expect(steps.convertAndUpload).not.toHaveBeenCalled()
+            expect(result).toEqual({ status: 'stopped', reason: 'too_long' })
+        })
+
+        test('an upload kept as it is, short enough for Soniox, goes on unconverted', async () => {
+            steps.loadSource.mockResolvedValue({ proceed: true, sourceKey, skip: 'waveform_busy' })
+            steps.decide.mockResolvedValue({ ...transcode, probe: { ...probe, audioDurationSeconds: 3600 } })
+
+            const { ctx } = await execute([], {}, withSoniox)
+
+            expect(steps.convertAndUpload).not.toHaveBeenCalled()
+            expect(sentEvents(ctx)[0]).toEqual(expect.objectContaining({ name: 'transcription/requested' }))
         })
 
         test('a length that could not be measured goes on to Soniox', async () => {

@@ -220,10 +220,13 @@ export async function recordEngineResult(opts: {
      * request id, else the transcript's latest active job (Deepgram).
      */
     jobId?: string
+} & (
     /** The validated result, exactly as the engine sent it. */
-    rawBody: string
-}): Promise<WebhookHandleResult & { attemptId?: string }> {
-    const { supabase, engine, requestId, transcriptId, rawBody } = opts
+    | { rawBody: string; storedObjectKey?: undefined }
+    /** A resumed handoff: the result is stored and linked at this key already, so it is not uploaded again. */
+    | { rawBody?: undefined; storedObjectKey: string }
+)): Promise<WebhookHandleResult & { attemptId?: string }> {
+    const { supabase, engine, requestId, transcriptId } = opts
     const exact: ExactJob | null = opts.jobId ? { jobId: opts.jobId, transcriptId, requestId } : null
 
     if (exact) {
@@ -392,7 +395,13 @@ export async function recordEngineResult(opts: {
     // Store the response, then link it. A redelivery overwrites the same file.
     const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, jobIdToUpdate)
     try {
-        await uploadTranscriptionResult(supabase, resultKey, rawBody)
+        // A resumed handoff whose file is the job's own stores nothing again.
+        if (opts.storedObjectKey !== resultKey) {
+            if (opts.rawBody === undefined) {
+                throw new Error(`Stored ${engine} result ${opts.storedObjectKey} is not the job's own ${resultKey}`)
+            }
+            await uploadTranscriptionResult(supabase, resultKey, opts.rawBody)
+        }
     } catch (uploadError) {
         const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
         console.error(`[webhook] Failed to store ${engine} result:`, message)
@@ -464,18 +473,30 @@ export async function recordEngineResult(opts: {
     return { outcome: 'processed', attemptId: activeAttemptId }
 }
 
+/** Mark this attempt's receipt completed; `updated` when the attempt still held it. */
+async function completeReceipt(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<{ updated: boolean; error: { message: string } | null }> {
+    const { data, error } = await supabase
+        .from('webhook_receipts')
+        .update({ status: 'completed', processed_at: new Date().toISOString() })
+        .eq('provider', engine)
+        .eq('request_id', requestId)
+        .eq('attempt_id', attemptId)
+        .select('status')
+    return { updated: !!data && data.length > 0, error }
+}
+
 async function finalizeReceipt(
     supabase: SupabaseClient,
     engine: TranscriptionEngine,
     requestId: string,
     attemptId: string
 ): Promise<void> {
-    const { error: finalizeError } = await supabase
-        .from('webhook_receipts')
-        .update({ status: 'completed', processed_at: new Date().toISOString() })
-        .eq('provider', engine)
-        .eq('request_id', requestId)
-        .eq('attempt_id', attemptId)
+    const { error: finalizeError } = await completeReceipt(supabase, engine, requestId, attemptId)
 
     if (finalizeError) {
         // Real work is done — leave as processing; lease expiry handles stale recovery
@@ -497,15 +518,9 @@ export async function confirmReceiptCompleted(
     requestId: string,
     attemptId: string
 ): Promise<boolean> {
-    const { data: finalized, error: finalizeError } = await supabase
-        .from('webhook_receipts')
-        .update({ status: 'completed', processed_at: new Date().toISOString() })
-        .eq('provider', engine)
-        .eq('request_id', requestId)
-        .eq('attempt_id', attemptId)
-        .select('status')
+    const { updated, error: finalizeError } = await completeReceipt(supabase, engine, requestId, attemptId)
     if (finalizeError) throw new Error(`Failed to complete receipt ${requestId}: ${finalizeError.message}`)
-    if (finalized && finalized.length > 0) return true
+    if (updated) return true
 
     // Another attempt took the receipt over: it counts only if it finished.
     const { data: receipt, error: readError } = await supabase

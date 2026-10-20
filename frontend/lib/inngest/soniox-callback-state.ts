@@ -16,8 +16,14 @@ export type SonioxCallbackState =
     | { state: "stored"; resultObjectKey: string }
     /** Nothing recorded yet: fetch from Soniox. */
     | { state: "fresh" }
-    /** The attempt failed, or belongs to another request: leave everything alone. */
-    | { state: "stale" }
+    /**
+     * The attempt failed, or belongs to another request: touch nothing of ours.
+     * `otherRequest`: the job carries another Soniox request, so this one is
+     * an orphaned start nothing will ever read, and only it is deleted at
+     * Soniox. Otherwise (a failed or missing job) Soniox's copy is kept,
+     * retrievable, until its 30 days are up.
+     */
+    | { state: "stale"; otherRequest: boolean }
     /** The start has not saved the request id yet: try again shortly. */
     | { state: "not_ready" };
 
@@ -39,11 +45,11 @@ export async function readSonioxCallbackState(
             .eq("id", transcriptId)
             .maybeSingle();
         if (transcriptError) throw new Error(`Failed to read transcript ${transcriptId}: ${transcriptError.message}`);
-        return transcript ? { state: "stale" } : { state: "gone" };
+        return transcript ? { state: "stale", otherRequest: false } : { state: "gone" };
     }
 
-    if (job.transcript_id !== transcriptId) return { state: "stale" };
-    if (job.inngest_event_id && job.inngest_event_id !== requestId) return { state: "stale" };
+    if (job.transcript_id !== transcriptId) return { state: "stale", otherRequest: false };
+    if (job.inngest_event_id && job.inngest_event_id !== requestId) return { state: "stale", otherRequest: true };
 
     const { data: receipt, error: receiptError } = await supabase
         .from("webhook_receipts")
@@ -54,7 +60,7 @@ export async function readSonioxCallbackState(
     if (receiptError) throw new Error(`Failed to read receipt ${requestId}: ${receiptError.message}`);
 
     if (receipt?.status === "completed" || job.status === "completed") return { state: "handled" };
-    if (job.status === "error") return { state: "stale" };
+    if (job.status === "error") return { state: "stale", otherRequest: false };
     if (job.status === "queued") return { state: "not_ready" };
     // Linked before the handoff, so a linked file alone is not "handled".
     if (job.result_object_key) return { state: "stored", resultObjectKey: job.result_object_key };

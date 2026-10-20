@@ -123,7 +123,7 @@ describe('sonioxResultToWords', () => {
   })
 
   test('Japanese, written without spaces, becomes a word per piece, with 、 and 。 closing the word before', () => {
-    const result = words([
+    const tokens = [
       piece('今日', 0),
       piece('は', 60),
       piece('、', 120),
@@ -131,10 +131,18 @@ describe('sonioxResultToWords', () => {
       piece('天気', 240),
       piece('です', 300),
       piece('。', 360),
-    ])
+    ]
+    const result = words(tokens)
 
     expect(result.map((w) => w.punctuatedText)).toEqual(['今日', 'は、', 'いい', '天気', 'です。'])
     expect(result.map((w) => w.text)).toEqual(['今日', 'は', 'いい', '天気', 'です'])
+    // The stored and exported text keeps Soniox's spacing: none at all.
+    expect(buildRpcPayload(sonioxResultToWords(stored(tokens))).segments.map((s) => s.text)).toEqual(['今日は、いい天気です。'])
+  })
+
+  test('English keeps its spaces, and Japanese inside it joins as written', () => {
+    const tokens = [piece('The', 0), piece(' word', 120), piece(' 天気', 240), piece('です', 300), piece(' means', 420), piece(' weather', 540), piece('.', 600)]
+    expect(buildRpcPayload(sonioxResultToWords(stored(tokens))).segments.map((s) => s.text)).toEqual(['The word 天気です means weather.'])
   })
 
   test('Hindi keeps its vowel signs, and । closes the word before', () => {

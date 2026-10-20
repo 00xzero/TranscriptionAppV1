@@ -6,11 +6,9 @@
 
 import { SonioxStoredResultSchema, type SonioxToken } from "@/contracts/soniox";
 import type { NormalizedWord } from "@/core/transcript/segment-builder";
-import { isSentenceBoundary } from "@/core/transcript/text-utils";
+import { ENDS_NO_SPACE, isSentenceBoundary, STARTS_NO_SPACE } from "@/core/transcript/text-utils";
 import type { EngineWords } from "./types";
 
-// Scripts written without spaces between words: each piece is a word of its own.
-const NO_SPACE_SCRIPT = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 // What makes a word a word rather than stray punctuation (marks keep Devanagari's
 // vowel signs).
 const WORD_CHARACTER = /[\p{L}\p{N}\p{M}]/u;
@@ -39,7 +37,9 @@ function startsWord(token: SonioxToken, speakerLabel: string | null, current: Wo
     if (!current) return true;
     if (speakerLabel !== current.speakerLabel) return true;
     if (/^\s/.test(token.text)) return true;
-    return NO_SPACE_SCRIPT.test(token.text);
+    // Next to a script written without spaces, each piece is a word: "は" then
+    // "3" then "時" are three words, not "は3".
+    return STARTS_NO_SPACE.test(token.text) || ENDS_NO_SPACE.test(current.raw);
 }
 
 /** Join pieces into words. */
@@ -104,7 +104,7 @@ export function sonioxResultToWords(rawJson: string): EngineWords {
     // label have none.
     const speakerNumbers = new Map<string, number>();
 
-    const words = joined.map<NormalizedWord>((word) => {
+    const words = joined.map<NormalizedWord>((word, index) => {
         let speaker: number | null = null;
         if (word.speakerLabel !== null) {
             if (!speakerNumbers.has(word.speakerLabel)) {
@@ -115,6 +115,9 @@ export function sonioxResultToWords(rawJson: string): EngineWords {
 
         const punctuatedText = word.raw.trim();
         return {
+            // Soniox marks a word break with a leading space; a word without
+            // one (Japanese) is written straight after the one before.
+            ...(index > 0 && !/^\s/.test(word.raw) ? { joinsPrevious: true } : {}),
             text: punctuatedText.replace(OUTER_PUNCTUATION, "").toLowerCase(),
             punctuatedText,
             startMs: word.startMs,

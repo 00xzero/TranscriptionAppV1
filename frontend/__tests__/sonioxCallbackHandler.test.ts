@@ -159,14 +159,26 @@ describe('handleSonioxCallback', () => {
     expect(result).toEqual(expect.objectContaining({ status: 'forgotten' }))
   })
 
-  test('a stale callback fetches, writes and deletes nothing', async () => {
-    mockReadState.mockResolvedValue({ state: 'stale' })
+  test('a callback for a failed attempt fetches, writes and deletes nothing, keeping Soniox\'s copy', async () => {
+    mockReadState.mockResolvedValue({ state: 'stale', otherRequest: false })
 
-    await run()
+    const { result } = await run()
 
     expect(mockFetchTranscription).not.toHaveBeenCalled()
     expect(mockRecord).not.toHaveBeenCalled()
     expect(mockDelete).not.toHaveBeenCalled()
+    expect(result).toEqual(expect.objectContaining({ status: 'stale' }))
+  })
+
+  test('an orphaned start (another request replaced it) fetches and writes nothing, and only forgets it at Soniox', async () => {
+    mockReadState.mockResolvedValue({ state: 'stale', otherRequest: true })
+
+    const { result } = await run()
+
+    expect(mockFetchTranscription).not.toHaveBeenCalled()
+    expect(mockRecord).not.toHaveBeenCalled()
+    expect(mockDelete).toHaveBeenCalledWith(requestId)
+    expect(result).toEqual(expect.objectContaining({ status: 'stale' }))
   })
 
   test('a callback before the request id is saved throws, so Inngest retries', async () => {
@@ -178,16 +190,16 @@ describe('handleSonioxCallback', () => {
     expect(mockDelete).not.toHaveBeenCalled()
   })
 
-  test('a linked file whose hand-off failed resumes from our copy, without fetching from Soniox, and only then deletes', async () => {
+  test('a linked file whose hand-off failed resumes from our copy, without fetching or storing it again, and only then deletes', async () => {
     mockReadState.mockResolvedValue({ state: 'stored', resultObjectKey: 'user/t/job.json.gz' })
-    mockDownload.mockResolvedValue('{"stored":true}')
 
     await run()
 
     expect(mockFetchTranscription).not.toHaveBeenCalled()
     expect(mockFetchTranscript).not.toHaveBeenCalled()
-    expect(mockDownload).toHaveBeenCalledWith(expect.anything(), 'user/t/job.json.gz')
-    expect(mockRecord).toHaveBeenCalledWith(expect.objectContaining({ rawBody: '{"stored":true}' }))
+    expect(mockDownload).not.toHaveBeenCalled()
+    expect(mockRecord).toHaveBeenCalledWith(expect.objectContaining({ storedObjectKey: 'user/t/job.json.gz' }))
+    expect(mockRecord.mock.calls[0][0]).not.toHaveProperty('rawBody')
     expect(mockRecord.mock.invocationCallOrder[0]).toBeLessThan(mockDelete.mock.invocationCallOrder[0])
   })
 
@@ -200,11 +212,12 @@ describe('handleSonioxCallback', () => {
     expect(mockDelete).not.toHaveBeenCalled()
   })
 
-  test('an attempt that changed after the check (the write found it stale) deletes nothing', async () => {
+  test('an attempt that changed after the check (the write found it stale) confirms and deletes nothing', async () => {
     mockRecord.mockResolvedValue({ outcome: 'stale' })
 
     const { result } = await run()
 
+    expect(mockConfirm).not.toHaveBeenCalled()
     expect(mockDelete).not.toHaveBeenCalled()
     expect(result).toEqual(expect.objectContaining({ status: 'stale' }))
   })

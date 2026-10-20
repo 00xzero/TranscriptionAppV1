@@ -16,6 +16,12 @@ export const TRANSCRIPTION_ENGINE_LABELS: Record<TranscriptionEngine, string> = 
   soniox: 'Soniox v5',
 }
 
+// The brand alone, where the model would read oddly ("Not available with Soniox").
+export const TRANSCRIPTION_ENGINE_BRANDS: Record<TranscriptionEngine, string> = {
+  deepgram: 'Deepgram',
+  soniox: 'Soniox',
+}
+
 // Nova-3 languages offered. `multi` follows audio that switches between ten of
 // them (en, es, fr, de, hi, ru, pt, ja, it, nl).
 export const TRANSCRIPTION_LANGUAGES = ['en', 'es', 'fr', 'de', 'pt', 'it', 'nl', 'ja', 'hi', 'ru', 'multi'] as const

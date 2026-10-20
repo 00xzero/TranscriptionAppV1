@@ -37,7 +37,7 @@ describe('transcription engines', () => {
   test('Soniox refuses audio over five hours, with the length in words', () => {
     expect(engineLengthRefusal('soniox', 5 * 3600)).toBeNull()
     expect(engineLengthRefusal('soniox', 5 * 3600 + 1)).toBe(
-      'Soniox v5 accepts audio up to 5 h; this file is 5 h 1 min. Choose Deepgram Nova-3 for longer files.'
+      'Soniox v5 accepts audio up to 5 h; this file is 5 h 1 min. Upload it again and choose Deepgram Nova-3.'
     )
     expect(engineLengthRefusal('soniox', 6 * 3600 + 12 * 60 + 30)).toContain('this file is 6 h 13 min')
     expect(engineLengthRefusal('deepgram', 24 * 3600)).toBeNull()
