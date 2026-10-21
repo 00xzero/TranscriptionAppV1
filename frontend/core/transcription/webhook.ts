@@ -486,8 +486,9 @@ export async function recordEngineResult(opts: {
     if (!linkedJob) {
         // The attempt changed while the file was uploading. The file is kept:
         // this path is the job's own, and another delivery that completed the
-        // job may have linked the very same file. Deleting the transcript
-        // sweeps it if nothing else does.
+        // job may have linked the very same file. Only a deleted transcript
+        // loses it, since its delete may have swept the folder before this
+        // upload landed.
         const state = await readExactJob(supabase, exact)
         if (state === 'duplicate') {
             await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
@@ -495,6 +496,7 @@ export async function recordEngineResult(opts: {
         }
         if (state === 'stale') {
             await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job changed during upload')
+            await removeIfTranscriptGone(supabase, transcriptId, resultKey)
             return { outcome: 'stale' }
         }
         // The job could not be read, or reads as still ours: nothing says to
@@ -521,6 +523,31 @@ export async function recordEngineResult(opts: {
     await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
 
     return { outcome: 'processed', attemptId: activeAttemptId }
+}
+
+/**
+ * Remove a result uploaded for a transcript that was deleted meanwhile. Its
+ * owner is gone with it, so a retry could not find this file again: a failure
+ * is logged with the path rather than thrown.
+ */
+async function removeIfTranscriptGone(
+    supabase: SupabaseClient,
+    transcriptId: string,
+    resultKey: string
+): Promise<void> {
+    try {
+        const { data, error } = await supabase
+            .from('transcripts')
+            .select('id')
+            .eq('id', transcriptId)
+            .maybeSingle()
+        if (error) throw new Error(`Failed to read transcript ${transcriptId}: ${error.message}`)
+        if (data) return
+        await removeTranscriptionResult(supabase, resultKey, 'recordEngineResult')
+    } catch (cleanupError) {
+        const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        console.error(`[webhook] Result ${resultKey} may be left behind by a deleted transcript:`, message)
+    }
 }
 
 /** Mark this attempt's receipt completed; `updated` when the attempt still held it. */

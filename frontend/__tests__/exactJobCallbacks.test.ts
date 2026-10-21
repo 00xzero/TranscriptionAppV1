@@ -127,6 +127,34 @@ describe('recordEngineResult with an exact job', () => {
     expect(job(db, jobB)).toEqual(expect.objectContaining({ status: 'processing', result_object_key: null }))
   })
 
+  test('a transcript deleted during the upload loses the file its delete could not sweep', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestA }])
+    mockUpload.mockImplementationOnce(async () => {
+      db.tables.transcripts.length = 0
+      db.tables.jobs.length = 0
+    })
+
+    await expect(record(db)).resolves.toEqual({ outcome: 'stale' })
+    expect(mockRemove).toHaveBeenCalledWith(expect.anything(), `${userId}/${transcriptId}/${jobA}.json.gz`, 'recordEngineResult')
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('a failed removal of that file is logged, not thrown, since no retry could find it', async () => {
+    const db = setup([{ id: jobA, inngest_event_id: requestA }])
+    mockUpload.mockImplementationOnce(async () => {
+      db.tables.transcripts.length = 0
+      db.tables.jobs.length = 0
+    })
+    mockRemove.mockImplementationOnce(async () => {
+      throw new Error('storage down')
+    })
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await expect(record(db)).resolves.toEqual({ outcome: 'stale' })
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining(`${jobA}.json.gz may be left behind`), 'storage down')
+    logged.mockRestore()
+  })
+
   test('the link holds its checks itself: an attempt that failed during the upload is not linked, and its file is kept', async () => {
     const db = setup([{ id: jobA, inngest_event_id: requestA }])
     mockUpload.mockImplementationOnce(async () => {
