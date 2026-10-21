@@ -1,6 +1,7 @@
 import {
   DEFAULT_TRANSCRIPTION_OPTIONS,
-  TranscriptionOptionsSchema,
+  SavedTranscriptionOptionsSchema,
+  resolveTranscriptionOptions,
   type TranscriptionOptions,
 } from '@/contracts/transcription-options'
 
@@ -13,8 +14,9 @@ export function readTranscriptionPreferences(): TranscriptionOptions {
   try {
     const raw = window.localStorage.getItem(TRANSCRIPTION_PREFERENCES_KEY)
     if (!raw) return DEFAULT_TRANSCRIPTION_OPTIONS
-    const parsed = TranscriptionOptionsSchema.safeParse(JSON.parse(raw))
-    return parsed.success ? parsed.data : DEFAULT_TRANSCRIPTION_OPTIONS
+    // A choice saved before the engine could be chosen is kept, with Deepgram.
+    const parsed = SavedTranscriptionOptionsSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? resolveTranscriptionOptions(parsed.data) : DEFAULT_TRANSCRIPTION_OPTIONS
   } catch {
     return DEFAULT_TRANSCRIPTION_OPTIONS
   }

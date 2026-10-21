@@ -27,6 +27,8 @@ type RpcCall = {
 const mockDb = {
   // What the transcription-results bucket holds for the job (null: no file linked).
   storedResponse: null as unknown,
+  // The transcript row's engine.
+  engine: 'deepgram' as unknown,
   rpcCalls: [] as RpcCall[],
 }
 
@@ -43,6 +45,9 @@ const jobSingleMock = jest.fn(async (request: SelectRequest) => {
       data: { result_object_key: mockDb.storedResponse === null ? null : `user-1/${request.filters.id}.json.gz` },
       error: null,
     }
+  }
+  if (request.table === 'transcripts' && request.columns === 'engine') {
+    return { data: { engine: mockDb.engine }, error: null }
   }
 
   return { data: null, error: null }
@@ -69,6 +74,7 @@ const fromMock = jest.fn((table: string) => {
   if (table === 'transcripts') {
     return {
       update: transcriptUpdateMock,
+      select: (columns: string) => createSelectChain(table, columns),
     }
   }
   if (table === 'jobs') {
@@ -165,6 +171,7 @@ const webhookEvent = {
 
 function resetMockDb() {
   mockDb.storedResponse = null
+  mockDb.engine = 'deepgram'
   mockDb.rpcCalls = []
   rpcResponseQueue.length = 0
 }
@@ -194,6 +201,9 @@ describe('Inngest handlers', () => {
           data: { result_object_key: mockDb.storedResponse === null ? null : `user-1/${request.filters.id}.json.gz` },
           error: null,
         }
+      }
+      if (request.table === 'transcripts' && request.columns === 'engine') {
+        return { data: { engine: mockDb.engine }, error: null }
       }
 
       return { data: null, error: null }
@@ -667,8 +677,27 @@ describe('Inngest handlers', () => {
       ],
     })
 
-    expect(getErrorMessage(error)).toContain('has no stored Deepgram response')
+    expect(getErrorMessage(error)).toContain('has no stored engine result')
     expect(mockDownload).not.toHaveBeenCalled()
+    expect(mockDb.rpcCalls).toEqual([])
+  })
+
+  test('handleTranscriptionWebhook reads the result with the transcript\'s engine', async () => {
+    mockDb.storedResponse = {
+      results: { channels: [{ alternatives: [{ transcript: '', words: [] }] }] },
+    }
+    mockDb.engine = 'not-an-engine'
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    const { error } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+      ],
+    })
+
+    // An engine the registry does not know reads nothing and saves nothing.
+    expect(getErrorMessage(error)).toContain('Unknown transcription engine: not-an-engine')
     expect(mockDb.rpcCalls).toEqual([])
   })
 

@@ -1,8 +1,10 @@
 /**
- * Core: Handle Deepgram Webhook
+ * Core: Record a transcription engine's result
  *
- * Business logic for processing a Deepgram webhook callback.
- * Receives pre-validated params and an admin Supabase client — no NextRequest, no headers.
+ * Business logic for an engine's callback, once its route has checked it:
+ * claim the receipt, store the result as the engine sent it, link it to the
+ * job and hand it to Inngest. Receives pre-validated params and an admin
+ * Supabase client — no NextRequest, no headers.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -13,6 +15,7 @@ import {
     uploadTranscriptionResult,
 } from '@/infra/supabase/transcription-results.server'
 import { forceJobError } from '@/core/transcription/transition'
+import type { TranscriptionEngine } from '@/contracts/transcription-options'
 import { randomUUID } from 'crypto'
 
 // 5 min lease — matches Vercel Pro/Enterprise max function duration
@@ -21,24 +24,97 @@ const RECEIPT_LEASE_MS = 300 * 1000
 export type WebhookHandleResult =
     | { outcome: 'processed' }
     | { outcome: 'duplicate' }
-    | { outcome: 'retrying'; retryAfter: number }
+    | {
+        outcome: 'retrying'
+        retryAfter: number
+        /**
+         * Set when another attempt holds the receipt's lease: how long until
+         * it lapses and the receipt can be taken over. A caller that retries
+         * on its own schedule waits at least this long.
+         */
+        leaseRemainingMs?: number
+    }
     | { outcome: 'error'; reason: string }
+    // Only with a jobId: the attempt is no longer the one the callback is for
+    // (failed, deleted, or another request), so nothing was written.
+    | { outcome: 'stale' }
+
+/** Names one job attempt exactly: its job, its transcript, the engine's request. */
+type ExactJob = { jobId: string; transcriptId: string; requestId: string }
+
+type ExactJobState = 'proceed' | 'retrying' | 'duplicate' | 'stale'
+
+// Request ids go into a PostgREST filter, so only plain ids are accepted.
+const PLAIN_REQUEST_ID = /^[A-Za-z0-9_-]+$/
+
+/**
+ * What a callback may do to the exact attempt it names. Every write that
+ * follows repeats these checks in its own conditions (`exactJobFilter`), since
+ * the job can change in between.
+ */
+async function readExactJob(
+    supabase: SupabaseClient,
+    { jobId, transcriptId, requestId }: ExactJob
+): Promise<ExactJobState | { error: string }> {
+    if (!PLAIN_REQUEST_ID.test(requestId)) return 'stale'
+    const { data, error } = await supabase
+        .from('jobs')
+        .select('transcript_id, status, inngest_event_id')
+        .eq('id', jobId)
+        .maybeSingle()
+    if (error) return { error: error.message }
+    if (!data || data.transcript_id !== transcriptId) return 'stale'
+    if (data.inngest_event_id && data.inngest_event_id !== requestId) return 'stale'
+    switch (data.status) {
+        // The start has not saved the request id yet: try again shortly.
+        case 'queued': return 'retrying'
+        case 'processing': return 'proceed'
+        case 'completed': return 'duplicate'
+        default: return 'stale'
+    }
+}
+
+/** The PostgREST `or` filter: the job carries this request id, or none yet. */
+function sameRequest(requestId: string): string {
+    return `inngest_event_id.is.null,inngest_event_id.eq.${requestId}`
+}
+
+// PostgREST (v14) applies an update's `or` filter to the returned columns too,
+// so a write filtered on inngest_event_id must return it, or it fails with
+// "column jobs.inngest_event_id does not exist".
+const EXACT_JOB_RETURNING = 'id, inngest_event_id'
 
 /**
  * Fail the job a webhook names: by request id (the job's inngest_event_id),
  * else the transcript's active job, else the transcript itself.
  * Returns what it marked failed, or 'nothing' when it found nothing or its
- * write did not go through, so a caller can ask Deepgram to retry.
+ * write did not go through, so a caller can ask the engine to retry.
+ *
+ * With a jobId, only that exact attempt is failed, and only while it is
+ * processing this request: 'stale' when it no longer is.
  */
 export async function persistWebhookFailure(params: {
     supabase: SupabaseClient
+    engine: TranscriptionEngine
     transcriptId?: string | null
     requestId?: string | null
+    /** The exact attempt; requires transcriptId and requestId. */
+    jobId?: string
     message: string
     /** Defaults to the message. */
     detail?: string
-}): Promise<'job' | 'transcript' | 'nothing'> {
+}): Promise<'job' | 'transcript' | 'nothing' | 'stale'> {
     const { supabase } = params
+
+    if (params.jobId) {
+        if (!params.transcriptId || !params.requestId) return 'stale'
+        return failExactJob(supabase, {
+            jobId: params.jobId,
+            transcriptId: params.transcriptId,
+            requestId: params.requestId,
+        }, params.message, params.detail)
+    }
+
     let resolvedTranscriptId = params.transcriptId || null
     let resolvedJobId: string | null = null
 
@@ -87,7 +163,7 @@ export async function persistWebhookFailure(params: {
         const { error: insertError } = await supabase
             .from('failed_events')
             .insert({
-                event_name: 'deepgram/webhook_failure',
+                event_name: `${params.engine}/webhook_failure`,
                 event_data: { transcriptId: resolvedTranscriptId, requestId: params.requestId },
                 error_message: params.message,
                 transcript_id: resolvedTranscriptId,
@@ -110,14 +186,157 @@ export async function persistWebhookFailure(params: {
     return 'nothing'
 }
 
-export async function handleDeepgramWebhook(opts: {
+async function failExactJob(
+    supabase: SupabaseClient,
+    exact: ExactJob,
+    message: string,
+    detail?: string
+): Promise<'job' | 'nothing' | 'stale'> {
+    const state = await readExactJob(supabase, exact)
+    if (typeof state === 'object' || state === 'retrying') return 'nothing'
+    if (state !== 'proceed') return 'stale'
+
+    const now = new Date().toISOString()
+    const { data, error } = await supabase
+        .from('jobs')
+        .update({
+            status: 'error',
+            finished_at: now,
+            updated_at: now,
+            error_message: message,
+            error_type: 'transcription_error',
+            error_detail: (detail ?? message).slice(0, 500),
+        })
+        .eq('id', exact.jobId)
+        .eq('transcript_id', exact.transcriptId)
+        .eq('status', 'processing')
+        .or(sameRequest(exact.requestId))
+        .select(EXACT_JOB_RETURNING)
+    if (error) {
+        console.error('[webhook] Failed to fail the exact job:', error)
+        return 'nothing'
+    }
+    return data && data.length > 0 ? 'job' : 'stale'
+}
+
+/** Where a result that came with its callback may be stored, read before and after the upload. */
+type StagingTarget =
+    /** The transcript is gone: nothing may stay in its folder. */
+    | 'gone'
+    /** Another transcript's job, another request's, or a failed attempt: write nothing. */
+    | 'stale'
+    /** The job finished already: nothing left to do. */
+    | 'done'
+    /** The job has not saved this request yet: it could still be another start's. */
+    | 'not_ready'
+    | 'ours'
+
+async function readStagingTarget(
+    supabase: SupabaseClient,
+    { transcriptId, jobId, requestId, userId }: ExactJob & { userId: string }
+): Promise<StagingTarget> {
+    const [{ data: transcript, error: transcriptError }, { data: job, error: jobError }] = await Promise.all([
+        supabase.from('transcripts').select('user_id').eq('id', transcriptId).maybeSingle(),
+        supabase.from('jobs').select('transcript_id, status, inngest_event_id').eq('id', jobId).maybeSingle(),
+    ])
+    if (transcriptError || jobError) {
+        throw new Error(`Failed to read job ${jobId}: ${(transcriptError ?? jobError)?.message}`)
+    }
+    if (!transcript) return 'gone'
+    if (!job || job.transcript_id !== transcriptId || transcript.user_id !== userId) return 'stale'
+    if (job.inngest_event_id && job.inngest_event_id !== requestId) return 'stale'
+    if (job.status === 'completed') return 'done'
+    if (job.status === 'error') return 'stale'
+    if (job.status === 'queued' || !job.inngest_event_id) return 'not_ready'
+    return 'ours'
+}
+
+/**
+ * A callback that carries its whole result (Deepgram's): store it at the exact
+ * job attempt's own key, then pass it to Inngest (deepgram/callback), which
+ * links and hands it off with retries of its own (lib/inngest/functions/
+ * handle-deepgram-callback.ts). No receipt is claimed here, so a request cut
+ * off at any point holds nothing up: the engine's retry just does it again,
+ * overwriting the same file and sending the same event.
+ *
+ * Only a callback whose request the job already carries writes the job's file
+ * (two requests started for one job could otherwise overwrite each other's
+ * result): until then it is `not_ready`, for the engine to retry. The job is
+ * read again after the upload, so a file uploaded while its transcript was
+ * being deleted is removed here; a delete after that read is caught by the
+ * delete route's own sweep. Throws when a read, the upload, a removal or the
+ * send fails, so the engine retries.
+ */
+export async function stageDeepgramResult(opts: {
     supabase: SupabaseClient
+    transcriptId: string
+    jobId: string
+    requestId: string
+    /** The transcript's owner, named by the callback: the result's folder. */
+    userId: string
+    /** The validated result, exactly as the engine sent it. */
+    rawBody: string
+}): Promise<'passed_on' | 'not_ready' | 'ignored'> {
+    const { supabase, transcriptId, jobId, requestId, userId, rawBody } = opts
+    const target = { transcriptId, jobId, requestId, userId }
+    const resultKey = getTranscriptionResultPath(userId, transcriptId, jobId)
+
+    const before = await readStagingTarget(supabase, target)
+    if (before === 'not_ready') return 'not_ready'
+    if (before === 'gone') {
+        // An earlier delivery may have uploaded before the delete and failed
+        // to clean up; removing a file that is not there is fine.
+        await removeTranscriptionResult(supabase, resultKey, 'stageDeepgramResult')
+        return 'ignored'
+    }
+    if (before !== 'ours') return 'ignored'
+
+    await uploadTranscriptionResult(supabase, resultKey, rawBody)
+
+    const after = await readStagingTarget(supabase, target)
+    if (after === 'gone') {
+        await removeTranscriptionResult(supabase, resultKey, 'stageDeepgramResult')
+        return 'ignored'
+    }
+    // Changed during the upload (failed, finished by another delivery): the
+    // file stays in the transcript's own folder, and nothing is passed on.
+    if (after !== 'ours') return 'ignored'
+
+    await sendInngestEvent({
+        name: 'deepgram/callback',
+        // A redelivery of the same result becomes the same event.
+        id: `deepgram-callback:${requestId}`,
+        data: { transcriptId, jobId, requestId, userId },
+    })
+    return 'passed_on'
+}
+
+export async function recordEngineResult(opts: {
+    supabase: SupabaseClient
+    engine: TranscriptionEngine
     requestId: string
     transcriptId: string
-    /** The validated callback body, exactly as Deepgram sent it. */
-    rawBody: string
-}): Promise<WebhookHandleResult & { attemptId?: string }> {
-    const { supabase, requestId, transcriptId, rawBody } = opts
+    /** The exact attempt the result belongs to; nothing else is ever written. */
+    jobId: string
+} & (
+    /** The validated result, exactly as the engine sent it. */
+    | { rawBody: string; storedObjectKey?: undefined }
+    /** A resumed handoff: the result is stored and linked at this key already, so it is not uploaded again. */
+    | { rawBody?: undefined; storedObjectKey: string }
+)): Promise<WebhookHandleResult & { attemptId?: string }> {
+    const { supabase, engine, requestId, transcriptId } = opts
+    const exact: ExactJob = { jobId: opts.jobId, transcriptId, requestId }
+
+    {
+        const state = await readExactJob(supabase, exact)
+        if (typeof state === 'object') {
+            console.error('[webhook] Failed to read the exact job:', state.error)
+            return { outcome: 'retrying', retryAfter: 30 }
+        }
+        if (state === 'retrying') return { outcome: 'retrying', retryAfter: 30 }
+        if (state === 'duplicate') return { outcome: 'duplicate' }
+        if (state === 'stale') return { outcome: 'stale' }
+    }
 
     // Claim idempotency receipt
     const myAttemptId = randomUUID()
@@ -125,7 +344,7 @@ export async function handleDeepgramWebhook(opts: {
     const { error: claimError } = await supabase
         .from('webhook_receipts')
         .insert({
-            provider: 'deepgram',
+            provider: engine,
             request_id: requestId,
             transcript_id: transcriptId,
             attempt_id: myAttemptId,
@@ -139,7 +358,7 @@ export async function handleDeepgramWebhook(opts: {
             const { data: existing, error: selectError } = await supabase
                 .from('webhook_receipts')
                 .select('status, attempt_id, claimed_at')
-                .eq('provider', 'deepgram')
+                .eq('provider', engine)
                 .eq('request_id', requestId)
                 .single()
 
@@ -157,7 +376,8 @@ export async function handleDeepgramWebhook(opts: {
 
             if (existing.status === 'processing' && isFresh) {
                 console.log(`[webhook] In-flight duplicate for ${requestId} — retrying`)
-                return { outcome: 'retrying', retryAfter: 30 }
+                const leaseRemainingMs = new Date(existing.claimed_at).getTime() + RECEIPT_LEASE_MS - Date.now()
+                return { outcome: 'retrying', retryAfter: 30, leaseRemainingMs }
             }
 
             // Attempt conditional takeover
@@ -170,7 +390,7 @@ export async function handleDeepgramWebhook(opts: {
                     claimed_at: new Date().toISOString(),
                     last_error: null,
                 })
-                .eq('provider', 'deepgram')
+                .eq('provider', engine)
                 .eq('request_id', requestId)
                 .eq('attempt_id', existing.attempt_id)
                 .neq('status', 'completed')
@@ -185,7 +405,7 @@ export async function handleDeepgramWebhook(opts: {
                 const { data: reread } = await supabase
                     .from('webhook_receipts')
                     .select('status')
-                    .eq('provider', 'deepgram')
+                    .eq('provider', engine)
                     .eq('request_id', requestId)
                     .single()
 
@@ -206,43 +426,6 @@ export async function handleDeepgramWebhook(opts: {
         }
     }
 
-    // Look up the job the response belongs to
-    const { data: exactJob, error: exactJobError } = await supabase
-        .from('jobs')
-        .select('id')
-        .eq('transcript_id', transcriptId)
-        .eq('inngest_event_id', requestId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-    if (exactJobError) {
-        console.error('[webhook] Failed to lookup job by requestId:', exactJobError)
-        await markReceiptFailed(supabase, requestId, activeAttemptId, exactJobError.message)
-        throw new Error(`Failed to lookup job by requestId: ${exactJobError.message}`)
-    }
-
-    let jobIdToUpdate = exactJob?.id
-
-    if (!jobIdToUpdate) {
-        const { data: fallbackJob, error: fallbackJobError } = await supabase
-            .from('jobs')
-            .select('id')
-            .eq('transcript_id', transcriptId)
-            .in('status', ['queued', 'processing'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-
-        if (fallbackJobError) {
-            console.error('[webhook] Failed to lookup fallback job:', fallbackJobError)
-            await markReceiptFailed(supabase, requestId, activeAttemptId, fallbackJobError.message)
-            throw new Error(`Failed to lookup fallback job: ${fallbackJobError.message}`)
-        }
-
-        jobIdToUpdate = fallbackJob?.id
-    }
-
     // The owner names the folder the response is stored in.
     const { data: transcript, error: transcriptError } = await supabase
         .from('transcripts')
@@ -252,55 +435,76 @@ export async function handleDeepgramWebhook(opts: {
 
     if (transcriptError) {
         console.error('[webhook] Failed to lookup transcript owner:', transcriptError)
-        await markReceiptFailed(supabase, requestId, activeAttemptId, transcriptError.message)
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, transcriptError.message)
         throw new Error(`Failed to lookup transcript owner: ${transcriptError.message}`)
     }
 
-    if (!jobIdToUpdate || !transcript) {
-        console.error('[webhook] No job found to store the response', { transcriptId, requestId })
-        await persistWebhookFailure({
-            supabase,
-            transcriptId,
-            requestId,
-            message: 'Deepgram webhook received but job was not found.',
-        })
-        await markReceiptFailed(supabase, requestId, activeAttemptId, 'Job not found')
-        throw new Error('Job not found for Deepgram webhook')
+    if (!transcript) {
+        // Deleted since the check above: nothing is left to store it for.
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Transcript deleted')
+        return { outcome: 'stale' }
     }
 
     // Store the response, then link it. A redelivery overwrites the same file.
-    const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, jobIdToUpdate)
+    const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, exact.jobId)
     try {
-        await uploadTranscriptionResult(supabase, resultKey, rawBody)
+        // A resumed handoff whose file is the job's own stores nothing again.
+        if (opts.storedObjectKey !== resultKey) {
+            if (opts.rawBody === undefined) {
+                throw new Error(`Stored ${engine} result ${opts.storedObjectKey} is not the job's own ${resultKey}`)
+            }
+            await uploadTranscriptionResult(supabase, resultKey, opts.rawBody)
+        }
     } catch (uploadError) {
         const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
-        console.error('[webhook] Failed to store Deepgram response:', message)
-        await markReceiptFailed(supabase, requestId, activeAttemptId, message)
+        console.error(`[webhook] Failed to store ${engine} result:`, message)
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, message)
         throw uploadError
     }
 
+    // The exact attempt's checks, again, in the write itself.
     const { data: linkedJob, error: updateError } = await supabase
         .from('jobs')
         .update({
             result_object_key: resultKey,
             inngest_event_id: requestId,
         })
-        .eq('id', jobIdToUpdate)
-        .select('id')
+        .eq('id', exact.jobId)
+        .eq('transcript_id', transcriptId)
+        .eq('status', 'processing')
+        .or(sameRequest(requestId))
+        .select(EXACT_JOB_RETURNING)
         .maybeSingle()
 
     if (updateError) {
         // The link may have landed; keep the file and let the retry overwrite it.
-        console.error('[webhook] Failed to link Deepgram response:', updateError)
-        await markReceiptFailed(supabase, requestId, activeAttemptId, updateError.message)
-        throw new Error(`Failed to link Deepgram response: ${updateError.message}`)
+        console.error(`[webhook] Failed to link ${engine} result:`, updateError)
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, updateError.message)
+        throw new Error(`Failed to link ${engine} result: ${updateError.message}`)
     }
 
     if (!linkedJob) {
-        // The job went with its transcript while the file was uploading.
-        await removeTranscriptionResult(supabase, resultKey, 'webhook')
-        await markReceiptFailed(supabase, requestId, activeAttemptId, 'Job deleted during upload')
-        throw new Error('Job was deleted while storing the Deepgram response')
+        // The attempt changed while the file was uploading. The file is kept:
+        // this path is the job's own, and another delivery that completed the
+        // job may have linked the very same file. Only a deleted transcript
+        // loses it, since its delete may have swept the folder before this
+        // upload landed.
+        const state = await readExactJob(supabase, exact)
+        if (state === 'duplicate') {
+            await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
+            return { outcome: 'duplicate' }
+        }
+        if (state === 'stale') {
+            await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job changed during upload')
+            await removeIfTranscriptGone(supabase, transcriptId, resultKey)
+            return { outcome: 'stale' }
+        }
+        // The job could not be read, or reads as still ours: nothing says to
+        // give up. The receipt is released first, so the retry takes it over
+        // at once instead of waiting out this attempt's lease.
+        const reason = typeof state === 'object' ? `Job unreadable after a refused link: ${state.error}` : 'Link refused; retrying'
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, reason)
+        return { outcome: 'retrying', retryAfter: 30 }
     }
 
     // Forward to Inngest for durable processing
@@ -312,28 +516,103 @@ export async function handleDeepgramWebhook(opts: {
     } catch (sendError) {
         const message = sendError instanceof Error ? sendError.message : String(sendError)
         console.error('[webhook] inngest.send failed after receipt claim:', message)
-        await markReceiptFailed(supabase, requestId, activeAttemptId, message)
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, message)
         throw sendError
     }
 
-    // Finalize receipt
-    const { error: finalizeError } = await supabase
+    await finalizeReceipt(supabase, engine, requestId, activeAttemptId)
+
+    return { outcome: 'processed', attemptId: activeAttemptId }
+}
+
+/**
+ * Remove a result uploaded for a transcript that was deleted meanwhile. Its
+ * owner is gone with it, so a retry could not find this file again: a failure
+ * is logged with the path rather than thrown.
+ */
+async function removeIfTranscriptGone(
+    supabase: SupabaseClient,
+    transcriptId: string,
+    resultKey: string
+): Promise<void> {
+    try {
+        const { data, error } = await supabase
+            .from('transcripts')
+            .select('id')
+            .eq('id', transcriptId)
+            .maybeSingle()
+        if (error) throw new Error(`Failed to read transcript ${transcriptId}: ${error.message}`)
+        if (data) return
+        await removeTranscriptionResult(supabase, resultKey, 'recordEngineResult')
+    } catch (cleanupError) {
+        const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+        console.error(`[webhook] Result ${resultKey} may be left behind by a deleted transcript:`, message)
+    }
+}
+
+/** Mark this attempt's receipt completed; `updated` when the attempt still held it. */
+async function completeReceipt(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<{ updated: boolean; error: { message: string } | null }> {
+    const { data, error } = await supabase
         .from('webhook_receipts')
         .update({ status: 'completed', processed_at: new Date().toISOString() })
-        .eq('provider', 'deepgram')
+        .eq('provider', engine)
         .eq('request_id', requestId)
-        .eq('attempt_id', activeAttemptId)
+        .eq('attempt_id', attemptId)
+        .select('status')
+    return { updated: !!data && data.length > 0, error }
+}
+
+async function finalizeReceipt(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<void> {
+    const { error: finalizeError } = await completeReceipt(supabase, engine, requestId, attemptId)
 
     if (finalizeError) {
         // Real work is done — leave as processing; lease expiry handles stale recovery
         console.error('[webhook] Finalize failed; receipt left as processing (will expire):', finalizeError)
     }
+}
 
-    return { outcome: 'processed', attemptId: activeAttemptId }
+/**
+ * Make a handoff durable: the receipt of the attempt that handed the result
+ * off ends `completed`. recordEngineResult tolerates a failed finalize (the
+ * work is done), so a caller that acts on "handed off" next (deleting the
+ * engine's copy) confirms it first. True once the receipt is completed, by
+ * this attempt or another; throws when the receipt cannot be read or written,
+ * so the caller retries.
+ */
+export async function confirmReceiptCompleted(
+    supabase: SupabaseClient,
+    engine: TranscriptionEngine,
+    requestId: string,
+    attemptId: string
+): Promise<boolean> {
+    const { updated, error: finalizeError } = await completeReceipt(supabase, engine, requestId, attemptId)
+    if (finalizeError) throw new Error(`Failed to complete receipt ${requestId}: ${finalizeError.message}`)
+    if (updated) return true
+
+    // Another attempt took the receipt over: it counts only if it finished.
+    const { data: receipt, error: readError } = await supabase
+        .from('webhook_receipts')
+        .select('status')
+        .eq('provider', engine)
+        .eq('request_id', requestId)
+        .maybeSingle()
+    if (readError) throw new Error(`Failed to read receipt ${requestId}: ${readError.message}`)
+    return receipt?.status === 'completed'
 }
 
 async function markReceiptFailed(
     supabase: SupabaseClient,
+    engine: TranscriptionEngine,
     requestId: string,
     attemptId: string,
     message: string
@@ -345,7 +624,7 @@ async function markReceiptFailed(
                 status: 'failed',
                 last_error: message.slice(0, 500),
             })
-            .eq('provider', 'deepgram')
+            .eq('provider', engine)
             .eq('request_id', requestId)
             .eq('attempt_id', attemptId)
     } catch {

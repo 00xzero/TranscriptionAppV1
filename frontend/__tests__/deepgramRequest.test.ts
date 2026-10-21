@@ -19,6 +19,8 @@ async function sentParams({
       mediaUrl: 'https://storage.example/audio.webm',
       callbackUrl: 'https://app.example/api/webhooks/deepgram',
       transcriptId: 'transcript-1',
+      jobId: 'job-1',
+      userId: 'user-1',
       keyTerms: ['Acme', 'Move X'],
       transcription: { ...DEFAULT_TRANSCRIPTION_OPTIONS, ...transcription },
     })
@@ -49,6 +51,12 @@ describe('Deepgram request options', () => {
     expect(params.get('mip_opt_out')).toBe('true')
   })
 
+  test('names the transcript, the exact job attempt and the owner in extra, for the callback', async () => {
+    const params = await sentParams()
+
+    expect(params.getAll('extra')).toEqual(['transcript_id:transcript-1', 'job_id:job-1', 'user_id:user-1'])
+  })
+
   test('keeps the existing formatting, callback, transcript id and key terms', async () => {
     const params = await sentParams()
 
@@ -56,7 +64,7 @@ describe('Deepgram request options', () => {
     expect(params.get('smart_format')).toBe('true')
     expect(params.get('paragraphs')).toBe('true')
     expect(params.get('callback')).toBe('https://app.example/api/webhooks/deepgram')
-    expect(params.get('extra')).toBe('transcript_id:transcript-1')
+    expect(params.getAll('extra')).toContain('transcript_id:transcript-1')
     expect(params.getAll('keyterm')).toEqual(['Acme', 'Move X'])
   })
 

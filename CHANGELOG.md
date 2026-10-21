@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-21] - Transcription Engine Choice
+
+Each transcript can now be made with **Deepgram Nova-3** or **Soniox v5**,
+chosen in the capture dialog for uploads and recordings alike. Behind it, the
+pipeline no longer has Deepgram built into every stage: it talks to one small
+engine contract, so a further engine is one folder and one route. Japanese and
+Hindi are handled properly for both engines, and a Deepgram callback cut off
+partway now recovers on its own.
+
+### Added
+
+- **Engine choice** — An **Engine** select leads the capture dialog's Advanced section, listed by brand name and remembered per browser with the other options. The closed row leads with it ("Soniox v5 · English · speakers on"). Soniox keeps no "um"/"uh" and masks no profanity, so with Soniox picked those switches are shown off and greyed out with "Not available with Soniox", keeping their settings for when Deepgram is picked again. The editor header names the engine after the date and duration ("OCT 19, 2026 • 00:00:21 • SONIOX V5").
+- **Soniox v5 (`stt-async-v5`)** — `infra/soniox` starts a job from our signed URL. A single language is held strictly and mixed languages are identified; key terms go to Soniox's `context.terms`. The callback URL names the exact job attempt (`transcript_id`, `job_id`) and carries our secret. `POST /api/webhooks/soniox` checks the secret and passes the callback to Inngest. `handle-soniox-callback` reads our own records first (a replayed or late callback fetches nothing), fetches the result, stores `{ transcription, transcript }` the same way Deepgram's result is stored, confirms the handoff on its receipt, and only then deletes the job at Soniox, which otherwise keeps it for 30 days. A failed attempt's copy is kept there, retrievable; an orphaned start's is deleted.
+- **`transcripts.engine`** — Which engine made the transcript, set with the other options and granted for INSERT only; every earlier transcript is truthfully `deepgram`. CHECKs refuse an unknown engine, and a Soniox transcript that records filler words or profanity masking as on (migrations `20261019000000_transcription_engine.sql`, `20261020000000_soniox_engine.sql`).
+- **Engine contract** — `core/transcription/engines/types.ts` (an engine starts a job and turns its stored result into our words), the server-only registry `lib/transcription/engines.server.ts`, and `core/transcription/engines/capabilities.ts`, which says what each engine can do (languages, filler words, profanity masking, longest file) and is safe in the browser.
+- **Five-hour limit** — Media preparation refuses a file longer than its engine takes, once it has measured it, with a plain message naming the engines that can take it ("Soniox v5 accepts audio up to 5 h; this file is 6 h 13 min. Upload it again and choose Deepgram Nova-3.").
+
+### Changed
+
+- **Deepgram behind the contract** — Deepgram's word handling moved out of the segment builder into `core/transcription/engines/deepgram-words.ts`. A frozen snapshot (`__tests__/deepgramPipelineBaseline.test.ts`), taken before anything moved, and 35 real stored Deepgram results show identical output.
+- **Deepgram callbacks through Inngest** — On 20 Oct a Deepgram callback stopped after its result was stored and linked but before it was handed off. Its receipt's five-minute lease turned all of Deepgram's retries away, and the transcript timed out with a valid result stored. The webhook route now only stores the result at its exact job attempt's key and passes it on as `deepgram/callback`; it holds no receipt, so Deepgram's next retry simply redoes it. `handle-deepgram-callback` links and hands it off with Inngest's retries, waiting out a held lease however long Deepgram's own retries lasted. Deepgram's request names `job_id` and `user_id` in `extra`, so the old lookup by request id and the latest-active-job fallback are gone.
+- **Exact job attempts** — `recordEngineResult` acts on one exact job attempt for both engines, and `persistWebhookFailure` does when given a `jobId`, with their checks repeated in the conditional write itself. A callback for a failed or different attempt is `stale` and changes nothing of ours. A refused link is retried after releasing the receipt; a receipt held by a killed attempt is waited out with a `RetryAfterError`; running out of retries fails the job only when nothing of the result reached us, and never deletes Soniox's copy.
+- **Japanese and Hindi** — Words written without a space before them (Japanese) are marked `joinsPrevious`: by their missing leading space for Soniox, and from Deepgram's own transcript for Deepgram. Segment text keeps no spaces between them, and the editor matches such text character by character, joining each word's characters back into one token for click-to-seek, the playing-word highlight and splitting. Sentences also end at `。！？｡।॥`, so long Japanese and Hindi speech splits between sentences.
+- **Wording** — The speaker popover's "Back to Deepgram's original assignment" now reads "Back to the original assignment"; comments that said "Deepgram" where they meant "the engine" say so.
+- **Soniox POC** — `soniox-poc/` uses `stt-async-v5`, deletes its test data after each run, and has a Context box and an Audio events checkbox.
+
+### Fixed
+
+- **PostgREST v14** — An update filtered with `or` must also return the filtered column, so the guarded writes return `inngest_event_id`; the test database fake enforces the same rule.
+
+### Tests
+
+- **Frontend** — `192` suites / `2,396` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `58` existing warnings); `git diff --check`. Made-up Deepgram and Soniox fixtures, real Japanese answers from both engines (synthetic speech), and tests for every review finding that fail without their fix.
+- **Live, local Docker stack** — Two independent runs of a 58-item list (one by Claude, one by Codex) passed with no app defects: both engines through uploads and recordings, speakers, languages, key terms, filler words and profanity masking (Deepgram), exports, delete, Japanese and Hindi, the corrupt-file error path, a real five-hour file refused, replays, orphaned starts, held leases, refused links, a worker killed mid-store, a transcript deleted while the engine was working, the timeout reaper on its real schedule, and the Deepgram callback recovering from being cut off at each point. Soniox's copy was gone after every run.
+- **Database** — Migrations applied locally; `supabase db diff` clean; CHECKs and INSERT-only grants checked as the `authenticated` role.
+
+### Notes
+
+- Before deploying, push the transcription-options migration and both engine migrations to hosted Supabase (after checking backups), then set `SONIOX_API_KEY` and `SONIOX_WEBHOOK_SECRET` (and optionally `SONIOX_MODEL`) in Vercel. Without the migrations, creating a transcript fails on hosted; without the keys, Deepgram still works and choosing Soniox fails.
+- Not exercised: the hosted project, Vercel's time limits, and retries running out during a long provider outage (covered by unit tests). After deploying, run one short Soniox upload on hosted and check its copy is deleted at Soniox.
+- Provider behaviour noted, not changed: Soniox can still write "um"/"uh", and it acts on key terms for some words and not others.
+
 ## [2026-10-19] - Upload Progress
 
 The capture dialog and recordings now show how far an upload has got, instead

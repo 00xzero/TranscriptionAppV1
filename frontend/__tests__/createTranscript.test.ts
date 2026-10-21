@@ -206,7 +206,7 @@ describe('POST /api/transcripts', () => {
   })
 
   test('stores the chosen transcription options on the row', async () => {
-    const options = { language: 'fr', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
+    const options = { engine: 'deepgram', language: 'fr', detect_speakers: false, keep_filler_words: false, mask_profanity: true }
     const transcripts = makeTranscriptTable({
       insertResults: [{ data: makeRow(), error: null }],
     })
@@ -217,6 +217,49 @@ describe('POST /api/transcripts', () => {
     expect(transcripts.insertMock.mock.calls[0]).toEqual([expect.objectContaining(options)])
   })
 
+  test('a tab opened before the engine could be chosen gets Deepgram', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    const res = await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { language: 'en', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+    })
+
+    expect(res.status).toBe(200)
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.objectContaining({ engine: 'deepgram', language: 'en', keep_filler_words: true }),
+    ])
+  })
+
+  test('a Soniox transcript records filler words and profanity masking off, which Soniox cannot do', async () => {
+    const transcripts = makeTranscriptTable({
+      insertResults: [{ data: makeRow(), error: null }],
+    })
+
+    await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { engine: 'soniox', language: 'en', detect_speakers: true, keep_filler_words: true, mask_profanity: true },
+    })
+
+    expect(transcripts.insertMock.mock.calls[0]).toEqual([
+      expect.objectContaining({ engine: 'soniox', language: 'en', keep_filler_words: false, mask_profanity: false }),
+    ])
+  })
+
+  test('refuses an engine not offered', async () => {
+    const transcripts = makeTranscriptTable({ insertResults: [] })
+
+    const res = await postTranscript(transcripts, {
+      filename: 'audio.mp3',
+      transcription_options: { engine: 'whisper', language: 'en', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+    })
+
+    expect(res.status).toBe(400)
+    expect(transcripts.insertMock).not.toHaveBeenCalled()
+  })
+
   test.each(['es', 'multi'])('records filler words off for %s, where Deepgram is never asked for them', async (language) => {
     const transcripts = makeTranscriptTable({
       insertResults: [{ data: makeRow(), error: null }],
@@ -224,7 +267,7 @@ describe('POST /api/transcripts', () => {
 
     await postTranscript(transcripts, {
       filename: 'audio.mp3',
-      transcription_options: { language, detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+      transcription_options: { engine: 'deepgram', language, detect_speakers: true, keep_filler_words: true, mask_profanity: false },
     })
 
     expect(transcripts.insertMock.mock.calls[0]).toEqual([
@@ -249,7 +292,7 @@ describe('POST /api/transcripts', () => {
 
     const res = await postTranscript(transcripts, {
       filename: 'audio.mp3',
-      transcription_options: { language: 'xx', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+      transcription_options: { engine: 'deepgram', language: 'xx', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
     })
 
     expect(res.status).toBe(400)
@@ -265,7 +308,7 @@ describe('POST /api/transcripts', () => {
     const res = await postTranscript(transcripts, {
       filename: 'audio.mp3',
       upload_intent_id: 'intent-1',
-      transcription_options: { language: 'de', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
+      transcription_options: { engine: 'deepgram', language: 'de', detect_speakers: true, keep_filler_words: true, mask_profanity: false },
     })
 
     expect(res.status).toBe(200)

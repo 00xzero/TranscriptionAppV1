@@ -1,12 +1,19 @@
 /**
- * Line a segment's (possibly edited) text up against the words Deepgram heard.
+ * Line a segment's (possibly edited) text up against the words the engine heard.
  *
  * The stored words are a fixed record of the audio; the segment text is the
  * user's version. Every token of the text gets a time: tokens that still match
  * a word keep that word's exact timing, and everything else is a deterministic
  * estimate placed inside the time window it sits in. Aligning against the
  * original words every time means estimates never compound across edits.
+ *
+ * Text written without spaces (Japanese) is matched character by character:
+ * each such character of the text and of the words is its own unit, and the
+ * characters that match one word are joined back into one token for it, so
+ * click-to-seek and the playing-word highlight work per word there too.
  */
+
+import { NO_SPACE_CHAR } from "./text-utils";
 
 export interface SourceWord {
     text: string;
@@ -36,7 +43,9 @@ export interface TokenAlignment extends AlignedToken {
 }
 
 // Above this many LCS cells (a large paste), alignment is skipped and the
-// tokens are spread evenly across the words' window instead.
+// tokens are spread evenly across the words' window instead. Cells are counted
+// in words, so text matched character by character (Japanese) is held to the
+// same limit as text matched word by word.
 export const MAX_ALIGNMENT_CELLS = 40_000;
 
 function comparisonKey(text: string): string {
@@ -49,6 +58,49 @@ function tokenize(text: string): string[] {
     const leading = text.length - text.trimStart().length;
     if (leading > 0) pieces[0] = text.slice(0, leading) + pieces[0];
     return pieces;
+}
+
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+/**
+ * Split text holding characters of a script written without spaces into one
+ * piece per such character; a run of other letters or digits stays one piece,
+ * and punctuation, marks and trailing spaces stay with the piece before them.
+ * Text without such characters comes back whole.
+ */
+function splitNoSpaceRuns(text: string): string[] {
+    if (!NO_SPACE_CHAR.test(text)) return [text];
+    const pieces: string[] = [];
+    let previous: "no-space" | "word" | null = null;
+    for (const char of Array.from(text)) {
+        const kind = NO_SPACE_CHAR.test(char) ? "no-space" : WORD_CHAR.test(char) ? "word" : null;
+        const starts = kind === "no-space" || (kind === "word" && previous !== "word");
+        if (starts || pieces.length === 0) pieces.push(char);
+        else pieces[pieces.length - 1] += char;
+        if (kind) previous = kind;
+    }
+    return pieces;
+}
+
+interface WordUnit {
+    key: string;
+    startMs: number;
+    endMs: number;
+    /** The stored word this unit is part of. */
+    word: number;
+}
+
+/** Each word as units: a word in a script written without spaces gives one per character, sharing its time. */
+function wordUnits(words: readonly SourceWord[]): WordUnit[] {
+    return words.flatMap((word, index) => {
+        const parts = splitNoSpaceRuns(word.text);
+        if (parts.length === 1) return [{ key: comparisonKey(word.text), startMs: word.startMs, endMs: word.endMs, word: index }];
+        return spread(parts.length, word.startMs, word.endMs).map((t, k) => ({
+            key: comparisonKey(parts[k]),
+            ...t,
+            word: index,
+        }));
+    });
 }
 
 /** Spread `count` tokens evenly across [startMs, endMs]. */
@@ -110,27 +162,31 @@ export function alignTokens(
 
     const lo = segStartMs;
     const hi = Math.max(segStartMs, segEndMs);
-    const pieces = tokenize(text);
+    const pieces = tokenize(text).flatMap(splitNoSpaceRuns);
 
     if (pieces.length === 0) {
         return [{ text, startMs: lo, endMs: hi, offset: 0, wordFrom: 0, wordTo: 0 }];
     }
 
+    // Matching runs over units; for space-separated text a unit is a word.
+    const units = wordUnits(words);
+
     const times: Array<{ startMs: number; endMs: number }> = new Array(pieces.length);
     // Without alignment every token shares the whole word range.
-    const spans: Array<[number, number]> = new Array(pieces.length).fill([0, words.length]);
+    const spans: Array<[number, number]> = new Array(pieces.length).fill([0, units.length]);
 
-    if (words.length === 0) {
+    if (units.length === 0) {
         spread(pieces.length, lo, hi).forEach((t, i) => { times[i] = t; });
-    } else if (pieces.length * words.length > MAX_ALIGNMENT_CELLS) {
-        spread(pieces.length, words[0].startMs, words[words.length - 1].endMs).forEach((t, i) => { times[i] = t; });
+    } else if (pieces.length * words.length * words.length > MAX_ALIGNMENT_CELLS * units.length) {
+        // pieces × units, both scaled from units to words (× words / units).
+        spread(pieces.length, units[0].startMs, units[units.length - 1].endMs).forEach((t, i) => { times[i] = t; });
     } else {
-        const anchors = matchAnchors(pieces.map(comparisonKey), words.map((w) => comparisonKey(w.text)));
+        const anchors = matchAnchors(pieces.map(comparisonKey), units.map((u) => u.key));
 
         // Walk each stretch between anchors, plus the stretch after the last one.
         let prevToken = -1;
         let prevWord = -1;
-        for (const [anchorToken, anchorWord] of [...anchors, [pieces.length, words.length] as [number, number]]) {
+        for (const [anchorToken, anchorWord] of [...anchors, [pieces.length, units.length] as [number, number]]) {
             const tokenCount = anchorToken - prevToken - 1;
             const wordCount = anchorWord - prevWord - 1;
 
@@ -138,7 +194,7 @@ export function alignTokens(
                 if (wordCount === tokenCount) {
                     // Corrected words: each token stands where its word was spoken.
                     for (let k = 0; k < tokenCount; k++) {
-                        const w = words[prevWord + 1 + k];
+                        const w = units[prevWord + 1 + k];
                         times[prevToken + 1 + k] = { startMs: w.startMs, endMs: w.endMs };
                         spans[prevToken + 1 + k] = [prevWord + 1 + k, prevWord + 2 + k];
                     }
@@ -149,12 +205,12 @@ export function alignTokens(
                     let endMs: number;
                     if (wordCount > 0) {
                         // Rewritten words: share the window those words were spoken in.
-                        startMs = words[prevWord + 1].startMs;
-                        endMs = words[anchorWord - 1].endMs;
+                        startMs = units[prevWord + 1].startMs;
+                        endMs = units[anchorWord - 1].endMs;
                     } else {
                         // Inserted words: fill the gap between the neighbouring anchors.
-                        startMs = prevWord >= 0 ? words[prevWord].endMs : lo;
-                        endMs = anchorWord < words.length ? words[anchorWord].startMs : hi;
+                        startMs = prevWord >= 0 ? units[prevWord].endMs : lo;
+                        endMs = anchorWord < units.length ? units[anchorWord].startMs : hi;
                         // No gap (or overlapping words): zero-length, sharing the next
                         // anchor's start so that anchor keeps its exact time.
                         if (endMs <= startMs) startMs = endMs;
@@ -164,7 +220,7 @@ export function alignTokens(
             }
 
             if (anchorToken < pieces.length) {
-                const w = words[anchorWord];
+                const w = units[anchorWord];
                 times[anchorToken] = { startMs: w.startMs, endMs: w.endMs };
                 spans[anchorToken] = [anchorWord, anchorWord + 1];
             }
@@ -173,15 +229,51 @@ export function alignTokens(
         }
     }
 
+    // Unit ranges back to word ranges: a unit range covers the words its units
+    // belong to; an empty one sits just before the word of its next unit.
+    const wordRange = ([from, to]: [number, number]): [number, number] => {
+        const wordFrom = from < units.length ? units[from].word : words.length;
+        return to > from ? [wordFrom, units[to - 1].word + 1] : [wordFrom, wordFrom];
+    };
+
     // Keep every time inside the segment, starts non-decreasing, and end >= start.
     let floor = lo;
     let offset = 0;
-    return pieces.map((piece, i) => {
+    const tokens = pieces.map((piece, i) => {
         const startMs = Math.min(hi, Math.max(floor, times[i].startMs));
         const endMs = Math.min(hi, Math.max(startMs, times[i].endMs));
         floor = startMs;
-        const token = { text: piece, startMs, endMs, offset, wordFrom: spans[i][0], wordTo: spans[i][1] };
+        const [wordFrom, wordTo] = wordRange(spans[i]);
+        const token = { text: piece, startMs, endMs, offset, wordFrom, wordTo };
         offset += piece.length;
         return token;
     });
+    return joinWordCharacters(tokens);
+}
+
+/**
+ * Characters of a script written without spaces that stand for one and the same
+ * word become one token for it again. Tokens with whitespace between them are
+ * never joined, so space-separated text is untouched.
+ */
+function joinWordCharacters(tokens: TokenAlignment[]): TokenAlignment[] {
+    const joined: TokenAlignment[] = [];
+    for (const token of tokens) {
+        const previous = joined[joined.length - 1];
+        if (
+            previous &&
+            !/\s$/.test(previous.text) &&
+            NO_SPACE_CHAR.test(previous.text) &&
+            NO_SPACE_CHAR.test(token.text) &&
+            token.wordTo - token.wordFrom === 1 &&
+            previous.wordFrom === token.wordFrom &&
+            previous.wordTo === token.wordTo
+        ) {
+            previous.text += token.text;
+            previous.endMs = Math.max(previous.endMs, token.endMs);
+        } else {
+            joined.push({ ...token });
+        }
+    }
+    return joined;
 }

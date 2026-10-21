@@ -2,7 +2,10 @@
  * Deepgram Webhook Handler
  *
  * Receives transcription results from Deepgram async API.
- * Validates the dg-token header and forwards to core for processing.
+ * Validates the dg-token header, stores the result at its exact job attempt's
+ * own key and passes it to Inngest (handle-deepgram-callback), which links and
+ * hands it off with retries of its own. Nothing here holds a receipt, so a
+ * request cut off at any point is simply redone by Deepgram's next retry.
  *
  * LIMITATION: Vercel Node.js functions have a 4.5 MB request body limit.
  * This applies to all plans and cannot be increased. Deepgram payloads for
@@ -24,9 +27,10 @@ import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { DeepgramErrorCallbackSchema, DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { UuidSchema } from "@/contracts/primitives";
-import { handleDeepgramWebhook, persistWebhookFailure } from "@/core/transcription/webhook";
+import { persistWebhookFailure, stageDeepgramResult } from "@/core/transcription/webhook";
 
-// Tell Vercel the maximum execution time — must match RECEIPT_LEASE_MS (Pro/Enterprise only)
+// Tell Vercel the maximum execution time: a long recording's result is uploaded
+// within the request (Pro/Enterprise only).
 export const maxDuration = 300; // seconds
 
 export async function POST(request: NextRequest) {
@@ -82,6 +86,7 @@ export async function POST(request: NextRequest) {
       const supabase = createAdminClient();
       const failed = await persistWebhookFailure({
         supabase,
+        engine: "deepgram",
         requestId,
         message: `Transcription failed: ${errMsg.slice(0, 200)}`,
         detail: JSON.stringify(errorCallback.data),
@@ -105,44 +110,41 @@ export async function POST(request: NextRequest) {
       const partialTranscriptId = UuidSchema.safeParse(rawPayload?.metadata?.extra?.transcript_id).data;
       console.warn("[deepgram-webhook] Malformed payload:", payloadParsed.error.issues[0]?.message ?? "Invalid input");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, transcriptId: partialTranscriptId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
+      await persistWebhookFailure({ supabase, engine: "deepgram", transcriptId: partialTranscriptId, requestId: partialRequestId, message: 'Malformed Deepgram payload' });
       return NextResponse.json({ error: 'Invalid payload structure' }, { status: 400 });
     }
 
     const payload = payloadParsed.data;
     const requestId = payload.metadata?.request_id;
-    const transcriptId = payload.metadata?.extra?.transcript_id;
+    const extra = payload.metadata?.extra;
+    const transcriptId = extra?.transcript_id;
+    const jobId = extra?.job_id;
+    const userId = extra?.user_id;
 
-    console.log("[deepgram-webhook] Step 2 complete:", { requestId, transcriptId });
+    console.log("[deepgram-webhook] Step 2 complete:", { requestId, transcriptId, jobId });
 
-    if (!transcriptId || !requestId) {
-      console.warn("[deepgram-webhook] Missing transcript_id or request_id");
+    if (!transcriptId || !requestId || !jobId || !userId) {
+      // Every request we start names all four (infra/deepgram): one without
+      // them can only be from a job started before they were sent.
+      console.warn("[deepgram-webhook] Missing transcript_id, job_id, user_id or request_id");
       const supabase = createAdminClient();
-      await persistWebhookFailure({ supabase, transcriptId, requestId, message: "Deepgram webhook missing transcript_id or request_id." });
-      return NextResponse.json({ error: "Missing transcript_id or request_id" }, { status: 400 });
+      await persistWebhookFailure({ supabase, engine: "deepgram", transcriptId, requestId, message: "Deepgram webhook missing its transcript, job or request id." });
+      return NextResponse.json({ error: "Missing transcript_id, job_id, user_id or request_id" }, { status: 400 });
     }
 
-    // Step 3: Delegate to core
+    // Step 3: Store it for its exact job attempt and pass it on
     const supabase = createAdminClient();
-    const result = await handleDeepgramWebhook({ supabase, requestId, transcriptId, rawBody });
+    const outcome = await stageDeepgramResult({ supabase, transcriptId, jobId, requestId, userId, rawBody });
 
-    switch (result.outcome) {
-      case 'processed':
-        console.log(`[deepgram-webhook] SUCCESS - transcript: ${transcriptId}, request: ${requestId}`);
-        return NextResponse.json({ received: true });
-
-      case 'duplicate':
-        return NextResponse.json({ received: true });
-
-      case 'retrying':
-        return NextResponse.json(
-          { error: "Webhook already being processed" },
-          { status: 503, headers: { "Retry-After": String(result.retryAfter) } }
-        );
-
-      case 'error':
-        return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
+    if (outcome === "not_ready") {
+      // The job has not saved this request yet; by Deepgram's next try it has.
+      return NextResponse.json(
+        { error: "Job not ready for this result yet" },
+        { status: 503, headers: { "Retry-After": "30" } }
+      );
     }
+    console.log(`[deepgram-webhook] ${outcome === "passed_on" ? "Passed on" : "Nothing to do for"} transcript: ${transcriptId}, request: ${requestId}`);
+    return NextResponse.json({ received: true });
   } catch (error) {
     console.error("[deepgram-webhook] ERROR:", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });

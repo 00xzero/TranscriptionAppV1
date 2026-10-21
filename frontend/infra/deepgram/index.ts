@@ -7,16 +7,14 @@
 
 const DEEPGRAM_API_URL = "https://api.deepgram.com/v1/listen";
 
-// Error type constants matching legacy worker and UI
-export const ERROR_TYPE_KEYTERM = "keyterm_error" as const;
-export const ERROR_TYPE_GENERAL = "transcription_error" as const;
-
-export type ErrorType = typeof ERROR_TYPE_KEYTERM | typeof ERROR_TYPE_GENERAL;
-
 export interface DeepgramAsyncOptions {
     mediaUrl: string;
     callbackUrl: string;
     transcriptId: string;
+    /** The job attempt, named again in the callback. */
+    jobId: string;
+    /** The transcript's owner, so the callback can find the result's folder. */
+    userId: string;
     keyTerms?: string[];
     transcription: TranscriptionOptions;
     model?: string;
@@ -31,7 +29,8 @@ import type {
     DeepgramSentence,
     DeepgramWebhookPayload as DeepgramResponse,
 } from '@/contracts/webhook'
-import { fillerWordsApply, type TranscriptionOptions } from '@/contracts/transcription-options'
+import type { TranscriptionOptions } from '@/contracts/transcription-options'
+import { fillerWordsApply } from '@/core/transcription/engines/capabilities'
 export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramParagraph, DeepgramSentence, DeepgramResponse }
 
 /**
@@ -93,7 +92,7 @@ export async function startAsyncTranscription(
         };
     }
 
-    const { mediaUrl, callbackUrl, transcriptId, keyTerms, transcription, model } = options;
+    const { mediaUrl, callbackUrl, transcriptId, jobId, userId, keyTerms, transcription, model } = options;
 
     // Build query parameters
     const params = new URLSearchParams();
@@ -109,7 +108,7 @@ export async function startAsyncTranscription(
     }
     // Keep "uh" and "um" in the transcript; Deepgram drops them by default.
     // English only, so other languages never ask.
-    if (transcription.keep_filler_words && fillerWordsApply(transcription.language)) {
+    if (transcription.keep_filler_words && fillerWordsApply("deepgram", transcription.language)) {
         params.append("filler_words", "true");
     }
     // Swear words come back as asterisks, in the transcript and its words.
@@ -126,8 +125,11 @@ export async function startAsyncTranscription(
         params.append("tag", tag);
     }
 
-    // Pass transcript ID via extra parameter (returned in metadata.extra in callback)
+    // Deepgram returns these in the callback's metadata.extra: the exact job
+    // attempt the result belongs to, and the folder it is stored in.
     params.append("extra", `transcript_id:${transcriptId}`);
+    params.append("extra", `job_id:${jobId}`);
+    params.append("extra", `user_id:${userId}`);
 
     // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {
@@ -182,51 +184,4 @@ export async function startAsyncTranscription(
             error: `Deepgram request failed: ${error instanceof Error ? error.message : String(error)}`,
         };
     }
-}
-
-/**
- * Classify an error and return user-friendly message.
- * Ported from legacy worker._classify_error()
- */
-export function classifyError(errorText: string): {
-    type: ErrorType;
-    message: string;
-} {
-    const errorLower = errorText.toLowerCase();
-
-    // Keyterm limit exceeded
-    if (errorLower.includes("keyterm") && errorLower.includes("limit")) {
-        return {
-            type: ERROR_TYPE_KEYTERM,
-            message:
-                "Too many key terms. Please reduce to fewer terms or shorter phrases.",
-        };
-    }
-
-    // Token limit (keyterms use tokens internally)
-    if (
-        errorLower.includes("token") &&
-        (errorLower.includes("limit") || errorLower.includes("exceed"))
-    ) {
-        return {
-            type: ERROR_TYPE_KEYTERM,
-            message:
-                "Key terms exceed the token limit. Try using fewer multi-word phrases.",
-        };
-    }
-
-    // Generic keyterm error
-    if (errorLower.includes("keyterm") || errorLower.includes("keyword")) {
-        return {
-            type: ERROR_TYPE_KEYTERM,
-            message:
-                "There was an issue with your key terms. Please review and try again.",
-        };
-    }
-
-    // General transcription error
-    return {
-        type: ERROR_TYPE_GENERAL,
-        message: `Transcription failed: ${errorText.slice(0, 200)}`,
-    };
 }

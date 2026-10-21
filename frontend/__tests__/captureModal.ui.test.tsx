@@ -970,6 +970,7 @@ describe('CaptureModal advanced options', () => {
 
   test('starts collapsed, with the options summed up on its row', () => {
     mockCaptureFormState.transcriptionOptions = {
+      engine: 'deepgram',
       language: 'es',
       detect_speakers: false,
       keep_filler_words: true,
@@ -979,7 +980,7 @@ describe('CaptureModal advanced options', () => {
 
     const trigger = screen.getByRole('button', { name: /advanced/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveTextContent('Spanish · speakers off · profanity masked')
+    expect(trigger).toHaveTextContent('Deepgram Nova-3 · Spanish · speakers off · profanity masked')
     expect(screen.queryByRole('switch', { name: 'Detect speakers' })).not.toBeInTheDocument()
   })
 
@@ -989,6 +990,7 @@ describe('CaptureModal advanced options', () => {
 
     await user.click(screen.getByRole('button', { name: /advanced/i }))
 
+    expect(screen.getByRole('combobox', { name: 'Engine' })).toHaveTextContent('Deepgram Nova-3')
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveTextContent('English')
     expect(screen.getByRole('switch', { name: 'Detect speakers' })).toBeChecked()
     expect(screen.getByRole('switch', { name: 'Keep filler words' })).toBeChecked()
@@ -1021,6 +1023,42 @@ describe('CaptureModal advanced options', () => {
     expect(screen.getByText('English only')).toBeInTheDocument()
   })
 
+  test('choosing an engine hands the whole changed options to the form', async () => {
+    const user = userEventLib.setup()
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+    await user.click(screen.getByRole('combobox', { name: 'Engine' }))
+    await user.click(await screen.findByRole('option', { name: 'Soniox v5' }))
+
+    expect(mockSetTranscriptionOptions).toHaveBeenCalledWith({ ...DEFAULT_TRANSCRIPTION_OPTIONS, engine: 'soniox' })
+  })
+
+  test('with Soniox, filler words and profanity masking are greyed out and say why, keeping their settings', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.transcriptionOptions = {
+      ...DEFAULT_TRANSCRIPTION_OPTIONS,
+      engine: 'soniox',
+      keep_filler_words: true,
+      mask_profanity: true,
+    }
+    renderModal()
+
+    const trigger = screen.getByRole('button', { name: /advanced/i })
+    expect(trigger).toHaveTextContent('Soniox v5 · English · speakers on')
+    expect(trigger).not.toHaveTextContent('profanity masked')
+
+    await user.click(trigger)
+
+    for (const name of ['Keep filler words', 'Mask profanity']) {
+      const option = screen.getByRole('switch', { name })
+      expect(option).toBeDisabled()
+      expect(option).not.toBeChecked()
+    }
+    expect(screen.getAllByText('Not available with Soniox')).toHaveLength(2)
+    expect(mockSetTranscriptionOptions).not.toHaveBeenCalled()
+  })
+
   test('locks while uploading', async () => {
     const user = userEventLib.setup()
     mockCaptureFormState.isUploading = true
@@ -1030,6 +1068,7 @@ describe('CaptureModal advanced options', () => {
 
     expect(screen.getByRole('switch', { name: 'Detect speakers' })).toBeDisabled()
     expect(screen.getByRole('combobox', { name: 'Language' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Engine' })).toBeDisabled()
   })
 
   test('a recording starts with the options and saves them for next time', async () => {

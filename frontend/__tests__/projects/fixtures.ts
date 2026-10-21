@@ -22,6 +22,7 @@ export const makeTranscript = (overrides: Partial<Transcript> = {}): Transcript 
   status: 'completed',
   source_object_key: null,
   upload_intent_id: null,
+  engine: 'deepgram',
   language: 'en',
   detect_speakers: true,
   keep_filler_words: true,

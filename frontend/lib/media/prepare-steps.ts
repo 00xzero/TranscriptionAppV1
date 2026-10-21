@@ -37,7 +37,7 @@ const SIGNED_URL_TTL_SECONDS = 15 * 60
 // that has already waited this long goes on with its upload as it is, so the
 // line delays a transcript by minutes and never runs it into the timeout
 // reaper (TRANSCRIPTION_TIMEOUT_MS from creation): at most a quarter of it,
-// leaving the rest for one conversion, the upload and Deepgram's own line.
+// leaving the rest for one conversion, the upload and the engine's own line.
 export const PREPARE_START_LIMIT_MS = Math.min(10 * 60_000, Math.floor(TRANSCRIPTION_TIMEOUT_MS / 4))
 
 export function preparedObjectKey(userId: string, transcriptId: string, jobId: string): string {
@@ -62,7 +62,7 @@ export type SkipReason = 'waveform_busy' | 'waited_too_long'
 
 /**
  * `invalid_source`: the row belongs to another user than the event names, or
- * holds no media inside its own folder. Nothing may be sent to Deepgram, so
+ * holds no media inside its own folder. Nothing may be sent to the engine, so
  * the caller fails the job.
  */
 export type LoadSourceResult =

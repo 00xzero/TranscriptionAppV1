@@ -14,6 +14,8 @@ const customJestConfig = {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^react-virtuoso$': '<rootDir>/__mocks__/react-virtuoso.tsx',
     '^@number-flow/react$': '<rootDir>/__mocks__/number-flow-react.tsx',
+    // Next swaps `server-only` for an empty module on the server; tests run there too.
+    '^server-only$': 'next/dist/compiled/server-only/empty',
   },
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
 }

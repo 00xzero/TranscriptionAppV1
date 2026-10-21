@@ -1,29 +1,26 @@
 /**
  * Handle transcription request
  * Triggered when user starts a new transcription job.
- * Calls Deepgram async API and stores request_id.
+ * Starts the job with the transcript's engine and stores its request_id.
  *
- * On failure (e.g., Deepgram API rejection), emits transcription/failed
+ * On failure (e.g., the engine's API rejects it), emits transcription/failed
  * so job/transcript status is updated and users see the error.
  */
 
 import { inngest, sendInngestEvent } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import { transitionJob } from "@/core/transcription/transition";
-import {
-    startAsyncTranscription,
-    getCallbackUrl,
-    classifyError,
-} from "@/infra/deepgram";
-import { getMediaUrlForDeepgram } from "@/infra/supabase/storage";
+import { classifyError } from "@/core/transcription/errors";
+import { getMediaUrlForEngine } from "@/infra/supabase/storage";
 import { transcriptionRequestedTrigger } from "@/lib/inngest/events";
 import { jobQueued } from "@/lib/inngest/job-checks";
 import { ownedSourceKey, readSourceRow } from "@/lib/media/source-row";
 import { readPositiveIntEnv } from "@/lib/env";
 import { resolveTranscriptionOptions } from "@/contracts/transcription-options";
+import { getEngine } from "@/lib/transcription/engines.server";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
-// Configurable concurrency limit for Deepgram API calls
+// Configurable concurrency limit for engine API calls
 const DEEPGRAM_CONCURRENCY = readPositiveIntEnv("DEEPGRAM_CONCURRENCY_LIMIT", 5);
 
 export const handleTranscriptionRequested = inngest.createFunction(
@@ -32,7 +29,11 @@ export const handleTranscriptionRequested = inngest.createFunction(
         triggers: [{ event: transcriptionRequestedTrigger }],
         concurrency: {
             scope: "account",
-            key: '"deepgram"', // Shared queue for Deepgram API calls
+            // One queue for every engine, named for the first one. It limits
+            // only the short start call, so sharing costs little, and a fixed
+            // key needs nothing from the event (the scheduler reads this
+            // expression, not resolveTranscriptionOptions).
+            key: '"deepgram"',
             limit: DEEPGRAM_CONCURRENCY,
         },
         retries: 2,
@@ -80,36 +81,34 @@ export const handleTranscriptionRequested = inngest.createFunction(
 
         console.log(`[inngest] Transcription requested for transcript: ${transcriptId}`);
 
-        // Step 1: Call Deepgram async API, for the file the row points at now
+        // Step 1: Start the engine's job, for the file the row points at now
         // (preparation may have replaced the upload), and only while this job
-        // is still the transcript's waiting job.
+        // is still the transcript's waiting job. The step keeps the id it had
+        // when Deepgram was the only engine: a new id would let a run caught
+        // mid-deploy start the engine twice.
         const result = await step.run("call-deepgram-async", async () => {
             const supabase = createAdminClient();
             if (!(await jobQueued(supabase, { transcriptId, jobId }))) {
                 return { skipped: true as const };
             }
             // The same check media preparation makes: only this user's own
-            // file, inside the transcript's folder, goes to Deepgram.
+            // file, inside the transcript's folder, goes to the engine.
             const row = await readSourceRow(supabase, transcriptId);
             const sourceKey = row && ownedSourceKey(row, { transcriptId, userId });
             if (!sourceKey) {
                 throw new Error(`Transcript ${transcriptId} has no media of its own`);
             }
-            const mediaUrlResult = await getMediaUrlForDeepgram(supabase, sourceKey);
+            const mediaUrlResult = await getMediaUrlForEngine(supabase, sourceKey);
             if (mediaUrlResult.error || !mediaUrlResult.url) {
                 throw new Error(mediaUrlResult.error ?? "Failed to generate media URL");
             }
-            const mediaUrl = mediaUrlResult.url;
-
-            const callbackUrl = getCallbackUrl();
-            console.log(`[inngest] Using callback URL: ${callbackUrl}`);
-
-            const response = await startAsyncTranscription({
-                mediaUrl,
-                callbackUrl,
+            const response = await getEngine(transcription.engine).start({
+                mediaUrl: mediaUrlResult.url,
                 transcriptId,
+                jobId,
+                userId,
                 keyTerms,
-                transcription,
+                options: transcription,
             });
 
             if (response.error) {
@@ -120,7 +119,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
         });
 
         if (result.skipped) {
-            console.log(`[inngest] Job ${jobId} is no longer queued; not calling Deepgram`);
+            console.log(`[inngest] Job ${jobId} is no longer queued; not starting ${transcription.engine}`);
             return { status: "skipped", transcriptId, jobId };
         }
 

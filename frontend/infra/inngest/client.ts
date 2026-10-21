@@ -13,6 +13,8 @@ type TranscriptionEventPayload = {
     [Name in keyof TranscriptionEvents]: {
         name: Name;
         data: TranscriptionEvents[Name]["data"];
+        /** Deduplicates sends of the same event (for 24 hours). */
+        id?: string;
     };
 }[keyof TranscriptionEvents];
 

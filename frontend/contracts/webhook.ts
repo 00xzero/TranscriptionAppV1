@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { UuidSchema } from './primitives'
+import { TranscriptionEngineSchema } from './transcription-options'
 
 export const DeepgramWordSchema = z.object({
   word: z.string(),
@@ -47,9 +48,12 @@ export const DeepgramWebhookPayloadSchema = z.object({
     duration: z.number().optional(),
     channels: z.number().optional(),
     models: z.array(z.string()).optional(),
-    // extra is validated structurally: transcript_id must be a UUID when present
+    // extra is validated structurally: the ids we send must be UUIDs when present.
+    // job_id names the exact job attempt; user_id the folder its result goes in.
     extra: z.object({
       transcript_id: UuidSchema.optional(),
+      job_id: UuidSchema.optional(),
+      user_id: UuidSchema.optional(),
     }).catchall(z.string().optional()).optional(),
   }).optional(),
   results: z.object({
@@ -79,7 +83,8 @@ export const DeepgramErrorCallbackSchema = z.object({
 
 // Full receipt schema matching infra/supabase/migrations/20260321000000_webhook_receipts.sql
 export const WebhookReceiptInsertSchema = z.object({
-  provider: z.literal('deepgram'),
+  // The engine whose callback this is.
+  provider: TranscriptionEngineSchema,
   request_id: z.string().min(1),
   transcript_id: UuidSchema.nullable().optional(),
   status: z.enum(['processing', 'completed', 'failed']).optional(),

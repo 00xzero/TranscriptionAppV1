@@ -18,6 +18,7 @@ import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import { toast, type ToastOptions } from '@/components/ui/toaster'
 import type { Seg, Speaker, WordsBySegment } from '../types'
 import { groupSourceWords, revisionsMatch } from '../utils'
+import type { TranscriptionEngine } from '@/contracts/transcription-options'
 
 const WaveformArtifactSchema = z.object({
   version: z.literal(WAVEFORM_ARTIFACT_VERSION),
@@ -74,12 +75,13 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
-  // Deepgram's words per segment: the fixed timing record edited text aligns to.
+  // The engine's words per segment: the fixed timing record edited text aligns to.
   const [wordsBySegment, setWordsBySegment] = useState<WordsBySegment>(NO_WORDS)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
   const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
+  const [transcriptEngine, setTranscriptEngine] = useState<TranscriptionEngine | null>(null)
   const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
   const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(null)
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
@@ -135,6 +137,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
       }
       setTranscriptTitle(transcriptData.title || null)
       setTranscriptCreatedAt(transcriptData.created_at)
+      setTranscriptEngine(transcriptData.engine)
       setTranscriptDurationSecs(transcriptData.duration_seconds)
       setTranscriptProjectId(transcriptData.project_id)
 
@@ -303,6 +306,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     peopleContext, setPeopleContext,
     transcriptTitle, setTranscriptTitle,
     transcriptCreatedAt,
+    transcriptEngine,
     transcriptDurationSecs: chooseEditorDuration(transcriptDurationSecs, waveformDurationSecs),
     transcriptProjectId,
     waveformDurationSecs,

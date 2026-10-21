@@ -6,7 +6,7 @@ const adminFromMock = jest.fn()
 
 jest.mock('@/infra/supabase/storage', () => {
   return {
-    getMediaUrlForDeepgram: jest.fn(),
+    getMediaUrlForEngine: jest.fn(),
   }
 })
 
@@ -40,7 +40,7 @@ jest.mock('@/infra/inngest/client', () => {
 
 import { POST } from '../app/api/transcripts/[id]/start/route'
 import { sendInngestEvent } from '@/infra/inngest/client'
-import { getMediaUrlForDeepgram } from '@/infra/supabase/storage'
+import { getMediaUrlForEngine } from '@/infra/supabase/storage'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 // The transcript columns as the database returns them.
@@ -91,7 +91,7 @@ describe('Start route idempotency', () => {
     transcriptUpdateEqMock.mockResolvedValue({ error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: { id: 'job-new' }, error: null })
     watchlistEqMock.mockResolvedValue({ data: [], error: null })
-    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
+    ;(getMediaUrlForEngine as jest.Mock).mockResolvedValue({
       url: 'https://example.com/media.mp3',
       error: null,
     })
@@ -296,7 +296,7 @@ describe('Start route idempotency', () => {
       error: null,
     })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
-    ;(getMediaUrlForDeepgram as jest.Mock).mockResolvedValue({
+    ;(getMediaUrlForEngine as jest.Mock).mockResolvedValue({
       url: null,
       error: 'Media proxy misconfigured: missing MEDIA_PROXY_SECRET',
     })
@@ -369,6 +369,7 @@ describe('Start route idempotency', () => {
         id: 'proj-4',
         source_object_key: 'source-4',
         status: 'created',
+        engine: 'deepgram',
         language: 'multi',
         detect_speakers: false,
         keep_filler_words: false,
@@ -387,6 +388,7 @@ describe('Start route idempotency', () => {
       name: 'media/prepare-requested',
       data: expect.objectContaining({
         transcriptionOptions: {
+          engine: 'deepgram',
           language: 'multi',
           detect_speakers: false,
           keep_filler_words: false,

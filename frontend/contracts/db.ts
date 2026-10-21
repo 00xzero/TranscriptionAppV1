@@ -6,7 +6,7 @@
 import { z } from 'zod'
 import { TEXT_LIMITS } from './limits'
 import { ProjectNameSchema, UuidSchema } from './primitives'
-import { TranscriptionLanguageSchema } from './transcription-options'
+import { TranscriptionEngineSchema, TranscriptionLanguageSchema } from './transcription-options'
 
 // Status enums — canonical, imported by state-machine.ts and transition.ts
 export const JobStatusSchema = z.enum(['queued', 'processing', 'completed', 'error'])
@@ -26,6 +26,7 @@ export const TranscriptSchema = z.object({
   upload_intent_id: z.string().nullable(),
   // How the transcript was made (contracts/transcription-options.ts). Filler
   // words are null on transcripts completed before they were recorded.
+  engine: TranscriptionEngineSchema,
   language: TranscriptionLanguageSchema,
   detect_speakers: z.boolean(),
   keep_filler_words: z.boolean().nullable(),
@@ -68,7 +69,7 @@ export const JobSchema = z.object({
   idempotency_key: z.string().nullable(),
   type: z.string(),
   status: JobStatusSchema,
-  // The Deepgram response file in the transcription-results bucket.
+  // The engine's result file in the transcription-results bucket.
   result_object_key: z.string().nullable(),
   error_message: z.string().nullable(),
   error_type: z.string().nullable(),
@@ -174,7 +175,7 @@ export const SegmentSchema = z.object({
   id: UuidSchema,
   transcript_id: UuidSchema,
   speaker_id: UuidSchema.nullable(),
-  /** Deepgram's speaker number, fixed at save; Remove returns the segment to its detected speaker. */
+  /** The engine's speaker number, fixed at save; Remove returns the segment to its detected speaker. */
   diarization_index: z.number().int().nonnegative().nullable(),
   start_ms: z.number().int(),
   end_ms: z.number().int(),
@@ -379,7 +380,7 @@ const SaveTranscriptSegmentsSegmentSchema = z.object({
   words: z.array(SaveTranscriptSegmentsWordSchema),
 })
 
-// num is Deepgram's speaker number; the RPC keys transcript speakers on it.
+// num is the engine's speaker number; the RPC keys transcript speakers on it.
 const SaveTranscriptSegmentsSpeakerSchema = z.object({
   num: z.number().int().nonnegative(),
 })

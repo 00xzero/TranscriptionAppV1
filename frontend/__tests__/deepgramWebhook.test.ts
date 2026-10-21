@@ -1,5 +1,12 @@
 /** @jest-environment node */
 
+/**
+ * The Deepgram webhook route: it stores the result for its exact job attempt
+ * and passes it to Inngest, holding no receipt, so a request cut off anywhere
+ * is simply redone by Deepgram's retry. The handoff itself is tested in
+ * deepgramCallbackHandler.test.ts.
+ */
+
 jest.mock('@/core/transcription/transition', () => ({
   transitionJob: jest.fn(),
   forceJobError: jest.fn(async () => true),
@@ -11,34 +18,24 @@ jest.mock('@/infra/supabase/transcription-results.server', () => ({
   downloadTranscriptionResult: jest.fn(),
 }))
 
+jest.mock('@/infra/inngest/client', () => {
+  const sendInngestEvent = jest.fn(async () => undefined)
+  return { sendInngestEvent, inngest: { send: sendInngestEvent } }
+})
+
 import { POST } from '../app/api/webhooks/deepgram/route'
 import { forceJobError } from '@/core/transcription/transition'
+import { sendInngestEvent } from '@/infra/inngest/client'
 import {
   removeTranscriptionResult,
   uploadTranscriptionResult,
 } from '@/infra/supabase/transcription-results.server'
 
-jest.mock('@/infra/inngest/client', () => {
-  const sendInngestEvent = jest.fn(async () => undefined)
-  return {
-    sendInngestEvent,
-    inngest: {
-      send: sendInngestEvent,
-    },
-  }
-})
+type Row = Record<string, unknown> | null
+type Read = { data: Row; error: { message: string } | null }
 
-type SupabaseError = { code?: string; message: string } | null
-type ReceiptTakeoverRow = { id: string }
-type ReceiptState =
-  | { status: 'completed' | 'processing' | 'failed'; attempt_id: string; claimed_at: string }
-  | { status: 'completed' | 'processing' | 'failed' }
-type ReceiptInsertResult = { error: SupabaseError }
-type ReceiptUpdateResult = { data: ReceiptTakeoverRow[] | null; error: SupabaseError }
-type ReceiptSingleResult = { data: ReceiptState | null; error: SupabaseError }
-
-// jobs: lookups (exact, then fallback) and the link update.
-const jobMaybeSingle = jest.fn()
+// jobs: the staging reads (by id) and, for a failure, the lookup by request id.
+const jobMaybeSingle = jest.fn<Promise<Read>, []>()
 const jobSelectChain: any = {
   eq: jest.fn(() => jobSelectChain),
   in: jest.fn(() => jobSelectChain),
@@ -46,14 +43,10 @@ const jobSelectChain: any = {
   limit: jest.fn(() => jobSelectChain),
   maybeSingle: jobMaybeSingle,
 }
-const jobLinkMaybeSingle = jest.fn()
-const jobUpdateEq = jest.fn((_column: string, _value: string) => ({
-  select: () => ({ maybeSingle: jobLinkMaybeSingle }),
-}))
-const jobUpdateMock = jest.fn((_values: Record<string, unknown>) => ({ eq: jobUpdateEq }))
+const jobUpdateMock = jest.fn()
 
-// transcripts: the owner lookup and the no-job error fallback.
-const transcriptMaybeSingle = jest.fn()
+// transcripts: the staging reads, and the error fallback for a known transcript.
+const transcriptMaybeSingle = jest.fn<Promise<Read>, []>()
 const transcriptSelectChain: any = {
   eq: jest.fn(() => transcriptSelectChain),
   maybeSingle: transcriptMaybeSingle,
@@ -61,174 +54,244 @@ const transcriptSelectChain: any = {
 const transcriptUpdateEq = jest.fn(async (_column: string, _value: string) => ({ error: null }))
 const transcriptUpdateMock = jest.fn((_values: Record<string, unknown>) => ({ eq: transcriptUpdateEq }))
 
-const insertMock = jest.fn(async () => ({ error: null }))
+const failedEventsInsert = jest.fn(async () => ({ error: null }))
+const receiptsTouched = jest.fn()
+
+jest.mock('@/infra/supabase/admin', () => ({
+  createAdminClient: () => ({
+    from: (table: string) => {
+      if (table === 'webhook_receipts') {
+        receiptsTouched()
+        return {}
+      }
+      if (table === 'failed_events') return { insert: failedEventsInsert }
+      if (table === 'transcripts') return { select: () => transcriptSelectChain, update: transcriptUpdateMock }
+      return { select: () => jobSelectChain, update: jobUpdateMock }
+    },
+  }),
+}))
+
 const mockForceJobError = forceJobError as jest.MockedFunction<typeof forceJobError>
 const mockUpload = uploadTranscriptionResult as jest.MockedFunction<typeof uploadTranscriptionResult>
 const mockRemove = removeTranscriptionResult as jest.MockedFunction<typeof removeTranscriptionResult>
+const mockSend = sendInngestEvent as unknown as jest.Mock
 
-// Thenable chain for receipt updates — supports .eq()/.neq()/.select() chaining;
-// the chain itself is awaitable and delegates to receiptUpdateTerminal
-const receiptUpdateTerminal = jest.fn(
-  async (): Promise<ReceiptUpdateResult> => ({ data: null, error: null })
-)
-const receiptUpdateChain: any = {
-  eq:     jest.fn(() => receiptUpdateChain),
-  neq:    jest.fn(() => receiptUpdateChain),
-  select: jest.fn(() => receiptUpdateChain),
-  then:   (resolve: any, reject: any) => receiptUpdateTerminal().then(resolve, reject),
-}
-const receiptUpdateMock = jest.fn(
-  (_values: Record<string, unknown>) => receiptUpdateChain
-)
+const TRANSCRIPT_ID = '00000000-0000-4000-8000-000000000456'
+const USER_ID = '00000000-0000-4000-8000-000000000789'
+const JOB_ID = '00000000-0000-4000-8000-0000000000a1'
+const REQUEST_ID = 'req-123'
+const RESULT_KEY = `${USER_ID}/${TRANSCRIPT_ID}/${JOB_ID}.json.gz`
 
-const receiptInsertMock = jest.fn(
-  async (): Promise<ReceiptInsertResult> => ({ error: null })
-)
-
-const receiptSingleMock = jest.fn(
-  async (): Promise<ReceiptSingleResult> => ({ data: null, error: null })
-)
-const receiptSelectChain: any = {
-  eq:     jest.fn(() => receiptSelectChain),
-  single: receiptSingleMock,
-}
-const receiptSelectMock = jest.fn(() => receiptSelectChain)
-
-jest.mock('@/infra/supabase/admin', () => {
-  return {
-    createAdminClient: () => ({
-      from: (table: string) => {
-        if (table === 'webhook_receipts') {
-          return {
-            insert: receiptInsertMock,
-            update: receiptUpdateMock,
-            select: receiptSelectMock,
-          }
-        }
-        if (table === 'failed_events') {
-          return { insert: insertMock }
-        }
-        if (table === 'transcripts') {
-          return {
-            select: () => transcriptSelectChain,
-            update: transcriptUpdateMock,
-          }
-        }
-        return {
-          select: () => jobSelectChain,
-          update: jobUpdateMock,
-        }
-      },
-    }),
-  }
-})
-
-const VALID_TRANSCRIPT_ID = '00000000-0000-0000-0000-000000000456'
-const USER_ID = '00000000-0000-0000-0000-000000000789'
-const RESULT_KEY = `${USER_ID}/${VALID_TRANSCRIPT_ID}/job-1.json.gz`
-
-function requestWithBody(body: unknown, headers = new Headers({ 'dg-token': 'test-token' })) {
-  const text = JSON.stringify(body)
+function requestWithText(text: string, headers = new Headers({ 'dg-token': 'test-token' })) {
   return { headers, text: async () => text } as any
 }
 
-function makeBody(requestId: string, transcriptId: string) {
+function requestWithBody(body: unknown, headers?: Headers) {
+  return requestWithText(JSON.stringify(body), headers)
+}
+
+function makeBody(extra: Record<string, unknown> = {}) {
   return {
-    metadata: { request_id: requestId, extra: { transcript_id: transcriptId } },
+    metadata: {
+      request_id: REQUEST_ID,
+      extra: { transcript_id: TRANSCRIPT_ID, job_id: JOB_ID, user_id: USER_ID, ...extra },
+    },
     results: { channels: [] },
   }
 }
 
-function makeRequest(requestId: string, transcriptId: string) {
-  return requestWithBody(makeBody(requestId, transcriptId))
+const transcriptRow = { data: { user_id: USER_ID }, error: null }
+const noRow = { data: null, error: null }
+const jobRow = (job: Record<string, unknown> = {}) => ({
+  data: { transcript_id: TRANSCRIPT_ID, status: 'processing', inngest_event_id: REQUEST_ID, ...job },
+  error: null,
+})
+
+/** The staging reads: once before the upload, once after. */
+function reads(before: [Read, Read], after?: [Read, Read]) {
+  transcriptMaybeSingle.mockResolvedValueOnce(before[0])
+  jobMaybeSingle.mockResolvedValueOnce(before[1])
+  if (after) {
+    transcriptMaybeSingle.mockResolvedValueOnce(after[0])
+    jobMaybeSingle.mockResolvedValueOnce(after[1])
+  }
 }
 
-/** Exact lookup misses, the fallback finds job-1. */
-function findJobByFallback() {
-  jobMaybeSingle
-    .mockResolvedValueOnce({ data: null, error: null })
-    .mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
-}
+beforeEach(() => {
+  jest.clearAllMocks()
+  jobMaybeSingle.mockReset()
+  transcriptMaybeSingle.mockReset()
+  mockUpload.mockReset()
+  mockUpload.mockResolvedValue({ bytes: 42 })
+  mockRemove.mockReset()
+  mockRemove.mockResolvedValue(undefined)
+  mockSend.mockReset()
+  mockSend.mockResolvedValue(undefined)
+  process.env.DEEPGRAM_API_KEY_IDENTIFIER = 'test-token'
+})
 
-describe('Deepgram webhook route', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
-    jobMaybeSingle.mockReset()
-    jobLinkMaybeSingle.mockReset()
-    jobLinkMaybeSingle.mockResolvedValue({ data: { id: 'job-1' }, error: null })
-    transcriptMaybeSingle.mockReset()
-    transcriptMaybeSingle.mockResolvedValue({ data: { user_id: USER_ID }, error: null })
-    mockUpload.mockReset()
-    mockUpload.mockResolvedValue({ bytes: 42 })
-    process.env.DEEPGRAM_API_KEY_IDENTIFIER = 'test-token'
-
-    receiptInsertMock.mockReset()
-    receiptInsertMock.mockResolvedValue({ error: null })
-    receiptUpdateTerminal.mockReset()
-    receiptUpdateTerminal.mockResolvedValue({ data: null, error: null })
-    receiptSingleMock.mockReset()
-  })
-
-  test('stores the body exactly as sent, links it, and sends a minimal Inngest event', async () => {
-    findJobByFallback()
-
+describe('Deepgram webhook route: storing and passing on', () => {
+  test('stores the body exactly as sent at the job\'s own key, then passes it on, holding no receipt', async () => {
+    reads([transcriptRow, jobRow()], [transcriptRow, jobRow()])
     // Fields our schema does not list must survive into the stored file.
-    const body = { ...makeBody('req-123', VALID_TRANSCRIPT_ID), model_info: { arch: 'nova-3' } }
-    const request = {
-      headers: new Headers({ 'dg-token': 'test-token' }),
-      text: async () => JSON.stringify(body, null, 2),
-    } as any
+    const text = JSON.stringify({ ...makeBody(), model_info: { arch: 'nova-3' } }, null, 2)
 
-    const res = await POST(request)
+    const res = await POST(requestWithText(text))
+
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ received: true })
-
-    expect(mockUpload).toHaveBeenCalledTimes(1)
-    expect(mockUpload).toHaveBeenCalledWith(
-      expect.anything(),
-      RESULT_KEY,
-      JSON.stringify(body, null, 2)
-    )
-
-    expect(jobUpdateMock).toHaveBeenCalledTimes(1)
-    expect(jobUpdateMock).toHaveBeenCalledWith({
-      result_object_key: RESULT_KEY,
-      inngest_event_id: 'req-123',
+    expect(mockUpload).toHaveBeenCalledWith(expect.anything(), RESULT_KEY, text)
+    expect(mockSend).toHaveBeenCalledWith({
+      name: 'deepgram/callback',
+      id: `deepgram-callback:${REQUEST_ID}`,
+      data: { transcriptId: TRANSCRIPT_ID, jobId: JOB_ID, requestId: REQUEST_ID, userId: USER_ID },
     })
-    expect(jobUpdateEq).toHaveBeenCalledWith('id', 'job-1')
-    expect(mockUpload.mock.invocationCallOrder[0]).toBeLessThan(jobUpdateMock.mock.invocationCallOrder[0])
-
-    const { sendInngestEvent } = await import('@/infra/inngest/client')
-    expect(sendInngestEvent).toHaveBeenCalledTimes(1)
-    expect((sendInngestEvent as jest.Mock).mock.calls[0][0]).toEqual({
-      name: 'transcription/webhook',
-      data: {
-        requestId: 'req-123',
-        transcriptId: VALID_TRANSCRIPT_ID,
-      },
-    })
+    expect(mockUpload.mock.invocationCallOrder[0]).toBeLessThan(mockSend.mock.invocationCallOrder[0])
+    // Linking and the receipt are the Inngest function's.
+    expect(jobUpdateMock).not.toHaveBeenCalled()
+    expect(receiptsTouched).not.toHaveBeenCalled()
   })
 
+  test.each([
+    ['still queued', { status: 'queued', inngest_event_id: null }],
+    ['processing without the request id saved yet', { inngest_event_id: null }],
+  ])('a job %s: 503 to retry, and nothing is written (another start\'s result must not land on it)', async (_label, job) => {
+    reads([transcriptRow, jobRow(job)])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(503)
+    expect(res.headers.get('Retry-After')).toBe('30')
+    expect(mockUpload).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test.each([
+    ['carries another request', { inngest_event_id: 'req-other' }],
+    ['belongs to another transcript', { transcript_id: '00000000-0000-4000-8000-000000000999' }],
+    ['has failed', { status: 'error' }],
+    ['has completed', { status: 'completed' }],
+  ])('a job that %s: 200 and nothing is written', async (_label, job) => {
+    reads([transcriptRow, jobRow(job)])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(200)
+    expect(mockUpload).not.toHaveBeenCalled()
+    expect(mockRemove).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('a callback whose user id is not the transcript\'s owner writes nothing', async () => {
+    reads([{ data: { user_id: '00000000-0000-4000-8000-000000000111' }, error: null }, jobRow()])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(200)
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  test('a deleted transcript: 200, and any file an earlier delivery left at the job\'s key is removed', async () => {
+    reads([noRow, noRow])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(200)
+    expect(mockUpload).not.toHaveBeenCalled()
+    expect(mockRemove).toHaveBeenCalledWith(expect.anything(), RESULT_KEY, expect.any(String))
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('a removal that fails is a 500, so Deepgram retries it', async () => {
+    reads([noRow, noRow])
+    mockRemove.mockRejectedValueOnce(new Error('storage down'))
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(500)
+  })
+
+  test('a transcript deleted during the upload: the file is removed and nothing is passed on', async () => {
+    reads([transcriptRow, jobRow()], [noRow, noRow])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(200)
+    expect(mockUpload).toHaveBeenCalledTimes(1)
+    expect(mockRemove).toHaveBeenCalledWith(expect.anything(), RESULT_KEY, expect.any(String))
+    expect(mockUpload.mock.invocationCallOrder[0]).toBeLessThan(mockRemove.mock.invocationCallOrder[0])
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('a job that failed during the upload keeps the file in its own folder and passes nothing on', async () => {
+    reads([transcriptRow, jobRow()], [transcriptRow, jobRow({ status: 'error' })])
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(200)
+    expect(mockRemove).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('an upload that fails is a 500 and passes nothing on', async () => {
+    reads([transcriptRow, jobRow()])
+    mockUpload.mockRejectedValueOnce(new Error('storage down'))
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(500)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  test('a send that fails is a 500; the retry overwrites the same file and sends the same event', async () => {
+    reads([transcriptRow, jobRow()], [transcriptRow, jobRow()])
+    mockSend.mockRejectedValueOnce(new Error('Inngest down'))
+
+    expect((await POST(requestWithBody(makeBody()))).status).toBe(500)
+
+    reads([transcriptRow, jobRow()], [transcriptRow, jobRow()])
+    expect((await POST(requestWithBody(makeBody()))).status).toBe(200)
+
+    expect(mockUpload).toHaveBeenCalledTimes(2)
+    expect(mockUpload.mock.calls[0][1]).toBe(RESULT_KEY)
+    expect(mockUpload.mock.calls[1][1]).toBe(RESULT_KEY)
+    expect(mockSend.mock.calls[0][0].id).toBe(mockSend.mock.calls[1][0].id)
+  })
+
+  test('a job that cannot be read is a 500, writing nothing', async () => {
+    transcriptMaybeSingle.mockResolvedValueOnce(transcriptRow)
+    jobMaybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'db down' } })
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(500)
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+
+  test('a callback without a job id (a job started before it was sent) is refused, failing the transcript\'s active job', async () => {
+    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
+
+    const res = await POST(requestWithBody(makeBody({ job_id: undefined })))
+
+    expect(res.status).toBe(400)
+    expect(jobSelectChain.eq).toHaveBeenCalledWith('transcript_id', TRANSCRIPT_ID)
+    expect(mockForceJobError).toHaveBeenCalledWith(expect.objectContaining({ jobId: 'job-1', context: 'persistWebhookFailure' }))
+    expect(mockUpload).not.toHaveBeenCalled()
+  })
+})
+
+describe('Deepgram webhook route: checks before anything is stored', () => {
   test('rejects when dg-token is missing', async () => {
     const res = await POST(requestWithBody({}, new Headers({})))
     expect(res.status).toBe(401)
-
-    const { sendInngestEvent } = await import('@/infra/inngest/client')
-    expect(sendInngestEvent).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
     expect(mockUpload).not.toHaveBeenCalled()
-    expect(jobUpdateMock).not.toHaveBeenCalled()
   })
 
   test('calls forceJobError when transcript_id missing but job found via requestId', async () => {
-    jobMaybeSingle.mockResolvedValueOnce({
-      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
-      error: null,
-    })
+    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1', transcript_id: TRANSCRIPT_ID }, error: null })
 
-    const res = await POST(requestWithBody({
-      metadata: { request_id: 'req-123', extra: {} },
-      results: { channels: [] },
-    }))
+    const res = await POST(requestWithBody({ metadata: { request_id: REQUEST_ID, extra: {} }, results: { channels: [] } }))
     expect(res.status).toBe(400)
 
     expect(mockForceJobError).toHaveBeenCalledWith(
@@ -236,7 +299,7 @@ describe('Deepgram webhook route', () => {
         jobId: 'job-1',
         context: 'persistWebhookFailure',
         extraJobFields: expect.objectContaining({
-          error_message: 'Deepgram webhook missing transcript_id or request_id.',
+          error_message: 'Deepgram webhook missing its transcript, job or request id.',
           error_type: 'transcription_error',
         }),
       })
@@ -247,20 +310,17 @@ describe('Deepgram webhook route', () => {
   test('marks transcript as error and logs failed_event when transcript is known but no job is found', async () => {
     jobMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
 
-    const res = await POST(requestWithBody({
-      metadata: { extra: { transcript_id: VALID_TRANSCRIPT_ID } },
-      results: { channels: [] },
-    }))
+    const res = await POST(requestWithBody({ metadata: { extra: { transcript_id: TRANSCRIPT_ID } }, results: { channels: [] } }))
     expect(res.status).toBe(400)
 
-    expect(insertMock).toHaveBeenCalledWith({
+    expect(failedEventsInsert).toHaveBeenCalledWith({
       event_name: 'deepgram/webhook_failure',
-      event_data: { transcriptId: VALID_TRANSCRIPT_ID, requestId: undefined },
-      error_message: 'Deepgram webhook missing transcript_id or request_id.',
-      transcript_id: VALID_TRANSCRIPT_ID,
+      event_data: { transcriptId: TRANSCRIPT_ID, requestId: undefined },
+      error_message: 'Deepgram webhook missing its transcript, job or request id.',
+      transcript_id: TRANSCRIPT_ID,
     })
     expect(transcriptUpdateMock).toHaveBeenCalledWith({ status: 'error' })
-    expect(transcriptUpdateEq).toHaveBeenCalledWith('id', VALID_TRANSCRIPT_ID)
+    expect(transcriptUpdateEq).toHaveBeenCalledWith('id', TRANSCRIPT_ID)
     expect(mockForceJobError).not.toHaveBeenCalled()
   })
 
@@ -273,10 +333,7 @@ describe('Deepgram webhook route', () => {
   }
 
   test('fails the job named by the error callback request id with Deepgram\'s message', async () => {
-    jobMaybeSingle.mockResolvedValueOnce({
-      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
-      error: null,
-    })
+    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1', transcript_id: TRANSCRIPT_ID }, error: null })
 
     const res = await POST(requestWithBody(ERROR_CALLBACK))
 
@@ -295,10 +352,9 @@ describe('Deepgram webhook route', () => {
     )
     const detail = mockForceJobError.mock.calls[0][0].extraJobFields?.error_detail
     expect(JSON.parse(detail ?? '')).toEqual(ERROR_CALLBACK)
-    expect(receiptInsertMock).not.toHaveBeenCalled()
+    expect(receiptsTouched).not.toHaveBeenCalled()
     expect(mockUpload).not.toHaveBeenCalled()
-    const { sendInngestEvent } = await import('@/infra/inngest/client')
-    expect(sendInngestEvent).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
   test('asks Deepgram to retry an error callback that arrives before its job has the request id', async () => {
@@ -309,15 +365,12 @@ describe('Deepgram webhook route', () => {
     expect(res.status).toBe(503)
     expect(res.headers.get('Retry-After')).toBe('30')
     expect(mockForceJobError).not.toHaveBeenCalled()
-    expect(insertMock).not.toHaveBeenCalled()
+    expect(failedEventsInsert).not.toHaveBeenCalled()
     expect(transcriptUpdateMock).not.toHaveBeenCalled()
   })
 
   test('asks Deepgram to retry when failing the job does not go through', async () => {
-    jobMaybeSingle.mockResolvedValueOnce({
-      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
-      error: null,
-    })
+    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1', transcript_id: TRANSCRIPT_ID }, error: null })
     mockForceJobError.mockResolvedValueOnce(false)
 
     const res = await POST(requestWithBody(ERROR_CALLBACK))
@@ -337,286 +390,20 @@ describe('Deepgram webhook route', () => {
     expect(mockForceJobError).not.toHaveBeenCalled()
   })
 
-  // --- Storing the response ---
-
-  test('marks receipt failed and stores nothing on the job when the upload fails', async () => {
-    findJobByFallback()
-    mockUpload.mockRejectedValueOnce(new Error('Failed to store Deepgram response: storage down'))
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    expect(receiptUpdateMock.mock.calls.at(-1)?.[0]).toMatchObject({ status: 'failed' })
-    const { sendInngestEvent } = await import('@/infra/inngest/client')
-    expect(sendInngestEvent).not.toHaveBeenCalled()
-  })
-
-  test('removes the stored file when the job is deleted during the upload', async () => {
-    findJobByFallback()
-    jobLinkMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(mockRemove).toHaveBeenCalledWith(expect.anything(), RESULT_KEY, 'webhook')
-    expect(receiptUpdateMock.mock.calls.at(-1)?.[0]).toMatchObject({ status: 'failed' })
-    const { sendInngestEvent } = await import('@/infra/inngest/client')
-    expect(sendInngestEvent).not.toHaveBeenCalled()
-  })
-
-  test('keeps the stored file when the link update errors, so a retry can overwrite it', async () => {
-    findJobByFallback()
-    jobLinkMaybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'connection reset' } })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(mockRemove).not.toHaveBeenCalled()
-    expect(receiptUpdateMock.mock.calls.at(-1)?.[0]).toMatchObject({ status: 'failed' })
-  })
-
-  test('treats a missing transcript like a missing job', async () => {
-    findJobByFallback()
-    transcriptMaybeSingle.mockResolvedValueOnce({ data: null, error: null })
-    // persistWebhookFailure looks the active job up again to fail it.
-    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(mockUpload).not.toHaveBeenCalled()
-    expect(mockForceJobError).toHaveBeenCalledWith(expect.objectContaining({ jobId: 'job-1' }))
-    expect(receiptUpdateMock.mock.calls.at(-1)?.[0]).toMatchObject({ status: 'failed' })
-  })
-
-  test('a retry after a failed event send overwrites the same file and sends the event', async () => {
-    const { inngest } = await import('@/infra/inngest/client')
-
-    // First delivery: stored and linked, but the event send fails.
-    ;(inngest.send as jest.Mock).mockRejectedValueOnce(new Error('Inngest timeout'))
-    findJobByFallback()
-    expect((await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))).status).toBe(500)
-
-    // Redelivery takes over the failed receipt.
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      data: { status: 'failed', attempt_id: 'first-attempt', claimed_at: new Date().toISOString() },
-      error: null,
-    })
-    receiptUpdateTerminal
-      .mockResolvedValueOnce({ data: [{ id: 'r-1' }], error: null }) // takeover wins
-      .mockResolvedValueOnce({ data: null, error: null })             // finalize success
-    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1' }, error: null })
-    expect((await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))).status).toBe(200)
-
-    expect(mockUpload).toHaveBeenCalledTimes(2)
-    expect(mockUpload.mock.calls.map((call) => call[1])).toEqual([RESULT_KEY, RESULT_KEY])
-    expect(jobUpdateMock.mock.calls.map((call) => call[0].result_object_key)).toEqual([RESULT_KEY, RESULT_KEY])
-    expect(inngest.send).toHaveBeenCalledTimes(2)
-    expect(mockRemove).not.toHaveBeenCalled()
-  })
-
-  // --- Idempotency guard tests ---
-
-  test('returns 200 no-op when receipt is completed', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      data: { status: 'completed', attempt_id: 'old-id', claimed_at: new Date().toISOString() },
-      error: null,
-    })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(200)
-    expect(mockUpload).not.toHaveBeenCalled()
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('returns 503 when receipt is processing and fresh', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      data: { status: 'processing', attempt_id: 'owner-id', claimed_at: new Date().toISOString() },
-      error: null,
-    })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(503)
-    expect(mockUpload).not.toHaveBeenCalled()
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('takes over and processes when receipt is processing but stale', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      // claimed_at is 6 minutes ago — past the 5-minute RECEIPT_LEASE_MS
-      data: { status: 'processing', attempt_id: 'stale-id', claimed_at: new Date(Date.now() - 6 * 60 * 1000).toISOString() },
-      error: null,
-    })
-    receiptUpdateTerminal
-      .mockResolvedValueOnce({ data: [{ id: 'r-1' }], error: null }) // takeover wins
-      .mockResolvedValueOnce({ data: null, error: null })             // finalize success
-    findJobByFallback()
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(200)
-    expect(jobUpdateMock).toHaveBeenCalledTimes(1)
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).toHaveBeenCalledTimes(1)
-  })
-
-  test('returns 500 when receipt status read fails', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({ data: null, error: { message: 'connection lost' } })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('takes over and processes when receipt is failed', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      data: { status: 'failed', attempt_id: 'dead-id', claimed_at: new Date(0).toISOString() },
-      error: null,
-    })
-    receiptUpdateTerminal
-      .mockResolvedValueOnce({ data: [{ id: 'r-1' }], error: null }) // takeover wins
-      .mockResolvedValueOnce({ data: null, error: null })             // finalize success
-    findJobByFallback()
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(200)
-    expect(jobUpdateMock).toHaveBeenCalledTimes(1) // job link
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).toHaveBeenCalledTimes(1)
-  })
-
-  test('returns 500 when takeover update errors', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock.mockResolvedValueOnce({
-      data: { status: 'failed', attempt_id: 'dead-id', claimed_at: new Date(0).toISOString() },
-      error: null,
-    })
-    receiptUpdateTerminal.mockResolvedValueOnce({ data: null, error: { message: 'DB error' } })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('returns 503 when takeover loses and re-read is not completed', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock
-      .mockResolvedValueOnce({
-        data: { status: 'failed', attempt_id: 'dead-id', claimed_at: new Date(0).toISOString() },
-        error: null,
-      })
-      // Re-read after 0 rows: still processing (race winner not done yet)
-      .mockResolvedValueOnce({ data: { status: 'processing' }, error: null })
-    receiptUpdateTerminal.mockResolvedValueOnce({ data: [], error: null })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(503)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('returns 200 when takeover loses but re-read shows completed', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '23505', message: 'unique violation' } })
-    receiptSingleMock
-      .mockResolvedValueOnce({
-        data: { status: 'failed', attempt_id: 'dead-id', claimed_at: new Date(0).toISOString() },
-        error: null,
-      })
-      // Re-read after 0 rows: race winner already finished
-      .mockResolvedValueOnce({ data: { status: 'completed' }, error: null })
-    receiptUpdateTerminal.mockResolvedValueOnce({ data: [], error: null })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(200)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
-  test('marks receipt failed (scoped by attempt_id) when downstream work throws', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: null })
-    jobMaybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'DB timeout' } })
-
-    const res = await POST(makeRequest('req-fail', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    expect(receiptUpdateTerminal).toHaveBeenCalled()
-    const lastUpdateArgs = receiptUpdateMock.mock.calls.at(-1)
-    expect(lastUpdateArgs?.[0]).toMatchObject({ status: 'failed' })
-  })
-
-  test('returns 200 and leaves receipt processing when finalize update fails', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: null })
-    findJobByFallback()
-    receiptUpdateTerminal
-      .mockResolvedValueOnce({ data: null, error: { message: 'finalize failed' } }) // finalize fails
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    // Real work was done — still return 200
-    expect(res.status).toBe(200)
-    // Only the failed finalize attempt — no mark-failed call
-    expect(receiptUpdateTerminal).toHaveBeenCalledTimes(1)
-  })
-
-  test('returns 503 when receipt insert fails with non-conflict error', async () => {
-    receiptInsertMock.mockResolvedValueOnce({ error: { code: '08006', message: 'connection failure' } })
-
-    const res = await POST(makeRequest('req-123', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(503)
-    expect(jobUpdateMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-  })
-
   test('returns 400 for structurally invalid payload (non-object)', async () => {
     const res = await POST(requestWithBody('not an object at all'))
     expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.error).toBe('Invalid payload structure')
-
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
-    expect(jobUpdateMock).not.toHaveBeenCalled()
+    expect((await res.json()).error).toBe('Invalid payload structure')
+    expect(mockSend).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
   })
 
   test('returns 400 for a body that is not JSON, so Deepgram does not retry it', async () => {
-    const request = {
-      headers: new Headers({ 'dg-token': 'test-token' }),
-      text: async () => '{not json',
-    } as any
-
-    const res = await POST(request)
+    const res = await POST(requestWithText('{not json'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('Invalid payload structure')
     expect(mockUpload).not.toHaveBeenCalled()
-    expect(receiptInsertMock).not.toHaveBeenCalled()
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
   test('returns 500 when the body cannot be read, so Deepgram retries', async () => {
@@ -630,43 +417,14 @@ describe('Deepgram webhook route', () => {
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
-  test('marks receipt failed when inngest.send throws after receipt claim', async () => {
-    const { inngest } = await import('@/infra/inngest/client')
-    ;(inngest.send as jest.Mock).mockRejectedValueOnce(new Error('Inngest timeout'))
-
-    receiptInsertMock.mockResolvedValueOnce({ error: null })
-    findJobByFallback()
-
-    const res = await POST(makeRequest('req-inngest-fail', VALID_TRANSCRIPT_ID))
-
-    expect(res.status).toBe(500)
-    // Receipt must be marked failed so retries can take over immediately
-    const lastUpdateArg = receiptUpdateMock.mock.calls.at(-1)?.[0]
-    expect(lastUpdateArg).toMatchObject({ status: 'failed' })
-  })
-
   test('returns 400 and uses extracted identifiers to fail job when schema fails but metadata is recoverable', async () => {
-    // Payload has valid request_id but transcript_id is not a UUID — fails schema,
-    // but persistWebhookFailure should still receive the partial identifiers
-    jobMaybeSingle.mockResolvedValueOnce({
-      data: { id: 'job-1', transcript_id: VALID_TRANSCRIPT_ID },
-      error: null,
-    })
+    // Payload has a valid request_id but a transcript_id that is not a UUID: it
+    // fails the schema, but persistWebhookFailure still gets the request id.
+    jobMaybeSingle.mockResolvedValueOnce({ data: { id: 'job-1', transcript_id: TRANSCRIPT_ID }, error: null })
 
-    const res = await POST(requestWithBody({
-      metadata: {
-        request_id: 'req-recoverable',
-        extra: { transcript_id: 'not-a-uuid' },
-      },
-    }))
+    const res = await POST(requestWithBody({ metadata: { request_id: 'req-recoverable', extra: { transcript_id: 'not-a-uuid' } } }))
     expect(res.status).toBe(400)
-
-    // forceJobError should have been called via persistWebhookFailure using the recovered requestId
-    expect(mockForceJobError).toHaveBeenCalledWith(
-      expect.objectContaining({ jobId: 'job-1', context: 'persistWebhookFailure' })
-    )
-
-    const { inngest } = await import('@/infra/inngest/client')
-    expect(inngest.send).not.toHaveBeenCalled()
+    expect(mockForceJobError).toHaveBeenCalledWith(expect.objectContaining({ jobId: 'job-1', context: 'persistWebhookFailure' }))
+    expect(mockSend).not.toHaveBeenCalled()
   })
 })

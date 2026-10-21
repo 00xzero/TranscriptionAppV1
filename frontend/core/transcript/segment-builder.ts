@@ -1,14 +1,9 @@
-import type { DeepgramParagraph, DeepgramWord } from "@/contracts/webhook";
 import {
     DEFAULT_FILLER_PATTERNS,
     getWordCount,
     isFiller,
-    isSentenceBoundary,
     normalizeText,
 } from "@/core/transcript/text-utils";
-
-const TIMESTAMP_TOLERANCE_MS = 50;
-const METADATA_SENTENCE_GAP_MS = 800;
 
 export interface NormalizedWord {
     text: string;
@@ -20,10 +15,11 @@ export interface NormalizedWord {
     speakerConfidence: number | null;
     paragraphIndex: number | null;
     sentenceEnd: boolean;
-}
-
-export interface ParagraphMetadata {
-    paragraphs: Array<Pick<DeepgramParagraph, "speaker" | "start" | "end" | "sentences">>;
+    /**
+     * Written straight after the word before, with no space between them
+     * (scripts such as Japanese). Only some engines say so; unset means a space.
+     */
+    joinsPrevious?: boolean;
 }
 
 export interface SegmentBuilderConfig {
@@ -47,12 +43,6 @@ export interface BuiltSegment {
     algoVersion: string;
 }
 
-interface TimedGroup {
-    index: number;
-    startMs: number;
-    endMs: number;
-}
-
 export const DEFAULT_SEGMENT_BUILDER_CONFIG: SegmentBuilderConfig = {
     targetWords: 60,
     maxGapMs: 2000,
@@ -64,179 +54,27 @@ export const DEFAULT_SEGMENT_BUILDER_CONFIG: SegmentBuilderConfig = {
     algoVersion: "v2.0-segments",
 };
 
-function inferSentenceEndFromMetadataHint(
-    word: Pick<NormalizedWord, "punctuatedText" | "endMs" | "paragraphIndex">,
-    nextWord: Pick<NormalizedWord, "startMs" | "paragraphIndex" | "speaker"> | undefined,
-    metadataSentenceBoundary: boolean
-): boolean {
-    if (isSentenceBoundary(word.punctuatedText)) {
-        return true;
-    }
-
-    // Explicit non-terminal punctuation (comma, semicolon, colon, dash) is strong
-    // counter-evidence to any metadata-based sentence boundary signal. Deepgram
-    // occasionally splits paragraphs mid-clause at a comma; trust the punctuation.
-    if (/[,;:\-]$/.test(word.punctuatedText.trimEnd())) {
-        return false;
-    }
-
-    if (!metadataSentenceBoundary) {
-        return false;
-    }
-
-    if (!nextWord) {
-        return true;
-    }
-
-    const gapMs = nextWord.startMs - word.endMs;
-    const paragraphChanged = (
-        word.paragraphIndex !== null &&
-        nextWord.paragraphIndex !== null &&
-        word.paragraphIndex !== nextWord.paragraphIndex
-    );
-
-    // Deepgram sentence boundaries can be noisy, so only trust them when a
-    // stronger structural cue also exists.
-    return paragraphChanged || gapMs >= METADATA_SENTENCE_GAP_MS;
-}
-
-function toMs(seconds: number): number {
-    return Math.round(seconds * 1000);
-}
-
-function matchTimedGroups(
-    words: Array<Pick<NormalizedWord, "startMs">>,
-    groups: TimedGroup[]
-): Array<number | null> {
-    if (groups.length === 0) {
-        return words.map(() => null);
-    }
-
-    let groupCursor = 0;
-    let lastMatchedIndex: number | null = null;
-
-    return words.map((word) => {
-        // Advance the cursor whenever the word reaches the next group's start.
-        // Deepgram's paragraph/sentence ranges often abut exactly
-        // (paragraph N `end` == paragraph N+1 `start`), so a sentence-initial
-        // word whose `startMs` equals that boundary must bind to the NEXT group,
-        // otherwise it gets orphaned at the tail of the previous paragraph
-        // and the segment builder cuts the segment mid-sentence.
-        while (
-            groupCursor < groups.length - 1 &&
-            word.startMs >= groups[groupCursor + 1].startMs - TIMESTAMP_TOLERANCE_MS
-        ) {
-            groupCursor++;
+/**
+ * The words as they were written: a word that joins the one before it is glued
+ * to it, so normalizeText puts spaces only where the engine had them.
+ */
+function joinWords(words: NormalizedWord[]): string[] {
+    const texts: string[] = [];
+    for (const [index, word] of words.entries()) {
+        if (index > 0 && word.joinsPrevious) {
+            texts[texts.length - 1] += word.punctuatedText.trim();
+        } else {
+            texts.push(word.punctuatedText);
         }
-
-        const currentGroup = groups[groupCursor];
-        if (!currentGroup) {
-            return lastMatchedIndex;
-        }
-
-        if (word.startMs < currentGroup.startMs - TIMESTAMP_TOLERANCE_MS) {
-            return lastMatchedIndex;
-        }
-
-        if (word.startMs <= currentGroup.endMs + TIMESTAMP_TOLERANCE_MS) {
-            lastMatchedIndex = currentGroup.index;
-            return currentGroup.index;
-        }
-
-        return lastMatchedIndex;
-    });
-}
-
-export function normalizeWords(
-    rawWords: DeepgramWord[],
-    paragraphs: ParagraphMetadata | null
-): NormalizedWord[] {
-    const hasDiarization = rawWords.some((word) => typeof word.speaker === "number");
-    let lastSpeaker: number | null = null;
-
-    const normalized = rawWords.map<NormalizedWord>((word) => {
-        const speaker = hasDiarization
-            ? (typeof word.speaker === "number" ? word.speaker : lastSpeaker)
-            : null;
-
-        if (speaker !== null) {
-            lastSpeaker = speaker;
-        }
-
-        return {
-            text: word.word,
-            punctuatedText: word.punctuated_word ?? word.word,
-            startMs: toMs(word.start),
-            endMs: toMs(word.end),
-            confidence: word.confidence,
-            speaker,
-            speakerConfidence: word.speaker_confidence ?? null,
-            paragraphIndex: null,
-            sentenceEnd: false,
-        };
-    });
-
-    if (!paragraphs || paragraphs.paragraphs.length === 0) {
-        return normalized.map((word) => ({
-            ...word,
-            sentenceEnd: isSentenceBoundary(word.punctuatedText),
-        }));
     }
-
-    const paragraphGroups: TimedGroup[] = paragraphs.paragraphs.map((paragraph, index) => ({
-        index,
-        startMs: toMs(paragraph.start),
-        endMs: toMs(paragraph.end),
-    }));
-
-    const paragraphIndices = matchTimedGroups(normalized, paragraphGroups);
-
-    const sentenceGroups: TimedGroup[] = paragraphs.paragraphs.flatMap((paragraph, paragraphIndex) =>
-        paragraph.sentences.map((sentence, sentenceIndex) => ({
-            index: paragraphIndex * 10000 + sentenceIndex,
-            startMs: toMs(sentence.start),
-            endMs: toMs(sentence.end),
-        }))
-    );
-
-    const sentenceIndices = matchTimedGroups(normalized, sentenceGroups);
-
-    return normalized.map((word, index) => {
-        const sentenceIndex = sentenceIndices[index];
-        const nextSentenceIndex = sentenceIndices[index + 1] ?? null;
-        const nextWord = normalized[index + 1];
-        const metadataSentenceBoundary = (
-            sentenceIndex !== null &&
-            sentenceIndex !== nextSentenceIndex
-        );
-
-        return {
-            ...word,
-            paragraphIndex: paragraphIndices[index],
-            sentenceEnd: inferSentenceEndFromMetadataHint(
-                {
-                    punctuatedText: word.punctuatedText,
-                    endMs: word.endMs,
-                    paragraphIndex: paragraphIndices[index],
-                },
-                nextWord
-                    ? {
-                        startMs: nextWord.startMs,
-                        paragraphIndex: paragraphIndices[index + 1],
-                        speaker: nextWord.speaker,
-                    }
-                    : undefined,
-                metadataSentenceBoundary
-            ),
-        };
-    });
+    return texts;
 }
 
 function finalizeSegment(
     words: NormalizedWord[],
     config: SegmentBuilderConfig
 ): BuiltSegment {
-    const text = normalizeText(words.map((word) => word.punctuatedText));
+    const text = normalizeText(joinWords(words));
     const isFillerSegment = (
         getWordCount(text) <= config.minAbsorbWords &&
         isFiller(text, config.fillerPatterns)

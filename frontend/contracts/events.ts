@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UuidSchema } from './primitives'
-import { TranscriptionOptionsSchema } from './transcription-options'
+import { SavedTranscriptionOptionsSchema } from './transcription-options'
 
 export const TranscriptionRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
@@ -9,7 +9,7 @@ export const TranscriptionRequestedDataSchema = z.object({
   keyTerms: z.array(z.string()).optional(),
   // Optional for events sent before the options existed: read it through
   // resolveTranscriptionOptions.
-  transcriptionOptions: TranscriptionOptionsSchema.optional(),
+  transcriptionOptions: SavedTranscriptionOptionsSchema.optional(),
 })
 
 // Preparation forwards its payload unchanged to transcription/requested.
@@ -33,6 +33,25 @@ export const TranscriptionFailedDataSchema = z.object({
   errorType: z.enum(['keyterm_error', 'transcription_error']),
 })
 
+// A Soniox job's callback, passed on by its route: the exact job attempt it
+// belongs to (named in the callback URL) and how Soniox says it ended.
+export const SonioxCallbackDataSchema = z.object({
+  transcriptId: UuidSchema,
+  jobId: UuidSchema,
+  requestId: z.string().min(1),
+  status: z.enum(['completed', 'error']),
+})
+
+// A Deepgram result, stored by its route at the job's own key and passed on:
+// the exact job attempt (named in the request's extra), the request it
+// answers, and the owner whose folder holds the file.
+export const DeepgramCallbackDataSchema = z.object({
+  transcriptId: UuidSchema,
+  jobId: UuidSchema,
+  requestId: z.string().min(1),
+  userId: UuidSchema,
+})
+
 export const WaveformRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
   userId: UuidSchema,
@@ -45,3 +64,5 @@ export type TranscriptionWebhookData = z.infer<typeof TranscriptionWebhookDataSc
 export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDataSchema>
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>
 export type WaveformRequestedData = z.infer<typeof WaveformRequestedDataSchema>
+export type SonioxCallbackData = z.infer<typeof SonioxCallbackDataSchema>
+export type DeepgramCallbackData = z.infer<typeof DeepgramCallbackDataSchema>
