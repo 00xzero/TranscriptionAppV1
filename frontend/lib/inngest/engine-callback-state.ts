@@ -1,14 +1,15 @@
 /**
- * Where a Soniox callback stands against our own records, read before any
- * fetch: a duplicate long after Inngest's 24-hour deduplication must not fetch,
- * write or fail anything. The writes repeat their own checks
+ * Where an engine's callback stands against our own records, read before any
+ * fetch or write: a duplicate long after Inngest's 24-hour deduplication must
+ * not fetch, write or fail anything. The writes repeat their own checks
  * (core/transcription/webhook.ts), since state can change after this read.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { TranscriptionEngine } from "@/contracts/transcription-options";
 
-export type SonioxCallbackState =
-    /** The transcript was deleted here: nothing is left to keep Soniox's copy for. */
+export type EngineCallbackState =
+    /** The transcript was deleted here: nothing is left to keep the result for. */
     | { state: "gone" }
     /** The result was stored and handed off already (or the job finished): only cleanup is left. */
     | { state: "handled" }
@@ -18,19 +19,19 @@ export type SonioxCallbackState =
     | { state: "fresh" }
     /**
      * The attempt failed, or belongs to another request: touch nothing of ours.
-     * `otherRequest`: the job carries another Soniox request, so this one is
-     * an orphaned start nothing will ever read, and only it is deleted at
-     * Soniox. Otherwise (a failed or missing job) Soniox's copy is kept,
-     * retrievable, until its 30 days are up.
+     * `otherRequest`: the job carries another request of the engine's, so this
+     * one is an orphaned start nothing will ever read (Soniox deletes only its
+     * copy of that one; a failed or missing job's copy is kept, retrievable).
      */
     | { state: "stale"; otherRequest: boolean }
     /** The start has not saved the request id yet: try again shortly. */
     | { state: "not_ready" };
 
-export async function readSonioxCallbackState(
+export async function readEngineCallbackState(
     supabase: SupabaseClient,
+    engine: TranscriptionEngine,
     { transcriptId, jobId, requestId }: { transcriptId: string; jobId: string; requestId: string }
-): Promise<SonioxCallbackState> {
+): Promise<EngineCallbackState> {
     const { data: job, error: jobError } = await supabase
         .from("jobs")
         .select("transcript_id, status, inngest_event_id, result_object_key")
@@ -54,7 +55,7 @@ export async function readSonioxCallbackState(
     const { data: receipt, error: receiptError } = await supabase
         .from("webhook_receipts")
         .select("status")
-        .eq("provider", "soniox")
+        .eq("provider", engine)
         .eq("request_id", requestId)
         .maybeSingle();
     if (receiptError) throw new Error(`Failed to read receipt ${requestId}: ${receiptError.message}`);
@@ -79,8 +80,9 @@ export async function readSonioxCallbackState(
  * Throws when the state cannot be read, so the failure handler retries rather
  * than guess.
  */
-export async function sonioxHandoffState(
+export async function engineHandoffState(
     supabase: SupabaseClient,
+    engine: TranscriptionEngine,
     { jobId, requestId }: { jobId: string; requestId: string }
 ): Promise<{ handedOff: boolean; resultLinked: boolean; jobExists: boolean }> {
     const [{ data: job, error: jobError }, { data: receipt, error: receiptError }] = await Promise.all([
@@ -88,12 +90,12 @@ export async function sonioxHandoffState(
         supabase
             .from("webhook_receipts")
             .select("status")
-            .eq("provider", "soniox")
+            .eq("provider", engine)
             .eq("request_id", requestId)
             .maybeSingle(),
     ]);
     if (jobError || receiptError) {
-        throw new Error(`Failed to read the Soniox callback's state: ${(jobError ?? receiptError)?.message}`);
+        throw new Error(`Failed to read the ${engine} callback's state: ${(jobError ?? receiptError)?.message}`);
     }
     // A job running another request (this one was an orphaned start) is not
     // this callback's to fail: its own request reports for it.

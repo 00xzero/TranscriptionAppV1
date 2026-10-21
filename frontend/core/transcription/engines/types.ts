@@ -13,6 +13,8 @@ export interface EngineStartInput {
     transcriptId: string;
     /** The job attempt; an engine whose callback can carry it names it there. */
     jobId: string;
+    /** The transcript's owner, whose folder holds the result; carried like jobId. */
+    userId: string;
     keyTerms?: string[];
     options: TranscriptionOptions;
 }

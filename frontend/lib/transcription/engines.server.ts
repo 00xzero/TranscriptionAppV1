@@ -15,11 +15,13 @@ import { startSonioxTranscription } from '@/infra/soniox'
 
 const deepgram: TranscriptionEngine = {
     id: 'deepgram',
-    start: ({ mediaUrl, transcriptId, keyTerms, options }) =>
+    start: ({ mediaUrl, transcriptId, jobId, userId, keyTerms, options }) =>
         startAsyncTranscription({
             mediaUrl,
             callbackUrl: getCallbackUrl(),
             transcriptId,
+            jobId,
+            userId,
             keyTerms,
             transcription: options,
         }),

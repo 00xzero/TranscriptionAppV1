@@ -12,9 +12,7 @@
  * replaced, is deleted straight away, since nothing of ours will ever read it.
  */
 
-import { RetryAfterError } from "inngest";
-
-import { inngest, sendInngestEvent } from "@/infra/inngest/client";
+import { inngest } from "@/infra/inngest/client";
 import { createAdminClient } from "@/infra/supabase/admin";
 import {
     deleteSonioxTranscription,
@@ -24,26 +22,12 @@ import {
 import { confirmReceiptCompleted, persistWebhookFailure, recordEngineResult } from "@/core/transcription/webhook";
 import type { SonioxCallbackData } from "@/contracts/events";
 import { sonioxCallbackTrigger } from "@/lib/inngest/events";
-import { readSonioxCallbackState, sonioxHandoffState } from "@/lib/inngest/soniox-callback-state";
-import { writeTranscriptionFailureFallback } from "./_shared";
-
-// Past a held receipt lease, so the retry finds it lapsed.
-const LEASE_MARGIN_MS = 5_000;
-
-/**
- * How long a retry waits when storing was refused for now: past the lease of an
- * attempt that still holds the receipt, and never less than the usual delay.
- * Exported for tests.
- */
-export function sonioxRetryDelayMs(result: { retryAfter: number; leaseRemainingMs?: number }): number {
-    return Math.max(result.retryAfter * 1000, (result.leaseRemainingMs ?? 0) + LEASE_MARGIN_MS);
-}
+import { readEngineCallbackState } from "@/lib/inngest/engine-callback-state";
+import { onEngineCallbackFailure, recordedOutcome } from "@/lib/inngest/engine-callback";
 
 /**
  * When retries run out. Soniox's copy is never deleted here: before the
- * handoff it is the only copy, and after it only cleanup failed. The job is
- * failed only when nothing of the result reached us; a state that cannot be
- * read throws, so this handler is retried rather than guess. Exported for
+ * handoff it is the only copy, and after it only cleanup failed. Exported for
  * tests.
  */
 export async function onSonioxCallbackFailure({
@@ -54,49 +38,7 @@ export async function onSonioxCallbackFailure({
     error: Error;
 }): Promise<void> {
     const { transcriptId, jobId, requestId } = event.data.event.data;
-    const errorMessage = error.message || String(error);
-    const supabase = createAdminClient();
-
-    // Throws when unreadable: the failure handler is retried.
-    const handoff = await sonioxHandoffState(supabase, { jobId, requestId });
-
-    // Either the handoff happened (only cleanup failed) or our copy is linked
-    // and the handoff may have happened: the transcription may still be
-    // processing, so its status is left alone. The timeout reaper settles a
-    // job that really was left behind.
-    if (handoff.handedOff || handoff.resultLinked) {
-        const eventName = handoff.handedOff ? "soniox/cleanup_failure" : "soniox/handoff_unconfirmed";
-        console.error(`[inngest] ${eventName} for ${requestId}:`, errorMessage);
-        const { error: insertError } = await supabase.from("failed_events").insert({
-            event_name: eventName,
-            event_data: { transcriptId, jobId, requestId },
-            error_message: errorMessage.slice(0, 1000),
-            transcript_id: handoff.jobExists ? transcriptId : null,
-            job_id: handoff.jobExists ? jobId : null,
-        });
-        if (insertError) console.error(`[inngest] Failed to record ${eventName}:`, insertError);
-        return;
-    }
-
-    console.error(`[inngest] Soniox callback failed for transcript ${transcriptId}:`, errorMessage);
-    try {
-        await sendInngestEvent({
-            name: "transcription/failed",
-            data: { transcriptId, jobId, error: errorMessage, errorType: "transcription_error" },
-        });
-    } catch (sendError) {
-        console.error("[inngest] Failed to emit transcription/failed:", sendError);
-        await writeTranscriptionFailureFallback({
-            transcriptId,
-            jobId,
-            error: {
-                error_message: `Transcription failed: ${errorMessage.slice(0, 200)}`,
-                error_type: "transcription_error",
-                error_detail: errorMessage.slice(0, 500),
-            },
-            context: "handleSonioxCallback/onFailure",
-        });
-    }
+    await onEngineCallbackFailure("soniox", { transcriptId, jobId, requestId }, error);
 }
 
 export const handleSonioxCallback = inngest.createFunction(
@@ -113,7 +55,7 @@ export const handleSonioxCallback = inngest.createFunction(
         const exact = { transcriptId, jobId, requestId };
 
         const checked = await step.run("check", async () => {
-            const state = await readSonioxCallbackState(createAdminClient(), exact);
+            const state = await readEngineCallbackState(createAdminClient(), "soniox", exact);
             if (state.state === "not_ready") {
                 throw new Error(`Job ${jobId} has not saved Soniox request ${requestId} yet`);
             }
@@ -150,18 +92,7 @@ export const handleSonioxCallback = inngest.createFunction(
                         transcriptId,
                         ...stored,
                     });
-                    if (result.outcome === "processed") return { state: "recorded" as const, attemptId: result.attemptId ?? null };
-                    if (result.outcome === "duplicate") return { state: "recorded" as const, attemptId: null };
-                    if (result.outcome === "stale") return { state: "stale" as const, attemptId: null };
-                    if (result.outcome === "error") throw new Error(`Storing the Soniox result failed: ${result.reason}`);
-                    // Another attempt holds the receipt, most likely one killed
-                    // mid-step: its lease must lapse before the receipt can be
-                    // taken over, so the retry waits that long instead of using
-                    // up its attempts on Inngest's quicker schedule.
-                    throw new RetryAfterError(
-                        "The Soniox result is being stored by another delivery",
-                        sonioxRetryDelayMs(result)
-                    );
+                    return recordedOutcome("soniox", result);
                 })
                 : await step.run("record-failure", async () => {
                     // The transcript endpoint serves completed jobs only.

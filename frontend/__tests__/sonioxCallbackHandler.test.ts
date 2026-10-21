@@ -21,9 +21,9 @@ const mockSend = jest.fn()
 const mockInsert = jest.fn()
 const mockFallback = jest.fn()
 
-jest.mock('@/lib/inngest/soniox-callback-state', () => ({
-  readSonioxCallbackState: (...a: unknown[]) => mockReadState(...a),
-  sonioxHandoffState: (...a: unknown[]) => mockHandoffState(...a),
+jest.mock('@/lib/inngest/engine-callback-state', () => ({
+  readEngineCallbackState: (...a: unknown[]) => mockReadState(...a),
+  engineHandoffState: (...a: unknown[]) => mockHandoffState(...a),
 }))
 jest.mock('@/core/transcription/webhook', () => ({
   recordEngineResult: (...a: unknown[]) => mockRecord(...a),
@@ -49,7 +49,8 @@ jest.mock('@/infra/inngest/client', () => {
   return { ...actual, sendInngestEvent: (...a: unknown[]) => mockSend(...a) }
 })
 
-import { handleSonioxCallback, onSonioxCallbackFailure, sonioxRetryDelayMs } from '@/lib/inngest/functions/handle-soniox-callback'
+import { handleSonioxCallback, onSonioxCallbackFailure } from '@/lib/inngest/functions/handle-soniox-callback'
+import { receiptRetryDelayMs as sonioxRetryDelayMs } from '@/lib/inngest/engine-callback'
 
 const transcriptId = '11111111-1111-4111-8111-111111111111'
 const jobId = '33333333-3333-4333-8333-333333333333'

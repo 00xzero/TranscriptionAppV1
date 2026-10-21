@@ -48,9 +48,12 @@ export const DeepgramWebhookPayloadSchema = z.object({
     duration: z.number().optional(),
     channels: z.number().optional(),
     models: z.array(z.string()).optional(),
-    // extra is validated structurally: transcript_id must be a UUID when present
+    // extra is validated structurally: the ids we send must be UUIDs when present.
+    // job_id names the exact job attempt; user_id the folder its result goes in.
     extra: z.object({
       transcript_id: UuidSchema.optional(),
+      job_id: UuidSchema.optional(),
+      user_id: UuidSchema.optional(),
     }).catchall(z.string().optional()).optional(),
   }).optional(),
   results: z.object({

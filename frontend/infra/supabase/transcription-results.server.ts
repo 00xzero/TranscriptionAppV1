@@ -38,7 +38,11 @@ export async function downloadTranscriptionResult(
     return gunzipSync(Buffer.from(await data.arrayBuffer())).toString('utf8')
 }
 
-/** Remove a response whose job is gone. Logs instead of throwing: it is cleanup. */
+/**
+ * Remove a response whose job is gone (a path with no file is fine). Throws when
+ * the removal fails, so its caller retries: logging alone would leave the file
+ * behind while reporting it cleaned up.
+ */
 export async function removeTranscriptionResult(
     admin: SupabaseClient,
     path: string,
@@ -47,5 +51,6 @@ export async function removeTranscriptionResult(
     const { error } = await admin.storage.from(RESULTS_BUCKET).remove([path])
     if (error) {
         console.error(`[${context}] Failed to remove orphaned engine result ${path}:`, error)
+        throw new Error(`Failed to remove engine result ${path}: ${error.message}`)
     }
 }

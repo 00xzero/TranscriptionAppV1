@@ -11,6 +11,10 @@ export interface DeepgramAsyncOptions {
     mediaUrl: string;
     callbackUrl: string;
     transcriptId: string;
+    /** The job attempt, named again in the callback. */
+    jobId: string;
+    /** The transcript's owner, so the callback can find the result's folder. */
+    userId: string;
     keyTerms?: string[];
     transcription: TranscriptionOptions;
     model?: string;
@@ -88,7 +92,7 @@ export async function startAsyncTranscription(
         };
     }
 
-    const { mediaUrl, callbackUrl, transcriptId, keyTerms, transcription, model } = options;
+    const { mediaUrl, callbackUrl, transcriptId, jobId, userId, keyTerms, transcription, model } = options;
 
     // Build query parameters
     const params = new URLSearchParams();
@@ -121,8 +125,11 @@ export async function startAsyncTranscription(
         params.append("tag", tag);
     }
 
-    // Pass transcript ID via extra parameter (returned in metadata.extra in callback)
+    // Deepgram returns these in the callback's metadata.extra: the exact job
+    // attempt the result belongs to, and the folder it is stored in.
     params.append("extra", `transcript_id:${transcriptId}`);
+    params.append("extra", `job_id:${jobId}`);
+    params.append("extra", `user_id:${userId}`);
 
     // Add key terms if provided (using Deepgram's keyterm parameter)
     if (keyTerms && keyTerms.length > 0) {

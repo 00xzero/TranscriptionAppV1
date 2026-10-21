@@ -19,7 +19,7 @@ jest.mock('@/infra/inngest/client', () => ({
 }))
 
 import { confirmReceiptCompleted, persistWebhookFailure, recordEngineResult } from '@/core/transcription/webhook'
-import { readSonioxCallbackState, sonioxHandoffState } from '@/lib/inngest/soniox-callback-state'
+import { readEngineCallbackState, engineHandoffState } from '@/lib/inngest/engine-callback-state'
 import { FakeAdmin, type Row } from './helpers/fakeAdmin'
 
 const userId = '22222222-2222-4222-8222-222222222222'
@@ -240,8 +240,8 @@ describe('persistWebhookFailure with an exact job', () => {
   })
 })
 
-describe('readSonioxCallbackState', () => {
-  const read = (db: FakeAdmin) => readSonioxCallbackState(db.asClient(), { transcriptId, jobId: jobA, requestId: requestA })
+describe('readEngineCallbackState', () => {
+  const read = (db: FakeAdmin) => readEngineCallbackState(db.asClient(), 'soniox', { transcriptId, jobId: jobA, requestId: requestA })
   const receipt = (status: string) => ({ provider: 'soniox', request_id: requestA, status })
 
   test('nothing recorded yet: fresh', async () => {
@@ -282,8 +282,8 @@ describe('readSonioxCallbackState', () => {
   })
 })
 
-describe('sonioxHandoffState', () => {
-  const read = (db: FakeAdmin) => sonioxHandoffState(db.asClient(), { jobId: jobA, requestId: requestA })
+describe('engineHandoffState', () => {
+  const read = (db: FakeAdmin) => engineHandoffState(db.asClient(), 'soniox', { jobId: jobA, requestId: requestA })
 
   test('an active job without a completed receipt was not handed off', async () => {
     await expect(read(setup([{ id: jobA, inngest_event_id: requestA }]))).resolves.toEqual({ handedOff: false, resultLinked: false, jobExists: true })
@@ -307,7 +307,7 @@ describe('sonioxHandoffState', () => {
     const broken = { from: (table: string) => (table === 'jobs'
       ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'db down' } }) }) }) }
       : client.from(table)) }
-    await expect(sonioxHandoffState(broken as never, { jobId: jobA, requestId: requestA })).rejects.toThrow('db down')
+    await expect(engineHandoffState(broken as never, 'soniox', { jobId: jobA, requestId: requestA })).rejects.toThrow('db down')
   })
 
   test('a job running another request (this callback was an orphaned start) is not this callback\'s to fail', async () => {

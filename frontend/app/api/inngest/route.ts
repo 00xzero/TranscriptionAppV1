@@ -16,6 +16,7 @@ import {
     handleTranscriptionTimeouts,
     handleWaveformRequested,
     handleSonioxCallback,
+    handleDeepgramCallback,
 } from "@/lib/inngest/functions";
 
 // Waveform generation streams ffmpeg output for multi-hour files, and media
@@ -34,5 +35,6 @@ export const { GET, POST, PUT } = serve({
         handleTranscriptionTimeouts,
         handleWaveformRequested,
         handleSonioxCallback,
+        handleDeepgramCallback,
     ],
 });

@@ -106,6 +106,7 @@ export const handleTranscriptionRequested = inngest.createFunction(
                 mediaUrl: mediaUrlResult.url,
                 transcriptId,
                 jobId,
+                userId,
                 keyTerms,
                 options: transcription,
             });

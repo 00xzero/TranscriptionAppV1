@@ -42,6 +42,16 @@ export const SonioxCallbackDataSchema = z.object({
   status: z.enum(['completed', 'error']),
 })
 
+// A Deepgram result, stored by its route at the job's own key and passed on:
+// the exact job attempt (named in the request's extra), the request it
+// answers, and the owner whose folder holds the file.
+export const DeepgramCallbackDataSchema = z.object({
+  transcriptId: UuidSchema,
+  jobId: UuidSchema,
+  requestId: z.string().min(1),
+  userId: UuidSchema,
+})
+
 export const WaveformRequestedDataSchema = z.object({
   transcriptId: UuidSchema,
   userId: UuidSchema,
@@ -55,3 +65,4 @@ export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDa
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>
 export type WaveformRequestedData = z.infer<typeof WaveformRequestedDataSchema>
 export type SonioxCallbackData = z.infer<typeof SonioxCallbackDataSchema>
+export type DeepgramCallbackData = z.infer<typeof DeepgramCallbackDataSchema>

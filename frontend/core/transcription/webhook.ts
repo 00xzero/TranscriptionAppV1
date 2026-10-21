@@ -219,16 +219,105 @@ async function failExactJob(
     return data && data.length > 0 ? 'job' : 'stale'
 }
 
+/** Where a result that came with its callback may be stored, read before and after the upload. */
+type StagingTarget =
+    /** The transcript is gone: nothing may stay in its folder. */
+    | 'gone'
+    /** Another transcript's job, another request's, or a failed attempt: write nothing. */
+    | 'stale'
+    /** The job finished already: nothing left to do. */
+    | 'done'
+    /** The job has not saved this request yet: it could still be another start's. */
+    | 'not_ready'
+    | 'ours'
+
+async function readStagingTarget(
+    supabase: SupabaseClient,
+    { transcriptId, jobId, requestId, userId }: ExactJob & { userId: string }
+): Promise<StagingTarget> {
+    const [{ data: transcript, error: transcriptError }, { data: job, error: jobError }] = await Promise.all([
+        supabase.from('transcripts').select('user_id').eq('id', transcriptId).maybeSingle(),
+        supabase.from('jobs').select('transcript_id, status, inngest_event_id').eq('id', jobId).maybeSingle(),
+    ])
+    if (transcriptError || jobError) {
+        throw new Error(`Failed to read job ${jobId}: ${(transcriptError ?? jobError)?.message}`)
+    }
+    if (!transcript) return 'gone'
+    if (!job || job.transcript_id !== transcriptId || transcript.user_id !== userId) return 'stale'
+    if (job.inngest_event_id && job.inngest_event_id !== requestId) return 'stale'
+    if (job.status === 'completed') return 'done'
+    if (job.status === 'error') return 'stale'
+    if (job.status === 'queued' || !job.inngest_event_id) return 'not_ready'
+    return 'ours'
+}
+
+/**
+ * A callback that carries its whole result (Deepgram's): store it at the exact
+ * job attempt's own key, then pass it to Inngest (deepgram/callback), which
+ * links and hands it off with retries of its own (lib/inngest/functions/
+ * handle-deepgram-callback.ts). No receipt is claimed here, so a request cut
+ * off at any point holds nothing up: the engine's retry just does it again,
+ * overwriting the same file and sending the same event.
+ *
+ * Only a callback whose request the job already carries writes the job's file
+ * (two requests started for one job could otherwise overwrite each other's
+ * result): until then it is `not_ready`, for the engine to retry. The job is
+ * read again after the upload, so a file uploaded while its transcript was
+ * being deleted is removed here; a delete after that read is caught by the
+ * delete route's own sweep. Throws when a read, the upload, a removal or the
+ * send fails, so the engine retries.
+ */
+export async function stageDeepgramResult(opts: {
+    supabase: SupabaseClient
+    transcriptId: string
+    jobId: string
+    requestId: string
+    /** The transcript's owner, named by the callback: the result's folder. */
+    userId: string
+    /** The validated result, exactly as the engine sent it. */
+    rawBody: string
+}): Promise<'passed_on' | 'not_ready' | 'ignored'> {
+    const { supabase, transcriptId, jobId, requestId, userId, rawBody } = opts
+    const target = { transcriptId, jobId, requestId, userId }
+    const resultKey = getTranscriptionResultPath(userId, transcriptId, jobId)
+
+    const before = await readStagingTarget(supabase, target)
+    if (before === 'not_ready') return 'not_ready'
+    if (before === 'gone') {
+        // An earlier delivery may have uploaded before the delete and failed
+        // to clean up; removing a file that is not there is fine.
+        await removeTranscriptionResult(supabase, resultKey, 'stageDeepgramResult')
+        return 'ignored'
+    }
+    if (before !== 'ours') return 'ignored'
+
+    await uploadTranscriptionResult(supabase, resultKey, rawBody)
+
+    const after = await readStagingTarget(supabase, target)
+    if (after === 'gone') {
+        await removeTranscriptionResult(supabase, resultKey, 'stageDeepgramResult')
+        return 'ignored'
+    }
+    // Changed during the upload (failed, finished by another delivery): the
+    // file stays in the transcript's own folder, and nothing is passed on.
+    if (after !== 'ours') return 'ignored'
+
+    await sendInngestEvent({
+        name: 'deepgram/callback',
+        // A redelivery of the same result becomes the same event.
+        id: `deepgram-callback:${requestId}`,
+        data: { transcriptId, jobId, requestId, userId },
+    })
+    return 'passed_on'
+}
+
 export async function recordEngineResult(opts: {
     supabase: SupabaseClient
     engine: TranscriptionEngine
     requestId: string
     transcriptId: string
-    /**
-     * The exact attempt the result belongs to. Without it the job is found by
-     * request id, else the transcript's latest active job (Deepgram).
-     */
-    jobId?: string
+    /** The exact attempt the result belongs to; nothing else is ever written. */
+    jobId: string
 } & (
     /** The validated result, exactly as the engine sent it. */
     | { rawBody: string; storedObjectKey?: undefined }
@@ -236,9 +325,9 @@ export async function recordEngineResult(opts: {
     | { rawBody?: undefined; storedObjectKey: string }
 )): Promise<WebhookHandleResult & { attemptId?: string }> {
     const { supabase, engine, requestId, transcriptId } = opts
-    const exact: ExactJob | null = opts.jobId ? { jobId: opts.jobId, transcriptId, requestId } : null
+    const exact: ExactJob = { jobId: opts.jobId, transcriptId, requestId }
 
-    if (exact) {
+    {
         const state = await readExactJob(supabase, exact)
         if (typeof state === 'object') {
             console.error('[webhook] Failed to read the exact job:', state.error)
@@ -337,45 +426,6 @@ export async function recordEngineResult(opts: {
         }
     }
 
-    // Look up the job the response belongs to
-    const { data: exactJob, error: exactJobError } = exact
-        ? { data: { id: exact.jobId }, error: null }
-        : await supabase
-            .from('jobs')
-            .select('id')
-            .eq('transcript_id', transcriptId)
-            .eq('inngest_event_id', requestId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-
-    if (exactJobError) {
-        console.error('[webhook] Failed to lookup job by requestId:', exactJobError)
-        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, exactJobError.message)
-        throw new Error(`Failed to lookup job by requestId: ${exactJobError.message}`)
-    }
-
-    let jobIdToUpdate = exactJob?.id
-
-    if (!jobIdToUpdate) {
-        const { data: fallbackJob, error: fallbackJobError } = await supabase
-            .from('jobs')
-            .select('id')
-            .eq('transcript_id', transcriptId)
-            .in('status', ['queued', 'processing'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-
-        if (fallbackJobError) {
-            console.error('[webhook] Failed to lookup fallback job:', fallbackJobError)
-            await markReceiptFailed(supabase, engine, requestId, activeAttemptId, fallbackJobError.message)
-            throw new Error(`Failed to lookup fallback job: ${fallbackJobError.message}`)
-        }
-
-        jobIdToUpdate = fallbackJob?.id
-    }
-
     // The owner names the folder the response is stored in.
     const { data: transcript, error: transcriptError } = await supabase
         .from('transcripts')
@@ -389,21 +439,14 @@ export async function recordEngineResult(opts: {
         throw new Error(`Failed to lookup transcript owner: ${transcriptError.message}`)
     }
 
-    if (!jobIdToUpdate || !transcript) {
-        console.error('[webhook] No job found to store the response', { transcriptId, requestId })
-        await persistWebhookFailure({
-            supabase,
-            transcriptId,
-            requestId,
-            engine,
-            message: 'Transcription result received but its job was not found.',
-        })
-        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job not found')
-        throw new Error(`Job not found for ${engine} result`)
+    if (!transcript) {
+        // Deleted since the check above: nothing is left to store it for.
+        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Transcript deleted')
+        return { outcome: 'stale' }
     }
 
     // Store the response, then link it. A redelivery overwrites the same file.
-    const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, jobIdToUpdate)
+    const resultKey = getTranscriptionResultPath(transcript.user_id, transcriptId, exact.jobId)
     try {
         // A resumed handoff whose file is the job's own stores nothing again.
         if (opts.storedObjectKey !== resultKey) {
@@ -419,22 +462,18 @@ export async function recordEngineResult(opts: {
         throw uploadError
     }
 
-    let linkQuery = supabase
+    // The exact attempt's checks, again, in the write itself.
+    const { data: linkedJob, error: updateError } = await supabase
         .from('jobs')
         .update({
             result_object_key: resultKey,
             inngest_event_id: requestId,
         })
-        .eq('id', jobIdToUpdate)
-    if (exact) {
-        // The exact attempt's checks, again, in the write itself.
-        linkQuery = linkQuery
-            .eq('transcript_id', transcriptId)
-            .eq('status', 'processing')
-            .or(sameRequest(requestId))
-    }
-    const { data: linkedJob, error: updateError } = await linkQuery
-        .select(exact ? EXACT_JOB_RETURNING : 'id')
+        .eq('id', exact.jobId)
+        .eq('transcript_id', transcriptId)
+        .eq('status', 'processing')
+        .or(sameRequest(requestId))
+        .select(EXACT_JOB_RETURNING)
         .maybeSingle()
 
     if (updateError) {
@@ -444,7 +483,7 @@ export async function recordEngineResult(opts: {
         throw new Error(`Failed to link ${engine} result: ${updateError.message}`)
     }
 
-    if (!linkedJob && exact) {
+    if (!linkedJob) {
         // The attempt changed while the file was uploading. The file is kept:
         // this path is the job's own, and another delivery that completed the
         // job may have linked the very same file. Deleting the transcript
@@ -464,13 +503,6 @@ export async function recordEngineResult(opts: {
         const reason = typeof state === 'object' ? `Job unreadable after a refused link: ${state.error}` : 'Link refused; retrying'
         await markReceiptFailed(supabase, engine, requestId, activeAttemptId, reason)
         return { outcome: 'retrying', retryAfter: 30 }
-    }
-
-    if (!linkedJob) {
-        // The job went with its transcript while the file was uploading.
-        await removeTranscriptionResult(supabase, resultKey, 'webhook')
-        await markReceiptFailed(supabase, engine, requestId, activeAttemptId, 'Job deleted during upload')
-        throw new Error(`Job was deleted while storing the ${engine} result`)
     }
 
     // Forward to Inngest for durable processing
