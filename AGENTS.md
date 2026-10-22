@@ -43,7 +43,7 @@ cd infra
 ./start-local.sh
 ```
 
-`start-local.sh` starts Supabase, creates `infra/.env.docker` from its example when needed, injects local Supabase keys, starts the frontend and Inngest containers, and starts ngrok when available. Set `DEEPGRAM_API_KEY` and `DEEPGRAM_API_KEY_IDENTIFIER` in `infra/.env.docker`. When ngrok is available, the script updates `DEEPGRAM_CALLBACK_URL` automatically; otherwise configure it manually with `/api/webhooks/deepgram` appended to the public URL.
+`start-local.sh` starts Supabase, creates `infra/.env.docker` from its example when needed, injects local Supabase keys, starts the frontend and Inngest containers, and starts ngrok when available. Set `DEEPGRAM_API_KEY` in `infra/.env.docker`; the script generates `DEEPGRAM_WEBHOOK_SECRET` (the Basic Auth secret Deepgram's callbacks carry) when it is missing. When ngrok is available, the script updates `DEEPGRAM_CALLBACK_URL` automatically; otherwise configure it manually with `/api/webhooks/deepgram` appended to the public URL.
 
 ```bash
 cd infra

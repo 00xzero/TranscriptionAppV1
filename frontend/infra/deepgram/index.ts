@@ -33,28 +33,49 @@ import type { TranscriptionOptions } from '@/contracts/transcription-options'
 import { fillerWordsApply } from '@/core/transcription/engines/capabilities'
 export type { DeepgramAsyncResponse, DeepgramWord, DeepgramUtterance, DeepgramParagraph, DeepgramSentence, DeepgramResponse }
 
+/** The Basic Auth user Deepgram's callbacks carry; the password is DEEPGRAM_WEBHOOK_SECRET. */
+export const DEEPGRAM_WEBHOOK_USER = "deepgram";
+
+/** Our own secret, hex only so nothing in the callback URL needs encoding. */
+const WEBHOOK_SECRET_PATTERN = /^[0-9a-f]{32,}$/i;
+
+/** Text that may quote the callback URL, with our secret taken out before it is logged or stored. */
+export function withoutWebhookSecret(text: string): string {
+    const secret = process.env.DEEPGRAM_WEBHOOK_SECRET;
+    return secret ? text.split(secret).join("***") : text;
+}
+
 /**
- * Get the callback URL for Deepgram webhooks.
+ * Get the callback URL for Deepgram webhooks, carrying our credentials:
+ * Deepgram sends them back as Basic Auth on every callback, which the route
+ * checks (https://developers.deepgram.com/docs/callback).
  * Priority: DEEPGRAM_CALLBACK_URL > NEXT_PUBLIC_APP_URL + path
  */
 export function getCallbackUrl(): string {
+    const secret = process.env.DEEPGRAM_WEBHOOK_SECRET;
+    if (!secret) {
+        throw new Error("DEEPGRAM_WEBHOOK_SECRET must be configured for Deepgram webhooks");
+    }
+    if (!WEBHOOK_SECRET_PATTERN.test(secret)) {
+        throw new Error("DEEPGRAM_WEBHOOK_SECRET must be hex (openssl rand -hex 32)");
+    }
+
     // Explicit override takes priority (for ngrok/tunnels in local dev)
-    const explicitUrl = process.env.DEEPGRAM_CALLBACK_URL;
-    if (explicitUrl) {
-        return explicitUrl;
+    let url = process.env.DEEPGRAM_CALLBACK_URL;
+    if (!url) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        if (!appUrl) {
+            throw new Error(
+                "NEXT_PUBLIC_APP_URL or DEEPGRAM_CALLBACK_URL must be configured for Deepgram webhooks"
+            );
+        }
+        url = `${appUrl.replace(/\/$/, "")}/api/webhooks/deepgram`;
     }
 
-    // Derive from app URL
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!appUrl) {
-        throw new Error(
-            "NEXT_PUBLIC_APP_URL or DEEPGRAM_CALLBACK_URL must be configured for Deepgram webhooks"
-        );
-    }
-
-    // Remove trailing slash and append webhook path
-    const baseUrl = appUrl.replace(/\/$/, "");
-    return `${baseUrl}/api/webhooks/deepgram`;
+    const callback = new URL(url);
+    callback.username = DEEPGRAM_WEBHOOK_USER;
+    callback.password = secret;
+    return callback.toString();
 }
 
 /**
@@ -154,7 +175,8 @@ export async function startAsyncTranscription(
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
+            // Deepgram's answer can quote the callback URL, which carries our secret.
+            const errorText = withoutWebhookSecret(await response.text());
             console.error("[deepgram] API error:", response.status, errorText);
             return {
                 requestId: null,
@@ -178,10 +200,11 @@ export async function startAsyncTranscription(
             error: null,
         };
     } catch (error) {
-        console.error("[deepgram] Request failed:", error);
+        const message = withoutWebhookSecret(error instanceof Error ? error.message : String(error));
+        console.error("[deepgram] Request failed:", message);
         return {
             requestId: null,
-            error: `Deepgram request failed: ${error instanceof Error ? error.message : String(error)}`,
+            error: `Deepgram request failed: ${message}`,
         };
     }
 }

@@ -82,7 +82,12 @@ const JOB_ID = '00000000-0000-4000-8000-0000000000a1'
 const REQUEST_ID = 'req-123'
 const RESULT_KEY = `${USER_ID}/${TRANSCRIPT_ID}/${JOB_ID}.json.gz`
 
-function requestWithText(text: string, headers = new Headers({ 'dg-token': 'test-token' })) {
+// Our own hex secret; Deepgram sends it back as Basic Auth from the callback URL.
+const SECRET = 'a'.repeat(64)
+const basic = (credentials: string, scheme = 'Basic') => `${scheme} ${Buffer.from(credentials).toString('base64')}`
+const AUTHORIZED = () => new Headers({ authorization: basic(`deepgram:${SECRET}`) })
+
+function requestWithText(text: string, headers = AUTHORIZED()) {
   return { headers, text: async () => text } as any
 }
 
@@ -127,7 +132,7 @@ beforeEach(() => {
   mockRemove.mockResolvedValue(undefined)
   mockSend.mockReset()
   mockSend.mockResolvedValue(undefined)
-  process.env.DEEPGRAM_API_KEY_IDENTIFIER = 'test-token'
+  process.env.DEEPGRAM_WEBHOOK_SECRET = SECRET
 })
 
 describe('Deepgram webhook route: storing and passing on', () => {
@@ -281,10 +286,43 @@ describe('Deepgram webhook route: storing and passing on', () => {
 })
 
 describe('Deepgram webhook route: checks before anything is stored', () => {
-  test('rejects when dg-token is missing', async () => {
-    const res = await POST(requestWithBody({}, new Headers({})))
+  test.each([
+    ['no credentials', new Headers({})],
+    ['a wrong secret', new Headers({ authorization: basic(`deepgram:${'b'.repeat(64)}`) })],
+    ['a wrong user', new Headers({ authorization: basic(`someone:${SECRET}`) })],
+    ['a secret one character short', new Headers({ authorization: basic(`deepgram:${SECRET.slice(1)}`) })],
+    ['another scheme', new Headers({ authorization: basic(`deepgram:${SECRET}`, 'Bearer') })],
+    ['the secret unencoded', new Headers({ authorization: `Basic deepgram:${SECRET}` })],
+    // Buffer.from would decode this to the right credentials by skipping the "*".
+    ['base64 with a character Node would skip', new Headers({ authorization: `Basic *${Buffer.from(`deepgram:${SECRET}`).toString('base64')}` })],
+    ['only the old dg-token header', new Headers({ 'dg-token': 'test-token' })],
+  ])('refuses %s, storing, sending and failing nothing', async (_label, headers) => {
+    jobMaybeSingle.mockResolvedValue({ data: { id: 'job-1', transcript_id: TRANSCRIPT_ID }, error: null })
+
+    const res = await POST(requestWithBody(makeBody(), headers))
+
     expect(res.status).toBe(401)
     expect(mockSend).not.toHaveBeenCalled()
+    expect(mockUpload).not.toHaveBeenCalled()
+    expect(mockForceJobError).not.toHaveBeenCalled()
+    expect(jobMaybeSingle).not.toHaveBeenCalled()
+  })
+
+  test('takes the Basic scheme in any case, with no dg-token', async () => {
+    reads([transcriptRow, jobRow()], [transcriptRow, jobRow()])
+
+    const res = await POST(requestWithText(JSON.stringify(makeBody()), new Headers({ authorization: basic(`deepgram:${SECRET}`, 'basic') })))
+
+    expect(res.status).toBe(200)
+    expect(mockSend).toHaveBeenCalled()
+  })
+
+  test('without its own secret configured it refuses everything', async () => {
+    delete process.env.DEEPGRAM_WEBHOOK_SECRET
+
+    const res = await POST(requestWithBody(makeBody()))
+
+    expect(res.status).toBe(500)
     expect(mockUpload).not.toHaveBeenCalled()
   })
 
@@ -408,7 +446,7 @@ describe('Deepgram webhook route: checks before anything is stored', () => {
 
   test('returns 500 when the body cannot be read, so Deepgram retries', async () => {
     const request = {
-      headers: new Headers({ 'dg-token': 'test-token' }),
+      headers: AUTHORIZED(),
       text: async () => { throw new Error('connection reset') },
     } as any
 

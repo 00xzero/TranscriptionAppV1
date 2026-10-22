@@ -146,6 +146,18 @@ if [ -f ".env.docker" ]; then
         echo -e "${YELLOW}Generated MEDIA_PROXY_SECRET in .env.docker${NC}"
     fi
 
+    # Deepgram sends this back as Basic Auth on every callback; hex only, so the
+    # callback URL needs no encoding.
+    if ! grep -Eq "^DEEPGRAM_WEBHOOK_SECRET=[\"']?[0-9a-fA-F]" .env.docker; then
+        if command -v openssl &> /dev/null; then
+            WEBHOOK_SECRET=$(openssl rand -hex 32)
+        else
+            WEBHOOK_SECRET=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+        fi
+        upsert_env_var ".env.docker" "DEEPGRAM_WEBHOOK_SECRET" "$WEBHOOK_SECRET"
+        echo -e "${YELLOW}Generated DEEPGRAM_WEBHOOK_SECRET in .env.docker${NC}"
+    fi
+
     if ! grep -q '^DEEPGRAM_USE_PROXY=' .env.docker; then
         echo "DEEPGRAM_USE_PROXY=true" >> .env.docker
         echo -e "${YELLOW}Set DEEPGRAM_USE_PROXY=true in .env.docker${NC}"
