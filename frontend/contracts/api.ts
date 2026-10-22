@@ -4,11 +4,22 @@ import { UuidSchema } from './primitives'
 import { SavedTranscriptionOptionsSchema } from './transcription-options'
 
 export const MAX_KEY_TERMS = 100
+// A key term is a name or a short phrase; AssemblyAI takes at most six words
+// per term, and longer ones read as spam rather than vocabulary for any engine.
+export const MAX_KEY_TERM_WORDS = 6
+
+// One key term, as the key-terms field and the create route both check it.
+export const KeyTermSchema = z
+  .string()
+  .max(100, 'Key terms can be at most 100 characters.')
+  .refine((term) => term.trim().split(/\s+/).filter(Boolean).length <= MAX_KEY_TERM_WORDS, {
+    message: `Key terms can be at most ${MAX_KEY_TERM_WORDS} words.`,
+  })
 
 export const CreateTranscriptBodySchema = z.object({
   title: z.string().max(TEXT_LIMITS.transcriptTitle).optional(),
   filename: z.string().min(1, 'filename is required'),
-  key_terms: z.array(z.string().max(100)).max(MAX_KEY_TERMS).optional(),
+  key_terms: z.array(KeyTermSchema).max(MAX_KEY_TERMS).optional(),
   // Client-generated, user-scoped upload idempotency key. Optional so the
   // file-upload path (no recording session) is unaffected. When present, the
   // server dedupes transcript creation by (user_id, upload_intent_id).

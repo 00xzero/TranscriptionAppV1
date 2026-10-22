@@ -15,7 +15,7 @@ import {
     type SavedTranscriptionOptions,
     type TranscriptionOptions,
 } from '@/contracts/transcription-options'
-import { fillerWordsApply, profanityMaskingApplies } from '@/core/transcription/engines/capabilities'
+import { storedFillerWords, storedProfanityMasking } from '@/core/transcription/engines/capabilities'
 
 export interface TranscriptCreated {
     id: string
@@ -53,7 +53,7 @@ const TRANSCRIPT_RESULT_COLUMNS =
 
 /**
  * The options as the engine will be asked for them. Filler words and profanity
- * masking are recorded on only where the engine can do them, whatever the
+ * masking are recorded as the engine will really do them, whatever the
  * switches were left at. A tab opened before the engine could be chosen sends
  * none, and gets Deepgram.
  */
@@ -61,8 +61,8 @@ function recordedOptions(saved: SavedTranscriptionOptions): TranscriptionOptions
     const options = resolveTranscriptionOptions(saved)
     return {
         ...options,
-        keep_filler_words: options.keep_filler_words && fillerWordsApply(options.engine, options.language),
-        mask_profanity: options.mask_profanity && profanityMaskingApplies(options.engine),
+        keep_filler_words: storedFillerWords(options),
+        mask_profanity: storedProfanityMasking(options),
     }
 }
 
