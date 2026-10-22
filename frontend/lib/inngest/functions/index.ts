@@ -12,4 +12,5 @@ export { handleTranscriptionFailed } from "./handle-transcription-failed";
 export { handleTranscriptionTimeouts } from "./handle-transcription-timeouts";
 export { handleWaveformRequested } from "./handle-waveform-requested";
 export { handleSonioxCallback } from "./handle-soniox-callback";
+export { handleAssemblyAICallback } from "./handle-assemblyai-callback";
 export { handleDeepgramCallback } from "./handle-deepgram-callback";

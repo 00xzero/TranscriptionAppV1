@@ -157,6 +157,20 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             // Defence-in-depth: validate the payload we're about to send.
             const validatedPayload = SaveTranscriptSegmentsPayloadSchema.parse(payload);
 
+            // The model that really made it, when the engine says (AssemblyAI
+            // falls back to another for some languages). Written before the
+            // segments, so a failed write retries this whole step and nothing
+            // completes without it; both writes repeat harmlessly.
+            if (engineWords.model) {
+                const { error: modelError } = await supabase
+                    .from("transcripts")
+                    .update({ engine_model: engineWords.model })
+                    .eq("id", transcriptId);
+                if (modelError) {
+                    throw new Error(`Failed to record the engine model: ${modelError.message}`);
+                }
+            }
+
             const { data: rpcData, error: rpcError } = await supabase.rpc(
                 "save_transcript_segments",
                 {

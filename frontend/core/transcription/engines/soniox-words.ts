@@ -8,11 +8,11 @@ import { SonioxStoredResultSchema, type SonioxToken } from "@/contracts/soniox";
 import type { NormalizedWord } from "@/core/transcript/segment-builder";
 import { ENDS_NO_SPACE, isSentenceBoundary, STARTS_NO_SPACE } from "@/core/transcript/text-utils";
 import type { EngineWords } from "./types";
+import { plainWordText, speakerNumberer } from "./word-text";
 
 // What makes a word a word rather than stray punctuation (marks keep Devanagari's
 // vowel signs).
 const WORD_CHARACTER = /[\p{L}\p{N}\p{M}]/u;
-const OUTER_PUNCTUATION = /^[^\p{L}\p{N}\p{M}]+|[^\p{L}\p{N}\p{M}]+$/gu;
 
 interface WordInProgress {
     raw: string;
@@ -102,28 +102,20 @@ export function sonioxResultToWords(rawJson: string): EngineWords {
 
     // Labels were carried forward while joining; only words before the first
     // label have none.
-    const speakerNumbers = new Map<string, number>();
+    const speakerNumber = speakerNumberer();
 
     const words = joined.map<NormalizedWord>((word, index) => {
-        let speaker: number | null = null;
-        if (word.speakerLabel !== null) {
-            if (!speakerNumbers.has(word.speakerLabel)) {
-                speakerNumbers.set(word.speakerLabel, speakerNumbers.size);
-            }
-            speaker = speakerNumbers.get(word.speakerLabel) ?? null;
-        }
-
         const punctuatedText = word.raw.trim();
         return {
             // Soniox marks a word break with a leading space; a word without
             // one (Japanese) is written straight after the one before.
             ...(index > 0 && !/^\s/.test(word.raw) ? { joinsPrevious: true } : {}),
-            text: punctuatedText.replace(OUTER_PUNCTUATION, "").toLowerCase(),
+            text: plainWordText(punctuatedText),
             punctuatedText,
             startMs: word.startMs,
             endMs: word.endMs,
             confidence: word.confidence,
-            speaker,
+            speaker: speakerNumber(word.speakerLabel),
             speakerConfidence: null,
             paragraphIndex: null,
             sentenceEnd: isSentenceBoundary(punctuatedText),

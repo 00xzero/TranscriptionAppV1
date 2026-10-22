@@ -31,6 +31,11 @@ export type EngineStartResult =
 export interface EngineWords {
     words: NormalizedWord[];
     fallbackText: string;
+    /**
+     * The model that really made the transcript, when the engine says and it
+     * can differ from the one shown when choosing (AssemblyAI's fallback).
+     */
+    model?: string | null;
 }
 
 export interface TranscriptionEngine {

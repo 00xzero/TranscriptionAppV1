@@ -1,0 +1,1127 @@
+{
+  "id": "00000000-0000-4000-8000-00000000aa01",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "en_us",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://example.invalid/audio.m4a",
+  "text": "So, um, I was thinking, uh, that we could move the Qwyntessa launch to November. What do you think? Honestly, uh, that is a d*** good idea, but the Brixtonne team will be, um, really annoyed about it. Well, um, they will get over it. The budget is fixed, and the deadline is the 20th of November. Fine. I will tell them tomorrow morning, uh, before the s*** hits the fan.",
+  "words": [
+    {
+      "text": "So,",
+      "start": 16,
+      "end": 337,
+      "confidence": 0.94679856,
+      "speaker": "A"
+    },
+    {
+      "text": "um,",
+      "start": 738,
+      "end": 818,
+      "confidence": 0.9373301,
+      "speaker": "A"
+    },
+    {
+      "text": "I",
+      "start": 1220,
+      "end": 1252,
+      "confidence": 0.9990946,
+      "speaker": "A"
+    },
+    {
+      "text": "was",
+      "start": 1316,
+      "end": 1445,
+      "confidence": 0.99989164,
+      "speaker": "A"
+    },
+    {
+      "text": "thinking,",
+      "start": 1477,
+      "end": 1926,
+      "confidence": 0.9466939,
+      "speaker": "A"
+    },
+    {
+      "text": "uh,",
+      "start": 2264,
+      "end": 2280,
+      "confidence": 0.91666174,
+      "speaker": "A"
+    },
+    {
+      "text": "that",
+      "start": 2761,
+      "end": 2922,
+      "confidence": 0.99625057,
+      "speaker": "A"
+    },
+    {
+      "text": "we",
+      "start": 2922,
+      "end": 3082,
+      "confidence": 0.9998036,
+      "speaker": "A"
+    },
+    {
+      "text": "could",
+      "start": 3082,
+      "end": 3259,
+      "confidence": 0.99834275,
+      "speaker": "A"
+    },
+    {
+      "text": "move",
+      "start": 3259,
+      "end": 3500,
+      "confidence": 0.9984263,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 3500,
+      "end": 3580,
+      "confidence": 0.9927262,
+      "speaker": "A"
+    },
+    {
+      "text": "Qwyntessa",
+      "start": 3628,
+      "end": 4190,
+      "confidence": 0.98562825,
+      "speaker": "A"
+    },
+    {
+      "text": "launch",
+      "start": 4190,
+      "end": 4495,
+      "confidence": 0.98994154,
+      "speaker": "A"
+    },
+    {
+      "text": "to",
+      "start": 4511,
+      "end": 4608,
+      "confidence": 0.99913824,
+      "speaker": "A"
+    },
+    {
+      "text": "November.",
+      "start": 4608,
+      "end": 5170,
+      "confidence": 0.83069223,
+      "speaker": "A"
+    },
+    {
+      "text": "What",
+      "start": 5491,
+      "end": 5651,
+      "confidence": 0.9935427,
+      "speaker": "A"
+    },
+    {
+      "text": "do",
+      "start": 5651,
+      "end": 5796,
+      "confidence": 0.99924767,
+      "speaker": "A"
+    },
+    {
+      "text": "you",
+      "start": 5876,
+      "end": 5941,
+      "confidence": 0.9998274,
+      "speaker": "A"
+    },
+    {
+      "text": "think?",
+      "start": 6053,
+      "end": 6390,
+      "confidence": 0.9994724,
+      "speaker": "A"
+    },
+    {
+      "text": "Honestly,",
+      "start": 7482,
+      "end": 7948,
+      "confidence": 0.9791728,
+      "speaker": "B"
+    },
+    {
+      "text": "uh,",
+      "start": 8301,
+      "end": 8317,
+      "confidence": 0.9886346,
+      "speaker": "B"
+    },
+    {
+      "text": "that",
+      "start": 8622,
+      "end": 8847,
+      "confidence": 0.9997365,
+      "speaker": "B"
+    },
+    {
+      "text": "is",
+      "start": 8847,
+      "end": 8911,
+      "confidence": 0.99542856,
+      "speaker": "B"
+    },
+    {
+      "text": "a",
+      "start": 8959,
+      "end": 9088,
+      "confidence": 0.9998952,
+      "speaker": "B"
+    },
+    {
+      "text": "d***",
+      "start": 9088,
+      "end": 9329,
+      "confidence": 0.99643826,
+      "speaker": "B"
+    },
+    {
+      "text": "good",
+      "start": 9345,
+      "end": 9569,
+      "confidence": 0.9998708,
+      "speaker": "B"
+    },
+    {
+      "text": "idea,",
+      "start": 9569,
+      "end": 10003,
+      "confidence": 0.83199686,
+      "speaker": "B"
+    },
+    {
+      "text": "but",
+      "start": 10212,
+      "end": 10324,
+      "confidence": 0.99959534,
+      "speaker": "B"
+    },
+    {
+      "text": "the",
+      "start": 10324,
+      "end": 10452,
+      "confidence": 0.9992112,
+      "speaker": "B"
+    },
+    {
+      "text": "Brixtonne",
+      "start": 10469,
+      "end": 10918,
+      "confidence": 0.99032575,
+      "speaker": "B"
+    },
+    {
+      "text": "team",
+      "start": 10950,
+      "end": 11191,
+      "confidence": 0.9911344,
+      "speaker": "B"
+    },
+    {
+      "text": "will",
+      "start": 11191,
+      "end": 11352,
+      "confidence": 0.9979856,
+      "speaker": "B"
+    },
+    {
+      "text": "be,",
+      "start": 11352,
+      "end": 11609,
+      "confidence": 0.98978716,
+      "speaker": "B"
+    },
+    {
+      "text": "um,",
+      "start": 11994,
+      "end": 12203,
+      "confidence": 0.98274726,
+      "speaker": "B"
+    },
+    {
+      "text": "really",
+      "start": 12556,
+      "end": 12845,
+      "confidence": 0.99872404,
+      "speaker": "B"
+    },
+    {
+      "text": "annoyed",
+      "start": 12861,
+      "end": 13198,
+      "confidence": 0.99945873,
+      "speaker": "B"
+    },
+    {
+      "text": "about",
+      "start": 13198,
+      "end": 13519,
+      "confidence": 0.9994342,
+      "speaker": "B"
+    },
+    {
+      "text": "it.",
+      "start": 13519,
+      "end": 13664,
+      "confidence": 0.98464113,
+      "speaker": "B"
+    },
+    {
+      "text": "Well,",
+      "start": 14804,
+      "end": 14997,
+      "confidence": 0.9978998,
+      "speaker": "A"
+    },
+    {
+      "text": "um,",
+      "start": 15430,
+      "end": 15607,
+      "confidence": 0.99294615,
+      "speaker": "A"
+    },
+    {
+      "text": "they",
+      "start": 15912,
+      "end": 16008,
+      "confidence": 0.99971324,
+      "speaker": "A"
+    },
+    {
+      "text": "will",
+      "start": 16008,
+      "end": 16137,
+      "confidence": 0.99492353,
+      "speaker": "A"
+    },
+    {
+      "text": "get",
+      "start": 16169,
+      "end": 16393,
+      "confidence": 0.99981254,
+      "speaker": "A"
+    },
+    {
+      "text": "over",
+      "start": 16393,
+      "end": 16634,
+      "confidence": 0.99998784,
+      "speaker": "A"
+    },
+    {
+      "text": "it.",
+      "start": 16650,
+      "end": 16891,
+      "confidence": 0.9131615,
+      "speaker": "A"
+    },
+    {
+      "text": "The",
+      "start": 17116,
+      "end": 17212,
+      "confidence": 0.99879336,
+      "speaker": "A"
+    },
+    {
+      "text": "budget",
+      "start": 17212,
+      "end": 17550,
+      "confidence": 0.9999572,
+      "speaker": "A"
+    },
+    {
+      "text": "is",
+      "start": 17550,
+      "end": 17662,
+      "confidence": 0.9995964,
+      "speaker": "A"
+    },
+    {
+      "text": "fixed,",
+      "start": 17694,
+      "end": 18176,
+      "confidence": 0.76353604,
+      "speaker": "A"
+    },
+    {
+      "text": "and",
+      "start": 18417,
+      "end": 18481,
+      "confidence": 0.9995908,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 18497,
+      "end": 18641,
+      "confidence": 0.99991393,
+      "speaker": "A"
+    },
+    {
+      "text": "deadline",
+      "start": 18641,
+      "end": 19027,
+      "confidence": 0.99987257,
+      "speaker": "A"
+    },
+    {
+      "text": "is",
+      "start": 19075,
+      "end": 19187,
+      "confidence": 0.9998079,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 19219,
+      "end": 19300,
+      "confidence": 0.9865428,
+      "speaker": "A"
+    },
+    {
+      "text": "20th",
+      "start": 19364,
+      "end": 19846,
+      "confidence": 0.9917945,
+      "speaker": "A"
+    },
+    {
+      "text": "of",
+      "start": 19846,
+      "end": 19942,
+      "confidence": 0.9993642,
+      "speaker": "A"
+    },
+    {
+      "text": "November.",
+      "start": 19958,
+      "end": 20440,
+      "confidence": 0.99357706,
+      "speaker": "A"
+    },
+    {
+      "text": "Fine.",
+      "start": 21628,
+      "end": 21837,
+      "confidence": 0.7774591,
+      "speaker": "B"
+    },
+    {
+      "text": "I",
+      "start": 22415,
+      "end": 22511,
+      "confidence": 0.9979804,
+      "speaker": "B"
+    },
+    {
+      "text": "will",
+      "start": 22511,
+      "end": 22607,
+      "confidence": 0.99528,
+      "speaker": "B"
+    },
+    {
+      "text": "tell",
+      "start": 22672,
+      "end": 22880,
+      "confidence": 0.99977857,
+      "speaker": "B"
+    },
+    {
+      "text": "them",
+      "start": 22929,
+      "end": 23041,
+      "confidence": 0.9999311,
+      "speaker": "B"
+    },
+    {
+      "text": "tomorrow",
+      "start": 23073,
+      "end": 23491,
+      "confidence": 0.9992514,
+      "speaker": "B"
+    },
+    {
+      "text": "morning,",
+      "start": 23555,
+      "end": 23908,
+      "confidence": 0.9568106,
+      "speaker": "B"
+    },
+    {
+      "text": "uh,",
+      "start": 24579,
+      "end": 24599,
+      "confidence": 0.9978527,
+      "speaker": "B"
+    },
+    {
+      "text": "before",
+      "start": 24599,
+      "end": 25000,
+      "confidence": 0.9997136,
+      "speaker": "B"
+    },
+    {
+      "text": "the",
+      "start": 25000,
+      "end": 25048,
+      "confidence": 0.99774134,
+      "speaker": "B"
+    },
+    {
+      "text": "s***",
+      "start": 25080,
+      "end": 25385,
+      "confidence": 0.9991516,
+      "speaker": "B"
+    },
+    {
+      "text": "hits",
+      "start": 25385,
+      "end": 25626,
+      "confidence": 0.9996917,
+      "speaker": "B"
+    },
+    {
+      "text": "the",
+      "start": 25642,
+      "end": 25690,
+      "confidence": 0.9999689,
+      "speaker": "B"
+    },
+    {
+      "text": "fan.",
+      "start": 25803,
+      "end": 26012,
+      "confidence": 0.98480093,
+      "speaker": "B"
+    }
+  ],
+  "utterances": [
+    {
+      "speaker": "A",
+      "text": "So, um, I was thinking, uh, that we could move the Qwyntessa launch to November. What do you think?",
+      "confidence": 0.95680517,
+      "start": 16,
+      "end": 6390,
+      "words": [
+        {
+          "text": "So,",
+          "start": 16,
+          "end": 337,
+          "confidence": 0.94679856,
+          "speaker": "A"
+        },
+        {
+          "text": "um,",
+          "start": 738,
+          "end": 818,
+          "confidence": 0.9373301,
+          "speaker": "A"
+        },
+        {
+          "text": "I",
+          "start": 1220,
+          "end": 1252,
+          "confidence": 0.9990946,
+          "speaker": "A"
+        },
+        {
+          "text": "was",
+          "start": 1316,
+          "end": 1445,
+          "confidence": 0.99989164,
+          "speaker": "A"
+        },
+        {
+          "text": "thinking,",
+          "start": 1477,
+          "end": 1926,
+          "confidence": 0.9466939,
+          "speaker": "A"
+        },
+        {
+          "text": "uh,",
+          "start": 2264,
+          "end": 2280,
+          "confidence": 0.91666174,
+          "speaker": "A"
+        },
+        {
+          "text": "that",
+          "start": 2761,
+          "end": 2922,
+          "confidence": 0.99625057,
+          "speaker": "A"
+        },
+        {
+          "text": "we",
+          "start": 2922,
+          "end": 3082,
+          "confidence": 0.9998036,
+          "speaker": "A"
+        },
+        {
+          "text": "could",
+          "start": 3082,
+          "end": 3259,
+          "confidence": 0.99834275,
+          "speaker": "A"
+        },
+        {
+          "text": "move",
+          "start": 3259,
+          "end": 3500,
+          "confidence": 0.9984263,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 3500,
+          "end": 3580,
+          "confidence": 0.9927262,
+          "speaker": "A"
+        },
+        {
+          "text": "Qwyntessa",
+          "start": 3628,
+          "end": 4190,
+          "confidence": 0.98562825,
+          "speaker": "A"
+        },
+        {
+          "text": "launch",
+          "start": 4190,
+          "end": 4495,
+          "confidence": 0.98994154,
+          "speaker": "A"
+        },
+        {
+          "text": "to",
+          "start": 4511,
+          "end": 4608,
+          "confidence": 0.99913824,
+          "speaker": "A"
+        },
+        {
+          "text": "November.",
+          "start": 4608,
+          "end": 5170,
+          "confidence": 0.83069223,
+          "speaker": "A"
+        },
+        {
+          "text": "What",
+          "start": 5491,
+          "end": 5651,
+          "confidence": 0.9935427,
+          "speaker": "A"
+        },
+        {
+          "text": "do",
+          "start": 5651,
+          "end": 5796,
+          "confidence": 0.99924767,
+          "speaker": "A"
+        },
+        {
+          "text": "you",
+          "start": 5876,
+          "end": 5941,
+          "confidence": 0.9998274,
+          "speaker": "A"
+        },
+        {
+          "text": "think?",
+          "start": 6053,
+          "end": 6390,
+          "confidence": 0.9994724,
+          "speaker": "A"
+        }
+      ]
+    },
+    {
+      "speaker": "B",
+      "text": "Honestly, uh, that is a d*** good idea, but the Brixtonne team will be, um, really annoyed about it.",
+      "confidence": 0.96411294,
+      "start": 6390,
+      "end": 13664,
+      "words": [
+        {
+          "text": "Honestly,",
+          "start": 7482,
+          "end": 7948,
+          "confidence": 0.9791728,
+          "speaker": "B"
+        },
+        {
+          "text": "uh,",
+          "start": 8301,
+          "end": 8317,
+          "confidence": 0.9886346,
+          "speaker": "B"
+        },
+        {
+          "text": "that",
+          "start": 8622,
+          "end": 8847,
+          "confidence": 0.9997365,
+          "speaker": "B"
+        },
+        {
+          "text": "is",
+          "start": 8847,
+          "end": 8911,
+          "confidence": 0.99542856,
+          "speaker": "B"
+        },
+        {
+          "text": "a",
+          "start": 8959,
+          "end": 9088,
+          "confidence": 0.9998952,
+          "speaker": "B"
+        },
+        {
+          "text": "d***",
+          "start": 9088,
+          "end": 9329,
+          "confidence": 0.99643826,
+          "speaker": "B"
+        },
+        {
+          "text": "good",
+          "start": 9345,
+          "end": 9569,
+          "confidence": 0.9998708,
+          "speaker": "B"
+        },
+        {
+          "text": "idea,",
+          "start": 9569,
+          "end": 10003,
+          "confidence": 0.83199686,
+          "speaker": "B"
+        },
+        {
+          "text": "but",
+          "start": 10212,
+          "end": 10324,
+          "confidence": 0.99959534,
+          "speaker": "B"
+        },
+        {
+          "text": "the",
+          "start": 10324,
+          "end": 10452,
+          "confidence": 0.9992112,
+          "speaker": "B"
+        },
+        {
+          "text": "Brixtonne",
+          "start": 10469,
+          "end": 10918,
+          "confidence": 0.99032575,
+          "speaker": "B"
+        },
+        {
+          "text": "team",
+          "start": 10950,
+          "end": 11191,
+          "confidence": 0.9911344,
+          "speaker": "B"
+        },
+        {
+          "text": "will",
+          "start": 11191,
+          "end": 11352,
+          "confidence": 0.9979856,
+          "speaker": "B"
+        },
+        {
+          "text": "be,",
+          "start": 11352,
+          "end": 11609,
+          "confidence": 0.98978716,
+          "speaker": "B"
+        },
+        {
+          "text": "um,",
+          "start": 11994,
+          "end": 12203,
+          "confidence": 0.98274726,
+          "speaker": "B"
+        },
+        {
+          "text": "really",
+          "start": 12556,
+          "end": 12845,
+          "confidence": 0.99872404,
+          "speaker": "B"
+        },
+        {
+          "text": "annoyed",
+          "start": 12861,
+          "end": 13198,
+          "confidence": 0.99945873,
+          "speaker": "B"
+        },
+        {
+          "text": "about",
+          "start": 13198,
+          "end": 13519,
+          "confidence": 0.9994342,
+          "speaker": "B"
+        },
+        {
+          "text": "it.",
+          "start": 13519,
+          "end": 13664,
+          "confidence": 0.98464113,
+          "speaker": "B"
+        }
+      ]
+    },
+    {
+      "speaker": "A",
+      "text": "Well, um, they will get over it. The budget is fixed, and the deadline is the 20th of November.",
+      "confidence": 0.98110515,
+      "start": 13664,
+      "end": 20440,
+      "words": [
+        {
+          "text": "Well,",
+          "start": 14804,
+          "end": 14997,
+          "confidence": 0.9978998,
+          "speaker": "A"
+        },
+        {
+          "text": "um,",
+          "start": 15430,
+          "end": 15607,
+          "confidence": 0.99294615,
+          "speaker": "A"
+        },
+        {
+          "text": "they",
+          "start": 15912,
+          "end": 16008,
+          "confidence": 0.99971324,
+          "speaker": "A"
+        },
+        {
+          "text": "will",
+          "start": 16008,
+          "end": 16137,
+          "confidence": 0.99492353,
+          "speaker": "A"
+        },
+        {
+          "text": "get",
+          "start": 16169,
+          "end": 16393,
+          "confidence": 0.99981254,
+          "speaker": "A"
+        },
+        {
+          "text": "over",
+          "start": 16393,
+          "end": 16634,
+          "confidence": 0.99998784,
+          "speaker": "A"
+        },
+        {
+          "text": "it.",
+          "start": 16650,
+          "end": 16891,
+          "confidence": 0.9131615,
+          "speaker": "A"
+        },
+        {
+          "text": "The",
+          "start": 17116,
+          "end": 17212,
+          "confidence": 0.99879336,
+          "speaker": "A"
+        },
+        {
+          "text": "budget",
+          "start": 17212,
+          "end": 17550,
+          "confidence": 0.9999572,
+          "speaker": "A"
+        },
+        {
+          "text": "is",
+          "start": 17550,
+          "end": 17662,
+          "confidence": 0.9995964,
+          "speaker": "A"
+        },
+        {
+          "text": "fixed,",
+          "start": 17694,
+          "end": 18176,
+          "confidence": 0.76353604,
+          "speaker": "A"
+        },
+        {
+          "text": "and",
+          "start": 18417,
+          "end": 18481,
+          "confidence": 0.9995908,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 18497,
+          "end": 18641,
+          "confidence": 0.99991393,
+          "speaker": "A"
+        },
+        {
+          "text": "deadline",
+          "start": 18641,
+          "end": 19027,
+          "confidence": 0.99987257,
+          "speaker": "A"
+        },
+        {
+          "text": "is",
+          "start": 19075,
+          "end": 19187,
+          "confidence": 0.9998079,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 19219,
+          "end": 19300,
+          "confidence": 0.9865428,
+          "speaker": "A"
+        },
+        {
+          "text": "20th",
+          "start": 19364,
+          "end": 19846,
+          "confidence": 0.9917945,
+          "speaker": "A"
+        },
+        {
+          "text": "of",
+          "start": 19846,
+          "end": 19942,
+          "confidence": 0.9993642,
+          "speaker": "A"
+        },
+        {
+          "text": "November.",
+          "start": 19958,
+          "end": 20440,
+          "confidence": 0.99357706,
+          "speaker": "A"
+        }
+      ]
+    },
+    {
+      "speaker": "B",
+      "text": "Fine. I will tell them tomorrow morning, uh, before the s*** hits the fan.",
+      "confidence": 0.98025525,
+      "start": 20440,
+      "end": 26012,
+      "words": [
+        {
+          "text": "Fine.",
+          "start": 21628,
+          "end": 21837,
+          "confidence": 0.7774591,
+          "speaker": "B"
+        },
+        {
+          "text": "I",
+          "start": 22415,
+          "end": 22511,
+          "confidence": 0.9979804,
+          "speaker": "B"
+        },
+        {
+          "text": "will",
+          "start": 22511,
+          "end": 22607,
+          "confidence": 0.99528,
+          "speaker": "B"
+        },
+        {
+          "text": "tell",
+          "start": 22672,
+          "end": 22880,
+          "confidence": 0.99977857,
+          "speaker": "B"
+        },
+        {
+          "text": "them",
+          "start": 22929,
+          "end": 23041,
+          "confidence": 0.9999311,
+          "speaker": "B"
+        },
+        {
+          "text": "tomorrow",
+          "start": 23073,
+          "end": 23491,
+          "confidence": 0.9992514,
+          "speaker": "B"
+        },
+        {
+          "text": "morning,",
+          "start": 23555,
+          "end": 23908,
+          "confidence": 0.9568106,
+          "speaker": "B"
+        },
+        {
+          "text": "uh,",
+          "start": 24579,
+          "end": 24599,
+          "confidence": 0.9978527,
+          "speaker": "B"
+        },
+        {
+          "text": "before",
+          "start": 24599,
+          "end": 25000,
+          "confidence": 0.9997136,
+          "speaker": "B"
+        },
+        {
+          "text": "the",
+          "start": 25000,
+          "end": 25048,
+          "confidence": 0.99774134,
+          "speaker": "B"
+        },
+        {
+          "text": "s***",
+          "start": 25080,
+          "end": 25385,
+          "confidence": 0.9991516,
+          "speaker": "B"
+        },
+        {
+          "text": "hits",
+          "start": 25385,
+          "end": 25626,
+          "confidence": 0.9996917,
+          "speaker": "B"
+        },
+        {
+          "text": "the",
+          "start": 25642,
+          "end": 25690,
+          "confidence": 0.9999689,
+          "speaker": "B"
+        },
+        {
+          "text": "fan.",
+          "start": 25803,
+          "end": 26012,
+          "confidence": 0.98480093,
+          "speaker": "B"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.9801399,
+  "audio_duration": 28,
+  "punctuate": true,
+  "format_text": true,
+  "dual_channel": false,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [
+    "Qwyntessa",
+    "Brixtonne"
+  ],
+  "filter_profanity": true,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "redact_static_entities": null,
+  "speaker_labels": true,
+  "speaker_options": {
+    "min_speakers_expected": null,
+    "max_speakers_expected": null,
+    "advanced_speaker_segmentation": true
+  },
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": null,
+  "speech_models": [
+    "universal-3-5-pro",
+    "universal-2"
+  ],
+  "speech_model_used": "universal-3-5-pro",
+  "temperature": null,
+  "remove_audio_tags": "all",
+  "chapters": null,
+  "disfluencies": true,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 0,
+  "token_id": 0
+}

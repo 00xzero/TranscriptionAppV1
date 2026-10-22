@@ -1,0 +1,1111 @@
+{
+  "id": "00000000-0000-4000-8000-00000000aa03",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "ja",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://example.invalid/audio.m4a",
+  "text": "The word \"天気\" means weather, and the city name \"東京\" is Tokyo.We will meet there next month to review the server costs. サーバーの費用が高すぎるので、来月から新しいプランに変更する予定です。 So, um, I was thinking, uh, that we could move the Qu int essa launch to November. What do you think?",
+  "words": [
+    {
+      "text": "The",
+      "start": 280,
+      "end": 880,
+      "confidence": 0.6813026,
+      "speaker": "A"
+    },
+    {
+      "text": "word",
+      "start": 880,
+      "end": 880,
+      "confidence": 0.9962858,
+      "speaker": "A"
+    },
+    {
+      "text": "\"天",
+      "start": 880,
+      "end": 1700,
+      "confidence": 0.62906027,
+      "speaker": "A"
+    },
+    {
+      "text": "気\"",
+      "start": 1700,
+      "end": 2220,
+      "confidence": 0.8887507,
+      "speaker": "A"
+    },
+    {
+      "text": "means",
+      "start": 2220,
+      "end": 3480,
+      "confidence": 0.9026597,
+      "speaker": "A"
+    },
+    {
+      "text": "weather,",
+      "start": 3480,
+      "end": 4059,
+      "confidence": 0.6582638,
+      "speaker": "A"
+    },
+    {
+      "text": "and",
+      "start": 4059,
+      "end": 4260,
+      "confidence": 0.9984079,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 4260,
+      "end": 4380,
+      "confidence": 0.9914716,
+      "speaker": "A"
+    },
+    {
+      "text": "city",
+      "start": 4380,
+      "end": 4700,
+      "confidence": 0.99860126,
+      "speaker": "A"
+    },
+    {
+      "text": "name",
+      "start": 4700,
+      "end": 5660,
+      "confidence": 0.99580306,
+      "speaker": "A"
+    },
+    {
+      "text": "\"東",
+      "start": 5660,
+      "end": 6380,
+      "confidence": 0.95822346,
+      "speaker": "A"
+    },
+    {
+      "text": "京\"",
+      "start": 6380,
+      "end": 7100,
+      "confidence": 0.95979744,
+      "speaker": "A"
+    },
+    {
+      "text": "is",
+      "start": 7100,
+      "end": 7840,
+      "confidence": 0.8864315,
+      "speaker": "A"
+    },
+    {
+      "text": "Tokyo.We",
+      "start": 7840,
+      "end": 8840,
+      "confidence": 0.72212684,
+      "speaker": "A"
+    },
+    {
+      "text": "will",
+      "start": 8840,
+      "end": 8980,
+      "confidence": 0.99530905,
+      "speaker": "A"
+    },
+    {
+      "text": "meet",
+      "start": 8980,
+      "end": 9200,
+      "confidence": 0.99987984,
+      "speaker": "A"
+    },
+    {
+      "text": "there",
+      "start": 9200,
+      "end": 9440,
+      "confidence": 0.99952054,
+      "speaker": "A"
+    },
+    {
+      "text": "next",
+      "start": 9440,
+      "end": 9680,
+      "confidence": 0.999928,
+      "speaker": "A"
+    },
+    {
+      "text": "month",
+      "start": 9680,
+      "end": 9960,
+      "confidence": 0.9999658,
+      "speaker": "A"
+    },
+    {
+      "text": "to",
+      "start": 9960,
+      "end": 10100,
+      "confidence": 0.99984264,
+      "speaker": "A"
+    },
+    {
+      "text": "review",
+      "start": 10100,
+      "end": 10480,
+      "confidence": 0.999928,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 10480,
+      "end": 10640,
+      "confidence": 0.9990637,
+      "speaker": "A"
+    },
+    {
+      "text": "server",
+      "start": 10640,
+      "end": 11000,
+      "confidence": 0.9991092,
+      "speaker": "A"
+    },
+    {
+      "text": "costs.",
+      "start": 11000,
+      "end": 11600,
+      "confidence": 0.99200314,
+      "speaker": "A"
+    },
+    {
+      "text": "サ",
+      "start": 12380,
+      "end": 12980,
+      "confidence": 0.6173713,
+      "speaker": "A"
+    },
+    {
+      "text": "ーバ",
+      "start": 12980,
+      "end": 13040,
+      "confidence": 0.99901867,
+      "speaker": "A"
+    },
+    {
+      "text": "ー",
+      "start": 13040,
+      "end": 13340,
+      "confidence": 0.9895983,
+      "speaker": "A"
+    },
+    {
+      "text": "の",
+      "start": 13340,
+      "end": 13360,
+      "confidence": 0.9895983,
+      "speaker": "A"
+    },
+    {
+      "text": "費",
+      "start": 13360,
+      "end": 13580,
+      "confidence": 0.9946667,
+      "speaker": "A"
+    },
+    {
+      "text": "用",
+      "start": 13580,
+      "end": 13660,
+      "confidence": 0.99988794,
+      "speaker": "A"
+    },
+    {
+      "text": "が",
+      "start": 13660,
+      "end": 14040,
+      "confidence": 0.99982613,
+      "speaker": "A"
+    },
+    {
+      "text": "高",
+      "start": 14040,
+      "end": 14260,
+      "confidence": 0.9778275,
+      "speaker": "A"
+    },
+    {
+      "text": "す",
+      "start": 14260,
+      "end": 14500,
+      "confidence": 0.9893722,
+      "speaker": "A"
+    },
+    {
+      "text": "ぎ",
+      "start": 14500,
+      "end": 14640,
+      "confidence": 0.9893722,
+      "speaker": "A"
+    },
+    {
+      "text": "る",
+      "start": 14640,
+      "end": 14880,
+      "confidence": 0.9996462,
+      "speaker": "A"
+    },
+    {
+      "text": "ので、",
+      "start": 14880,
+      "end": 15280,
+      "confidence": 0.8704714,
+      "speaker": "A"
+    },
+    {
+      "text": "来",
+      "start": 15280,
+      "end": 15480,
+      "confidence": 0.99796605,
+      "speaker": "A"
+    },
+    {
+      "text": "月",
+      "start": 15480,
+      "end": 15740,
+      "confidence": 0.999918,
+      "speaker": "A"
+    },
+    {
+      "text": "から",
+      "start": 15740,
+      "end": 16079,
+      "confidence": 0.9988115,
+      "speaker": "A"
+    },
+    {
+      "text": "新",
+      "start": 16079,
+      "end": 16400,
+      "confidence": 0.9998167,
+      "speaker": "A"
+    },
+    {
+      "text": "しい",
+      "start": 16400,
+      "end": 16740,
+      "confidence": 0.9999393,
+      "speaker": "A"
+    },
+    {
+      "text": "プ",
+      "start": 16740,
+      "end": 17060,
+      "confidence": 0.9997794,
+      "speaker": "A"
+    },
+    {
+      "text": "ラ",
+      "start": 17060,
+      "end": 17060,
+      "confidence": 0.99997115,
+      "speaker": "A"
+    },
+    {
+      "text": "ン",
+      "start": 17060,
+      "end": 17120,
+      "confidence": 0.99997115,
+      "speaker": "A"
+    },
+    {
+      "text": "に",
+      "start": 17120,
+      "end": 17500,
+      "confidence": 0.9993438,
+      "speaker": "A"
+    },
+    {
+      "text": "変",
+      "start": 17500,
+      "end": 17740,
+      "confidence": 0.99896276,
+      "speaker": "A"
+    },
+    {
+      "text": "更",
+      "start": 17740,
+      "end": 17880,
+      "confidence": 0.99896276,
+      "speaker": "A"
+    },
+    {
+      "text": "する",
+      "start": 17880,
+      "end": 18240,
+      "confidence": 0.9992416,
+      "speaker": "A"
+    },
+    {
+      "text": "予",
+      "start": 18240,
+      "end": 18420,
+      "confidence": 0.99997616,
+      "speaker": "A"
+    },
+    {
+      "text": "定",
+      "start": 18420,
+      "end": 18620,
+      "confidence": 0.99998677,
+      "speaker": "A"
+    },
+    {
+      "text": "です。",
+      "start": 18620,
+      "end": 19220,
+      "confidence": 0.97865874,
+      "speaker": "A"
+    },
+    {
+      "text": "So,",
+      "start": 20320,
+      "end": 20840,
+      "confidence": 0.7192638,
+      "speaker": "A"
+    },
+    {
+      "text": "um,",
+      "start": 20840,
+      "end": 21060,
+      "confidence": 0.9732773,
+      "speaker": "A"
+    },
+    {
+      "text": "I",
+      "start": 21060,
+      "end": 21260,
+      "confidence": 0.99898916,
+      "speaker": "A"
+    },
+    {
+      "text": "was",
+      "start": 21260,
+      "end": 21440,
+      "confidence": 0.999982,
+      "speaker": "A"
+    },
+    {
+      "text": "thinking,",
+      "start": 21440,
+      "end": 21940,
+      "confidence": 0.8451901,
+      "speaker": "A"
+    },
+    {
+      "text": "uh,",
+      "start": 22380,
+      "end": 22640,
+      "confidence": 0.8178573,
+      "speaker": "A"
+    },
+    {
+      "text": "that",
+      "start": 22640,
+      "end": 22880,
+      "confidence": 0.99983025,
+      "speaker": "A"
+    },
+    {
+      "text": "we",
+      "start": 22880,
+      "end": 23020,
+      "confidence": 0.9999422,
+      "speaker": "A"
+    },
+    {
+      "text": "could",
+      "start": 23020,
+      "end": 23220,
+      "confidence": 0.9999727,
+      "speaker": "A"
+    },
+    {
+      "text": "move",
+      "start": 23220,
+      "end": 23460,
+      "confidence": 0.9999131,
+      "speaker": "A"
+    },
+    {
+      "text": "the",
+      "start": 23460,
+      "end": 23640,
+      "confidence": 0.9972742,
+      "speaker": "A"
+    },
+    {
+      "text": "Qu",
+      "start": 23640,
+      "end": 23880,
+      "confidence": 0.9502566,
+      "speaker": "A"
+    },
+    {
+      "text": "int",
+      "start": 23880,
+      "end": 23940,
+      "confidence": 0.9502566,
+      "speaker": "A"
+    },
+    {
+      "text": "essa",
+      "start": 23940,
+      "end": 24080,
+      "confidence": 0.9502566,
+      "speaker": "A"
+    },
+    {
+      "text": "launch",
+      "start": 24080,
+      "end": 24380,
+      "confidence": 0.9982755,
+      "speaker": "A"
+    },
+    {
+      "text": "to",
+      "start": 24380,
+      "end": 24600,
+      "confidence": 0.999954,
+      "speaker": "A"
+    },
+    {
+      "text": "November.",
+      "start": 24600,
+      "end": 25150,
+      "confidence": 0.8759519,
+      "speaker": "A"
+    },
+    {
+      "text": "What",
+      "start": 25280,
+      "end": 25580,
+      "confidence": 0.9996973,
+      "speaker": "A"
+    },
+    {
+      "text": "do",
+      "start": 25580,
+      "end": 25780,
+      "confidence": 0.9999492,
+      "speaker": "A"
+    },
+    {
+      "text": "you",
+      "start": 25780,
+      "end": 25980,
+      "confidence": 0.9999312,
+      "speaker": "A"
+    },
+    {
+      "text": "think?",
+      "start": 25980,
+      "end": 26580,
+      "confidence": 0.99726427,
+      "speaker": "A"
+    }
+  ],
+  "utterances": [
+    {
+      "speaker": "A",
+      "text": "The word \"天 気\" means weather, and the city name \"東 京\" is Tokyo.We will meet there next month to review the server costs. サ ーバ ー の 費 用 が 高 す ぎ る ので、 来 月 から 新 しい プ ラ ン に 変 更 する 予 定 です。 So, um, I was thinking, uh, that we could move the Qu int essa launch to November. What do you think?",
+      "confidence": 0.954347,
+      "start": 280,
+      "end": 26580,
+      "words": [
+        {
+          "text": "The",
+          "start": 280,
+          "end": 880,
+          "confidence": 0.6813026,
+          "speaker": "A"
+        },
+        {
+          "text": "word",
+          "start": 880,
+          "end": 880,
+          "confidence": 0.9962858,
+          "speaker": "A"
+        },
+        {
+          "text": "\"天",
+          "start": 880,
+          "end": 1700,
+          "confidence": 0.62906027,
+          "speaker": "A"
+        },
+        {
+          "text": "気\"",
+          "start": 1700,
+          "end": 2220,
+          "confidence": 0.8887507,
+          "speaker": "A"
+        },
+        {
+          "text": "means",
+          "start": 2220,
+          "end": 3480,
+          "confidence": 0.9026597,
+          "speaker": "A"
+        },
+        {
+          "text": "weather,",
+          "start": 3480,
+          "end": 4059,
+          "confidence": 0.6582638,
+          "speaker": "A"
+        },
+        {
+          "text": "and",
+          "start": 4059,
+          "end": 4260,
+          "confidence": 0.9984079,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 4260,
+          "end": 4380,
+          "confidence": 0.9914716,
+          "speaker": "A"
+        },
+        {
+          "text": "city",
+          "start": 4380,
+          "end": 4700,
+          "confidence": 0.99860126,
+          "speaker": "A"
+        },
+        {
+          "text": "name",
+          "start": 4700,
+          "end": 5660,
+          "confidence": 0.99580306,
+          "speaker": "A"
+        },
+        {
+          "text": "\"東",
+          "start": 5660,
+          "end": 6380,
+          "confidence": 0.95822346,
+          "speaker": "A"
+        },
+        {
+          "text": "京\"",
+          "start": 6380,
+          "end": 7100,
+          "confidence": 0.95979744,
+          "speaker": "A"
+        },
+        {
+          "text": "is",
+          "start": 7100,
+          "end": 7840,
+          "confidence": 0.8864315,
+          "speaker": "A"
+        },
+        {
+          "text": "Tokyo.We",
+          "start": 7840,
+          "end": 8840,
+          "confidence": 0.72212684,
+          "speaker": "A"
+        },
+        {
+          "text": "will",
+          "start": 8840,
+          "end": 8980,
+          "confidence": 0.99530905,
+          "speaker": "A"
+        },
+        {
+          "text": "meet",
+          "start": 8980,
+          "end": 9200,
+          "confidence": 0.99987984,
+          "speaker": "A"
+        },
+        {
+          "text": "there",
+          "start": 9200,
+          "end": 9440,
+          "confidence": 0.99952054,
+          "speaker": "A"
+        },
+        {
+          "text": "next",
+          "start": 9440,
+          "end": 9680,
+          "confidence": 0.999928,
+          "speaker": "A"
+        },
+        {
+          "text": "month",
+          "start": 9680,
+          "end": 9960,
+          "confidence": 0.9999658,
+          "speaker": "A"
+        },
+        {
+          "text": "to",
+          "start": 9960,
+          "end": 10100,
+          "confidence": 0.99984264,
+          "speaker": "A"
+        },
+        {
+          "text": "review",
+          "start": 10100,
+          "end": 10480,
+          "confidence": 0.999928,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 10480,
+          "end": 10640,
+          "confidence": 0.9990637,
+          "speaker": "A"
+        },
+        {
+          "text": "server",
+          "start": 10640,
+          "end": 11000,
+          "confidence": 0.9991092,
+          "speaker": "A"
+        },
+        {
+          "text": "costs.",
+          "start": 11000,
+          "end": 11600,
+          "confidence": 0.99200314,
+          "speaker": "A"
+        },
+        {
+          "text": "サ",
+          "start": 12380,
+          "end": 12980,
+          "confidence": 0.6173713,
+          "speaker": "A"
+        },
+        {
+          "text": "ーバ",
+          "start": 12980,
+          "end": 13040,
+          "confidence": 0.99901867,
+          "speaker": "A"
+        },
+        {
+          "text": "ー",
+          "start": 13040,
+          "end": 13340,
+          "confidence": 0.9895983,
+          "speaker": "A"
+        },
+        {
+          "text": "の",
+          "start": 13340,
+          "end": 13360,
+          "confidence": 0.9895983,
+          "speaker": "A"
+        },
+        {
+          "text": "費",
+          "start": 13360,
+          "end": 13580,
+          "confidence": 0.9946667,
+          "speaker": "A"
+        },
+        {
+          "text": "用",
+          "start": 13580,
+          "end": 13660,
+          "confidence": 0.99988794,
+          "speaker": "A"
+        },
+        {
+          "text": "が",
+          "start": 13660,
+          "end": 14040,
+          "confidence": 0.99982613,
+          "speaker": "A"
+        },
+        {
+          "text": "高",
+          "start": 14040,
+          "end": 14260,
+          "confidence": 0.9778275,
+          "speaker": "A"
+        },
+        {
+          "text": "す",
+          "start": 14260,
+          "end": 14500,
+          "confidence": 0.9893722,
+          "speaker": "A"
+        },
+        {
+          "text": "ぎ",
+          "start": 14500,
+          "end": 14640,
+          "confidence": 0.9893722,
+          "speaker": "A"
+        },
+        {
+          "text": "る",
+          "start": 14640,
+          "end": 14880,
+          "confidence": 0.9996462,
+          "speaker": "A"
+        },
+        {
+          "text": "ので、",
+          "start": 14880,
+          "end": 15280,
+          "confidence": 0.8704714,
+          "speaker": "A"
+        },
+        {
+          "text": "来",
+          "start": 15280,
+          "end": 15480,
+          "confidence": 0.99796605,
+          "speaker": "A"
+        },
+        {
+          "text": "月",
+          "start": 15480,
+          "end": 15740,
+          "confidence": 0.999918,
+          "speaker": "A"
+        },
+        {
+          "text": "から",
+          "start": 15740,
+          "end": 16079,
+          "confidence": 0.9988115,
+          "speaker": "A"
+        },
+        {
+          "text": "新",
+          "start": 16079,
+          "end": 16400,
+          "confidence": 0.9998167,
+          "speaker": "A"
+        },
+        {
+          "text": "しい",
+          "start": 16400,
+          "end": 16740,
+          "confidence": 0.9999393,
+          "speaker": "A"
+        },
+        {
+          "text": "プ",
+          "start": 16740,
+          "end": 17060,
+          "confidence": 0.9997794,
+          "speaker": "A"
+        },
+        {
+          "text": "ラ",
+          "start": 17060,
+          "end": 17060,
+          "confidence": 0.99997115,
+          "speaker": "A"
+        },
+        {
+          "text": "ン",
+          "start": 17060,
+          "end": 17120,
+          "confidence": 0.99997115,
+          "speaker": "A"
+        },
+        {
+          "text": "に",
+          "start": 17120,
+          "end": 17500,
+          "confidence": 0.9993438,
+          "speaker": "A"
+        },
+        {
+          "text": "変",
+          "start": 17500,
+          "end": 17740,
+          "confidence": 0.99896276,
+          "speaker": "A"
+        },
+        {
+          "text": "更",
+          "start": 17740,
+          "end": 17880,
+          "confidence": 0.99896276,
+          "speaker": "A"
+        },
+        {
+          "text": "する",
+          "start": 17880,
+          "end": 18240,
+          "confidence": 0.9992416,
+          "speaker": "A"
+        },
+        {
+          "text": "予",
+          "start": 18240,
+          "end": 18420,
+          "confidence": 0.99997616,
+          "speaker": "A"
+        },
+        {
+          "text": "定",
+          "start": 18420,
+          "end": 18620,
+          "confidence": 0.99998677,
+          "speaker": "A"
+        },
+        {
+          "text": "です。",
+          "start": 18620,
+          "end": 19220,
+          "confidence": 0.97865874,
+          "speaker": "A"
+        },
+        {
+          "text": "So,",
+          "start": 20320,
+          "end": 20840,
+          "confidence": 0.7192638,
+          "speaker": "A"
+        },
+        {
+          "text": "um,",
+          "start": 20840,
+          "end": 21060,
+          "confidence": 0.9732773,
+          "speaker": "A"
+        },
+        {
+          "text": "I",
+          "start": 21060,
+          "end": 21260,
+          "confidence": 0.99898916,
+          "speaker": "A"
+        },
+        {
+          "text": "was",
+          "start": 21260,
+          "end": 21440,
+          "confidence": 0.999982,
+          "speaker": "A"
+        },
+        {
+          "text": "thinking,",
+          "start": 21440,
+          "end": 21940,
+          "confidence": 0.8451901,
+          "speaker": "A"
+        },
+        {
+          "text": "uh,",
+          "start": 22380,
+          "end": 22640,
+          "confidence": 0.8178573,
+          "speaker": "A"
+        },
+        {
+          "text": "that",
+          "start": 22640,
+          "end": 22880,
+          "confidence": 0.99983025,
+          "speaker": "A"
+        },
+        {
+          "text": "we",
+          "start": 22880,
+          "end": 23020,
+          "confidence": 0.9999422,
+          "speaker": "A"
+        },
+        {
+          "text": "could",
+          "start": 23020,
+          "end": 23220,
+          "confidence": 0.9999727,
+          "speaker": "A"
+        },
+        {
+          "text": "move",
+          "start": 23220,
+          "end": 23460,
+          "confidence": 0.9999131,
+          "speaker": "A"
+        },
+        {
+          "text": "the",
+          "start": 23460,
+          "end": 23640,
+          "confidence": 0.9972742,
+          "speaker": "A"
+        },
+        {
+          "text": "Qu",
+          "start": 23640,
+          "end": 23880,
+          "confidence": 0.9502566,
+          "speaker": "A"
+        },
+        {
+          "text": "int",
+          "start": 23880,
+          "end": 23940,
+          "confidence": 0.9502566,
+          "speaker": "A"
+        },
+        {
+          "text": "essa",
+          "start": 23940,
+          "end": 24080,
+          "confidence": 0.9502566,
+          "speaker": "A"
+        },
+        {
+          "text": "launch",
+          "start": 24080,
+          "end": 24380,
+          "confidence": 0.9982755,
+          "speaker": "A"
+        },
+        {
+          "text": "to",
+          "start": 24380,
+          "end": 24600,
+          "confidence": 0.999954,
+          "speaker": "A"
+        },
+        {
+          "text": "November.",
+          "start": 24600,
+          "end": 25150,
+          "confidence": 0.8759519,
+          "speaker": "A"
+        },
+        {
+          "text": "What",
+          "start": 25280,
+          "end": 25580,
+          "confidence": 0.9996973,
+          "speaker": "A"
+        },
+        {
+          "text": "do",
+          "start": 25580,
+          "end": 25780,
+          "confidence": 0.9999492,
+          "speaker": "A"
+        },
+        {
+          "text": "you",
+          "start": 25780,
+          "end": 25980,
+          "confidence": 0.9999312,
+          "speaker": "A"
+        },
+        {
+          "text": "think?",
+          "start": 25980,
+          "end": 26580,
+          "confidence": 0.99726427,
+          "speaker": "A"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.954347,
+  "audio_duration": 28,
+  "punctuate": true,
+  "format_text": true,
+  "dual_channel": false,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [],
+  "filter_profanity": false,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "redact_static_entities": null,
+  "speaker_labels": true,
+  "speaker_options": {
+    "min_speakers_expected": null,
+    "max_speakers_expected": null,
+    "advanced_speaker_segmentation": true
+  },
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": null,
+  "speech_models": [
+    "universal-3-5-pro",
+    "universal-2"
+  ],
+  "speech_model_used": "universal-3-5-pro",
+  "temperature": null,
+  "remove_audio_tags": "all",
+  "chapters": null,
+  "disfluencies": true,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 0,
+  "token_id": 0
+}
