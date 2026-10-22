@@ -42,6 +42,11 @@ export const SonioxCallbackDataSchema = z.object({
   status: z.enum(['completed', 'error']),
 })
 
+// An AssemblyAI transcript's callback, passed on by its route: the exact job
+// attempt it belongs to (named in the callback URL) and how AssemblyAI says it
+// ended. The same shape as Soniox's.
+export const AssemblyAICallbackDataSchema = SonioxCallbackDataSchema
+
 // A Deepgram result, stored by its route at the job's own key and passed on:
 // the exact job attempt (named in the request's extra), the request it
 // answers, and the owner whose folder holds the file.
@@ -65,4 +70,5 @@ export type TranscriptionCompletedData = z.infer<typeof TranscriptionCompletedDa
 export type TranscriptionFailedData = z.infer<typeof TranscriptionFailedDataSchema>
 export type WaveformRequestedData = z.infer<typeof WaveformRequestedDataSchema>
 export type SonioxCallbackData = z.infer<typeof SonioxCallbackDataSchema>
+export type AssemblyAICallbackData = z.infer<typeof AssemblyAICallbackDataSchema>
 export type DeepgramCallbackData = z.infer<typeof DeepgramCallbackDataSchema>

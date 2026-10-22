@@ -442,7 +442,7 @@ describe('handleMediaPrepare', () => {
                 data: {
                     transcriptId,
                     jobId,
-                    error: 'Soniox v5 accepts audio up to 5 h; this file is 6 h 12 min. Upload it again and choose Deepgram Nova-3.',
+                    error: 'Soniox v5 accepts audio up to 5 h; this file is 6 h 12 min. Upload it again and choose Deepgram Nova-3 or AssemblyAI Universal-3.5 Pro.',
                     errorType: 'transcription_error',
                 },
             }])

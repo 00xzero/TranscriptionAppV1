@@ -43,6 +43,17 @@ export const ENGINE_CAPABILITIES: Record<TranscriptionEngine, EngineCapabilities
         // Five hours per file, a limit Soniox does not raise.
         maxDurationSeconds: 300 * 60,
     },
+    assemblyai: {
+        languages: TRANSCRIPTION_LANGUAGES,
+        fillerWordLanguages: [],
+        // Universal-3.5 Pro keeps "um" and "uh" whatever it is asked, and
+        // Universal-2 (Russian) is asked to keep them too.
+        fillerWordsAlwaysKeptLanguages: TRANSCRIPTION_LANGUAGES,
+        // AssemblyAI refuses profanity masking for Russian.
+        profanityLanguages: TRANSCRIPTION_LANGUAGES.filter((language) => language !== "ru"),
+        // Ten hours per file.
+        maxDurationSeconds: 10 * 3600,
+    },
 };
 
 /** Whether the engine can mask swear words in this language. */

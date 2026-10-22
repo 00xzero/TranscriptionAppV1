@@ -56,6 +56,7 @@ function fillerWordsHint(options: TranscriptionOptions): string {
 const MULTI_LANGUAGE_HINTS: Record<TranscriptionOptions['engine'], string> = {
   deepgram: 'For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese, Hindi and Russian.',
   soniox: 'For audio that switches between languages. Each passage is transcribed in the language spoken.',
+  assemblyai: 'For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese and Hindi. Not Russian.',
 }
 
 function OptionSwitch({

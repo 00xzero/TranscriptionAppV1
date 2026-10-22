@@ -1,0 +1,585 @@
+{
+  "id": "00000000-0000-4000-8000-00000000aa04",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "en_us",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://example.invalid/audio.m4a",
+  "text": "So, um, I was thinking, uh, that we could move the Quintessa launch to November. What do you think? Honestly, uh, that is a damn good idea, but the Brixton team will be, um, really annoyed about it. Well, um, they will get over it. The budget is fixed, and the deadline is the 20th of November. Fine. I will tell them tomorrow morning, uh, before the shit hits the fan.",
+  "words": [
+    {
+      "text": "So,",
+      "start": 16,
+      "end": 353,
+      "confidence": 0.9929285,
+      "speaker": null
+    },
+    {
+      "text": "um,",
+      "start": 738,
+      "end": 819,
+      "confidence": 0.9937431,
+      "speaker": null
+    },
+    {
+      "text": "I",
+      "start": 1220,
+      "end": 1252,
+      "confidence": 0.99949205,
+      "speaker": null
+    },
+    {
+      "text": "was",
+      "start": 1316,
+      "end": 1445,
+      "confidence": 0.99993837,
+      "speaker": null
+    },
+    {
+      "text": "thinking,",
+      "start": 1541,
+      "end": 1927,
+      "confidence": 0.99475783,
+      "speaker": null
+    },
+    {
+      "text": "uh,",
+      "start": 2344,
+      "end": 2376,
+      "confidence": 0.97757304,
+      "speaker": null
+    },
+    {
+      "text": "that",
+      "start": 2762,
+      "end": 2922,
+      "confidence": 0.99880016,
+      "speaker": null
+    },
+    {
+      "text": "we",
+      "start": 2922,
+      "end": 3083,
+      "confidence": 0.9997378,
+      "speaker": null
+    },
+    {
+      "text": "could",
+      "start": 3083,
+      "end": 3243,
+      "confidence": 0.9988661,
+      "speaker": null
+    },
+    {
+      "text": "move",
+      "start": 3260,
+      "end": 3452,
+      "confidence": 0.9989465,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 3484,
+      "end": 3629,
+      "confidence": 0.9995322,
+      "speaker": null
+    },
+    {
+      "text": "Quintessa",
+      "start": 3629,
+      "end": 4191,
+      "confidence": 0.99092114,
+      "speaker": null
+    },
+    {
+      "text": "launch",
+      "start": 4191,
+      "end": 4480,
+      "confidence": 0.999435,
+      "speaker": null
+    },
+    {
+      "text": "to",
+      "start": 4512,
+      "end": 4609,
+      "confidence": 0.9996612,
+      "speaker": null
+    },
+    {
+      "text": "November.",
+      "start": 4609,
+      "end": 5187,
+      "confidence": 0.97822315,
+      "speaker": null
+    },
+    {
+      "text": "What",
+      "start": 5492,
+      "end": 5604,
+      "confidence": 0.9987851,
+      "speaker": null
+    },
+    {
+      "text": "do",
+      "start": 5652,
+      "end": 5813,
+      "confidence": 0.99977404,
+      "speaker": null
+    },
+    {
+      "text": "you",
+      "start": 5877,
+      "end": 5925,
+      "confidence": 0.99992037,
+      "speaker": null
+    },
+    {
+      "text": "think?",
+      "start": 6118,
+      "end": 6391,
+      "confidence": 0.999821,
+      "speaker": null
+    },
+    {
+      "text": "Honestly,",
+      "start": 7483,
+      "end": 7949,
+      "confidence": 0.9987132,
+      "speaker": null
+    },
+    {
+      "text": "uh,",
+      "start": 8302,
+      "end": 8334,
+      "confidence": 0.9981616,
+      "speaker": null
+    },
+    {
+      "text": "that",
+      "start": 8623,
+      "end": 8848,
+      "confidence": 0.99962866,
+      "speaker": null
+    },
+    {
+      "text": "is",
+      "start": 8848,
+      "end": 8912,
+      "confidence": 0.99103266,
+      "speaker": null
+    },
+    {
+      "text": "a",
+      "start": 8961,
+      "end": 9089,
+      "confidence": 0.9999131,
+      "speaker": null
+    },
+    {
+      "text": "damn",
+      "start": 9089,
+      "end": 9218,
+      "confidence": 0.9996947,
+      "speaker": null
+    },
+    {
+      "text": "good",
+      "start": 9346,
+      "end": 9571,
+      "confidence": 0.99994504,
+      "speaker": null
+    },
+    {
+      "text": "idea,",
+      "start": 9571,
+      "end": 10004,
+      "confidence": 0.9613395,
+      "speaker": null
+    },
+    {
+      "text": "but",
+      "start": 10213,
+      "end": 10310,
+      "confidence": 0.9998343,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 10310,
+      "end": 10454,
+      "confidence": 0.99972516,
+      "speaker": null
+    },
+    {
+      "text": "Brixton",
+      "start": 10470,
+      "end": 10920,
+      "confidence": 0.9999408,
+      "speaker": null
+    },
+    {
+      "text": "team",
+      "start": 10952,
+      "end": 11193,
+      "confidence": 0.9996227,
+      "speaker": null
+    },
+    {
+      "text": "will",
+      "start": 11193,
+      "end": 11337,
+      "confidence": 0.99944836,
+      "speaker": null
+    },
+    {
+      "text": "be,",
+      "start": 11418,
+      "end": 11610,
+      "confidence": 0.9992706,
+      "speaker": null
+    },
+    {
+      "text": "um,",
+      "start": 11996,
+      "end": 12124,
+      "confidence": 0.9984549,
+      "speaker": null
+    },
+    {
+      "text": "really",
+      "start": 12558,
+      "end": 12847,
+      "confidence": 0.99925774,
+      "speaker": null
+    },
+    {
+      "text": "annoyed",
+      "start": 12879,
+      "end": 13200,
+      "confidence": 0.99982005,
+      "speaker": null
+    },
+    {
+      "text": "about",
+      "start": 13200,
+      "end": 13521,
+      "confidence": 0.99979764,
+      "speaker": null
+    },
+    {
+      "text": "it.",
+      "start": 13521,
+      "end": 13650,
+      "confidence": 0.9923008,
+      "speaker": null
+    },
+    {
+      "text": "Well,",
+      "start": 14806,
+      "end": 14999,
+      "confidence": 0.9994121,
+      "speaker": null
+    },
+    {
+      "text": "um,",
+      "start": 15433,
+      "end": 15609,
+      "confidence": 0.99876285,
+      "speaker": null
+    },
+    {
+      "text": "they",
+      "start": 15914,
+      "end": 16075,
+      "confidence": 0.9995376,
+      "speaker": null
+    },
+    {
+      "text": "will",
+      "start": 16075,
+      "end": 16139,
+      "confidence": 0.98783326,
+      "speaker": null
+    },
+    {
+      "text": "get",
+      "start": 16171,
+      "end": 16396,
+      "confidence": 0.9998901,
+      "speaker": null
+    },
+    {
+      "text": "over",
+      "start": 16396,
+      "end": 16637,
+      "confidence": 0.99999046,
+      "speaker": null
+    },
+    {
+      "text": "it.",
+      "start": 16653,
+      "end": 16894,
+      "confidence": 0.9968934,
+      "speaker": null
+    },
+    {
+      "text": "The",
+      "start": 17119,
+      "end": 17215,
+      "confidence": 0.99974006,
+      "speaker": null
+    },
+    {
+      "text": "budget",
+      "start": 17215,
+      "end": 17552,
+      "confidence": 0.9999707,
+      "speaker": null
+    },
+    {
+      "text": "is",
+      "start": 17552,
+      "end": 17665,
+      "confidence": 0.9997584,
+      "speaker": null
+    },
+    {
+      "text": "fixed,",
+      "start": 17697,
+      "end": 18195,
+      "confidence": 0.93709594,
+      "speaker": null
+    },
+    {
+      "text": "and",
+      "start": 18420,
+      "end": 18484,
+      "confidence": 0.9998667,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 18500,
+      "end": 18644,
+      "confidence": 0.9999255,
+      "speaker": null
+    },
+    {
+      "text": "deadline",
+      "start": 18644,
+      "end": 19030,
+      "confidence": 0.9999355,
+      "speaker": null
+    },
+    {
+      "text": "is",
+      "start": 19078,
+      "end": 19190,
+      "confidence": 0.9998789,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 19223,
+      "end": 19367,
+      "confidence": 0.99409676,
+      "speaker": null
+    },
+    {
+      "text": "20th",
+      "start": 19367,
+      "end": 19865,
+      "confidence": 0.9995791,
+      "speaker": null
+    },
+    {
+      "text": "of",
+      "start": 19865,
+      "end": 19961,
+      "confidence": 0.99988556,
+      "speaker": null
+    },
+    {
+      "text": "November.",
+      "start": 19961,
+      "end": 20507,
+      "confidence": 0.9967303,
+      "speaker": null
+    },
+    {
+      "text": "Fine.",
+      "start": 21696,
+      "end": 21840,
+      "confidence": 0.8430439,
+      "speaker": null
+    },
+    {
+      "text": "I",
+      "start": 22418,
+      "end": 22515,
+      "confidence": 0.9997032,
+      "speaker": null
+    },
+    {
+      "text": "will",
+      "start": 22515,
+      "end": 22627,
+      "confidence": 0.9894421,
+      "speaker": null
+    },
+    {
+      "text": "tell",
+      "start": 22740,
+      "end": 22868,
+      "confidence": 0.9998492,
+      "speaker": null
+    },
+    {
+      "text": "them",
+      "start": 22932,
+      "end": 23045,
+      "confidence": 0.9999317,
+      "speaker": null
+    },
+    {
+      "text": "tomorrow",
+      "start": 23077,
+      "end": 23494,
+      "confidence": 0.999783,
+      "speaker": null
+    },
+    {
+      "text": "morning,",
+      "start": 23559,
+      "end": 23928,
+      "confidence": 0.9989084,
+      "speaker": null
+    },
+    {
+      "text": "uh,",
+      "start": 24345,
+      "end": 24506,
+      "confidence": 0.99938226,
+      "speaker": null
+    },
+    {
+      "text": "before",
+      "start": 24602,
+      "end": 24956,
+      "confidence": 0.9998579,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 25004,
+      "end": 25084,
+      "confidence": 0.9982242,
+      "speaker": null
+    },
+    {
+      "text": "shit",
+      "start": 25084,
+      "end": 25325,
+      "confidence": 0.99993074,
+      "speaker": null
+    },
+    {
+      "text": "hits",
+      "start": 25325,
+      "end": 25646,
+      "confidence": 0.9999752,
+      "speaker": null
+    },
+    {
+      "text": "the",
+      "start": 25646,
+      "end": 25694,
+      "confidence": 0.9999758,
+      "speaker": null
+    },
+    {
+      "text": "fan.",
+      "start": 25807,
+      "end": 25919,
+      "confidence": 0.98947597,
+      "speaker": null
+    }
+  ],
+  "utterances": null,
+  "confidence": 0.9941271,
+  "audio_duration": 28,
+  "punctuate": true,
+  "format_text": true,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [],
+  "filter_profanity": false,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "redact_static_entities": null,
+  "speaker_labels": false,
+  "speaker_options": null,
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": null,
+  "speech_models": [
+    "universal-3-5-pro",
+    "universal-2"
+  ],
+  "speech_model_used": "universal-3-5-pro",
+  "temperature": null,
+  "remove_audio_tags": "all",
+  "chapters": null,
+  "disfluencies": false,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 0,
+  "token_id": 0
+}

@@ -16,6 +16,7 @@ import {
     handleTranscriptionTimeouts,
     handleWaveformRequested,
     handleSonioxCallback,
+    handleAssemblyAICallback,
     handleDeepgramCallback,
 } from "@/lib/inngest/functions";
 
@@ -35,6 +36,7 @@ export const { GET, POST, PUT } = serve({
         handleTranscriptionTimeouts,
         handleWaveformRequested,
         handleSonioxCallback,
+        handleAssemblyAICallback,
         handleDeepgramCallback,
     ],
 });

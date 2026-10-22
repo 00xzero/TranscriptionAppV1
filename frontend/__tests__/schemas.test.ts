@@ -152,6 +152,7 @@ describe('project schemas', () => {
         source_object_key: null,
         upload_intent_id: null,
         engine: 'deepgram',
+        engine_model: null,
         language: 'en',
         detect_speakers: true,
         keep_filler_words: null,

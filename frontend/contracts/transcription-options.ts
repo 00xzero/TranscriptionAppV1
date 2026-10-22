@@ -7,19 +7,21 @@ import { z } from 'zod'
 // whose CHECK repeats this language list.
 
 // The engines a transcript can be made with, named by brand in the dialog.
-export const TRANSCRIPTION_ENGINES = ['deepgram', 'soniox'] as const
+export const TRANSCRIPTION_ENGINES = ['deepgram', 'soniox', 'assemblyai'] as const
 
 export const TranscriptionEngineSchema = z.enum(TRANSCRIPTION_ENGINES)
 
 export const TRANSCRIPTION_ENGINE_LABELS: Record<TranscriptionEngine, string> = {
   deepgram: 'Deepgram Nova-3',
   soniox: 'Soniox v5',
+  assemblyai: 'AssemblyAI Universal-3.5 Pro',
 }
 
 // The brand alone, where the model would read oddly ("Not available with Soniox").
 export const TRANSCRIPTION_ENGINE_BRANDS: Record<TranscriptionEngine, string> = {
   deepgram: 'Deepgram',
   soniox: 'Soniox',
+  assemblyai: 'AssemblyAI',
 }
 
 // Nova-3 languages offered. `multi` follows audio that switches between ten of
