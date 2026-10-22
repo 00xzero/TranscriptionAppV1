@@ -84,7 +84,7 @@ image, the Inngest image, or the Supabase CLI version.
 After first start, update `infra/.env.docker` with:
 
 - `DEEPGRAM_API_KEY` (required for transcription).
-- `DEEPGRAM_API_KEY_IDENTIFIER` (used for webhook verification).
+- `DEEPGRAM_WEBHOOK_SECRET` (our own hex secret; Deepgram sends it back as Basic Auth on every callback). `start-local.sh` generates it when missing.
 - `DEEPGRAM_CALLBACK_URL` if you are supplying an ngrok URL manually.
 
 Restart frontend after env updates so changes are picked up:
@@ -157,7 +157,7 @@ Commonly used vars:
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` for trusted maintenance/smoke scripts
 - `NEXT_PUBLIC_APP_URL` (normally `http://localhost:3000` locally)
-- `DEEPGRAM_API_KEY` and `DEEPGRAM_API_KEY_IDENTIFIER`
+- `DEEPGRAM_API_KEY` and `DEEPGRAM_WEBHOOK_SECRET` (hex, `openssl rand -hex 32`; a deployment needs it set before it goes live)
 - `DEEPGRAM_CALLBACK_URL` for the public Deepgram webhook URL
 - `DEEPGRAM_USE_PROXY` and `MEDIA_PROXY_SECRET` for the local media proxy
 - `DEEPGRAM_CONCURRENCY_LIMIT` and `DEEPGRAM_MODEL`

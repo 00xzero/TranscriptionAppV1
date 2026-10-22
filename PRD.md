@@ -209,7 +209,7 @@ Planned:
 - Stale job auto-fail via scheduled timeout checks.
 - State machine with DB-enforced transitions prevents job/transcript status desynchronization across the start route, webhook path, timeout handler, and completion handler.
 - Webhook receipt-based idempotency guards against duplicate Deepgram callbacks without reprocessing.
-- Webhook authentication required via `dg-token` against `DEEPGRAM_API_KEY_IDENTIFIER`.
+- Webhook authentication required: the callback URL carries our own `DEEPGRAM_WEBHOOK_SECRET` as Basic Auth credentials, which Deepgram sends back on every callback (its old `dg-token` header is not sent on every callback).
 - Known platform limitation: Vercel function body cap can reject very large Deepgram callbacks (roughly multi-hour recordings).
 
 ---
