@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { MAX_KEY_TERMS } from '@/contracts/api'
+import { MAX_KEY_TERMS, MAX_KEY_TERM_WORDS, keyTermWordCount } from '@/contracts/api'
 
 interface UseKeyTermsFieldParams {
   /** The current committed list of key terms (controlled by the caller). */
@@ -10,8 +10,8 @@ interface UseKeyTermsFieldParams {
 
 /**
  * Transient input + validation state for a key-terms editor. Owns the text box,
- * comma/enter parsing, case-insensitive dedup against the committed list, and the
- * MAX_KEY_TERMS cap — but not the committed list itself, which the caller holds
+ * comma/enter parsing, case-insensitive dedup against the committed list, the
+ * MAX_KEY_TERM_WORDS limit per term and the MAX_KEY_TERMS cap — but not the committed list itself, which the caller holds
  * (local state in the capture modal, the session store on the recording page).
  */
 export function useKeyTermsField({ keyTerms, onKeyTermsChange }: UseKeyTermsFieldParams) {
@@ -26,6 +26,11 @@ export function useKeyTermsField({ keyTerms, onKeyTermsChange }: UseKeyTermsFiel
       .filter(t => t.length > 0)
 
     if (newTerms.length === 0) return true
+
+    if (newTerms.some(t => keyTermWordCount(t) > MAX_KEY_TERM_WORDS)) {
+      setKeyTermsError(`Key terms can be at most ${MAX_KEY_TERM_WORDS} words.`)
+      return false
+    }
 
     const seen = new Map<string, string>()
     for (const t of keyTerms) {

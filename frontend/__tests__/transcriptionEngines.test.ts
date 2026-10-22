@@ -4,8 +4,11 @@ import { TRANSCRIPTION_ENGINES } from '@/contracts/transcription-options'
 import {
   ENGINE_CAPABILITIES,
   engineLengthRefusal,
+  fillerWordsAlwaysKept,
   fillerWordsApply,
   profanityMaskingApplies,
+  storedFillerWords,
+  storedProfanityMasking,
 } from '@/core/transcription/engines/capabilities'
 import { getEngine } from '@/lib/transcription/engines.server'
 
@@ -30,8 +33,22 @@ describe('transcription engines', () => {
 
   test('Soniox keeps no filler words and masks no profanity', () => {
     expect(fillerWordsApply('soniox', 'en')).toBe(false)
-    expect(profanityMaskingApplies('soniox')).toBe(false)
-    expect(profanityMaskingApplies('deepgram')).toBe(true)
+    expect(fillerWordsAlwaysKept('soniox', 'en')).toBe(false)
+    expect(profanityMaskingApplies('soniox', 'en')).toBe(false)
+    expect(profanityMaskingApplies('deepgram', 'en')).toBe(true)
+    expect(profanityMaskingApplies('deepgram', 'ru')).toBe(true)
+  })
+
+  test('records filler words and masking as the engine will really do them', () => {
+    const base = { detect_speakers: true, keep_filler_words: true, mask_profanity: true } as const
+    // Deepgram: a choice in English, off elsewhere.
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'en' })).toBe(true)
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'en', keep_filler_words: false })).toBe(false)
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'es' })).toBe(false)
+    expect(storedProfanityMasking({ ...base, engine: 'deepgram', language: 'es' })).toBe(true)
+    // Soniox: neither, whatever the switches were left at.
+    expect(storedFillerWords({ ...base, engine: 'soniox', language: 'en' })).toBe(false)
+    expect(storedProfanityMasking({ ...base, engine: 'soniox', language: 'en' })).toBe(false)
   })
 
   test('Soniox refuses audio over five hours, with the length in words', () => {

@@ -10,13 +10,17 @@ import {
     TRANSCRIPTION_LANGUAGES,
     type TranscriptionEngine,
     type TranscriptionLanguage,
+    type TranscriptionOptions,
 } from "@/contracts/transcription-options";
 
 export interface EngineCapabilities {
     languages: readonly TranscriptionLanguage[];
-    /** Languages in which the engine can keep "um" and "uh". */
+    /** Languages in which keeping "um" and "uh" is the person's choice. */
     fillerWordLanguages: readonly TranscriptionLanguage[];
-    maskProfanity: boolean;
+    /** Languages in which the engine keeps "um" and "uh" whatever it is asked. */
+    fillerWordsAlwaysKeptLanguages: readonly TranscriptionLanguage[];
+    /** Languages in which the engine can mask swear words. */
+    profanityLanguages: readonly TranscriptionLanguage[];
     /** The longest audio the engine accepts, or null for no limit of its own. */
     maxDurationSeconds: number | null;
 }
@@ -26,27 +30,48 @@ export const ENGINE_CAPABILITIES: Record<TranscriptionEngine, EngineCapabilities
         languages: TRANSCRIPTION_LANGUAGES,
         // Nova-3 keeps filler words only in English.
         fillerWordLanguages: ["en"],
-        maskProfanity: true,
+        fillerWordsAlwaysKeptLanguages: [],
+        profanityLanguages: TRANSCRIPTION_LANGUAGES,
         maxDurationSeconds: null,
     },
     soniox: {
         languages: TRANSCRIPTION_LANGUAGES,
         // stt-async-v5 writes clean verbatim: no "um" or "uh", whatever it is asked.
         fillerWordLanguages: [],
-        maskProfanity: false,
+        fillerWordsAlwaysKeptLanguages: [],
+        profanityLanguages: [],
         // Five hours per file, a limit Soniox does not raise.
         maxDurationSeconds: 300 * 60,
     },
 };
 
-/** Whether the engine can mask swear words. */
-export function profanityMaskingApplies(engine: TranscriptionEngine): boolean {
-    return ENGINE_CAPABILITIES[engine].maskProfanity;
+/** Whether the engine can mask swear words in this language. */
+export function profanityMaskingApplies(engine: TranscriptionEngine, language: TranscriptionLanguage): boolean {
+    return ENGINE_CAPABILITIES[engine].profanityLanguages.includes(language);
 }
 
-/** Whether the engine can keep "um" and "uh" in this language. */
+/** Whether keeping "um" and "uh" is the person's choice with this engine and language. */
 export function fillerWordsApply(engine: TranscriptionEngine, language: TranscriptionLanguage): boolean {
     return ENGINE_CAPABILITIES[engine].fillerWordLanguages.includes(language);
+}
+
+/** Whether the engine keeps "um" and "uh" in this language whatever it is asked. */
+export function fillerWordsAlwaysKept(engine: TranscriptionEngine, language: TranscriptionLanguage): boolean {
+    return ENGINE_CAPABILITIES[engine].fillerWordsAlwaysKeptLanguages.includes(language);
+}
+
+/**
+ * Whether the transcript is recorded as keeping "um" and "uh": what the engine
+ * will really do, whatever the switch was left at.
+ */
+export function storedFillerWords(options: TranscriptionOptions): boolean {
+    if (fillerWordsAlwaysKept(options.engine, options.language)) return true;
+    return options.keep_filler_words && fillerWordsApply(options.engine, options.language);
+}
+
+/** Whether the transcript is recorded as masking swear words: only where the engine can. */
+export function storedProfanityMasking(options: TranscriptionOptions): boolean {
+    return options.mask_profanity && profanityMaskingApplies(options.engine, options.language);
 }
 
 function formatLength(totalMinutes: number): string {
