@@ -39,6 +39,9 @@ export const DEEPGRAM_WEBHOOK_USER = "deepgram";
 /** Our own secret, hex only so nothing in the callback URL needs encoding. */
 const WEBHOOK_SECRET_PATTERN = /^[0-9a-f]{32,}$/i;
 
+/** Hosts a callback URL may reach over plain http: the machine itself. */
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 /** Text that may quote the callback URL, with our secret taken out before it is logged or stored. */
 export function withoutWebhookSecret(text: string): string {
     const secret = process.env.DEEPGRAM_WEBHOOK_SECRET;
@@ -73,6 +76,11 @@ export function getCallbackUrl(): string {
     }
 
     const callback = new URL(url);
+    // The credentials travel in the clear over http, so only a machine's own
+    // address may use it.
+    if (callback.protocol !== "https:" && !LOOPBACK_HOSTS.has(callback.hostname)) {
+        throw new Error("The Deepgram callback URL must use https, except on localhost");
+    }
     callback.username = DEEPGRAM_WEBHOOK_USER;
     callback.password = secret;
     return callback.toString();

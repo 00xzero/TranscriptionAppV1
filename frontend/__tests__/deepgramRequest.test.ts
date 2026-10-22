@@ -149,6 +149,16 @@ describe('Deepgram callback credentials', () => {
     expect(getCallbackUrl()).toBe(`https://deepgram:${SECRET}@app.example/api/webhooks/deepgram`)
   })
 
+  test('refuses plain http except on the machine itself, where the secret never leaves it', () => {
+    process.env.DEEPGRAM_CALLBACK_URL = 'http://app.example/api/webhooks/deepgram'
+    expect(() => getCallbackUrl()).toThrow('must use https, except on localhost')
+
+    for (const local of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000']) {
+      process.env.DEEPGRAM_CALLBACK_URL = `${local}/api/webhooks/deepgram`
+      expect(new URL(getCallbackUrl()).password).toBe(SECRET)
+    }
+  })
+
   test('refuses to make one without a secret, or with one that is not hex', () => {
     delete process.env.DEEPGRAM_WEBHOOK_SECRET
     expect(() => getCallbackUrl()).toThrow('DEEPGRAM_WEBHOOK_SECRET must be configured')
