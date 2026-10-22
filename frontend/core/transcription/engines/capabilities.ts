@@ -6,6 +6,7 @@
 
 import {
     TRANSCRIPTION_ENGINES,
+    TRANSCRIPTION_ENGINE_BRANDS,
     TRANSCRIPTION_ENGINE_LABELS,
     TRANSCRIPTION_LANGUAGES,
     type TranscriptionEngine,
@@ -55,6 +56,21 @@ export const ENGINE_CAPABILITIES: Record<TranscriptionEngine, EngineCapabilities
         maxDurationSeconds: 10 * 3600,
     },
 };
+
+// The models an engine reports having used, by the name shown after its brand.
+// AssemblyAI falls back from Universal-3.5 Pro to Universal-2 for Russian.
+const ENGINE_MODEL_NAMES: Partial<Record<TranscriptionEngine, Record<string, string>>> = {
+    assemblyai: { "universal-3-5-pro": "Universal-3.5 Pro", "universal-2": "Universal-2" },
+};
+
+/**
+ * How a finished transcript names its engine: the model that really made it
+ * when the engine says and we know its name, otherwise the label chosen from.
+ */
+export function engineLabel(engine: TranscriptionEngine, model?: string | null): string {
+    const name = model ? ENGINE_MODEL_NAMES[engine]?.[model] : undefined;
+    return name ? `${TRANSCRIPTION_ENGINE_BRANDS[engine]} ${name}` : TRANSCRIPTION_ENGINE_LABELS[engine];
+}
 
 /** Whether the engine can mask swear words in this language. */
 export function profanityMaskingApplies(engine: TranscriptionEngine, language: TranscriptionLanguage): boolean {

@@ -3,6 +3,7 @@
 import { TRANSCRIPTION_ENGINES } from '@/contracts/transcription-options'
 import {
   ENGINE_CAPABILITIES,
+  engineLabel,
   engineLengthRefusal,
   fillerWordsAlwaysKept,
   fillerWordsApply,
@@ -47,6 +48,19 @@ describe('transcription engines', () => {
     expect(profanityMaskingApplies('assemblyai', 'en')).toBe(true)
     expect(profanityMaskingApplies('assemblyai', 'multi')).toBe(true)
     expect(profanityMaskingApplies('assemblyai', 'ru')).toBe(false)
+  })
+
+  test('a finished transcript names the model that really made it', () => {
+    // Russian falls back to Universal-2; everything else runs on Universal-3.5 Pro.
+    expect(engineLabel('assemblyai', 'universal-2')).toBe('AssemblyAI Universal-2')
+    expect(engineLabel('assemblyai', 'universal-3-5-pro')).toBe('AssemblyAI Universal-3.5 Pro')
+    // A model we have no name for, or none recorded yet, shows the label chosen from.
+    expect(engineLabel('assemblyai', 'universal-4')).toBe('AssemblyAI Universal-3.5 Pro')
+    expect(engineLabel('assemblyai', null)).toBe('AssemblyAI Universal-3.5 Pro')
+    // Engines that record no model keep their label.
+    expect(engineLabel('deepgram', null)).toBe('Deepgram Nova-3')
+    expect(engineLabel('soniox', undefined)).toBe('Soniox v5')
+    expect(engineLabel('deepgram', 'universal-2')).toBe('Deepgram Nova-3')
   })
 
   test('AssemblyAI takes up to ten hours', () => {

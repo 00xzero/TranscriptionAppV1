@@ -82,6 +82,8 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
   const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
   const [transcriptEngine, setTranscriptEngine] = useState<TranscriptionEngine | null>(null)
+  // The model that really made it, when the engine says (AssemblyAI's fallback).
+  const [transcriptEngineModel, setTranscriptEngineModel] = useState<string | null>(null)
   const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
   const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(null)
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
@@ -138,6 +140,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
       setTranscriptTitle(transcriptData.title || null)
       setTranscriptCreatedAt(transcriptData.created_at)
       setTranscriptEngine(transcriptData.engine)
+      setTranscriptEngineModel(transcriptData.engine_model ?? null)
       setTranscriptDurationSecs(transcriptData.duration_seconds)
       setTranscriptProjectId(transcriptData.project_id)
 
@@ -307,6 +310,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     transcriptTitle, setTranscriptTitle,
     transcriptCreatedAt,
     transcriptEngine,
+    transcriptEngineModel,
     transcriptDurationSecs: chooseEditorDuration(transcriptDurationSecs, waveformDurationSecs),
     transcriptProjectId,
     waveformDurationSecs,
