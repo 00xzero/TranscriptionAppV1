@@ -43,6 +43,18 @@ describe('useKeyTermsField', () => {
     expect(result.current.keyTermsError).toBeNull()
   })
 
+  test('refuses a term over 100 characters, as the create route would', () => {
+    const { result, onKeyTermsChange } = renderField([])
+    const long = 'x'.repeat(101)
+
+    act(() => result.current.setKeyTermInput(long))
+    act(() => result.current.handleAddTermClick())
+
+    expect(onKeyTermsChange).not.toHaveBeenCalled()
+    expect(result.current.keyTermInput).toBe(long)
+    expect(result.current.keyTermsError).toBe('Key terms can be at most 100 characters.')
+  })
+
   test('keeps rejected input for editing when the Add button would exceed the limit', () => {
     const { result, onKeyTermsChange } = renderField(termsAtLimit)
 
