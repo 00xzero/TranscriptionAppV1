@@ -2,10 +2,8 @@
 
 import { Suspense, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
-import { ProjectListSkeleton } from '@/components/Projects/ProjectList'
-import { LoadingStatus } from '@/components/ui/loading-status'
 import { PeopleDirectoryProvider } from '@/lib/people/PeopleDirectoryContext'
-import { PeopleListView } from './PeopleListView'
+import { PeopleListSkeleton, PeopleListView } from './PeopleListView'
 
 /**
  * Everything under /people: the list, and whatever the route adds over it (a
@@ -24,7 +22,7 @@ export function PeopleShell({ children }: { children: ReactNode }) {
       {/* inert takes it from the keyboard and the pointer; aria-hidden says
           the same to tools that do not read inert. */}
       <div inert={overlaid} aria-hidden={overlaid || undefined}>
-        <Suspense fallback={<LoadingStatus message="Loading people…"><ProjectListSkeleton /></LoadingStatus>}>
+        <Suspense fallback={<PeopleListSkeleton />}>
           <PeopleListView />
         </Suspense>
       </div>
