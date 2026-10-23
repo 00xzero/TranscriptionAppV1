@@ -3,9 +3,13 @@
 import { TRANSCRIPTION_ENGINES } from '@/contracts/transcription-options'
 import {
   ENGINE_CAPABILITIES,
+  engineLabel,
   engineLengthRefusal,
+  fillerWordsAlwaysKept,
   fillerWordsApply,
   profanityMaskingApplies,
+  storedFillerWords,
+  storedProfanityMasking,
 } from '@/core/transcription/engines/capabilities'
 import { getEngine } from '@/lib/transcription/engines.server'
 
@@ -30,14 +34,63 @@ describe('transcription engines', () => {
 
   test('Soniox keeps no filler words and masks no profanity', () => {
     expect(fillerWordsApply('soniox', 'en')).toBe(false)
-    expect(profanityMaskingApplies('soniox')).toBe(false)
-    expect(profanityMaskingApplies('deepgram')).toBe(true)
+    expect(fillerWordsAlwaysKept('soniox', 'en')).toBe(false)
+    expect(profanityMaskingApplies('soniox', 'en')).toBe(false)
+    expect(profanityMaskingApplies('deepgram', 'en')).toBe(true)
+    expect(profanityMaskingApplies('deepgram', 'ru')).toBe(true)
+  })
+
+  test('AssemblyAI always keeps filler words, and masks profanity in every language but Russian', () => {
+    for (const language of ['en', 'es', 'ja', 'ru', 'multi'] as const) {
+      expect(fillerWordsAlwaysKept('assemblyai', language)).toBe(true)
+      expect(fillerWordsApply('assemblyai', language)).toBe(false)
+    }
+    expect(profanityMaskingApplies('assemblyai', 'en')).toBe(true)
+    expect(profanityMaskingApplies('assemblyai', 'multi')).toBe(true)
+    expect(profanityMaskingApplies('assemblyai', 'ru')).toBe(false)
+  })
+
+  test('a finished transcript names the model that really made it', () => {
+    // Russian falls back to Universal-2; everything else runs on Universal-3.5 Pro.
+    expect(engineLabel('assemblyai', 'universal-2')).toBe('AssemblyAI Universal-2')
+    expect(engineLabel('assemblyai', 'universal-3-5-pro')).toBe('AssemblyAI Universal-3.5 Pro')
+    // A model we have no name for, or none recorded yet, shows the label chosen from.
+    expect(engineLabel('assemblyai', 'universal-4')).toBe('AssemblyAI Universal-3.5 Pro')
+    expect(engineLabel('assemblyai', null)).toBe('AssemblyAI Universal-3.5 Pro')
+    // Engines that record no model keep their label.
+    expect(engineLabel('deepgram', null)).toBe('Deepgram Nova-3')
+    expect(engineLabel('soniox', undefined)).toBe('Soniox v5')
+    expect(engineLabel('deepgram', 'universal-2')).toBe('Deepgram Nova-3')
+  })
+
+  test('AssemblyAI takes up to ten hours', () => {
+    expect(engineLengthRefusal('assemblyai', 10 * 3600)).toBeNull()
+    expect(engineLengthRefusal('assemblyai', 10 * 3600 + 1)).toBe(
+      'AssemblyAI Universal-3.5 Pro accepts audio up to 10 h; this file is 10 h 1 min. Upload it again and choose Deepgram Nova-3.'
+    )
+  })
+
+  test('records filler words and masking as the engine will really do them', () => {
+    const base = { detect_speakers: true, keep_filler_words: true, mask_profanity: true } as const
+    // Deepgram: a choice in English, off elsewhere.
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'en' })).toBe(true)
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'en', keep_filler_words: false })).toBe(false)
+    expect(storedFillerWords({ ...base, engine: 'deepgram', language: 'es' })).toBe(false)
+    expect(storedProfanityMasking({ ...base, engine: 'deepgram', language: 'es' })).toBe(true)
+    // Soniox: neither, whatever the switches were left at.
+    expect(storedFillerWords({ ...base, engine: 'soniox', language: 'en' })).toBe(false)
+    expect(storedProfanityMasking({ ...base, engine: 'soniox', language: 'en' })).toBe(false)
+    // AssemblyAI: fillers always, whatever the switch; masking except in Russian.
+    expect(storedFillerWords({ ...base, engine: 'assemblyai', language: 'en', keep_filler_words: false })).toBe(true)
+    expect(storedFillerWords({ ...base, engine: 'assemblyai', language: 'ru', keep_filler_words: false })).toBe(true)
+    expect(storedProfanityMasking({ ...base, engine: 'assemblyai', language: 'en' })).toBe(true)
+    expect(storedProfanityMasking({ ...base, engine: 'assemblyai', language: 'ru' })).toBe(false)
   })
 
   test('Soniox refuses audio over five hours, with the length in words', () => {
     expect(engineLengthRefusal('soniox', 5 * 3600)).toBeNull()
     expect(engineLengthRefusal('soniox', 5 * 3600 + 1)).toBe(
-      'Soniox v5 accepts audio up to 5 h; this file is 5 h 1 min. Upload it again and choose Deepgram Nova-3.'
+      'Soniox v5 accepts audio up to 5 h; this file is 5 h 1 min. Upload it again and choose Deepgram Nova-3 or AssemblyAI Universal-3.5 Pro.'
     )
     expect(engineLengthRefusal('soniox', 6 * 3600 + 12 * 60 + 30)).toContain('this file is 6 h 13 min')
     expect(engineLengthRefusal('deepgram', 24 * 3600)).toBeNull()

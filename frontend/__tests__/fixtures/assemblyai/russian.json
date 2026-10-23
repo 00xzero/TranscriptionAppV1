@@ -1,0 +1,537 @@
+{
+  "id": "00000000-0000-4000-8000-00000000aa05",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "ru",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://example.invalid/audio.m4a",
+  "text": "Ну, ээ, я думаю, эм, что нам нужно, ээ, перенести встречу на четверг, эм, это возможно? Да, ну, ээ, я поговорю с командой, эм, сегодня вечером, и, ээ, напишу вам завтра.",
+  "words": [
+    {
+      "text": "Ну,",
+      "start": 31,
+      "end": 291,
+      "confidence": 0.754,
+      "speaker": "A"
+    },
+    {
+      "text": "ээ,",
+      "start": 571,
+      "end": 791,
+      "confidence": 0.567,
+      "speaker": "A"
+    },
+    {
+      "text": "я",
+      "start": 991,
+      "end": 1231,
+      "confidence": 0.8925781,
+      "speaker": "A"
+    },
+    {
+      "text": "думаю,",
+      "start": 1231,
+      "end": 1651,
+      "confidence": 0.854,
+      "speaker": "A"
+    },
+    {
+      "text": "эм,",
+      "start": 1971,
+      "end": 2231,
+      "confidence": 0.812,
+      "speaker": "A"
+    },
+    {
+      "text": "что",
+      "start": 2431,
+      "end": 2691,
+      "confidence": 0.875,
+      "speaker": "A"
+    },
+    {
+      "text": "нам",
+      "start": 2691,
+      "end": 2911,
+      "confidence": 0.90771484,
+      "speaker": "A"
+    },
+    {
+      "text": "нужно,",
+      "start": 2911,
+      "end": 3231,
+      "confidence": 0.83,
+      "speaker": "A"
+    },
+    {
+      "text": "ээ,",
+      "start": 3591,
+      "end": 3851,
+      "confidence": 0.965,
+      "speaker": "A"
+    },
+    {
+      "text": "перенести",
+      "start": 4091,
+      "end": 4511,
+      "confidence": 0.91585284,
+      "speaker": "A"
+    },
+    {
+      "text": "встречу",
+      "start": 4511,
+      "end": 5071,
+      "confidence": 0.91064453,
+      "speaker": "A"
+    },
+    {
+      "text": "на",
+      "start": 5071,
+      "end": 5211,
+      "confidence": 0.90966797,
+      "speaker": "A"
+    },
+    {
+      "text": "четверг,",
+      "start": 5211,
+      "end": 5791,
+      "confidence": 0.867,
+      "speaker": "A"
+    },
+    {
+      "text": "эм,",
+      "start": 6011,
+      "end": 6291,
+      "confidence": 0.974,
+      "speaker": "A"
+    },
+    {
+      "text": "это",
+      "start": 6471,
+      "end": 6751,
+      "confidence": 0.86816406,
+      "speaker": "A"
+    },
+    {
+      "text": "возможно?",
+      "start": 6751,
+      "end": 7211,
+      "confidence": 0.941,
+      "speaker": "A"
+    },
+    {
+      "text": "Да,",
+      "start": 8371,
+      "end": 8651,
+      "confidence": 0.905,
+      "speaker": "A"
+    },
+    {
+      "text": "ну,",
+      "start": 8971,
+      "end": 9171,
+      "confidence": 0.948,
+      "speaker": "A"
+    },
+    {
+      "text": "ээ,",
+      "start": 9491,
+      "end": 9791,
+      "confidence": 0.974,
+      "speaker": "A"
+    },
+    {
+      "text": "я",
+      "start": 10011,
+      "end": 10191,
+      "confidence": 0.90966797,
+      "speaker": "A"
+    },
+    {
+      "text": "поговорю",
+      "start": 10191,
+      "end": 10651,
+      "confidence": 0.9243164,
+      "speaker": "A"
+    },
+    {
+      "text": "с",
+      "start": 10651,
+      "end": 10791,
+      "confidence": 0.89453125,
+      "speaker": "A"
+    },
+    {
+      "text": "командой,",
+      "start": 10791,
+      "end": 11311,
+      "confidence": 0.925,
+      "speaker": "A"
+    },
+    {
+      "text": "эм,",
+      "start": 11551,
+      "end": 11831,
+      "confidence": 0.982,
+      "speaker": "A"
+    },
+    {
+      "text": "сегодня",
+      "start": 12131,
+      "end": 12511,
+      "confidence": 0.8623047,
+      "speaker": "A"
+    },
+    {
+      "text": "вечером,",
+      "start": 12511,
+      "end": 13051,
+      "confidence": 0.927,
+      "speaker": "A"
+    },
+    {
+      "text": "и,",
+      "start": 13331,
+      "end": 13471,
+      "confidence": 0.951,
+      "speaker": "A"
+    },
+    {
+      "text": "ээ,",
+      "start": 13691,
+      "end": 13971,
+      "confidence": 0.978,
+      "speaker": "A"
+    },
+    {
+      "text": "напишу",
+      "start": 14211,
+      "end": 14631,
+      "confidence": 0.9654948,
+      "speaker": "A"
+    },
+    {
+      "text": "вам",
+      "start": 14631,
+      "end": 14831,
+      "confidence": 0.89746094,
+      "speaker": "A"
+    },
+    {
+      "text": "завтра.",
+      "start": 14831,
+      "end": 15291,
+      "confidence": 0.854,
+      "speaker": "A"
+    }
+  ],
+  "utterances": [
+    {
+      "speaker": "A",
+      "text": "Ну, ээ, я думаю, эм, что нам нужно, ээ, перенести встречу на четверг, эм, это возможно? Да, ну, ээ, я поговорю с командой, эм, сегодня вечером, и, ээ, напишу вам завтра.",
+      "confidence": 0.8948838,
+      "start": 31,
+      "end": 15291,
+      "words": [
+        {
+          "text": "Ну,",
+          "start": 31,
+          "end": 291,
+          "confidence": 0.754,
+          "speaker": "A"
+        },
+        {
+          "text": "ээ,",
+          "start": 571,
+          "end": 791,
+          "confidence": 0.567,
+          "speaker": "A"
+        },
+        {
+          "text": "я",
+          "start": 991,
+          "end": 1231,
+          "confidence": 0.8925781,
+          "speaker": "A"
+        },
+        {
+          "text": "думаю,",
+          "start": 1231,
+          "end": 1651,
+          "confidence": 0.854,
+          "speaker": "A"
+        },
+        {
+          "text": "эм,",
+          "start": 1971,
+          "end": 2231,
+          "confidence": 0.812,
+          "speaker": "A"
+        },
+        {
+          "text": "что",
+          "start": 2431,
+          "end": 2691,
+          "confidence": 0.875,
+          "speaker": "A"
+        },
+        {
+          "text": "нам",
+          "start": 2691,
+          "end": 2911,
+          "confidence": 0.90771484,
+          "speaker": "A"
+        },
+        {
+          "text": "нужно,",
+          "start": 2911,
+          "end": 3231,
+          "confidence": 0.83,
+          "speaker": "A"
+        },
+        {
+          "text": "ээ,",
+          "start": 3591,
+          "end": 3851,
+          "confidence": 0.965,
+          "speaker": "A"
+        },
+        {
+          "text": "перенести",
+          "start": 4091,
+          "end": 4511,
+          "confidence": 0.91585284,
+          "speaker": "A"
+        },
+        {
+          "text": "встречу",
+          "start": 4511,
+          "end": 5071,
+          "confidence": 0.91064453,
+          "speaker": "A"
+        },
+        {
+          "text": "на",
+          "start": 5071,
+          "end": 5211,
+          "confidence": 0.90966797,
+          "speaker": "A"
+        },
+        {
+          "text": "четверг,",
+          "start": 5211,
+          "end": 5791,
+          "confidence": 0.867,
+          "speaker": "A"
+        },
+        {
+          "text": "эм,",
+          "start": 6011,
+          "end": 6291,
+          "confidence": 0.974,
+          "speaker": "A"
+        },
+        {
+          "text": "это",
+          "start": 6471,
+          "end": 6751,
+          "confidence": 0.86816406,
+          "speaker": "A"
+        },
+        {
+          "text": "возможно?",
+          "start": 6751,
+          "end": 7211,
+          "confidence": 0.941,
+          "speaker": "A"
+        },
+        {
+          "text": "Да,",
+          "start": 8371,
+          "end": 8651,
+          "confidence": 0.905,
+          "speaker": "A"
+        },
+        {
+          "text": "ну,",
+          "start": 8971,
+          "end": 9171,
+          "confidence": 0.948,
+          "speaker": "A"
+        },
+        {
+          "text": "ээ,",
+          "start": 9491,
+          "end": 9791,
+          "confidence": 0.974,
+          "speaker": "A"
+        },
+        {
+          "text": "я",
+          "start": 10011,
+          "end": 10191,
+          "confidence": 0.90966797,
+          "speaker": "A"
+        },
+        {
+          "text": "поговорю",
+          "start": 10191,
+          "end": 10651,
+          "confidence": 0.9243164,
+          "speaker": "A"
+        },
+        {
+          "text": "с",
+          "start": 10651,
+          "end": 10791,
+          "confidence": 0.89453125,
+          "speaker": "A"
+        },
+        {
+          "text": "командой,",
+          "start": 10791,
+          "end": 11311,
+          "confidence": 0.925,
+          "speaker": "A"
+        },
+        {
+          "text": "эм,",
+          "start": 11551,
+          "end": 11831,
+          "confidence": 0.982,
+          "speaker": "A"
+        },
+        {
+          "text": "сегодня",
+          "start": 12131,
+          "end": 12511,
+          "confidence": 0.8623047,
+          "speaker": "A"
+        },
+        {
+          "text": "вечером,",
+          "start": 12511,
+          "end": 13051,
+          "confidence": 0.927,
+          "speaker": "A"
+        },
+        {
+          "text": "и,",
+          "start": 13331,
+          "end": 13471,
+          "confidence": 0.951,
+          "speaker": "A"
+        },
+        {
+          "text": "ээ,",
+          "start": 13691,
+          "end": 13971,
+          "confidence": 0.978,
+          "speaker": "A"
+        },
+        {
+          "text": "напишу",
+          "start": 14211,
+          "end": 14631,
+          "confidence": 0.9654948,
+          "speaker": "A"
+        },
+        {
+          "text": "вам",
+          "start": 14631,
+          "end": 14831,
+          "confidence": 0.89746094,
+          "speaker": "A"
+        },
+        {
+          "text": "завтра.",
+          "start": 14831,
+          "end": 15291,
+          "confidence": 0.854,
+          "speaker": "A"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.8948838,
+  "audio_duration": 17,
+  "punctuate": true,
+  "format_text": true,
+  "dual_channel": false,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [],
+  "filter_profanity": false,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "redact_static_entities": null,
+  "speaker_labels": true,
+  "speaker_options": {
+    "min_speakers_expected": null,
+    "max_speakers_expected": null,
+    "advanced_speaker_segmentation": true
+  },
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": null,
+  "speech_models": [
+    "universal-3-5-pro",
+    "universal-2"
+  ],
+  "speech_model_used": "universal-2",
+  "temperature": null,
+  "remove_audio_tags": "all",
+  "chapters": null,
+  "disfluencies": true,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 0,
+  "token_id": 0
+}

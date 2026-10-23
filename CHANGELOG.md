@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-22] - AssemblyAI Engine
+
+Each transcript can now also be made with **AssemblyAI Universal-3.5 Pro**, on
+AssemblyAI's EU servers, beside Deepgram Nova-3 and Soniox v5. Engines can now
+differ by language in what they offer, key terms are limited to six words, and
+Deepgram's callbacks are checked the way Deepgram documents today, so one sent
+without its old header is no longer lost.
+
+### Added
+
+- **AssemblyAI** — `infra/assemblyai` starts a transcript from our signed URL with `speech_models: ["universal-3-5-pro", "universal-2"]` (Russian falls back to Universal-2), speakers, filler words, profanity masking where the transcript records it, and key terms (`keyterms_prompt`). Mixed languages listen for our nine other than Russian: with Russian in the list AssemblyAI moves the whole file to Universal-2, which drops every other language. Its callback brings only `{ transcript_id, status }`; `POST /api/webhooks/assemblyai` checks our secret and passes it to Inngest, and `handle-assemblyai-callback` fetches the transcript, stores it exactly as returned, confirms the handoff, and only then deletes it at AssemblyAI (kept 30 days otherwise). AssemblyAI's 400 "not found" on delete counts as deleted.
+- **AssemblyAI words** — `core/transcription/engines/assemblyai-words.ts` turns speakers A, B… into 0, 1… and reads where each word sits against the one before from AssemblyAI's own text, so Japanese pieces (こ / ん / にちは。) rejoin with no spaces while Japanese inside English keeps the spaces around it. Real AssemblyAI answers in `__tests__/fixtures/assemblyai/` (English, Japanese, mixed scripts, Russian, speakers off, an error) each write back out to exactly AssemblyAI's text.
+- **The model that made it** — `transcripts.engine_model` records the model an engine reports having used, written by the pipeline before the segments (a failed write retries the step) and never by the browser. The editor header names it: "ASSEMBLYAI UNIVERSAL-2" on a Russian transcript, "ASSEMBLYAI UNIVERSAL-3.5 PRO" otherwise.
+- **Migration** `20261023000000_assemblyai_engine.sql` — AssemblyAI as an engine; its filler words always recorded kept (`IS TRUE`, so neither false nor NULL); profanity masking refused for AssemblyAI in Russian; `engine_model` with no client INSERT or UPDATE grant.
+
+### Changed
+
+- **Per-language options** — `core/transcription/engines/capabilities.ts` now says, per engine and language, where keeping "um"/"uh" is a choice, where an engine keeps them whatever it is asked, and where it can mask profanity. AssemblyAI keeps filler words in every language (checked live in all ten), so its switch shows on and greyed out, "Always kept with AssemblyAI"; Russian greys out profanity masking, "Not available with AssemblyAI". `storedFillerWords` and `storedProfanityMasking` record what the engine will really do. Deepgram and Soniox behave as before.
+- **Key terms, six words at most** — for every engine, checked by one `KeyTermSchema` in the key-terms field (upload and recording) and the create route; the field also refuses a term over 100 characters instead of leaving it to the server.
+- **One handler for fetched results** — Soniox and AssemblyAI share `lib/inngest/fetching-engine-callback.ts`. Soniox keeps its function id, step ids and saved step results (pinned by Inngest's step hashes in `sonioxCallbackSteps.test.ts`, which pass against the old and new handler). The storing step now reads our records again, so a retry after our copy was stored resumes from it instead of fetching from the engine, which Soniox could not do before.
+- **Deepgram callbacks authenticated with Basic Auth** — The route accepted a callback only with a `dg-token` header, Deepgram's documented check when it was built. Deepgram now recommends Basic Auth in the callback URL and does not send `dg-token` on every callback: on 22 Oct one job called back without it on all ten tries and its transcript was lost at the timeout. The callback URL now carries `deepgram:<DEEPGRAM_WEBHOOK_SECRET>@` (hex, so nothing needs encoding; plain http refused except on localhost), the route checks it strictly, and `dg-token` and `DEEPGRAM_API_KEY_IDENTIFIER` are gone. Deepgram error text that quotes the URL is logged and stored without the secret. `start-local.sh` generates the secret when it is missing or invalid.
+
+### Tests
+
+- **Frontend** — `197` suites / `2,510` tests passing; `npm run typecheck`; `npm run build`; lint (`0` errors / `58` existing warnings). `deepgramPipelineBaseline` and its snapshot unchanged.
+- **Live, local Docker stack** — AssemblyAI uploads in English (two speakers, key terms, masking), Japanese (no spaces; click-to-seek to the exact stored time), Russian (Universal-2 recorded), mixed English and Spanish, English with Japanese inside, webm/Opus, a corrupt file, a transcript deleted while AssemblyAI was working, replays, and exports, split and undo. Interruptions: a held receipt, a retry finding our copy already stored (with AssemblyAI's copy deleted first, to prove nothing was fetched again), the handoff confirmation refused twice (AssemblyAI's copy kept until it succeeded), retries running out (copy never deleted), and a refused link for AssemblyAI and Soniox. Deepgram after the Basic Auth change: uploads and three real error callbacks accepted with Basic Auth; forged callbacks refused with nothing changed.
+- **Database** — Migration applied locally; `supabase db diff` clean; CHECKs and grants checked as the `authenticated` role.
+
+### Notes
+
+- Before AssemblyAI works on hosted, push `20261023000000_assemblyai_engine.sql` to hosted Supabase (after checking backups). For a deployment, set `ASSEMBLYAI_API_KEY`, `ASSEMBLYAI_WEBHOOK_SECRET` and `DEEPGRAM_WEBHOOK_SECRET` (hex) before it goes live, and drop `DEEPGRAM_API_KEY_IDENTIFIER`.
+- Provider behaviour noted, not changed: with Mixed languages, short Japanese inside English comes back in Latin letters; with auto-detection AssemblyAI's text can space out Japanese and split names ("Qu int essa"); English and Spanish voices mixed came back as one speaker; Russian can't be masked or mixed. Russian in mixed audio is a known gap to revisit.
+
 ## [2026-10-21] - Transcription Engine Choice
 
 Each transcript can now be made with **Deepgram Nova-3** or **Soniox v5**,

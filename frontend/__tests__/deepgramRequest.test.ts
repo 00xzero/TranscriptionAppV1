@@ -1,6 +1,7 @@
 /** @jest-environment node */
 
-import { startAsyncTranscription } from '@/infra/deepgram'
+import { getCallbackUrl, startAsyncTranscription } from '@/infra/deepgram'
+import { getEngine } from '@/lib/transcription/engines.server'
 import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
 
 const fetchMock = jest.fn()
@@ -114,5 +115,91 @@ describe('Deepgram request options', () => {
       expect(params.get('profanity_filter')).toBe('true')
       expect(params.getAll('keyterm')).toEqual(['Acme', 'Move X'])
     })
+  })
+})
+
+describe('Deepgram callback credentials', () => {
+  const SECRET = '0123456789abcdef'.repeat(4)
+  let saved: NodeJS.ProcessEnv
+
+  beforeEach(() => {
+    saved = { ...process.env }
+    process.env.DEEPGRAM_WEBHOOK_SECRET = SECRET
+    process.env.DEEPGRAM_CALLBACK_URL = 'https://tunnel.example/api/webhooks/deepgram'
+    delete process.env.NEXT_PUBLIC_APP_URL
+    fetchMock.mockReset()
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ request_id: 'req-1' }) })
+    global.fetch = fetchMock
+  })
+
+  afterEach(() => {
+    process.env = saved
+  })
+
+  test('the callback URL carries deepgram:<secret> for Deepgram to send back as Basic Auth', () => {
+    const url = new URL(getCallbackUrl())
+    expect(url.username).toBe('deepgram')
+    expect(url.password).toBe(SECRET)
+    expect(`${url.origin}${url.pathname}`).toBe('https://tunnel.example/api/webhooks/deepgram')
+  })
+
+  test('without a tunnel it is built from the app URL, credentials and all', () => {
+    delete process.env.DEEPGRAM_CALLBACK_URL
+    process.env.NEXT_PUBLIC_APP_URL = 'https://app.example/'
+    expect(getCallbackUrl()).toBe(`https://deepgram:${SECRET}@app.example/api/webhooks/deepgram`)
+  })
+
+  test('refuses plain http except on the machine itself, where the secret never leaves it', () => {
+    process.env.DEEPGRAM_CALLBACK_URL = 'http://app.example/api/webhooks/deepgram'
+    expect(() => getCallbackUrl()).toThrow('must use https, except on localhost')
+
+    for (const local of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000']) {
+      process.env.DEEPGRAM_CALLBACK_URL = `${local}/api/webhooks/deepgram`
+      expect(new URL(getCallbackUrl()).password).toBe(SECRET)
+    }
+  })
+
+  test('refuses to make one without a secret, or with one that is not hex', () => {
+    delete process.env.DEEPGRAM_WEBHOOK_SECRET
+    expect(() => getCallbackUrl()).toThrow('DEEPGRAM_WEBHOOK_SECRET must be configured')
+    process.env.DEEPGRAM_WEBHOOK_SECRET = 'not%41hex'.padEnd(40, 'x')
+    expect(() => getCallbackUrl()).toThrow('DEEPGRAM_WEBHOOK_SECRET must be hex')
+  })
+
+  test('the URL it makes is exactly the callback Deepgram is sent, through the engine registry', async () => {
+    process.env.DEEPGRAM_API_KEY = 'test-key'
+
+    await getEngine('deepgram').start({
+      mediaUrl: 'https://storage.example/audio.webm',
+      transcriptId: 'transcript-1',
+      jobId: 'job-1',
+      userId: 'user-1',
+      options: DEFAULT_TRANSCRIPTION_OPTIONS,
+    })
+
+    const sent = new URL(fetchMock.mock.calls[0][0] as string).searchParams.get('callback')
+    expect(sent).toBe(getCallbackUrl())
+    expect(new URL(sent ?? '').password).toBe(SECRET)
+  })
+
+  test('a Deepgram error that quotes the callback URL is logged and kept without the secret', async () => {
+    process.env.DEEPGRAM_API_KEY = 'test-key'
+    const quoted = `Bad callback: ${getCallbackUrl()}`
+    fetchMock.mockResolvedValue({ ok: false, status: 400, text: async () => quoted })
+    const logged = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+    const result = await startAsyncTranscription({
+      mediaUrl: 'https://storage.example/audio.webm',
+      callbackUrl: getCallbackUrl(),
+      transcriptId: 'transcript-1',
+      jobId: 'job-1',
+      userId: 'user-1',
+      transcription: DEFAULT_TRANSCRIPTION_OPTIONS,
+    })
+
+    expect(result.error).toContain('deepgram:***@tunnel.example')
+    expect(result.error).not.toContain(SECRET)
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(SECRET)
+    logged.mockRestore()
   })
 })

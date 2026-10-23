@@ -2,7 +2,9 @@
  * Deepgram Webhook Handler
  *
  * Receives transcription results from Deepgram async API.
- * Validates the dg-token header, stores the result at its exact job attempt's
+ * Checks the Basic Auth credentials our callback URL carries (Deepgram's own
+ * recommendation; its old dg-token header is not sent on every callback),
+ * stores the result at its exact job attempt's
  * own key and passes it to Inngest (handle-deepgram-callback), which links and
  * hands it off with retries of its own. Nothing here holds a receipt, so a
  * request cut off at any point is simply redone by Deepgram's next retry.
@@ -28,40 +30,47 @@ import { createAdminClient } from "@/infra/supabase/admin";
 import { DeepgramErrorCallbackSchema, DeepgramWebhookPayloadSchema } from "@/contracts/webhook";
 import { UuidSchema } from "@/contracts/primitives";
 import { persistWebhookFailure, stageDeepgramResult } from "@/core/transcription/webhook";
+import { DEEPGRAM_WEBHOOK_USER } from "@/infra/deepgram";
 
 // Tell Vercel the maximum execution time: a long recording's result is uploaded
 // within the request (Pro/Enterprise only).
 export const maxDuration = 300; // seconds
 
+// Base64 exactly, since Buffer.from(…, "base64") quietly skips characters
+// that are not.
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+
+/**
+ * Whether the request carries `Basic deepgram:<secret>`, the credentials
+ * getCallbackUrl puts in the URL Deepgram calls back on.
+ */
+function credentialsMatch(authorization: string | null, secret: string): boolean {
+  const match = authorization?.match(/^Basic\s+(\S+)$/i);
+  const encoded = match?.[1];
+  if (!encoded || encoded.length % 4 !== 0 || !BASE64.test(encoded)) return false;
+  const actual = Buffer.from(encoded, "base64");
+  const expected = Buffer.from(`${DEEPGRAM_WEBHOOK_USER}:${secret}`);
+  return actual.byteLength === expected.byteLength && timingSafeEqual(actual as Uint8Array, expected as Uint8Array);
+}
+
 export async function POST(request: NextRequest) {
   console.log("[deepgram-webhook] Received callback request");
 
   try {
-    // Step 1: Verify dg-token header
-    const dgToken = request.headers.get("dg-token");
-    const expectedToken = process.env.DEEPGRAM_API_KEY_IDENTIFIER;
-
-    console.log("[deepgram-webhook] Step 1: Token validation");
-
-    if (!expectedToken) {
-      console.error("[deepgram-webhook] DEEPGRAM_API_KEY_IDENTIFIER not configured");
+    // Step 1: Verify the Basic Auth credentials our callback URL carries
+    const secret = process.env.DEEPGRAM_WEBHOOK_SECRET;
+    if (!secret) {
+      console.error("[deepgram-webhook] DEEPGRAM_WEBHOOK_SECRET not configured");
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
-    if (!dgToken) {
-      console.warn("[deepgram-webhook] No dg-token header received");
+    if (!credentialsMatch(request.headers.get("authorization"), secret)) {
+      // The header's value is never logged: it carries the secret.
+      console.warn("[deepgram-webhook] Missing or wrong credentials");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (
-      dgToken.length !== expectedToken.length ||
-      !timingSafeEqual(Buffer.from(dgToken) as any, Buffer.from(expectedToken) as any)
-    ) {
-      console.warn("[deepgram-webhook] Token mismatch");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    console.log("[deepgram-webhook] Step 1 complete: Token validated");
+    console.log("[deepgram-webhook] Step 1 complete: Credentials verified");
 
     // Step 2: Parse and validate JSON payload
     console.log("[deepgram-webhook] Step 2: Parsing JSON payload");

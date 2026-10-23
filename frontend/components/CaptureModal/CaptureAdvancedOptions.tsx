@@ -9,7 +9,7 @@ import {
   TranscriptionLanguageSchema,
   type TranscriptionOptions,
 } from '@/contracts/transcription-options'
-import { fillerWordsApply, profanityMaskingApplies } from '@/core/transcription/engines/capabilities'
+import { fillerWordsAlwaysKept, fillerWordsApply, profanityMaskingApplies } from '@/core/transcription/engines/capabilities'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,7 +34,7 @@ export function summarizeTranscriptionOptions(options: TranscriptionOptions): st
     options.detect_speakers ? 'speakers on' : 'speakers off',
   ]
   if (fillerWordsApply(options.engine, options.language) && !options.keep_filler_words) parts.push('no um/uh')
-  if (profanityMaskingApplies(options.engine) && options.mask_profanity) parts.push('profanity masked')
+  if (profanityMaskingApplies(options.engine, options.language) && options.mask_profanity) parts.push('profanity masked')
   return parts.join(' · ')
 }
 
@@ -43,10 +43,20 @@ function unavailableHint(options: TranscriptionOptions): string {
   return `Not available with ${TRANSCRIPTION_ENGINE_BRANDS[options.engine]}`
 }
 
+/** What the filler words switch says under its label. */
+function fillerWordsHint(options: TranscriptionOptions): string {
+  if (fillerWordsAlwaysKept(options.engine, options.language)) {
+    return `Always kept with ${TRANSCRIPTION_ENGINE_BRANDS[options.engine]}`
+  }
+  if (fillerWordsApply(options.engine, options.language)) return 'Keep "um" and "uh"'
+  return options.engine === 'deepgram' ? 'English only' : unavailableHint(options)
+}
+
 /** Mixed languages: which ones each engine follows. */
 const MULTI_LANGUAGE_HINTS: Record<TranscriptionOptions['engine'], string> = {
   deepgram: 'For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese, Hindi and Russian.',
   soniox: 'For audio that switches between languages. Each passage is transcribed in the language spoken.',
+  assemblyai: 'For audio that switches between English, Spanish, French, German, Portuguese, Italian, Dutch, Japanese and Hindi. Not Russian.',
 }
 
 function OptionSwitch({
@@ -83,7 +93,8 @@ function OptionSwitch({
 export default function CaptureAdvancedOptions({ options, onOptionsChange, disabled }: CaptureAdvancedOptionsProps) {
   const set = (patch: Partial<TranscriptionOptions>) => onOptionsChange({ ...options, ...patch })
   const fillersApply = fillerWordsApply(options.engine, options.language)
-  const profanityApplies = profanityMaskingApplies(options.engine)
+  const fillersAlwaysKept = fillerWordsAlwaysKept(options.engine, options.language)
+  const profanityApplies = profanityMaskingApplies(options.engine, options.language)
   const itemRef = useRef<HTMLDivElement>(null)
 
   // The section sits at the foot of the dialog's scroll area, so once open it
@@ -162,8 +173,8 @@ export default function CaptureAdvancedOptions({ options, onOptionsChange, disab
           />
           <OptionSwitch
             label="Keep filler words"
-            hint={fillersApply ? 'Keep "um" and "uh"' : options.engine === 'deepgram' ? 'English only' : unavailableHint(options)}
-            checked={fillersApply && options.keep_filler_words}
+            hint={fillerWordsHint(options)}
+            checked={fillersAlwaysKept || (fillersApply && options.keep_filler_words)}
             onCheckedChange={(checked) => set({ keep_filler_words: checked })}
             disabled={disabled || !fillersApply}
           />

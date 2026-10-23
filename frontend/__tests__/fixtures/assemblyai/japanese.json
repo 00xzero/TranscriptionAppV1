@@ -1,0 +1,789 @@
+{
+  "id": "00000000-0000-4000-8000-00000000aa02",
+  "language_model": "assemblyai_default",
+  "acoustic_model": "assemblyai_default",
+  "language_code": "ja",
+  "speech_understanding": null,
+  "translated_texts": null,
+  "status": "completed",
+  "audio_url": "https://example.invalid/audio.m4a",
+  "text": "こんにちは。今日は東京で会議があります。午後3時に始まります。サーバーの費用が高すぎるので、来月から新しいプランに変更する予定です。皆さん、よろしくお願いします。",
+  "words": [
+    {
+      "text": "こ",
+      "start": 0,
+      "end": 240,
+      "confidence": 0.9706688,
+      "speaker": "A"
+    },
+    {
+      "text": "ん",
+      "start": 240,
+      "end": 340,
+      "confidence": 0.9706688,
+      "speaker": "A"
+    },
+    {
+      "text": "にちは。",
+      "start": 340,
+      "end": 940,
+      "confidence": 0.9505129,
+      "speaker": "A"
+    },
+    {
+      "text": "今日は",
+      "start": 1600,
+      "end": 1680,
+      "confidence": 0.99780405,
+      "speaker": "A"
+    },
+    {
+      "text": "東",
+      "start": 1680,
+      "end": 2120,
+      "confidence": 0.91657376,
+      "speaker": "A"
+    },
+    {
+      "text": "京",
+      "start": 2120,
+      "end": 2400,
+      "confidence": 0.91657376,
+      "speaker": "A"
+    },
+    {
+      "text": "で",
+      "start": 2400,
+      "end": 2760,
+      "confidence": 0.99999,
+      "speaker": "A"
+    },
+    {
+      "text": "会",
+      "start": 2760,
+      "end": 2940,
+      "confidence": 0.9997497,
+      "speaker": "A"
+    },
+    {
+      "text": "議",
+      "start": 2940,
+      "end": 3120,
+      "confidence": 0.99995756,
+      "speaker": "A"
+    },
+    {
+      "text": "が",
+      "start": 3120,
+      "end": 3320,
+      "confidence": 0.9999895,
+      "speaker": "A"
+    },
+    {
+      "text": "あります。",
+      "start": 3320,
+      "end": 4019,
+      "confidence": 0.9995684,
+      "speaker": "A"
+    },
+    {
+      "text": "午",
+      "start": 4180,
+      "end": 4200,
+      "confidence": 0.9991074,
+      "speaker": "A"
+    },
+    {
+      "text": "後",
+      "start": 4200,
+      "end": 4360,
+      "confidence": 0.9998939,
+      "speaker": "A"
+    },
+    {
+      "text": "3",
+      "start": 4360,
+      "end": 4560,
+      "confidence": 0.8659395,
+      "speaker": "A"
+    },
+    {
+      "text": "時",
+      "start": 4560,
+      "end": 4760,
+      "confidence": 0.9980142,
+      "speaker": "A"
+    },
+    {
+      "text": "に",
+      "start": 4760,
+      "end": 4960,
+      "confidence": 0.9980142,
+      "speaker": "A"
+    },
+    {
+      "text": "始",
+      "start": 4960,
+      "end": 5140,
+      "confidence": 0.99998343,
+      "speaker": "A"
+    },
+    {
+      "text": "ま",
+      "start": 5140,
+      "end": 5420,
+      "confidence": 0.9999914,
+      "speaker": "A"
+    },
+    {
+      "text": "ります。",
+      "start": 5420,
+      "end": 5920,
+      "confidence": 0.9998022,
+      "speaker": "A"
+    },
+    {
+      "text": "サ",
+      "start": 7040,
+      "end": 7040,
+      "confidence": 0.99718994,
+      "speaker": "A"
+    },
+    {
+      "text": "ーバ",
+      "start": 7040,
+      "end": 7200,
+      "confidence": 0.99959785,
+      "speaker": "A"
+    },
+    {
+      "text": "ー",
+      "start": 7200,
+      "end": 7480,
+      "confidence": 0.9973488,
+      "speaker": "A"
+    },
+    {
+      "text": "の",
+      "start": 7480,
+      "end": 7480,
+      "confidence": 0.9973488,
+      "speaker": "A"
+    },
+    {
+      "text": "費",
+      "start": 7480,
+      "end": 7660,
+      "confidence": 0.9994265,
+      "speaker": "A"
+    },
+    {
+      "text": "用",
+      "start": 7660,
+      "end": 7820,
+      "confidence": 0.9999883,
+      "speaker": "A"
+    },
+    {
+      "text": "が",
+      "start": 7820,
+      "end": 8180,
+      "confidence": 0.9999883,
+      "speaker": "A"
+    },
+    {
+      "text": "高",
+      "start": 8180,
+      "end": 8380,
+      "confidence": 0.9988728,
+      "speaker": "A"
+    },
+    {
+      "text": "す",
+      "start": 8380,
+      "end": 8600,
+      "confidence": 0.99140036,
+      "speaker": "A"
+    },
+    {
+      "text": "ぎ",
+      "start": 8600,
+      "end": 8760,
+      "confidence": 0.99140036,
+      "speaker": "A"
+    },
+    {
+      "text": "る",
+      "start": 8760,
+      "end": 9020,
+      "confidence": 0.99999213,
+      "speaker": "A"
+    },
+    {
+      "text": "ので、",
+      "start": 9020,
+      "end": 9600,
+      "confidence": 0.9037885,
+      "speaker": "A"
+    },
+    {
+      "text": "来",
+      "start": 9600,
+      "end": 9600,
+      "confidence": 0.9998698,
+      "speaker": "A"
+    },
+    {
+      "text": "月",
+      "start": 9600,
+      "end": 9900,
+      "confidence": 0.99999547,
+      "speaker": "A"
+    },
+    {
+      "text": "から",
+      "start": 9900,
+      "end": 10220,
+      "confidence": 0.99997663,
+      "speaker": "A"
+    },
+    {
+      "text": "新",
+      "start": 10220,
+      "end": 10440,
+      "confidence": 0.9999609,
+      "speaker": "A"
+    },
+    {
+      "text": "しい",
+      "start": 10440,
+      "end": 10880,
+      "confidence": 0.99999833,
+      "speaker": "A"
+    },
+    {
+      "text": "プ",
+      "start": 10880,
+      "end": 11120,
+      "confidence": 0.99998164,
+      "speaker": "A"
+    },
+    {
+      "text": "ラ",
+      "start": 11120,
+      "end": 11120,
+      "confidence": 0.99999857,
+      "speaker": "A"
+    },
+    {
+      "text": "ン",
+      "start": 11120,
+      "end": 11300,
+      "confidence": 0.99999857,
+      "speaker": "A"
+    },
+    {
+      "text": "に",
+      "start": 11300,
+      "end": 11620,
+      "confidence": 0.9999417,
+      "speaker": "A"
+    },
+    {
+      "text": "変",
+      "start": 11620,
+      "end": 11780,
+      "confidence": 0.99985576,
+      "speaker": "A"
+    },
+    {
+      "text": "更",
+      "start": 11780,
+      "end": 12060,
+      "confidence": 0.99985576,
+      "speaker": "A"
+    },
+    {
+      "text": "する",
+      "start": 12060,
+      "end": 12360,
+      "confidence": 0.9999602,
+      "speaker": "A"
+    },
+    {
+      "text": "予",
+      "start": 12360,
+      "end": 12520,
+      "confidence": 0.99999857,
+      "speaker": "A"
+    },
+    {
+      "text": "定",
+      "start": 12520,
+      "end": 12760,
+      "confidence": 0.99999213,
+      "speaker": "A"
+    },
+    {
+      "text": "です。",
+      "start": 12760,
+      "end": 13310,
+      "confidence": 0.99993527,
+      "speaker": "A"
+    },
+    {
+      "text": "皆さん、",
+      "start": 13500,
+      "end": 14280,
+      "confidence": 0.88732266,
+      "speaker": "A"
+    },
+    {
+      "text": "よろしく",
+      "start": 14280,
+      "end": 14540,
+      "confidence": 0.9998179,
+      "speaker": "A"
+    },
+    {
+      "text": "お願いします。",
+      "start": 14540,
+      "end": 15090,
+      "confidence": 0.9998919,
+      "speaker": "A"
+    }
+  ],
+  "utterances": [
+    {
+      "speaker": "A",
+      "text": "こ ん にちは。 今日は 東 京 で 会 議 が あります。 午 後 3 時 に 始 ま ります。 サ ーバ ー の 費 用 が 高 す ぎ る ので、 来 月 から 新 しい プ ラ ン に 変 更 する 予 定 です。 皆さん、 よろしく お願いします。",
+      "confidence": 0.98664284,
+      "start": 0,
+      "end": 15090,
+      "words": [
+        {
+          "text": "こ",
+          "start": 0,
+          "end": 240,
+          "confidence": 0.9706688,
+          "speaker": "A"
+        },
+        {
+          "text": "ん",
+          "start": 240,
+          "end": 340,
+          "confidence": 0.9706688,
+          "speaker": "A"
+        },
+        {
+          "text": "にちは。",
+          "start": 340,
+          "end": 940,
+          "confidence": 0.9505129,
+          "speaker": "A"
+        },
+        {
+          "text": "今日は",
+          "start": 1600,
+          "end": 1680,
+          "confidence": 0.99780405,
+          "speaker": "A"
+        },
+        {
+          "text": "東",
+          "start": 1680,
+          "end": 2120,
+          "confidence": 0.91657376,
+          "speaker": "A"
+        },
+        {
+          "text": "京",
+          "start": 2120,
+          "end": 2400,
+          "confidence": 0.91657376,
+          "speaker": "A"
+        },
+        {
+          "text": "で",
+          "start": 2400,
+          "end": 2760,
+          "confidence": 0.99999,
+          "speaker": "A"
+        },
+        {
+          "text": "会",
+          "start": 2760,
+          "end": 2940,
+          "confidence": 0.9997497,
+          "speaker": "A"
+        },
+        {
+          "text": "議",
+          "start": 2940,
+          "end": 3120,
+          "confidence": 0.99995756,
+          "speaker": "A"
+        },
+        {
+          "text": "が",
+          "start": 3120,
+          "end": 3320,
+          "confidence": 0.9999895,
+          "speaker": "A"
+        },
+        {
+          "text": "あります。",
+          "start": 3320,
+          "end": 4019,
+          "confidence": 0.9995684,
+          "speaker": "A"
+        },
+        {
+          "text": "午",
+          "start": 4180,
+          "end": 4200,
+          "confidence": 0.9991074,
+          "speaker": "A"
+        },
+        {
+          "text": "後",
+          "start": 4200,
+          "end": 4360,
+          "confidence": 0.9998939,
+          "speaker": "A"
+        },
+        {
+          "text": "3",
+          "start": 4360,
+          "end": 4560,
+          "confidence": 0.8659395,
+          "speaker": "A"
+        },
+        {
+          "text": "時",
+          "start": 4560,
+          "end": 4760,
+          "confidence": 0.9980142,
+          "speaker": "A"
+        },
+        {
+          "text": "に",
+          "start": 4760,
+          "end": 4960,
+          "confidence": 0.9980142,
+          "speaker": "A"
+        },
+        {
+          "text": "始",
+          "start": 4960,
+          "end": 5140,
+          "confidence": 0.99998343,
+          "speaker": "A"
+        },
+        {
+          "text": "ま",
+          "start": 5140,
+          "end": 5420,
+          "confidence": 0.9999914,
+          "speaker": "A"
+        },
+        {
+          "text": "ります。",
+          "start": 5420,
+          "end": 5920,
+          "confidence": 0.9998022,
+          "speaker": "A"
+        },
+        {
+          "text": "サ",
+          "start": 7040,
+          "end": 7040,
+          "confidence": 0.99718994,
+          "speaker": "A"
+        },
+        {
+          "text": "ーバ",
+          "start": 7040,
+          "end": 7200,
+          "confidence": 0.99959785,
+          "speaker": "A"
+        },
+        {
+          "text": "ー",
+          "start": 7200,
+          "end": 7480,
+          "confidence": 0.9973488,
+          "speaker": "A"
+        },
+        {
+          "text": "の",
+          "start": 7480,
+          "end": 7480,
+          "confidence": 0.9973488,
+          "speaker": "A"
+        },
+        {
+          "text": "費",
+          "start": 7480,
+          "end": 7660,
+          "confidence": 0.9994265,
+          "speaker": "A"
+        },
+        {
+          "text": "用",
+          "start": 7660,
+          "end": 7820,
+          "confidence": 0.9999883,
+          "speaker": "A"
+        },
+        {
+          "text": "が",
+          "start": 7820,
+          "end": 8180,
+          "confidence": 0.9999883,
+          "speaker": "A"
+        },
+        {
+          "text": "高",
+          "start": 8180,
+          "end": 8380,
+          "confidence": 0.9988728,
+          "speaker": "A"
+        },
+        {
+          "text": "す",
+          "start": 8380,
+          "end": 8600,
+          "confidence": 0.99140036,
+          "speaker": "A"
+        },
+        {
+          "text": "ぎ",
+          "start": 8600,
+          "end": 8760,
+          "confidence": 0.99140036,
+          "speaker": "A"
+        },
+        {
+          "text": "る",
+          "start": 8760,
+          "end": 9020,
+          "confidence": 0.99999213,
+          "speaker": "A"
+        },
+        {
+          "text": "ので、",
+          "start": 9020,
+          "end": 9600,
+          "confidence": 0.9037885,
+          "speaker": "A"
+        },
+        {
+          "text": "来",
+          "start": 9600,
+          "end": 9600,
+          "confidence": 0.9998698,
+          "speaker": "A"
+        },
+        {
+          "text": "月",
+          "start": 9600,
+          "end": 9900,
+          "confidence": 0.99999547,
+          "speaker": "A"
+        },
+        {
+          "text": "から",
+          "start": 9900,
+          "end": 10220,
+          "confidence": 0.99997663,
+          "speaker": "A"
+        },
+        {
+          "text": "新",
+          "start": 10220,
+          "end": 10440,
+          "confidence": 0.9999609,
+          "speaker": "A"
+        },
+        {
+          "text": "しい",
+          "start": 10440,
+          "end": 10880,
+          "confidence": 0.99999833,
+          "speaker": "A"
+        },
+        {
+          "text": "プ",
+          "start": 10880,
+          "end": 11120,
+          "confidence": 0.99998164,
+          "speaker": "A"
+        },
+        {
+          "text": "ラ",
+          "start": 11120,
+          "end": 11120,
+          "confidence": 0.99999857,
+          "speaker": "A"
+        },
+        {
+          "text": "ン",
+          "start": 11120,
+          "end": 11300,
+          "confidence": 0.99999857,
+          "speaker": "A"
+        },
+        {
+          "text": "に",
+          "start": 11300,
+          "end": 11620,
+          "confidence": 0.9999417,
+          "speaker": "A"
+        },
+        {
+          "text": "変",
+          "start": 11620,
+          "end": 11780,
+          "confidence": 0.99985576,
+          "speaker": "A"
+        },
+        {
+          "text": "更",
+          "start": 11780,
+          "end": 12060,
+          "confidence": 0.99985576,
+          "speaker": "A"
+        },
+        {
+          "text": "する",
+          "start": 12060,
+          "end": 12360,
+          "confidence": 0.9999602,
+          "speaker": "A"
+        },
+        {
+          "text": "予",
+          "start": 12360,
+          "end": 12520,
+          "confidence": 0.99999857,
+          "speaker": "A"
+        },
+        {
+          "text": "定",
+          "start": 12520,
+          "end": 12760,
+          "confidence": 0.99999213,
+          "speaker": "A"
+        },
+        {
+          "text": "です。",
+          "start": 12760,
+          "end": 13310,
+          "confidence": 0.99993527,
+          "speaker": "A"
+        },
+        {
+          "text": "皆さん、",
+          "start": 13500,
+          "end": 14280,
+          "confidence": 0.88732266,
+          "speaker": "A"
+        },
+        {
+          "text": "よろしく",
+          "start": 14280,
+          "end": 14540,
+          "confidence": 0.9998179,
+          "speaker": "A"
+        },
+        {
+          "text": "お願いします。",
+          "start": 14540,
+          "end": 15090,
+          "confidence": 0.9998919,
+          "speaker": "A"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.98664284,
+  "audio_duration": 17,
+  "punctuate": true,
+  "format_text": true,
+  "dual_channel": false,
+  "webhook_url": null,
+  "webhook_status_code": null,
+  "webhook_auth": false,
+  "webhook_auth_header_name": null,
+  "speed_boost": false,
+  "auto_highlights_result": null,
+  "auto_highlights": false,
+  "audio_start_from": null,
+  "audio_end_at": null,
+  "word_boost": [],
+  "boost_param": null,
+  "prompt": null,
+  "keyterms_prompt": [],
+  "filter_profanity": false,
+  "redact_pii": false,
+  "redact_pii_audio": false,
+  "redact_pii_audio_quality": null,
+  "redact_pii_audio_options": null,
+  "redact_pii_policies": null,
+  "redact_pii_sub": null,
+  "redact_static_entities": null,
+  "speaker_labels": true,
+  "speaker_options": {
+    "min_speakers_expected": null,
+    "max_speakers_expected": null,
+    "advanced_speaker_segmentation": true
+  },
+  "content_safety": false,
+  "iab_categories": false,
+  "content_safety_labels": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "iab_categories_result": {
+    "status": "unavailable",
+    "results": [],
+    "summary": {}
+  },
+  "language_detection": false,
+  "language_detection_options": null,
+  "language_detection_results": null,
+  "language_confidence_threshold": null,
+  "language_confidence": null,
+  "custom_spelling": null,
+  "throttled": false,
+  "auto_chapters": false,
+  "summarization": false,
+  "summary_type": null,
+  "summary_model": null,
+  "custom_topics": false,
+  "topics": [],
+  "speech_threshold": null,
+  "speech_model": null,
+  "speech_models": [
+    "universal-3-5-pro",
+    "universal-2"
+  ],
+  "speech_model_used": "universal-3-5-pro",
+  "temperature": null,
+  "remove_audio_tags": "all",
+  "chapters": null,
+  "disfluencies": false,
+  "entity_detection": false,
+  "sentiment_analysis": false,
+  "sentiment_analysis_results": null,
+  "entities": null,
+  "speakers_expected": null,
+  "summary": null,
+  "custom_topics_results": null,
+  "is_deleted": null,
+  "multichannel": null,
+  "project_id": 0,
+  "token_id": 0
+}

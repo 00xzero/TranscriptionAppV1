@@ -701,6 +701,71 @@ describe('Inngest handlers', () => {
     expect(mockDb.rpcCalls).toEqual([])
   })
 
+  test('handleTranscriptionWebhook records the model AssemblyAI really used, before saving the segments', async () => {
+    mockDb.storedResponse = {
+      id: 'aai-transcript-1',
+      status: 'completed',
+      text: 'Привет.',
+      words: [{ text: 'Привет.', start: 0, end: 500, confidence: 0.9, speaker: 'A' }],
+      speech_model_used: 'universal-2',
+    }
+    mockDb.engine = 'assemblyai'
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+        { id: 'trigger-completed', handler: () => undefined },
+      ],
+    })
+
+    expect(transcriptUpdateMock).toHaveBeenCalledWith({ engine_model: 'universal-2' })
+    expect(transcriptUpdateEqMock).toHaveBeenCalledWith('id', transcriptId)
+    expect(transcriptUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(rpcMock.mock.invocationCallOrder[0])
+  })
+
+  test('handleTranscriptionWebhook fails the step, saving nothing, when the model cannot be recorded, so a retry writes both', async () => {
+    mockDb.storedResponse = {
+      id: 'aai-transcript-1',
+      status: 'completed',
+      text: 'Hello.',
+      words: [{ text: 'Hello.', start: 0, end: 500, confidence: 0.9, speaker: 'A' }],
+      speech_model_used: 'universal-3-5-pro',
+    }
+    mockDb.engine = 'assemblyai'
+    transcriptUpdateEqMock.mockResolvedValueOnce({ error: { message: 'db down' } } as never)
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    const { error } = await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+        { id: 'trigger-completed', handler: () => undefined },
+      ],
+    })
+
+    expect(getErrorMessage(error)).toContain('Failed to record the engine model: db down')
+    expect(mockDb.rpcCalls).toEqual([])
+  })
+
+  test('handleTranscriptionWebhook records no model for an engine that does not say', async () => {
+    mockDb.storedResponse = {
+      results: { channels: [{ alternatives: [{ transcript: '', words: [] }] }] },
+    }
+
+    const engine = new InngestTestEngine({ function: handleTranscriptionWebhook })
+    await engine.execute({
+      events: [webhookEvent],
+      steps: [
+        { id: 'find-job', handler: () => ({ id: jobId, status: 'processing' }) },
+        { id: 'trigger-completed', handler: () => undefined },
+      ],
+    })
+
+    expect(transcriptUpdateMock).not.toHaveBeenCalled()
+  })
+
   test('handleTranscriptionFailed marks transcript error when no active job can be found', async () => {
     const engine = new InngestTestEngine({ function: handleTranscriptionFailed })
 

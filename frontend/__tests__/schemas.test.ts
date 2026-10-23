@@ -102,6 +102,18 @@ describe('CreateTranscriptBodySchema', () => {
     ).toBe(false)
   })
 
+  test('refuses a key term longer than six words', () => {
+    expect(
+      CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3', key_terms: ['annual general meeting of our shareholders'] }).success
+    ).toBe(true)
+    const tooLong = CreateTranscriptBodySchema.safeParse({
+      filename: 'audio.mp3',
+      key_terms: ['the annual general meeting of our shareholders'],
+    })
+    expect(tooLong.success).toBe(false)
+    expect(tooLong.error?.issues[0]?.message).toBe('Key terms can be at most 6 words.')
+  })
+
   test('accepts body with only filename', () => {
     const result = CreateTranscriptBodySchema.safeParse({ filename: 'audio.mp3' })
     expect(result.success).toBe(true)
@@ -140,6 +152,7 @@ describe('project schemas', () => {
         source_object_key: null,
         upload_intent_id: null,
         engine: 'deepgram',
+        engine_model: null,
         language: 'en',
         detect_speakers: true,
         keep_filler_words: null,

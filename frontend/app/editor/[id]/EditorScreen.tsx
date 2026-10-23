@@ -43,7 +43,7 @@ import LeaveEditorDialog from './components/LeaveEditorDialog'
 import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
 import { publishUndoControls } from '@/lib/editor/undoControls'
 import { fetchTranscriptById } from '@/lib/supabase/queries'
-import { TRANSCRIPTION_ENGINE_LABELS } from '@/contracts/transcription-options'
+import { engineLabel } from '@/core/transcription/engines/capabilities'
 
 const noSegmentOnServer = () => undefined
 const noPositionOnServer = () => false
@@ -460,7 +460,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               displayTitle={actionTarget.title}
               transcriptCreatedAt={data.transcriptCreatedAt}
               transcriptDurationSecs={data.transcriptDurationSecs}
-              engineLabel={data.transcriptEngine ? TRANSCRIPTION_ENGINE_LABELS[data.transcriptEngine] : null}
+              engineLabel={data.transcriptEngine ? engineLabel(data.transcriptEngine, data.transcriptEngineModel) : null}
               speakerSummary={speakerOverview.rows.length > 0 ? (
           <SpeakerSummaryButton
             ref={speakerButtonRef}

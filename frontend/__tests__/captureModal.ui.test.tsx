@@ -1059,6 +1059,59 @@ describe('CaptureModal advanced options', () => {
     expect(mockSetTranscriptionOptions).not.toHaveBeenCalled()
   })
 
+  test('with AssemblyAI, filler words are locked on and say so, and profanity masking stays a choice', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.transcriptionOptions = {
+      ...DEFAULT_TRANSCRIPTION_OPTIONS,
+      engine: 'assemblyai',
+      keep_filler_words: false,
+      mask_profanity: true,
+    }
+    renderModal()
+
+    const trigger = screen.getByRole('button', { name: /advanced/i })
+    expect(trigger).toHaveTextContent('AssemblyAI Universal-3.5 Pro · English · speakers on · profanity masked')
+    expect(trigger).not.toHaveTextContent('no um/uh')
+
+    await user.click(trigger)
+
+    const fillers = screen.getByRole('switch', { name: 'Keep filler words' })
+    expect(fillers).toBeDisabled()
+    expect(fillers).toBeChecked()
+    expect(screen.getByText('Always kept with AssemblyAI')).toBeInTheDocument()
+    const profanity = screen.getByRole('switch', { name: 'Mask profanity' })
+    expect(profanity).toBeEnabled()
+    expect(profanity).toBeChecked()
+  })
+
+  test('with AssemblyAI in Russian, profanity masking is greyed out and says why', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.transcriptionOptions = {
+      ...DEFAULT_TRANSCRIPTION_OPTIONS,
+      engine: 'assemblyai',
+      language: 'ru',
+      mask_profanity: true,
+    }
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+
+    const profanity = screen.getByRole('switch', { name: 'Mask profanity' })
+    expect(profanity).toBeDisabled()
+    expect(profanity).not.toBeChecked()
+    expect(screen.getByText('Not available with AssemblyAI')).toBeInTheDocument()
+  })
+
+  test('with AssemblyAI, mixed languages say which nine it follows', async () => {
+    const user = userEventLib.setup()
+    mockCaptureFormState.transcriptionOptions = { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine: 'assemblyai', language: 'multi' }
+    renderModal()
+
+    await user.click(screen.getByRole('button', { name: /advanced/i }))
+
+    expect(screen.getByText(/Japanese and Hindi\. Not Russian\./)).toBeInTheDocument()
+  })
+
   test('locks while uploading', async () => {
     const user = userEventLib.setup()
     mockCaptureFormState.isUploading = true

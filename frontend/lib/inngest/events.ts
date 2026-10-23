@@ -14,6 +14,7 @@ import type {
     TranscriptionFailedData,
     WaveformRequestedData,
     SonioxCallbackData,
+    AssemblyAICallbackData,
     DeepgramCallbackData,
 } from '@/contracts/events'
 import {
@@ -24,6 +25,7 @@ import {
     TranscriptionFailedDataSchema,
     WaveformRequestedDataSchema,
     SonioxCallbackDataSchema,
+    AssemblyAICallbackDataSchema,
     DeepgramCallbackDataSchema,
 } from '@/contracts/events'
 
@@ -55,6 +57,10 @@ export const sonioxCallbackTrigger = eventType("soniox/callback", {
     schema: SonioxCallbackDataSchema,
 })
 
+export const assemblyaiCallbackTrigger = eventType("assemblyai/callback", {
+    schema: AssemblyAICallbackDataSchema,
+})
+
 export const deepgramCallbackTrigger = eventType("deepgram/callback", {
     schema: DeepgramCallbackDataSchema,
 })
@@ -80,6 +86,9 @@ export type TranscriptionEvents = {
     };
     "soniox/callback": {
         data: SonioxCallbackData;
+    };
+    "assemblyai/callback": {
+        data: AssemblyAICallbackData;
     };
     "deepgram/callback": {
         data: DeepgramCallbackData;

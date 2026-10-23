@@ -27,6 +27,9 @@ export const TranscriptSchema = z.object({
   // How the transcript was made (contracts/transcription-options.ts). Filler
   // words are null on transcripts completed before they were recorded.
   engine: TranscriptionEngineSchema,
+  // The model that really made it, when the engine says (written by the
+  // pipeline); null for engines that don't, and until it is done.
+  engine_model: z.string().nullable(),
   language: TranscriptionLanguageSchema,
   detect_speakers: z.boolean(),
   keep_filler_words: z.boolean().nullable(),

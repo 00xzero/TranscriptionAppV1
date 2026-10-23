@@ -7,9 +7,11 @@
 import 'server-only'
 
 import { TranscriptionEngineSchema } from '@/contracts/transcription-options'
+import { assemblyaiResultToWords } from '@/core/transcription/engines/assemblyai-words'
 import { deepgramResultToWords } from '@/core/transcription/engines/deepgram-words'
 import { sonioxResultToWords } from '@/core/transcription/engines/soniox-words'
 import type { TranscriptionEngine } from '@/core/transcription/engines/types'
+import { startAssemblyAITranscription } from '@/infra/assemblyai'
 import { getCallbackUrl, startAsyncTranscription } from '@/infra/deepgram'
 import { startSonioxTranscription } from '@/infra/soniox'
 
@@ -34,7 +36,13 @@ const soniox: TranscriptionEngine = {
     resultToWords: sonioxResultToWords,
 }
 
-const ENGINES: Record<TranscriptionEngine['id'], TranscriptionEngine> = { deepgram, soniox }
+const assemblyai: TranscriptionEngine = {
+    id: 'assemblyai',
+    start: startAssemblyAITranscription,
+    resultToWords: assemblyaiResultToWords,
+}
+
+const ENGINES: Record<TranscriptionEngine['id'], TranscriptionEngine> = { deepgram, soniox, assemblyai }
 
 /** The engine of this name; refuses a name that is not one of ours. */
 export function getEngine(id: unknown): TranscriptionEngine {
