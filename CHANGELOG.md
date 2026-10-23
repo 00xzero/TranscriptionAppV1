@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-23] - People Loading State
+
+The People page now loads in the shape it ends up in, so the list no longer
+drops by about 300px when the directory arrives.
+
+### Changed
+
+- **People skeleton** — `PeopleListSkeleton` (in `PeopleListView.tsx`, also the Suspense fallback in `PeopleShell.tsx`) replaces the project-row `ProjectListSkeleton`. It shows the real "People" heading, a placeholder the height of the search box and the sort toggle, one non-wrapping row of organisation chips, and six `PersonRowSkeleton` rows. `PersonRowSkeleton` shares `PersonRow`'s layout class and line heights, so rows arrive without moving or resizing, on phone widths too.
+
+### Tests
+
+- **Frontend** — `peopleListView.ui.test.tsx` waits for the skeleton to go instead of for the heading (which the skeleton now shows), and checks the loading state. `197` suites / `2,513` tests passing; `npm run typecheck`; lint clean on the changed files.
+
+### Notes
+
+- A directory whose organisation chips wrap onto two rows still drops by about 40px, and one with no organisations moves up a little: the skeleton reserves one chip row.
+- Layout shift not measured in the browser yet: the dev server was on the hosted project and the browser pane was signed out.
+
 ## [2026-10-22] - AssemblyAI Engine
 
 Each transcript can now also be made with **AssemblyAI Universal-3.5 Pro**, on

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Plus, Search } from 'lucide-react'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { DestructiveMenuItem, RowActionsMenu } from '@/components/RowActionsMenu'
-import { ProjectList, ProjectListSkeleton } from '@/components/Projects/ProjectList'
+import { ProjectList } from '@/components/Projects/ProjectList'
 import { countLabel } from '@/components/Projects/format'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -32,7 +32,7 @@ import { createPerson, deleteOrganisation, renameOrganisation } from '@/lib/supa
 import { cn } from '@/lib/utils'
 import { BackToTranscript } from './BackToTranscript'
 import { PersonNameDialog } from './PersonNameDialog'
-import { PersonRow } from './PersonRow'
+import { PersonRow, PersonRowSkeleton } from './PersonRow'
 import { formatPeopleDate } from './format'
 
 type Dialog = 'create' | 'rename-organisation' | 'delete-organisation' | null
@@ -63,13 +63,7 @@ export function PeopleListView() {
   const [showHidden, setShowHidden] = useState(false)
   const [dialog, setDialog] = useState<Dialog>(null)
 
-  if (directory.loading) {
-    return (
-      <LoadingStatus message="Loading people…">
-        <ProjectListSkeleton />
-      </LoadingStatus>
-    )
-  }
+  if (directory.loading) return <PeopleListSkeleton from={from} />
 
   if (!directory.data) {
     return (
@@ -102,15 +96,14 @@ export function PeopleListView() {
     <div className="space-y-6">
       <BackToTranscript from={from} />
       <section aria-labelledby="people-heading" className="space-y-4">
-        <div className="flex items-center justify-between border-b border-border pb-2">
-          <h1 id="people-heading" className="font-serif text-2xl text-foreground">People</h1>
+        <PeopleHeading>
           {people.length > 0 && (
             <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => setDialog('create')}>
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               New person
             </Button>
           )}
-        </div>
+        </PeopleHeading>
 
         {people.length > 0 && (
           <div className="space-y-3">
@@ -266,6 +259,54 @@ export function PeopleListView() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** The page title, with the page's action beside it. */
+function PeopleHeading({ children }: { children?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between border-b border-border pb-2">
+      <h1 id="people-heading" className="font-serif text-2xl text-foreground">People</h1>
+      {children}
+    </div>
+  )
+}
+
+/** Placeholder chip widths, a short-to-long mix like real organisation names. */
+const CHIP_SKELETON_WIDTHS = ['w-16', 'w-24', 'w-28', 'w-20', 'w-32', 'w-24', 'w-36', 'w-20']
+
+/**
+ * The list's shape while the directory loads: the heading, the search row, one
+ * row of organisation chips and person rows, laid out as the loaded list is,
+ * so the list does not jump down when it arrives. A directory with no
+ * organisations, or whose chips wrap, still moves a little.
+ */
+export function PeopleListSkeleton({ from = null }: { from?: string | null }) {
+  return (
+    <div data-testid="people-list-skeleton" className="space-y-6">
+      <BackToTranscript from={from} />
+      <section aria-labelledby="people-heading" className="space-y-4">
+        <PeopleHeading />
+        <div aria-hidden="true" className="animate-pulse space-y-3">
+          <div className="flex items-center gap-3">
+            {/* The search box's height: a line of text-sm, py-2 and a border. */}
+            <div className="h-9.5 min-w-0 flex-1 rounded-sm border border-border bg-field/50" />
+            <div className="h-6.5 w-18 rounded-md bg-subtle" />
+          </div>
+          {/* One row, never wrapping, whatever the width. */}
+          <div className="flex h-8 gap-2 overflow-hidden">
+            {CHIP_SKELETON_WIDTHS.map((width, index) => (
+              <div key={index} className={cn('h-8 shrink-0 rounded-full bg-subtle', width)} />
+            ))}
+          </div>
+        </div>
+      </section>
+      <LoadingStatus message="Loading people…">
+        <ProjectList>
+          {Array.from({ length: 6 }, (_, index) => <PersonRowSkeleton key={index} />)}
+        </ProjectList>
+      </LoadingStatus>
     </div>
   )
 }

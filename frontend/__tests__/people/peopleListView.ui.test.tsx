@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import PeopleLayout from '@/app/people/layout'
 import PeoplePage from '@/app/people/page'
@@ -58,9 +58,12 @@ async function renderPage(data: PeopleDirectory = directory) {
   jest.mocked(fetchPeopleDirectory).mockResolvedValue(data)
   const user = userEvent.setup()
   render(page())
-  await screen.findByRole('heading', { name: 'People', level: 1 })
+  await waitForDirectory()
   return user
 }
+
+/** The skeleton shows the heading too, so wait for the skeleton to go. */
+const waitForDirectory = () => waitFor(() => expect(screen.queryByTestId('people-list-skeleton')).not.toBeInTheDocument())
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -305,5 +308,20 @@ test('a failed load offers to try again', async () => {
   render(page())
 
   await user.click(await screen.findByRole('button', { name: 'Try again' }))
-  expect(await screen.findByRole('heading', { name: 'People', level: 1 })).toBeInTheDocument()
+  expect(await screen.findByTestId('person-row-alex')).toBeInTheDocument()
+})
+
+test('while loading, shows the heading and placeholder rows in the loaded layout', async () => {
+  let finish!: (value: PeopleDirectory) => void
+  jest.mocked(fetchPeopleDirectory).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+  render(page())
+
+  expect(screen.getByTestId('people-list-skeleton')).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'People', level: 1 })).toBeInTheDocument()
+  expect(screen.queryByRole('textbox', { name: 'Search people' })).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Loading people…'))
+
+  await act(async () => finish(directory))
+  expect(screen.getByRole('textbox', { name: 'Search people' })).toBeInTheDocument()
+  expect(rowNames()).toEqual(['person-row-blair', 'person-row-alex'])
 })

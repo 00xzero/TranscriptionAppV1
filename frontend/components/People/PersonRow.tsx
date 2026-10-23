@@ -16,7 +16,10 @@ type RowPerson = {
   hidden: boolean
 }
 
-const ROW = 'group grid min-h-18 grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 p-4 transition-colors hover:bg-subtle sm:flex'
+const ROW_LAYOUT = 'grid min-h-18 grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1 p-4 sm:flex'
+const ROW = cn(ROW_LAYOUT, 'group transition-colors hover:bg-subtle')
+/** A grey bar on a line of text, so the line keeps the text's height. */
+const BAR = 'inline-block max-w-full rounded-sm bg-subtle align-middle'
 
 /**
  * A person in a list: their face, name and organisation, with the caller's
@@ -75,5 +78,25 @@ export function PersonRow({ person, stats, open = false, ...target }: {
         className="hidden h-4 w-4 shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 sm:block"
       />
     </button>
+  )
+}
+
+/**
+ * A person row while the list loads: the same layout and line heights as a
+ * row with an organisation and two stat lines, so rows arrive without moving.
+ */
+export function PersonRowSkeleton() {
+  return (
+    <div aria-hidden="true" className={cn(ROW_LAYOUT, 'animate-pulse')}>
+      <span className="row-span-2 h-10 w-10 shrink-0 self-start rounded-full bg-subtle sm:self-center" />
+      <span className="block min-w-0 flex-1">
+        <span className="block text-sm"><span className={cn(BAR, 'h-3 w-36')} /></span>
+        <span className="block text-xs"><span className={cn(BAR, 'h-2 w-24')} /></span>
+      </span>
+      <span className="col-start-2 block min-w-0 font-mono text-[10px] sm:shrink-0 sm:text-right">
+        <span className="block"><span className={cn(BAR, 'h-2 w-20')} /></span>
+        <span className="block"><span className={cn(BAR, 'h-2 w-32')} /></span>
+      </span>
+    </div>
   )
 }
