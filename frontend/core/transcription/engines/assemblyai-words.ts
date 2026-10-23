@@ -25,8 +25,11 @@ function joinsFromText(words: AssemblyAIWord[], text: string): boolean[] {
     const joins: boolean[] = [];
     let position = 0;
     words.forEach((word, index) => {
-        const found = text.indexOf(word.text, position);
-        if (found !== -1 && found - position <= SEARCH_WINDOW) {
+        // Looked for only inside the window, so a word missing from the text
+        // costs a short search rather than a scan of everything after it.
+        const at = text.slice(position, position + SEARCH_WINDOW + word.text.length).indexOf(word.text);
+        const found = at === -1 ? -1 : position + at;
+        if (found !== -1) {
             joins.push(index > 0 && !/\s/.test(text.slice(position, found)));
             position = found + word.text.length;
             return;

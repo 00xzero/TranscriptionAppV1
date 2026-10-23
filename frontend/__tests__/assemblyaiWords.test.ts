@@ -112,6 +112,29 @@ describe('assemblyaiResultToWords', () => {
     expect(words.map((word) => !!word.joinsPrevious)).toEqual([false, false, false])
   })
 
+  test('a word starting exactly at the window\'s edge is still found, and one just past it is not', () => {
+    // B starts 32 characters after A ends: the last place it is still looked for.
+    const joined = `A ${'x'.repeat(30)} B東京`
+    expect(joined.indexOf('B') - 'A'.length).toBe(32)
+    // Found, B's end is where 東京 is looked for, and 東京 sits right after it.
+    expect(assemblyaiResultToWords(stored(joined, [{ text: 'A' }, { text: 'B' }, { text: '東京' }])).words.map((w) => !!w.joinsPrevious)).toEqual([false, false, true])
+    // One further, B is not found, so 東京 is looked for from A's end and is
+    // too far away too: it falls back to a space.
+    const past = `A ${'x'.repeat(31)} B東京`
+    expect(assemblyaiResultToWords(stored(past, [{ text: 'A' }, { text: 'B' }, { text: '東京' }])).words.map((w) => !!w.joinsPrevious)).toEqual([false, false, false])
+  })
+
+  test('a ten-hour result with words missing from its text converts quickly', () => {
+    // 100,000 words, one in ten not in the text: a scan of the rest of the
+    // text for each missing word took seconds; the window keeps it to milliseconds.
+    const words = Array.from({ length: 100_000 }, (_, i) => ({ text: `w${i}` }))
+    const text = words.filter((_, i) => i % 10 !== 0).map((word) => word.text).join(' ').padEnd(600_000, ' z')
+    const started = Date.now()
+    const { words: converted } = assemblyaiResultToWords(stored(text, words))
+    expect(converted).toHaveLength(100_000)
+    expect(Date.now() - started).toBeLessThan(1_500)
+  })
+
   test('refuses a result that is not AssemblyAI-shaped', () => {
     expect(() => assemblyaiResultToWords(JSON.stringify({ results: {} }))).toThrow('Invalid AssemblyAI result structure')
   })
