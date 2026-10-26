@@ -1,14 +1,17 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const rpcMock = jest.fn()
 const storageFromMock = jest.fn()
 const createAdminClientMock = jest.fn()
 const trustedStorageFromMock = jest.fn()
 
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
+
 jest.mock('@/infra/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: getUserMock },
     rpc: rpcMock,
     storage: { from: storageFromMock },
   }),
@@ -45,7 +48,7 @@ describe('project delete route', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     callOrder = []
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
+    getCurrentUserMock.mockResolvedValue({ id: 'user-1', email: '' })
     rpcMock.mockImplementation(async (name: string) => {
       callOrder.push(name)
       if (name === 'begin_project_delete') return { data: [inventory()], error: null }
@@ -77,7 +80,7 @@ describe('project delete route', () => {
   })
 
   test('requires authentication before beginning', async () => {
-    getUserMock.mockResolvedValue({ data: { user: null }, error: null })
+    getCurrentUserMock.mockResolvedValue(null)
 
     const response = await request()
 

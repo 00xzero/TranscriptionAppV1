@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from 'react'
-import type { User } from '@supabase/supabase-js'
+import type { AppUser } from '@/lib/auth/AuthProvider'
 import { User as UserIcon, Settings, Moon, Sun, Monitor, LogOut, ChevronsUpDown } from 'lucide-react'
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import type { AppTheme } from '@/types/theme'
 
 interface AccountMenuProps {
   /** Nullable so the theme toggle + sign out stay reachable while getUser() is loading or has failed. */
-  user: User | null
+  user: AppUser | null
   isCollapsed: boolean
   /** Current theme preference: 'light' | 'dark' | 'system'. */
   theme: AppTheme
@@ -27,10 +27,10 @@ interface AccountMenuProps {
 }
 
 // Derive up-to-two-letter initials, falling back to '?' when there is no user yet.
-function getUserInitials(user: User | null): string {
+function getUserInitials(user: AppUser | null): string {
   if (!user) return '?'
   const email = user.email || ''
-  const name = (user.user_metadata?.full_name || email || '?').trim()
+  const name = (user.name || email || '?').trim()
 
   if (!name) return '?'
 
@@ -178,7 +178,7 @@ export default function AccountMenu({
 }: AccountMenuProps) {
   const initials = getUserInitials(user)
   const displayName =
-    user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Account'
+    user?.name || user?.email?.split('@')[0] || 'Account'
   const email = user?.email ?? ''
 
   return (

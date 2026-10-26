@@ -1,23 +1,33 @@
 /**
  * Supabase client for browser-side (Client Components).
  *
- * Uses @supabase/ssr for cookie-based authentication.
+ * One shared client, signed with the WorkOS access token from
+ * `infra/workos/access-token.ts`. supabase-js asks for the token on every
+ * database, storage and realtime request, so a refreshed token is picked up
+ * without recreating the client. Sign-in itself is AuthKit's: with
+ * `accessToken` set, `supabase.auth` is unavailable.
  */
-import { createBrowserClient } from '@supabase/ssr'
-import { getBrowserSupabaseCookieName } from './cookie'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
+import { getAccessToken } from '@/infra/workos/access-token'
 
-export function createClient() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const cookieName = getBrowserSupabaseCookieName(supabaseUrl)
+let browserClient: SupabaseClient | null = null
 
-    return createBrowserClient(
-        supabaseUrl,
+export function createClient(): SupabaseClient {
+    if (browserClient) return browserClient
+
+    browserClient = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookieOptions: {
-                // Reuse legacy cookies when present, otherwise keep a stable local name.
-                name: cookieName,
-            }
-        }
+        { accessToken: getAccessToken }
+    )
+    return browserClient
+}
+
+/** A capture keeps its original owner even if the shared session changes later. */
+export function createClientForUser(userId: string): SupabaseClient {
+    return createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { accessToken: () => getAccessToken(userId) }
     )
 }

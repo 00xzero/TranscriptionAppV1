@@ -95,7 +95,7 @@ export default function LibraryView() {
 
   const getUserFirstName = () => {
     if (!user) return 'there'
-    const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'there'
+    const name = user.name || user.email?.split('@')[0] || 'there'
     return name.split(' ')[0]
   }
 

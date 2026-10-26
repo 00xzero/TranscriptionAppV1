@@ -92,6 +92,5 @@ describe('sign-out auth-boundary guard', () => {
 
     await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
     expect(toastMock).not.toHaveBeenCalled()
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/auth'))
   })
 })

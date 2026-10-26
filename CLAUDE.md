@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A privacy-focused audio/video transcription web app powered by Deepgram Nova 3. Built with Next.js 16 (App Router), React 19, Supabase (auth, DB, storage, realtime), and Inngest (background jobs). Fully serverless, designed for Vercel deployment.
+A privacy-focused audio/video transcription web app powered by Deepgram Nova 3. Built with Next.js 16 (App Router), React 19, WorkOS AuthKit (sign-in), Supabase (DB, storage, realtime), and Inngest (background jobs). Fully serverless, designed for Vercel deployment.
 
 **Status: in active development. No users, no production traffic — we are building toward MVP.** Prefer the clean fix over the backwards-compatible one: there is no installed base to protect, so migrations can be destructive, schemas can change shape, and deprecated paths should be deleted rather than shimmed.
 
@@ -35,9 +35,10 @@ cd infra && ./stop-local.sh    # Stop local services
 `start-local.sh` starts Supabase via the Supabase CLI, then brings up `infra/docker-compose.dev.yml` (Inngest `v1.19.2` + the frontend container). See `infra/Docker-setup.md`.
 
 # App test Authentication (login)
-Use this to login to the app as a test user:
+Use this to login to the app as a test user, on the WorkOS hosted sign-in page (staging environment, password sign-in):
 email address: ui5nvlw97q@mkzaso.com
 password: 4qdGNrheWHR25Js
+WorkOS user id (local seed owner): user_01M5MPPTWA83CYYBRZ4XC9QFW0
 
 ## Architecture
 
@@ -57,11 +58,11 @@ The codebase is layered, and the layering is load-bearing — respect it when ad
 
 Three separate Supabase client factories — use the correct one for the context:
 
-- `infra/supabase/client.ts` — browser-side (Client Components)
-- `infra/supabase/server.ts` — server-side (RSC, API routes, Server Actions)
+- `infra/supabase/client.ts` — browser-side (Client Components); one shared client signed with the WorkOS access token from `infra/workos/access-token.ts`, which `AuthProvider` fills from AuthKit
+- `infra/supabase/server.ts` — server-side (RSC, API routes, Server Actions); signed with the token from AuthKit's `withAuth()`
 - `infra/supabase/admin.ts` — service-role client for Inngest functions (bypasses RLS)
 
-Also in `infra/supabase/`: `cookie.ts` (auth cookie naming) and `storage.ts`.
+Also in `infra/supabase/`: `storage.ts`. With `accessToken` set, `supabase.auth` is unavailable: never call it.
 
 **Browser vs. server writes.** The server client runs as the same `authenticated` role as the browser, so a route only guards what that role cannot do itself. The browser talks to Supabase directly for reads and for single-step writes the database fully guards (RLS, column grants, triggers, or `SECURITY DEFINER` RPCs). Anything that needs a secret, touches Storage and the database together, or starts background work goes through a route. Guarantees belong in the database functions, not the route, because those functions are callable from the browser too. Pipeline state (`jobs`, including `result_object_key` and the `error_*` columns, transcript `status`/`duration_seconds`, waveform fields) is written only by the admin client. Segment and word rows are written by the admin client, except that the editor splits a segment and undoes the split through the guarded `split_segment` / `rejoin_segments` RPCs: they create and remove segment rows and move words between segments, but never change a word's text or timing. The browser's only segment text write is `set_segment_texts_guarded`, guarded by `revision` and the text it replaces.
 
@@ -69,11 +70,15 @@ Also in `infra/supabase/`: `cookie.ts` (auth cookie naming) and `storage.ts`.
 
 ### Auth & Proxy
 
-`frontend/proxy.ts` exports `proxy()` — the Next.js 16 rename of middleware. It refreshes Supabase auth tokens on every request. Protected routes: `/transcripts`, `/editor`, `/recording`. `/api/inngest` is exempted. Signed-in users hitting `/auth` are redirected out; `/auth/callback` is excluded from that redirect.
+Sign-in is WorkOS AuthKit's hosted page; Supabase accepts WorkOS access tokens as a third-party auth provider (WorkOS's JWT template sets `role: "authenticated"`). Supabase Auth itself has sign-ups off and is never called.
 
-Note `/` renders `LibraryView` and is not in `PROTECTED_ROUTES`.
+`frontend/proxy.ts` exports `proxy()` — the Next.js 16 rename of middleware. It runs AuthKit's `authkit()` on every request, which refreshes the session so `withAuth()` works. Protected routes: `/` (renders `LibraryView`), `/transcripts`, `/editor`, `/recording`, `/projects`, `/people`; signed-out visitors go straight to WorkOS sign-in and come back to the page they asked for. `/api/inngest` is exempted. Signed-in users hitting `/auth` are redirected out; `/auth/callback` and `/auth/sign-out` are excluded from that redirect. `GET /auth` sends the visitor to WorkOS sign-in (it is also where sign-out lands), `GET /auth/callback` is AuthKit's `handleAuth`, and `POST /auth/sign-out` (a plain form post from `useAuth().signOut`, so the page simply leaves) clears the session and answers AuthKit's logout redirect with 303.
+
+**Our own user ids.** Rows, storage folders, events and recordings are owned by our own UUID, never by the WorkOS id (`user_01…`). `app_users` maps one WorkOS user to one UUID, and `public.current_user_id()` returns the signed-in person's UUID (NULL when signed out or not provisioned); every policy and function uses it, never `auth.uid()`, which is NULL under WorkOS. The callback creates the row on first sign-in (`lib/auth/provision-app-user.server.ts`, concurrency-safe; never links by email; if it fails AuthKit clears the session). API routes get the person with `getCurrentUser(supabase)` (`lib/auth/current-user.server.ts`, server-only), which resolves the UUID through the same client the route then queries with; browser code outside React uses `getCurrentUserId` (`lib/auth/current-user-id.ts`); components use `useAuth()` (`user`, `userId`, `ready`, `signOut`). The root layout passes `withAuth()` (minus the token) to `AuthProvider` as `initialAuth`: AuthKit's token getter returns nothing until it knows the user, so without it a page's first requests would go out signed out. Accounts made before WorkOS are linked by their UUID, by hand.
 
 ### Transcription Pipeline
+
+Capture fixes its owner at the start of each attempt (`CaptureUploadOptions.userId`). `POST /api/transcripts` requires `x-expected-user-id` to match `getCurrentUser()` and answers `409 ACCOUNT_CHANGED` before writes on a mismatch. This header is an expectation, never authentication. Capture's start and rollback requests carry it too. `createClientForUser()` and `getAccessToken(userId)` refuse tokens after the displayed account changes, including during a token fetch; TUS checks on every request. On a server mismatch, `notifyAccountChanged()` reconciles AuthKit without replaying the write. A recording's runtime user id is fixed at start/recovery and is never reassigned by auth updates.
 
 Each transcript is made by one **engine** (`transcripts.engine`, chosen with the other transcription options and fixed once the row exists): `deepgram` (Nova-3), `soniox` (v5) or `assemblyai` (Universal-3.5 Pro, EU servers), picked by brand name in the capture dialog's Advanced section and shown in the editor header. AssemblyAI falls back to Universal-2 for Russian; the pipeline records the model it really used in `transcripts.engine_model`, written before the segments, and the header names it (`engineLabel`). The pipeline talks to an engine only through the contract in `core/transcription/engines/types.ts`: `start` a job, and turn its stored result into our words (`resultToWords`). `lib/transcription/engines.server.ts` is the one place that maps an engine name to its code; `core/transcription/engines/capabilities.ts` says what each engine can do (languages, filler words a person can choose to keep or that an engine always keeps, profanity masking per language, longest file) and is safe in the browser. Each engine has its own callback route. Soniox keeps no filler words and masks no profanity, and takes audio up to 5 hours. AssemblyAI always keeps "um/uh" (the switch is locked on), masks profanity in every language but Russian, takes audio up to 10 hours, and for Mixed languages listens for our nine other than Russian (with Russian in the list it would drop every other language). CHECKs on `transcripts` refuse the combinations an engine can't do; media preparation enforces each engine's longest file once it has measured it. Key terms are at most six words each, for every engine (`KeyTermSchema`). Options saved before the engine could be chosen (queued events, recordings waiting in the browser, remembered choices) go through `SavedTranscriptionOptionsSchema` and `resolveTranscriptionOptions`, which give them Deepgram. `__tests__/deepgramPipelineBaseline.test.ts` freezes what Deepgram results become; never update its snapshot to make a change pass.
 
@@ -127,7 +132,7 @@ The editor opens only completed transcripts (the page redirects others to `/tran
 
 ### Data Model
 
-Supabase tables: `transcripts`, `speakers`, `segments`, `words`, `jobs`, `job_events`, `failed_events`, `webhook_receipts`, `watchlist`. All protected by RLS. Migrations in `infra/supabase/migrations/`.
+Supabase tables: `app_users`, `transcripts`, `speakers`, `segments`, `words`, `jobs`, `job_events`, `failed_events`, `webhook_receipts`, `watchlist`. All protected by RLS. Owner columns reference `app_users(id)`, not `auth.users`. Migrations in `infra/supabase/migrations/`.
 
 `segments.revision` counts shape changes (split, rejoin). Every write to a segment names the revision it was made against, text saves and speaker changes alike, so text typed against an old shape is refused rather than written into the new one, where it would duplicate the moved text, and a speaker change chosen while a segment was whole is refused rather than applied to its first half only.
 

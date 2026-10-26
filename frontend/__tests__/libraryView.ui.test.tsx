@@ -113,7 +113,7 @@ describe('LibraryView', () => {
     setTestAuth({
       userId: 'user-a',
       ready: true,
-      user: testUser('user-a', { user_metadata: { full_name: 'Ada Lovelace' } }),
+      user: testUser('user-a', { name: 'Ada Lovelace' }),
     })
     const { rerender } = renderLibraryView()
     expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, Ada\.$/)

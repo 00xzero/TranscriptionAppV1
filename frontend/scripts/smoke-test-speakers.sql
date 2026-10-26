@@ -36,22 +36,9 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO anon, authenticated, service_role;
 
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  (
-    'c0000000-0000-0000-0000-00000000000a',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'speaker-smoke-a@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  ),
-  (
-    'c0000000-0000-0000-0000-00000000000b',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'speaker-smoke-b@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  );
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('c0000000-0000-0000-0000-00000000000a', 'user_c000000000000000000000000000000a', 'speaker-smoke-a@example.test'),
+  ('c0000000-0000-0000-0000-00000000000b', 'user_c000000000000000000000000000000b', 'speaker-smoke-b@example.test');
 
 -- A1 and A2 belong to user A; B1 to user B.
 INSERT INTO public.transcripts (id, user_id, title, status) VALUES
@@ -231,7 +218,7 @@ ROLLBACK TO SAVEPOINT shared_label;
 
 -- -------------------------------------------------------------- privileges ----
 
-SET LOCAL request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_c000000000000000000000000000000a","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.assert_sqlstate(
@@ -283,7 +270,7 @@ RESET ROLE;
 
 -- ------------------------------------------------ set_speaker_custom_label ----
 
-SET LOCAL request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_c000000000000000000000000000000a","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.assert_true(
@@ -328,7 +315,7 @@ SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1', '[]'::jsonb)$sql$,
   '42501'
 );
-SET LOCAL request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-00000000000a","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_c000000000000000000000000000000a","role":"authenticated"}';
 
 -- ---------------------------------------------------------- reassign_segments ----
 

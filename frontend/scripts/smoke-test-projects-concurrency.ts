@@ -16,6 +16,7 @@ if (!['127.0.0.1', 'localhost', '::1'].includes(parsedUrl.hostname)) {
 }
 
 const USER_ID = '11000000-0000-0000-0000-000000000001'
+const WORKOS_USER_ID = 'user_11000000000000000000000000000001'
 const ROOT_ID = '21000000-0000-0000-0000-000000000001'
 const LEAF_ID = '21000000-0000-0000-0000-000000000002'
 const CHILD_ID = '21000000-0000-0000-0000-000000000003'
@@ -39,7 +40,7 @@ function client() {
 async function beginAs(connection: Client, role: Role) {
   await connection.query('BEGIN')
   await connection.query("SELECT set_config('request.jwt.claims', $1, true)", [
-    JSON.stringify({ sub: USER_ID, role }),
+    JSON.stringify({ sub: WORKOS_USER_ID, role }),
   ])
   await connection.query(`SET LOCAL ROLE ${role}`)
 }
@@ -70,7 +71,7 @@ async function resetFixture(admin: Client) {
     )
     await admin.query('DELETE FROM public.transcripts WHERE user_id = $1', [USER_ID])
     await admin.query('DELETE FROM public.projects WHERE user_id = $1', [USER_ID])
-    await admin.query('DELETE FROM auth.users WHERE id = $1', [USER_ID])
+    await admin.query('DELETE FROM public.app_users WHERE id = $1', [USER_ID])
     await admin.query('COMMIT')
   } catch (error) {
     await admin.query('ROLLBACK')
@@ -81,13 +82,9 @@ async function resetFixture(admin: Client) {
 async function seedFixture(admin: Client) {
   await resetFixture(admin)
   await admin.query(
-    `INSERT INTO auth.users (
-       id, instance_id, aud, role, email, encrypted_password,
-       email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-     ) VALUES ($1, '00000000-0000-0000-0000-000000000000',
-       'authenticated', 'authenticated', 'projects-concurrency@example.test', '',
-       now(), '{}'::jsonb, '{}'::jsonb, now(), now())`,
-    [USER_ID]
+    `INSERT INTO public.app_users (id, workos_user_id, email)
+     VALUES ($1, $2, 'projects-concurrency@example.test')`,
+    [USER_ID, WORKOS_USER_ID]
   )
   await admin.query(
     `INSERT INTO public.projects (id, user_id, parent_id, name) VALUES

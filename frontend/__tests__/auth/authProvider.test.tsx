@@ -1,350 +1,557 @@
-import React from 'react'
+import React, { StrictMode } from 'react'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider'
+import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
+import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
+import {
+  accessTokenFor,
+  mockGetAccessToken,
+  mockRefreshAuth,
+  resetAuthKitState,
+  setAuthKitState,
+  workosUser,
+} from '@/__mocks__/workos-authkit-nextjs-components'
 
-type TestUser = { id: string; email?: string; user_metadata?: Record<string, unknown> }
-type TestSession = { user: TestUser } | null
-type GetUserResult = { data: { user: TestUser | null }; error: Error | null }
-
-const mockGetSession = jest.fn()
-const mockGetUser = jest.fn()
-const mockOnAuthStateChange = jest.fn()
-const mockSignOut = jest.fn()
-const mockUnsubscribes: jest.Mock[] = []
-let authStateHandler: ((event: string, session: TestSession) => void) | null = null
+const mockRpc = jest.fn()
 
 jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({
-    auth: {
-      getSession: mockGetSession,
-      getUser: mockGetUser,
-      onAuthStateChange: mockOnAuthStateChange,
-      signOut: mockSignOut,
-    },
-  }),
+  createClient: () => ({ rpc: mockRpc }),
 }))
+
+type RpcResult = { data: string | null; error: { message: string } | null }
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
-    resolve = res
+  const promise = new Promise<T>((done) => {
+    resolve = done
   })
   return { promise, resolve }
 }
 
-const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <AuthProvider>{children}</AuthProvider>
-)
-
-function renderAuth() {
-  return renderHook(() => useAuth(), { wrapper })
+function Probe() {
+  const { user, userId, ready } = useAuth()
+  return (
+    <div>
+      <span data-testid="user-id">{userId ?? ''}</span>
+      <span data-testid="ready">{String(ready)}</span>
+      <span data-testid="email">{user?.email ?? ''}</span>
+      <span data-testid="name">{user?.name ?? ''}</span>
+    </div>
+  )
 }
 
-function identityOf(value: ReturnType<typeof useAuth>) {
-  return { user: value.user, userId: value.userId, ready: value.ready }
+function renderProvider() {
+  return render(
+    <AuthProvider>
+      <Probe />
+    </AuthProvider>
+  )
 }
 
-function activeSubscriptions() {
-  return mockUnsubscribes.filter((unsubscribe) => unsubscribe.mock.calls.length === 0).length
-}
+const resolvesTo = (userId: string | null): RpcResult => ({ data: userId, error: null })
+
+/** Lets every pending promise and the effects they cause run (one event-loop turn). */
+const settle = () =>
+  act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 
 describe('AuthProvider', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    authStateHandler = null
-    mockUnsubscribes.length = 0
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-from-session' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
-    mockSignOut.mockResolvedValue({ error: null })
-    mockOnAuthStateChange.mockImplementation((handler) => {
-      authStateHandler = handler
-      const unsubscribe = jest.fn()
-      mockUnsubscribes.push(unsubscribe)
-      return { data: { subscription: { unsubscribe } } }
-    })
+    resetAuthKitState()
+    mockRpc.mockResolvedValue(resolvesTo(null))
   })
 
-  test('starts unresolved', () => {
-    const { result } = renderAuth()
-    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: false })
+  test('starts unresolved while WorkOS is still loading', () => {
+    setAuthKitState({ loading: true })
+    renderProvider()
+
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
-  test('exposes the cached user id without marking identity ready before verification', async () => {
-    const verified = deferred<GetUserResult>()
-    mockGetUser.mockReturnValueOnce(verified.promise)
+  test('settles as signed out without a lookup when there is no WorkOS user', async () => {
+    renderProvider()
 
-    const { result } = renderAuth()
-
-    await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-    expect(result.current.ready).toBe(false)
-    expect(result.current.user).toBeNull()
-
-    const verifiedUser = { id: 'verified-user', email: 'a@example.com' }
-    await act(async () => {
-      verified.resolve({ data: { user: verifiedUser }, error: null })
-      await verified.promise
-    })
-
-    expect(identityOf(result.current)).toEqual({
-      user: verifiedUser,
-      userId: 'verified-user',
-      ready: true,
-    })
+    await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
-  test('keeps the cached user id but does not mark identity ready when verification fails', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: new Error('invalid session') })
-
-    const { result } = renderAuth()
-
-    await waitFor(() => expect(mockGetUser).toHaveBeenCalled())
-    await waitFor(() => {
-      expect(identityOf(result.current)).toEqual({
-        user: null,
-        userId: 'user-from-session',
-        ready: false,
-      })
+  test('resolves a WorkOS user to our own user id, with their email and name', async () => {
+    setAuthKitState({
+      user: workosUser('user_01A', { email: 'ada@example.com', firstName: 'Ada', lastName: 'Lovelace' }),
     })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+
+    renderProvider()
+
+    await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
+    expect(mockRpc).toHaveBeenCalledWith('current_user_id')
+    expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+    expect(screen.getByTestId('email')).toHaveTextContent('ada@example.com')
+    expect(screen.getByTestId('name')).toHaveTextContent('Ada Lovelace')
   })
 
-  test('settles as signed out without verifying a session that does not exist', async () => {
-    mockGetSession.mockResolvedValueOnce({ data: { session: null } })
+  test('treats a WorkOS user with no account here as signed out', async () => {
+    setAuthKitState({ user: workosUser('user_unlinked') })
 
-    const { result } = renderAuth()
+    renderProvider()
 
-    await waitFor(() => {
-      expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
-    })
-    expect(mockGetUser).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
   })
 
-  test.each([
-    ['sign-out', 'SIGNED_OUT', null, null],
-    ['account switch', 'SIGNED_IN', { user: { id: 'user-b' } }, 'user-b'],
-    ['password recovery', 'PASSWORD_RECOVERY', { user: { id: 'user-r' } }, 'user-r'],
-  ] as const)(
-    'ignores stale verification after an auth %s',
-    async (_label, event, session, expectedUserId) => {
-      const verified = deferred<GetUserResult>()
-      mockGetUser.mockReturnValueOnce(verified.promise)
+  test('stays unresolved when the lookup fails, rather than claiming signed out', async () => {
+    setAuthKitState({ user: workosUser('user_01A') })
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'network' } })
 
-      const { result } = renderAuth()
+    renderProvider()
 
-      await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-      act(() => {
-        authStateHandler?.(event, session)
-      })
-      const expected = {
-        user: session?.user ?? null,
-        userId: expectedUserId,
-        ready: true,
-      }
-      expect(identityOf(result.current)).toEqual(expected)
-
-      await act(async () => {
-        verified.resolve({ data: { user: { id: 'user-from-session' } }, error: null })
-        await verified.promise
-      })
-
-      expect(identityOf(result.current)).toEqual(expected)
-    }
-  )
-
-  test('SIGNED_IN after mount populates the full user without a remount', async () => {
-    mockGetSession.mockResolvedValueOnce({ data: { session: null } })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.ready).toBe(true))
-
-    const signedIn = { id: 'user-a', email: 'a@example.com' }
-    act(() => {
-      authStateHandler?.('SIGNED_IN', { user: signedIn })
-    })
-
-    expect(identityOf(result.current)).toEqual({ user: signedIn, userId: 'user-a', ready: true })
+    await waitFor(() => expect(mockRpc).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
   })
 
-  test('USER_UPDATED replaces user metadata', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-a' } }, error: null })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.ready).toBe(true))
+  test('drops a lookup that finishes after switching accounts', async () => {
+    const lookupA = deferred<RpcResult>()
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockReturnValueOnce(lookupA.promise).mockResolvedValueOnce(resolvesTo('app-user-b'))
 
-    const updated = { id: 'user-a', user_metadata: { full_name: 'Ada Lovelace' } }
-    act(() => {
-      authStateHandler?.('USER_UPDATED', { user: updated })
-    })
+    renderProvider()
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(1))
 
-    expect(result.current.user).toBe(updated)
-    expect(result.current.userId).toBe('user-a')
-  })
-
-  test('INITIAL_SESSION after verification does not downgrade identity', async () => {
-    const verifiedUser = { id: 'user-a' }
-    mockGetUser.mockResolvedValueOnce({ data: { user: verifiedUser }, error: null })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.ready).toBe(true))
-
-    act(() => {
-      authStateHandler?.('INITIAL_SESSION', { user: { id: 'user-a' } })
-    })
-
-    expect(identityOf(result.current)).toEqual({ user: verifiedUser, userId: 'user-a', ready: true })
-  })
-
-  test('signOut clears identity immediately, before SIGNED_OUT fires', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-a' } }, error: null })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.userId).toBe('user-a'))
+    act(() => setAuthKitState({ user: workosUser('user_B') }))
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
 
     await act(async () => {
-      await result.current.signOut()
+      lookupA.resolve(resolvesTo('app-user-a'))
+      await lookupA.promise
     })
-
-    expect(mockSignOut).toHaveBeenCalledTimes(1)
-    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
+    expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b')
   })
 
-  test('signOut resolves and clears identity when only the server revoke fails', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-a' } }, error: null })
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined)
-    // supabase-js removes the local session (emitting SIGNED_OUT) and still returns the error.
-    mockSignOut.mockImplementationOnce(async () => {
-      authStateHandler?.('SIGNED_OUT', null)
-      return { error: new Error('revoke failed') }
-    })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.userId).toBe('user-a'))
+  test('drops a lookup that finishes after signing out', async () => {
+    const lookup = deferred<RpcResult>()
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockReturnValueOnce(lookup.promise)
+
+    renderProvider()
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(1))
+
+    act(() => setAuthKitState({ user: null }))
+    await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
 
     await act(async () => {
-      await result.current.signOut()
+      lookup.resolve(resolvesTo('app-user-a'))
+      await lookup.promise
     })
-
-    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
-    expect(warnSpy).toHaveBeenCalled()
-    warnSpy.mockRestore()
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
   })
 
-  test('signOut rejects and keeps identity when the local session survives', async () => {
-    const verifiedUser = { id: 'user-a' }
-    mockGetUser.mockResolvedValueOnce({ data: { user: verifiedUser }, error: null })
-    const failure = new Error('session load failed')
-    mockSignOut.mockResolvedValueOnce({ error: failure })
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.ready).toBe(true))
+  test('drops a lookup that finishes after unmount', async () => {
+    const lookup = deferred<RpcResult>()
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockReturnValueOnce(lookup.promise)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
 
-    let thrown: unknown
-    await act(async () => {
-      thrown = await result.current.signOut().catch((error: unknown) => error)
-    })
-
-    expect(thrown).toBe(failure)
-    expect(identityOf(result.current)).toEqual({ user: verifiedUser, userId: 'user-a', ready: true })
-  })
-
-  test('signOut invalidates an in-flight verification', async () => {
-    const verified = deferred<GetUserResult>()
-    mockGetUser.mockReturnValueOnce(verified.promise)
-    const { result } = renderAuth()
-    await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-
-    await act(async () => {
-      await result.current.signOut()
-    })
-    await act(async () => {
-      verified.resolve({ data: { user: { id: 'user-from-session' } }, error: null })
-      await verified.promise
-    })
-
-    expect(identityOf(result.current)).toEqual({ user: null, userId: null, ready: true })
-  })
-
-  test('shares one active subscription across consumers and unsubscribes on unmount', async () => {
-    function Consumer({ label }: { label: string }) {
-      const { userId } = useAuth()
-      return <span>{`${label}:${userId ?? 'none'}`}</span>
-    }
-
-    const { unmount } = render(
-      <AuthProvider>
-        <Consumer label="a" />
-        <Consumer label="b" />
-        <Consumer label="c" />
-      </AuthProvider>
-    )
-
-    await waitFor(() => expect(screen.getByText('a:user-from-session')).toBeInTheDocument())
-    expect(screen.getByText('c:user-from-session')).toBeInTheDocument()
-    expect(mockOnAuthStateChange).toHaveBeenCalledTimes(1)
-    expect(mockGetSession).toHaveBeenCalledTimes(1)
-    expect(activeSubscriptions()).toBe(1)
-
+    const { unmount } = renderProvider()
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(1))
     unmount()
-    expect(activeSubscriptions()).toBe(0)
-  })
 
-  test('keeps exactly one active subscription through Strict Mode effect replay', async () => {
-    const strictWrapper = ({ children }: { children: React.ReactNode }) => (
-      <React.StrictMode>
-        <AuthProvider>{children}</AuthProvider>
-      </React.StrictMode>
-    )
-    const { result, unmount } = renderHook(() => useAuth(), { wrapper: strictWrapper })
-
-    await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-    // Whether or not effects replay here, every superseded subscription is released.
-    expect(activeSubscriptions()).toBe(1)
-    mockUnsubscribes.slice(0, -1).forEach((unsubscribe) => {
-      expect(unsubscribe).toHaveBeenCalledTimes(1)
-    })
-
-    act(() => {
-      authStateHandler?.('SIGNED_IN', { user: { id: 'user-b' } })
-    })
-    expect(result.current.userId).toBe('user-b')
-
-    unmount()
-    expect(activeSubscriptions()).toBe(0)
-  })
-
-  test('releases the first subscription across a mount, unmount, remount cycle', async () => {
-    const first = renderAuth()
-    await waitFor(() => expect(first.result.current.userId).toBe('user-from-session'))
-    first.unmount()
-
-    const second = renderAuth()
-    await waitFor(() => expect(second.result.current.userId).toBe('user-from-session'))
-
-    expect(mockOnAuthStateChange).toHaveBeenCalledTimes(2)
-    expect(mockUnsubscribes[0]).toHaveBeenCalledTimes(1)
-    expect(activeSubscriptions()).toBe(1)
-
-    act(() => {
-      authStateHandler?.('SIGNED_OUT', null)
-    })
-    expect(identityOf(second.result.current)).toEqual({ user: null, userId: null, ready: true })
-    second.unmount()
-  })
-
-  test('ignores verification that resolves after unmount', async () => {
-    const verified = deferred<GetUserResult>()
-    mockGetUser.mockReturnValueOnce(verified.promise)
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
-    const { result, unmount } = renderAuth()
-    await waitFor(() => expect(result.current.userId).toBe('user-from-session'))
-
-    unmount()
     await act(async () => {
-      verified.resolve({ data: { user: { id: 'user-from-session' } }, error: null })
-      await verified.promise
+      lookup.resolve(resolvesTo('app-user-a'))
+      await lookup.promise
     })
-
     expect(errorSpy).not.toHaveBeenCalled()
     errorSpy.mockRestore()
   })
 
+  test('signOut leaves the page with a form POST to /auth/sign-out, showing the page as it was', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    const submitted: Array<{ method: string; action: string }> = []
+    const submit = jest
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(function (this: HTMLFormElement) {
+        submitted.push({ method: this.method, action: new URL(this.action).pathname })
+      })
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+    await waitFor(() => expect(result.current.userId).toBe('app-user-a'))
+
+    let settled = false
+    act(() => {
+      void result.current.signOut().then(() => {
+        settled = true
+      })
+    })
+    await act(async () => {})
+
+    expect(submitted).toEqual([{ method: 'post', action: '/auth/sign-out' }])
+    // No signed-out flash while the browser leaves: the page keeps its user.
+    expect(result.current.userId).toBe('app-user-a')
+    expect(result.current.ready).toBe(true)
+    // The page is leaving: nothing after sign-out should run in it.
+    expect(settled).toBe(false)
+    submit.mockRestore()
+  })
+
+  test('signs Supabase requests with the AuthKit token while mounted', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+
+    const { unmount } = renderProvider()
+    await expect(getAccessToken()).resolves.toBe(accessTokenFor('user_A'))
+
+    unmount()
+    await expect(getAccessToken()).resolves.toBeNull()
+  })
+
+  test('an upload bound to A cannot receive B’s token after the displayed account switches', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    await act(async () => {
+      await expect(getAccessToken('app-user-a')).resolves.toBe(accessTokenFor('user_A'))
+    })
+
+    mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+    act(() => setAuthKitState({ user: workosUser('user_B') }))
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
+    await expect(getAccessToken('app-user-a')).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+  })
+
+  test('rejects a token fetched while the displayed account changes, even if it still belongs to A', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    const pendingToken = deferred<string>()
+    mockGetAccessToken.mockReturnValueOnce(pendingToken.promise)
+    const request = getAccessToken('app-user-a')
+    const rejected = expect(request).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+    mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+    act(() => setAuthKitState({ user: workosUser('user_B') }))
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
+    pendingToken.resolve(accessTokenFor('user_A'))
+    await rejected
+  })
+
+  test('never sends another session’s token, and follows the session to its new account', async () => {
+    // Tab A shows user A; another tab has since signed in as B, so the shared
+    // session cookie now refreshes into B's token while AuthKit still says A.
+    setAuthKitState({ user: workosUser('user_A', { email: 'a@example.com' }) })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+    mockRefreshAuth.mockImplementation(async () => {
+      setAuthKitState({ user: workosUser('user_B', { email: 'b@example.com' }) })
+    })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+
+    // The next Supabase request: B's token is withheld, not sent as A.
+    let tokenSent: string | null = 'unset'
+    await act(async () => {
+      tokenSent = await getAccessToken()
+    })
+    expect(tokenSent).toBeNull()
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+
+    // AuthKit now reports the session's user, which resolves like an account
+    // switch: A's id and email are never shown alongside B's token.
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
+    expect(screen.getByTestId('email')).toHaveTextContent('b@example.com')
+    await expect(getAccessToken()).resolves.toBe(accessTokenFor('user_B'))
+  })
+
+  test('goes unresolved while the session belongs to someone the page does not show yet', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+
+    // AuthKit has not answered yet, so the page still shows A.
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+    mockRefreshAuth.mockReturnValue(new Promise(() => undefined))
+    await act(async () => {
+      await getAccessToken()
+      await getAccessToken()
+    })
+
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('email')).toBeEmptyDOMElement()
+    // One question to AuthKit, however many requests noticed.
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+  })
+
+  test.each(['returned error', 'rejection'])('keeps reconciling a server account mismatch after a %s despite A’s cached token', async (failure) => {
+    jest.useFakeTimers()
+    try {
+      setAuthKitState({ user: workosUser('user_A') })
+      mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+      mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+      renderProvider()
+      await act(async () => {})
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+
+      if (failure === 'rejection') {
+        mockRefreshAuth.mockRejectedValueOnce(new Error('Failed to fetch'))
+      } else {
+        mockRefreshAuth.mockResolvedValueOnce({ error: 'Failed to fetch' } as never)
+      }
+      mockRefreshAuth
+        .mockResolvedValueOnce({ error: 'Still offline' } as never)
+        .mockImplementation(async () => {
+          mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+          mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+          setAuthKitState({ user: workosUser('user_B') })
+        })
+
+      // The create route has confirmed that the shared cookie is B, while
+      // AuthKit still holds A's unexpired token in this tab.
+      await act(async () => { notifyAccountChanged() })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+      // A background request must not treat that cached A token as proof
+      // that the server's account is A again, or bypass the retry backoff.
+      await act(async () => {
+        await expect(getAccessToken()).resolves.toBeNull()
+      })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+
+      await act(async () => { await jest.advanceTimersByTimeAsync(1000) })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+      await expect(getAccessToken('app-user-a')).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+
+      await act(async () => { await jest.advanceTimersByTimeAsync(2000) })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(3)
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b')
+      expect(screen.getByTestId('ready')).toHaveTextContent('true')
+      await expect(getAccessToken('app-user-a')).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+      await expect(getAccessToken('app-user-b')).resolves.toBe(accessTokenFor('user_B'))
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('asks AuthKit again when its first answer fails, and recovers without a reload', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+
+    // Another tab signed in as B. AuthKit's first refresh fails (it answers
+    // `{ error }` rather than throwing), so the page still shows A.
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+    mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+    mockRefreshAuth
+      .mockResolvedValueOnce({ error: 'Failed to fetch' } as never)
+      .mockImplementation(async () => {
+        setAuthKitState({ user: workosUser('user_B') })
+      })
+    await act(async () => {
+      await getAccessToken()
+    })
+    await settle()
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    // Nothing else on the page makes a request; the connection coming back
+    // checks the session again.
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(2)
+  })
+
+  test('keeps checking on its own when a scheduled server check rejects', async () => {
+    jest.useFakeTimers()
+    try {
+      setAuthKitState({ user: workosUser('user_A') })
+      mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+      renderProvider()
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(0)
+      })
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+
+      // Another tab signed in as B; AuthKit's first refresh fails.
+      mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+      mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+      mockRefreshAuth
+        .mockResolvedValueOnce({ error: 'Failed to fetch' } as never)
+        .mockRejectedValueOnce(new Error('Failed to fetch'))
+        .mockImplementation(async () => {
+          setAuthKitState({ user: workosUser('user_B') })
+        })
+      await act(async () => {
+        await getAccessToken()
+        await jest.advanceTimersByTimeAsync(0)
+      })
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+
+      // First scheduled check (1 s): the server check itself rejects.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(1000)
+      })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+      // That failure re-armed the next check (2 s later), with no browser event.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(2000)
+      })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(3)
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b')
+      expect(screen.getByTestId('ready')).toHaveTextContent('true')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('recovers when the session comes back to the user the page shows', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+    mockRefreshAuth.mockResolvedValue({ error: 'Failed to fetch' } as never)
+    await act(async () => {
+      await getAccessToken()
+    })
+    await settle()
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    // A cached token alone cannot establish that the cookie is A again.
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+    await act(async () => { await expect(getAccessToken()).resolves.toBeNull() })
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    // The next server check confirms that the other tab signed back in as A.
+    mockRefreshAuth.mockResolvedValue(undefined)
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    expect(screen.getByTestId('ready')).toHaveTextContent('true')
+    await expect(getAccessToken('app-user-a')).resolves.toBe(accessTokenFor('user_A'))
+  })
+
+  test('recovers from a failed lookup when the connection comes back, without a reload', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+      .mockResolvedValue(resolvesTo('app-user-a'))
+
+    renderProvider()
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(1))
+    // Let the failure be recorded, which arms the retry.
+    await settle()
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    expect(screen.getByTestId('ready')).toHaveTextContent('true')
+    expect(mockRpc).toHaveBeenCalledTimes(2)
+  })
+
+  test('retries a failed lookup on its own, with backoff', async () => {
+    jest.useFakeTimers()
+    try {
+      setAuthKitState({ user: workosUser('user_A') })
+      mockRpc
+        .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+        .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+        .mockResolvedValue(resolvesTo('app-user-a'))
+
+      renderProvider()
+      await act(async () => {})
+      expect(mockRpc).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000)
+      })
+      expect(mockRpc).toHaveBeenCalledTimes(2)
+
+      // The second retry waits twice as long.
+      await act(async () => {
+        jest.advanceTimersByTime(1000)
+      })
+      expect(mockRpc).toHaveBeenCalledTimes(2)
+      await act(async () => {
+        jest.advanceTimersByTime(1000)
+      })
+      expect(mockRpc).toHaveBeenCalledTimes(3)
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('a retry never resolves for a user who has since signed out', async () => {
+    const retryLookup = deferred<RpcResult>()
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc
+      .mockResolvedValueOnce({ data: null, error: { message: 'Failed to fetch' } })
+      .mockReturnValueOnce(retryLookup.promise)
+
+    renderProvider()
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(1))
+    await settle()
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+    await waitFor(() => expect(mockRpc).toHaveBeenCalledTimes(2))
+
+    act(() => setAuthKitState({ user: null }))
+    await act(async () => {
+      retryLookup.resolve(resolvesTo('app-user-a'))
+      await retryLookup.promise
+    })
+
+    expect(screen.getByTestId('ready')).toHaveTextContent('true')
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+  })
+
+  test('resolves once and keeps identity through Strict Mode effect replay', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+
+    render(
+      <StrictMode>
+        <AuthProvider>
+          <Probe />
+        </AuthProvider>
+      </StrictMode>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    expect(screen.getByTestId('ready')).toHaveTextContent('true')
+  })
+
   test('useAuth throws outside AuthProvider', () => {
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => renderHook(() => useAuth())).toThrow('useAuth must be used within AuthProvider')
     errorSpy.mockRestore()
   })

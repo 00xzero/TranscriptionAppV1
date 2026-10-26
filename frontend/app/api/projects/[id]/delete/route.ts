@@ -7,6 +7,7 @@ import {
 } from '@/contracts/api'
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
 import {
@@ -47,8 +48,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) {
+  const user = await getCurrentUser(supabase)
+  if (!user) {
     return errorResponse({ error: 'Unauthorized', stage: 'begin' }, 401)
   }
 
@@ -106,7 +107,7 @@ export async function POST(
   const removal = await removeTranscriptFiles(
     supabase,
     verificationSupabase,
-    authData.user.id,
+    user.id,
     { media: mediaKeys, waveforms: waveformKeys, results: resultKeys },
     DELETE_BATCH_SIZE
   )
@@ -187,7 +188,7 @@ export async function POST(
     )
   }
 
-  await sweepAfterFinish(supabase, verificationSupabase, authData.user.id, transcriptIds)
+  await sweepAfterFinish(supabase, verificationSupabase, user.id, transcriptIds)
 
   return NextResponse.json(DeleteProjectResponseSchema.parse(deleted))
 }

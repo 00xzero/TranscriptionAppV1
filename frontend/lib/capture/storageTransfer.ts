@@ -1,6 +1,7 @@
 import { Upload, type HttpRequest } from 'tus-js-client'
 import { createClient } from '@/infra/supabase/client'
 import { MEDIA_BUCKET } from '@/infra/supabase/storage'
+import { getAccessToken } from '@/infra/workos/access-token'
 
 type BrowserSupabaseClient = ReturnType<typeof createClient>
 
@@ -72,11 +73,10 @@ export async function transferToStorage(
         return
     }
 
-    await resumableUpload(supabase, storagePath, file, options)
+    await resumableUpload(storagePath, file, options)
 }
 
 async function resumableUpload(
-    supabase: BrowserSupabaseClient,
     storagePath: string,
     file: File,
     options: TransferOptions
@@ -87,7 +87,8 @@ async function resumableUpload(
         throw new Error('Upload failed: missing Supabase configuration')
     }
 
-    const accessToken = await getAccessToken(supabase)
+    const userId = storagePath.split('/')[0]
+    const accessToken = await getAccessToken(userId)
     if (!accessToken) {
         throw new Error('Upload failed: no active session for resumable upload')
     }
@@ -135,12 +136,11 @@ async function resumableUpload(
                 cacheControl: '3600',
             },
             onBeforeRequest: async (req: HttpRequest) => {
-                // Tokens auto-refresh in the background; re-read the current one
-                // so a long upload doesn't fail on an expired bearer token.
-                const token = await getAccessToken(supabase)
-                if (token) {
-                    req.setHeader('authorization', `Bearer ${token}`)
-                }
+                // WorkOS tokens last minutes; ask for a fresh one before every
+                // chunk so a long upload doesn't fail on an expired bearer token.
+                const token = await getAccessToken(userId)
+                if (!token) throw new Error('Upload failed: no active session for resumable upload')
+                req.setHeader('authorization', `Bearer ${token}`)
             },
             onProgress: (bytesSent: number, bytesTotal: number) => {
                 // Bytes sent are not bytes accepted: the last chunk can go out
@@ -185,13 +185,6 @@ function resumableErrorMessage(error: Error): string {
         return 'Upload failed: this file is larger than storage accepts.'
     }
     return `Upload failed: ${error.message}`
-}
-
-async function getAccessToken(
-    supabase: BrowserSupabaseClient
-): Promise<string | undefined> {
-    const { data } = await supabase.auth.getSession()
-    return data.session?.access_token
 }
 
 function storageResumableEndpoint(supabaseUrl: string): string {

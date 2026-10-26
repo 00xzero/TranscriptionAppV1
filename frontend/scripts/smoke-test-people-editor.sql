@@ -40,12 +40,9 @@ SELECT pg_temp.assert_true(
   'only guarded editor functions are callable; naming never writes a speaker in place'
 );
 
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) VALUES
-  ('d0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'people-smoke-a@example.test', '', now(), '{}', '{}', now(), now()),
-  ('d0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'people-smoke-b@example.test', '', now(), '{}', '{}', now(), now());
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('d0000000-0000-4000-8000-000000000001', 'user_d0000000000040008000000000000001', 'people-smoke-a@example.test'),
+  ('d0000000-0000-4000-8000-000000000002', 'user_d0000000000040008000000000000002', 'people-smoke-b@example.test');
 INSERT INTO public.transcripts (id, user_id, title, status) VALUES
   ('d1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', 'Alpha', 'completed'),
   ('d1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000002', 'Beta', 'completed'),
@@ -90,7 +87,7 @@ GRANT EXECUTE ON FUNCTION pg_temp.alex_elsewhere() TO authenticated;
 CREATE TEMP TABLE action_result (name text PRIMARY KEY, data jsonb) ON COMMIT DROP;
 GRANT SELECT, INSERT, UPDATE ON action_result TO authenticated;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000001","role":"authenticated"}';
 
 -- Identifying Speaker 1 moves all its segments to a new speaker linked to the
 -- new person; Deepgram's speaker keeps no name.
@@ -131,14 +128,14 @@ SELECT pg_temp.assert_true(
   'picker sees owned person; the open transcript is not counted as elsewhere'
 );
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.editor_people_context('d1000000-0000-4000-8000-000000000002')$sql$, 'SP001');
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000002","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000002","role":"authenticated"}';
 SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM public.people)
   AND (SELECT count(*) = 0 FROM public.organisations), 'RLS hides the other account directory');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.editor_people_context(
   'd1000000-0000-4000-8000-000000000001')$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000001', 'Mine',
   '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]')$sql$, 'SP001');
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000001","role":"authenticated"}';
 
 INSERT INTO action_result VALUES ('correction', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000001',

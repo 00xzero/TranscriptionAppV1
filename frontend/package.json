@@ -38,10 +38,8 @@
     "@radix-ui/react-toast": "1.2.23",
     "@radix-ui/react-toggle": "1.1.18",
     "@radix-ui/react-tooltip": "1.2.16",
-    "@supabase/auth-ui-react": "0.4.7",
-    "@supabase/auth-ui-shared": "0.1.8",
-    "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.3",
+    "@workos-inc/authkit-nextjs": "4.5.0",
     "clsx": "2.1.1",
     "docx": "^9.6.1",
     "inngest": "^4.1.0",
@@ -53,12 +51,6 @@
     "tailwind-merge": "3.5.0",
     "tus-js-client": "^4.3.1",
     "zod": "4.3.6"
-  },
-  "overrides": {
-    "@supabase/auth-ui-react": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
   },
   "devDependencies": {
     "@inngest/test": "^1.0.0",

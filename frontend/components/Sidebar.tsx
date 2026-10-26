@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { Contact, FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { holdLeave } from '@/lib/editor/leaveGuard'
@@ -27,7 +27,6 @@ interface SidebarProps {
 
 export default function Sidebar({ className = '' }: SidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
@@ -89,7 +88,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   const guardedNav = useGuardedNavigate()
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     // Auth-boundary guard (Phase 3): a recording artifact must be resolved before
     // leaving the user/context it belongs to. Block sign-out and tell the user to
     // finish or discard first — never silently discard their audio.
@@ -103,20 +102,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     }
     // Changes the editor has not saved yet are saved first, while still signed in.
     if (holdLeave(() => { void handleSignOut() })) return
-    try {
-      await signOut()
-    } catch (error) {
-      // Still signed in locally: stay put rather than show /auth over a live session.
-      console.error('Sign-out failed:', error)
-      toast({
-        title: 'Could not sign out',
-        description: 'Please check your connection and try again.',
-        variant: 'error',
-      })
-      return
-    }
-    router.push('/auth')
-    router.refresh()
+    // Leaves the page: sign-out ends the session and lands on the sign-in page.
+    void signOut()
   }
 
   const navigateTo = (path: string) => {

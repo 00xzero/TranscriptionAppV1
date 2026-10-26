@@ -1,104 +1,84 @@
 /** @jest-environment node */
 
 import { NextRequest } from 'next/server'
+import { authkit } from '@workos-inc/authkit-nextjs'
 import { proxy } from '../proxy'
 
-const mockCreateServerClient = jest.fn()
+const authkitMock = authkit as unknown as jest.Mock
 
-jest.mock('@supabase/ssr', () => ({
-  createServerClient: (...args: unknown[]) => mockCreateServerClient(...args),
-}))
+const AUTHORIZATION_URL = 'https://auth.test/authorize?return=%2Feditor%2Fabc'
 
-type ServerClientOptions = {
-  cookies: {
-    setAll: (
-      cookies: Array<{
-        name: string
-        value: string
-        options: { path?: string; httpOnly?: boolean }
-      }>,
-      headers: Record<string, string>
-    ) => void
-  }
+function request(path: string) {
+  return new NextRequest(`http://localhost:3000${path}`)
+}
+
+function sessionFor(user: { id: string } | null) {
+  authkitMock.mockResolvedValue({
+    session: { user },
+    headers: new Headers(),
+    authorizationUrl: user ? undefined : AUTHORIZATION_URL,
+  })
 }
 
 describe('proxy', () => {
-  const originalSupabaseUrl = process.env.SUPABASE_URL
-  const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
   beforeEach(() => {
-    process.env.SUPABASE_URL = 'https://project.supabase.co'
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
-    mockCreateServerClient.mockReset()
+    authkitMock.mockReset()
+    sessionFor(null)
   })
 
-  afterAll(() => {
-    if (originalSupabaseUrl === undefined) {
-      delete process.env.SUPABASE_URL
-    } else {
-      process.env.SUPABASE_URL = originalSupabaseUrl
-    }
+  test('leaves the Inngest endpoint alone', async () => {
+    const response = await proxy(request('/api/inngest'))
 
-    if (originalSupabaseAnonKey === undefined) {
-      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    } else {
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey
+    expect(authkitMock).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('sends signed-out visitors on protected routes to WorkOS sign-in', async () => {
+    for (const path of ['/', '/transcripts', '/editor/abc', '/recording/new', '/projects/p1', '/people']) {
+      const response = await proxy(request(path))
+      expect(response.headers.get('location')).toBe(AUTHORIZATION_URL)
     }
   })
 
-  test('preserves Supabase cache-control headers with refreshed auth cookies', async () => {
-    mockCreateServerClient.mockImplementation(
-      (_url: string, _key: string, options: ServerClientOptions) => {
-        options.cookies.setAll(
-          [
-            {
-              name: 'sb-local-auth-token',
-              value: 'refreshed-session',
-              options: { path: '/', httpOnly: true },
-            },
-          ],
-          {
-            'cache-control': 'private, no-cache, no-store, must-revalidate, max-age=0',
-            expires: '0',
-            pragma: 'no-cache',
-          }
-        )
+  test('lets signed-in visitors through protected routes', async () => {
+    sessionFor({ id: 'user_01' })
 
-        return {
-          auth: {
-            getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
-          },
-        }
-      }
+    const response = await proxy(request('/editor/abc'))
+
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('sends signed-in visitors away from the sign-in entry point', async () => {
+    sessionFor({ id: 'user_01' })
+
+    const response = await proxy(request('/auth'))
+
+    expect(response.headers.get('location')).toBe('http://localhost:3000/')
+  })
+
+  test('lets signed-in visitors post to sign-out instead of bouncing them to /', async () => {
+    sessionFor({ id: 'user_01' })
+
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/auth/sign-out', { method: 'POST' })
     )
 
-    const response = await proxy(new NextRequest('https://app.example.test/transcripts'))
-
-    expect(response.cookies.get('sb-local-auth-token')).toMatchObject({
-      value: 'refreshed-session',
-      path: '/',
-      httpOnly: true,
-    })
-    expect(response.headers.get('cache-control')).toBe(
-      'private, no-cache, no-store, must-revalidate, max-age=0'
-    )
-    expect(response.headers.get('expires')).toBe('0')
-    expect(response.headers.get('pragma')).toBe('no-cache')
+    expect(response.headers.get('location')).toBeNull()
   })
 
-  test.each(['/projects', '/projects/11111111-1111-1111-1111-111111111111', '/people', '/people/11111111-1111-1111-1111-111111111111'])(
-    'redirects an unauthenticated request for %s to auth',
-    async (path) => {
-      mockCreateServerClient.mockReturnValue({
-        auth: {
-          getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
-        },
-      })
+  test('never redirects the sign-in callback', async () => {
+    sessionFor({ id: 'user_01' })
+    expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
 
-      const response = await proxy(new NextRequest(`https://app.example.test${path}`))
+    sessionFor(null)
+    expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
+  })
 
-      expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://app.example.test/auth')
-    }
-  )
+  test('leaves public routes and API routes to answer for themselves', async () => {
+    const page = await proxy(request('/auth'))
+    const api = await proxy(request('/api/transcripts'))
+
+    expect(page.headers.get('location')).toBeNull()
+    expect(api.headers.get('location')).toBeNull()
+  })
 })

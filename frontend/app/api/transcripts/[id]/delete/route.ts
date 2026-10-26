@@ -7,9 +7,11 @@ import {
 } from '@/contracts/api'
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
 import { sweepTranscriptFolders } from '@/lib/transcripts/folder-cleanup'
+import { ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 // delete_transcript refuses (TR002) while the folder holds a file that was not
 // there when it was swept; each attempt sweeps again.
@@ -26,13 +28,18 @@ function errorResponse(body: DeleteTranscriptError, status: number) {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) {
+  const user = await getCurrentUser(supabase)
+  if (!user) {
     return errorResponse({ error: 'Unauthorized' }, 401)
+  }
+
+  const expectedUserId = request.headers.get(EXPECTED_USER_HEADER)
+  if (expectedUserId !== null && expectedUserId !== user.id) {
+    return errorResponse({ error: ACCOUNT_CHANGED_MESSAGE }, 409)
   }
 
   const parsedId = UuidSchema.safeParse((await params).id)
@@ -40,7 +47,7 @@ export async function POST(
     return errorResponse({ error: 'Invalid transcript id' }, 400)
   }
   const transcriptId = parsedId.data
-  const userId = authData.user.id
+  const userId = user.id
 
   let verificationSupabase: SupabaseClient
   try {

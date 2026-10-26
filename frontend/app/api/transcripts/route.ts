@@ -7,19 +7,29 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { CreateTranscriptBodySchema } from '@/contracts/api'
 import { createTranscript } from '@/core/transcripts/create'
+import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 export async function POST(request: NextRequest) {
     try {
         const supabase = await createClient()
 
-        // Get authenticated user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError || !user) {
+        const user = await getCurrentUser(supabase)
+        if (!user) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
+            )
+        }
+
+        // A cookie is shared by tabs; a tab's cached token and displayed user
+        // can still be A after another tab signs in as B. Refuse before writing.
+        if (request.headers.get(EXPECTED_USER_HEADER) !== user.id) {
+            return NextResponse.json(
+                { error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE },
+                { status: 409 }
             )
         }
 

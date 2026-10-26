@@ -180,6 +180,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     // must find an initialized queue. The session row is only enqueued after start
     // succeeds, so a start failure leaves no orphan row.
     store.runtime.sessionId = sessionId
+    store.runtime.userId = identity.userId
     store.runtime.uploadIntentId = uploadIntentId
     store.runtime.nextChunkSeq = 0
     store.runtime.lastChunkReceivedAt = null
@@ -200,6 +201,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.codecMime = null
     store.runtime.maxBytes = 0
     store.runtime.sessionId = null
+    store.runtime.userId = null
     store.runtime.uploadIntentId = null
     store.runtime.nextChunkSeq = 0
     store.runtime.lastChunkReceivedAt = null
@@ -266,13 +268,12 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
 }
 
 /**
- * Patch the live session's persisted row with the resolved user id. Called by the
- * provider when auth identity changes; mostly a defensive/test seam now that
- * attachAndStart requires a resolved user before creating a persisted session.
- * No-op when there is no live session.
+ * Keep persistence scoped to the account that started the recording. Auth
+ * changes in another tab must never transfer the audio to the new account.
  */
 export function syncIdentityToActiveSession(userId: string | null): void {
   if (!userId) return
+  if (store.runtime.userId !== userId) return
   const queue = store.runtime.writeQueue
   if (!queue) return
   queue.enqueueMetadata({ userId })

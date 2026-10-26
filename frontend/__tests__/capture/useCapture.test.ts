@@ -1,6 +1,9 @@
 import { act, renderHook } from '@testing-library/react'
 import { useCapture } from '@/lib/capture/useCapture'
 import { runCaptureUpload, type CaptureUploadOptions } from '@/lib/capture/upload'
+import { resetTestAuth, setTestAuth } from '@/__tests__/helpers/auth'
+
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 
 jest.mock('@/lib/capture/upload', () => ({
   runCaptureUpload: jest.fn(),
@@ -16,6 +19,11 @@ function makeFile(size: number): File {
 }
 
 describe('useCapture upload bytes', () => {
+  beforeEach(() => {
+    resetTestAuth()
+    setTestAuth({ userId: 'user-1', ready: true })
+  })
+
   test('counts from zero once the file starts uploading and clears when the upload ends', async () => {
     let options: CaptureUploadOptions | undefined
     let finish: () => void = () => {}

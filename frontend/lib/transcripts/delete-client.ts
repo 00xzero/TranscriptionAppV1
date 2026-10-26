@@ -3,6 +3,7 @@ import {
   DeleteTranscriptResponseSchema,
   type DeleteTranscriptError,
 } from '@/contracts/api'
+import { EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 export class DeleteTranscriptRequestError extends Error {
   readonly status: number
@@ -21,8 +22,11 @@ export class DeleteTranscriptRequestError extends Error {
  * Delete a transcript and every file in its folder. Resolves once the row is
  * gone, including when an earlier request already deleted it.
  */
-export async function deleteTranscriptRequest(id: string): Promise<void> {
-  const response = await fetch(`/api/transcripts/${id}/delete`, { method: 'POST' })
+export async function deleteTranscriptRequest(id: string, expectedUserId?: string): Promise<void> {
+  const response = await fetch(`/api/transcripts/${id}/delete`, {
+    method: 'POST',
+    ...(expectedUserId ? { headers: { [EXPECTED_USER_HEADER]: expectedUserId } } : {}),
+  })
   let body: unknown
   try {
     body = await response.json()

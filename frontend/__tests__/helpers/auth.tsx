@@ -10,11 +10,10 @@
  * `setTestAuth(...)` and then rerender to simulate an auth change.
  */
 import type { ReactNode } from 'react'
-import type { User } from '@supabase/supabase-js'
-import type { AuthContextValue } from '@/lib/auth/AuthProvider'
+import type { AppUser, AuthContextValue } from '@/lib/auth/AuthProvider'
 
 export interface TestAuthIdentity {
-  user?: User | null
+  user?: AppUser | null
   userId: string | null
   ready: boolean
 }
@@ -35,16 +34,9 @@ export function resetTestAuth(): void {
   mockSignOut.mockImplementation(async () => undefined)
 }
 
-/** Minimal Supabase `User` for account-metadata assertions. */
-export function testUser(id: string, overrides: Partial<User> = {}): User {
-  return {
-    id,
-    aud: 'authenticated',
-    app_metadata: {},
-    user_metadata: {},
-    created_at: '2026-09-01T00:00:00Z',
-    ...overrides,
-  } as User
+/** Minimal `AppUser` for account-name assertions. */
+export function testUser(id: string, overrides: Partial<AppUser> = {}): AppUser {
+  return { id, email: '', name: null, ...overrides }
 }
 
 export function useTestAuth(): AuthContextValue {

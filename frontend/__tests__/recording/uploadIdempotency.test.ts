@@ -39,10 +39,15 @@ jest.mock('@/lib/transcripts/delete-client', () => ({
 }))
 
 jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({
+  createClientForUser: () => ({
     storage: { from: () => ({ upload: uploadMock, remove: removeMock }) },
     from: fromMock,
   }),
+}))
+
+jest.mock('@/infra/workos/access-token', () => ({
+  getAccessToken: jest.fn(async () => 'token-for-u'),
+  notifyAccountChanged: jest.fn(),
 }))
 
 import { runCaptureUpload } from '@/lib/capture/upload'
@@ -102,6 +107,7 @@ describe('runCaptureUpload upload idempotency', () => {
       .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
     })
 
@@ -128,6 +134,7 @@ describe('runCaptureUpload upload idempotency', () => {
       .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j2' }))
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
     })
 
@@ -152,6 +159,7 @@ describe('runCaptureUpload upload idempotency', () => {
       .mockResolvedValueOnce(jsonResponse(409, { error: 'Transcription already in progress' }))
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
     })
 
@@ -173,7 +181,7 @@ describe('runCaptureUpload upload idempotency', () => {
       )
       .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result.kind).toBe('success')
     // Fresh transcript with no linked media → upload + link ran.
@@ -197,6 +205,7 @@ describe('runCaptureUpload upload idempotency', () => {
       .mockResolvedValueOnce(jsonResponse(500, { error: 'start failed' }))
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       projectId: '00000000-0000-0000-0000-000000000003',
     })
 
@@ -223,6 +232,7 @@ describe('runCaptureUpload upload idempotency', () => {
     const controller = new AbortController()
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       signal: controller.signal,
       onProgress: (progress) => {
         if (progress === 'starting') controller.abort()
@@ -255,6 +265,7 @@ describe('runCaptureUpload upload idempotency', () => {
     )
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
       allowUpsert: true,
     })
@@ -285,7 +296,7 @@ describe('runCaptureUpload upload idempotency', () => {
       )
       .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j1' }))
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result).toMatchObject({ kind: 'success', outcome: 'started' })
     expect(reconcileSelectMock).toHaveBeenCalledWith('source_object_key')
@@ -312,7 +323,7 @@ describe('runCaptureUpload upload idempotency', () => {
       })
     )
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result).toEqual({
       kind: 'failure',
@@ -337,7 +348,7 @@ describe('runCaptureUpload upload idempotency', () => {
       })
     )
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result).toEqual({
       kind: 'failure',
@@ -364,7 +375,7 @@ describe('runCaptureUpload upload idempotency', () => {
       })
     )
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result).toEqual({ kind: 'failure', message: 'That project is being deleted.' })
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
@@ -388,7 +399,7 @@ describe('runCaptureUpload upload idempotency', () => {
       })
     )
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(deleteRequestMock).toHaveBeenCalledWith('p1')
     expect(result).toEqual({
@@ -413,7 +424,7 @@ describe('runCaptureUpload upload idempotency', () => {
       })
     )
 
-    const result = await runCaptureUpload(makeFile(), 'Title', [])
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
     expect(result.kind).toBe('failure')
     expect(result.message).toContain('Automatic cleanup failed for transcript record.')
@@ -439,6 +450,7 @@ describe('runCaptureUpload upload idempotency', () => {
     )
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
       allowUpsert: true,
     })
@@ -466,6 +478,7 @@ describe('runCaptureUpload upload idempotency', () => {
     )
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
       uploadIntentId: 'intent-1',
       allowUpsert: true,
     })
@@ -501,13 +514,13 @@ describe('runCaptureUpload title', () => {
 
   test('passes an explicit title through unchanged, even over the limit', async () => {
     const title = 'x'.repeat(130)
-    await runCaptureUpload(makeFile(), title, [])
+    await runCaptureUpload(makeFile(), title, [], { userId: 'u' })
     expect(createRequestTitle()).toBe(title)
   })
 
   test('fits only the filename fallback under the limit', async () => {
     const longName = new File([new Uint8Array(16)], `${'y'.repeat(200)}.webm`, { type: 'audio/webm' })
-    await runCaptureUpload(longName, '', [])
+    await runCaptureUpload(longName, '', [], { userId: 'u' })
     expect(createRequestTitle()).toHaveLength(120)
     expect(createRequestTitle().endsWith('…')).toBe(true)
   })

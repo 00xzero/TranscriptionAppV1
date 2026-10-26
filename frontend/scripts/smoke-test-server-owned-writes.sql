@@ -23,16 +23,9 @@ GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated;
 -- User A owns T1 (completed, linked media plus an unlinked waveform), T2 (no
 -- media yet) and T3 (inside project P). User B owns TB.
 
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  ('f1000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'owned-writes-a@example.test', '',
-   now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
-  ('f1000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'owned-writes-b@example.test', '',
-   now(), '{}'::jsonb, '{}'::jsonb, now(), now());
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('f1000000-0000-4000-8000-000000000001', 'user_f1000000000040008000000000000001', 'owned-writes-a@example.test'),
+  ('f1000000-0000-4000-8000-000000000002', 'user_f1000000000040008000000000000002', 'owned-writes-b@example.test');
 
 INSERT INTO public.projects (id, user_id, name) VALUES
   ('f2000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', 'P');
@@ -93,7 +86,7 @@ SELECT pg_temp.assert_true(
   'the authenticated role keeps only the writes the app makes'
 );
 
-SET LOCAL request.jwt.claims = '{"sub":"f1000000-0000-4000-8000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_f1000000000040008000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 -- ------------------------------------------------- forged writes refused ----

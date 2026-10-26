@@ -56,12 +56,9 @@ SELECT pg_temp.assert_true(
 --   Casey: only a linked speaker without segments in Kickoff
 --   Dana:  Retro, plus a linked speaker without segments in Review; Globex
 -- Account B has one person, one organisation and one transcript.
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) VALUES
-  ('e0000000-0000-4000-8000-00000000000a', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'directory-smoke-a@example.test', '', now(), '{}', '{}', now(), now()),
-  ('e0000000-0000-4000-8000-00000000000b', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'directory-smoke-b@example.test', '', now(), '{}', '{}', now(), now());
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('e0000000-0000-4000-8000-00000000000a', 'user_e000000000004000800000000000000a', 'directory-smoke-a@example.test'),
+  ('e0000000-0000-4000-8000-00000000000b', 'user_e000000000004000800000000000000b', 'directory-smoke-b@example.test');
 INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
   ('e1000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-00000000000a', NULL, 'Client work');
 INSERT INTO public.transcripts (id, user_id, project_id, title, status, created_at) VALUES
@@ -124,7 +121,7 @@ SET LOCAL request.jwt.claims = '{"role":"authenticated"}';
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.people_directory()$sql$, '42501');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_person('Nobody')$sql$, '42501');
 
-SET LOCAL request.jwt.claims = '{"sub":"e0000000-0000-4000-8000-00000000000a","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_e000000000004000800000000000000a","role":"authenticated"}';
 
 -- ----------------------------------------------------------------- reads ----
 SELECT pg_temp.assert_true(
@@ -423,7 +420,7 @@ SELECT pg_temp.assert_true(
 );
 
 -- ---------------------------------------------------------- other account --
-SET LOCAL request.jwt.claims = '{"sub":"e0000000-0000-4000-8000-00000000000b","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_e000000000004000800000000000000b","role":"authenticated"}';
 SELECT pg_temp.assert_true(
   (SELECT array_agg(e->>'name') = ARRAY['Bee'] FROM jsonb_array_elements(public.people_directory()->'people') AS e)
   AND (SELECT array_agg(e->>'name') = ARRAY['Other Org'] FROM jsonb_array_elements(public.people_directory()->'organisations') AS e)

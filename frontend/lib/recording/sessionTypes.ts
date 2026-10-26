@@ -91,6 +91,8 @@ export interface FinalizedRecording {
 }
 
 export interface Runtime {
+  /** Fixed when the recording or recovered session is claimed. */
+  userId: string | null
   controller: RecorderController | null
   chunks: Blob[]
   bytesSoFar: number

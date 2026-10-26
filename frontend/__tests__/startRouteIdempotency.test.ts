@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const fromMock = jest.fn()
 const adminFromMock = jest.fn()
 
@@ -10,12 +10,13 @@ jest.mock('@/infra/supabase/storage', () => {
   }
 })
 
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
+
 jest.mock('@/infra/supabase/server', () => {
   return {
     createClient: () => ({
-      auth: {
-        getUser: getUserMock,
-      },
       from: fromMock,
     }),
   }
@@ -42,6 +43,7 @@ import { POST } from '../app/api/transcripts/[id]/start/route'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { getMediaUrlForEngine } from '@/infra/supabase/storage'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
+import { EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 // The transcript columns as the database returns them.
 const STORED_OPTIONS = { ...DEFAULT_TRANSCRIPTION_OPTIONS }
@@ -114,14 +116,23 @@ describe('Start route idempotency', () => {
       return {}
     })
 
-    getUserMock.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    getCurrentUserMock.mockResolvedValue({ id: 'user-1', email: '' })
   })
 
   afterEach(() => {
     process.env.RATE_LIMIT_MODE = originalRateLimitMode
+  })
+
+  test('an upload from another account cannot start a job under the replacement cookie', async () => {
+    const response = await POST(
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'original-user' }) } as never,
+      { params: Promise.resolve({ id: 'proj-1' }) }
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'ACCOUNT_CHANGED' })
+    expect(fromMock).not.toHaveBeenCalled()
+    expect(adminFromMock).not.toHaveBeenCalled()
+    expect(sendInngestEvent).not.toHaveBeenCalled()
   })
 
   test('returns cached job when transcript is queued and idempotency key matches', async () => {

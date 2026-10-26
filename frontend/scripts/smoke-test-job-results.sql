@@ -24,13 +24,8 @@ GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated;
 -- User A owns T1 (with job J1 and a stored response) and T2 (inside project P,
 -- with job J2 and a stored response).
 
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  ('e1000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'job-results-a@example.test', '',
-   now(), '{}'::jsonb, '{}'::jsonb, now(), now());
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('e1000000-0000-4000-8000-000000000001', 'user_e1000000000040008000000000000001', 'job-results-a@example.test');
 
 INSERT INTO public.projects (id, user_id, name) VALUES
   ('e2000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000001', 'P');
@@ -124,7 +119,7 @@ SELECT pg_temp.assert_true(
 
 -- ------------------------------------------------------------- browser ----
 
-SET LOCAL request.jwt.claims = '{"sub":"e1000000-0000-4000-8000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_e1000000000040008000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 SELECT pg_temp.assert_true(

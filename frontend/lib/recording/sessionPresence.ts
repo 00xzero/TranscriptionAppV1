@@ -6,7 +6,6 @@
  */
 
 import { setTickObserver, store } from './sessionStore'
-import { getIdentity } from './sessionIdentity'
 import {
   getOwnerClientId,
   getPresence,
@@ -34,7 +33,7 @@ let lastPresencePublishAt = 0
 export function publishPresence(): void {
   const snap = store.snapshot
   const sessionId = store.runtime.sessionId
-  const userId = getIdentity().userId
+  const userId = store.runtime.userId
   if (!sessionId || !userId) return
   if (!isRecordingPresenceState(snap.state)) return
 

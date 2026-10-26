@@ -130,7 +130,7 @@ describe('Sidebar', () => {
     setTestAuth({
       userId: 'user-a',
       ready: true,
-      user: testUser('user-a', { email: 'ada@example.com', user_metadata: { full_name: 'Ada Lovelace' } }),
+      user: testUser('user-a', { email: 'ada@example.com', name: 'Ada Lovelace' }),
     })
     await renderSidebar()
 
@@ -152,22 +152,16 @@ describe('Sidebar', () => {
 
   // The recording guard and the happy-path sign-out are covered in
   // __tests__/recording/signOutGuard.test.tsx.
-  it('stays on the page and reports the failure when provider sign-out rejects', async () => {
-    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined)
-    mockSignOut.mockRejectedValueOnce(new Error('session load failed'))
+  it('hands sign-out to the provider and adds nothing after it, since the page leaves', async () => {
+    mockSignOut.mockReturnValueOnce(new Promise(() => undefined))
     setTestAuth({ userId: 'user-a', ready: true, user: testUser('user-a') })
     await renderSidebar()
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))
     await user.click(await screen.findByText('Sign out'))
 
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Could not sign out', variant: 'error' })
-      )
-    })
-    expect(mockSignOut).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
+    expect(toastMock).not.toHaveBeenCalled()
     expect(routerPushMock).not.toHaveBeenCalled()
-    errorSpy.mockRestore()
   })
 })

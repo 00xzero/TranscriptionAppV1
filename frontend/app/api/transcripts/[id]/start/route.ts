@@ -7,7 +7,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/infra/supabase/server";
+import { getCurrentUser } from "@/lib/auth/current-user.server";
 import { startTranscription } from "@/core/transcription/start";
+import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 export async function POST(
     request: NextRequest,
@@ -16,14 +18,17 @@ export async function POST(
     const { id } = await params;
     const supabase = await createClient();
 
-    // Verify authentication
-    const {
-        data: { user },
-        error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const user = await getCurrentUser(supabase);
+    if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const expectedUserId = request.headers.get(EXPECTED_USER_HEADER)
+    if (expectedUserId !== null && expectedUserId !== user.id) {
+        return NextResponse.json(
+            { error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE },
+            { status: 409 }
+        )
     }
 
     const idempotencyKey = request.headers.get("x-idempotency-key");

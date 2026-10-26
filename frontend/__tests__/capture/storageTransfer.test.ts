@@ -8,20 +8,22 @@ import {
   transferToStorage,
   RESUMABLE_UPLOAD_THRESHOLD_BYTES,
 } from '@/lib/capture/storageTransfer'
+import { AccountChangedError } from '@/lib/auth/account-boundary'
 
 const UploadMock = Upload as unknown as jest.Mock
 
-// The single-PUT path and session lookup go through the injected client.
+// The single-PUT path goes through the injected client; the resumable path
+// signs each request with the WorkOS access token.
 type StorageUploadResult = { error: null | { message: string } }
-type SessionResult = { data: { session: { access_token: string } | null } }
 const putUploadMock = jest.fn(async (): Promise<StorageUploadResult> => ({ error: null }))
-const getSessionMock = jest.fn(async (): Promise<SessionResult> => ({
-  data: { session: { access_token: 'tok-123' } },
+const getAccessTokenMock = jest.fn(async (_userId?: string): Promise<string | null> => 'tok-123')
+
+jest.mock('@/infra/workos/access-token', () => ({
+  getAccessToken: (userId?: string) => getAccessTokenMock(userId),
 }))
 
 const supabase = {
   storage: { from: () => ({ upload: putUploadMock }) },
-  auth: { getSession: getSessionMock },
 } as never
 
 // Captured options from the most recent `new Upload(file, options)`.
@@ -54,7 +56,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://localhost:54321'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-test-key'
   putUploadMock.mockResolvedValue({ error: null })
-  getSessionMock.mockResolvedValue({ data: { session: { access_token: 'tok-123' } } })
+  getAccessTokenMock.mockResolvedValue('tok-123')
   onStart = () => {
     queueMicrotask(() => capturedOptions.onSuccess())
   }
@@ -123,6 +125,47 @@ describe('transferToStorage', () => {
       },
     })
     expect(requestHeaders.authorization).toBe('Bearer tok-123')
+  })
+
+  test('asks for a fresh token before every chunk, so a refresh mid-upload is used', async () => {
+    onStart = () => {}
+    void transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+      contentType: 'audio/webm',
+      upsert: false,
+    })
+    // The first token lookup runs before the upload is built.
+    for (let tick = 0; tick < 10 && UploadMock.mock.calls.length === 0; tick++) {
+      await Promise.resolve()
+    }
+    expect(UploadMock).toHaveBeenCalledTimes(1)
+
+    const headersPerRequest: string[] = []
+    for (const token of ['tok-before', 'tok-after-refresh']) {
+      getAccessTokenMock.mockResolvedValueOnce(token)
+      await capturedOptions.onBeforeRequest({
+        setHeader: (key: string, value: string) => {
+          if (key === 'authorization') headersPerRequest.push(value)
+        },
+      })
+    }
+    expect(headersPerRequest).toEqual(['Bearer tok-before', 'Bearer tok-after-refresh'])
+    expect(getAccessTokenMock.mock.calls.every(([userId]) => userId === 'u')).toBe(true)
+  })
+
+  test('an account switch refuses the next TUS request before setting an authorization header', async () => {
+    onStart = () => {}
+    const pending = transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+      contentType: 'audio/webm', upsert: false,
+    })
+    for (let tick = 0; tick < 10 && UploadMock.mock.calls.length === 0; tick++) await Promise.resolve()
+    const changed = new AccountChangedError()
+    getAccessTokenMock.mockRejectedValueOnce(changed)
+    const setHeader = jest.fn()
+    await expect(capturedOptions.onBeforeRequest({ setHeader })).rejects.toBe(changed)
+    expect(getAccessTokenMock).toHaveBeenLastCalledWith('u')
+    expect(setHeader).not.toHaveBeenCalled()
+    capturedOptions.onError(changed)
+    await expect(pending).rejects.toThrow(changed.message)
   })
 
   test('hosted Supabase URL targets the direct storage hostname; dev stays as-is', async () => {
@@ -343,7 +386,7 @@ describe('transferToStorage', () => {
   })
 
   test('missing session rejects before constructing the upload', async () => {
-    getSessionMock.mockResolvedValueOnce({ data: { session: null } })
+    getAccessTokenMock.mockResolvedValueOnce(null)
 
     await expect(
       transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {

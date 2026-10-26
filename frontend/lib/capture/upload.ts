@@ -1,4 +1,12 @@
-import { createClient } from '@/infra/supabase/client'
+import { createClientForUser } from '@/infra/supabase/client'
+import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
+import {
+    ACCOUNT_CHANGED_CODE,
+    ACCOUNT_CHANGED_MESSAGE,
+    AccountChangedError,
+    EXPECTED_USER_HEADER,
+    isAccountChangedError,
+} from '@/lib/auth/account-boundary'
 import {
   MEDIA_BUCKET,
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
@@ -77,6 +85,8 @@ export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'don
 export type UploadBytes = { sent: number; total: number }
 
 export interface CaptureUploadOptions {
+    /** The account shown when capture started; fixed for this entire attempt. */
+    userId: string
     onProgress?: (p: CaptureUploadProgress) => void
     /** Bytes of the file in storage so far, while it uploads. */
     onUploadBytes?: (sentBytes: number, totalBytes: number) => void
@@ -150,7 +160,7 @@ function getMimeType(file: File): string {
 
 // An unknown answer counts as live: sweeping a live transcript would delete it.
 async function transcriptStillExists(
-    supabase: ReturnType<typeof createClient>,
+    supabase: ReturnType<typeof createClientForUser>,
     transcriptId: string
 ): Promise<boolean> {
     const { data, error } = await supabase
@@ -162,11 +172,12 @@ async function transcriptStillExists(
 }
 
 async function rollbackPartialCapture(
-    supabase: ReturnType<typeof createClient>,
+    supabase: ReturnType<typeof createClientForUser>,
     transcriptId: string | null,
     storagePath: string | null,
     didUploadFile: boolean,
-    shouldDeleteTranscript: boolean
+    shouldDeleteTranscript: boolean,
+    userId: string
 ): Promise<string | null> {
     let uploadRemains = false
     if (didUploadFile && storagePath) {
@@ -191,7 +202,7 @@ async function rollbackPartialCapture(
             (uploadRemains && !(await transcriptStillExists(supabase, transcriptId))))
     if (transcriptId && shouldSweep) {
         try {
-            await deleteTranscriptRequest(transcriptId)
+            await deleteTranscriptRequest(transcriptId, userId)
             uploadRemains = false
         } catch (deleteError) {
             console.error('[capture] Failed to delete transcript during rollback:', deleteError)
@@ -249,9 +260,13 @@ function validateFile(file: File): string | null {
 async function dispatchStart(
     transcriptId: string,
     uploadIntentId: string | undefined,
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    userId: string
 ): Promise<Response> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        [EXPECTED_USER_HEADER]: userId,
+    }
     if (uploadIntentId) {
         headers['x-idempotency-key'] = `start:${uploadIntentId}`
     }
@@ -275,10 +290,12 @@ async function dispatchStart(
     }
 
     console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
+    await getAccessToken(userId)
     return fetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            [EXPECTED_USER_HEADER]: userId,
             'x-idempotency-key': `start-retry:${randomId()}`,
         },
         signal,
@@ -294,9 +311,10 @@ export async function runCaptureUpload(
     file: File,
     title: string,
     keyTerms: string[],
-    options?: CaptureUploadOptions
+    options: CaptureUploadOptions
 ): Promise<CaptureUploadResult> {
-    const supabase = createClient()
+    const userId = options.userId
+    const supabase = createClientForUser(userId)
     const signal = options?.signal
     let transcriptId: string | null = null
     let storagePath: string | null = null
@@ -331,9 +349,11 @@ export async function runCaptureUpload(
         }
 
         console.log('[capture] Step 1: Creating transcript...')
+        await getAccessToken(userId)
+        throwIfCanceled()
         const createRes = await fetch('/api/transcripts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', [EXPECTED_USER_HEADER]: userId },
             signal,
             body: JSON.stringify({
                 title: title || fitTranscriptTitle(file.name),
@@ -347,6 +367,10 @@ export async function runCaptureUpload(
 
         if (!createRes.ok) {
             const errorData = await createRes.json().catch(() => ({}))
+            if (errorData.code === ACCOUNT_CHANGED_CODE) {
+                notifyAccountChanged()
+                throw new AccountChangedError()
+            }
             console.error('[capture] Transcript creation failed:', errorData)
             throw new Error(errorData.error || `Failed to create transcript (${createRes.status})`)
         }
@@ -362,6 +386,11 @@ export async function runCaptureUpload(
 
         if (!transcriptId || !storagePath) {
             throw new Error('Transcript creation response was missing required fields')
+        }
+
+        if (storagePath.split('/')[0] !== userId ||
+            (alreadyLinkedKey && alreadyLinkedKey.split('/')[0] !== userId)) {
+            throw new AccountChangedError()
         }
 
         console.log('[capture] Transcript created:', transcriptId, 'storagePath:', storagePath, 'deduped:', createData?.deduped === true)
@@ -411,6 +440,7 @@ export async function runCaptureUpload(
             const { data: linkedTranscript, error: updateError } = await updateWithSignal.single()
 
             if (updateError || !linkedTranscript) {
+                if (isAccountChangedError(updateError)) throw new AccountChangedError()
                 console.error('[capture] Failed to update transcript source_object_key:', updateError)
                 const linkRejection = classifyProjectLinkWriteRejection(updateError)
                 const updateErrorMessage =
@@ -456,13 +486,19 @@ export async function runCaptureUpload(
 
         options?.onProgress?.('starting')
         throwIfCanceled()
+        await getAccessToken(userId)
+        throwIfCanceled()
         didDispatchStartRequest = true
-        const startRes = await dispatchStart(transcriptId, options?.uploadIntentId, signal)
+        const startRes = await dispatchStart(transcriptId, options?.uploadIntentId, signal, userId)
         didReceiveStartResponse = true
         throwIfCanceled()
 
         if (!startRes.ok) {
             const errorData = await startRes.json().catch(() => ({}))
+            if (errorData.code === ACCOUNT_CHANGED_CODE) {
+                notifyAccountChanged()
+                throw new AccountChangedError()
+            }
             throw new Error(errorData.error || `Failed to start transcription (${startRes.status})`)
         }
 
@@ -474,6 +510,12 @@ export async function runCaptureUpload(
             warning: creationWarning,
         }
     } catch (err) {
+        if (isAccountChangedError(err)) {
+            // Do not issue cleanup under the replacement cookie account. Any
+            // committed data stays with its original owner; local audio stays
+            // available for retry after signing back into that account.
+            return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
+        }
         const wasCanceled =
             isCanceled() ||
             (err instanceof DOMException && err.name === 'AbortError') ||
@@ -493,7 +535,8 @@ export async function runCaptureUpload(
                 transcriptId,
                 storagePath,
                 didUploadFile,
-                createdFreshTranscript
+                createdFreshTranscript,
+                userId
             )
             if (rollbackMessage) {
                 message = `${message} ${rollbackMessage}`
@@ -529,7 +572,8 @@ export async function runCaptureUpload(
                 transcriptId,
                 storagePath,
                 didUploadFile,
-                createdFreshTranscript
+                createdFreshTranscript,
+                userId
             )
             if (rollbackMessage) {
                 message = `${message} ${rollbackMessage}`

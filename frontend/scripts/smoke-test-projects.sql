@@ -30,24 +30,11 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated, service_role;
 
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  (
-    '10000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'projects-smoke-a@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  ),
-  (
-    '10000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'projects-smoke-b@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  );
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001', 'projects-smoke-a@example.test'),
+  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002', 'projects-smoke-b@example.test');
 
-SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
@@ -239,7 +226,7 @@ WHERE id = '20000000-0000-0000-0000-000000000003';
 UPDATE public.projects SET deleting_at = now()
 WHERE id = '20000000-0000-0000-0000-000000000003';
 
-SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000002","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_true(
   NOT EXISTS (SELECT 1 FROM public.projects WHERE id = '20000000-0000-0000-0000-000000000001'),
@@ -267,7 +254,7 @@ SELECT pg_temp.assert_sqlstate(
   'PJ001'
 );
 
-SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000001","role":"authenticated"}';
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.finish_project_delete(
        '20000000-0000-0000-0000-000000000004', '{}'::uuid[])$sql$,
@@ -365,7 +352,7 @@ SELECT pg_temp.assert_true(
   'one private project invalidation per delete statement'
 );
 
-SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 SELECT set_config('realtime.topic', 'projects-v1:10000000-0000-0000-0000-000000000001', true);
 SELECT pg_temp.assert_true(

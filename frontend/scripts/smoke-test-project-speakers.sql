@@ -27,22 +27,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION pg_temp.own(jsonb) TO authenticated;
 
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  (
-    '10000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'speakers-smoke-a@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  ),
-  (
-    '10000000-0000-0000-0000-000000000002',
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated', 'authenticated', 'speakers-smoke-b@example.test', '',
-    now(), '{}'::jsonb, '{}'::jsonb, now(), now()
-  );
+INSERT INTO public.app_users (id, workos_user_id, email) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001', 'speakers-smoke-a@example.test'),
+  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002', 'speakers-smoke-b@example.test');
 
 -- Tree for user A:
 --   Root ── Child ── Grand
@@ -145,7 +132,7 @@ INSERT INTO public.segments (transcript_id, speaker_id, start_ms, end_ms, text) 
 UPDATE public.projects SET deleting_at = now()
 WHERE id IN ('60000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000007');
 
-SET LOCAL request.jwt.claims = '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 -- ---------------------------------------------------------------- scope ----

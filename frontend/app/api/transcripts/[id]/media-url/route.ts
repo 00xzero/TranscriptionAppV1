@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/infra/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { getSignedMediaUrl, localizeSignedUrl } from '@/infra/supabase/storage'
 
 export async function GET(
@@ -17,9 +18,8 @@ export async function GET(
         const { id: transcriptId } = await params
         const supabase = await createClient()
 
-        // Get authenticated user
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        if (authError || !user) {
+        const user = await getCurrentUser(supabase)
+        if (!user) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }

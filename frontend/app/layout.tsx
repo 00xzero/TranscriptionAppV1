@@ -6,6 +6,7 @@ import '@fontsource-variable/newsreader/wght-italic.css'
 import '@fontsource/ibm-plex-mono/latin-400.css'
 import '@fontsource/ibm-plex-mono/latin-500.css'
 import '@fontsource/ibm-plex-mono/latin-600.css'
+import { withAuth } from '@workos-inc/authkit-nextjs'
 import { AuthProvider } from '@/lib/auth/AuthProvider'
 import { ModalProvider } from '@/lib/ModalContext'
 import { RecordingSessionProvider } from '@/lib/recording/RecordingSessionContext'
@@ -46,7 +47,12 @@ const sidebarInitScript = `
   } catch (_) {}
 `
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The signed-in person, known before the first render, so the first Supabase
+  // request of any page already carries the WorkOS token. The token itself
+  // stays on the server.
+  const { accessToken, ...initialAuth } = await withAuth()
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -55,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased bg-noise h-screen flex overflow-hidden">
         <TooltipProvider delayDuration={700}>
-          <AuthProvider>
+          <AuthProvider initialAuth={initialAuth}>
             <ModalProvider>
               <ProjectsProvider>
                 <RecordingSessionProvider>

@@ -14,6 +14,7 @@ import {
     type SpeakerPresentation,
 } from '@/core/speakers/labels'
 import { paginateAllRows } from '@/lib/supabase/queries'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 
 export interface ExportData {
     transcript: Transcript
@@ -61,13 +62,8 @@ export async function fetchExportData(
     supabase: SupabaseClient,
     transcriptId: string
 ): Promise<ExportDataResult> {
-    // Authenticate
-    const {
-        data: { user },
-        error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    const user = await getCurrentUser(supabase)
+    if (!user) {
         return {
             success: false,
             error: { error: 'Unauthorized', status: 401 },

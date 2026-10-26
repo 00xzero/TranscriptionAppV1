@@ -5,6 +5,7 @@
  * Uses the browser Supabase client for RLS-protected access.
  */
 import { createClient } from '@/infra/supabase/client'
+import { getCurrentUserId } from '@/lib/auth/current-user-id'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type {
     EditorPeopleContext,
@@ -145,13 +146,12 @@ export async function fetchProjects(): Promise<Project[]> {
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
     const supabase = createClient()
-    const { data: authData, error: authError } = await supabase.auth.getUser()
-    if (authError) throw authError
-    if (!authData.user) throw new Error('You must be signed in to create a project.')
+    const userId = await getCurrentUserId(supabase)
+    if (!userId) throw new Error('You must be signed in to create a project.')
 
     const { data, error } = await supabase
         .from('projects')
-        .insert({ ...input, user_id: authData.user.id })
+        .insert({ ...input, user_id: userId })
         .select()
         .single()
 

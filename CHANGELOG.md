@@ -2,6 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-26] - Account-switch Recovery and Seed Ownership
+
+- A known account mismatch now withholds cached tokens until AuthKit confirms the server session. Failed reconciliation retries the server check directly, with backoff and on reconnect, so A's cached token cannot restore A while the shared cookie belongs to B.
+- Regression coverage keeps A's token cached across failed server checks, verifies recovery to B, and checks that returning to A also requires server confirmation.
+- Local seed data selects the documented staging account by its unique WorkOS subject, so a legacy row with the same email cannot receive its fixtures.
+
+## [2026-10-26] - Upload Account Boundaries
+
+- Capture sends the tab's expected application user id with transcript creation. The route refuses a missing or different account with `409 ACCOUNT_CHANGED` before writing, then the tab reconciles its session without retrying the upload under the replacement account.
+- Each capture uses a Supabase client bound to its original user. Token refreshes, TUS chunks, media linking, start requests and rollback keep that owner; an account switch stops further work and preserves local audio. Live recordings and recovered recordings keep their original owner when auth changes.
+- Regression coverage includes the exact cached-A-token/shared-B-cookie failure through the real capture hook, Supabase clients and create route, switches during upload, in-flight token refresh, TUS request refusal, and recording ownership. The account-switch test fails against the original create behavior. All 199 suites / 2,536 tests pass; typecheck and the Webpack production build pass.
+
+## [2026-10-23] - WorkOS Sign-in
+
+Sign-in moves from Supabase Auth to **WorkOS AuthKit**, so business customers
+can sign their staff in with their company's own login (SSO). People sign in
+on WorkOS's hosted page; Supabase keeps the database, files and live updates
+and accepts WorkOS tokens as a third-party auth provider. Every library stays
+personal, and every row, file and event keeps our own user id.
+
+### Added
+
+- **Migration** `20261023120000_workos_auth.sql` — `app_users` maps one WorkOS user (`user_01…`) to one of our UUIDs; existing accounts are copied in with their ids, unlinked. `public.current_user_id()` (security definer, signed-in callers only; the anonymous role gets a permission error) returns the signed-in person's UUID, or NULL. All 32 functions and 23 policies that used `auth.uid()` (public tables, the `media` and `waveforms` buckets, and the private Projects v1 delete invalidations on `realtime.messages`) are recreated from the live catalogue with `current_user_id()`, and the migration refuses to apply while anything still uses `auth.uid()`. Owner foreign keys point at `app_users`.
+- **Sign-out route** — `POST /auth/sign-out`, a plain form post from `useAuth().signOut`: it clears the session with AuthKit's `signOut()` and answers its logout redirect with 303, so the browser follows it with a GET. As a Server Action, the page leaving mid-action rejected its promise and the sidebar reported a failed sign-out that had worked. The page keeps showing its user until it is replaced: clearing identity first showed the empty signed-out app for the second the redirects take.
+- **Sign-in routes** — `GET /auth` sends the visitor to WorkOS sign-in (also the sign-out landing); `GET /auth/callback` is AuthKit's `handleAuth`, which creates the person's `app_users` row on first sign-in (`provisionAppUser`: one row per WorkOS id under concurrent sign-ins, never linked by email; if it fails, AuthKit clears the new session).
+- **Current user** — `getCurrentUser(supabase)` (server-only) for API routes and exports: null (401) when no one is signed in, and it throws when the lookup itself fails, so an outage is never reported as being signed out. `getCurrentUserId` for browser code outside React.
+
+### Changed
+
+- **Proxy** — runs AuthKit's `authkit()` on every request; signed-out visitors on `/`, `/transcripts`, `/editor`, `/recording`, `/projects` and `/people` go straight to WorkOS sign-in and return to the page they asked for.
+- **Supabase clients** — the browser client is one shared client signed with the AuthKit token (`infra/workos/access-token.ts`, registered by `AuthProvider`); the server client is signed with `withAuth()`'s token. `@supabase/ssr`, the Supabase Auth UI and `infra/supabase/cookie.ts` are gone.
+- **`AuthProvider`** — built on AuthKit; keeps `user`, `userId`, `ready` and `signOut`. The root layout passes the server's `withAuth()` result (without its token) as `initialAuth`, so AuthKit knows the user on the first render and the very first Supabase request of a page is already signed; without it the editor's first reads went out signed out and were refused. `user` is now `{ id, email, name }`. A lookup that finishes after sign-out or an account switch is dropped. A failed lookup leaves identity unresolved rather than signed out, and is retried (1, 2, 4, 8 and 16 s, then on reconnect or focus). Every request token is checked against the user shown: the session cookie is shared by all tabs, so after another tab changes accounts a refresh can return the other account's token while this tab still shows its own user; that token is never sent, identity goes unresolved, and AuthKit is asked for the session's user, which resolves as an account switch. Until it does (AuthKit can fail, answering `{ error }`, or the token fetch itself can fail), the session is checked again on the same backoff and on reconnect or focus.
+- **Resumable uploads** ask for a fresh WorkOS token before every chunk (tokens last about five minutes).
+- **Local config** — `config.toml` trusts WorkOS tokens (`[auth.third_party.workos]`, issuer from `WORKOS_ISSUER_URL` in `infra/supabase/.env`) and turns Supabase sign-ups off. New `WORKOS_*` variables in both env examples; WorkOS setup steps in `infra/Docker-setup.md`.
+- **Fixtures** — `seed.sql` seeds the documented test account, found by its email in `app_users` (never whichever account comes first), and the SQL / concurrency smoke scripts use `app_users` rows with WorkOS-shaped subjects instead of `auth.users`.
+
+### Removed
+
+- `scripts/smoke-test-waveform-trigger.ts`, which tested a trigger that server-owned writes had already replaced and signed in with a Supabase password; `TEST_EMAIL` / `TEST_PASSWORD`.
+
+### Tests
+
+- **Frontend** — new tests for the provider (lookup races, sign-out, token registration), `getCurrentUser`, concurrent provisioning, the proxy, token refresh between upload chunks, and the migration's security contract; route, export and realtime tests drive a test double of AuthKit (it ships ESM only, so Jest maps it). `198` suites / `2,526` tests passing; `npm run typecheck`; lint clean on the changed files.
+- **Database** — all migrations apply from scratch with no schema difference from the migrated local database. `current_user_id()` resolves a linked WorkOS subject, gives NULL (and no rows) for a Supabase-issued token, and refuses the anonymous role. The server-owned writes, projects, project people, project speakers and job results smoke scripts and the projects concurrency test pass.
+
+### Notes
+
+- Checked against WorkOS staging on the local stack: signing in on the hosted page, the Library (projects and transcripts), live updates (a rename, and a project deletion through the private channel), the editor (title, waveform, audio, a text save and its undo through `set_segment_texts_guarded`), export, creating and deleting a transcript through the routes, and live updates plus a database refetch six minutes after page load, past the 5-minute token lifetime.
+- Company SSO with the staging Test Organization: an `@example.com` email is routed to its test identity provider, and the first sign-in creates the person's own `app_users` row and an empty library. Signed in as that user, the media URL, waveform URL, export and delete routes all answer 404 for the first user's transcript, and the editor shows nothing of it. Signing out ends the WorkOS session and lands on the sign-in page.
+- As the SSO user: a second sign-in reuses the same `app_users` row; a 10-second clip uploaded through Capture was prepared, transcribed by Deepgram (callback through the tunnel), given its waveform, and opens in the editor with its text and audio.
+- Seen while testing, not caused by this change: a file whose browser-reported type is `application/octet-stream` is refused by Storage even though the app infers the right type from its extension, because Storage takes the type from the File rather than from `contentType`.
+- The people directory, people editor and speakers smoke scripts were already failing before this change: they call the editor RPCs without the revision guards added on 2026-10-13/14.
+- Hosted: not pushed. The migration, linking your existing account by its UUID, and the check happen together in one maintenance window.
+
 ## [2026-10-23] - People Loading State
 
 The People page now loads in the shape it ends up in, so the list no longer
