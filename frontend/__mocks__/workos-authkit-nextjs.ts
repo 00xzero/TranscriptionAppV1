@@ -25,3 +25,13 @@ export const getSignInUrl = jest.fn(async () => 'https://auth.test/sign-in')
 export const signOut = jest.fn(async (_options?: { returnTo?: string }) => undefined)
 
 export const handleAuth = jest.fn(() => async () => new Response(null, { status: 302 }))
+
+export class CallbackError extends Error {
+  constructor(
+    message: string,
+    readonly code: 'missing_auth_params' | 'missing_pkce_cookie' | 'oauth_state_mismatch' | 'missing_tokens'
+  ) {
+    super(message)
+    this.name = 'CallbackError'
+  }
+}
