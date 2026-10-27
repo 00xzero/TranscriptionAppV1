@@ -2,7 +2,7 @@
  * Next.js Proxy for WorkOS AuthKit.
  *
  * - Refreshes the AuthKit session on every request (so `withAuth()` works in
- *   routes and pages), and gives each full page load its access token
+ *   routes and pages)
  * - Sends signed-out visitors on protected routes to WorkOS sign-in, which
  *   returns them to the page they asked for
  */
@@ -25,10 +25,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  // eagerAuth hands a full page load its access token in a cookie that lasts
-  // 30 seconds and that AuthKit's browser code reads and deletes at once, so
-  // a prerendered page has its token without asking the server.
-  const { session, headers, authorizationUrl } = await authkit(request, { eagerAuth: true })
+  // No eagerAuth: its token cookie is read before AuthKit knows the user, so
+  // if another tab switches accounts meanwhile, AuthKit shows the new user
+  // with the old account's token and keeps it, since nothing tells it the
+  // user changed. Fetching the token once the user is known costs one request.
+  const { session, headers, authorizationUrl } = await authkit(request)
 
   const path = request.nextUrl.pathname
 

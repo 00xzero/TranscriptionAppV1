@@ -161,9 +161,8 @@ function resolveIdentity(
  *
  * Pages are prerendered, so AuthKit learns the user only after the page has
  * loaded, while pages start their reads at once. Until AuthKit knows, the
- * token getter waits rather than letting a read go out signed out. The token
- * itself is usually already here: the proxy hands it over with the page
- * (eagerAuth), but nothing depends on it.
+ * token getter waits rather than letting a read go out signed out; AuthKit
+ * then fetches the token for that user.
  *
  * AuthKit's check on load answers "no user" both when no one is signed in
  * and when the check fails. So "no user" counts only once AuthKit has read

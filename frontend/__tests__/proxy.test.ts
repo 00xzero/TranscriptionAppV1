@@ -40,12 +40,15 @@ describe('proxy', () => {
     }
   })
 
-  test('hands each page load its access token, since pages are prerendered', async () => {
+  // An eager token is read before AuthKit knows the user, so an account switch
+  // in another tab at that moment leaves this tab with the old account's token.
+  test('does not hand pages an eager access token', async () => {
     sessionFor({ id: 'user_01' })
 
     await proxy(request('/'))
 
-    expect(authkitMock).toHaveBeenCalledWith(expect.any(NextRequest), { eagerAuth: true })
+    expect(authkitMock).toHaveBeenCalledTimes(1)
+    expect(authkitMock.mock.calls[0][1]?.eagerAuth).toBeFalsy()
   })
 
   test('lets signed-in visitors through protected routes', async () => {

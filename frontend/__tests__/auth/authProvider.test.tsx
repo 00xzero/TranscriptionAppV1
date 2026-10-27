@@ -303,10 +303,10 @@ describe('AuthProvider', () => {
     await expect(request).resolves.toBeNull()
   })
 
-  test('a failed check on load, with no eager token, fails reads rather than sending them signed out, and recovers', async () => {
+  test('a failed check on load fails reads rather than sending them signed out, and recovers', async () => {
     jest.useFakeTimers()
     try {
-      // AuthKit's load check failed and hid it ("no user"); no eager token came with the page.
+      // AuthKit's load check failed and hid it ("no user").
       setAuthKitState({ loading: false })
       mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
       mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
