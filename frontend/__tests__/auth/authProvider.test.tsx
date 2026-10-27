@@ -1,6 +1,6 @@
 import React, { StrictMode } from 'react'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
-import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider'
+import { AuthProvider, SIGN_IN_UNCONFIRMED_MESSAGE, useAuth } from '@/lib/auth/AuthProvider'
 import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
 import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
 import {
@@ -248,6 +248,109 @@ describe('AuthProvider', () => {
 
     unmount()
     await expect(getAccessToken()).resolves.toBeNull()
+  })
+
+  test('holds a request until AuthKit knows the user, so a page’s first read is never signed out', async () => {
+    // A prerendered page: AuthKit learns the user only after load.
+    setAuthKitState({ loading: true })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+    renderProvider()
+
+    let answered = false
+    const request = getAccessToken().finally(() => {
+      answered = true
+    })
+    await settle()
+    expect(answered).toBe(false)
+    expect(mockGetAccessToken).not.toHaveBeenCalled()
+
+    act(() => setAuthKitState({ loading: false, user: workosUser('user_A') }))
+    await expect(request).resolves.toBe(accessTokenFor('user_A'))
+  })
+
+  test('confirms "no user" with a session read before letting a held request go without a token', async () => {
+    const read = deferred<undefined>()
+    mockRefreshAuth.mockReturnValueOnce(read.promise)
+    setAuthKitState({ loading: true })
+    renderProvider()
+
+    let answered = false
+    const request = getAccessToken().finally(() => {
+      answered = true
+    })
+    act(() => setAuthKitState({ loading: false }))
+    await settle()
+    // AuthKit's load check said "no user", which a failed check also says.
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+    expect(answered).toBe(false)
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    await act(async () => {
+      read.resolve(undefined)
+      await read.promise
+    })
+    await expect(request).resolves.toBeNull()
+    expect(screen.getByTestId('ready')).toHaveTextContent('true')
+  })
+
+  test('a held request does not hang when the provider unmounts', async () => {
+    setAuthKitState({ loading: true })
+    const { unmount } = renderProvider()
+    const request = getAccessToken()
+
+    unmount()
+    await expect(request).resolves.toBeNull()
+  })
+
+  test('a failed check on load, with no eager token, fails reads rather than sending them signed out, and recovers', async () => {
+    jest.useFakeTimers()
+    try {
+      // AuthKit's load check failed and hid it ("no user"); no eager token came with the page.
+      setAuthKitState({ loading: false })
+      mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+      mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
+      mockRefreshAuth
+        .mockResolvedValueOnce({ error: 'Failed to fetch' } as never)
+        .mockImplementation(async () => {
+          setAuthKitState({ user: workosUser('user_A') })
+        })
+      renderProvider()
+      await act(async () => {})
+
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+      await expect(getAccessToken()).rejects.toThrow(SIGN_IN_UNCONFIRMED_MESSAGE)
+      expect(mockGetAccessToken).not.toHaveBeenCalled()
+
+      await act(async () => {
+        jest.advanceTimersByTime(1000)
+      })
+      expect(mockRefreshAuth).toHaveBeenCalledTimes(2)
+      await act(async () => {})
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+      await expect(getAccessToken()).resolves.toBe(accessTokenFor('user_A'))
+    } finally {
+      jest.useRealTimers()
+    }
+  })
+
+  test('retries a failing session read when the connection comes back', async () => {
+    setAuthKitState({ loading: false })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    mockRefreshAuth
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
+      .mockImplementation(async () => {
+        setAuthKitState({ user: workosUser('user_A') })
+      })
+    renderProvider()
+    await settle()
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
   })
 
   test('an upload bound to A cannot receive B’s token after the displayed account switches', async () => {

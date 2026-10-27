@@ -9,16 +9,18 @@
  */
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getAccessToken } from '@/infra/workos/access-token'
+import { withSignedOutProbe } from './signed-out-probe'
 
 let browserClient: SupabaseClient | null = null
 
 export function createClient(): SupabaseClient {
     if (browserClient) return browserClient
 
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     browserClient = createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { accessToken: getAccessToken }
+        anonKey,
+        { accessToken: getAccessToken, global: { fetch: withSignedOutProbe(anonKey) } }
     )
     return browserClient
 }

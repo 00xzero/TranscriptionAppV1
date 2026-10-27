@@ -40,6 +40,14 @@ describe('proxy', () => {
     }
   })
 
+  test('hands each page load its access token, since pages are prerendered', async () => {
+    sessionFor({ id: 'user_01' })
+
+    await proxy(request('/'))
+
+    expect(authkitMock).toHaveBeenCalledWith(expect.any(NextRequest), { eagerAuth: true })
+  })
+
   test('lets signed-in visitors through protected routes', async () => {
     sessionFor({ id: 'user_01' })
 

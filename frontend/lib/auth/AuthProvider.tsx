@@ -16,7 +16,6 @@ import {
   useAccessToken,
   useAuth as useAuthKit,
 } from '@workos-inc/authkit-nextjs/components'
-import type { NoUserInfo, UserInfo } from '@workos-inc/authkit-nextjs'
 import { createClient } from '@/infra/supabase/client'
 import {
   accessTokenSubject,
@@ -114,12 +113,23 @@ function useRetryWhileFailing(attempt: number, retry: () => void) {
   }, [attempt, retry])
 }
 
+/**
+ * A request made while the page cannot confirm who is signed in fails with
+ * this, rather than going out signed out and reading as an empty library.
+ */
+export const SIGN_IN_UNCONFIRMED_MESSAGE =
+  'Could not confirm you are signed in. Check your connection and try again.'
+
 function resolveIdentity(
   workosUserId: string | null,
   loading: boolean,
   lookup: Lookup | null,
-  staleFor: string | null
+  staleFor: string | null,
+  sessionRead: boolean
 ): ResolvedIdentity {
+  // AuthKit's first check found no one, which it also answers when the check
+  // fails: unknown until a read that reports failures confirms it.
+  if (!loading && !workosUserId && !sessionRead) return INITIAL_IDENTITY
   // The session now belongs to someone else (another tab changed accounts):
   // nothing is known until AuthKit reports the session's user.
   if (workosUserId && staleFor === workosUserId) return INITIAL_IDENTITY
@@ -148,6 +158,18 @@ function resolveIdentity(
  * resolves as an account switch. Until it does, the session is checked again
  * with backoff and on reconnect, since an unresolved page makes no requests
  * of its own.
+ *
+ * Pages are prerendered, so AuthKit learns the user only after the page has
+ * loaded, while pages start their reads at once. Until AuthKit knows, the
+ * token getter waits rather than letting a read go out signed out. The token
+ * itself is usually already here: the proxy hands it over with the page
+ * (eagerAuth), but nothing depends on it.
+ *
+ * AuthKit's check on load answers "no user" both when no one is signed in
+ * and when the check fails. So "no user" counts only once AuthKit has read
+ * the session with `refreshAuth`, which reports its failures. Until then
+ * reads wait; while that read keeps failing they fail too (an error with
+ * Try again, never an empty library), and it is retried.
  */
 function AppAuthProvider({ children }: { children: ReactNode }) {
   const { user: workosUser, loading, refreshAuth } = useAuthKit()
@@ -156,21 +178,50 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   const [lookupRun, setLookupRun] = useState(0)
   const [staleFor, setStaleFor] = useState<string | null>(null)
   const [sessionChecks, setSessionChecks] = useState<Failures | null>(null)
+  // Whether AuthKit has read the session since load, and failed reads so far.
+  const [sessionRead, setSessionRead] = useState(false)
+  const [failedReads, setFailedReads] = useState(0)
 
   const workosUserId = workosUser?.id ?? null
   const email = workosUser?.email ?? ''
   const name = displayName(workosUser?.firstName ?? null, workosUser?.lastName ?? null)
-  const { userId, ready } = resolveIdentity(workosUserId, loading, lookup, staleFor)
+  const { userId, ready } = resolveIdentity(workosUserId, loading, lookup, staleFor, sessionRead)
+  const noUserUnconfirmed = !loading && !workosUserId && !sessionRead
+  const readFailing = noUserUnconfirmed && failedReads > 0
+  // Reads wait while AuthKit is asking, and while "no user" awaits its first read.
+  const authUnknown = loading || (noUserUnconfirmed && !readFailing)
 
   const workosUserIdRef = useRef(workosUserId)
   const userIdRef = useRef(userId)
   const staleForRef = useRef(staleFor)
+  const readFailingRef = useRef(readFailing)
+  const authUnknownRef = useRef(authUnknown)
   const refreshingForRef = useRef<{ workosUserId: string } | null>(null)
+  const readingRef = useRef(false)
+  const authKnownWaitersRef = useRef(new Set<() => void>())
   useLayoutEffect(() => {
     workosUserIdRef.current = workosUserId
     userIdRef.current = userId
     staleForRef.current = staleFor
-  }, [workosUserId, userId, staleFor])
+    readFailingRef.current = readFailing
+    authUnknownRef.current = authUnknown
+    if (!authUnknown) {
+      authKnownWaitersRef.current.forEach((release) => release())
+      authKnownWaitersRef.current.clear()
+    }
+  }, [workosUserId, userId, staleFor, readFailing, authUnknown])
+  useLayoutEffect(() => {
+    const waiters = authKnownWaitersRef.current
+    return () => {
+      waiters.forEach((release) => release())
+      waiters.clear()
+    }
+  }, [])
+
+  const untilAuthKnown = useCallback(
+    () => new Promise<void>((release) => authKnownWaitersRef.current.add(release)),
+    []
+  )
 
   const reconcileSession = useCallback(() => {
     const expected = workosUserIdRef.current
@@ -197,6 +248,7 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
         if (refreshingForRef.current !== attempt) return
         // AuthKit has now read the server session and updated its user. It
         // can confirm a switch to B or a return to A, even with A cached.
+        setSessionRead(true)
         setStaleFor((stale) => (stale === expected ? null : stale))
         setSessionChecks((checks) => (checks?.workosUserId === expected ? null : checks))
       })
@@ -220,6 +272,13 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
       }
       checkAccount()
       if (sessionIsStale()) return undefined
+      // AuthKit hands out no token before it knows the user.
+      if (authUnknownRef.current) {
+        await untilAuthKnown()
+        checkAccount()
+        if (sessionIsStale()) return undefined
+      }
+      if (readFailingRef.current) throw new Error(SIGN_IN_UNCONFIRMED_MESSAGE)
       const token = await getAccessToken()
       // The account can change while AuthKit is fetching/refreshing its token.
       checkAccount()
@@ -236,7 +295,28 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
       return undefined
     }, reconcileSession)
     return () => setAccessTokenGetter(null)
-  }, [getAccessToken, reconcileSession])
+  }, [getAccessToken, reconcileSession, untilAuthKnown])
+
+  const readSession = useCallback(() => {
+    if (readingRef.current) return
+    readingRef.current = true
+    const failed = () => setFailedReads((reads) => reads + 1)
+    void refreshAuth()
+      .then((result) => {
+        if (result && 'error' in result) failed()
+        else setSessionRead(true)
+      })
+      .catch(failed)
+      .finally(() => {
+        readingRef.current = false
+      })
+  }, [refreshAuth])
+  // "No user" from AuthKit's check on load: confirm it with a read, then
+  // retry a failing read with backoff and on reconnect.
+  useEffect(() => {
+    if (noUserUnconfirmed && failedReads === 0) readSession()
+  }, [noUserUnconfirmed, failedReads, readSession])
+  useRetryWhileFailing(readFailing ? failedReads : 0, readSession)
 
   useEffect(() => {
     if (!workosUserId) return
@@ -310,21 +390,13 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * `initialAuth` is the server's `withAuth()` result without its token. With
- * it, AuthKit knows the user on the first render, so its token getter works
- * for the very first Supabase request; without it, the getter returns nothing
- * until AuthKit has asked the server, and early requests would go out signed
- * out.
+ * No `initialAuth` from the server: reading the session while rendering the
+ * root layout would stop Next from prerendering any page. AuthKit asks the
+ * server for the user once the page has loaded instead.
  */
-export function AuthProvider({
-  children,
-  initialAuth,
-}: {
-  children: ReactNode
-  initialAuth?: Omit<UserInfo | NoUserInfo, 'accessToken'>
-}) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   return (
-    <AuthKitProvider initialAuth={initialAuth}>
+    <AuthKitProvider>
       <AppAuthProvider>{children}</AppAuthProvider>
     </AuthKitProvider>
   )
