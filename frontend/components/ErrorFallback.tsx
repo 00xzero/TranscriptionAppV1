@@ -5,6 +5,9 @@ import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 type Action =
   | { kind: 'button'; label: string; onClick: () => void }
   | { kind: 'link'; label: string; href: string }
+  // A full page load, for a route handler such as /auth: a client-side Link
+  // would prefetch it and could not follow its redirect off-site.
+  | { kind: 'document'; label: string; href: string }
 
 interface ErrorFallbackProps {
   eyebrow?: string
@@ -27,6 +30,13 @@ function renderAction(action: Action, isPrimary: boolean) {
       <button type="button" onClick={action.onClick} className={classes}>
         {action.label}
       </button>
+    )
+  }
+  if (action.kind === 'document') {
+    return (
+      <a href={action.href} className={classes}>
+        {action.label}
+      </a>
     )
   }
   return (

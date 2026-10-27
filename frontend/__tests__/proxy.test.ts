@@ -74,6 +74,14 @@ describe('proxy', () => {
     expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
   })
 
+  test('shows the sign-in error page only to signed-out visitors', async () => {
+    expect((await proxy(request('/auth/error'))).headers.get('location')).toBeNull()
+
+    // Still signed in (a stale callback link): nothing to try again.
+    sessionFor({ id: 'user_01' })
+    expect((await proxy(request('/auth/error'))).headers.get('location')).toBe('http://localhost:3000/')
+  })
+
   test('leaves public routes and API routes to answer for themselves', async () => {
     const page = await proxy(request('/auth'))
     const api = await proxy(request('/api/transcripts'))
