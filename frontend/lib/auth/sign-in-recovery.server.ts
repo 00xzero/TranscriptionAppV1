@@ -98,9 +98,9 @@ function sealExpired(state: string): boolean {
   return Number(parts[5]) < Date.now()
 }
 
-// The path AuthKit sealed for this sign-in, kept to this app and never an
-// auth route.
-function safeReturnPath(path: string | undefined): string {
+// A path to send someone after sign-in, kept to this app and never an auth
+// route.
+export function safeReturnPath(path: string | null | undefined): string {
   if (!path || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return '/'
   const base = 'https://app.invalid'
   const url = new URL(path, base)

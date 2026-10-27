@@ -16,8 +16,9 @@ const PROTECTED_ROUTES = ['/transcripts', '/editor', '/recording', '/projects', 
 const AUTH_ROUTES = ['/auth']
 
 // Routes that should be excluded from auth redirect logic (callbacks, etc).
-// Sign-out is posted by signed-in visitors, so it must not bounce to /.
-const CALLBACK_ROUTES = ['/auth/callback', '/auth/sign-out']
+// Sign-out is posted by signed-in visitors, so it must not bounce to /, and
+// finish checks the session itself, so it must answer signed in or not.
+const CALLBACK_ROUTES = ['/auth/callback', '/auth/finish', '/auth/sign-out']
 
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/api/inngest') {

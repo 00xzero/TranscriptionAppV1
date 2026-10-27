@@ -74,6 +74,13 @@ describe('proxy', () => {
     expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
   })
 
+  test('lets the finish step check the session itself, signed in or not', async () => {
+    expect((await proxy(request('/auth/finish?to=%2F'))).headers.get('location')).toBeNull()
+
+    sessionFor({ id: 'user_01' })
+    expect((await proxy(request('/auth/finish?to=%2F'))).headers.get('location')).toBeNull()
+  })
+
   test('shows the sign-in error page only to signed-out visitors', async () => {
     expect((await proxy(request('/auth/error'))).headers.get('location')).toBeNull()
 
