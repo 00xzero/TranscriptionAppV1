@@ -33,7 +33,7 @@ export function resetAuthKitState(): void {
   mockSignOut.mockReset()
   mockSignOut.mockResolvedValue(undefined)
   mockGetAccessToken.mockReset()
-  mockGetAccessToken.mockResolvedValue(undefined)
+  mockGetAccessToken.mockImplementation(async () => state.user ? accessTokenFor(state.user.id) : undefined)
   mockRefreshAuth.mockReset()
   mockRefreshAuth.mockResolvedValue(undefined)
 }

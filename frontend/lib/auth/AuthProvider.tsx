@@ -20,6 +20,7 @@ import type { NoUserInfo, UserInfo } from '@workos-inc/authkit-nextjs'
 import { createClient } from '@/infra/supabase/client'
 import {
   accessTokenSubject,
+  getAccessToken as getSupabaseAccessToken,
   setAccessTokenGetter,
 } from '@/infra/workos/access-token'
 import { getCurrentUserId } from '@/lib/auth/current-user-id'
@@ -240,18 +241,26 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!workosUserId) return
     let current = true
-    getCurrentUserId(createClient()).then(
-      (userId) => {
-        if (current) setLookup({ workosUserId, status: 'resolved', userId })
-      },
-      () => {
-        if (!current) return
-        setLookup((previous) => ({
-          status: 'failed',
-          ...nextFailures(previous?.status === 'failed' ? previous : null, workosUserId),
-        }))
-      }
-    )
+    void (async () => {
+      const supabase = createClient()
+      const userId = await getCurrentUserId(supabase)
+      if (!current) return
+      const token = await getSupabaseAccessToken()
+      if (!current) return
+      if (!token || accessTokenSubject(token) !== workosUserId) throw new AccountChangedError()
+      // A channel joins with Realtime's cached token, even when its token
+      // callback already returns the new account. Set that cache before
+      // exposing this identity to any subscription effects. Passing the
+      // validated token also supersedes older in-flight SDK auth callbacks.
+      await supabase.realtime.setAuth(token)
+      if (current) setLookup({ workosUserId, status: 'resolved', userId })
+    })().catch(() => {
+      if (!current) return
+      setLookup((previous) => ({
+        status: 'failed',
+        ...nextFailures(previous?.status === 'failed' ? previous : null, workosUserId),
+      }))
+    })
     return () => {
       current = false
     }

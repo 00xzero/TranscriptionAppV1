@@ -13,9 +13,10 @@ import {
 } from '@/__mocks__/workos-authkit-nextjs-components'
 
 const mockRpc = jest.fn()
+const mockSetRealtimeAuth = jest.fn()
 
 jest.mock('@/infra/supabase/client', () => ({
-  createClient: () => ({ rpc: mockRpc }),
+  createClient: () => ({ rpc: mockRpc, realtime: { setAuth: mockSetRealtimeAuth } }),
 }))
 
 type RpcResult = { data: string | null; error: { message: string } | null }
@@ -61,6 +62,7 @@ describe('AuthProvider', () => {
     jest.clearAllMocks()
     resetAuthKitState()
     mockRpc.mockResolvedValue(resolvesTo(null))
+    mockSetRealtimeAuth.mockResolvedValue(undefined)
   })
 
   test('starts unresolved while WorkOS is still loading', () => {
@@ -102,6 +104,43 @@ describe('AuthProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
     expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+  })
+
+  test('does not expose the replacement account until realtime authentication finishes', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+
+    const authentication = deferred<void>()
+    mockSetRealtimeAuth.mockReturnValueOnce(authentication.promise)
+    mockRpc.mockResolvedValue(resolvesTo('app-user-b'))
+    act(() => setAuthKitState({ user: workosUser('user_B') }))
+    await waitFor(() => expect(mockSetRealtimeAuth).toHaveBeenLastCalledWith(accessTokenFor('user_B')))
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+
+    await act(async () => authentication.resolve())
+    expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b')
+  })
+
+  test('retries failed realtime authentication without publishing a ready account', async () => {
+    jest.useFakeTimers()
+    try {
+      setAuthKitState({ user: workosUser('user_A') })
+      mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+      mockSetRealtimeAuth.mockRejectedValueOnce(new Error('Authentication failed'))
+      renderProvider()
+      await act(async () => {})
+      expect(screen.getByTestId('ready')).toHaveTextContent('false')
+      expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+
+      await act(async () => jest.advanceTimersByTime(1000))
+      expect(mockSetRealtimeAuth).toHaveBeenCalledTimes(2)
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('stays unresolved when the lookup fails, rather than claiming signed out', async () => {

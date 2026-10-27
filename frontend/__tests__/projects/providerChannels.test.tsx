@@ -11,6 +11,7 @@ import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project, Transcript, TranscriptSummary } from '@/contracts/db'
 import {
+  accessTokenFor,
   resetAuthKitState,
   setAuthKitState,
   workosUser,
@@ -184,7 +185,9 @@ describe('ProjectsProvider realtime ownership', () => {
         'projects-v1:user-a',
       ])
     )
-    expect(mockSetAuth).toHaveBeenCalledTimes(1)
+    expect(mockSetAuth).toHaveBeenCalledTimes(2)
+    expect(mockSetAuth).toHaveBeenNthCalledWith(1, accessTokenFor('workos-user-a'))
+    expect(mockSetAuth).toHaveBeenNthCalledWith(2)
     expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
       config: { private: true },
     })
