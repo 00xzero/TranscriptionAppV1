@@ -50,7 +50,7 @@ export function createExportHandler(format: keyof typeof formats) {
     { params }: { params: Promise<{ id: string }> }
   ) {
     const { id: transcriptId } = await params
-    const supabase = await createClient()
+    await using supabase = await createClient({ refreshSession: true })
     const result = await fetchExportData(supabase, transcriptId)
     if (!result.success) {
       return NextResponse.json({ error: result.error.error }, { status: result.error.status })

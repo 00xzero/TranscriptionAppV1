@@ -14,7 +14,7 @@ import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } f
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = await createClient()
+        await using supabase = await createClient({ refreshSession: true })
 
         const user = await getCurrentUser(supabase)
         if (!user) {

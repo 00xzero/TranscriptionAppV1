@@ -47,7 +47,7 @@ export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
+  await using supabase = await createClient({ refreshSession: true })
   const user = await getCurrentUser(supabase)
   if (!user) {
     return errorResponse({ error: 'Unauthorized', stage: 'begin' }, 401)

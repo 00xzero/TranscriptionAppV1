@@ -7,6 +7,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export const withAuth = jest.fn(async () => ({ user: null }))
 
+export const refreshSession = jest.fn(async () => ({ user: null }))
+
 export const authkit = jest.fn(async () => ({
   session: { user: null },
   headers: new Headers(),

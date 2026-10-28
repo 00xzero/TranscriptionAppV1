@@ -11,6 +11,7 @@ jest.mock('@/lib/auth/current-user.server', () => ({
 
 jest.mock('@/infra/supabase/server', () => ({
   createClient: async () => ({
+    [Symbol.asyncDispose]: async () => {},
     rpc: rpcMock,
     storage: { from: storageFromMock },
   }),

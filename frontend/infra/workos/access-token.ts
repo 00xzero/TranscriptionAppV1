@@ -45,12 +45,27 @@ export function notifyAccountChanged(): void {
  * is not a readable JWT.
  */
 export function accessTokenSubject(token: string): string | null {
+    const sub = readClaims(token)?.sub
+    return typeof sub === 'string' ? sub : null
+}
+
+/**
+ * When a token was issued and expires (`iat`, `exp`, in seconds), read the
+ * same unverified way. Null without an `exp`.
+ */
+export function accessTokenTimes(token: string): { issuedAt: number | null; expiresAt: number } | null {
+    const claims = readClaims(token)
+    if (typeof claims?.exp !== 'number') return null
+    return { issuedAt: typeof claims.iat === 'number' ? claims.iat : null, expiresAt: claims.exp }
+}
+
+function readClaims(token: string): Record<string, unknown> | null {
     const payload = token.split('.')[1]
     if (!payload) return null
     try {
         const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
-        const json = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')))
-        return typeof json.sub === 'string' ? json.sub : null
+        const json: unknown = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')))
+        return typeof json === 'object' && json !== null ? (json as Record<string, unknown>) : null
     } catch {
         return null
     }

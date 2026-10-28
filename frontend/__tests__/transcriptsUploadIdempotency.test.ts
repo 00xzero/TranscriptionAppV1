@@ -9,6 +9,7 @@ jest.mock('@/lib/auth/current-user.server', () => ({
 
 jest.mock('@/infra/supabase/server', () => ({
   createClient: jest.fn(async () => ({
+    [Symbol.asyncDispose]: async () => {},
     from: fromMock,
   })),
 }))

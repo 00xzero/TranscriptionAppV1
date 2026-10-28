@@ -16,7 +16,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
+    await using supabase = await createClient({ refreshSession: true });
 
     const user = await getCurrentUser(supabase);
     if (!user) {
