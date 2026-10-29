@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
-import { useCurrentWordIndex } from '@/app/editor/[id]/hooks/useCurrentWordIndex'
-import { createPlaybackClock, type PlaybackClock } from '@/app/editor/[id]/playbackClock'
+import { useCurrentWordIndex } from '@/app/(app)/editor/[id]/hooks/useCurrentWordIndex'
+import { createPlaybackClock, type PlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 
 const tokens = [{ startMs: 1000 }, { startMs: 1400 }, { startMs: 1400 }, { startMs: 2000 }]
 

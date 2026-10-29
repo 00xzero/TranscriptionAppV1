@@ -27,7 +27,6 @@ interface SidebarProps {
 
 export default function Sidebar({ className = '' }: SidebarProps) {
   const pathname = usePathname()
-  const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
   const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
@@ -108,11 +107,6 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   const navigateTo = (path: string) => {
     guardedNav.push(path)
-  }
-
-  // Don't show sidebar on auth pages
-  if (isAuthRoute) {
-    return null
   }
 
   // SSR placeholder

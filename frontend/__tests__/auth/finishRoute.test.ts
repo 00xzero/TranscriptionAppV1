@@ -23,12 +23,12 @@ describe('GET /auth/finish', () => {
     expect(response.headers.get('location')).toBe('http://localhost:3000/editor/abc?t=12')
   })
 
-  test('stops on the error page when the browser did not keep the session', async () => {
+  test('stops on sign-in, once, with its destination kept, when the browser did not keep the session', async () => {
     withAuthMock.mockResolvedValue({ user: null })
 
     const response = await finish('/editor/abc')
 
-    expect(response.headers.get('location')).toBe('http://localhost:3000/auth/error?reason=session')
+    expect(response.headers.get('location')).toBe('http://localhost:3000/auth?error=session&next=%2Feditor%2Fabc')
   })
 
   test('never sends anyone off-site or back into sign-in', async () => {

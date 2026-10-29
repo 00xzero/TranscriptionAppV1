@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
-import { useTranscriptSearch } from '../../app/editor/[id]/hooks/useTranscriptSearch'
-import type { Seg } from '../../app/editor/[id]/types'
+import { useTranscriptSearch } from '../../app/(app)/editor/[id]/hooks/useTranscriptSearch'
+import type { Seg } from '../../app/(app)/editor/[id]/types'
 
 const defaultParams = {
   segments: [

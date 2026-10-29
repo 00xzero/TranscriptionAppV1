@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { NOTHING_CHANGED, useEditorHistory, type HistoryStep } from '@/app/editor/[id]/hooks/useEditorHistory'
-import { useEditorWriteQueue } from '@/app/editor/[id]/hooks/useEditorWriteQueue'
-import { useSegmentHolds } from '@/app/editor/[id]/hooks/useSegmentHolds'
+import { NOTHING_CHANGED, useEditorHistory, type HistoryStep } from '@/app/(app)/editor/[id]/hooks/useEditorHistory'
+import { useEditorWriteQueue } from '@/app/(app)/editor/[id]/hooks/useEditorWriteQueue'
+import { useSegmentHolds } from '@/app/(app)/editor/[id]/hooks/useSegmentHolds'
 import { OutcomeUnknown } from '@/lib/editor/untilAnswered'
 
 jest.mock('@/components/ui/toaster', () => ({ toast: jest.fn() }))

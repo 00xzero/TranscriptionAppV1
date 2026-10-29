@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ProjectPage from '@/app/projects/[projectId]/page'
+import ProjectPage from '@/app/(app)/projects/[projectId]/page'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Project } from '@/contracts/db'
 import {

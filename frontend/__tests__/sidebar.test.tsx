@@ -84,13 +84,6 @@ describe('Sidebar', () => {
     expect(screen.getByLabelText('Collapse Sidebar')).toBeInTheDocument()
   })
 
-  it('renders nothing on auth routes, so the content pane keeps the full width', () => {
-    usePathnameMock.mockReturnValue('/auth')
-    setTestAuth({ userId: 'user-a', ready: true, user: testUser('user-a', { email: 'ada@example.com' }) })
-    const { container } = render(<Sidebar />)
-    expect(container).toBeEmptyDOMElement()
-  })
-
   it('renders Projects between Library and Drafts and marks project routes active', async () => {
     usePathnameMock.mockReturnValue('/projects/project-a')
     await renderSidebar()

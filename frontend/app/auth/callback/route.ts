@@ -1,68 +1,62 @@
 /**
- * Auth callback route for WorkOS AuthKit.
+ * Where Google and Microsoft sign-ins come back, by way of WorkOS (started by
+ * app/auth/oauth/[provider]/route.ts). The attempt's own cookie, found by the
+ * state in the URL, holds the PKCE verifier and destination; the code is then
+ * exchanged with WorkOS and the sign-in finishes like every other: app_users,
+ * the session cookie, then /auth/finish, which checks the cookie stuck.
  *
- * WorkOS redirects here after sign-in; AuthKit exchanges the code for a
- * session and returns the person to the page they asked for, by way of
- * /auth/finish, which checks the browser kept the session cookie (a dropped
- * cookie would otherwise loop through WorkOS, every callback succeeding). The
- * first sign-in of a WorkOS user creates its app_users row. If that fails,
- * AuthKit clears the new session, so nobody is left signed in without an
- * account.
- *
- * A failed callback goes where lib/auth/sign-in-recovery.server.ts says: a
- * stale attempt is started again once, a person still signed in goes to the
- * Library, and anything else ends on /auth/error, which offers to try again.
+ * The attempt is spent whatever happens here (a code can be used once), so it
+ * is cleared first. A failure lands on /auth with a message and the
+ * destination kept; nothing restarts on its own, so nothing can loop. WorkOS
+ * may still need an emailed code (an unconfirmed account with that email, or
+ * Radar): that opens the code step.
  */
-import { handleAuth } from '@workos-inc/authkit-nextjs'
+import { withAuth } from '@workos-inc/authkit-nextjs'
 import { NextResponse, type NextRequest } from 'next/server'
-import { createAdminClient } from '@/infra/supabase/admin'
-import { provisionAppUser } from '@/lib/auth/provision-app-user.server'
-import { recoverFromSignInError, type SignInRecovery } from '@/lib/auth/sign-in-recovery.server'
+import { codeAttempts, oauthAttempts } from '@/lib/auth/attempt-cookies.server'
+import { completeSignIn } from '@/lib/auth/complete-sign-in.server'
+import { appOrigin, authUrl } from '@/lib/auth/origin.server'
+import { exchangeOAuthCode } from '@/lib/auth/sign-in.server'
 
-// The browser-facing origin, which a container's request URL may not carry.
-const redirectUri = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI
-const baseURL = redirectUri ? new URL(redirectUri).origin : undefined
-
-// Responses made by onError, so GET leaves them alone. AuthKit returns the
-// very object onError made.
-const failures = new WeakSet<Response>()
-
-const authkitCallback = handleAuth({
-  baseURL,
-  onSuccess: async ({ user }) => {
-    await provisionAppUser(createAdminClient(), { id: user.id, email: user.email })
-  },
-  // AuthKit has already logged the error. A throw here would escape AuthKit's
-  // handler, so a failed recovery falls back to the error page.
-  onError: async ({ error, request }) => {
-    let recovery: SignInRecovery
-    try {
-      recovery = await recoverFromSignInError(error, request)
-    } catch (recoveryError) {
-      console.error('[sign-in recovery failed]', recoveryError)
-      recovery = { kind: 'error-page' }
-    }
-    const path = recovery.kind === 'home' ? '/' : '/auth/error'
-    const response = recovery.kind === 'restart'
-      ? NextResponse.redirect(recovery.url)
-      : NextResponse.redirect(new URL(path, baseURL ?? request.url))
-    failures.add(response)
-    return response
-  },
-})
+function noStore(response: NextResponse): NextResponse {
+  response.headers.set('Cache-Control', 'no-store')
+  return response
+}
 
 export async function GET(request: NextRequest) {
-  const response = await authkitCallback(request)
-  const location = response.headers.get('location')
-  if (failures.has(response) || !location) return response
+  const params = request.nextUrl.searchParams
+  const state = params.get('state') ?? ''
+  const attempt = await oauthAttempts.read(state)
 
-  // A signed-in callback redirects within the app; anything else (AuthKit
-  // sending a sign-in start on to WorkOS) passes as it is.
-  const origin = baseURL ?? new URL(request.url).origin
-  const target = new URL(location, origin)
-  if (target.origin !== origin) return response
-  const finish = new URL('/auth/finish', origin)
-  finish.searchParams.set('to', `${target.pathname}${target.search}`)
-  response.headers.set('location', finish.toString())
-  return response
+  if (!attempt) {
+    // An old callback link for someone still signed in: nothing to sign in to.
+    if ((await withAuth()).user) return noStore(NextResponse.redirect(new URL('/', appOrigin(request))))
+    return noStore(NextResponse.redirect(authUrl({ error: 'oauth' }, request)))
+  }
+  await oauthAttempts.clear(state)
+
+  const code = params.get('code')
+  // The person cancelled at the provider, or WorkOS refused (?error=…).
+  if (!code || params.has('error')) {
+    return noStore(NextResponse.redirect(authUrl({ error: 'oauth', next: attempt.next }, request)))
+  }
+
+  const outcome = await exchangeOAuthCode({
+    code,
+    codeVerifier: attempt.codeVerifier,
+    signalsId: attempt.signalsId,
+  })
+
+  if (outcome.kind === 'signed-in') {
+    const finish = await completeSignIn(outcome.auth, attempt.next)
+    return noStore(
+      NextResponse.redirect(finish ?? authUrl({ error: 'not_finished', next: attempt.next }, request))
+    )
+  }
+  if (outcome.kind === 'challenge') {
+    const id = await codeAttempts.save({ ...outcome.attempt, next: attempt.next })
+    return noStore(NextResponse.redirect(authUrl({ attempt: id, next: attempt.next }, request)))
+  }
+  const error = outcome.error === 'blocked' || outcome.error === 'unsupported' ? outcome.error : 'oauth'
+  return noStore(NextResponse.redirect(authUrl({ error, next: attempt.next }, request)))
 }

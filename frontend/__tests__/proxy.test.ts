@@ -6,8 +6,6 @@ import { proxy } from '../proxy'
 
 const authkitMock = authkit as unknown as jest.Mock
 
-const AUTHORIZATION_URL = 'https://auth.test/authorize?return=%2Feditor%2Fabc'
-
 function request(path: string) {
   return new NextRequest(`http://localhost:3000${path}`)
 }
@@ -16,7 +14,6 @@ function sessionFor(user: { id: string } | null) {
   authkitMock.mockResolvedValue({
     session: { user },
     headers: new Headers(),
-    authorizationUrl: user ? undefined : AUTHORIZATION_URL,
   })
 }
 
@@ -33,10 +30,13 @@ describe('proxy', () => {
     expect(response.headers.get('location')).toBeNull()
   })
 
-  test('sends signed-out visitors on protected routes to WorkOS sign-in', async () => {
-    for (const path of ['/', '/transcripts', '/editor/abc', '/recording/new', '/projects/p1', '/people']) {
+  test('sends signed-out visitors on protected routes to our sign-in page, with where they were going', async () => {
+    expect((await proxy(request('/'))).headers.get('location')).toBe('http://localhost:3000/auth')
+    for (const path of ['/transcripts', '/editor/abc?t=12', '/recording/new', '/projects/p1', '/people']) {
       const response = await proxy(request(path))
-      expect(response.headers.get('location')).toBe(AUTHORIZATION_URL)
+      expect(response.headers.get('location')).toBe(
+        `http://localhost:3000/auth?${new URLSearchParams({ next: path })}`
+      )
     }
   })
 
@@ -92,12 +92,56 @@ describe('proxy', () => {
     expect((await proxy(request('/auth/finish?to=%2F'))).headers.get('location')).toBeNull()
   })
 
-  test('shows the sign-in error page only to signed-out visitors', async () => {
-    expect((await proxy(request('/auth/error'))).headers.get('location')).toBeNull()
+  test('leaves the Google/Microsoft start and the reset link alone, signed in or not', async () => {
+    for (const user of [null, { id: 'user_01' }]) {
+      sessionFor(user)
+      const start = await proxy(new NextRequest('http://localhost:3000/auth/oauth/google', { method: 'POST' }))
+      const reset = await proxy(request('/auth/reset-password?token=t'))
+      expect(start.headers.get('location')).toBeNull()
+      expect(reset.headers.get('location')).toBeNull()
+    }
+  })
 
-    // Still signed in (a stale callback link): nothing to try again.
+  // Signed out in another tab: this tab's next Server Action (AuthKit's focus
+  // check, a refresh) must leave the page, not follow a redirect it ignores.
+  test('answers a signed-out Server Action with Next’s action redirect, so the page reloads on sign-in', async () => {
+    authkitMock.mockResolvedValue({
+      session: { user: null },
+      headers: new Headers({ 'set-cookie': 'wos-session=; Max-Age=0; Path=/', 'x-workos-middleware': 'true' }),
+    })
+
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/projects?view=grid', { method: 'POST', headers: { 'next-action': 'abc123' } })
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('x-action-redirect')).toBe('/auth?next=%2Fprojects%3Fview%3Dgrid;replace')
+    expect(response.headers.get('content-type')).toBe('text/plain')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    // AuthKit's own session headers still reach the browser; its internal ones don't.
+    expect(response.headers.get('set-cookie')).toContain('wos-session=;')
+    expect(response.headers.get('x-workos-middleware')).toBeNull()
+  })
+
+  test('lets a signed-in Server Action through, and the Library’s action keeps a plain sign-in target', async () => {
     sessionFor({ id: 'user_01' })
-    expect((await proxy(request('/auth/error'))).headers.get('location')).toBe('http://localhost:3000/')
+    const signedIn = await proxy(
+      new NextRequest('http://localhost:3000/projects', { method: 'POST', headers: { 'next-action': 'abc123' } })
+    )
+    expect(signedIn.headers.get('x-action-redirect')).toBeNull()
+    expect(signedIn.headers.get('location')).toBeNull()
+
+    sessionFor(null)
+    const library = await proxy(new NextRequest('http://localhost:3000/', { method: 'POST', headers: { 'next-action': 'abc123' } }))
+    expect(library.headers.get('x-action-redirect')).toBe('/auth;replace')
+  })
+
+  test('a signed-out Server Action on the sign-in page itself is left alone', async () => {
+    const response = await proxy(new NextRequest('http://localhost:3000/auth', { method: 'POST', headers: { 'next-action': 'abc123' } }))
+
+    expect(response.headers.get('x-action-redirect')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
   })
 
   test('leaves public routes and API routes to answer for themselves', async () => {

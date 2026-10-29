@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import RecordingNewPage from '@/app/recording/new/page'
+import RecordingNewPage from '@/app/(app)/recording/new/page'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import {
   __resetForTesting,

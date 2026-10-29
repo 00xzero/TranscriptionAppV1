@@ -1,6 +1,6 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import EditorHeader from '@/app/editor/[id]/components/EditorHeader'
+import EditorHeader from '@/app/(app)/editor/[id]/components/EditorHeader'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 function renderHeader(props: Partial<React.ComponentProps<typeof EditorHeader>> = {}) {

@@ -5,7 +5,7 @@ import {
   findCurrentTokenIndex,
   formatTranscriptDate,
   getNextWaveformCollapsed,
-} from '../../app/editor/[id]/utils'
+} from '../../app/(app)/editor/[id]/utils'
 
 describe('isUnicodeWordChar', () => {
   it('returns true for ASCII word characters', () => {

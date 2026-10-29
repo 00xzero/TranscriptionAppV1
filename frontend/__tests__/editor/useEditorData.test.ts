@@ -1,5 +1,5 @@
-import { chooseEditorDuration, mergeSpeakerAssignments } from '@/app/editor/[id]/hooks/useEditorData'
-import type { Seg } from '@/app/editor/[id]/types'
+import { chooseEditorDuration, mergeSpeakerAssignments } from '@/app/(app)/editor/[id]/hooks/useEditorData'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 describe('chooseEditorDuration', () => {
   it('uses the longer waveform duration when transcript metadata under-reports app-recorded media', () => {

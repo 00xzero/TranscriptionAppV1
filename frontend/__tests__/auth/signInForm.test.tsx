@@ -1,0 +1,239 @@
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { SignInForm } from '@/components/auth/SignInForm'
+import { requestPasswordReset, resetPassword, signIn, verifyCode } from '@/app/auth/actions'
+
+jest.mock('@/app/auth/actions', () => ({
+  signIn: jest.fn(),
+  signUp: jest.fn(),
+  verifyCode: jest.fn(),
+  resendCode: jest.fn(),
+  requestPasswordReset: jest.fn(),
+  resetPassword: jest.fn(),
+}))
+
+const mockGetToken = jest.fn<Promise<string>, []>()
+jest.mock('@workos/radar-signals/react', () => ({
+  RadarSignalsProvider: ({ children }: { children: ReactNode }) => children,
+  useRadarToken: () => ({ getToken: mockGetToken, tokenReady: true }),
+}))
+
+const signInMock = signIn as jest.Mock
+const verifyMock = verifyCode as jest.Mock
+const resetMock = resetPassword as jest.Mock
+const forgotMock = requestPasswordReset as jest.Mock
+
+const ATTEMPT_A = 'mabc1234-0123456789abcdef01234567'
+const ATTEMPT_B = 'mabc1235-89abcdef0123456701234567'
+const query = () => Object.fromEntries(new URLSearchParams(window.location.search))
+
+async function submitPassword() {
+  const user = userEvent.setup()
+  render(<SignInForm next="/editor/abc" clientId="client_test" />)
+  await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+  await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+  // Found by its label: the password box must keep the id its <label> names.
+  await user.type(screen.getByLabelText('Password'), 'not my password')
+  await user.click(screen.getByRole('button', { name: 'Sign in' }))
+}
+
+describe('SignInForm', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    window.history.replaceState(null, '', '/auth?next=%2Feditor%2Fabc')
+    signInMock.mockResolvedValue({ kind: 'error', error: 'invalid_credentials' })
+  })
+
+  test('sends Radar’s token with the sign-in, and shows the answer', async () => {
+    mockGetToken.mockResolvedValue('radar-token')
+
+    await submitPassword()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("That email and password don't match.")
+    const formData = signInMock.mock.calls[0][1] as FormData
+    expect(formData.get('signalsId')).toBe('radar-token')
+    expect(formData.get('email')).toBe('ada@example.com')
+    expect(formData.get('next')).toBe('/editor/abc')
+  })
+
+  test('a Radar token that never comes still lets the sign-in go, after a short wait', async () => {
+    mockGetToken.mockReturnValue(new Promise(() => {}))
+
+    await submitPassword()
+
+    await waitFor(() => expect(signInMock).toHaveBeenCalled(), { timeout: 3000 })
+    expect((signInMock.mock.calls[0][1] as FormData).get('signalsId')).toBe('')
+  })
+
+  test('a failing Radar script still lets the sign-in go', async () => {
+    mockGetToken.mockRejectedValue(new Error('script blocked'))
+
+    await submitPassword()
+
+    await waitFor(() => expect(signInMock).toHaveBeenCalled())
+    expect((signInMock.mock.calls[0][1] as FormData).get('signalsId')).toBe('')
+  })
+
+  test('a Radar code step offers to start again rather than a resend', () => {
+    render(
+      <SignInForm
+        next="/"
+        pendingCode={{ attempt: 'mabc1234-0123456789abcdef01234567', challenge: 'radar', email: 'ada@example.com' }}
+      />
+    )
+
+    expect(screen.getByRole('heading', { name: "Confirm it's you." })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start again' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Send a new code' })).not.toBeInTheDocument()
+  })
+
+  test('Back from Google restores the page with its buttons working again', async () => {
+    mockGetToken.mockResolvedValue('radar-token')
+    // jsdom can't navigate; the form leaving for the provider is enough.
+    const submit = jest.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+    const user = userEvent.setup()
+    render(<SignInForm next="/" clientId="client_test" />)
+
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+    await waitFor(() => expect(submit).toHaveBeenCalled())
+    expect(screen.getByRole('button', { name: 'Continue with Microsoft' })).toBeDisabled()
+
+    // A page shown afresh is not a restore: nothing changes.
+    act(() => {
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: false }))
+    })
+    expect(screen.getByRole('button', { name: 'Continue with Microsoft' })).toBeDisabled()
+
+    act(() => {
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+    })
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Continue with email' })).toBeEnabled()
+    submit.mockRestore()
+  })
+
+  describe('the code step and the address bar', () => {
+    beforeEach(() => mockGetToken.mockResolvedValue('radar-token'))
+
+    test('reaching the code step puts only its attempt and destination in the URL, so a refresh reopens it', async () => {
+      signInMock.mockResolvedValue({ kind: 'code', attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' })
+
+      await submitPassword()
+
+      expect(await screen.findByRole('heading', { name: 'Check your email.' })).toBeInTheDocument()
+      expect(window.location.pathname).toBe('/auth')
+      expect(query()).toEqual({ next: '/editor/abc', attempt: ATTEMPT_A })
+      expect(window.location.href).not.toContain('not my password')
+    })
+
+    test('a wrong code keeps the step and its URL; the right one goes on', async () => {
+      const user = userEvent.setup()
+      verifyMock
+        .mockResolvedValueOnce({ kind: 'error', error: 'invalid_code' })
+        .mockResolvedValueOnce({ kind: 'finish', url: 'http://localhost/auth/finish?to=%2Feditor%2Fabc' })
+      render(<SignInForm next="/editor/abc" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+      expect(await screen.findByRole('alert')).toHaveTextContent("That code isn't right.")
+      expect(query()).toEqual({ next: '/editor/abc', attempt: ATTEMPT_A })
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+      await waitFor(() => expect(verifyMock).toHaveBeenCalledTimes(2))
+      expect((verifyMock.mock.calls[1][1] as FormData).get('attempt')).toBe(ATTEMPT_A)
+    })
+
+    test('a further challenge moves the URL to the new attempt', async () => {
+      const user = userEvent.setup()
+      verifyMock.mockResolvedValue({ kind: 'code', attempt: ATTEMPT_B, challenge: 'radar', email: 'ada@example.com' })
+      render(<SignInForm next="/editor/abc" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      expect(await screen.findByRole('heading', { name: "Confirm it's you." })).toBeInTheDocument()
+      expect(query()).toEqual({ next: '/editor/abc', attempt: ATTEMPT_B })
+    })
+
+    test('an expired or spent attempt offers a fresh sign-in, keeping the destination and dropping the attempt', async () => {
+      const user = userEvent.setup()
+      verifyMock.mockResolvedValue({ kind: 'error', error: 'code_expired' })
+      render(<SignInForm next="/editor/abc" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('That code has expired. Sign in again.')
+      expect(screen.getByRole('button', { name: 'Continue with email' })).toBeInTheDocument()
+      expect(query()).toEqual({ next: '/editor/abc' })
+    })
+
+    test('a refreshed page whose attempt is gone takes the attempt out of the URL', () => {
+      window.history.replaceState(null, '', `/auth?next=%2Feditor%2Fabc&attempt=${ATTEMPT_A}`)
+
+      render(<SignInForm next="/editor/abc" initialError="code_expired" />)
+
+      expect(screen.getByRole('alert')).toHaveTextContent('That code has expired.')
+      expect(query()).toEqual({ next: '/editor/abc' })
+    })
+
+    test('abandoning the step ("Use a different email") takes the attempt out too', async () => {
+      const user = userEvent.setup()
+      window.history.replaceState(null, '', `/auth?next=%2Feditor%2Fabc&attempt=${ATTEMPT_A}`)
+      render(<SignInForm next="/editor/abc" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Use a different email' }))
+
+      expect(query()).toEqual({ next: '/editor/abc' })
+    })
+  })
+
+  describe('reset links', () => {
+    beforeEach(() => mockGetToken.mockResolvedValue('radar-token'))
+
+    test('a used or expired link turns into asking for a new one, and that works', async () => {
+      const user = userEvent.setup()
+      resetMock.mockResolvedValue({ kind: 'error', error: 'reset_link' })
+      forgotMock.mockResolvedValue({ kind: 'notice', notice: 'reset_sent' })
+      render(<SignInForm next="/" resetToken="used-token" />)
+
+      await user.type(screen.getByLabelText('New password'), 'a brand new passphrase')
+      await user.click(screen.getByRole('button', { name: 'Save and sign in' }))
+
+      expect(await screen.findByRole('heading', { name: 'Reset your password.' })).toBeInTheDocument()
+      expect(screen.getByRole('alert')).toHaveTextContent('This reset link has expired or was already used.')
+      await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+      await user.click(screen.getByRole('button', { name: 'Send reset link' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent("we've sent a link to reset the password")
+      expect((forgotMock.mock.calls[0][1] as FormData).get('email')).toBe('ada@example.com')
+    })
+
+    test('the reset page without a token opens on asking for a link, with a way back to sign in', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" initialError="reset_link" />)
+
+      expect(screen.getByRole('heading', { name: 'Reset your password.' })).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Back to sign in' }))
+      expect(screen.getByRole('button', { name: 'Continue with email' })).toBeInTheDocument()
+    })
+
+    test('the new-password step can be left: a new link, or back to sign in', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" resetToken="reset-token" />)
+
+      await user.click(screen.getByRole('button', { name: 'Send a new link' }))
+      expect(screen.getByRole('heading', { name: 'Reset your password.' })).toBeInTheDocument()
+    })
+
+    test('a reset that worked but whose sign-in failed says the password changed', async () => {
+      const user = userEvent.setup()
+      resetMock.mockResolvedValue({ kind: 'notice', notice: 'password_updated' })
+      render(<SignInForm next="/" resetToken="reset-token" />)
+
+      await user.type(screen.getByLabelText('New password'), 'a brand new passphrase')
+      await user.click(screen.getByRole('button', { name: 'Save and sign in' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Password updated. Sign in with your new password.')
+      expect(screen.getByRole('button', { name: 'Continue with email' })).toBeInTheDocument()
+    })
+  })
+})

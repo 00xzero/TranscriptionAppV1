@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ProjectsPage from '@/app/projects/page'
+import ProjectsPage from '@/app/(app)/projects/page'
 import {
   makeProject,
   makeTranscript,

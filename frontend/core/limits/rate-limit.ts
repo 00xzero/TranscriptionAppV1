@@ -107,6 +107,12 @@ export const RATE_LIMITS = {
         windowMs: 60 * 60 * 1000, // 1 hour
     } as RateLimitConfig,
 
+    /** Sign-in page actions: 10 per minute per IP. Counted per server instance only. */
+    SIGN_IN: {
+        maxRequests: 10,
+        windowMs: 60 * 1000, // 1 minute
+    } as RateLimitConfig,
+
     /** API general: 100 requests per minute per user */
     API_GENERAL: {
         maxRequests: 100,

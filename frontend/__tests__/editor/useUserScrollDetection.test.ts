@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { useUserScrollDetection } from '@/app/editor/[id]/hooks/useUserScrollDetection'
+import { useUserScrollDetection } from '@/app/(app)/editor/[id]/hooks/useUserScrollDetection'
 
 describe('useUserScrollDetection', () => {
   beforeEach(() => {

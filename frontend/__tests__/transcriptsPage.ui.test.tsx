@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import TranscriptsPage from '@/app/transcripts/page'
+import TranscriptsPage from '@/app/(app)/transcripts/page'
 import type { Transcript } from '@/contracts/db'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'

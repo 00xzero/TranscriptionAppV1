@@ -18,9 +18,9 @@ import type { SpeakerIdentity, SpeakerPresentation } from '@/core/speakers/label
 import { speakerInitials } from '@/lib/speakers/palette'
 import type { SpeakerDisplay } from '@/lib/speakers/display'
 import type { EditorPeopleContext, EditorPerson, Speaker } from '@/contracts/db'
-import type { Seg } from '@/app/editor/[id]/types'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 import { formatElapsedTime } from '@/lib/utils'
-import type { ApplyTo, SpeakerTarget } from '@/app/editor/[id]/hooks/useSpeakerAssignments'
+import type { ApplyTo, SpeakerTarget } from '@/app/(app)/editor/[id]/hooks/useSpeakerAssignments'
 
 type Props = {
   /** The open transcript, which People pages link back to. */

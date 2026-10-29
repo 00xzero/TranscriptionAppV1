@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
-import { useTranscriptSync } from '@/app/editor/[id]/hooks/useTranscriptSync'
-import type { Seg } from '@/app/editor/[id]/types'
+import { useTranscriptSync } from '@/app/(app)/editor/[id]/hooks/useTranscriptSync'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 jest.mock('react-virtuoso')
 

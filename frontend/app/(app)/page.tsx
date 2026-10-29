@@ -1,4 +1,4 @@
-import LibraryView from '../components/LibraryView'
+import LibraryView from '@/components/LibraryView'
 
 export default function HomePage() {
   return <LibraryView />

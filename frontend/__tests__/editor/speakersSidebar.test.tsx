@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { resolveSpeakerPresentation } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
-import { SpeakersSidebar, type SpeakersSidebarHandle } from '@/app/editor/[id]/components/SpeakersSidebar'
-import { useSpeakerOverview } from '@/app/editor/[id]/hooks/useSpeakerOverview'
-import type { Seg, Speaker } from '@/app/editor/[id]/types'
+import { SpeakersSidebar, type SpeakersSidebarHandle } from '@/app/(app)/editor/[id]/components/SpeakersSidebar'
+import { useSpeakerOverview } from '@/app/(app)/editor/[id]/hooks/useSpeakerOverview'
+import type { Seg, Speaker } from '@/app/(app)/editor/[id]/types'
 
 const people = [{ id: 'p1', name: 'Paul Reyes', organisation_name: 'Acme', preferred_color: '#4F638C' }]
 

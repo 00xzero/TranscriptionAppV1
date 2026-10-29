@@ -1,9 +1,9 @@
 import { act, createEvent, fireEvent, render, screen } from '@testing-library/react'
-import TranscriptSegmentCard, { type TranscriptSegmentCardProps } from '@/app/editor/[id]/components/TranscriptSegmentCard'
-import { useEditorKeyboardShortcuts } from '@/app/editor/[id]/hooks/useEditorKeyboardShortcuts'
-import { createPlaybackClock } from '@/app/editor/[id]/playbackClock'
+import TranscriptSegmentCard, { type TranscriptSegmentCardProps } from '@/app/(app)/editor/[id]/components/TranscriptSegmentCard'
+import { useEditorKeyboardShortcuts } from '@/app/(app)/editor/[id]/hooks/useEditorKeyboardShortcuts'
+import { createPlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { Seg } from '@/app/editor/[id]/types'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 const TEXT = 'Hello there, friend.'
 const segment: Seg = {

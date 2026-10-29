@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { act, renderHook } from '@testing-library/react'
-import { useKeepReadingPosition } from '@/app/editor/[id]/hooks/useKeepReadingPosition'
-import type { Seg } from '@/app/editor/[id]/types'
+import { useKeepReadingPosition } from '@/app/(app)/editor/[id]/hooks/useKeepReadingPosition'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 const rect = (top: number, height: number) =>
   ({ top, bottom: top + height, left: 0, right: 800, width: 800, height, x: 0, y: top, toJSON: () => ({}) }) as DOMRect

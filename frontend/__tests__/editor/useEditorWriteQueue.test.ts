@@ -1,5 +1,5 @@
 import { renderHook } from '@testing-library/react'
-import { useEditorWriteQueue } from '@/app/editor/[id]/hooks/useEditorWriteQueue'
+import { useEditorWriteQueue } from '@/app/(app)/editor/[id]/hooks/useEditorWriteQueue'
 
 const deferred = () => {
   let resolve!: () => void

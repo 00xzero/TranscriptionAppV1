@@ -1,8 +1,8 @@
 import React from 'react'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import PeopleLayout from '@/app/people/layout'
-import PeoplePage from '@/app/people/page'
+import PeopleLayout from '@/app/(app)/people/layout'
+import PeoplePage from '@/app/(app)/people/page'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { DirectoryOrganisation, DirectoryPerson, PeopleDirectory } from '@/contracts/db'
 import {

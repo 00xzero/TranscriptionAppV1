@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import * as supabaseQueries from '@/lib/supabase/queries'
-import { useEditorData } from '@/app/editor/[id]/hooks/useEditorData'
+import { useEditorData } from '@/app/(app)/editor/[id]/hooks/useEditorData'
 
 const mockToast = jest.fn()
 jest.mock('@/components/ui/toaster', () => ({

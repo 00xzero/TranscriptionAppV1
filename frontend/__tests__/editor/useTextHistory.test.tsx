@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { useTextHistory } from '@/app/editor/[id]/hooks/useTextHistory'
-import { useEditorHistory } from '@/app/editor/[id]/hooks/useEditorHistory'
-import { useEditorWriteQueue } from '@/app/editor/[id]/hooks/useEditorWriteQueue'
-import { useSegmentHolds } from '@/app/editor/[id]/hooks/useSegmentHolds'
-import type { useTranscriptMutations } from '@/app/editor/[id]/hooks/useTranscriptMutations'
+import { useTextHistory } from '@/app/(app)/editor/[id]/hooks/useTextHistory'
+import { useEditorHistory } from '@/app/(app)/editor/[id]/hooks/useEditorHistory'
+import { useEditorWriteQueue } from '@/app/(app)/editor/[id]/hooks/useEditorWriteQueue'
+import { useSegmentHolds } from '@/app/(app)/editor/[id]/hooks/useSegmentHolds'
+import type { useTranscriptMutations } from '@/app/(app)/editor/[id]/hooks/useTranscriptMutations'
 jest.mock('@/components/ui/toaster', () => ({ toast: jest.fn() }))
 function setup() {
   let text = ''; const states: string[] = []
