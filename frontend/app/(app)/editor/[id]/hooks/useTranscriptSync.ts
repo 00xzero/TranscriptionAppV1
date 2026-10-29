@@ -249,11 +249,17 @@ export function useTranscriptSync({
     sendMachine({ type: isBlocked ? 'POPOVER_BLOCKED' : 'POPOVER_UNBLOCKED', now: Date.now() })
   }, [speakerPopover, sendMachine])
 
+  // Stable, so a re-render between a wheel turn and its scroll doesn't
+  // re-attach the detector and forget the turn.
+  const onUserScroll = useCallback(() => {
+    sendMachine({ type: 'USER_SCROLL', now: Date.now() })
+  }, [sendMachine])
+
   useUserScrollDetection({
-    containerRef: transcriptScrollRef,
+    container: scrollParent,
     disabled: !!speakerPopover,
     isProgrammaticScrollActive,
-    onUserScroll: () => sendMachine({ type: 'USER_SCROLL', now: Date.now() }),
+    onUserScroll,
   })
 
   const onAudioTick = useCallback((tMs: number) => {

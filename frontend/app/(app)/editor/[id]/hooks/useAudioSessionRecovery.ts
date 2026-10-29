@@ -86,9 +86,14 @@ export function useAudioSessionRecovery({
         const currentAudio = audio
         clearPendingRecoveryWait()
         let finished = false
+        // Swapping the src first fires `abort` for the old source, then
+        // `loadstart` for the new one; only events after that are the new
+        // source's.
+        let newSourceStarted = false
         let recoveryTimeoutId: number | null = null
 
         const cleanupListeners = () => {
+          currentAudio.removeEventListener('loadstart', handleLoadStart)
           currentAudio.removeEventListener('loadeddata', handleLoaded)
           currentAudio.removeEventListener('error', handleErrorOrAbort)
           currentAudio.removeEventListener('abort', handleErrorOrAbort)
@@ -108,7 +113,12 @@ export function useAudioSessionRecovery({
           isRecoveringRef.current = false
         }
 
+        const handleLoadStart = () => {
+          newSourceStarted = true
+        }
+
         const handleLoaded = () => {
+          if (!newSourceStarted) return
           currentAudio.currentTime = savedPosition
           if (wasPlaying) {
             currentAudio.play().catch(() => {
@@ -119,9 +129,11 @@ export function useAudioSessionRecovery({
         }
 
         const handleErrorOrAbort = () => {
+          if (!newSourceStarted) return
           finishRecoveryWait()
         }
 
+        currentAudio.addEventListener('loadstart', handleLoadStart)
         currentAudio.addEventListener('loadeddata', handleLoaded)
         currentAudio.addEventListener('error', handleErrorOrAbort)
         currentAudio.addEventListener('abort', handleErrorOrAbort)

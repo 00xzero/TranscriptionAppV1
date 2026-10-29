@@ -2,20 +2,19 @@ import { useEffect } from 'react'
 import { SCROLL_INTENT_KEYS } from '../utils'
 
 export function useUserScrollDetection({
-  containerRef,
+  container,
   disabled = false,
   isProgrammaticScrollActive,
   onUserScroll,
 }: {
-  containerRef: React.RefObject<HTMLDivElement | null>
+  /** The scrolling element itself, so the listeners follow it if it mounts or changes. */
+  container: HTMLElement | null
   disabled?: boolean
   isProgrammaticScrollActive: () => boolean
   onUserScroll: () => void
 }) {
   useEffect(() => {
-    if (disabled) return
-    const container = containerRef.current
-    if (!container) return
+    if (disabled || !container) return
 
     let userIntentPending = false
     let intentResetTimer: number | undefined
@@ -82,5 +81,5 @@ export function useUserScrollDetection({
       window.removeEventListener('keydown', handleKeyDown)
       clearIntentResetTimer()
     }
-  }, [disabled, containerRef, isProgrammaticScrollActive, onUserScroll])
+  }, [disabled, container, isProgrammaticScrollActive, onUserScroll])
 }

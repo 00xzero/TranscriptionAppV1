@@ -177,6 +177,26 @@ describe('useTranscriptSync', () => {
     })
   })
 
+  describe('user scroll detection', () => {
+    it('keeps a wheel turn across a re-render, so the scroll that follows counts as the reader’s', () => {
+      const container = document.createElement('div')
+      const { result, rerender } = setup()
+      act(() => result.current.scrollContainerRef(container))
+      expect(result.current.hasUserScrolled).toBe(false)
+
+      act(() => {
+        container.dispatchEvent(new Event('wheel'))
+      })
+      // Any re-render before the scroll arrives, such as new segments.
+      rerender({ segments: [...segments], editingId: null, speakerPopover: null })
+      act(() => {
+        container.dispatchEvent(new Event('scroll'))
+      })
+
+      expect(result.current.hasUserScrolled).toBe(true)
+    })
+  })
+
   describe('waveform height measurement', () => {
     it('does not replace expanded height with collapsed transition measurements', () => {
       const { result } = setup()
