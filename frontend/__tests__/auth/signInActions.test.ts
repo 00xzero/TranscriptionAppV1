@@ -50,7 +50,7 @@ const radarChallenge = () =>
     code: 'radar_email_challenge',
     pendingAuthenticationToken: 'pending-radar',
     radarChallengeId: 'radar_challenge_1',
-    rawData: { code: 'radar_email_challenge', email: 'ada@example.com' },
+    rawData: { code: 'radar_email_challenge', user: { id: 'user_01A', email: 'ada@example.com' } },
   })
 
 function form(fields: Record<string, string>) {
@@ -354,6 +354,43 @@ describe('password reset', () => {
 
   test('a used or expired link says so', async () => {
     um.resetPassword.mockRejectedValue(workosError({ name: 'NotFoundException', status: 404, code: 'password_reset_token_not_found' }))
+
+    await expect(resetPassword(IDLE, form({ token: 'old', password: 'a brand new passphrase' }))).resolves.toEqual({
+      kind: 'error',
+      error: 'reset_link',
+    })
+  })
+
+  test('a weak new password says why, never "the link expired"', async () => {
+    // As WorkOS answers it on a reset: its reset code, the reasons nested.
+    um.resetPassword.mockRejectedValueOnce(
+      workosError({
+        name: 'BadRequestException',
+        status: 400,
+        code: 'password_reset_error',
+        errors: [
+          { code: 'password_too_short', message: 'Please try a password with 10 or more characters.' },
+          { code: 'password_too_weak', message: 'Please try a stronger password.' },
+        ],
+      })
+    )
+    await expect(resetPassword(IDLE, form({ token: 'reset-token', password: 'short' }))).resolves.toEqual({
+      kind: 'error',
+      error: 'weak_password',
+      detail: 'Please try a password with 10 or more characters.',
+    })
+
+    um.resetPassword.mockRejectedValueOnce(
+      workosError({ name: 'BadRequestException', status: 400, code: 'password_reset_error', errors: [{ code: 'password_too_weak' }] })
+    )
+    await expect(resetPassword(IDLE, form({ token: 'reset-token', password: 'aaaaaaaaaaaa' }))).resolves.toEqual({
+      kind: 'error',
+      error: 'weak_password',
+    })
+  })
+
+  test('a reset error without a password reason is still a dead link', async () => {
+    um.resetPassword.mockRejectedValue(workosError({ name: 'BadRequestException', status: 400, code: 'password_reset_error' }))
 
     await expect(resetPassword(IDLE, form({ token: 'old', password: 'a brand new passphrase' }))).resolves.toEqual({
       kind: 'error',

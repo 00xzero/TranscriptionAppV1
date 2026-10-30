@@ -29,7 +29,11 @@ interface WorkOSError {
   code?: string
   error?: string
   errors?: Array<{ code?: string; message?: string }>
-  rawData?: Record<string, unknown>
+  rawData?: {
+    email?: unknown
+    email_verification_id?: unknown
+    user?: { email?: unknown }
+  }
   pendingAuthenticationToken?: string
   radarChallengeId?: string
 }
@@ -70,7 +74,10 @@ export function describe(raw: unknown, during: 'password' | 'sign-up' | 'code' |
 
   if (e.name === 'AuthenticationException' && e.pendingAuthenticationToken) {
     const data = e.rawData ?? {}
-    const email = typeof data.email === 'string' ? data.email : ''
+    // Email verification uses email; Radar nests it under user.
+    const email = typeof data.email === 'string'
+      ? data.email
+      : typeof data.user?.email === 'string' ? data.user.email : ''
     if (code === 'email_verification_required') {
       const id = data.email_verification_id
       return {
@@ -103,8 +110,16 @@ export function describe(raw: unknown, during: 'password' | 'sign-up' | 'code' |
   }
   if (code === 'invalid_credentials') return failure('invalid_credentials')
   if (code === 'invalid_pending_authentication_token') return failure('code_expired')
-  if (code === 'password_strength_error') {
-    const reasons = (e.errors ?? []).map((item) => item.message?.trim()).filter(Boolean)
+  // A weak password: its own code on sign-up, but on a reset it comes as
+  // `password_reset_error` with the reasons nested (`password_too_short`), and
+  // the link still works, so it must not read as a dead link.
+  const strength = code === 'password_strength_error'
+    ? e.errors ?? []
+    : code === 'password_reset_error'
+      ? (e.errors ?? []).filter((item) => item.code?.startsWith('password_') && !item.code.startsWith('password_reset'))
+      : []
+  if (code === 'password_strength_error' || strength.length > 0) {
+    const reasons = strength.map((item) => item.message?.trim()).filter(Boolean)
     return { kind: 'error', error: 'weak_password', detail: reasons[0] }
   }
   if (code === 'user_creation_error' && e.errors?.some((item) => item.code === 'email_not_available')) {

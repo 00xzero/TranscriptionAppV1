@@ -10,13 +10,24 @@
  * challenges or blocks it). A successful sign-in loads the /auth/finish URL
  * as a new page, so the app starts from fresh AuthKit state.
  */
-import { useActionState, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { RadarSignalsProvider, useRadarToken } from '@workos/radar-signals/react'
+import { CircleAlert, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CodeField } from '@/components/ui/code-field'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordField } from '@/components/ui/password-field'
+import { Spinner } from '@/components/ui/spinner'
 import {
   EmailSchema,
   type AuthActionResult,
@@ -38,6 +49,8 @@ type Mode = 'sign-in' | 'sign-up'
 type Step = 'start' | 'password' | 'code' | 'forgot' | 'reset'
 type ServerAction = (previous: AuthActionResult, formData: FormData) => Promise<AuthActionResult>
 type GetSignals = () => Promise<string | undefined>
+/** What a press is waiting on, so only that button spins. */
+type Waiting = 'sign-in' | 'sign-up' | 'verify' | 'resend' | 'forgot' | 'reset' | 'google' | 'microsoft'
 
 export interface PendingCode {
   attempt: string
@@ -76,6 +89,9 @@ const ERRORS: Record<SignInError, string> = {
     "You signed in, but your browser didn't keep the sign-in. Check that cookies are allowed for this site, then try again.",
 }
 
+/** A submit that got no answer, so nothing happened: the same step can simply try again. */
+const CONNECTION_ERROR = "We couldn't reach the server. Check your connection and try again."
+
 const NOTICES: Record<AuthNotice, string> = {
   account_created: 'Your account is ready. Sign in to continue.',
   password_updated: 'Password updated. Sign in with your new password.',
@@ -83,7 +99,34 @@ const NOTICES: Record<AuthNotice, string> = {
   code_sent: "We've sent a new code.",
 }
 
-type Message = { tone: 'error' | 'notice'; text: string; switchToSignIn?: boolean }
+/**
+ * Where a message shows, so nothing the person is about to use moves:
+ * `top` for one a step opens with (it is there from the first frame),
+ * `field` under the field it is about, `action` under the button for any
+ * other answer to a submit.
+ */
+type Placement = 'top' | 'field' | 'action'
+type Message = { tone: 'error' | 'notice'; text: string; at: Placement; switchToSignIn?: boolean }
+
+/** Answers about what was typed in the step's one field, which shakes, as a login window does. */
+const FIELD_ERRORS = new Set<SignInError>(['invalid_credentials', 'weak_password', 'invalid_code'])
+
+const SHAKE: Keyframe[] = [
+  { transform: 'translateX(0)' },
+  { transform: 'translateX(-8px)' },
+  { transform: 'translateX(7px)' },
+  { transform: 'translateX(-5px)' },
+  { transform: 'translateX(3px)' },
+  { transform: 'translateX(-1px)' },
+  { transform: 'translateX(0)' },
+]
+
+/** A short sideways shake that settles; none for anyone who asked for less motion. */
+function shake(element: HTMLElement | null) {
+  if (!element?.animate) return
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  element.animate(SHAKE, { duration: 400, easing: 'ease-out' })
+}
 
 export function SignInForm(props: SignInFormProps) {
   if (!props.clientId) return <Steps {...props} getSignals={async () => undefined} />
@@ -125,9 +168,16 @@ function Steps({
   const [email, setEmail] = useState(pendingCode?.email ?? '')
   const [code, setCode] = useState<PendingCode | null>(pendingCode ?? null)
   const [message, setMessage] = useState<Message | null>(
-    initialError ? { tone: 'error', text: ERRORS[initialError] } : null
+    initialError ? { tone: 'error', text: ERRORS[initialError], at: 'top' } : null
   )
-  const [leaving, setLeaving] = useState(false)
+  // Set once the page is on its way out (a sign-in finished, or off to Google
+  // or Microsoft): the button that was pressed keeps spinning until it goes.
+  const [leaving, setLeaving] = useState<Waiting | null>(null)
+  // The field a `field` message is about, and what shakes: its box (with its
+  // eye) or the code boxes.
+  const fieldRef = useRef<HTMLInputElement>(null)
+  const shakeRef = useRef<HTMLDivElement>(null)
+  const answeredRef = useRef<Message | null>(null)
 
   // The address bar follows a pending code step (`/auth?attempt=…&next=…`), so
   // a refresh reopens it from the attempt's own cookie, and each tab keeps its
@@ -147,7 +197,7 @@ function Steps({
   // browser's back/forward cache exactly as it was left: buttons disabled.
   useEffect(() => {
     const restored = (event: PageTransitionEvent) => {
-      if (event.persisted) setLeaving(false)
+      if (event.persisted) setLeaving(null)
     }
     window.addEventListener('pageshow', restored)
     return () => window.removeEventListener('pageshow', restored)
@@ -158,38 +208,39 @@ function Steps({
     setMessage(keep)
   }
 
-  const apply = (result: AuthActionResult) => {
+  const apply = (result: AuthActionResult, from: Waiting) => {
     switch (result.kind) {
       case 'finish':
-        setLeaving(true)
+        setLeaving(from)
         window.location.assign(result.url)
         return
       case 'code':
         setCode({ attempt: result.attempt, challenge: result.challenge, email: result.email })
-        go('code', result.notice ? { tone: 'notice', text: NOTICES[result.notice] } : null)
+        go('code', result.notice ? { tone: 'notice', text: NOTICES[result.notice], at: 'top' } : null)
         return
       case 'notice':
         if (result.notice === 'account_created') {
           setMode('sign-in')
-          go('password', { tone: 'notice', text: NOTICES.account_created })
+          go('password', { tone: 'notice', text: NOTICES.account_created, at: 'top' })
         } else if (result.notice === 'password_updated') {
           setMode('sign-in')
-          go('start', { tone: 'notice', text: NOTICES.password_updated })
+          go('start', { tone: 'notice', text: NOTICES.password_updated, at: 'top' })
         } else {
-          setMessage({ tone: 'notice', text: NOTICES[result.notice] })
+          setMessage({ tone: 'notice', text: NOTICES[result.notice], at: 'action' })
         }
         return
       case 'error':
         if (result.error === 'code_expired' || result.error === 'not_finished') {
           setCode(null)
-          go('start', { tone: 'error', text: ERRORS[result.error] })
+          go('start', { tone: 'error', text: ERRORS[result.error], at: 'top' })
         } else if (result.error === 'reset_link') {
           // A used or expired reset link: straight to asking for a new one.
-          go('forgot', { tone: 'error', text: ERRORS.reset_link })
+          go('forgot', { tone: 'error', text: ERRORS.reset_link, at: 'top' })
         } else {
           setMessage({
             tone: 'error',
             text: result.error === 'weak_password' && result.detail ? result.detail : ERRORS[result.error],
+            at: FIELD_ERRORS.has(result.error) ? 'field' : 'action',
             switchToSignIn: result.error === 'email_taken',
           })
         }
@@ -199,27 +250,60 @@ function Steps({
     }
   }
 
-  const run = (action: ServerAction) => async (previous: AuthActionResult, formData: FormData) => {
+  const run = (from: Waiting, action: ServerAction) => async (previous: AuthActionResult, formData: FormData) => {
     formData.set('signalsId', (await getSignals()) ?? '')
-    const result = await action(previous, formData)
-    apply(result)
+    let result: AuthActionResult
+    try {
+      result = await action(previous, formData)
+    } catch {
+      // No answer at all (offline, or the server out of reach). Left uncaught
+      // it would take the page to the app's error screen; the step stays.
+      setMessage({ tone: 'error', text: CONNECTION_ERROR, at: 'action' })
+      return previous
+    }
+    apply(result, from)
     return result
   }
 
-  const [, signInAction, signingIn] = useActionState(run(signIn), IDLE)
-  const [, signUpAction, signingUp] = useActionState(run(signUp), IDLE)
-  const [, verifyAction, verifying] = useActionState(run(verifyCode), IDLE)
-  const [, resendAction, resending] = useActionState(run(resendCode), IDLE)
-  const [, forgotAction, sendingReset] = useActionState(run(requestPasswordReset), IDLE)
-  const [, resetAction, resettingPassword] = useActionState(run(resetPassword), IDLE)
-  const busy = leaving || signingIn || signingUp || verifying || resending || sendingReset || resettingPassword
+  const [, signInAction, signingIn] = useActionState(run('sign-in', signIn), IDLE)
+  const [, signUpAction, signingUp] = useActionState(run('sign-up', signUp), IDLE)
+  const [, verifyAction, verifying] = useActionState(run('verify', verifyCode), IDLE)
+  const [, resendAction, resending] = useActionState(run('resend', resendCode), IDLE)
+  const [, forgotAction, sendingReset] = useActionState(run('forgot', requestPasswordReset), IDLE)
+  const [, resetAction, resettingPassword] = useActionState(run('reset', resetPassword), IDLE)
+  const pending: Record<Waiting, boolean> = {
+    'sign-in': signingIn,
+    'sign-up': signingUp,
+    verify: verifying,
+    resend: resending,
+    forgot: sendingReset,
+    reset: resettingPassword,
+    google: false,
+    microsoft: false,
+  }
+  const waiting = (...on: Waiting[]) => on.some((key) => pending[key] || leaving === key)
+  const busy = leaving !== null || Object.values(pending).some(Boolean)
+
+  // A `field` message: React empties the form after each submit, so the cursor
+  // goes back in (the first code box, for a code) for a fresh try, and the
+  // field shakes. Once the form is enabled again: the code boxes are disabled
+  // while it is busy, and a disabled box can't take the cursor.
+  useEffect(() => {
+    if (busy || message?.at !== 'field' || answeredRef.current === message) return
+    answeredRef.current = message
+    const box = fieldRef.current ?? shakeRef.current?.querySelector<HTMLInputElement>('input:not([type="hidden"])')
+    box?.focus()
+    shake(shakeRef.current)
+  }, [message, busy])
 
   const startOAuth = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const form = event.currentTarget
+    const provider = form.dataset.provider as 'google' | 'microsoft'
+    // Spinning from the press: Radar's token can take up to 1.5 s.
+    setLeaving(provider)
     const field = form.elements.namedItem('signalsId')
     if (field instanceof HTMLInputElement) field.value = (await getSignals()) ?? ''
-    setLeaving(true)
     form.submit()
   }
 
@@ -229,7 +313,9 @@ function Steps({
   const continueWithEmail = (formData: FormData) => {
     const parsed = EmailSchema.safeParse(formData.get('email'))
     if (!parsed.success) {
-      setMessage({ tone: 'error', text: 'Enter a valid email address.' })
+      // React empties the form after an action; this puts what was typed back.
+      setEmail(String(formData.get('email') ?? ''))
+      setMessage({ tone: 'error', text: 'Enter a valid email address.', at: 'field' })
       return
     }
     setEmail(parsed.data)
@@ -241,7 +327,14 @@ function Steps({
     go('start')
   }
 
-  const notice = message && <MessageLine message={message} onSignIn={() => switchMode('sign-in')} />
+  // The code step is centred, so its messages are too.
+  const centred = step === 'code' ? 'justify-center text-center' : undefined
+  const placed = (at: Placement) =>
+    message?.at === at && <MessageLine message={message} className={centred} onSignIn={() => switchMode('sign-in')} />
+  const top = placed('top')
+  const below = placed('action')
+  const fieldError = message?.at === 'field' ? message.text : undefined
+  const invalid = fieldError ? { 'aria-invalid': true, 'aria-describedby': FIELD_ERROR_ID } : {}
   const hiddenNext = <input type="hidden" name="next" value={next} />
 
   if (step === 'code' && code) {
@@ -256,22 +349,35 @@ function Steps({
           </>
         }
       >
-        {notice}
+        {top}
         <form action={verifyAction} className="flex flex-col gap-3">
           <input type="hidden" name="attempt" value={code.attempt} />
-          <CodeField name="code" disabled={busy} invalid={message?.tone === 'error'} />
-          <Button type="submit" variant="ink" size="lg" disabled={busy}>
+          <div className="flex flex-col gap-1.5">
+            <div ref={shakeRef}>
+              <CodeField
+                name="code"
+                disabled={busy}
+                invalid={!!fieldError}
+                aria-describedby={fieldError ? FIELD_ERROR_ID : undefined}
+              />
+            </div>
+            {fieldError && <FieldError className={centred}>{fieldError}</FieldError>}
+          </div>
+          <SubmitButton waiting={waiting('verify')} disabled={busy}>
             Continue
-          </Button>
+          </SubmitButton>
         </form>
+        {below}
         <div className="flex items-center justify-center gap-4 text-sm">
           {radar ? (
             <TextButton onClick={() => switchMode(mode)}>Start again</TextButton>
           ) : (
             <form action={resendAction}>
               <input type="hidden" name="attempt" value={code.attempt} />
-              <TextButton type="submit" disabled={busy}>
-                Send a new code
+              <TextButton type="submit" disabled={busy} aria-busy={waiting('resend') || undefined}>
+                <WithSpinner on={waiting('resend')} className="h-3 w-3">
+                  Send a new code
+                </WithSpinner>
               </TextButton>
             </form>
           )}
@@ -284,7 +390,7 @@ function Steps({
   if (step === 'forgot') {
     return (
       <Column title="Reset your password." lede="We'll email you a link to choose a new one.">
-        {notice}
+        {top}
         <form action={forgotAction} className="flex flex-col gap-3">
           <Field id="forgot-email" label="Email">
             <Input
@@ -298,10 +404,11 @@ function Steps({
               className="h-10 text-[15px]"
             />
           </Field>
-          <Button type="submit" variant="ink" size="lg" disabled={busy}>
+          <SubmitButton waiting={waiting('forgot')} disabled={busy}>
             Send reset link
-          </Button>
+          </SubmitButton>
         </form>
+        {below}
         <Footer>
           <TextButton onClick={() => go(email ? 'password' : 'start')}>Back to sign in</TextButton>
         </Footer>
@@ -312,24 +419,27 @@ function Steps({
   if (step === 'reset' && resetToken) {
     return (
       <Column title="Choose a new password." lede="At least 10 characters.">
-        {notice}
+        {top}
         <form action={resetAction} className="flex flex-col gap-3">
           <input type="hidden" name="token" value={resetToken} />
           {hiddenNext}
-          <Field id="new-password" label="New password">
+          <Field id="new-password" label="New password" error={fieldError} controlRef={shakeRef}>
             <PasswordField
+              ref={fieldRef}
               id="new-password"
               name="password"
               autoComplete="new-password"
               required
               autoFocus
               className="h-10 text-[15px]"
+              {...invalid}
             />
           </Field>
-          <Button type="submit" variant="ink" size="lg" disabled={busy}>
+          <SubmitButton waiting={waiting('reset')} disabled={busy}>
             Save and sign in
-          </Button>
+          </SubmitButton>
         </form>
+        {below}
         <Footer>
           <TextButton onClick={() => go('forgot')}>Send a new link</TextButton>
           {' · '}
@@ -350,7 +460,7 @@ function Steps({
             : 'Enter your password to open your library.'
         }
       >
-        {notice}
+        {top}
         <form action={signingUpNow ? signUpAction : signInAction} className="flex flex-col gap-3">
           <div className="flex min-w-0 items-center justify-between gap-3 rounded-sm border border-border px-3 py-2 text-[15px]">
             <span className="truncate">{email}</span>
@@ -362,11 +472,14 @@ function Steps({
           <Field
             id="password"
             label="Password"
+            error={fieldError}
+            controlRef={shakeRef}
             aside={
               signingUpNow ? undefined : <TextButton onClick={() => go('forgot')}>Forgot password?</TextButton>
             }
           >
             <PasswordField
+              ref={fieldRef}
               id="password"
               name="password"
               autoComplete={signingUpNow ? 'new-password' : 'current-password'}
@@ -374,12 +487,14 @@ function Steps({
               required
               autoFocus
               className="h-10 text-[15px]"
+              {...invalid}
             />
           </Field>
-          <Button type="submit" variant="ink" size="lg" disabled={busy}>
+          <SubmitButton waiting={waiting('sign-in', 'sign-up')} disabled={busy}>
             {signingUpNow ? 'Create account' : 'Sign in'}
-          </Button>
+          </SubmitButton>
         </form>
+        {below}
       </Column>
     )
   }
@@ -390,14 +505,26 @@ function Steps({
       title={signingUpNow ? 'Start your library.' : 'Every voice, on the page.'}
       lede={signingUpNow ? 'Create an account to record and transcribe.' : 'Sign in to your library of transcripts.'}
     >
-      {notice}
+      {top}
       <div className="flex flex-col gap-3">
-        <OAuthButton provider="google" next={next} disabled={busy} onSubmit={startOAuth}>
-          <GoogleMark />
+        <OAuthButton
+          provider="google"
+          next={next}
+          disabled={busy}
+          waiting={waiting('google')}
+          mark={<GoogleMark />}
+          onSubmit={startOAuth}
+        >
           Continue with Google
         </OAuthButton>
-        <OAuthButton provider="microsoft" next={next} disabled={busy} onSubmit={startOAuth}>
-          <MicrosoftMark />
+        <OAuthButton
+          provider="microsoft"
+          next={next}
+          disabled={busy}
+          waiting={waiting('microsoft')}
+          mark={<MicrosoftMark />}
+          onSubmit={startOAuth}
+        >
           Continue with Microsoft
         </OAuthButton>
       </div>
@@ -405,22 +532,27 @@ function Steps({
         or
       </div>
       <form action={continueWithEmail} noValidate className="flex flex-col gap-3">
-        <Field id="email" label="Email">
+        <Field id="email" label="Email" error={fieldError} controlRef={shakeRef}>
           <Input
+            ref={fieldRef}
             id="email"
             name="email"
             type="email"
-            autoComplete="email"
+            // Signing in, it's the account name of a saved password, so Chrome
+            // offers saved logins here rather than the addresses it keeps.
+            autoComplete={signingUpNow ? 'email' : 'username'}
             placeholder="you@example.com"
             defaultValue={email}
             required
             className="h-10 text-[15px]"
+            {...invalid}
           />
         </Field>
         <Button type="submit" variant="ink" size="lg" disabled={busy}>
           Continue with email
         </Button>
       </form>
+      {below}
       <Footer>
         {signingUpNow ? 'Already have an account? ' : 'New to olivetti? '}
         <TextButton onClick={() => switchMode(signingUpNow ? 'sign-in' : 'sign-up')}>
@@ -444,7 +576,22 @@ function Column({ title, lede, children }: { title: string; lede: ReactNode; chi
   )
 }
 
-function Field({ id, label, aside, children }: { id: string; label: string; aside?: ReactNode; children: ReactNode }) {
+function Field({
+  id,
+  label,
+  aside,
+  error,
+  controlRef,
+  children,
+}: {
+  id: string
+  label: string
+  aside?: ReactNode
+  error?: string
+  /** Wraps the field's control, for something to shake. */
+  controlRef?: Ref<HTMLDivElement>
+  children: ReactNode
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between">
@@ -453,8 +600,49 @@ function Field({ id, label, aside, children }: { id: string; label: string; asid
         </Label>
         {aside}
       </div>
-      {children}
+      {controlRef ? <div ref={controlRef}>{children}</div> : children}
+      {error && <FieldError>{error}</FieldError>}
     </div>
+  )
+}
+
+const FIELD_ERROR_ID = 'sign-in-field-error'
+
+/** Every message's look: an icon and a line of text, red for an error. */
+function Line({
+  tone,
+  id,
+  className,
+  children,
+}: {
+  tone: Message['tone']
+  id?: string
+  className?: string
+  children: ReactNode
+}) {
+  const Icon = tone === 'error' ? CircleAlert : Info
+  return (
+    <p
+      id={id}
+      role={tone === 'error' ? 'alert' : 'status'}
+      className={cn('flex items-start gap-1.5 text-[0.8125rem] text-foreground', className)}
+    >
+      <Icon
+        aria-hidden="true"
+        strokeWidth={2}
+        className={cn('mt-[2px] h-3.5 w-3.5 shrink-0', tone === 'error' ? 'text-ember-red' : 'text-accent')}
+      />
+      <span>{children}</span>
+    </p>
+  )
+}
+
+/** A message about the field above it, named by that field's aria-describedby. */
+function FieldError({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <Line tone="error" id={FIELD_ERROR_ID} className={className}>
+      {children}
+    </Line>
   )
 }
 
@@ -479,15 +667,17 @@ function TextButton({
   )
 }
 
-function MessageLine({ message, onSignIn }: { message: Message; onSignIn: () => void }) {
+function MessageLine({
+  message,
+  className,
+  onSignIn,
+}: {
+  message: Message
+  className?: string
+  onSignIn: () => void
+}) {
   return (
-    <p
-      role={message.tone === 'error' ? 'alert' : 'status'}
-      className={cn(
-        'rounded-sm px-3 py-2 text-sm',
-        message.tone === 'error' ? 'bg-ember-red/10 text-foreground' : 'bg-subtle text-foreground'
-      )}
-    >
+    <Line tone={message.tone} className={className}>
       {message.text}
       {message.switchToSignIn && (
         <>
@@ -495,7 +685,7 @@ function MessageLine({ message, onSignIn }: { message: Message; onSignIn: () => 
           <TextButton onClick={onSignIn}>Sign in instead</TextButton>
         </>
       )}
-    </p>
+    </Line>
   )
 }
 
@@ -503,23 +693,67 @@ function OAuthButton({
   provider,
   next,
   disabled,
+  waiting,
+  mark,
   onSubmit,
   children,
 }: {
   provider: 'google' | 'microsoft'
   next: string
   disabled: boolean
+  waiting: boolean
+  mark: ReactNode
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   children: ReactNode
 }) {
   return (
-    <form method="post" action={`/auth/oauth/${provider}`} onSubmit={onSubmit}>
+    <form method="post" action={`/auth/oauth/${provider}`} data-provider={provider} onSubmit={onSubmit}>
       <input type="hidden" name="next" value={next} />
       <input type="hidden" name="signalsId" defaultValue="" />
-      <Button type="submit" variant="secondary" size="lg" disabled={disabled}>
+      <Button
+        type="submit"
+        variant="secondary"
+        size="lg"
+        disabled={disabled}
+        aria-busy={waiting || undefined}
+        className="disabled:aria-busy:opacity-100"
+      >
+        {/* The spinner takes the logo's place, so the label stays put. */}
+        {waiting ? <Spinner className="h-[17px] w-[17px] shrink-0 text-muted" /> : mark}
         {children}
       </Button>
     </form>
+  )
+}
+
+/**
+ * A step's main button. While its answer is coming it spins and stays at full
+ * strength; the other buttons are only disabled.
+ */
+function SubmitButton({ waiting, disabled, children }: { waiting: boolean; disabled: boolean; children: ReactNode }) {
+  return (
+    <Button
+      type="submit"
+      variant="ink"
+      size="lg"
+      disabled={disabled}
+      aria-busy={waiting || undefined}
+      className="disabled:aria-busy:opacity-100"
+    >
+      <WithSpinner on={waiting} className="h-4 w-4">
+        {children}
+      </WithSpinner>
+    </Button>
+  )
+}
+
+/** A label with the spinner hung off its left edge, so the label doesn't move when it starts. */
+function WithSpinner({ on, className, children }: { on: boolean; className: string; children: ReactNode }) {
+  return (
+    <span className="relative">
+      {on && <Spinner className={cn('absolute top-1/2 right-full mr-2 -translate-y-1/2', className)} />}
+      {children}
+    </span>
   )
 }
 

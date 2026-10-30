@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { SignInForm } from '@/components/auth/SignInForm'
-import { requestPasswordReset, resetPassword, signIn, verifyCode } from '@/app/auth/actions'
+import { requestPasswordReset, resetPassword, signIn, signUp, verifyCode } from '@/app/auth/actions'
 
 jest.mock('@/app/auth/actions', () => ({
   signIn: jest.fn(),
@@ -75,6 +75,21 @@ describe('SignInForm', () => {
     expect((signInMock.mock.calls[0][1] as FormData).get('signalsId')).toBe('')
   })
 
+  test('no answer from the server keeps the step, says so, and the next try goes through', async () => {
+    mockGetToken.mockResolvedValue('radar-token')
+    signInMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    await submitPassword()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("We couldn't reach the server.")
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Password'), 'not my password')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("That email and password don't match."))
+    expect((signInMock.mock.calls[1][1] as FormData).get('email')).toBe('ada@example.com')
+  })
+
   test('a Radar code step offers to start again rather than a resend', () => {
     render(
       <SignInForm
@@ -111,6 +126,278 @@ describe('SignInForm', () => {
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Continue with email' })).toBeEnabled()
     submit.mockRestore()
+  })
+
+  test('the email box offers saved logins when signing in, and email addresses when creating an account', async () => {
+    const user = userEvent.setup()
+    render(<SignInForm next="/" />)
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'username')
+
+    await user.click(screen.getByRole('button', { name: 'Create an account' }))
+    expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'email')
+  })
+
+  describe('the button that was pressed spins until its answer comes', () => {
+    beforeEach(() => mockGetToken.mockResolvedValue('radar-token'))
+    const spins = (name: string) => {
+      const button = screen.getByRole('button', { name })
+      return button.getAttribute('aria-busy') === 'true' && button.querySelector('svg.animate-spin') !== null
+    }
+    const later = <T,>() => {
+      let settle!: (value: T) => void
+      const promise = new Promise<T>((resolve) => (settle = resolve))
+      return { promise, settle }
+    }
+
+    test('Sign in spins while WorkOS answers, and stops once it has', async () => {
+      const answer = later<unknown>()
+      signInMock.mockReturnValueOnce(answer.promise)
+
+      await submitPassword()
+
+      await waitFor(() => expect(spins('Sign in')).toBe(true))
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
+      await act(async () => answer.settle({ kind: 'error', error: 'invalid_credentials' }))
+      await screen.findByRole('alert')
+      await waitFor(() => expect(spins('Sign in')).toBe(false))
+    })
+
+    test('a finished sign-in keeps spinning until the next page has loaded', async () => {
+      signInMock.mockResolvedValue({ kind: 'finish', url: 'http://localhost/auth/finish?to=%2F' })
+      const quiet = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+      await submitPassword()
+
+      await waitFor(() => expect(signInMock).toHaveBeenCalled())
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(spins('Sign in')).toBe(true)
+      quiet.mockRestore()
+    })
+
+    test('Google spins from the press, while Radar’s token is still coming; Microsoft is only disabled', async () => {
+      mockGetToken.mockReturnValueOnce(new Promise(() => {}))
+      const submit = jest.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+      const user = userEvent.setup()
+      render(<SignInForm next="/" clientId="client_test" />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+
+      expect(spins('Continue with Google')).toBe(true)
+      expect(spins('Continue with Microsoft')).toBe(false)
+      expect(screen.getByRole('button', { name: 'Continue with Microsoft' })).toBeDisabled()
+      expect(submit).not.toHaveBeenCalled()
+      submit.mockRestore()
+    })
+
+    test('a code being checked spins Continue', async () => {
+      const answer = later<unknown>()
+      verifyMock.mockReturnValueOnce(answer.promise)
+      const user = userEvent.setup()
+      render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      await waitFor(() => expect(spins('Continue')).toBe(true))
+      expect(spins('Send a new code')).toBe(false)
+      // Let the check finish, so nothing is left waiting into the next test.
+      await act(async () => answer.settle({ kind: 'error', error: 'invalid_code' }))
+      await waitFor(() => expect(spins('Continue')).toBe(false))
+    })
+
+    test('continuing with an email asks nothing of the server, so it never spins', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" />)
+      await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+      await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+
+      expect(screen.getByRole('button', { name: 'Sign in' })).not.toHaveAttribute('aria-busy')
+    })
+  })
+
+  describe('where messages show, so nothing above them moves', () => {
+    beforeEach(() => mockGetToken.mockResolvedValue('radar-token'))
+    const isAfter = (node: Element, reference: Element) =>
+      Boolean(reference.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+    test('a wrong password shows under the password box, which is marked, emptied and focused', async () => {
+      await submitPassword()
+
+      const alert = await screen.findByRole('alert')
+      const password = screen.getByLabelText('Password')
+      expect(alert).toHaveTextContent("That email and password don't match.")
+      expect(isAfter(alert, password)).toBe(true)
+      expect(isAfter(screen.getByRole('button', { name: 'Sign in' }), alert)).toBe(true)
+      expect(password).toHaveAttribute('aria-invalid', 'true')
+      expect(password).toHaveAccessibleDescription("That email and password don't match.")
+      expect(password).toHaveValue('')
+      await waitFor(() => expect(password).toHaveFocus())
+      // Radix would give the show/hide eye the box's id too.
+      expect(document.querySelectorAll('#password')).toHaveLength(1)
+    })
+
+    test('an answer about the whole attempt shows under the button, leaving the fields unmarked', async () => {
+      signInMock.mockResolvedValue({ kind: 'error', error: 'service' })
+
+      await submitPassword()
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Something went wrong on our side.')
+      expect(isAfter(alert, screen.getByRole('button', { name: 'Sign in' }))).toBe(true)
+      expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid')
+    })
+
+    test('"we\'ve sent a link" shows under the Send button', async () => {
+      const user = userEvent.setup()
+      forgotMock.mockResolvedValue({ kind: 'notice', notice: 'reset_sent' })
+      render(<SignInForm next="/" initialError="reset_link" />)
+      // The message the step opened with is at the top.
+      expect(isAfter(screen.getByLabelText('Email'), screen.getByRole('alert'))).toBe(true)
+
+      await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+      await user.click(screen.getByRole('button', { name: 'Send reset link' }))
+
+      const status = await screen.findByRole('status')
+      expect(isAfter(status, screen.getByRole('button', { name: 'Send reset link' }))).toBe(true)
+    })
+
+    test('a wrong code shows under the code boxes, which are marked', async () => {
+      const user = userEvent.setup()
+      verifyMock.mockResolvedValue({ kind: 'error', error: 'invalid_code' })
+      render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent("That code isn't right.")
+      expect(isAfter(screen.getByRole('button', { name: 'Continue' }), alert)).toBe(true)
+      for (const box of screen.getAllByRole('textbox')) expect(box).toHaveAttribute('aria-invalid', 'true')
+    })
+
+    test('after a wrong code the boxes are emptied and the caret is back in the first one', async () => {
+      const user = userEvent.setup()
+      verifyMock.mockResolvedValue({ kind: 'error', error: 'invalid_code' })
+      render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      const boxes = screen.getAllByRole('textbox')
+      await user.click(boxes[0])
+      await user.keyboard('123456')
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      await screen.findByRole('alert')
+      await waitFor(() => expect(boxes[0]).toHaveFocus())
+      for (const box of boxes) expect(box).toHaveValue('')
+      expect((verifyMock.mock.calls[0][1] as FormData).get('code')).toBe('123456')
+    })
+
+    test('every message has the same look: an icon and a line, no box', async () => {
+      signInMock.mockResolvedValue({ kind: 'error', error: 'blocked' })
+      await submitPassword()
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent("We couldn't sign you in right now.")
+      expect(alert.querySelector('svg')).toBeInTheDocument()
+      expect(alert.className).not.toMatch(/\bbg-/)
+    })
+
+    test('an invalid email shows under the email box', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" />)
+
+      await user.type(screen.getByLabelText('Email'), 'not an email')
+      await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+
+      const email = screen.getByLabelText('Email')
+      expect(email).toHaveAccessibleDescription('Enter a valid email address.')
+      expect(email).toHaveValue('not an email')
+      expect(email).toHaveFocus()
+      expect(isAfter(screen.getByRole('button', { name: 'Continue with email' }), screen.getByRole('alert'))).toBe(true)
+    })
+  })
+
+  describe('a shake for "that\'s not it"', () => {
+    const animate = jest.fn()
+    const setMotion = (reduce: boolean) =>
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: reduce && query.includes('reduce'), media: query }),
+      })
+    // The element each shake ran on.
+    const shaken = () => animate.mock.contexts as HTMLElement[]
+
+    beforeEach(() => {
+      mockGetToken.mockResolvedValue('radar-token')
+      animate.mockClear()
+      HTMLElement.prototype.animate = animate
+      setMotion(false)
+    })
+    afterEach(() => {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).animate
+      delete (window as Partial<Window>).matchMedia
+    })
+
+    test('a wrong password shakes the password box, eye and all, each time', async () => {
+      const user = userEvent.setup()
+      await submitPassword()
+      await waitFor(() => expect(shaken()).toHaveLength(1))
+      expect(shaken()[0]).toContainElement(screen.getByLabelText('Password'))
+      expect(shaken()[0]).toContainElement(screen.getByRole('button', { name: 'Show password' }))
+      expect(shaken()[0]).not.toContainElement(screen.getByRole('alert'))
+
+      await user.type(screen.getByLabelText('Password'), 'still not it')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
+      await waitFor(() => expect(shaken()).toHaveLength(2))
+    })
+
+    test('a wrong code shakes the code boxes', async () => {
+      const user = userEvent.setup()
+      verifyMock.mockResolvedValue({ kind: 'error', error: 'invalid_code' })
+      render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
+
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+      await waitFor(() => expect(shaken()).toHaveLength(1))
+      for (const box of screen.getAllByRole('textbox')) expect(shaken()[0]).toContainElement(box)
+    })
+
+    test('a weak password shakes its box', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" initialMode="sign-up" clientId="client_test" />)
+      ;(signUp as jest.Mock).mockResolvedValue({ kind: 'error', error: 'weak_password', detail: 'Add more words.' })
+      await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+      await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+      await user.type(screen.getByLabelText('Password'), 'short')
+      await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+      await waitFor(() => expect(shaken()).toHaveLength(1))
+      expect(shaken()[0]).toContainElement(screen.getByLabelText('Password'))
+    })
+
+    test('an invalid email shakes the email box', async () => {
+      const user = userEvent.setup()
+      render(<SignInForm next="/" />)
+
+      await user.type(screen.getByLabelText('Email'), 'not an email')
+      await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+
+      expect(shaken()).toHaveLength(1)
+      expect(shaken()[0]).toContainElement(screen.getByLabelText('Email'))
+    })
+
+    test('other answers do not shake', async () => {
+      signInMock.mockResolvedValue({ kind: 'error', error: 'service' })
+      await submitPassword()
+      await screen.findByRole('alert')
+
+      expect(animate).not.toHaveBeenCalled()
+    })
+
+    test('no shake for anyone who asked for less motion', async () => {
+      setMotion(true)
+      await submitPassword()
+      await screen.findByRole('alert')
+
+      expect(animate).not.toHaveBeenCalled()
+    })
   })
 
   describe('the code step and the address bar', () => {
@@ -222,6 +509,24 @@ describe('SignInForm', () => {
 
       await user.click(screen.getByRole('button', { name: 'Send a new link' }))
       expect(screen.getByRole('heading', { name: 'Reset your password.' })).toBeInTheDocument()
+    })
+
+    test('a weak new password keeps the step and its link, and a stronger one goes through', async () => {
+      const user = userEvent.setup()
+      resetMock
+        .mockResolvedValueOnce({ kind: 'error', error: 'weak_password', detail: 'Please try a password with 10 or more characters.' })
+        .mockResolvedValueOnce({ kind: 'notice', notice: 'password_updated' })
+      render(<SignInForm next="/" resetToken="reset-token" />)
+
+      await user.type(screen.getByLabelText('New password'), 'short')
+      await user.click(screen.getByRole('button', { name: 'Save and sign in' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Please try a password with 10 or more characters.')
+      await user.type(screen.getByLabelText('New password'), 'a brand new passphrase')
+      await user.click(screen.getByRole('button', { name: 'Save and sign in' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent('Password updated.')
+      expect((resetMock.mock.calls[1][1] as FormData).get('token')).toBe('reset-token')
     })
 
     test('a reset that worked but whose sign-in failed says the password changed', async () => {

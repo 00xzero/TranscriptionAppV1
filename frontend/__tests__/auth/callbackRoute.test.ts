@@ -107,7 +107,7 @@ describe('GET /auth/callback', () => {
     })
   })
 
-  test('a Radar challenge opens the code step; a Radar block says so', async () => {
+  test('a Radar OAuth challenge keeps the destination email from WorkOS’s nested user', async () => {
     const challenged = await attempt()
     exchange.mockRejectedValueOnce(
       workosError({
@@ -116,12 +116,20 @@ describe('GET /auth/callback', () => {
         code: 'radar_email_challenge',
         pendingAuthenticationToken: 'pending-radar',
         radarChallengeId: 'radar_challenge_1',
-        rawData: { email: 'ada@example.com' },
+        rawData: { user: { id: 'user_01A', email: 'ada@example.com' } },
       })
     )
     const url = new URL(location(await callback(`code=c1&state=${challenged}`))!)
-    await expect(codeAttempts.read(url.searchParams.get('attempt')!)).resolves.toMatchObject({ challenge: 'radar' })
+    await expect(codeAttempts.read(url.searchParams.get('attempt')!)).resolves.toMatchObject({
+      challenge: 'radar',
+      email: 'ada@example.com',
+      radarChallengeId: 'radar_challenge_1',
+      pendingAuthenticationToken: 'pending-radar',
+      next: '/editor/abc?t=12',
+    })
+  })
 
+  test('a Radar block says so', async () => {
     const blocked = await attempt()
     exchange.mockRejectedValueOnce(workosError({ name: 'GenericServerException', status: 403, code: 'policy_denied' }))
     expect(location(await callback(`code=c1&state=${blocked}`))).toBe(
