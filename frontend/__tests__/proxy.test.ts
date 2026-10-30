@@ -30,6 +30,69 @@ describe('proxy', () => {
     expect(response.headers.get('location')).toBeNull()
   })
 
+  describe.each([null, 'wos-session=arbitrary'])('webhook bypass with cookie %s', (cookie) => {
+    test.each([
+      ['POST', '/api/webhooks/deepgram?delivery=1'],
+      ['POST', '/api/webhooks/soniox?delivery=1'],
+      ['POST', '/api/webhooks/assemblyai?delivery=1'],
+      ['GET', '/api/webhooks/deepgram/health?token=health-test'],
+      ['POST', '/api/webhooks/future/provider?delivery=1'],
+    ])('forwards %s %s without AuthKit', async (method, path) => {
+      authkitMock.mockImplementation(() => {
+        throw new Error('Webhook requests must not call AuthKit')
+      })
+      const headers = new Headers()
+      if (cookie) headers.set('cookie', cookie)
+      const response = await proxy(new NextRequest(`http://localhost:3000${path}`, { method, headers }))
+
+      expect(authkitMock).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-middleware-next')).toBe('1')
+      expect(response.headers.get('location')).toBeNull()
+      expect(response.headers.get('set-cookie')).toBeNull()
+      expect(response.headers.get('x-action-redirect')).toBeNull()
+      expect(response.headers.get('x-workos-middleware')).toBeNull()
+    })
+  })
+
+  test('forwards webhook authorization upstream and leaves the request body unread', async () => {
+    authkitMock.mockImplementation(() => {
+      throw new Error('Webhook requests must not call AuthKit')
+    })
+    const authorization = `Basic ${Buffer.from('deepgram:test-secret').toString('base64')}`
+    const body = '{\n  "request_id": "request-1"\n}\n'
+    const callback = new NextRequest('http://localhost:3000/api/webhooks/deepgram?delivery=1', {
+      method: 'POST',
+      headers: { authorization, 'content-type': 'application/json' },
+      body,
+    })
+
+    const response = await proxy(callback)
+
+    expect(authkitMock).not.toHaveBeenCalled()
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+    expect(response.headers.get('x-middleware-request-authorization')).toBe(authorization)
+    expect(response.headers.get('x-middleware-request-content-type')).toBe('application/json')
+    expect(response.headers.get('authorization')).toBeNull()
+    expect(callback.headers.get('authorization')).toBe(authorization)
+    expect(callback.method).toBe('POST')
+    expect(callback.nextUrl.search).toBe('?delivery=1')
+    expect(callback.bodyUsed).toBe(false)
+    await expect(callback.text()).resolves.toBe(body)
+  })
+
+  test.each(['/api/webhooks', '/api/webhooks-other/deepgram', '/api/transcripts'])(
+    'keeps AuthKit processing for %s',
+    async (path) => {
+      const incoming = request(path)
+
+      await proxy(incoming)
+
+      expect(authkitMock).toHaveBeenCalledTimes(1)
+      expect(authkitMock).toHaveBeenCalledWith(incoming)
+    }
+  )
+
   test('sends signed-out visitors on protected routes to our sign-in page, with where they were going', async () => {
     expect((await proxy(request('/'))).headers.get('location')).toBe('http://localhost:3000/auth')
     for (const path of ['/transcripts', '/editor/abc?t=12', '/recording/new', '/projects/p1', '/people']) {

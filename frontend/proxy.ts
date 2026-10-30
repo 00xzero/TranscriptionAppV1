@@ -1,8 +1,10 @@
 /**
  * Next.js Proxy for WorkOS AuthKit.
  *
- * - Refreshes the AuthKit session on every request (so `withAuth()` works in
- *   routes and pages)
+ * - Skips session processing for `/api/inngest` and `/api/webhooks/` requests;
+ *   webhook routes own callback authentication and health access checks
+ * - Refreshes the AuthKit session on other matched requests (so `withAuth()`
+ *   works in routes and pages)
  * - Sends signed-out visitors on protected routes to our sign-in page
  *   (app/auth/page.tsx), which returns them to the page they asked for
  */
@@ -27,7 +29,10 @@ const AUTH_ROUTES = ['/auth']
 const CALLBACK_ROUTES = ['/auth/callback', '/auth/finish', '/auth/sign-out', '/auth/oauth', '/auth/reset-password']
 
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname === '/api/inngest') {
+  if (
+    request.nextUrl.pathname === '/api/inngest' ||
+    request.nextUrl.pathname.startsWith('/api/webhooks/')
+  ) {
     return NextResponse.next({ request })
   }
 
