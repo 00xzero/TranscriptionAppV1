@@ -46,10 +46,12 @@ function signals(formData: FormData): string | undefined {
   return parsed.success ? parsed.data : undefined
 }
 
-async function limited(): Promise<boolean> {
+async function withSignInLimit(run: () => Promise<AuthActionResult>): Promise<AuthActionResult> {
   const { ipAddress } = await visitor()
-  if (!ipAddress) return false
-  return !checkRateLimit(`sign-in:${ipAddress}`, RATE_LIMITS.SIGN_IN).allowed
+  if (ipAddress && !checkRateLimit(`sign-in:${ipAddress}`, RATE_LIMITS.SIGN_IN).allowed) {
+    return { kind: 'error', error: 'blocked' }
+  }
+  return run()
 }
 
 /** Where a WorkOS answer leads: finish signing in, a code step, or an error. */
@@ -66,98 +68,98 @@ async function after(outcome: Authenticated, next: string, email: string): Promi
   return outcome
 }
 
-export const signIn: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const email = EmailSchema.safeParse(text(formData, 'email'))
-  const password = PasswordSchema.safeParse(text(formData, 'password'))
-  if (!email.success || !password.success) return INVALID
-  const next = safeReturnPath(text(formData, 'next'))
+export const signIn: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const email = EmailSchema.safeParse(text(formData, 'email'))
+    const password = PasswordSchema.safeParse(text(formData, 'password'))
+    if (!email.success || !password.success) return INVALID
+    const next = safeReturnPath(text(formData, 'next'))
 
-  const outcome = await signInWithPassword({ email: email.data, password: password.data, signalsId: signals(formData) })
-  return after(outcome, next, email.data)
-}
-
-export const signUp: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const email = EmailSchema.safeParse(text(formData, 'email'))
-  const password = PasswordSchema.safeParse(text(formData, 'password'))
-  if (!email.success || !password.success) return INVALID
-  const next = safeReturnPath(text(formData, 'next'))
-  const signalsId = signals(formData)
-
-  const created = await createAccount({ email: email.data, password: password.data, signalsId })
-  if (created.kind === 'error') return created
-
-  const outcome = await signInWithPassword({
-    email: email.data,
-    password: password.data,
-    signalsId,
-    radarAuthAttemptId: created.radarAuthAttemptId,
+    const outcome = await signInWithPassword({ email: email.data, password: password.data, signalsId: signals(formData) })
+    return after(outcome, next, email.data)
   })
-  // The account exists now, so a failed first sign-in must not leave the
-  // person facing "email already taken" when they try again.
-  if (outcome.kind === 'error') return { kind: 'notice', notice: 'account_created' }
-  return after(outcome, next, email.data)
-}
 
-export const verifyCode: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const id = AttemptIdSchema.safeParse(text(formData, 'attempt'))
-  const code = CodeSchema.safeParse(text(formData, 'code'))
-  if (!id.success) return { kind: 'error', error: 'code_expired' }
-  if (!code.success) return { kind: 'error', error: 'invalid_code' }
+export const signUp: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const email = EmailSchema.safeParse(text(formData, 'email'))
+    const password = PasswordSchema.safeParse(text(formData, 'password'))
+    if (!email.success || !password.success) return INVALID
+    const next = safeReturnPath(text(formData, 'next'))
+    const signalsId = signals(formData)
 
-  const pending = await codeAttempts.read(id.data)
-  if (!pending) return { kind: 'error', error: 'code_expired' }
+    const created = await createAccount({ email: email.data, password: password.data, signalsId })
+    if (created.kind === 'error') return created
 
-  const outcome = await checkCode(pending, code.data)
-  // A wrong code, a WorkOS outage or a block keep the attempt for another
-  // try; anything else spends it.
-  if (outcome.kind === 'error' && outcome.error !== 'code_expired') return outcome
-  await codeAttempts.clear(id.data)
-  return after(outcome, pending.next, pending.email)
-}
+    const outcome = await signInWithPassword({
+      email: email.data,
+      password: password.data,
+      signalsId,
+      radarAuthAttemptId: created.radarAuthAttemptId,
+    })
+    // The account exists now, so a failed first sign-in must not leave the
+    // person facing "email already taken" when they try again.
+    if (outcome.kind === 'error') return { kind: 'notice', notice: 'account_created' }
+    return after(outcome, next, email.data)
+  })
 
-export const resendCode: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const id = AttemptIdSchema.safeParse(text(formData, 'attempt'))
-  if (!id.success) return { kind: 'error', error: 'code_expired' }
-  const pending = await codeAttempts.read(id.data)
-  // A Radar challenge has no resend: its screen offers Start again instead.
-  if (!pending || pending.challenge !== 'email-verification' || !pending.emailVerificationId) {
-    return { kind: 'error', error: 'code_expired' }
-  }
+export const verifyCode: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const id = AttemptIdSchema.safeParse(text(formData, 'attempt'))
+    const code = CodeSchema.safeParse(text(formData, 'code'))
+    if (!id.success) return { kind: 'error', error: 'code_expired' }
+    if (!code.success) return { kind: 'error', error: 'invalid_code' }
 
-  const sent = await resendVerification(pending.emailVerificationId)
-  if (sent !== 'sent') {
-    if (sent.error === 'code_expired') await codeAttempts.clear(id.data)
-    return sent
-  }
-  return { kind: 'code', attempt: id.data, challenge: pending.challenge, email: pending.email, notice: 'code_sent' }
-}
+    const pending = await codeAttempts.read(id.data)
+    if (!pending) return { kind: 'error', error: 'code_expired' }
 
-export const requestPasswordReset: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const email = EmailSchema.safeParse(text(formData, 'email'))
-  if (!email.success) return INVALID
+    const outcome = await checkCode(pending, code.data)
+    // A wrong code, a WorkOS outage or a block keep the attempt for another
+    // try; anything else spends it.
+    if (outcome.kind === 'error' && outcome.error !== 'code_expired') return outcome
+    await codeAttempts.clear(id.data)
+    return after(outcome, pending.next, pending.email)
+  })
 
-  const sent = await askForResetEmail(email.data)
-  return sent === 'sent' ? { kind: 'notice', notice: 'reset_sent' } : sent
-}
+export const resendCode: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const id = AttemptIdSchema.safeParse(text(formData, 'attempt'))
+    if (!id.success) return { kind: 'error', error: 'code_expired' }
+    const pending = await codeAttempts.read(id.data)
+    // A Radar challenge has no resend: its screen offers Start again instead.
+    if (!pending || pending.challenge !== 'email-verification' || !pending.emailVerificationId) {
+      return { kind: 'error', error: 'code_expired' }
+    }
 
-export const resetPassword: Action = async (_previous, formData) => {
-  if (await limited()) return { kind: 'error', error: 'blocked' }
-  const token = text(formData, 'token')
-  const password = PasswordSchema.safeParse(text(formData, 'password'))
-  if (!token || !password.success) return INVALID
-  const next = safeReturnPath(text(formData, 'next'))
+    const sent = await resendVerification(pending.emailVerificationId)
+    if (sent !== 'sent') {
+      if (sent.error === 'code_expired') await codeAttempts.clear(id.data)
+      return sent
+    }
+    return { kind: 'code', attempt: id.data, challenge: pending.challenge, email: pending.email, notice: 'code_sent' }
+  })
 
-  const reset = await setNewPassword(token, password.data)
-  if (reset.kind === 'error') return reset
+export const requestPasswordReset: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const email = EmailSchema.safeParse(text(formData, 'email'))
+    if (!email.success) return INVALID
 
-  // The reset link is used up now. If signing in with the new password fails,
-  // say the password changed rather than sending them back to the old link.
-  const outcome = await signInWithPassword({ email: reset.email, password: password.data, signalsId: signals(formData) })
-  if (outcome.kind === 'error') return { kind: 'notice', notice: 'password_updated' }
-  return after(outcome, next, reset.email)
-}
+    const sent = await askForResetEmail(email.data)
+    return sent === 'sent' ? { kind: 'notice', notice: 'reset_sent' } : sent
+  })
+
+export const resetPassword: Action = async (_previous, formData) =>
+  withSignInLimit(async () => {
+    const token = text(formData, 'token')
+    const password = PasswordSchema.safeParse(text(formData, 'password'))
+    if (!token || !password.success) return INVALID
+    const next = safeReturnPath(text(formData, 'next'))
+
+    const reset = await setNewPassword(token, password.data)
+    if (reset.kind === 'error') return reset
+
+    // The reset link is used up now. If signing in with the new password fails,
+    // say the password changed rather than sending them back to the old link.
+    const outcome = await signInWithPassword({ email: reset.email, password: password.data, signalsId: signals(formData) })
+    if (outcome.kind === 'error') return { kind: 'notice', notice: 'password_updated' }
+    return after(outcome, next, reset.email)
+  })

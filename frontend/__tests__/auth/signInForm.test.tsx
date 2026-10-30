@@ -45,6 +45,44 @@ describe('SignInForm', () => {
     signInMock.mockResolvedValue({ kind: 'error', error: 'invalid_credentials' })
   })
 
+  test('a parent prop update preserves the password input and its unsubmitted value within the same step', async () => {
+    const user = userEvent.setup()
+    const view = render(<SignInForm next="/editor/abc" />)
+    await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+    await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+    const password = screen.getByLabelText('Password')
+    await user.type(password, 'my unsubmitted password')
+
+    view.rerender(<SignInForm next="/projects" />)
+
+    expect(screen.getByLabelText('Password')).toBe(password)
+    expect(password).toHaveValue('my unsubmitted password')
+    expect(password.closest('form')).toHaveFormValues({ email: 'ada@example.com', next: '/projects' })
+    expect(signInMock).not.toHaveBeenCalled()
+  })
+
+  test('password to forgot and back preserves the email, focuses each field and clears the old password', async () => {
+    const user = userEvent.setup()
+    render(<SignInForm next="/editor/abc" />)
+    await user.type(screen.getByLabelText('Email'), 'ada@example.com')
+    await user.click(screen.getByRole('button', { name: 'Continue with email' }))
+    const password = screen.getByLabelText('Password')
+    expect(password).toHaveFocus()
+    await user.type(password, 'do not retain this password')
+
+    await user.click(screen.getByRole('button', { name: 'Forgot password?' }))
+    const email = screen.getByLabelText('Email')
+    expect(email).toHaveFocus()
+    expect(email).toHaveValue('ada@example.com')
+
+    await user.click(screen.getByRole('button', { name: 'Back to sign in' }))
+    const nextPassword = screen.getByLabelText('Password')
+    expect(nextPassword).toHaveFocus()
+    expect(nextPassword).toHaveValue('')
+    expect(nextPassword).not.toBe(password)
+    expect(nextPassword.closest('form')).toHaveFormValues({ email: 'ada@example.com', next: '/editor/abc' })
+  })
+
   test('sends Radar’s token with the sign-in, and shows the answer', async () => {
     mockGetToken.mockResolvedValue('radar-token')
 

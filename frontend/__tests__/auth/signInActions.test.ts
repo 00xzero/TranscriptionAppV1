@@ -15,6 +15,7 @@ import {
   verifyCode,
 } from '@/app/auth/actions'
 import { provisionAppUser } from '@/lib/auth/provision-app-user.server'
+import { codeAttempts } from '@/lib/auth/attempt-cookies.server'
 
 const mockJar = createCookieJar()
 let mockIp = '203.0.113.1'
@@ -74,6 +75,51 @@ async function startCode(error = verificationRequired()) {
   if (result.kind !== 'code') throw new Error(`expected the code step, got ${JSON.stringify(result)}`)
   return result
 }
+
+const ACTIONS = [
+  { name: 'signIn', action: signIn, invalidError: 'invalid_input' },
+  { name: 'signUp', action: signUp, invalidError: 'invalid_input' },
+  { name: 'verifyCode', action: verifyCode, invalidError: 'code_expired' },
+  { name: 'resendCode', action: resendCode, invalidError: 'code_expired' },
+  { name: 'requestPasswordReset', action: requestPasswordReset, invalidError: 'invalid_input' },
+  { name: 'resetPassword', action: resetPassword, invalidError: 'invalid_input' },
+]
+
+describe.each(ACTIONS)('$name rate limit', ({ action, invalidError }) => {
+  test('the shared bucket blocks before form reads, cookies or provider work', async () => {
+    // Invalid submissions still consume exactly one attempt each, before validation.
+    for (const attempt of [...ACTIONS, ...ACTIONS.slice(0, 4)]) {
+      await expect(attempt.action(IDLE, new FormData())).resolves.toEqual({ kind: 'error', error: attempt.invalidError })
+    }
+    const data = new FormData()
+    const readForm = jest.spyOn(data, 'get').mockImplementation(() => {
+      throw new Error('A blocked action must not read the form')
+    })
+    const readAttempt = jest.spyOn(codeAttempts, 'read')
+    const saveAttempt = jest.spyOn(codeAttempts, 'save')
+    const clearAttempt = jest.spyOn(codeAttempts, 'clear')
+
+    await expect(action(IDLE, data)).resolves.toEqual({ kind: 'error', error: 'blocked' })
+
+    expect(readForm).not.toHaveBeenCalled()
+    expect(readAttempt).not.toHaveBeenCalled()
+    expect(saveAttempt).not.toHaveBeenCalled()
+    expect(clearAttempt).not.toHaveBeenCalled()
+    expect(mockJar.names()).toEqual([])
+    for (const method of Object.values(um)) expect(method).not.toHaveBeenCalled()
+    expect(provision).not.toHaveBeenCalled()
+    expect(save).not.toHaveBeenCalled()
+  })
+
+  test('an empty visitor IP bypasses the limit without bypassing input validation', async () => {
+    mockIp = ''
+    for (let i = 0; i < 11; i++) {
+      await expect(action(IDLE, new FormData())).resolves.toEqual({ kind: 'error', error: invalidError })
+    }
+    for (const method of Object.values(um)) expect(method).not.toHaveBeenCalled()
+    expect(mockJar.names()).toEqual([])
+  })
+})
 
 describe('signIn', () => {
   test('a right password provisions, then saves the session, then hands back /auth/finish (no redirect)', async () => {
