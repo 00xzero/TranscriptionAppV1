@@ -6,7 +6,8 @@ A privacy-friendly transcription app built on Next.js, Supabase, Inngest, and De
 
 - Frontend and API routes: Next.js 16.3.1 App Router, React 19, TypeScript 6, Tailwind CSS 4
 - Runtime: Node.js 24 or newer and npm
-- Data/Auth/Storage: Supabase (Postgres, Auth, Storage)
+- Auth: Custom sign-in page with WorkOS AuthKit sessions
+- Data/Storage/Realtime: Supabase (Postgres with RLS, Storage, Realtime)
 - Background jobs: Inngest
 - Speech-to-text: Deepgram Nova 3
 - Local infrastructure: Supabase CLI, Docker Compose, and optional ngrok

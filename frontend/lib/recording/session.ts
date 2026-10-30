@@ -29,7 +29,6 @@ export {
   handleRecorderFailure,
   recordChunk,
   stopAndFinalize,
-  syncIdentityToActiveSession,
 } from './sessionActions'
 export { retryFinalizedUpload } from './sessionUpload'
 export {

@@ -123,7 +123,7 @@ describe('Sidebar', () => {
     setTestAuth({
       userId: 'user-a',
       ready: true,
-      user: testUser('user-a', { email: 'ada@example.com', name: 'Ada Lovelace' }),
+      user: testUser({ email: 'ada@example.com', name: 'Ada Lovelace' }),
     })
     await renderSidebar()
 
@@ -147,7 +147,7 @@ describe('Sidebar', () => {
   // __tests__/recording/signOutGuard.test.tsx.
   it('hands sign-out to the provider and adds nothing after it, since the page leaves', async () => {
     mockSignOut.mockReturnValueOnce(new Promise(() => undefined))
-    setTestAuth({ userId: 'user-a', ready: true, user: testUser('user-a') })
+    setTestAuth({ userId: 'user-a', ready: true, user: testUser() })
     await renderSidebar()
 
     await user.click(screen.getByRole('button', { name: 'Account menu' }))

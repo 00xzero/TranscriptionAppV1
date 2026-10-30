@@ -68,7 +68,7 @@ export async function visitor(): Promise<{ ipAddress?: string; userAgent?: strin
  * What a WorkOS error means for the page. `during` says what was being
  * attempted, since a plain 400 means a wrong code while verifying.
  */
-export function describe(raw: unknown, during: 'password' | 'sign-up' | 'code' | 'oauth' | 'reset'): Authenticated {
+function describe(raw: unknown, during: 'password' | 'sign-up' | 'code' | 'oauth' | 'reset'): Authenticated {
   const e = (raw ?? {}) as WorkOSError
   const code = e.code ?? e.error
 

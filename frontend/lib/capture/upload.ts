@@ -315,7 +315,7 @@ export async function runCaptureUpload(
 ): Promise<CaptureUploadResult> {
     const userId = options.userId
     const supabase = createClientForUser(userId)
-    const signal = options?.signal
+    const signal = options.signal
     let transcriptId: string | null = null
     let storagePath: string | null = null
     let didUploadFile = false
@@ -339,7 +339,7 @@ export async function runCaptureUpload(
 
     if (isCanceled()) return canceledResult()
 
-    options?.onProgress?.('creating')
+    options.onProgress?.('creating')
 
     try {
         throwIfCanceled()
@@ -359,9 +359,9 @@ export async function runCaptureUpload(
                 title: title || fitTranscriptTitle(file.name),
                 filename: file.name,
                 key_terms: keyTerms.length > 0 ? keyTerms : undefined,
-                upload_intent_id: options?.uploadIntentId,
-                ...(options?.projectId ? { project_id: options.projectId } : {}),
-                ...(options?.transcriptionOptions ? { transcription_options: options.transcriptionOptions } : {}),
+                upload_intent_id: options.uploadIntentId,
+                ...(options.projectId ? { project_id: options.projectId } : {}),
+                ...(options.transcriptionOptions ? { transcription_options: options.transcriptionOptions } : {}),
             })
         })
 
@@ -405,7 +405,7 @@ export async function runCaptureUpload(
             didLinkMediaToTranscript = true
             console.log('[capture] Media already linked; skipping upload/link steps')
         } else {
-            options?.onProgress?.('uploading')
+            options.onProgress?.('uploading')
             throwIfCanceled()
             console.log('[capture] Step 2: Uploading file to storage...', {
                 storagePath,
@@ -420,9 +420,9 @@ export async function runCaptureUpload(
             // so the session continues to prevent discard while this runs.
             await transferToStorage(supabase, storagePath, file, {
                 contentType: mimeType,
-                upsert: options?.allowUpsert ?? false,
+                upsert: options.allowUpsert ?? false,
                 signal,
-                onProgress: options?.onUploadBytes,
+                onProgress: options.onUploadBytes,
             })
             didUploadFile = true
             throwIfCanceled()
@@ -484,12 +484,12 @@ export async function runCaptureUpload(
             console.log('[capture] Transcript updated with source_object_key')
         }
 
-        options?.onProgress?.('starting')
+        options.onProgress?.('starting')
         throwIfCanceled()
         await getAccessToken(userId)
         throwIfCanceled()
         didDispatchStartRequest = true
-        const startRes = await dispatchStart(transcriptId, options?.uploadIntentId, signal, userId)
+        const startRes = await dispatchStart(transcriptId, options.uploadIntentId, signal, userId)
         didReceiveStartResponse = true
         throwIfCanceled()
 
@@ -502,7 +502,7 @@ export async function runCaptureUpload(
             throw new Error(errorData.error || `Failed to start transcription (${startRes.status})`)
         }
 
-        options?.onProgress?.('done')
+        options.onProgress?.('done')
         return {
             kind: 'success',
             transcriptId,

@@ -267,18 +267,6 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   publishPresence()
 }
 
-/**
- * Keep persistence scoped to the account that started the recording. Auth
- * changes in another tab must never transfer the audio to the new account.
- */
-export function syncIdentityToActiveSession(userId: string | null): void {
-  if (!userId) return
-  if (store.runtime.userId !== userId) return
-  const queue = store.runtime.writeQueue
-  if (!queue) return
-  queue.enqueueMetadata({ userId })
-}
-
 // Single-flight, drain-aware Stop. Used by the recording page's controls and
 // by the size-budget auto-stop.
 export async function stopAndFinalize(): Promise<void> {

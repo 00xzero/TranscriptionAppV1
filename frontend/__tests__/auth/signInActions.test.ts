@@ -5,6 +5,7 @@ import { saveSession } from '@workos-inc/authkit-nextjs'
 import { mockWorkOS } from '@/__mocks__/workos-authkit-nextjs'
 import type { AuthActionResult } from '@/contracts/auth'
 import { createCookieJar } from '../helpers/cookieJar'
+import { makeAuthResponse, workosError } from '../helpers/workosFixtures'
 import {
   requestPasswordReset,
   resendCode,
@@ -29,12 +30,7 @@ const provision = provisionAppUser as jest.Mock
 const save = saveSession as jest.Mock
 const IDLE: AuthActionResult = { kind: 'idle' }
 
-const AUTH = { user: { id: 'user_01A', email: 'ada@example.com' }, accessToken: 'at', refreshToken: 'rt' }
-
-/** An error shaped the way the WorkOS SDK throws it. */
-function workosError(fields: Record<string, unknown>) {
-  return Object.assign(new Error(String(fields.code ?? fields.name)), fields)
-}
+const AUTH = makeAuthResponse()
 const verificationRequired = () =>
   workosError({
     name: 'AuthenticationException',

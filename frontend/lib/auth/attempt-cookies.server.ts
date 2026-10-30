@@ -33,16 +33,16 @@ export function newAttemptId(): string {
   return `${Date.now().toString(36)}-${randomBytes(12).toString('hex')}`
 }
 
-export const OAuthAttemptSchema = z.object({
+const OAuthAttemptSchema = z.object({
   state: AttemptIdSchema,
   provider: OAuthProviderSchema,
   codeVerifier: z.string().min(43),
   next: z.string(),
   signalsId: z.string().optional(),
 })
-export type OAuthAttempt = z.infer<typeof OAuthAttemptSchema>
+type OAuthAttempt = z.infer<typeof OAuthAttemptSchema>
 
-export const CodeAttemptSchema = z.discriminatedUnion('challenge', [
+const CodeAttemptSchema = z.discriminatedUnion('challenge', [
   z.object({
     challenge: z.literal('email-verification'),
     pendingAuthenticationToken: z.string().min(1),
@@ -58,7 +58,7 @@ export const CodeAttemptSchema = z.discriminatedUnion('challenge', [
     next: z.string(),
   }),
 ])
-export type CodeAttempt = z.infer<typeof CodeAttemptSchema>
+type CodeAttempt = z.infer<typeof CodeAttemptSchema>
 /** A code attempt as WorkOS describes it, before its destination is added. */
 export type PendingCodeAttempt = CodeAttempt extends infer T ? (T extends unknown ? Omit<T, 'next'> : never) : never
 

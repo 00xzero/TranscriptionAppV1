@@ -13,12 +13,10 @@ import { signOut } from '@workos-inc/authkit-nextjs'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { getURLFromRedirectError } from 'next/dist/client/components/redirect'
 import { NextResponse } from 'next/server'
-
-// The browser-facing origin, which a container's request URL may not carry.
-const redirectUri = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI
+import { appOrigin } from '@/lib/auth/origin.server'
 
 export async function POST(request: Request) {
-  const origin = redirectUri ? new URL(redirectUri).origin : new URL(request.url).origin
+  const origin = appOrigin(request)
   try {
     await signOut({ returnTo: `${origin}/auth` })
   } catch (error) {

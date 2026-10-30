@@ -42,6 +42,7 @@
     "@radix-ui/react-tooltip": "1.2.16",
     "@supabase/supabase-js": "2.112.3",
     "@workos-inc/authkit-nextjs": "4.5.0",
+    "@workos-inc/node": "10.14.0",
     "@workos/radar-signals": "0.0.1",
     "clsx": "2.1.1",
     "docx": "^9.6.1",

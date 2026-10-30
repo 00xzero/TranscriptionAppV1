@@ -15,7 +15,7 @@ export const OAuthProviderSchema = z.enum(['google', 'microsoft'])
 export type OAuthProvider = z.infer<typeof OAuthProviderSchema>
 
 /** Which kind of emailed code a pending sign-in waits for. */
-export const ChallengeSchema = z.enum(['email-verification', 'radar'])
+const ChallengeSchema = z.enum(['email-verification', 'radar'])
 export type Challenge = z.infer<typeof ChallengeSchema>
 
 /** Names a pending code attempt; the page only ever holds this, never the token. */
@@ -44,10 +44,10 @@ export const SignInErrorSchema = z.enum([
 ])
 export type SignInError = z.infer<typeof SignInErrorSchema>
 
-export const AuthNoticeSchema = z.enum(['account_created', 'password_updated', 'reset_sent', 'code_sent'])
+const AuthNoticeSchema = z.enum(['account_created', 'password_updated', 'reset_sent', 'code_sent'])
 export type AuthNotice = z.infer<typeof AuthNoticeSchema>
 
-export const AuthActionResultSchema = z.discriminatedUnion('kind', [
+const AuthActionResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('idle') }),
   z.object({ kind: z.literal('finish'), url: z.string() }),
   z.object({

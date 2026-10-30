@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { saveSession, withAuth } from '@workos-inc/authkit-nextjs'
 import { mockWorkOS } from '@/__mocks__/workos-authkit-nextjs'
 import { createCookieJar } from '../helpers/cookieJar'
+import { makeAuthResponse, workosError } from '../helpers/workosFixtures'
 import { GET } from '@/app/auth/callback/route'
 import { codeAttempts, newAttemptId, oauthAttempts } from '@/lib/auth/attempt-cookies.server'
 import { provisionAppUser } from '@/lib/auth/provision-app-user.server'
@@ -22,11 +23,7 @@ const provision = provisionAppUser as jest.Mock
 const save = saveSession as jest.Mock
 const withAuthMock = withAuth as unknown as jest.Mock
 
-const AUTH = { user: { id: 'user_01A', email: 'ada@example.com' }, accessToken: 'at', refreshToken: 'rt' }
-
-function workosError(fields: Record<string, unknown>) {
-  return Object.assign(new Error(String(fields.code ?? fields.name)), fields)
-}
+const AUTH = makeAuthResponse()
 
 async function attempt(next = '/editor/abc?t=12') {
   const state = newAttemptId()

@@ -27,7 +27,6 @@ import {
   stopAndFinalize,
   startMock,
   subscribe,
-  syncIdentityToActiveSession,
   type AttachAndStartParams,
 } from '@/lib/recording/session'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
@@ -1047,7 +1046,6 @@ describe('recording session durability mirror', () => {
     mockRunCaptureUpload.mockResolvedValue({ kind: 'failure', message: 'Account changed' })
     await attachRecording({ title: 'Patch auth', maxBytes: 1024 * 1024 })
     setIdentity({ userId: 'user-late', ready: true })
-    syncIdentityToActiveSession('user-late')
     await flushAsync()
     expect((await persistence.listSessions())[0].userId).toBe('user-123')
     recordChunk(new Blob([new Uint8Array(10_000)]))

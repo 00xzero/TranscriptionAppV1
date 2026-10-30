@@ -16,7 +16,6 @@ import {
   saveRecovered as saveRecoveredAction,
   stopAndFinalize as stopAndFinalizeAction,
   subscribe,
-  syncIdentityToActiveSession,
   updateSessionKeyTerms as updateSessionKeyTermsAction,
   updateSessionTitle as updateSessionTitleAction,
   type AttachAndStartParams,
@@ -100,13 +99,10 @@ export function RecordingSessionProvider({
   const remoteStatus = useRemotePresence(localActive)
 
   // Push the authenticated identity into the recording seam (keeps lib/recording
-  // free of any supabase import) and defensively patch any live persisted row.
+  // free of any supabase import).
   // Keep this before any recovery-probe effects: runRecoveryProbe reads this seam.
   useEffect(() => {
     setIdentity({ userId: identity.userId, ready: identity.ready })
-    if (identity.ready && identity.userId) {
-      syncIdentityToActiveSession(identity.userId)
-    }
   }, [identity.userId, identity.ready])
 
   // Single owner-loss side effect: when a same-user recording loses its owner tab,

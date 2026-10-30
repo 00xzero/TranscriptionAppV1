@@ -35,7 +35,7 @@ cd infra && ./stop-local.sh    # Stop local services
 `start-local.sh` starts Supabase via the Supabase CLI, then brings up `infra/docker-compose.dev.yml` (Inngest `v1.19.2` + the frontend container). See `infra/Docker-setup.md`.
 
 # App test Authentication (login)
-Use this to login to the app as a test user, on the WorkOS hosted sign-in page (staging environment, password sign-in):
+Use this to log in to the app as a test user on our own `/auth` page (WorkOS staging environment, password sign-in):
 email address: ui5nvlw97q@mkzaso.com
 password: 4qdGNrheWHR25Js
 WorkOS user id (local seed owner): user_01M5MPPTWA83CYYBRZ4XC9QFW0

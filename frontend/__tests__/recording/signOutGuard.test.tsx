@@ -50,7 +50,7 @@ describe('sign-out auth-boundary guard', () => {
     setTestAuth({
       userId: 'u1',
       ready: true,
-      user: testUser('u1', { email: 'a@b.com' }),
+      user: testUser({ email: 'a@b.com' }),
     })
     toastMock.mockReset()
   })

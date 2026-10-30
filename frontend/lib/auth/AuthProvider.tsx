@@ -27,8 +27,6 @@ import { AccountChangedError } from '@/lib/auth/account-boundary'
 
 /** The signed-in person as the app shows them. */
 export interface AppUser {
-  /** Our own user id (app_users.id), the same as `userId`. */
-  id: string
   email: string
   /** Full name from WorkOS, or null when the person has not given one. */
   name: string | null
@@ -377,7 +375,7 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: userId ? { id: userId, email, name } : null,
+      user: userId ? { email, name } : null,
       userId,
       ready,
       signOut,

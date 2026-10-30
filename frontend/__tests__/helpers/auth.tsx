@@ -35,8 +35,8 @@ export function resetTestAuth(): void {
 }
 
 /** Minimal `AppUser` for account-name assertions. */
-export function testUser(id: string, overrides: Partial<AppUser> = {}): AppUser {
-  return { id, email: '', name: null, ...overrides }
+export function testUser(overrides: Partial<AppUser> = {}): AppUser {
+  return { email: '', name: null, ...overrides }
 }
 
 export function useTestAuth(): AuthContextValue {
