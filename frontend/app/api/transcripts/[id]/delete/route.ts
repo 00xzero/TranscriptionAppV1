@@ -11,7 +11,7 @@ import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
 import { sweepTranscriptFolders } from '@/lib/transcripts/folder-cleanup'
-import { ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
+import { getAccountChangeError } from '@/lib/auth/account-boundary.server'
 
 // delete_transcript refuses (TR002) while the folder holds a file that was not
 // there when it was swept; each attempt sweeps again.
@@ -37,10 +37,8 @@ export async function POST(
     return errorResponse({ error: 'Unauthorized' }, 401)
   }
 
-  const expectedUserId = request.headers.get(EXPECTED_USER_HEADER)
-  if (expectedUserId !== null && expectedUserId !== user.id) {
-    return errorResponse({ error: ACCOUNT_CHANGED_MESSAGE }, 409)
-  }
+  const accountError = getAccountChangeError(request, user.id)
+  if (accountError) return errorResponse(accountError, 409)
 
   const parsedId = UuidSchema.safeParse((await params).id)
   if (!parsedId.success) {

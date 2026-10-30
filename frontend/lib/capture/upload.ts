@@ -1,10 +1,8 @@
 import { createClientForUser } from '@/infra/supabase/client'
-import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
+import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
 import {
-    ACCOUNT_CHANGED_CODE,
     ACCOUNT_CHANGED_MESSAGE,
     AccountChangedError,
-    EXPECTED_USER_HEADER,
     isAccountChangedError,
 } from '@/lib/auth/account-boundary'
 import {
@@ -261,21 +259,21 @@ async function dispatchStart(
     transcriptId: string,
     uploadIntentId: string | undefined,
     signal: AbortSignal | undefined,
-    userId: string
+    userId: string,
+    onDispatch: () => void
 ): Promise<Response> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        [EXPECTED_USER_HEADER]: userId,
     }
     if (uploadIntentId) {
         headers['x-idempotency-key'] = `start:${uploadIntentId}`
     }
 
-    const res = await fetch(`/api/transcripts/${transcriptId}/start`, {
+    const res = await accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
         headers,
         signal,
-    })
+    }, userId, onDispatch)
 
     if (res.ok || res.status !== 409 || !uploadIntentId) {
         return res
@@ -290,16 +288,14 @@ async function dispatchStart(
     }
 
     console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
-    await getAccessToken(userId)
-    return fetch(`/api/transcripts/${transcriptId}/start`, {
+    return accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            [EXPECTED_USER_HEADER]: userId,
             'x-idempotency-key': `start-retry:${randomId()}`,
         },
         signal,
-    })
+    }, userId, onDispatch)
 }
 
 /**
@@ -349,11 +345,9 @@ export async function runCaptureUpload(
         }
 
         console.log('[capture] Step 1: Creating transcript...')
-        await getAccessToken(userId)
-        throwIfCanceled()
-        const createRes = await fetch('/api/transcripts', {
+        const createRes = await accountBoundFetch('/api/transcripts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', [EXPECTED_USER_HEADER]: userId },
+            headers: { 'Content-Type': 'application/json' },
             signal,
             body: JSON.stringify({
                 title: title || fitTranscriptTitle(file.name),
@@ -363,14 +357,10 @@ export async function runCaptureUpload(
                 ...(options.projectId ? { project_id: options.projectId } : {}),
                 ...(options.transcriptionOptions ? { transcription_options: options.transcriptionOptions } : {}),
             })
-        })
+        }, userId)
 
         if (!createRes.ok) {
             const errorData = await createRes.json().catch(() => ({}))
-            if (errorData.code === ACCOUNT_CHANGED_CODE) {
-                notifyAccountChanged()
-                throw new AccountChangedError()
-            }
             console.error('[capture] Transcript creation failed:', errorData)
             throw new Error(errorData.error || `Failed to create transcript (${createRes.status})`)
         }
@@ -419,6 +409,7 @@ export async function runCaptureUpload(
             // AbortSignal; the single-PUT path still can't be aborted mid-flight,
             // so the session continues to prevent discard while this runs.
             await transferToStorage(supabase, storagePath, file, {
+                userId,
                 contentType: mimeType,
                 upsert: options.allowUpsert ?? false,
                 signal,
@@ -486,19 +477,14 @@ export async function runCaptureUpload(
 
         options.onProgress?.('starting')
         throwIfCanceled()
-        await getAccessToken(userId)
-        throwIfCanceled()
-        didDispatchStartRequest = true
-        const startRes = await dispatchStart(transcriptId, options.uploadIntentId, signal, userId)
+        const startRes = await dispatchStart(transcriptId, options.uploadIntentId, signal, userId, () => {
+            didDispatchStartRequest = true
+        })
         didReceiveStartResponse = true
         throwIfCanceled()
 
         if (!startRes.ok) {
             const errorData = await startRes.json().catch(() => ({}))
-            if (errorData.code === ACCOUNT_CHANGED_CODE) {
-                notifyAccountChanged()
-                throw new AccountChangedError()
-            }
             throw new Error(errorData.error || `Failed to start transcription (${startRes.status})`)
         }
 

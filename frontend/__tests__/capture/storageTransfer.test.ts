@@ -71,6 +71,7 @@ describe('transferToStorage', () => {
     const file = makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES)
 
     await transferToStorage(supabase, 'u/p1/rec.webm', file, {
+      userId: 'u',
       contentType: 'audio/webm',
       upsert: false,
     })
@@ -88,6 +89,7 @@ describe('transferToStorage', () => {
 
     await expect(
       transferToStorage(supabase, 'u/p1/rec.webm', makeFile(1024), {
+        userId: 'u',
         contentType: 'audio/webm',
         upsert: false,
       })
@@ -98,6 +100,7 @@ describe('transferToStorage', () => {
     const file = makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1)
 
     await transferToStorage(supabase, 'u/p1/big.webm', file, {
+      userId: 'u',
       contentType: 'video/mp4',
       upsert: true,
     })
@@ -127,9 +130,10 @@ describe('transferToStorage', () => {
     expect(requestHeaders.authorization).toBe('Bearer tok-123')
   })
 
-  test('asks for a fresh token before every chunk, so a refresh mid-upload is used', async () => {
+  test('uses the explicit original owner for preflight and refreshed tokens on every chunk', async () => {
     onStart = () => {}
-    void transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+    const pending = transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+      userId: 'original-owner',
       contentType: 'audio/webm',
       upsert: false,
     })
@@ -138,6 +142,7 @@ describe('transferToStorage', () => {
       await Promise.resolve()
     }
     expect(UploadMock).toHaveBeenCalledTimes(1)
+    expect(getAccessTokenMock).toHaveBeenCalledWith('original-owner')
 
     const headersPerRequest: string[] = []
     for (const token of ['tok-before', 'tok-after-refresh']) {
@@ -149,12 +154,15 @@ describe('transferToStorage', () => {
       })
     }
     expect(headersPerRequest).toEqual(['Bearer tok-before', 'Bearer tok-after-refresh'])
-    expect(getAccessTokenMock.mock.calls.every(([userId]) => userId === 'u')).toBe(true)
+    expect(getAccessTokenMock.mock.calls.every(([userId]) => userId === 'original-owner')).toBe(true)
+    capturedOptions.onSuccess()
+    await pending
   })
 
   test('an account switch refuses the next TUS request before setting an authorization header', async () => {
     onStart = () => {}
     const pending = transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+      userId: 'u',
       contentType: 'audio/webm', upsert: false,
     })
     for (let tick = 0; tick < 10 && UploadMock.mock.calls.length === 0; tick++) await Promise.resolve()
@@ -175,7 +183,7 @@ describe('transferToStorage', () => {
       supabase,
       'u/p1/big.webm',
       makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1),
-      { contentType: 'audio/webm', upsert: false }
+      { userId: 'u', contentType: 'audio/webm', upsert: false }
     )
     expect(capturedOptions.endpoint).toBe(
       'https://abcdefgh.storage.supabase.co/storage/v1/upload/resumable'
@@ -187,7 +195,7 @@ describe('transferToStorage', () => {
       supabase,
       'u/p1/big2.webm',
       makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1),
-      { contentType: 'audio/webm', upsert: false }
+      { userId: 'u', contentType: 'audio/webm', upsert: false }
     )
     expect(capturedOptions.endpoint).toBe(
       'http://localhost:54321/storage/v1/upload/resumable'
@@ -200,7 +208,7 @@ describe('transferToStorage', () => {
       supabase,
       'u/p1/big.webm',
       makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1),
-      { contentType: 'audio/webm', upsert: false }
+      { userId: 'u', contentType: 'audio/webm', upsert: false }
     )
     expect(capturedOptions.endpoint).toBe(
       'https://abcdefgh.storage.supabase.co/storage/v1/upload/resumable'
@@ -214,6 +222,7 @@ describe('transferToStorage', () => {
 
     await expect(
       transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+        userId: 'u',
         contentType: 'audio/webm',
         upsert: false,
       })
@@ -230,6 +239,7 @@ describe('transferToStorage', () => {
 
     await expect(
       transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+        userId: 'u',
         contentType: 'audio/webm',
         upsert: false,
       })
@@ -244,7 +254,7 @@ describe('transferToStorage', () => {
       supabase,
       'u/p1/big.webm',
       makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1),
-      { contentType: 'audio/webm', upsert: false, signal: controller.signal }
+      { userId: 'u', contentType: 'audio/webm', upsert: false, signal: controller.signal }
     )
 
     // Let getSession resolve and the upload start before aborting.
@@ -265,6 +275,7 @@ describe('transferToStorage', () => {
     })
 
     await transferToStorage(supabase, 'u/p1/rec.webm', file, {
+      userId: 'u',
       contentType: 'audio/webm',
       upsert: false,
       onProgress,
@@ -280,6 +291,7 @@ describe('transferToStorage', () => {
 
     await expect(
       transferToStorage(supabase, 'u/p1/rec.webm', makeFile(1024), {
+        userId: 'u',
         contentType: 'audio/webm',
         upsert: false,
         onProgress,
@@ -304,6 +316,7 @@ describe('transferToStorage', () => {
     }
 
     await transferToStorage(supabase, 'u/p1/big.webm', makeFile(total), {
+      userId: 'u',
       contentType: 'audio/webm',
       upsert: false,
       onProgress,
@@ -332,6 +345,7 @@ describe('transferToStorage', () => {
     }
 
     const promise = transferToStorage(supabase, 'u/p1/big.webm', makeFile(total), {
+      userId: 'u',
       contentType: 'audio/webm',
       upsert: false,
       onProgress,
@@ -356,6 +370,7 @@ describe('transferToStorage', () => {
     })
 
     await transferToStorage(supabase, 'u/p1/rec.webm', makeFile(1024), {
+      userId: 'u',
       contentType: 'audio/webm',
       upsert: false,
       signal: controller.signal,
@@ -374,7 +389,7 @@ describe('transferToStorage', () => {
       supabase,
       'u/p1/big.webm',
       makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1),
-      { contentType: 'audio/webm', upsert: false, signal: controller.signal, onProgress }
+      { userId: 'u', contentType: 'audio/webm', upsert: false, signal: controller.signal, onProgress }
     )
     await Promise.resolve()
     await Promise.resolve()
@@ -390,6 +405,7 @@ describe('transferToStorage', () => {
 
     await expect(
       transferToStorage(supabase, 'u/p1/big.webm', makeFile(RESUMABLE_UPLOAD_THRESHOLD_BYTES + 1), {
+        userId: 'u',
         contentType: 'audio/webm',
         upsert: false,
       })

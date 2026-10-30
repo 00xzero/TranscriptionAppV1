@@ -32,10 +32,10 @@ const fromMock = jest.fn(() => ({
   update: updateMock,
   select: reconcileSelectMock,
 }))
-const deleteRequestMock = jest.fn(async (_id: string): Promise<void> => undefined)
+const deleteRequestMock = jest.fn(async (_id: string, _userId: string): Promise<void> => undefined)
 
 jest.mock('@/lib/transcripts/delete-client', () => ({
-  deleteTranscriptRequest: (id: string) => deleteRequestMock(id),
+  deleteTranscriptRequest: (id: string, userId: string) => deleteRequestMock(id, userId),
 }))
 
 jest.mock('@/infra/supabase/client', () => ({
@@ -51,6 +51,8 @@ jest.mock('@/infra/workos/access-token', () => ({
 }))
 
 import { runCaptureUpload } from '@/lib/capture/upload'
+import { getAccessToken } from '@/infra/workos/access-token'
+import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, AccountChangedError } from '@/lib/auth/account-boundary'
 
 interface FakeResponse {
   ok: boolean
@@ -76,12 +78,13 @@ function makeFile(): File {
 
 function startCallHeaders(callIndex: number): Record<string, string> {
   const call = fetchMock.mock.calls[callIndex]
-  return (call[1]?.headers ?? {}) as Record<string, string>
+  return Object.fromEntries(new Headers(call[1]?.headers))
 }
 
 describe('runCaptureUpload upload idempotency', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    jest.mocked(getAccessToken).mockReset().mockResolvedValue('token-for-u')
     uploadMock.mockResolvedValue({ error: null })
     removeMock.mockResolvedValue({ error: null })
     updateSingleMock.mockResolvedValue({ data: { id: 'p1' }, error: null })
@@ -244,8 +247,62 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(uploadMock).toHaveBeenCalledTimes(1)
     expect(updateMock).toHaveBeenCalledTimes(1)
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
-    expect(deleteRequestMock).toHaveBeenCalledWith('p1')
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('cancellation during the first start preflight rolls back a fresh upload that was never dispatched', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: false, sourceObjectKey: null,
+    }))
+    let release!: (token: string) => void
+    let entered!: () => void
+    const inPreflight = new Promise<void>((resolve) => { entered = resolve })
+    jest.mocked(getAccessToken).mockResolvedValueOnce('token-for-u').mockImplementationOnce(() => {
+      entered()
+      return new Promise((resolve) => { release = resolve })
+    })
+    const controller = new AbortController()
+    const pending = runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', signal: controller.signal })
+    await inPreflight
+    controller.abort()
+    release('token-for-u')
+
+    expect(await pending).toMatchObject({ kind: 'failure' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
+  })
+
+  test('losing the response after start dispatch preserves the unknown-state outcome without cleanup', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: true, sourceObjectKey: 'u/p1/rec.webm',
+    })).mockRejectedValueOnce(new TypeError('Connection lost'))
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', uploadIntentId: 'intent-1' })
+    expect(result).toMatchObject({ kind: 'success', outcome: 'saved_status_unknown' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(deleteRequestMock).not.toHaveBeenCalled()
+  })
+
+  test('an account change during retry preflight prevents a second start and cleanup', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: true, sourceObjectKey: 'u/p1/rec.webm',
+    })).mockResolvedValueOnce(jsonResponse(409, { status: 'error' }))
+    jest.mocked(getAccessToken).mockResolvedValueOnce('token-for-u').mockResolvedValueOnce('token-for-u')
+      .mockRejectedValueOnce(new AccountChangedError())
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', uploadIntentId: 'intent-1' })
+    expect(result).toMatchObject({ kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(deleteRequestMock).not.toHaveBeenCalled()
+  })
+
+  test('an account-change code takes precedence over an errored-job retry body', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, {
+      transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: true, sourceObjectKey: 'u/p1/rec.webm',
+    })).mockResolvedValueOnce(jsonResponse(409, { status: 'error', code: ACCOUNT_CHANGED_CODE }))
+    const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', uploadIntentId: 'intent-1' })
+    expect(result).toMatchObject({ kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(deleteRequestMock).not.toHaveBeenCalled()
   })
 
   test('dedup hit without linked media does not delete the canonical transcript on rollback', async () => {
@@ -355,7 +412,7 @@ describe('runCaptureUpload upload idempotency', () => {
       message: 'Failed to update transcript: the transcript is no longer available',
     })
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
-    expect(deleteRequestMock).toHaveBeenCalledWith('p1')
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
     expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
@@ -379,7 +436,7 @@ describe('runCaptureUpload upload idempotency', () => {
 
     expect(result).toEqual({ kind: 'failure', message: 'That project is being deleted.' })
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
-    expect(deleteRequestMock).toHaveBeenCalledWith('p1')
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
     expect(reconcileMaybeSingleMock).not.toHaveBeenCalled()
   })
 
@@ -401,7 +458,7 @@ describe('runCaptureUpload upload idempotency', () => {
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u' })
 
-    expect(deleteRequestMock).toHaveBeenCalledWith('p1')
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
     expect(result).toEqual({
       kind: 'failure',
       message: 'Failed to update transcript: the transcript is no longer available',
@@ -455,7 +512,7 @@ describe('runCaptureUpload upload idempotency', () => {
       allowUpsert: true,
     })
 
-    expect(deleteRequestMock).toHaveBeenCalledWith('p1')
+    expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
     expect(result.message).not.toContain('Automatic cleanup failed')
   })
 

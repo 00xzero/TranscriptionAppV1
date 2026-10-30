@@ -5,6 +5,7 @@ import { DeleteProjectDialog } from '@/components/Projects/DeleteProjectDialog'
 import { buildProjectTree } from '@/core/projects/tree'
 import { DeleteProjectRequestError } from '@/lib/projects/delete-client'
 import { makeProject, makeTranscript } from './fixtures'
+import { ACCOUNT_CHANGED_MESSAGE, AccountChangedError } from '@/lib/auth/account-boundary'
 
 const mockDeleteProjectRequest = jest.fn()
 const mockFetchCount = jest.fn()
@@ -58,7 +59,7 @@ describe('DeleteProjectDialog', () => {
     expect(await screen.findByText(/1 nested project and 2 transcripts/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Delete Project' }))
 
-    await waitFor(() => expect(mockDeleteProjectRequest).toHaveBeenCalledWith('current'))
+    await waitFor(() => expect(mockDeleteProjectRequest).toHaveBeenCalledWith('current', current.user_id))
     expect(mutateProjects).toHaveBeenCalledTimes(1)
     expect(mutateTranscripts).toHaveBeenCalledTimes(1)
   })
@@ -112,6 +113,31 @@ describe('DeleteProjectDialog', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  test('account-change rejection stays open and retries with the original project owner', async () => {
+    const user = userEvent.setup()
+    const onClose = jest.fn()
+    mockDeleteProjectRequest.mockRejectedValue(new AccountChangedError())
+    const view = render(<DeleteProjectDialog project={current} onClose={onClose} />)
+    await screen.findByText(/2 transcripts/)
+    await user.click(screen.getByRole('button', { name: 'Delete Project' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(ACCOUNT_CHANGED_MESSAGE)
+
+    // The data scope is now a replacement account; the open target still belongs to A.
+    const nextMutateProjects = jest.fn()
+    const nextMutateTranscripts = jest.fn()
+    mockUseProjectsData.mockReturnValue({ tree: buildProjectTree([]), mutateProjects: nextMutateProjects })
+    mockUseTranscriptsData.mockReturnValue({ transcripts: [], mutateTranscripts: nextMutateTranscripts })
+    view.rerender(<DeleteProjectDialog project={current} onClose={onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Retry Delete' }))
+
+    expect(mockDeleteProjectRequest.mock.calls).toEqual([[current.id, current.user_id], [current.id, current.user_id]])
+    expect(onClose).not.toHaveBeenCalled()
+    expect(mutateProjects).not.toHaveBeenCalled()
+    expect(mutateTranscripts).not.toHaveBeenCalled()
+    expect(nextMutateProjects).not.toHaveBeenCalled()
+    expect(nextMutateTranscripts).not.toHaveBeenCalled()
+  })
+
   test('finishes an account-switched delete without mutating the new scope', async () => {
     const user = userEvent.setup()
     const request = deferred<{ deleted_projects: number; deleted_transcripts: number }>()
@@ -122,7 +148,7 @@ describe('DeleteProjectDialog', () => {
     const view = render(<DeleteProjectDialog project={current} onClose={onClose} />)
     await screen.findByText(/2 transcripts/)
     await user.click(screen.getByRole('button', { name: 'Delete Project' }))
-    await waitFor(() => expect(mockDeleteProjectRequest).toHaveBeenCalledWith('current'))
+    await waitFor(() => expect(mockDeleteProjectRequest).toHaveBeenCalledWith('current', current.user_id))
 
     mockUseProjectsData.mockReturnValue({
       tree: buildProjectTree([]),

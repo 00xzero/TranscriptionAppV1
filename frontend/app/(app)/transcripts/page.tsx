@@ -13,6 +13,9 @@ import { useModal } from '@/lib/ModalContext'
 import { transcriptActionTarget } from '@/lib/transcripts/actions'
 import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
+import { useAuth } from '@/lib/auth/AuthProvider'
+import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
+import { AccountChangedError } from '@/lib/auth/account-boundary'
 
 export default function TranscriptsPage() {
   return (
@@ -27,6 +30,7 @@ export default function TranscriptsPage() {
 }
 
 function TranscriptsPageContent() {
+  const { userId } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const { openCaptureModal } = useModal()
@@ -144,6 +148,7 @@ function TranscriptsPageContent() {
   }, [transcripts, idempotencyKeys])
 
   const startTranscript = useCallback(async (id: string) => {
+    const expectedUserId = userId
     if (starting[id]) return
     setStarting((prev) => ({ ...prev, [id]: true }))
 
@@ -155,13 +160,14 @@ function TranscriptsPageContent() {
     }
 
     try {
+      if (!expectedUserId) throw new AccountChangedError()
       // Use existing Next.js API route for starting transcription
-      const res = await fetch(`/api/transcripts/${id}/start`, {
+      const res = await accountBoundFetch(`/api/transcripts/${id}/start`, {
         method: 'POST',
         headers: {
           'x-idempotency-key': idempotencyKey,
         },
-      })
+      }, expectedUserId)
       if (!res.ok) {
         const text = await res.text()
         let parsed: { error?: string; status?: string } | null = null
@@ -207,7 +213,7 @@ function TranscriptsPageContent() {
       })
     } catch (e) {
       console.error(e)
-      setActionError(String(e))
+      setActionError(e instanceof Error ? e.message : String(e))
     } finally {
       setStarting((prev) => {
         const next = { ...prev }
@@ -215,7 +221,7 @@ function TranscriptsPageContent() {
         return next
       })
     }
-  }, [starting, idempotencyKeys, refetch])
+  }, [starting, idempotencyKeys, refetch, userId])
 
   const getErrorInfo = (transcriptId: string) => transcriptErrors[transcriptId]
 

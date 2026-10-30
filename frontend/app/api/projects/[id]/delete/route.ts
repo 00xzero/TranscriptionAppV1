@@ -8,6 +8,7 @@ import {
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
 import { getCurrentUser } from '@/lib/auth/current-user.server'
+import { getAccountChangeError } from '@/lib/auth/account-boundary.server'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
 import {
@@ -44,7 +45,7 @@ function nonNullKeys(keys: Array<string | null> | null | undefined): string[] {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await using supabase = await createClient({ refreshSession: true })
@@ -52,6 +53,9 @@ export async function POST(
   if (!user) {
     return errorResponse({ error: 'Unauthorized', stage: 'begin' }, 401)
   }
+
+  const accountError = getAccountChangeError(request, user.id)
+  if (accountError) return errorResponse({ ...accountError, stage: 'begin' }, 409)
 
   const parsedId = UuidSchema.safeParse((await params).id)
   if (!parsedId.success) {

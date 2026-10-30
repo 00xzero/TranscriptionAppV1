@@ -10,7 +10,7 @@ import { createClient } from '@/infra/supabase/server'
 import { getCurrentUser } from '@/lib/auth/current-user.server'
 import { CreateTranscriptBodySchema } from '@/contracts/api'
 import { createTranscript } from '@/core/transcripts/create'
-import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
+import { getAccountChangeError } from '@/lib/auth/account-boundary.server'
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,12 +26,8 @@ export async function POST(request: NextRequest) {
 
         // A cookie is shared by tabs; a tab's cached token and displayed user
         // can still be A after another tab signs in as B. Refuse before writing.
-        if (request.headers.get(EXPECTED_USER_HEADER) !== user.id) {
-            return NextResponse.json(
-                { error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE },
-                { status: 409 }
-            )
-        }
+        const accountError = getAccountChangeError(request, user.id)
+        if (accountError) return NextResponse.json(accountError, { status: 409 })
 
         // Parse and validate request body
         const parsed = CreateTranscriptBodySchema.safeParse(await request.json())

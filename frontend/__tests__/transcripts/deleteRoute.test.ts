@@ -21,6 +21,7 @@ jest.mock('@/infra/supabase/admin', () => ({
   createAdminClient: () => ({ storage: { from: trustedStorageFromMock } }),
 }))
 
+import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 import { POST } from '@/app/api/transcripts/[id]/delete/route'
 
 const TRANSCRIPT_ID = '33333333-3333-4333-8333-333333333333'
@@ -29,8 +30,8 @@ const WAVEFORM_KEY = `user-1/${TRANSCRIPT_ID}/waveform.json`
 
 type RpcResult = { data: unknown; error: { code?: string; message?: string } | null }
 
-function request(id = TRANSCRIPT_ID) {
-  return POST(new Request(`http://localhost/api/transcripts/${id}/delete`, { method: 'POST' }), {
+function request(id = TRANSCRIPT_ID, expectedUserId: string | null = 'user-1') {
+  return POST(new Request(`http://localhost/api/transcripts/${id}/delete`, { method: 'POST', headers: expectedUserId === null ? {} : { [EXPECTED_USER_HEADER]: expectedUserId } }), {
     params: Promise.resolve({ id }),
   })
 }
@@ -79,6 +80,14 @@ describe('transcript delete route', () => {
 
     expect(response.status).toBe(401)
     expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  test.each([null, '', 'other-user'])('refuses an absent or different owner before deletion (%s)', async (expected) => {
+    const response = await request(TRANSCRIPT_ID, expected)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE })
+    expect(rpcMock).not.toHaveBeenCalled()
+    expect(storageFromMock).not.toHaveBeenCalled()
   })
 
   test('rejects an invalid transcript id', async () => {

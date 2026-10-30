@@ -8,8 +8,10 @@ import { branchIds, descendantCount } from '@/core/projects/tree'
 import { deleteProjectRequest, DeleteProjectRequestError } from '@/lib/projects/delete-client'
 import { useProjectsData, useTranscriptsData } from '@/lib/projects/ProjectsProvider'
 import { fetchProjectBranchTranscriptCount } from '@/lib/supabase/queries'
+import { ACCOUNT_CHANGED_MESSAGE, isAccountChangedError } from '@/lib/auth/account-boundary'
 
 function deleteErrorMessage(error: unknown): string {
+  if (isAccountChangedError(error)) return ACCOUNT_CHANGED_MESSAGE
   if (!(error instanceof DeleteProjectRequestError)) {
     return 'The project could not be deleted. Try again.'
   }
@@ -49,7 +51,7 @@ export function DeleteProjectDialog({
 
   const handleConfirm = async () => {
     try {
-      await deleteProjectRequest(project.id)
+      await deleteProjectRequest(project.id, project.user_id)
       completeLocally()
     } catch (error) {
       if (error instanceof DeleteProjectRequestError && error.gone) {

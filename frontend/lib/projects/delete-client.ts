@@ -4,6 +4,7 @@ import {
   type DeleteProjectError,
   type DeleteProjectResponse,
 } from '@/contracts/api'
+import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
 
 export class DeleteProjectRequestError extends Error {
   readonly status: number
@@ -31,8 +32,8 @@ export class DeleteProjectRequestError extends Error {
   }
 }
 
-export async function deleteProjectRequest(id: string): Promise<DeleteProjectResponse> {
-  const response = await fetch(`/api/projects/${id}/delete`, { method: 'POST' })
+export async function deleteProjectRequest(id: string, expectedUserId: string): Promise<DeleteProjectResponse> {
+  const response = await accountBoundFetch(`/api/projects/${id}/delete`, { method: 'POST' }, expectedUserId)
   let body: unknown
   try {
     body = await response.json()

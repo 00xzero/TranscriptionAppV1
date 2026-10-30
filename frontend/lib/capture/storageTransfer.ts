@@ -21,6 +21,8 @@ export const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024 // 6 MB
 const TUS_CHUNK_SIZE_BYTES = 6 * 1024 * 1024 // 6 MB
 
 export interface TransferOptions {
+    /** The original upload owner, fixed across resumable requests and retries. */
+    userId: string
     contentType: string
     /** Maps to Supabase's `x-upsert`; overwrites an existing object when true. */
     upsert: boolean
@@ -87,7 +89,7 @@ async function resumableUpload(
         throw new Error('Upload failed: missing Supabase configuration')
     }
 
-    const userId = storagePath.split('/')[0]
+    const userId = options.userId
     const accessToken = await getAccessToken(userId)
     if (!accessToken) {
         throw new Error('Upload failed: no active session for resumable upload')
