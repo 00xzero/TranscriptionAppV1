@@ -303,6 +303,26 @@ describe('AuthProvider', () => {
     await expect(request).resolves.toBeNull()
   })
 
+  test('a held request observes a failed session read after waiting without fetching a token', async () => {
+    const read = deferred<undefined>()
+    mockRefreshAuth.mockReturnValueOnce(read.promise)
+    setAuthKitState({ loading: true })
+    renderProvider()
+    const request = getAccessToken()
+    const rejected = expect(request).rejects.toThrow(SIGN_IN_UNCONFIRMED_MESSAGE)
+
+    act(() => setAuthKitState({ loading: false }))
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+    expect(mockGetAccessToken).not.toHaveBeenCalled()
+    await act(async () => {
+      read.resolve({ error: 'Offline' } as never)
+      await read.promise
+    })
+    await rejected
+    expect(mockGetAccessToken).not.toHaveBeenCalled()
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+  })
+
   test('a failed check on load fails reads rather than sending them signed out, and recovers', async () => {
     jest.useFakeTimers()
     try {
@@ -384,6 +404,86 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-b'))
     pendingToken.resolve(accessTokenFor('user_A'))
     await rejected
+  })
+
+  test('quarantines bound and unbound requests before React commits', async () => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    const read = deferred<undefined>()
+    mockRefreshAuth.mockReturnValueOnce(read.promise)
+    const tokenCalls = mockGetAccessToken.mock.calls.length
+
+    await act(async () => {
+      notifyAccountChanged()
+      // The old identity is still rendered; the imperative quarantine must
+      // already protect requests made before the layout effect runs.
+      expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a')
+      const bound = getAccessToken('app-user-a')
+      const unbound = getAccessToken()
+      await expect(bound).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+      await expect(unbound).resolves.toBeNull()
+      expect(mockGetAccessToken).toHaveBeenCalledTimes(tokenCalls)
+    })
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      read.resolve(undefined)
+      await read.promise
+    })
+  })
+
+  test.each([undefined, 'app-user-a'])('withholds an in-flight token after quarantine begins (expected %s)', async (expectedUserId) => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    const pendingToken = deferred<string>()
+    mockGetAccessToken.mockReturnValueOnce(pendingToken.promise)
+    const request = getAccessToken(expectedUserId)
+    const outcome = expectedUserId
+      ? expect(request).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+      : expect(request).resolves.toBeNull()
+    const read = deferred<undefined>()
+    mockRefreshAuth.mockReturnValueOnce(read.promise)
+
+    await act(async () => {
+      notifyAccountChanged()
+      pendingToken.resolve(accessTokenFor('user_A'))
+      await outcome
+    })
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('ready')).toHaveTextContent('false')
+
+    await act(async () => {
+      read.resolve(undefined)
+      await read.promise
+    })
+  })
+
+  test.each([undefined, 'app-user-a'])('withholds an in-flight token after sign-out (expected %s)', async (expectedUserId) => {
+    setAuthKitState({ user: workosUser('user_A') })
+    mockRpc.mockResolvedValue(resolvesTo('app-user-a'))
+    renderProvider()
+    await waitFor(() => expect(screen.getByTestId('user-id')).toHaveTextContent('app-user-a'))
+    const pendingToken = deferred<string>()
+    mockGetAccessToken.mockReturnValueOnce(pendingToken.promise)
+    const request = getAccessToken(expectedUserId)
+    const outcome = expectedUserId
+      ? expect(request).rejects.toThrow(ACCOUNT_CHANGED_MESSAGE)
+      : expect(request).resolves.toBeNull()
+
+    act(() => setAuthKitState({ user: null }))
+    await waitFor(() => expect(screen.getByTestId('ready')).toHaveTextContent('true'))
+    expect(screen.getByTestId('user-id')).toBeEmptyDOMElement()
+    const sessionReads = mockRefreshAuth.mock.calls.length
+    await act(async () => {
+      pendingToken.resolve(accessTokenFor('user_A'))
+      await outcome
+    })
+    expect(mockRefreshAuth).toHaveBeenCalledTimes(sessionReads)
   })
 
   test('never sends another session’s token, and follows the session to its new account', async () => {

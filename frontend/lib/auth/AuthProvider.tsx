@@ -24,6 +24,12 @@ import {
 } from '@/infra/workos/access-token'
 import { getCurrentUserId } from '@/lib/auth/current-user-id'
 import { AccountChangedError } from '@/lib/auth/account-boundary'
+import {
+  decideTokenRequest,
+  resolveIdentity,
+  type AuthSnapshot,
+  type Lookup,
+} from '@/lib/auth/auth-policy'
 
 /** The signed-in person as the app shows them. */
 export interface AppUser {
@@ -54,22 +60,12 @@ export interface AuthContextValue extends AuthIdentity {
   signOut: () => Promise<void>
 }
 
-type ResolvedIdentity = Pick<AuthIdentity, 'userId' | 'ready'>
-
-const INITIAL_IDENTITY: ResolvedIdentity = { userId: null, ready: false }
-const SIGNED_OUT_IDENTITY: ResolvedIdentity = { userId: null, ready: true }
-
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
 function displayName(firstName: string | null, lastName: string | null): string | null {
   const name = [firstName, lastName].filter(Boolean).join(' ').trim()
   return name || null
 }
-
-/** The outcome of resolving one WorkOS user to our own user id. */
-type Lookup =
-  | { workosUserId: string; status: 'resolved'; userId: string | null }
-  | { workosUserId: string; status: 'failed'; attempt: number }
 
 /** One failing step's attempts, for the WorkOS user it was made for. */
 interface Failures {
@@ -118,31 +114,6 @@ function useRetryWhileFailing(attempt: number, retry: () => void) {
 export const SIGN_IN_UNCONFIRMED_MESSAGE =
   'Could not confirm you are signed in. Check your connection and try again.'
 
-function resolveIdentity(
-  workosUserId: string | null,
-  loading: boolean,
-  lookup: Lookup | null,
-  staleFor: string | null,
-  sessionRead: boolean
-): ResolvedIdentity {
-  // AuthKit's first check found no one, which it also answers when the check
-  // fails: unknown until a read that reports failures confirms it.
-  if (!loading && !workosUserId && !sessionRead) return INITIAL_IDENTITY
-  // The session now belongs to someone else (another tab changed accounts):
-  // nothing is known until AuthKit reports the session's user.
-  if (workosUserId && staleFor === workosUserId) return INITIAL_IDENTITY
-  // A lookup only counts for the WorkOS user it was made for, so one that
-  // finishes after sign-out or an account switch is never shown.
-  if (workosUserId && lookup?.workosUserId === workosUserId && lookup.status === 'resolved') {
-    // A WorkOS user with no app_users row has no account here yet.
-    return lookup.userId ? { userId: lookup.userId, ready: true } : SIGNED_OUT_IDENTITY
-  }
-  if (loading) return INITIAL_IDENTITY
-  if (!workosUserId) return SIGNED_OUT_IDENTITY
-  // Still looking up, or the lookup failed: identity is unknown, not signed out.
-  return INITIAL_IDENTITY
-}
-
 /**
  * App-wide owner of client auth identity. WorkOS AuthKit owns the session;
  * this resolves it to our own user id (`current_user_id()`) and registers the
@@ -188,20 +159,12 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   // Reads wait while AuthKit is asking, and while "no user" awaits its first read.
   const authUnknown = loading || (noUserUnconfirmed && !readFailing)
 
-  const workosUserIdRef = useRef(workosUserId)
-  const userIdRef = useRef(userId)
-  const staleForRef = useRef(staleFor)
-  const readFailingRef = useRef(readFailing)
-  const authUnknownRef = useRef(authUnknown)
+  const authSnapshotRef = useRef<AuthSnapshot>({ workosUserId, userId, staleFor, readFailing, authUnknown })
   const refreshingForRef = useRef<{ workosUserId: string } | null>(null)
   const readingRef = useRef(false)
   const authKnownWaitersRef = useRef(new Set<() => void>())
   useLayoutEffect(() => {
-    workosUserIdRef.current = workosUserId
-    userIdRef.current = userId
-    staleForRef.current = staleFor
-    readFailingRef.current = readFailing
-    authUnknownRef.current = authUnknown
+    authSnapshotRef.current = { workosUserId, userId, staleFor, readFailing, authUnknown }
     if (!authUnknown) {
       authKnownWaitersRef.current.forEach((release) => release())
       authKnownWaitersRef.current.clear()
@@ -221,18 +184,18 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   )
 
   const reconcileSession = useCallback(() => {
-    const expected = workosUserIdRef.current
+    const expected = authSnapshotRef.current.workosUserId
     if (!expected) return
     // Quarantine requests immediately, including before React commits the
     // unresolved identity. A cached token cannot confirm the shared cookie.
-    staleForRef.current = expected
+    authSnapshotRef.current = { ...authSnapshotRef.current, staleFor: expected }
     setStaleFor(expected)
     if (refreshingForRef.current?.workosUserId === expected) return
 
     const attempt = { workosUserId: expected }
     refreshingForRef.current = attempt
     const failed = () => {
-      if (refreshingForRef.current === attempt && workosUserIdRef.current === expected) {
+      if (refreshingForRef.current === attempt && authSnapshotRef.current.workosUserId === expected) {
         setSessionChecks((checks) => nextFailures(checks, expected))
       }
     }
@@ -259,36 +222,32 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   // first Supabase request already carries the token.
   useLayoutEffect(() => {
     setAccessTokenGetter(async (expectedUserId) => {
-      const sessionIsStale = () => Boolean(
-        workosUserIdRef.current && staleForRef.current === workosUserIdRef.current
-      )
-      const checkAccount = () => {
-        if (expectedUserId && (userIdRef.current !== expectedUserId || sessionIsStale())) {
-          throw new AccountChangedError()
-        }
-      }
-      checkAccount()
-      if (sessionIsStale()) return undefined
+      let decision = decideTokenRequest(authSnapshotRef.current, expectedUserId, { phase: 'entry' })
       // AuthKit hands out no token before it knows the user.
-      if (authUnknownRef.current) {
+      if (decision === 'wait-for-auth') {
         await untilAuthKnown()
-        checkAccount()
-        if (sessionIsStale()) return undefined
+        decision = decideTokenRequest(authSnapshotRef.current, expectedUserId, { phase: 'after-auth-wait' })
       }
-      if (readFailingRef.current) throw new Error(SIGN_IN_UNCONFIRMED_MESSAGE)
+      if (decision === 'account-changed') throw new AccountChangedError()
+      if (decision === 'no-token') return undefined
+      if (decision === 'sign-in-unconfirmed') throw new Error(SIGN_IN_UNCONFIRMED_MESSAGE)
       const token = await getAccessToken()
       // The account can change while AuthKit is fetching/refreshing its token.
-      checkAccount()
-      if (sessionIsStale() || !token) return undefined
-      const expected = workosUserIdRef.current
-      if (expected && accessTokenSubject(token) === expected) return token
+      const tokenDecision = decideTokenRequest(authSnapshotRef.current, expectedUserId, {
+        phase: 'after-token',
+        hasToken: Boolean(token),
+        subject: token ? accessTokenSubject(token) : null,
+      })
+      if (tokenDecision === 'account-changed') throw new AccountChangedError()
+      if (tokenDecision === 'use-token') return token
 
       // The token is another session's. Send nothing; ask AuthKit once who
       // the session belongs to now. Failed server checks retry directly;
       // neither a cached token nor a background request clears the mismatch.
-      if (!expected) return undefined
-      reconcileSession()
-      if (expectedUserId) throw new AccountChangedError()
+      if (tokenDecision === 'reconcile-session') {
+        reconcileSession()
+        if (expectedUserId) throw new AccountChangedError()
+      }
       return undefined
     }, reconcileSession)
     return () => setAccessTokenGetter(null)
