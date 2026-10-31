@@ -1,16 +1,21 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const fromMock = jest.fn()
+
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
 
 jest.mock('@/infra/supabase/server', () => ({
   createClient: jest.fn(async () => ({
-    auth: { getUser: getUserMock },
+    [Symbol.asyncDispose]: async () => {},
     from: fromMock,
   })),
 }))
 
 import { POST } from '../app/api/transcripts/route'
+import { EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 const PROJECT_ID = '00000000-0000-0000-0000-000000000003'
 const INTENT_BODY = {
@@ -64,20 +69,40 @@ function postTranscript(
     if (table === 'watchlist') return { insert: jest.fn(async () => ({ error: null })) }
     return {}
   })
-  return POST({ json: async () => body } as unknown as Parameters<typeof POST>[0])
+  return POST({ headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
+      json: async () => body } as unknown as Parameters<typeof POST>[0])
 }
 
 describe('POST /api/transcripts', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    getUserMock.mockResolvedValue({
-      data: { user: { id: '00000000-0000-0000-0000-000000000001' } },
-      error: null,
-    })
+    getCurrentUserMock.mockResolvedValue({ id: '00000000-0000-0000-0000-000000000001', email: '' })
+  })
+
+  test('refuses a different expected account before any writes', async () => {
+    const request = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000099' }),
+      json: jest.fn(async () => ({ filename: 'audio.mp3' })),
+    }
+    const response = await POST(request as never)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'ACCOUNT_CHANGED' })
+    expect(request.json).not.toHaveBeenCalled()
+    expect(fromMock).not.toHaveBeenCalled()
+  })
+
+  test('a signed-out request remains unauthorized before the account check', async () => {
+    getCurrentUserMock.mockResolvedValue(null)
+    const request = { headers: new Headers(), json: jest.fn() }
+    const response = await POST(request as never)
+    expect(response.status).toBe(401)
+    expect(request.json).not.toHaveBeenCalled()
+    expect(fromMock).not.toHaveBeenCalled()
   })
 
   test('missing filename returns 400', async () => {
-    const req = { json: async () => ({ title: 'test' }) } as any
+    const req = { headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
+      json: async () => ({ title: 'test' }) } as any
 
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -86,7 +111,8 @@ describe('POST /api/transcripts', () => {
   })
 
   test('empty filename returns 400', async () => {
-    const req = { json: async () => ({ filename: '' }) } as any
+    const req = { headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
+      json: async () => ({ filename: '' }) } as any
 
     const res = await POST(req)
     expect(res.status).toBe(400)

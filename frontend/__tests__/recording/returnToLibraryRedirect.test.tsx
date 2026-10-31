@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import RecordingNewPage from '@/app/recording/new/page'
+import RecordingNewPage from '@/app/(app)/recording/new/page'
 import { __resetForTesting } from '@/lib/recording/session'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
 

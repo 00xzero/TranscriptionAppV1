@@ -12,11 +12,13 @@ export function toastUnsaved(title: string, description: string, texts: readonly
 /**
  * Puts these texts on the clipboard, one paragraph each. Without the
  * Clipboard API (plain http) it copies the old way; says so if neither works.
+ * True once copied.
  */
-export async function copyText(texts: readonly string[]) {
+export async function copyText(texts: readonly string[]): Promise<boolean> {
   const text = texts.join('\n\n')
   const copied = await (navigator.clipboard?.writeText(text).then(() => true, () => false) ?? false) || copyByCommand(text)
   if (!copied) toast({ title: "Couldn't copy the text", description: 'Your browser blocked the clipboard.', variant: 'error' })
+  return copied
 }
 
 function copyByCommand(text: string): boolean {

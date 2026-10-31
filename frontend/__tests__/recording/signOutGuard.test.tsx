@@ -9,6 +9,7 @@ import {
   hasUnresolvedRecordingArtifact,
   startMock,
 } from '@/lib/recording/session'
+import { RemotePresenceProvider, type RemotePresenceStatus } from '@/lib/recording/RemotePresenceContext'
 import { mockSignOut, resetTestAuth, setTestAuth, testUser } from '@/__tests__/helpers/auth'
 
 const pushMock = jest.fn()
@@ -29,12 +30,14 @@ jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').a
 // Sign out now lives inside the account dropdown, so we render, confirm the
 // provider user is shown (its email appears in the account trigger), open the
 // menu, and activate the "Sign out" menu item.
-async function renderAndClickSignOut() {
+async function renderAndClickSignOut(remote: RemotePresenceStatus = { kind: 'none' }) {
   const user = userEvent.setup()
   render(
-    <TooltipProvider>
-      <Sidebar />
-    </TooltipProvider>
+    <RemotePresenceProvider value={remote}>
+      <TooltipProvider>
+        <Sidebar />
+      </TooltipProvider>
+    </RemotePresenceProvider>
   )
   await screen.findByText('a@b.com')
   await user.click(screen.getByRole('button', { name: /account menu/i }))
@@ -50,7 +53,7 @@ describe('sign-out auth-boundary guard', () => {
     setTestAuth({
       userId: 'u1',
       ready: true,
-      user: testUser('u1', { email: 'a@b.com' }),
+      user: testUser({ email: 'a@b.com' }),
     })
     toastMock.mockReset()
   })
@@ -87,11 +90,32 @@ describe('sign-out auth-boundary guard', () => {
     expect(pushMock).not.toHaveBeenCalledWith('/auth')
   })
 
+  // The session is shared by every tab, so signing out here would stop another
+  // tab's recording from uploading.
+  test.each<RemotePresenceStatus>([
+    { kind: 'active', sessionId: 's1', title: 'Board meeting', state: 'recording', startedAt: 1, lastResumeAt: null, pausedAccumulatedMs: 0 },
+    { kind: 'active', sessionId: 's1', title: null, state: 'uploading', startedAt: 1, lastResumeAt: null, pausedAccumulatedMs: 0 },
+    { kind: 'lock-only' },
+  ])('blocks sign-out and toasts while another tab is recording ($kind)', async (remote) => {
+    await renderAndClickSignOut(remote)
+
+    expect(mockSignOut).not.toHaveBeenCalled()
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Finish your recording first',
+      description: expect.stringContaining('another tab'),
+    }))
+  })
+
+  test('a recording left to recover in another tab does not block sign-out', async () => {
+    await renderAndClickSignOut({ kind: 'owner-lost', sessionId: 's1' })
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
+  })
+
   test('signs out normally when idle', async () => {
     await renderAndClickSignOut()
 
     await waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(1))
     expect(toastMock).not.toHaveBeenCalled()
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/auth'))
   })
 })

@@ -29,7 +29,6 @@ export default function ContextualHeader() {
   const { userId, ready } = useAuth()
   const pathname = usePathname()
   const { tree, projectsLoading } = useProjectsData()
-  const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const isProjectsRoute = pathname === '/projects' || pathname?.startsWith('/projects/')
   const isPeopleRoute = pathname === '/people' || pathname?.startsWith('/people/')
   const isTranscriptsRoute = pathname === '/transcripts'
@@ -41,9 +40,8 @@ export default function ContextualHeader() {
 
   const isEditorRoute = pathname?.startsWith('/editor/')
 
-  // Auth routes always render the unauthenticated chrome, regardless of identity.
-  const isAuthenticated = !isAuthRoute && Boolean(userId)
-  const isLoading = !isAuthRoute && !ready && !userId
+  const isAuthenticated = Boolean(userId)
+  const isLoading = !ready && !userId
 
   return (
     <header className={`relative h-[var(--header-height)] flex items-center justify-between gap-4 px-6 transition-colors duration-300 ${isEditorRoute ? 'pointer-events-none [&>div]:relative [&>div]:z-(--z-header) [&_button]:pointer-events-auto [&_a]:pointer-events-auto' : 'z-(--z-header) pointer-events-auto border-b border-border bg-paper/45 dark:bg-night-surface/45 backdrop-blur-md'}`}>

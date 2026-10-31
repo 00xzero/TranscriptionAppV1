@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-10-31] - WorkOS Sign-in
+
+Sign-in moves from Supabase Auth to **WorkOS AuthKit**, so business customers
+can later sign their staff in with their company's own login (SSO). People
+sign in on our own page, never WorkOS's hosted one. Supabase keeps the
+database, files and live updates, and accepts WorkOS tokens as a third-party
+auth provider. Every library stays personal, and every row, file and event
+keeps our own user id.
+
+### Added
+
+- **Migration** `20261023120000_workos_auth.sql` — `app_users` maps one WorkOS user (`user_01…`) to one of our UUIDs and keeps nothing else (WorkOS owns the email). Existing accounts are copied in with their ids, unlinked. `public.current_user_id()` returns the signed-in person's UUID, or NULL; all 32 functions and 23 policies that used `auth.uid()` (public tables, the `media` and `waveforms` buckets, the private Projects v1 delete invalidations on `realtime.messages`) use it instead, and the migration refuses to apply while anything still uses `auth.uid()`. Owner foreign keys point at `app_users`.
+- **Our own sign-in page** — `/auth`: email and password (sign in or create an account), Google and Microsoft, an emailed code when WorkOS asks for one (sign-up, an unconfirmed account, or a Radar challenge), and password resets through `/auth/reset-password`. Every success takes one path: `app_users` first (retried up to 3 times), then the session cookie, then a full load of `/auth/finish`, which checks the browser kept the cookie. WorkOS's own messages are never shown, since they include the email. Attempts in flight live in sealed, short-lived cookies, so WorkOS's pending tokens never reach the browser. Radar's browser signals go with every form; the Server Actions are rate-limited per IP.
+- **One account per page** — the session cookie is shared by every tab, so another tab can sign out or sign in as someone else. A page now keeps the first account it resolves for its whole life. A readable `olivetti-account` cookie (our UUID, or `none`) is written with the session; when it changes, the page stops for good: no more tokens, Realtime disconnected, playback paused, and the app shell unmounted. `AccountChangedScreen` then offers the editor's unsaved text, Stop for a running recording, and the stopped recording as a file on a device that can't keep it. Its button follows the cookie at the click, so a stale screen never signs out an account that signed in since. The cookie lasts 400 days whatever `WORKOS_COOKIE_MAX_AGE` says, so it outlasts the session, and it is renewed only alongside a real session renewal (in the proxy when AuthKit writes a new session cookie, and in route handlers' own renewals). A request that didn't renew the session never rewrites it, so a delayed response can't write an old account over a newer sign-in or sign-out.
+- **Sign-out** — `POST /auth/sign-out`, a plain form post from same-origin pages only (others get 403), answered with 303 to AuthKit's logout. It is blocked while a recording runs in this tab or another.
+- **WorkOS outages are not sign-outs** — when a session cookie came in and AuthKit found no user but kept the cookie, the proxy answers 503 instead of sending anyone to sign in: a plain failure for Server Actions, `{ code: 'AUTH_UNAVAILABLE' }` for `/api/*`, and a self-reloading page for page loads. `__tests__/authkitOutageContract.test.ts` runs the installed AuthKit to keep that true across upgrades.
+- **Account-bound writes** — the four mutation routes (transcript create, start and delete, project delete) require `x-expected-user-id` to match the signed-in person and answer `409 ACCOUNT_CHANGED` otherwise; the browser sends them through `accountBoundFetch`. Capture and recordings keep the owner they started with.
+- **Sanitized auth diagnostics** — auth failures log a category, elapsed time and a correlation id, never SDK messages or payloads.
+
+### Changed
+
+- **Proxy** — runs AuthKit on every request except `/api/inngest` and `/api/webhooks/*`, whose handlers authenticate callbacks themselves. Signed-out visitors on app pages go to `/auth?next=<path>`; a Server Action from a page whose session ended elsewhere gets a full-page redirect.
+- **Supabase clients** — the browser client is one shared client signed with the AuthKit token; the server client is signed with `withAuth()`'s token, and route handlers renew it on time during long work. `@supabase/ssr`, the Supabase Auth UI and `infra/supabase/cookie.ts` are gone.
+- **Prerendering** — the root layout reads no session, so pages prerender again. `AuthProvider` holds Supabase requests until AuthKit knows the user, and a "no user" counts only once a session read that reports failures confirms it, so a failed check shows an error with Try again, never an empty library.
+- **Editor** — the playback position and the reader's own scrolling survive re-renders.
+- **Fixtures** — `seed.sql` seeds the documented test account by its WorkOS subject; the SQL and concurrency smoke scripts use `app_users` rows. The speakers, people directory and people editor scripts now pass again, with checks for stale revisions and missing ids.
+
+### Removed
+
+- `scripts/smoke-test-waveform-trigger.ts`, which tested a trigger that server-owned writes had already replaced; `TEST_EMAIL` / `TEST_PASSWORD`.
+
+### Tests
+
+- 218 suites / 2,833 tests pass; `npm run typecheck`; lint clean on the changed files. All eight SQL smoke scripts pass against local Supabase.
+
+### Notes
+
+- Checked in a real browser on the local stack against WorkOS staging: sign-in and sign-out, the Library, editor, export, live updates past the 5-minute token lifetime, company SSO with WorkOS's test organization, a cross-tab sign-out (the other tab freezes and offers its draft), sign-out refused while another tab records, and a controlled WorkOS outage: the editor kept its unsaved edit and saved it once WorkOS was back, with no sign-in.
+- Checked with two disposable accounts and real WorkOS sign-ins: switching A to B froze A's editor, paused playback, preserved its unsaved text and leave-page warning, blocked a stale project write, and kept A's transcript inaccessible to B. With IndexedDB disabled, Chrome's real MediaRecorder captured generated audio; the freeze screen's download saved a file whose hash matched the finalized recording, and the saved file decoded and played successfully. The transcript-owning account was untouched and disposable fixture data was cleaned up.
+- Not yet checked: recording through a physical microphone, Safari/mobile, and hosted HTTPS. The immediate-submit background-tab case used controlled document visibility.
+- Hosted: not pushed. The migration, linking your existing account by its UUID before its first WorkOS sign-in, and the check happen together in one maintenance window.
+
 ## [2026-10-23] - People Loading State
 
 The People page now loads in the shape it ends up in, so the list no longer

@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { resolveSpeakerPresentation } from '@/core/speakers/labels'
 import { buildSpeakerDisplay } from '@/lib/speakers/display'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
-import type { Seg } from '@/app/editor/[id]/types'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 const stamp = '2026-01-01T00:00:00Z'
 const speaker: Speaker = { id: 's1', transcript_id: 't1', user_id: 'u1', ordinal: 0,

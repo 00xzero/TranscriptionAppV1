@@ -35,16 +35,9 @@ SELECT pg_temp.assert_true(
 );
 
 -- -------------------------------------------------------------- fixtures ----
-INSERT INTO auth.users (
-  id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  ('11000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'project-people-smoke-a@example.test', '',
-   now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
-  ('11000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'project-people-smoke-b@example.test', '',
-   now(), '{}'::jsonb, '{}'::jsonb, now(), now());
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('11000000-0000-0000-0000-000000000001', 'user_11000000000000000000000000000001'),
+  ('11000000-0000-0000-0000-000000000002', 'user_11000000000000000000000000000002');
 
 -- Tree for user A:
 --   Root ── Child ── Grand
@@ -121,7 +114,7 @@ SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_sqlstate(
   $$SELECT public.project_people('61000000-0000-0000-0000-000000000001')$$, '42501');
 
-SET LOCAL request.jwt.claims = '{"sub":"11000000-0000-0000-0000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_11000000000000000000000000000001","role":"authenticated"}';
 SELECT pg_temp.assert_sqlstate(
   $$SELECT public.project_people('61000000-0000-0000-0000-000000000020')$$, 'SP001');
 SELECT pg_temp.assert_sqlstate(

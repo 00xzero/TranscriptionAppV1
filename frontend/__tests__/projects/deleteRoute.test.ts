@@ -1,14 +1,18 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const rpcMock = jest.fn()
 const storageFromMock = jest.fn()
 const createAdminClientMock = jest.fn()
 const trustedStorageFromMock = jest.fn()
 
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
+
 jest.mock('@/infra/supabase/server', () => ({
   createClient: async () => ({
-    auth: { getUser: getUserMock },
+    [Symbol.asyncDispose]: async () => {},
     rpc: rpcMock,
     storage: { from: storageFromMock },
   }),
@@ -18,12 +22,13 @@ jest.mock('@/infra/supabase/admin', () => ({
   createAdminClient: () => createAdminClientMock(),
 }))
 
+import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 import { POST } from '@/app/api/projects/[id]/delete/route'
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111'
 
-function request(id = PROJECT_ID) {
-  return POST(new Request(`http://localhost/api/projects/${id}/delete`, { method: 'POST' }), {
+function request(id = PROJECT_ID, expectedUserId: string | null = 'user-1') {
+  return POST(new Request(`http://localhost/api/projects/${id}/delete`, { method: 'POST', headers: expectedUserId === null ? {} : { [EXPECTED_USER_HEADER]: expectedUserId } }), {
     params: Promise.resolve({ id }),
   })
 }
@@ -45,7 +50,7 @@ describe('project delete route', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     callOrder = []
-    getUserMock.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null })
+    getCurrentUserMock.mockResolvedValue({ id: 'user-1', email: '' })
     rpcMock.mockImplementation(async (name: string) => {
       callOrder.push(name)
       if (name === 'begin_project_delete') return { data: [inventory()], error: null }
@@ -77,13 +82,22 @@ describe('project delete route', () => {
   })
 
   test('requires authentication before beginning', async () => {
-    getUserMock.mockResolvedValue({ data: { user: null }, error: null })
+    getCurrentUserMock.mockResolvedValue(null)
 
     const response = await request()
 
     expect(response.status).toBe(401)
     expect(await response.json()).toEqual({ error: 'Unauthorized', stage: 'begin' })
     expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  test('refuses a different owner before deletion', async () => {
+    const response = await request(PROJECT_ID, 'other-user')
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE, stage: 'begin' })
+    expect(rpcMock).not.toHaveBeenCalled()
+    expect(storageFromMock).not.toHaveBeenCalled()
+    expect(createAdminClientMock).not.toHaveBeenCalled()
   })
 
   test('rejects an invalid project id', async () => {

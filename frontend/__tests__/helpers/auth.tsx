@@ -10,13 +10,14 @@
  * `setTestAuth(...)` and then rerender to simulate an auth change.
  */
 import type { ReactNode } from 'react'
-import type { User } from '@supabase/supabase-js'
-import type { AuthContextValue } from '@/lib/auth/AuthProvider'
+import type { AppUser, AuthContextValue } from '@/lib/auth/AuthProvider'
+import type { AccountChange } from '@/lib/auth/auth-policy'
 
 export interface TestAuthIdentity {
-  user?: User | null
+  user?: AppUser | null
   userId: string | null
   ready: boolean
+  accountChange?: AccountChange | null
 }
 
 const DEFAULT_IDENTITY: TestAuthIdentity = { user: null, userId: null, ready: false }
@@ -35,16 +36,9 @@ export function resetTestAuth(): void {
   mockSignOut.mockImplementation(async () => undefined)
 }
 
-/** Minimal Supabase `User` for account-metadata assertions. */
-export function testUser(id: string, overrides: Partial<User> = {}): User {
-  return {
-    id,
-    aud: 'authenticated',
-    app_metadata: {},
-    user_metadata: {},
-    created_at: '2026-09-01T00:00:00Z',
-    ...overrides,
-  } as User
+/** Minimal `AppUser` for account-name assertions. */
+export function testUser(overrides: Partial<AppUser> = {}): AppUser {
+  return { email: '', name: null, ...overrides }
 }
 
 export function useTestAuth(): AuthContextValue {
@@ -52,6 +46,7 @@ export function useTestAuth(): AuthContextValue {
     user: currentIdentity.user ?? null,
     userId: currentIdentity.userId,
     ready: currentIdentity.ready,
+    accountChange: currentIdentity.accountChange ?? null,
     signOut: mockSignOut,
   }
 }

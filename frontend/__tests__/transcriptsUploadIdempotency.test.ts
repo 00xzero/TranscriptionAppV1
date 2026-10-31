@@ -1,16 +1,21 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const fromMock = jest.fn()
+
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
 
 jest.mock('@/infra/supabase/server', () => ({
   createClient: jest.fn(async () => ({
-    auth: { getUser: getUserMock },
+    [Symbol.asyncDispose]: async () => {},
     from: fromMock,
   })),
 }))
 
 import { POST } from '../app/api/transcripts/route'
+import { EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 const USER_ID = '00000000-0000-0000-0000-000000000001'
 const INTENT = 'intent-abc'
@@ -58,10 +63,7 @@ function installTranscripts(builder: { select: unknown; insert: unknown }) {
 describe('POST /api/transcripts upload-intent idempotency', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    getUserMock.mockResolvedValue({
-      data: { user: { id: USER_ID } },
-      error: null,
-    })
+    getCurrentUserMock.mockResolvedValue({ id: USER_ID, email: '' })
   })
 
   test('pre-check hit returns the canonical transcript without inserting', async () => {
@@ -72,6 +74,7 @@ describe('POST /api/transcripts upload-intent idempotency', () => {
     installTranscripts(builder)
 
     const req = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
       json: async () => ({ filename: 'audio.webm', upload_intent_id: INTENT }),
     } as any
 
@@ -91,6 +94,7 @@ describe('POST /api/transcripts upload-intent idempotency', () => {
     installTranscripts(builder)
 
     const req = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
       json: async () => ({ filename: 'audio.webm', upload_intent_id: INTENT }),
     } as any
 
@@ -114,6 +118,7 @@ describe('POST /api/transcripts upload-intent idempotency', () => {
     installTranscripts(builder)
 
     const req = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
       json: async () => ({ filename: 'audio.webm', upload_intent_id: INTENT }),
     } as any
 
@@ -135,6 +140,7 @@ describe('POST /api/transcripts upload-intent idempotency', () => {
     installTranscripts(builder)
 
     const req = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000001' }),
       json: async () => ({ filename: 'audio.webm', upload_intent_id: INTENT }),
     } as any
 

@@ -31,21 +31,18 @@ SELECT pg_temp.assert_true(
   to_regprocedure('public.assign_segments_to_new_speaker(uuid,text,jsonb)') IS NULL
   AND to_regprocedure('public.link_transcript_speaker(uuid,uuid,uuid)') IS NULL
   AND to_regprocedure('public.create_person_and_link_speaker(uuid,uuid,text)') IS NULL
-  AND has_function_privilege('authenticated', 'public.correct_segments_to_person(uuid,jsonb,uuid,text)', 'EXECUTE')
-  AND has_function_privilege('authenticated', 'public.create_local_speaker(uuid,text,jsonb)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public.editor_create_person(uuid,text)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.correct_segments_to_person(uuid,jsonb,uuid,text,uuid)', 'EXECUTE')
+  AND has_function_privilege('authenticated', 'public.create_local_speaker(uuid,text,jsonb,uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.editor_create_person(uuid,text,uuid)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.speaker_palette()', 'EXECUTE')
   AND NOT has_table_privilege('authenticated', 'public.person_appearances', 'SELECT')
   AND NOT has_column_privilege('authenticated', 'public.segments', 'diarization_index', 'UPDATE'),
   'only guarded editor functions are callable; naming never writes a speaker in place'
 );
 
-INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password,
-  email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) VALUES
-  ('d0000000-0000-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'people-smoke-a@example.test', '', now(), '{}', '{}', now(), now()),
-  ('d0000000-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
-   'authenticated', 'authenticated', 'people-smoke-b@example.test', '', now(), '{}', '{}', now(), now());
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('d0000000-0000-4000-8000-000000000001', 'user_d0000000000040008000000000000001'),
+  ('d0000000-0000-4000-8000-000000000002', 'user_d0000000000040008000000000000002');
 INSERT INTO public.transcripts (id, user_id, title, status) VALUES
   ('d1000000-0000-4000-8000-000000000001', 'd0000000-0000-4000-8000-000000000001', 'Alpha', 'completed'),
   ('d1000000-0000-4000-8000-000000000002', 'd0000000-0000-4000-8000-000000000002', 'Beta', 'completed'),
@@ -90,14 +87,18 @@ GRANT EXECUTE ON FUNCTION pg_temp.alex_elsewhere() TO authenticated;
 CREATE TEMP TABLE action_result (name text PRIMARY KEY, data jsonb) ON COMMIT DROP;
 GRANT SELECT, INSERT, UPDATE ON action_result TO authenticated;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000001","role":"authenticated"}';
 
 -- Identifying Speaker 1 moves all its segments to a new speaker linked to the
 -- new person; Deepgram's speaker keeps no name.
 INSERT INTO action_result VALUES ('first', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000001',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000003","expected_speaker_id":"d2000000-0000-4000-8000-000000000002"}]',
-  NULL, ' Alex '));
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000003","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000002"}]',
+  NULL, ' Alex ', 'd6000000-0000-4000-8000-000000000001'));
+SELECT pg_temp.assert_true(
+  (SELECT data->'person'->>'id' = 'd6000000-0000-4000-8000-000000000001' FROM action_result WHERE name = 'first'),
+  'a new person keeps the id the browser chose'
+);
 SELECT pg_temp.assert_true(
   (SELECT data->'speaker'->>'person_id' = data->'person'->>'id'
     AND data->'speaker'->>'diarization_index' IS NULL
@@ -131,34 +132,40 @@ SELECT pg_temp.assert_true(
   'picker sees owned person; the open transcript is not counted as elsewhere'
 );
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.editor_people_context('d1000000-0000-4000-8000-000000000002')$sql$, 'SP001');
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000002","role":"authenticated"}';
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000002","role":"authenticated"}';
 SELECT pg_temp.assert_true((SELECT count(*) = 0 FROM public.people)
   AND (SELECT count(*) = 0 FROM public.organisations), 'RLS hides the other account directory');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.editor_people_context(
   'd1000000-0000-4000-8000-000000000001')$sql$, 'SP001');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000001', 'Mine',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]')$sql$, 'SP001');
-SET LOCAL request.jwt.claims = '{"sub":"d0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]', 'd7000000-0000-4000-8000-000000000001')$sql$, 'SP001');
+SET LOCAL request.jwt.claims = '{"sub":"user_d0000000000040008000000000000001","role":"authenticated"}';
 
 INSERT INTO action_result VALUES ('correction', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000001',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first')));
 SELECT pg_temp.assert_true(
   (SELECT c.data->'speaker'->>'id' = f.data->'speaker'->>'id'
     FROM action_result AS c, action_result AS f WHERE c.name = 'correction' AND f.name = 'first'),
   'correction reuses the person''s speaker in this transcript'
 );
+-- A segment already on the target counts as done (a resent save recognises
+-- itself), so the stale case is one that is on another speaker: 'two' is
+-- still on Host, not unassigned as this change expects.
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000001',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000001","expected_speaker_id":null}]',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000002","expected_revision":0,"expected_speaker_id":null}]',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first'))$sql$, 'SP002');
-SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.people), 'stale correction creates nothing');
+SELECT pg_temp.assert_true((SELECT count(*) = 1 FROM public.people)
+  AND (SELECT speaker_id = 'd2000000-0000-4000-8000-000000000005'::uuid FROM public.segments
+       WHERE id = 'd3000000-0000-4000-8000-000000000002'),
+  'stale correction creates nothing and moves nothing');
 
 INSERT INTO action_result VALUES ('new', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000001',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000002","expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]',
-  NULL, 'Blair'));
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000002","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000005"}]',
+  NULL, 'Blair', 'd6000000-0000-4000-8000-000000000002'));
 SELECT pg_temp.assert_true(
   (SELECT (data->'speaker'->>'ordinal')::int = 5
     AND data->'person'->>'preferred_color' = '#C73E1D' FROM action_result WHERE name = 'new')
@@ -168,9 +175,10 @@ SELECT pg_temp.assert_true(
 SELECT public.undo_created_person_action(
   'd1000000-0000-4000-8000-000000000001',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'new'),
-  (SELECT (data->'person'->>'updated_at')::timestamptz FROM action_result WHERE name = 'new'),
+  (SELECT data->'person'->>'name' FROM action_result WHERE name = 'new'),
+  (SELECT data->'person'->>'preferred_color' FROM action_result WHERE name = 'new'),
   (SELECT (data->'speaker'->>'id')::uuid FROM action_result WHERE name = 'new'),
-  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000002',
+  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000002', 'expected_revision', 0,
     'expected_speaker_id', (data->'speaker'->>'id')::uuid,
     'speaker_id', 'd2000000-0000-4000-8000-000000000005')) FROM action_result WHERE name = 'new'));
 SELECT pg_temp.assert_true(
@@ -183,7 +191,7 @@ SELECT pg_temp.assert_true(
 -- created stays linked but silent and is no longer an appearance.
 INSERT INTO action_result VALUES ('gamma', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000003',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first')));
 SELECT pg_temp.assert_true(
   (SELECT (e->>'other_transcript_count')::int = 1 AND e->>'last_other_title' = 'Gamma'
@@ -193,12 +201,13 @@ SELECT pg_temp.assert_true(
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.undo_created_person_action(
   'd1000000-0000-4000-8000-000000000001',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first'),
-  (SELECT (data->'person'->>'updated_at')::timestamptz FROM action_result WHERE name = 'first'),
+  (SELECT data->'person'->>'name' FROM action_result WHERE name = 'first'),
+  (SELECT data->'person'->>'preferred_color' FROM action_result WHERE name = 'first'),
   (SELECT (data->'speaker'->>'id')::uuid FROM action_result WHERE name = 'first'),
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000003","expected_speaker_id":null,"speaker_id":null}]')$sql$, 'SP002');
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000003","expected_revision":0,"expected_speaker_id":null,"speaker_id":null}]')$sql$, 'SP002');
 -- Remove: the segment goes back to the detected speaker Deepgram gave it.
 SELECT public.reassign_segments('d1000000-0000-4000-8000-000000000003',
-  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000004',
+  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000004', 'expected_revision', 0,
     'expected_speaker_id', (data->'speaker'->>'id')::uuid,
     'speaker_id', 'd2000000-0000-4000-8000-000000000004')) FROM action_result WHERE name = 'gamma'));
 SELECT pg_temp.assert_true(
@@ -212,18 +221,33 @@ SELECT pg_temp.assert_true(
 -- Naming a detected speaker in this transcript moves its segments to a new
 -- local speaker; a refused call creates nothing.
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000003', 'Guest',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_speaker_id":null}]')$sql$, 'SP002');
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":null}]',
+  'd7000000-0000-4000-8000-000000000002')$sql$, 'SP002');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000003', ' ',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]')$sql$, 'SP003');
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  'd7000000-0000-4000-8000-000000000003')$sql$, 'SP003');
 SELECT pg_temp.assert_sqlstate(format($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000003', %L,
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]')$sql$,
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  'd7000000-0000-4000-8000-000000000004')$sql$,
   repeat('x', 51)), 'SP003');
+-- Every new identity carries the id the browser chose, so a lost answer can be resent.
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000003', 'Guest',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  NULL)$sql$, 'SP003');
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.correct_segments_to_person('d1000000-0000-4000-8000-000000000003',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  NULL, 'No id')$sql$, 'SP003');
+-- A change made before the segment was split or rejoined is refused.
+SELECT pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('d1000000-0000-4000-8000-000000000003', 'Guest',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":1,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  'd7000000-0000-4000-8000-000000000006')$sql$, 'SP002');
 SELECT pg_temp.assert_true(
   (SELECT count(*) = 2 FROM public.speakers WHERE transcript_id = 'd1000000-0000-4000-8000-000000000003'),
   'a refused local name creates no speaker'
 );
 INSERT INTO action_result VALUES ('local', public.create_local_speaker('d1000000-0000-4000-8000-000000000003', ' Guest ',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]'));
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000004","expected_revision":0,"expected_speaker_id":"d2000000-0000-4000-8000-000000000004"}]',
+  'd7000000-0000-4000-8000-000000000005'));
 SELECT pg_temp.assert_true(
   (SELECT data->'speaker'->>'custom_label' = 'Guest' AND data->'speaker'->>'diarization_index' IS NULL
     AND data->'assignments'->0->>'speaker_id' = data->'speaker'->>'id' FROM action_result WHERE name = 'local')
@@ -234,10 +258,10 @@ SELECT pg_temp.assert_true(
 -- A corrected passage with no Deepgram number can be removed back to Unknown.
 INSERT INTO action_result VALUES ('unknown', public.correct_segments_to_person(
   'd1000000-0000-4000-8000-000000000003',
-  '[{"segment_id":"d3000000-0000-4000-8000-000000000005","expected_speaker_id":null}]',
+  '[{"segment_id":"d3000000-0000-4000-8000-000000000005","expected_revision":0,"expected_speaker_id":null}]',
   (SELECT (data->'person'->>'id')::uuid FROM action_result WHERE name = 'first')));
 SELECT public.reassign_segments('d1000000-0000-4000-8000-000000000003',
-  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000005',
+  (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'd3000000-0000-4000-8000-000000000005', 'expected_revision', 0,
     'expected_speaker_id', (data->'speaker'->>'id')::uuid, 'speaker_id', NULL))
    FROM action_result WHERE name = 'unknown'));
 SELECT pg_temp.assert_true(

@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ProjectPage from '@/app/projects/[projectId]/page'
+import ProjectPage from '@/app/(app)/projects/[projectId]/page'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import type { Project } from '@/contracts/db'
 import {
@@ -14,6 +14,8 @@ import {
 
 const mockFetchSpeakerSummaries = jest.fn()
 const mockFetchProjectPeople = jest.fn()
+
+jest.mock('@/lib/auth/AuthProvider', () => ({ useAuth: () => ({ userId: 'app-user-a' }) }))
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjectSpeakerSummaries: (...args: unknown[]) => mockFetchSpeakerSummaries(...args),

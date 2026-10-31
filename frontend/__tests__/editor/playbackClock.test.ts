@@ -1,4 +1,4 @@
-import { createPlaybackClock } from '@/app/editor/[id]/playbackClock'
+import { createPlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 
 let frames: Map<number, FrameRequestCallback>
 let nextFrame: number

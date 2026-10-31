@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { Contact, FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { holdLeave } from '@/lib/editor/leaveGuard'
 import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
+import { isRemoteRecordingBlocking, useRemotePresenceStatus } from '@/lib/recording/RemotePresenceContext'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
@@ -27,12 +28,11 @@ interface SidebarProps {
 
 export default function Sidebar({ className = '' }: SidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
-  const isAuthRoute = pathname?.startsWith('/auth') ?? false
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState<AppTheme>('light')
   const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
   const { user, signOut } = useAuth()
+  const remoteRecording = useRemotePresenceStatus()
   const [mounted, setMounted] = useState(false)
   // Gates transition classes so the first real-DOM paint (at the persisted
   // width) never animates in from the SSR placeholder width. Flipped a frame
@@ -89,7 +89,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
   const guardedNav = useGuardedNavigate()
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     // Auth-boundary guard (Phase 3): a recording artifact must be resolved before
     // leaving the user/context it belongs to. Block sign-out and tell the user to
     // finish or discard first — never silently discard their audio.
@@ -101,31 +101,24 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       })
       return
     }
-    // Changes the editor has not saved yet are saved first, while still signed in.
-    if (holdLeave(() => { void handleSignOut() })) return
-    try {
-      await signOut()
-    } catch (error) {
-      // Still signed in locally: stay put rather than show /auth over a live session.
-      console.error('Sign-out failed:', error)
+    // The session is shared by every tab: signing out here would stop another
+    // tab's recording from uploading, so the same rule holds across tabs.
+    if (isRemoteRecordingBlocking(remoteRecording)) {
       toast({
-        title: 'Could not sign out',
-        description: 'Please check your connection and try again.',
-        variant: 'error',
+        title: 'Finish your recording first',
+        description:
+          'A recording is in progress in another tab. Save & transcribe or discard it there before signing out.',
       })
       return
     }
-    router.push('/auth')
-    router.refresh()
+    // Changes the editor has not saved yet are saved first, while still signed in.
+    if (holdLeave(() => { void handleSignOut() })) return
+    // Leaves the page: sign-out ends the session and lands on the sign-in page.
+    void signOut()
   }
 
   const navigateTo = (path: string) => {
     guardedNav.push(path)
-  }
-
-  // Don't show sidebar on auth pages
-  if (isAuthRoute) {
-    return null
   }
 
   // SSR placeholder

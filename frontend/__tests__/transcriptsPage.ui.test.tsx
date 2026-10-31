@@ -1,10 +1,19 @@
 import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
-import TranscriptsPage from '@/app/transcripts/page'
+import TranscriptsPage from '@/app/(app)/transcripts/page'
 import type { Transcript } from '@/contracts/db'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
+import { setTestAuth } from './helpers/auth'
+import { ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
+import { getAccessToken } from '@/infra/workos/access-token'
+
+jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
+jest.mock('@/infra/workos/access-token', () => ({
+  getAccessToken: jest.fn(async () => 'token-for-a'),
+  notifyAccountChanged: jest.fn(),
+}))
 
 const mockToast = jest.fn()
 
@@ -84,6 +93,8 @@ describe('TranscriptsPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    setTestAuth({ userId: 'account-a', ready: true })
+    jest.mocked(getAccessToken).mockResolvedValue('token-for-a')
     mockDeleteTranscript.mockResolvedValue(undefined)
     mockUseProjectsData.mockReturnValue({
       transcripts: [makeTranscript()],
@@ -104,6 +115,45 @@ describe('TranscriptsPage', () => {
     await user.click(screen.getByRole('button', { name: /More options for Transcript Alpha/i }))
     await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
   }
+
+  test('retry-start retains the original account while preflight is pending', async () => {
+    let release!: (token: string) => void
+    jest.mocked(getAccessToken).mockReturnValueOnce(new Promise((resolve) => { release = resolve }))
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true })
+    Object.defineProperty(global, 'fetch', { configurable: true, writable: true, value: fetchMock })
+    mockUseProjectsData.mockReturnValue({
+      transcripts: [makeTranscript({ status: 'created' })], transcriptsLoading: false,
+      transcriptConnectionStatus: 'connected', deleteTranscript: mockDeleteTranscript, refetchTranscripts: mockRefetch,
+    })
+    mockRefetch.mockResolvedValue(undefined)
+    const user = userEventLib.setup()
+    const view = renderTranscriptsPage()
+    await user.click(screen.getByRole('button', { name: 'Transcribe' }))
+    expect(getAccessToken).toHaveBeenCalledWith('account-a')
+    expect(fetchMock).not.toHaveBeenCalled()
+    setTestAuth({ userId: 'account-b', ready: true })
+    view.rerender(<TooltipProvider delayDuration={0}><TranscriptsPage /></TooltipProvider>)
+    release('token-for-a')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const headers = new Headers(fetchMock.mock.calls[0][1].headers)
+    expect(headers.get(EXPECTED_USER_HEADER)).toBe('account-a')
+    expect(headers.get('x-idempotency-key')).toBeTruthy()
+  })
+
+  test('retry-start without an available account sends nothing', async () => {
+    setTestAuth({ userId: null, ready: false })
+    const fetchMock = jest.fn()
+    Object.defineProperty(global, 'fetch', { configurable: true, writable: true, value: fetchMock })
+    mockUseProjectsData.mockReturnValue({
+      transcripts: [makeTranscript({ status: 'created' })], transcriptsLoading: false,
+      transcriptConnectionStatus: 'connected', deleteTranscript: mockDeleteTranscript, refetchTranscripts: mockRefetch,
+    })
+    const user = userEventLib.setup()
+    renderTranscriptsPage()
+    await user.click(screen.getByRole('button', { name: 'Transcribe' }))
+    expect(await screen.findByText(ACCOUNT_CHANGED_MESSAGE, { exact: true })).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 
   test('announces transcript loading without showing the empty state', () => {
     mockUseProjectsData.mockReturnValue({

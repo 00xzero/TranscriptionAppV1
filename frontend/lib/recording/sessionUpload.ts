@@ -44,6 +44,11 @@ export async function submitFinalizedRecording(): Promise<void> {
     markError('No finalized recording is available to upload.')
     return
   }
+  const userId = store.runtime.userId
+  if (!userId) {
+    markError('Sign in to the original account before uploading this recording.')
+    return
+  }
 
   if (!dispatch('markUploading')) return
   if (store.snapshot.state !== 'uploading') return
@@ -61,6 +66,7 @@ export async function submitFinalizedRecording(): Promise<void> {
       finalized.title,
       finalized.keyTerms,
       {
+        userId,
         signal: abortController.signal,
         onProgress: (stage) => {
           if (stage === 'uploading') setUploadBytes({ sent: 0, total: finalized.file.size })
@@ -96,6 +102,15 @@ export async function submitFinalizedRecording(): Promise<void> {
   } else {
     markUploadError(result.message)
   }
+}
+
+/**
+ * The stopped recording's audio while it is held in memory to upload (it
+ * stays there after a failed upload, for a retry). The only copy when the
+ * device can't keep recordings (`snapshot.durable` false).
+ */
+export function getFinalizedRecordingFile(): File | null {
+  return store.runtime.finalizedRecording?.file ?? null
 }
 
 export async function retryFinalizedUpload(): Promise<void> {

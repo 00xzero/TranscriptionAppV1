@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
+import { pageAccountFetch } from '@/lib/auth/account-bound-fetch'
 import { getDownloadFilename } from '@/lib/exports/filename'
 
 type ExportFormat = 'DOCX' | 'VTT' | 'TXT' | 'MD'
@@ -39,7 +40,7 @@ export default function ExportModal({ transcriptId, transcriptTitle, onClose }: 
       // Use new Next.js API routes (session cookie handles auth)
       const endpoint = `/api/transcripts/${transcriptId}/export/${selectedFormat.toLowerCase()}`
 
-      const response = await fetch(endpoint)
+      const response = await pageAccountFetch(endpoint)
 
       if (!response.ok) {
         if (response.status === 401) {

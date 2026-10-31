@@ -28,6 +28,8 @@
     "@radix-ui/react-dialog": "1.1.23",
     "@radix-ui/react-dropdown-menu": "2.1.24",
     "@radix-ui/react-label": "2.1.15",
+    "@radix-ui/react-one-time-password-field": "0.2.1",
+    "@radix-ui/react-password-toggle-field": "0.2.1",
     "@radix-ui/react-popover": "1.1.23",
     "@radix-ui/react-progress": "1.1.16",
     "@radix-ui/react-radio-group": "1.4.7",
@@ -38,13 +40,14 @@
     "@radix-ui/react-toast": "1.2.23",
     "@radix-ui/react-toggle": "1.1.18",
     "@radix-ui/react-tooltip": "1.2.16",
-    "@supabase/auth-ui-react": "0.4.7",
-    "@supabase/auth-ui-shared": "0.1.8",
-    "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.3",
+    "@workos-inc/authkit-nextjs": "4.5.0",
+    "@workos-inc/node": "10.14.0",
+    "@workos/radar-signals": "0.0.1",
     "clsx": "2.1.1",
     "docx": "^9.6.1",
     "inngest": "^4.1.0",
+    "iron-session": "8.0.4",
     "lucide-react": "^1.24.0",
     "next": "16.3.1",
     "react": "^19.2.4",
@@ -53,12 +56,6 @@
     "tailwind-merge": "3.5.0",
     "tus-js-client": "^4.3.1",
     "zod": "4.3.6"
-  },
-  "overrides": {
-    "@supabase/auth-ui-react": {
-      "react": "$react",
-      "react-dom": "$react-dom"
-    }
   },
   "devDependencies": {
     "@inngest/test": "^1.0.0",

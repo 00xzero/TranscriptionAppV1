@@ -10,6 +10,12 @@ import { AuthProvider } from '@/lib/auth/AuthProvider'
 import { useProjectsDeleteInvalidation } from '@/lib/supabase/hooks'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import type { Project, Transcript, TranscriptSummary } from '@/contracts/db'
+import {
+  accessTokenFor,
+  resetAuthKitState,
+  setAuthKitState,
+  workosUser,
+} from '@/__mocks__/workos-authkit-nextjs-components'
 
 // Realtime transcript rows are validated, so these ids must be real UUIDs.
 const TRANSCRIPT_A = '00000000-0000-4000-8000-00000000000a'
@@ -27,9 +33,7 @@ const transcriptSummary = (overrides: Partial<TranscriptSummary> = {}): Transcri
   ...overrides,
 })
 
-const mockGetSession = jest.fn()
-const mockGetUser = jest.fn()
-const mockOnAuthStateChange = jest.fn()
+const mockRpc = jest.fn()
 const mockChannel = jest.fn()
 const mockRemoveChannel = jest.fn()
 const mockSetAuth = jest.fn()
@@ -41,9 +45,15 @@ type FakeChannel = {
   subscribe: jest.Mock
 }
 const mockActiveChannels: FakeChannel[] = []
-let authStateHandler:
-  | ((event: string, session: { user: { id: string } } | null) => void)
-  | null = null
+// Our user id that current_user_id() resolves the signed-in WorkOS user to.
+let mockCurrentAppUserId: string | null = null
+
+function signInAs(appUserId: string) {
+  mockCurrentAppUserId = appUserId
+  // A sign-in writes the account cookie with the session (account-marker.ts).
+  document.cookie = `olivetti-account=${appUserId}; path=/`
+  setAuthKitState({ user: workosUser(`workos-${appUserId}`) })
+}
 
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjects: () => mockFetchProjects(),
@@ -57,15 +67,11 @@ jest.mock('@/lib/supabase/queries', () => ({
 
 jest.mock('@/infra/supabase/client', () => ({
   createClient: () => ({
-    auth: {
-      getSession: mockGetSession,
-      getUser: mockGetUser,
-      onAuthStateChange: mockOnAuthStateChange,
-    },
+    rpc: mockRpc,
     channel: mockChannel,
     removeChannel: mockRemoveChannel,
     getChannels: () => mockActiveChannels,
-    realtime: { setAuth: mockSetAuth },
+    realtime: { setAuth: mockSetAuth, disconnect: jest.fn() },
   }),
 }))
 
@@ -134,13 +140,13 @@ describe('ProjectsProvider realtime ownership', () => {
     mockFetchTranscripts.mockResolvedValue([])
     mockSetAuth.mockResolvedValue(undefined)
     mockActiveChannels.length = 0
-    authStateHandler = null
-    mockOnAuthStateChange.mockImplementation((handler) => {
-      authStateHandler = handler
-      return {
-        data: { subscription: { unsubscribe: jest.fn() } },
-      }
-    })
+    resetAuthKitState()
+    mockCurrentAppUserId = null
+    mockRpc.mockImplementation(async (name: string) =>
+      name === 'current_user_id'
+        ? { data: mockCurrentAppUserId, error: null }
+        : { data: null, error: null }
+    )
     mockChannel.mockImplementation((topic: string) => {
       const realtimeTopic = `realtime:${topic}`
       const existing = mockActiveChannels.find((candidate) => candidate.topic === realtimeTopic)
@@ -163,10 +169,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('opens one channel per table plus one private delete-invalidation channel', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
 
     render(
       <AppProviders>
@@ -176,9 +179,7 @@ describe('ProjectsProvider realtime ownership', () => {
     )
 
     await waitFor(() => expect(mockChannel).toHaveBeenCalledTimes(3))
-    expect(mockGetSession).toHaveBeenCalledTimes(1)
-    expect(mockGetUser).toHaveBeenCalledTimes(1)
-    expect(mockOnAuthStateChange).toHaveBeenCalledTimes(1)
+    expect(mockRpc.mock.calls.filter(([name]) => name === 'current_user_id')).toHaveLength(1)
     expect(mockChannel.mock.calls.map(([name]) => name)).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^projects-changes:user_id=eq\.user-a:/),
@@ -186,7 +187,9 @@ describe('ProjectsProvider realtime ownership', () => {
         'projects-v1:user-a',
       ])
     )
-    expect(mockSetAuth).toHaveBeenCalledTimes(1)
+    expect(mockSetAuth).toHaveBeenCalledTimes(2)
+    expect(mockSetAuth).toHaveBeenNthCalledWith(1, accessTokenFor('workos-user-a'))
+    expect(mockSetAuth).toHaveBeenNthCalledWith(2)
     expect(mockChannel).toHaveBeenCalledWith('projects-v1:user-a', {
       config: { private: true },
     })
@@ -307,10 +310,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('does not remount app content when auth resolves', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     const onMount = jest.fn()
 
     function MountProbe() {
@@ -332,8 +332,6 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('does not fetch or open channels while signed out', async () => {
-    mockGetSession.mockResolvedValue({ data: { session: null } })
-
     render(
       <AppProviders>
         <Consumer />
@@ -343,21 +341,15 @@ describe('ProjectsProvider realtime ownership', () => {
     await waitFor(() => {
       expect(screen.getByTestId('projects-loading')).toHaveTextContent('false')
     })
-    expect(mockGetUser).not.toHaveBeenCalled()
+    expect(mockRpc).not.toHaveBeenCalled()
     expect(mockFetchProjects).not.toHaveBeenCalled()
     expect(mockFetchTranscripts).not.toHaveBeenCalled()
     expect(mockChannel).not.toHaveBeenCalled()
   })
 
-  test('discards the previous account data immediately when identity changes', async () => {
-    const nextProjects = deferred<Project[]>()
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
-    mockFetchProjects
-      .mockResolvedValueOnce([project('project-a', 'user-a')])
-      .mockReturnValueOnce(nextProjects.promise)
+  test('never loads the next account’s data when another tab switches accounts', async () => {
+    signInAs('user-a')
+    mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
 
     render(
       <AppProviders>
@@ -369,29 +361,20 @@ describe('ProjectsProvider realtime ownership', () => {
       expect(screen.getByTestId('project-ids')).toHaveTextContent('project-a')
     })
 
-    act(() => {
-      authStateHandler?.('SIGNED_IN', { user: { id: 'user-b' } })
-    })
-
-    expect(screen.getByTestId('project-ids')).toBeEmptyDOMElement()
-    expect(screen.getByTestId('projects-loading')).toHaveTextContent('true')
-
+    const fetches = mockFetchProjects.mock.calls.length
+    mockFetchProjects.mockResolvedValue([project('project-b', 'user-b')])
     await act(async () => {
-      nextProjects.resolve([project('project-b', 'user-b')])
-      await nextProjects.promise
+      signInAs('user-b')
     })
 
-    await waitFor(() => {
-      expect(screen.getByTestId('project-ids')).toHaveTextContent('project-b')
-    })
-    expect(screen.getByTestId('project-ids')).not.toHaveTextContent('project-a')
+    // The page stopped as A (AccountChangedScreen covers it): B is never fetched.
+    await act(async () => {})
+    expect(mockFetchProjects).toHaveBeenCalledTimes(fetches)
+    expect(screen.getByTestId('project-ids')).not.toHaveTextContent('project-b')
   })
 
   test('derived project lists follow a realtime move in the shared transcript list', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     const transcript = transcriptSummary({ project_id: PROJECT_A })
     mockFetchTranscripts.mockResolvedValue([transcript])
 
@@ -432,10 +415,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('refetches only the table named by a private delete invalidation', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
 
     render(
       <AppProviders>
@@ -464,10 +444,7 @@ describe('ProjectsProvider realtime ownership', () => {
   test('does not let a pre-delete snapshot restore rows after delete invalidation', async () => {
     const preDeleteFetch = deferred<Project[]>()
     const postDeleteFetch = deferred<Project[]>()
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     mockFetchProjects
       .mockReset()
       .mockReturnValueOnce(preDeleteFetch.promise)
@@ -508,10 +485,7 @@ describe('ProjectsProvider realtime ownership', () => {
     jest.useFakeTimers()
     const staleFetch = deferred<Project[]>()
     const reconciliation = deferred<Project[]>()
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     mockFetchProjects.mockResolvedValueOnce([project('project-a', 'user-a')])
 
     const { unmount } = render(
@@ -558,10 +532,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('coalesces a burst into one in-flight and one trailing refetch per table', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
 
     render(
       <AppProviders>
@@ -676,10 +647,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('refetches both tables on initial subscribe and reconnect', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
 
     render(
       <AppProviders>
@@ -706,10 +674,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('isolates project and transcript consumers while mixed consumers follow both', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
     mockFetchTranscripts.mockResolvedValue([transcriptSummary()])
     const projectRenders: number[] = []
@@ -791,10 +756,7 @@ describe('ProjectsProvider realtime ownership', () => {
   })
 
   test('profiles realistic initial, reconciliation, realtime, and polling traffic', async () => {
-    mockGetSession.mockResolvedValue({
-      data: { session: { user: { id: 'user-a' } } },
-    })
-    mockGetUser.mockReturnValue(new Promise(() => undefined))
+    signInAs('user-a')
     const projects = Array.from({ length: 250 }, (_, index) =>
       project(`project-${index}`, 'user-a')
     )

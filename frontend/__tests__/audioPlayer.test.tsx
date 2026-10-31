@@ -2,17 +2,17 @@ import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { pointer } from './helpers/scrubPointer'
 import AudioPlayer, { AudioPlayerRef } from '../components/AudioPlayer'
-import { useTranscriptSync } from '@/app/editor/[id]/hooks/useTranscriptSync'
-import type { Seg } from '@/app/editor/[id]/types'
+import { useTranscriptSync } from '@/app/(app)/editor/[id]/hooks/useTranscriptSync'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 import { Virtuoso } from 'react-virtuoso'
 import { scrollToIndexMock } from '../__mocks__/react-virtuoso'
-import { useEditorPlayback } from '@/app/editor/[id]/hooks/useEditorPlayback'
-import type { PlaybackClock } from '@/app/editor/[id]/playbackClock'
+import { useEditorPlayback } from '@/app/(app)/editor/[id]/hooks/useEditorPlayback'
+import type { PlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 import Waveform from '@/components/Waveform'
 import { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import { TooltipProvider } from '../components/ui/tooltip'
 
-jest.mock('@/app/editor/[id]/hooks/useAudioSessionRecovery', () => ({ useAudioSessionRecovery: jest.fn() }))
+jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({ useAudioSessionRecovery: jest.fn() }))
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
   jest.spyOn(el, 'getBoundingClientRect').mockReturnValue({

@@ -113,7 +113,7 @@ describe('LibraryView', () => {
     setTestAuth({
       userId: 'user-a',
       ready: true,
-      user: testUser('user-a', { user_metadata: { full_name: 'Ada Lovelace' } }),
+      user: testUser({ name: 'Ada Lovelace' }),
     })
     const { rerender } = renderLibraryView()
     expect(screen.getByRole('heading', { level: 2, name: /^Good / })).toHaveTextContent(/, Ada\.$/)
@@ -121,7 +121,7 @@ describe('LibraryView', () => {
     setTestAuth({
       userId: 'user-b',
       ready: true,
-      user: testUser('user-b', { email: 'grace@example.com' }),
+      user: testUser({ email: 'grace@example.com' }),
     })
     rerender(
       <ModalProvider>

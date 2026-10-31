@@ -151,6 +151,7 @@ describe('useTranscriptsRealtime', () => {
       await expect(hook.current.deleteTranscript('transcript-1')).resolves.toBeUndefined()
     })
 
+    expect(mockDeleteTranscript).toHaveBeenCalledWith('transcript-1', 'user-from-session')
     expect(hook.current.transcripts).toEqual([])
   })
 

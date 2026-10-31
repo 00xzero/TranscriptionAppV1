@@ -310,15 +310,6 @@ describe('ContextualHeader', () => {
     expect(screen.queryByText('Library')).not.toBeInTheDocument()
   })
 
-  test('renders unauthenticated chrome on auth routes even with a signed-in identity', () => {
-    usePathnameMock.mockReturnValue('/auth')
-
-    renderHeader()
-
-    expect(screen.getByText('olivetti')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open capture modal' })).not.toBeInTheDocument()
-  })
-
   test('renders only the placeholder while identity is unresolved', () => {
     usePathnameMock.mockReturnValue('/')
     setTestAuth({ userId: null, ready: false })

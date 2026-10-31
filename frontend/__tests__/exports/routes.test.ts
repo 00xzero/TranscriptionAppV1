@@ -23,7 +23,7 @@ const routes = [
   { format: 'txt', GET: txt, render: generateTxt, type: 'text/plain; charset=utf-8' },
   { format: 'vtt', GET: vtt, render: generateVtt, type: 'text/vtt; charset=utf-8' },
 ]
-const supabase = {}
+const supabase = { [Symbol.asyncDispose]: async () => {} }
 const data: ExportData = {
   transcript: makeTranscript({ title: 'Team notes', created_at: '2026-10-11T12:00:00Z', duration_seconds: 65 }),
   exportSegments: [{ speaker_id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello' }],
@@ -34,7 +34,7 @@ const context = { params: Promise.resolve({ id: 'p1' }) }
 
 beforeEach(() => {
   jest.clearAllMocks()
-  jest.mocked(createClient).mockResolvedValue(supabase as Awaited<ReturnType<typeof createClient>>)
+  jest.mocked(createClient).mockResolvedValue(supabase as never)
   jest.mocked(fetchExportData).mockResolvedValue({ success: true, data })
   jest.mocked(generateDocx).mockResolvedValue(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
   jest.mocked(generateMarkdown).mockReturnValue('markdown output')

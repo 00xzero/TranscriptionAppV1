@@ -29,9 +29,8 @@ export {
   handleRecorderFailure,
   recordChunk,
   stopAndFinalize,
-  syncIdentityToActiveSession,
 } from './sessionActions'
-export { retryFinalizedUpload } from './sessionUpload'
+export { getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
 export {
   discardRecovered,
   markInterrupted,

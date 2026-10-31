@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-const getUserMock = jest.fn()
+const getCurrentUserMock = jest.fn()
 const fromMock = jest.fn()
 const adminFromMock = jest.fn()
 
@@ -10,12 +10,14 @@ jest.mock('@/infra/supabase/storage', () => {
   }
 })
 
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: () => getCurrentUserMock(),
+}))
+
 jest.mock('@/infra/supabase/server', () => {
   return {
     createClient: () => ({
-      auth: {
-        getUser: getUserMock,
-      },
+      [Symbol.asyncDispose]: async () => {},
       from: fromMock,
     }),
   }
@@ -42,6 +44,7 @@ import { POST } from '../app/api/transcripts/[id]/start/route'
 import { sendInngestEvent } from '@/infra/inngest/client'
 import { getMediaUrlForEngine } from '@/infra/supabase/storage'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
+import { EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
 // The transcript columns as the database returns them.
 const STORED_OPTIONS = { ...DEFAULT_TRANSCRIPTION_OPTIONS }
@@ -114,14 +117,32 @@ describe('Start route idempotency', () => {
       return {}
     })
 
-    getUserMock.mockResolvedValue({
-      data: { user: { id: 'user-1' } },
-      error: null,
-    })
+    getCurrentUserMock.mockResolvedValue({ id: 'user-1', email: '' })
   })
 
   afterEach(() => {
     process.env.RATE_LIMIT_MODE = originalRateLimitMode
+  })
+
+  test('a different owner cannot start a job', async () => {
+    const response = await POST(
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'original-user' }) } as never,
+      { params: Promise.resolve({ id: 'proj-1' }) }
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'ACCOUNT_CHANGED' })
+    expect(fromMock).not.toHaveBeenCalled()
+    expect(adminFromMock).not.toHaveBeenCalled()
+    expect(sendInngestEvent).not.toHaveBeenCalled()
+  })
+
+  test('a signed-out request remains unauthorized before the account check', async () => {
+    getCurrentUserMock.mockResolvedValue(null)
+    const response = await POST({ headers: new Headers() } as never, { params: Promise.resolve({ id: 'proj-1' }) })
+    expect(response.status).toBe(401)
+    expect(fromMock).not.toHaveBeenCalled()
+    expect(adminFromMock).not.toHaveBeenCalled()
+    expect(sendInngestEvent).not.toHaveBeenCalled()
   })
 
   test('returns cached job when transcript is queued and idempotency key matches', async () => {
@@ -136,7 +157,7 @@ describe('Start route idempotency', () => {
     })
 
     const request = {
-      headers: new Headers({ 'x-idempotency-key': 'idem-1' }),
+      headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-1' }),
     } as any
 
     const res = await POST(
@@ -165,7 +186,7 @@ describe('Start route idempotency', () => {
     })
 
     const request = {
-      headers: new Headers({ 'x-idempotency-key': 'idem-error-state' }),
+      headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-error-state' }),
     } as any
 
     const res = await POST(
@@ -185,7 +206,7 @@ describe('Start route idempotency', () => {
   test.each(['new-key', null])('does not restart a completed transcript with key %s', async (key) => {
     transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
-    const res = await POST({ headers: new Headers(key ? { 'x-idempotency-key': key } : {}) } as any,
+    const res = await POST({ headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', ...(key ? { 'x-idempotency-key': key } : {}) }) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'This transcript is already completed.' })
@@ -196,7 +217,7 @@ describe('Start route idempotency', () => {
   test('a completed transcript still replays its original completed job', async () => {
     transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'completed', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: { id: 'original', status: 'completed' }, error: null })
-    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'original-key' }) } as any,
+    const res = await POST({ headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'original-key' }) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ jobId: 'original', cached: true })
@@ -207,7 +228,7 @@ describe('Start route idempotency', () => {
     transcriptSingleMock.mockResolvedValue({ data: { id: 'done', source_object_key: 'media', status: 'error', ...STORED_OPTIONS }, error: null })
     jobsMaybeSingleMock.mockResolvedValue({ data: null, error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
-    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'new-key' }) } as any,
+    const res = await POST({ headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'new-key' }) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'This transcript is already completed.' })
@@ -218,7 +239,7 @@ describe('Start route idempotency', () => {
     jobsMaybeSingleMock.mockResolvedValueOnce({ data: null, error: null })
       .mockResolvedValueOnce({ data: { id: 'original', status: 'completed' }, error: null })
     jobsInsertSingleMock.mockResolvedValue({ data: null, error: { code: 'SP004' } })
-    const res = await POST({ headers: new Headers({ 'x-idempotency-key': 'original-key' }) } as any,
+    const res = await POST({ headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'original-key' }) } as any,
       { params: Promise.resolve({ id: 'done' }) } as any)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ jobId: 'original', cached: true })
@@ -236,7 +257,7 @@ describe('Start route idempotency', () => {
     })
 
     const request = {
-      headers: new Headers({ 'x-idempotency-key': 'idem-new' }),
+      headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-new' }),
     } as any
 
     const res = await POST(
@@ -269,7 +290,7 @@ describe('Start route idempotency', () => {
     watchlistEqMock.mockResolvedValue({ data: [{ term: 'Dechra' }], error: null })
 
     const res = await POST(
-      { headers: new Headers({ 'x-idempotency-key': 'idem-prepare' }) } as any,
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-prepare' }) } as any,
       { params: Promise.resolve({ id: 'proj-1' }) } as any
     )
 
@@ -302,7 +323,7 @@ describe('Start route idempotency', () => {
     })
 
     const res = await POST(
-      { headers: new Headers({ 'x-idempotency-key': 'idem-broken' }) } as any,
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-broken' }) } as any,
       { params: Promise.resolve({ id: 'proj-1' }) } as any
     )
 
@@ -324,7 +345,7 @@ describe('Start route idempotency', () => {
     })
 
     const request = {
-      headers: new Headers({ 'x-idempotency-key': 'idem-error' }),
+      headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1', 'x-idempotency-key': 'idem-error' }),
     } as any
 
     const res = await POST(
@@ -343,7 +364,7 @@ describe('Start route idempotency', () => {
     })
 
     const request = {
-      headers: new Headers(),
+      headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1' }),
     } as any
 
     const res = await POST(
@@ -379,7 +400,7 @@ describe('Start route idempotency', () => {
     })
 
     const res = await POST(
-      { headers: new Headers() } as any,
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1' }) } as any,
       { params: Promise.resolve({ id: 'proj-4' }) } as any
     )
 
@@ -405,7 +426,7 @@ describe('Start route idempotency', () => {
     })
 
     const res = await POST(
-      { headers: new Headers() } as any,
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'user-1' }) } as any,
       { params: Promise.resolve({ id: 'proj-5' }) } as any
     )
 

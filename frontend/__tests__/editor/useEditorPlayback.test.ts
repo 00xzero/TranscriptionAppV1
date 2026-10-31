@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react'
-import { useEditorPlayback } from '../../app/editor/[id]/hooks/useEditorPlayback'
+import { useEditorPlayback } from '../../app/(app)/editor/[id]/hooks/useEditorPlayback'
 
-jest.mock('@/app/editor/[id]/hooks/useAudioSessionRecovery', () => ({
+jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({
   useAudioSessionRecovery: jest.fn(),
 }))
 

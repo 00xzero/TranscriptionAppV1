@@ -7,6 +7,8 @@ import {
 } from '@/contracts/api'
 import { UuidSchema } from '@/contracts/primitives'
 import { createClient } from '@/infra/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
+import { getAccountChangeError } from '@/lib/auth/account-boundary.server'
 import { createAdminClient } from '@/infra/supabase/admin'
 import { getProjectErrorCode } from '@/lib/supabase/project-errors'
 import {
@@ -43,14 +45,17 @@ function nonNullKeys(keys: Array<string | null> | null | undefined): string[] {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createClient()
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-  if (authError || !authData.user) {
+  await using supabase = await createClient({ refreshSession: true })
+  const user = await getCurrentUser(supabase)
+  if (!user) {
     return errorResponse({ error: 'Unauthorized', stage: 'begin' }, 401)
   }
+
+  const accountError = getAccountChangeError(request, user.id)
+  if (accountError) return errorResponse({ ...accountError, stage: 'begin' }, 409)
 
   const parsedId = UuidSchema.safeParse((await params).id)
   if (!parsedId.success) {
@@ -106,7 +111,7 @@ export async function POST(
   const removal = await removeTranscriptFiles(
     supabase,
     verificationSupabase,
-    authData.user.id,
+    user.id,
     { media: mediaKeys, waveforms: waveformKeys, results: resultKeys },
     DELETE_BATCH_SIZE
   )
@@ -187,7 +192,7 @@ export async function POST(
     )
   }
 
-  await sweepAfterFinish(supabase, verificationSupabase, authData.user.id, transcriptIds)
+  await sweepAfterFinish(supabase, verificationSupabase, user.id, transcriptIds)
 
   return NextResponse.json(DeleteProjectResponseSchema.parse(deleted))
 }

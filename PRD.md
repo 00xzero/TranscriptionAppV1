@@ -24,7 +24,7 @@ A privacy-focused transcription tool powered by Deepgram Nova 3, with speaker de
 
 ### Goals
 
-- Multi-user support with secure data isolation via Supabase Auth + RLS.
+- Multi-user support with WorkOS sessions and secure data isolation via Supabase RLS.
 - Accurate async transcription with speaker-aware output.
 - Fast edit loop for transcript cleanup (inline editing + bulk find/replace).
 - Export-ready outputs (DOCX and VTT) for publishing and downstream workflows.
@@ -110,7 +110,7 @@ Planned:
 
 ### Main Surfaces
 
-1. Auth (`/auth`): Email/password sign-in and sign-up via Supabase Auth UI.
+1. Auth (`/auth`): Custom sign-in page for email/password sign-in and sign-up, plus Google and Microsoft, using WorkOS AuthKit sessions.
 2. Home/Library (`/`): Recent transcripts/files with status indicators.
 3. Transcripts (`/transcripts`): Transcript list, start transcription, view errors, delete transcript.
 4. Editor (`/editor/[id]`): Waveform, transcript editing, speaker tools, find/replace, export.
@@ -150,7 +150,7 @@ Planned:
 ### Data/Auth/Storage
 
 - Supabase Postgres with RLS-enabled transcript-scoped access.
-- Supabase Auth (email/password flow in current UI).
+- WorkOS AuthKit owns sign-in sessions; Supabase accepts WorkOS access tokens for database, storage and realtime access.
 - Supabase Storage private `media` bucket with signed URL access.
 
 ### Async Processing

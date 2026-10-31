@@ -1,7 +1,9 @@
 import React from 'react'
+
+jest.mock('@/lib/auth/AuthProvider', () => ({ useAuth: () => ({ userId: 'app-user-a' }) }))
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import ProjectsPage from '@/app/projects/page'
+import ProjectsPage from '@/app/(app)/projects/page'
 import {
   makeProject,
   makeTranscript,

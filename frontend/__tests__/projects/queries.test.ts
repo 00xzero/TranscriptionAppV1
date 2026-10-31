@@ -1,11 +1,14 @@
 const mockFrom = jest.fn()
-const mockGetUser = jest.fn()
+const mockGetCurrentUserId = jest.fn()
 const mockRpc = jest.fn()
+
+jest.mock('@/lib/auth/current-user-id', () => ({
+  getCurrentUserId: () => mockGetCurrentUserId(),
+}))
 
 jest.mock('@/infra/supabase/client', () => ({
   createClient: () => ({
     from: mockFrom,
-    auth: { getUser: mockGetUser },
     rpc: mockRpc,
   }),
 }))
@@ -47,10 +50,7 @@ function paginatedBuilder(pages: Array<Array<{ id: string } & Record<string, unk
 describe('project list queries', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    mockGetUser.mockResolvedValue({
-      data: { user: { id: 'user-a' } },
-      error: null,
-    })
+    mockGetCurrentUserId.mockResolvedValue('user-a')
   })
 
   test('fetchProjects paginates, de-duplicates overlaps, and uses deterministic ordering', async () => {

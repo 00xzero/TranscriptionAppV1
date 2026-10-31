@@ -7,24 +7,24 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/infra/supabase/server";
+import { getCurrentUser } from "@/lib/auth/current-user.server";
 import { startTranscription } from "@/core/transcription/start";
+import { getAccountChangeError } from '@/lib/auth/account-boundary.server'
 
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params;
-    const supabase = await createClient();
+    await using supabase = await createClient({ refreshSession: true });
 
-    // Verify authentication
-    const {
-        data: { user },
-        error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const user = await getCurrentUser(supabase);
+    if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const accountError = getAccountChangeError(request, user.id)
+    if (accountError) return NextResponse.json(accountError, { status: 409 })
 
     const idempotencyKey = request.headers.get("x-idempotency-key");
 

@@ -1,108 +1,50 @@
-'use client'
+import type { Metadata } from 'next'
+import { AuthFrame } from '@/components/auth/AuthFrame'
+import { SignInForm, type PendingCode } from '@/components/auth/SignInForm'
+import { SignInErrorSchema, type SignInError } from '@/contracts/auth'
+import { codeAttempts } from '@/lib/auth/attempt-cookies.server'
+import { safeReturnPath } from '@/lib/auth/return-path'
+
+export const metadata: Metadata = { title: 'Sign in · Olivetti' }
+
+type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>
+
+function one(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
 
 /**
- * Auth page with Supabase pre-built Auth UI.
- * 
- * - Email/password sign in and sign up
- * - Redirects to / (Library) on successful auth
+ * Our sign-in page, and where every sign-in starts and every failure lands.
+ * Signed-in visitors never reach it (proxy.ts sends them to the Library).
+ *
+ * `next` is where to go afterwards; `error` a message from the callback or
+ * /auth/finish; `mode=sign-up` opens account creation; `attempt` reopens a
+ * pending code step (after Google/Microsoft, or a refresh), read from that
+ * attempt's own cookie.
  */
-import { Auth } from '@supabase/auth-ui-react'
-import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { createClient } from '@/infra/supabase/client'
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuth } from '@/lib/auth/AuthProvider'
+export default async function AuthPage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams
+  const next = safeReturnPath(one(params.next))
+  const parsedError = SignInErrorSchema.safeParse(one(params.error))
+  let initialError: SignInError | undefined = parsedError.success ? parsedError.data : undefined
 
-// Module-scope client used only by the third-party Auth UI below.
-const supabase = createClient()
-
-export default function AuthPage() {
-  const router = useRouter()
-  const { userId } = useAuth()
-
-  // Redirect once any identity (cached or verified) appears. Not gated on
-  // `ready`: a failed verification must not strand the user here. proxy.ts is
-  // the primary server-side redirect; this is the client backstop.
-  useEffect(() => {
-    if (!userId) return
-    router.push('/')
-    router.refresh()
-  }, [router, userId])
+  let pendingCode: PendingCode | null = null
+  const attempt = one(params.attempt)
+  if (attempt) {
+    const pending = await codeAttempts.read(attempt)
+    if (pending) pendingCode = { attempt, challenge: pending.challenge, email: pending.email }
+    else initialError = 'code_expired'
+  }
 
   return (
-    <div className="min-h-[calc(100vh-60px)] flex items-center justify-center p-8 bg-transparent">
-      <div
-        data-auth-panel
-        className="w-full max-w-[420px] p-8 rounded-[14px] border border-(--border) [background:color-mix(in_oklab,var(--surface)_80%,transparent)] shadow-elevation backdrop-blur-[14px]"
-      >
-        <div className="flex items-center justify-center gap-3 mb-2">
-          <div className="flex items-center gap-1.5">
-            <div className="h-6 w-1 bg-(--text) rounded-full"></div>
-            <div className="h-2 w-2 bg-(--brand-red) rounded-xs"></div>
-          </div>
-          <h1 className="text-[1.625rem] font-normal text-(--text) font-serif italic tracking-[-0.02em]">olivetti</h1>
-        </div>
-        <p className="text-[0.95rem] text-(--muted) text-center mb-6">Sign in to continue</p>
-
-        <Auth
-          supabaseClient={supabase}
-          appearance={{
-            theme: ThemeSupa,
-            variables: {
-              default: {
-                colors: {
-                  brand: 'var(--accent)',
-                  brandAccent: 'color-mix(in oklab, var(--accent) 85%, black)',
-                  inputBackground: 'var(--surface)',
-                  inputText: 'var(--text)',
-                  inputBorder: 'var(--border)',
-                  inputBorderFocus: 'var(--accent)',
-                  inputBorderHover: 'var(--muted)',
-                }
-              }
-            },
-            className: {
-              container: 'auth-ui-container',
-              button: 'auth-ui-button',
-              input: 'auth-ui-input',
-            }
-          }}
-          providers={[]}
-          view="sign_in"
-          showLinks={true}
-          redirectTo={`${typeof window !== 'undefined' ? window.location.origin : ''}/`}
-        />
-      </div>
-
-      <style jsx global>{`
-        /* Override Supabase Auth UI styles for better theme integration */
-        [data-auth-panel] input {
-          background-color: color-mix(in oklab, var(--surface) 90%, transparent) !important;
-          color: var(--text) !important;
-          border-color: var(--border) !important;
-        }
-        
-        [data-auth-panel] input::placeholder {
-          color: var(--muted) !important;
-        }
-        
-        [data-auth-panel] input:focus {
-          border-color: var(--accent) !important;
-          box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent) !important;
-        }
-        
-        [data-auth-panel] label {
-          color: var(--text) !important;
-        }
-        
-        [data-auth-panel] a {
-          color: var(--accent) !important;
-        }
-        
-        [data-auth-panel] a:hover {
-          color: var(--text) !important;
-        }
-      `}</style>
-    </div>
+    <AuthFrame>
+      <SignInForm
+        next={next}
+        clientId={process.env.WORKOS_CLIENT_ID}
+        initialMode={one(params.mode) === 'sign-up' ? 'sign-up' : 'sign-in'}
+        initialError={initialError}
+        pendingCode={pendingCode}
+      />
+    </AuthFrame>
   )
 }

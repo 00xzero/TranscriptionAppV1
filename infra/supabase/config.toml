@@ -67,12 +67,20 @@ additional_redirect_urls = ["http://127.0.0.1:3000"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
-enable_signup = true
+# Sign-in is WorkOS AuthKit; Supabase Auth only verifies its tokens.
+enable_signup = false
 enable_anonymous_sign_ins = false
+
+# WorkOS access tokens are accepted as a third-party provider. Set
+# WORKOS_ISSUER_URL in infra/supabase/.env (gitignored) to
+# https://api.workos.com/user_management/<WORKOS_CLIENT_ID>, then restart.
+[auth.third_party.workos]
+enabled = true
+issuer_url = "env(WORKOS_ISSUER_URL)"
 
 # Email auth
 [auth.email]
-enable_signup = true
+enable_signup = false
 double_confirm_changes = true
 enable_confirmations = false
 secure_password_change = false

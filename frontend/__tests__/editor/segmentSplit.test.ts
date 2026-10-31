@@ -3,8 +3,8 @@ import {
   applyRejoinWords,
   applySplitWords,
   upsertSegments,
-} from '@/app/editor/[id]/hooks/segmentSplit'
-import type { EditorWord, Seg, WordsBySegment } from '@/app/editor/[id]/types'
+} from '@/app/(app)/editor/[id]/hooks/segmentSplit'
+import type { EditorWord, Seg, WordsBySegment } from '@/app/(app)/editor/[id]/types'
 
 const stamp = '2026-10-13T00:00:00Z'
 const seg = (id: string, start_ms: number, end_ms: number, text: string, revision = 0): Seg => ({

@@ -2,8 +2,8 @@
 
 import React from 'react'
 import { renderToString } from 'react-dom/server'
-import TranscriptSegmentCard from '@/app/editor/[id]/components/TranscriptSegmentCard'
-import { createPlaybackClock } from '@/app/editor/[id]/playbackClock'
+import TranscriptSegmentCard from '@/app/(app)/editor/[id]/components/TranscriptSegmentCard'
+import { createPlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 // The editor page is a server component rendering EditorScreen, so the card's

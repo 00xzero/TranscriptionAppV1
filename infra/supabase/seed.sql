@@ -2,19 +2,14 @@
 -- Seed Data for Local Development
 -- ============================================================================
 --
--- NOTE: This seed file requires a test user to exist in auth.users.
--- When running Supabase locally, create a test user first via:
---   1. Supabase Dashboard > Authentication > Users > Add User
---   2. Or via the Auth API
---
--- Then replace the placeholder UUID below with the actual user ID.
+-- NOTE: This seed file seeds the documented staging test account in CLAUDE.md,
+-- found by its unique WorkOS subject in public.app_users. Sign in once with
+-- it (the callback creates its row), or link its existing row, then rerun.
 -- ============================================================================
-
--- Placeholder for test user ID (replace after creating user in local Supabase)
--- To find your test user ID: SELECT id FROM auth.users LIMIT 1;
 
 DO $$
 DECLARE
+    test_workos_user_id CONSTANT text := 'user_01M5MPPTWA83CYYBRZ4XC9QFW0';
     test_user_id UUID;
     transcript_1_id UUID := '11111111-1111-1111-1111-111111111111';
     transcript_2_id UUID := '22222222-2222-2222-2222-222222222222';
@@ -24,11 +19,11 @@ DECLARE
     segment_1_id UUID := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     segment_2_id UUID := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 BEGIN
-    -- Get the first user from auth.users (assumes test user exists)
-    SELECT id INTO test_user_id FROM auth.users LIMIT 1;
+    -- The documented WorkOS account.
+    SELECT id INTO test_user_id FROM public.app_users WHERE workos_user_id = test_workos_user_id;
 
     IF test_user_id IS NULL THEN
-        RAISE NOTICE 'No test user found. Please create a user first.';
+        RAISE NOTICE 'Test WorkOS account % not found in app_users. Sign in with it once or link its existing row, then rerun.', test_workos_user_id;
         RETURN;
     END IF;
 

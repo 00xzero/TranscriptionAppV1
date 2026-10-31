@@ -27,7 +27,6 @@ import {
   stopAndFinalize,
   startMock,
   subscribe,
-  syncIdentityToActiveSession,
   type AttachAndStartParams,
 } from '@/lib/recording/session'
 import { setIdentity } from '@/lib/recording/sessionIdentity'
@@ -435,7 +434,7 @@ describe('recording session singleton', () => {
   })
 
   test('uploading carries the bytes sent and drops them on leaving the state', async () => {
-    let options: Parameters<typeof runCaptureUpload>[3]
+    let options: Parameters<typeof runCaptureUpload>[3] | undefined
     let resolveUpload: (
       result: Awaited<ReturnType<typeof runCaptureUpload>>
     ) => void = () => {}
@@ -1043,11 +1042,21 @@ describe('recording session durability mirror', () => {
     expect(await persistence.listSessions()).toEqual([])
   })
 
-  test('syncIdentityToActiveSession can backfill an existing live row', async () => {
+  test('an account switch never reassigns a live recording or its upload', async () => {
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'failure', message: 'Account changed' })
     await attachRecording({ title: 'Patch auth', maxBytes: 1024 * 1024 })
-    syncIdentityToActiveSession('user-late')
+    setIdentity({ userId: 'user-late', ready: true })
     await flushAsync()
-    expect((await persistence.listSessions())[0].userId).toBe('user-late')
+    expect((await persistence.listSessions())[0].userId).toBe('user-123')
+    recordChunk(new Blob([new Uint8Array(10_000)]))
+    advanceClockPastEmptyFloor()
+    const stopPromise = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopPromise
+    expect(runCaptureUpload).toHaveBeenCalledWith(
+      expect.any(File), expect.any(String), expect.any(Array),
+      expect.objectContaining({ userId: 'user-123' })
+    )
   })
 
   test('a stale recovery probe does not overwrite a live recording', async () => {
@@ -1271,27 +1280,7 @@ describe('recording session durability mirror', () => {
       outcome: 'started',
       warning: 'project_missing',
     })
-    __setSnapshotForTesting({
-      state: 'recoverable',
-      title: session.title,
-      keyTerms: session.keyTerms,
-      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
-      recoverable: {
-        sessionId: session.sessionId,
-        uploadIntentId: session.uploadIntentId,
-        projectId: session.projectId,
-        title: session.title,
-        generatedTitle: session.generatedTitle,
-        keyTerms: session.keyTerms,
-        transcriptionOptions: session.transcriptionOptions,
-        codecMime: session.codecMime,
-        codecExtension: session.codecExtension,
-        bytesSoFar: 8192,
-        createdAt: session.createdAt,
-        remainingCount: 0,
-        mayBeTruncated: false,
-      },
-    })
+    expect(await runRecoveryProbe()).toBe(true)
 
     await expect(saveRecovered('Recovered title')).resolves.toEqual({
       ok: true,

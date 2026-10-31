@@ -1,104 +1,388 @@
 /** @jest-environment node */
 
 import { NextRequest } from 'next/server'
+import { authkit } from '@workos-inc/authkit-nextjs'
 import { proxy } from '../proxy'
 
-const mockCreateServerClient = jest.fn()
+const authkitMock = authkit as unknown as jest.Mock
 
-jest.mock('@supabase/ssr', () => ({
-  createServerClient: (...args: unknown[]) => mockCreateServerClient(...args),
-}))
+function request(path: string) {
+  return new NextRequest(`http://localhost:3000${path}`)
+}
 
-type ServerClientOptions = {
-  cookies: {
-    setAll: (
-      cookies: Array<{
-        name: string
-        value: string
-        options: { path?: string; httpOnly?: boolean }
-      }>,
-      headers: Record<string, string>
-    ) => void
-  }
+function sessionFor(user: { id: string } | null) {
+  authkitMock.mockResolvedValue({
+    session: { user },
+    headers: new Headers(),
+  })
 }
 
 describe('proxy', () => {
-  const originalSupabaseUrl = process.env.SUPABASE_URL
-  const originalSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
   beforeEach(() => {
-    process.env.SUPABASE_URL = 'https://project.supabase.co'
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
-    mockCreateServerClient.mockReset()
+    authkitMock.mockReset()
+    sessionFor(null)
   })
 
-  afterAll(() => {
-    if (originalSupabaseUrl === undefined) {
-      delete process.env.SUPABASE_URL
-    } else {
-      process.env.SUPABASE_URL = originalSupabaseUrl
-    }
+  test('leaves the Inngest endpoint alone', async () => {
+    const response = await proxy(request('/api/inngest'))
 
-    if (originalSupabaseAnonKey === undefined) {
-      delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    } else {
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = originalSupabaseAnonKey
-    }
+    expect(authkitMock).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toBeNull()
   })
 
-  test('preserves Supabase cache-control headers with refreshed auth cookies', async () => {
-    mockCreateServerClient.mockImplementation(
-      (_url: string, _key: string, options: ServerClientOptions) => {
-        options.cookies.setAll(
-          [
-            {
-              name: 'sb-local-auth-token',
-              value: 'refreshed-session',
-              options: { path: '/', httpOnly: true },
-            },
-          ],
-          {
-            'cache-control': 'private, no-cache, no-store, must-revalidate, max-age=0',
-            expires: '0',
-            pragma: 'no-cache',
-          }
-        )
-
-        return {
-          auth: {
-            getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }),
-          },
-        }
-      }
-    )
-
-    const response = await proxy(new NextRequest('https://app.example.test/transcripts'))
-
-    expect(response.cookies.get('sb-local-auth-token')).toMatchObject({
-      value: 'refreshed-session',
-      path: '/',
-      httpOnly: true,
-    })
-    expect(response.headers.get('cache-control')).toBe(
-      'private, no-cache, no-store, must-revalidate, max-age=0'
-    )
-    expect(response.headers.get('expires')).toBe('0')
-    expect(response.headers.get('pragma')).toBe('no-cache')
-  })
-
-  test.each(['/projects', '/projects/11111111-1111-1111-1111-111111111111', '/people', '/people/11111111-1111-1111-1111-111111111111'])(
-    'redirects an unauthenticated request for %s to auth',
-    async (path) => {
-      mockCreateServerClient.mockReturnValue({
-        auth: {
-          getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
-        },
+  describe.each([null, 'wos-session=arbitrary'])('webhook bypass with cookie %s', (cookie) => {
+    test.each([
+      ['POST', '/api/webhooks/deepgram?delivery=1'],
+      ['POST', '/api/webhooks/soniox?delivery=1'],
+      ['POST', '/api/webhooks/assemblyai?delivery=1'],
+      ['GET', '/api/webhooks/deepgram/health?token=health-test'],
+      ['POST', '/api/webhooks/future/provider?delivery=1'],
+    ])('forwards %s %s without AuthKit', async (method, path) => {
+      authkitMock.mockImplementation(() => {
+        throw new Error('Webhook requests must not call AuthKit')
       })
+      const headers = new Headers()
+      if (cookie) headers.set('cookie', cookie)
+      const response = await proxy(new NextRequest(`http://localhost:3000${path}`, { method, headers }))
 
-      const response = await proxy(new NextRequest(`https://app.example.test${path}`))
+      expect(authkitMock).not.toHaveBeenCalled()
+      expect(response.status).toBe(200)
+      expect(response.headers.get('x-middleware-next')).toBe('1')
+      expect(response.headers.get('location')).toBeNull()
+      expect(response.headers.get('set-cookie')).toBeNull()
+      expect(response.headers.get('x-action-redirect')).toBeNull()
+      expect(response.headers.get('x-workos-middleware')).toBeNull()
+    })
+  })
 
-      expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://app.example.test/auth')
+  test('forwards webhook authorization upstream and leaves the request body unread', async () => {
+    authkitMock.mockImplementation(() => {
+      throw new Error('Webhook requests must not call AuthKit')
+    })
+    const authorization = `Basic ${Buffer.from('deepgram:test-secret').toString('base64')}`
+    const body = '{\n  "request_id": "request-1"\n}\n'
+    const callback = new NextRequest('http://localhost:3000/api/webhooks/deepgram?delivery=1', {
+      method: 'POST',
+      headers: { authorization, 'content-type': 'application/json' },
+      body,
+    })
+
+    const response = await proxy(callback)
+
+    expect(authkitMock).not.toHaveBeenCalled()
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+    expect(response.headers.get('x-middleware-request-authorization')).toBe(authorization)
+    expect(response.headers.get('x-middleware-request-content-type')).toBe('application/json')
+    expect(response.headers.get('authorization')).toBeNull()
+    expect(callback.headers.get('authorization')).toBe(authorization)
+    expect(callback.method).toBe('POST')
+    expect(callback.nextUrl.search).toBe('?delivery=1')
+    expect(callback.bodyUsed).toBe(false)
+    await expect(callback.text()).resolves.toBe(body)
+  })
+
+  test.each(['/api/webhooks', '/api/webhooks-other/deepgram', '/api/transcripts'])(
+    'keeps AuthKit processing for %s',
+    async (path) => {
+      const incoming = request(path)
+
+      await proxy(incoming)
+
+      expect(authkitMock).toHaveBeenCalledTimes(1)
+      expect(authkitMock).toHaveBeenCalledWith(incoming)
     }
   )
+
+  test('sends signed-out visitors on protected routes to our sign-in page, with where they were going', async () => {
+    expect((await proxy(request('/'))).headers.get('location')).toBe('http://localhost:3000/auth')
+    for (const path of ['/transcripts', '/editor/abc?t=12', '/recording/new', '/projects/p1', '/people']) {
+      const response = await proxy(request(path))
+      expect(response.headers.get('location')).toBe(
+        `http://localhost:3000/auth?${new URLSearchParams({ next: path })}`
+      )
+    }
+  })
+
+  // An eager token is read before AuthKit knows the user, so an account switch
+  // in another tab at that moment leaves this tab with the old account's token.
+  test('does not hand pages an eager access token', async () => {
+    sessionFor({ id: 'user_01' })
+
+    await proxy(request('/'))
+
+    expect(authkitMock).toHaveBeenCalledTimes(1)
+    expect(authkitMock.mock.calls[0][1]?.eagerAuth).toBeFalsy()
+  })
+
+  test('lets signed-in visitors through protected routes', async () => {
+    sessionFor({ id: 'user_01' })
+
+    const response = await proxy(request('/editor/abc'))
+
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('sends signed-in visitors away from the sign-in entry point', async () => {
+    sessionFor({ id: 'user_01' })
+
+    const response = await proxy(request('/auth'))
+
+    expect(response.headers.get('location')).toBe('http://localhost:3000/')
+  })
+
+  test('lets signed-in visitors post to sign-out instead of bouncing them to /', async () => {
+    sessionFor({ id: 'user_01' })
+
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/auth/sign-out', { method: 'POST' })
+    )
+
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('never redirects the sign-in callback', async () => {
+    sessionFor({ id: 'user_01' })
+    expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
+
+    sessionFor(null)
+    expect((await proxy(request('/auth/callback?code=c'))).headers.get('location')).toBeNull()
+  })
+
+  test('lets the finish step check the session itself, signed in or not', async () => {
+    expect((await proxy(request('/auth/finish?to=%2F'))).headers.get('location')).toBeNull()
+
+    sessionFor({ id: 'user_01' })
+    expect((await proxy(request('/auth/finish?to=%2F'))).headers.get('location')).toBeNull()
+  })
+
+  test('leaves the Google/Microsoft start and the reset link alone, signed in or not', async () => {
+    for (const user of [null, { id: 'user_01' }]) {
+      sessionFor(user)
+      const start = await proxy(new NextRequest('http://localhost:3000/auth/oauth/google', { method: 'POST' }))
+      const reset = await proxy(request('/auth/reset-password?token=t'))
+      expect(start.headers.get('location')).toBeNull()
+      expect(reset.headers.get('location')).toBeNull()
+    }
+  })
+
+  // Signed out in another tab: this tab's next Server Action (AuthKit's focus
+  // check, a refresh) must leave the page, not follow a redirect it ignores.
+  test('answers a signed-out Server Action with Next’s action redirect, so the page reloads on sign-in', async () => {
+    authkitMock.mockResolvedValue({
+      session: { user: null },
+      headers: new Headers({ 'set-cookie': 'wos-session=; Max-Age=0; Path=/', 'x-workos-middleware': 'true' }),
+    })
+
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/projects?view=grid', { method: 'POST', headers: { 'next-action': 'abc123' } })
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('x-action-redirect')).toBe('/auth?next=%2Fprojects%3Fview%3Dgrid;replace')
+    expect(response.headers.get('content-type')).toBe('text/plain')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    // AuthKit's own session headers still reach the browser; its internal ones don't.
+    expect(response.headers.get('set-cookie')).toContain('wos-session=;')
+    expect(response.headers.get('x-workos-middleware')).toBeNull()
+  })
+
+  test('lets a signed-in Server Action through, and the Library’s action keeps a plain sign-in target', async () => {
+    sessionFor({ id: 'user_01' })
+    const signedIn = await proxy(
+      new NextRequest('http://localhost:3000/projects', { method: 'POST', headers: { 'next-action': 'abc123' } })
+    )
+    expect(signedIn.headers.get('x-action-redirect')).toBeNull()
+    expect(signedIn.headers.get('location')).toBeNull()
+
+    sessionFor(null)
+    const library = await proxy(new NextRequest('http://localhost:3000/', { method: 'POST', headers: { 'next-action': 'abc123' } }))
+    expect(library.headers.get('x-action-redirect')).toBe('/auth;replace')
+  })
+
+  test('a signed-out Server Action on the sign-in page itself is left alone', async () => {
+    const response = await proxy(new NextRequest('http://localhost:3000/auth', { method: 'POST', headers: { 'next-action': 'abc123' } }))
+
+    expect(response.headers.get('x-action-redirect')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('leaves public routes and API routes to answer for themselves', async () => {
+    const page = await proxy(request('/auth'))
+    const api = await proxy(request('/api/transcripts'))
+
+    expect(page.headers.get('location')).toBeNull()
+    expect(api.headers.get('location')).toBeNull()
+  })
+})
+
+// What real AuthKit answers (checked against the package by
+// authkitOutageContract.test.ts): "no user" with the session cookie kept is an
+// outage; with it deleted, the session is over.
+describe('proxy during a WorkOS outage', () => {
+  const COOKIE = 'wos-session=sealed-session'
+  const DELETE_COOKIE = 'wos-session=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; SameSite=Lax'
+
+  function answer({ deleted }: { deleted: boolean }) {
+    const headers = new Headers()
+    if (deleted) headers.append('Set-Cookie', DELETE_COOKIE)
+    authkitMock.mockResolvedValue({ session: { user: null }, headers })
+  }
+
+  function withCookie(path: string, init: { method?: string; headers?: Record<string, string> } = {}) {
+    return new NextRequest(`http://localhost:3000${path}`, {
+      method: init.method,
+      headers: { cookie: COOKIE, ...init.headers },
+    })
+  }
+
+  beforeEach(() => authkitMock.mockReset())
+
+  test('a page load waits on a page that tries again, instead of going to sign-in', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/editor/abc'))
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    const page = await response.text()
+    expect(page).toContain('<meta http-equiv="refresh" content="5">')
+    expect(page).toContain('trying again')
+  })
+
+  test('a Server Action (such as the browser’s token refresh) fails, with no redirect', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/editor/abc', { method: 'POST', headers: { 'next-action': 'action-id' } }))
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('x-action-redirect')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('an API route answers 503 AUTH_UNAVAILABLE rather than 401', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/api/transcripts/t1/media-url'))
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Sign-in is unavailable right now. Try again shortly.',
+      code: 'AUTH_UNAVAILABLE',
+    })
+  })
+
+  test('never deletes the session cookie', async () => {
+    answer({ deleted: false })
+
+    for (const response of [
+      await proxy(withCookie('/projects')),
+      await proxy(withCookie('/api/transcripts')),
+      await proxy(withCookie('/', { method: 'POST', headers: { 'next-action': 'action-id' } })),
+    ]) {
+      expect(response.headers.getSetCookie().filter((cookie) => cookie.startsWith('wos-session='))).toEqual([])
+    }
+  })
+
+  test('the sign-in pages are left as they are', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/auth'))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('a session that is over (cookie deleted) still goes to sign-in', async () => {
+    answer({ deleted: true })
+
+    const page = await proxy(withCookie('/editor/abc'))
+    const action = await proxy(withCookie('/editor/abc', { method: 'POST', headers: { 'next-action': 'action-id' } }))
+
+    expect(page.headers.get('location')).toBe(`http://localhost:3000/auth?${new URLSearchParams({ next: '/editor/abc' })}`)
+    expect(action.headers.get('x-action-redirect')).toBe(`/auth?${new URLSearchParams({ next: '/editor/abc' })};replace`)
+  })
+
+  test('no session cookie at all is simply signed out', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(new NextRequest('http://localhost:3000/transcripts'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(`http://localhost:3000/auth?${new URLSearchParams({ next: '/transcripts' })}`)
+  })
+})
+
+describe('the account cookie lives as long as the session', () => {
+  const RENEWED_SESSION = 'wos-session=renewed; Path=/; HttpOnly; Max-Age=34560000'
+
+  function answer(setCookie?: string) {
+    const headers = new Headers()
+    if (setCookie) headers.append('Set-Cookie', setCookie)
+    authkitMock.mockResolvedValue({ session: { user: { id: 'user_01A' } }, headers })
+  }
+
+  function withCookies(path: string, marker: string | null, init: { method?: string; headers?: Record<string, string> } = {}) {
+    const cookie = ['wos-session=sealed', marker && `olivetti-account=${marker}`].filter(Boolean).join('; ')
+    return new NextRequest(`http://localhost:3000${path}`, { ...init, headers: { ...init.headers, cookie } })
+  }
+
+  /** The account cookie this response writes, if any. */
+  function accountCookie(response: Response) {
+    return response.headers.getSetCookie().find((cookie) => cookie.startsWith('olivetti-account='))
+  }
+
+  beforeEach(() => authkitMock.mockReset())
+
+  test('renewed with the same account, its lifetime started again, when AuthKit renews the session', async () => {
+    answer(RENEWED_SESSION)
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a'))
+
+    expect(accountCookie(response)).toMatch(/^olivetti-account=app-user-a;/)
+    expect(accountCookie(response)).toMatch(/Max-Age=34560000/)
+    expect(accountCookie(response)).not.toMatch(/HttpOnly/i)
+  })
+
+  test('a non-renewing Server Action cannot replay an old account marker', async () => {
+    answer()
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a', { method: 'POST', headers: { 'next-action': 'refresh' } }))
+
+    expect(accountCookie(response)).toBeUndefined()
+  })
+
+  test('kept for as long as browsers allow, even when the session cookie is set to last less', async () => {
+    jest.replaceProperty(process, 'env', { ...process.env, WORKOS_COOKIE_MAX_AGE: '3600' })
+    answer('wos-session=renewed; Path=/; HttpOnly; Max-Age=3600')
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a'))
+
+    expect(accountCookie(response)).toMatch(/Max-Age=34560000/)
+  })
+
+  test('left alone when the session was not renewed, so pages carry no extra cookie', async () => {
+    answer()
+
+    expect(accountCookie(await proxy(withCookies('/editor/abc', 'app-user-a')))).toBeUndefined()
+  })
+
+  test.each([
+    ['says signed out', 'none'],
+    ['is missing (a session from before it)', null],
+  ])('left alone when it %s', async (_name, marker) => {
+    answer(RENEWED_SESSION)
+
+    expect(accountCookie(await proxy(withCookies('/editor/abc', marker)))).toBeUndefined()
+  })
+
+  test('left to the sign-in pages, which write the new account themselves', async () => {
+    authkitMock.mockResolvedValue({ session: { user: null }, headers: new Headers({ 'Set-Cookie': RENEWED_SESSION }) })
+
+    const response = await proxy(withCookies('/auth', 'app-user-a', { method: 'POST', headers: { 'next-action': 'sign-in' } }))
+
+    expect(accountCookie(response)).toBeUndefined()
+  })
 })

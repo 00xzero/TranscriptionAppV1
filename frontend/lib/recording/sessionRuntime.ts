@@ -2,6 +2,7 @@ import type { Runtime, Store } from './sessionTypes'
 
 export function createRuntime(): Runtime {
   return {
+    userId: null,
     controller: null,
     chunks: [],
     bytesSoFar: 0,
@@ -63,6 +64,7 @@ function teardownPersistence(store: Store): Promise<void> {
   const queue = store.runtime.writeQueue
   store.runtime.writeQueue = null
   store.runtime.sessionId = null
+  store.runtime.userId = null
   store.runtime.nextChunkSeq = 0
   store.runtime.uploadIntentId = null
   store.runtime.lastChunkReceivedAt = null
@@ -82,6 +84,7 @@ export function clearInterruptedSessionRuntime(
   // writes already in the abandoned queue still drain to completion.
   store.runtime.writeQueue = null
   store.runtime.sessionId = null
+  store.runtime.userId = null
   store.runtime.nextChunkSeq = 0
   store.runtime.uploadIntentId = null
   store.runtime.lastChunkReceivedAt = null

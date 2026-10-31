@@ -8,6 +8,7 @@ import {
     type UploadBytes,
 } from '@/lib/capture/upload'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
+import { useAuth } from '@/lib/auth/AuthProvider'
 
 type UseCapture = {
     isUploading: boolean
@@ -34,6 +35,7 @@ type UseCapture = {
  * 3. Start transcription via /api/transcripts/{id}/start
  */
 export function useCapture(): UseCapture {
+    const { userId, ready } = useAuth()
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [progress, setProgress] = useState<UseCapture['progress']>('idle')
@@ -57,7 +59,13 @@ export function useCapture(): UseCapture {
         setUploadBytes(null)
 
         try {
+            if (!ready || !userId) {
+                setError('Sign in before uploading audio.')
+                setProgress('idle')
+                return null
+            }
             const result = await runCaptureUpload(file, title, keyTerms, {
+                userId,
                 onProgress: (stage) => {
                     setProgress(stage)
                     if (stage === 'uploading') setUploadBytes({ sent: 0, total: file.size })
@@ -88,7 +96,7 @@ export function useCapture(): UseCapture {
             setIsUploading(false)
             setUploadBytes(null)
         }
-    }, [])
+    }, [userId, ready])
 
     return {
         isUploading,

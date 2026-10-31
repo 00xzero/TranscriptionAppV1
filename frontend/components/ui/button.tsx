@@ -7,8 +7,9 @@ export type ButtonVariant =
   | 'transcribe'
   | 'secondary'
   | 'ghost'
+  | 'ink'
 
-export type ButtonSize = 'sm' | 'default' | 'icon'
+export type ButtonSize = 'sm' | 'default' | 'icon' | 'lg'
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-accent text-accent-foreground shadow-xs hover:bg-accent/90',
@@ -16,12 +17,17 @@ const variantClasses: Record<ButtonVariant, string> = {
   transcribe: 'border border-transcribe-hover bg-transcribe text-solid-foreground shadow-xs hover:bg-transcribe-hover',
   secondary: 'border border-border bg-control text-foreground shadow-xs hover:bg-control-hover',
   ghost: 'bg-transparent text-foreground/60 hover:text-foreground',
+  // Text-coloured fill: the one main action on a page (sign-in).
+  ink: 'border border-foreground bg-foreground text-background shadow-xs hover:bg-foreground/90',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
   sm: 'px-3 py-1.5 text-xs',
   default: 'px-4 py-2 text-sm',
   icon: 'h-10 w-10',
+  // A full-width 40px button with 15px text (sign-in); a full-width button
+  // shrinks less when pressed.
+  lg: 'h-10 w-full gap-2.5 px-4 text-[15px] active:scale-[0.985]',
 }
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

@@ -1,0 +1,380 @@
+"use client"
+import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
+import { Suspense, useState, useCallback, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranscriptsData } from '@/lib/projects/ProjectsProvider'
+import { fetchJobError } from '@/lib/supabase/queries'
+import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
+import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { EmptyState } from '@/components/EmptyState'
+import { Button } from '@/components/ui/button'
+import { LoadingStatus } from '@/components/ui/loading-status'
+import { useModal } from '@/lib/ModalContext'
+import { transcriptActionTarget } from '@/lib/transcripts/actions'
+import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
+import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
+import { useAuth } from '@/lib/auth/AuthProvider'
+import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
+import { AccountChangedError } from '@/lib/auth/account-boundary'
+
+export default function TranscriptsPage() {
+  return (
+    <Suspense fallback={
+      <LoadingStatus message="Loading transcripts…" className="text-muted">
+        <span aria-hidden="true">Loading transcripts…</span>
+      </LoadingStatus>
+    }>
+      <TranscriptsPageContent />
+    </Suspense>
+  )
+}
+
+function TranscriptsPageContent() {
+  const { userId } = useAuth()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { openCaptureModal } = useModal()
+  const {
+    transcripts,
+    transcriptsLoading: isLoading,
+    transcriptConnectionStatus: connectionStatus,
+    refetchTranscripts: refetch,
+  } = useTranscriptsData()
+  const [starting, setStarting] = useState<Record<string, boolean>>({})
+  // Cache idempotency keys per transcript - reused until request completes to prevent double-click issues
+  const [idempotencyKeys, setIdempotencyKeys] = useState<Record<string, string>>({})
+  const [transcriptErrors, setTranscriptErrors] = useState<Record<string, { error: string; error_type: string }>>({})
+  const [transcriptErrorLoadErrors, setTranscriptErrorLoadErrors] = useState<Record<string, string>>({})
+  const [actionError, setActionError] = useState<string | null>(null)
+  const transcriptActions = useTranscriptActions()
+  const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
+  const [captureTranscriptId, setCaptureTranscriptId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCaptureOutcome(searchParams.get('capture'))
+    setCaptureTranscriptId(searchParams.get('transcriptId'))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (searchParams.get('capture') !== 'recording_session_not_found') return
+
+    openCaptureModal({
+      initialTab: 'record',
+      message: 'Recording session not found. Please start a new recording.',
+    })
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('capture')
+    const nextQuery = params.toString()
+    router.replace(nextQuery ? `/transcripts?${nextQuery}` : '/transcripts')
+  }, [openCaptureModal, router, searchParams])
+
+  const captureMessage = captureOutcome === 'saved_needs_retry'
+    ? searchParams.get('captureMessage') ??
+      'Upload completed and transcript was saved, but transcription did not start automatically. Click Transcribe to retry.'
+    : captureOutcome === 'saved_status_unknown'
+      ? searchParams.get('captureMessage') ??
+        'Upload completed and transcript was saved, but transcription status is unknown due to a network interruption. Check the transcript status before retrying.'
+      : null
+
+  const dismissCaptureMessage = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('capture')
+    params.delete('transcriptId')
+    params.delete('captureMessage')
+    const nextQuery = params.toString()
+    setCaptureOutcome(null)
+    setCaptureTranscriptId(null)
+    router.replace(nextQuery ? `/transcripts?${nextQuery}` : '/transcripts')
+  }, [router, searchParams])
+
+  // Fetch error info for transcripts in error state
+  const fetchTranscriptErrorInfo = useCallback(async (transcriptId: string) => {
+    try {
+      setTranscriptErrorLoadErrors(prev => {
+        const next = { ...prev }
+        delete next[transcriptId]
+        return next
+      })
+      const errorInfo = await fetchJobError(transcriptId)
+      if (errorInfo) {
+        setTranscriptErrors(prev => ({
+          ...prev,
+          [transcriptId]: errorInfo
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to fetch transcript error:', e)
+      setTranscriptErrorLoadErrors(prev => ({
+        ...prev,
+        [transcriptId]: 'Failed to load error details. Please retry.'
+      }))
+    }
+  }, [])
+
+  // Fetch errors for transcripts in error state on initial load
+  useEffect(() => {
+    transcripts.forEach(p => {
+      if (p.status === 'error' && !transcriptErrors[p.id]) {
+        fetchTranscriptErrorInfo(p.id)
+      }
+    })
+  }, [transcripts, transcriptErrors, fetchTranscriptErrorInfo])
+
+  useEffect(() => {
+    if (Object.keys(idempotencyKeys).length === 0) return
+
+    const inProgressIds = new Set(
+      transcripts
+        .filter(p => p.status === 'queued' || p.status === 'processing' || p.status === 'error')
+        .map(p => p.id)
+    )
+
+    if (inProgressIds.size === 0) return
+
+    setIdempotencyKeys(prev => {
+      let changed = false
+      const next = { ...prev }
+
+      Object.keys(prev).forEach(id => {
+        if (inProgressIds.has(id)) {
+          delete next[id]
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [transcripts, idempotencyKeys])
+
+  const startTranscript = useCallback(async (id: string) => {
+    const expectedUserId = userId
+    if (starting[id]) return
+    setStarting((prev) => ({ ...prev, [id]: true }))
+
+    // Get or generate idempotency key - cached to prevent double-click from creating new keys
+    let idempotencyKey = idempotencyKeys[id]
+    if (!idempotencyKey) {
+      idempotencyKey = `${id}-${Date.now()}-${crypto.randomUUID()}`
+      setIdempotencyKeys((prev) => ({ ...prev, [id]: idempotencyKey }))
+    }
+
+    try {
+      if (!expectedUserId) throw new AccountChangedError()
+      // Use existing Next.js API route for starting transcription
+      const res = await accountBoundFetch(`/api/transcripts/${id}/start`, {
+        method: 'POST',
+        headers: {
+          'x-idempotency-key': idempotencyKey,
+        },
+      }, expectedUserId)
+      if (!res.ok) {
+        const text = await res.text()
+        let parsed: { error?: string; status?: string } | null = null
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          parsed = null
+        }
+
+        if (res.status === 409 && parsed?.status === 'error') {
+          setIdempotencyKeys((prev) => {
+            const next = { ...prev }
+            delete next[id]
+            return next
+          })
+        }
+
+        throw new Error(`Failed to start transcript: ${parsed?.error || text}`)
+      }
+      setActionError(null)
+      setTranscriptErrorLoadErrors(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      // Clear any previous error
+      setTranscriptErrors(prev => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+      // Refetch transcripts to get updated status
+      void refetch().catch((error: unknown) => {
+        if (!isRealtimeScopeAbortError(error)) {
+          console.error('[transcripts] Failed to refresh after starting transcription:', error)
+        }
+      })
+      // Clear cached idempotency key only after confirmed success
+      setIdempotencyKeys((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } catch (e) {
+      console.error(e)
+      setActionError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStarting((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+  }, [starting, idempotencyKeys, refetch, userId])
+
+  const getErrorInfo = (transcriptId: string) => transcriptErrors[transcriptId]
+
+  // Connection status indicator
+  const statusColor = connectionStatus === 'connected' ? 'bg-green-500' :
+    connectionStatus === 'connecting' ? 'bg-amber-500' : 'bg-red-500'
+
+  return (
+    <>
+      <div className="space-y-4 pt-[80px] px-6 md:px-10">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <h1 className="font-serif text-2xl text-foreground">Transcripts</h1>
+        {transcripts.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <span className={`w-2 h-2 rounded-full ${statusColor}`}></span>
+            <span>{connectionStatus === 'connected' ? 'Live' : connectionStatus}</span>
+          </div>
+        )}
+      </div>
+      {actionError && (
+        <div className="rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{actionError}</span>
+            <button
+              className="text-xs font-medium text-red-700 hover:underline"
+              onClick={() => setActionError(null)}
+              title="Dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+      {captureMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span>
+              {captureMessage}
+              {captureTranscriptId ? ` Transcript ID: ${captureTranscriptId}.` : ''}
+            </span>
+            <button
+              className="text-xs font-medium text-amber-800 hover:underline"
+              onClick={dismissCaptureMessage}
+              title="Dismiss"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+      {isLoading && (
+        <LoadingStatus message="Loading transcripts…" className="text-muted">
+          <span aria-hidden="true">Loading transcripts…</span>
+        </LoadingStatus>
+      )}
+      {!isLoading && transcripts.length === 0 && (
+        <EmptyState
+          figure="typewriter"
+          eyebrow="Transcripts"
+          title="A page waiting for a voice"
+          description="Record a conversation or upload a file. When it’s transcribed, it lands here, ready to edit."
+          action={{ label: 'Capture', onClick: () => openCaptureModal() }}
+        />
+      )}
+      {transcripts.length > 0 && (
+      <ul className="divide-y divide-border rounded-sm border border-border bg-panel">
+        {transcripts.map((p) => {
+          const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
+          const errorLoadError = transcriptErrorLoadErrors[p.id]
+          const isKeytermError = errorInfo?.error_type === 'keyterm_error'
+          const actionTarget = transcriptActionTarget(p)
+
+          return (
+            <li key={p.id} className="px-4 py-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="font-medium">{p.title || p.id}</div>
+                  <div className="text-xs text-muted">{p.status} • {new Date(p.created_at).toLocaleString()}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const isCompleted = p.status === 'completed'
+                    const isTranscribing = !!starting[p.id] || ['queued', 'processing'].includes(p.status)
+                    const canTranscribe = !isCompleted && !isTranscribing && ['created', 'error'].includes(p.status)
+                    const label = isCompleted ? 'Transcribed' : isTranscribing ? 'Transcribing...' : 'Transcribe'
+                    return (
+                      <Button
+                        variant={isCompleted ? 'secondary' : 'transcribe'}
+                        size="sm"
+                        className="text-sm"
+                        onClick={() => startTranscript(p.id)}
+                        disabled={!canTranscribe}
+                        title={label}
+                      >
+                        {label}
+                      </Button>
+                    )
+                  })()}
+                  {p.status === 'completed' && (
+                    <Link href={`/editor/${p.id}`} title={`Open ${p.title || p.id}`} className="text-accent hover:underline">Open</Link>
+                  )}
+                  <TranscriptActionsMenu
+                    title={actionTarget.title}
+                    onMove={() => transcriptActions.openMove(actionTarget)}
+                    onDelete={() => transcriptActions.openDelete(actionTarget)}
+                  />
+                </div>
+              </div>
+
+              {/* Error display */}
+              {(errorInfo || errorLoadError) && (
+                <div className="mt-3 p-3 rounded-sm bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                  <div className="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      {errorInfo ? (
+                        <p className="text-sm text-red-700 dark:text-red-300">{errorInfo.error}</p>
+                      ) : (
+                        <p className="text-sm text-red-700 dark:text-red-300">{errorLoadError}</p>
+                      )}
+                      {!errorInfo && (
+                        <button
+                          onClick={() => fetchTranscriptErrorInfo(p.id)}
+                          className="mt-2 text-sm font-medium text-accent hover:underline"
+                          title="Retry loading error details"
+                        >
+                          Retry loading error details
+                        </button>
+                      )}
+                      {isKeytermError && (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          Try adjusting key terms and re-uploading.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      )}
+
+      </div>
+      <TranscriptActionDialogs actions={transcriptActions} />
+    </>
+  )
+}

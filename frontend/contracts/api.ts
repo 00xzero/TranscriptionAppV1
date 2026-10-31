@@ -40,6 +40,7 @@ export const DeleteProjectErrorSchema = z.discriminatedUnion('stage', [
   z.object({
     error: z.string(),
     stage: z.literal('begin'),
+    code: z.string().optional(),
     gone: z.literal(true).optional(),
   }),
   z.object({
@@ -64,6 +65,7 @@ export const DeleteTranscriptResponseSchema = z.object({
 // `gone` means the row no longer exists; its folder was still swept.
 export const DeleteTranscriptErrorSchema = z.object({
   error: z.string(),
+  code: z.string().optional(),
   gone: z.literal(true).optional(),
 })
 

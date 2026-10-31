@@ -1,11 +1,17 @@
 import { fetchExportData } from '../../lib/supabase/export-data'
 import { paginateAllRows } from '../../lib/supabase/queries'
+import { getCurrentUser } from '@/lib/auth/current-user.server'
 
 jest.mock('../../lib/supabase/queries', () => ({
   paginateAllRows: jest.fn(),
 }))
 
+jest.mock('@/lib/auth/current-user.server', () => ({
+  getCurrentUser: jest.fn(),
+}))
+
 const mockPaginateAllRows = paginateAllRows as jest.MockedFunction<typeof paginateAllRows>
+const mockGetCurrentUser = getCurrentUser as jest.MockedFunction<typeof getCurrentUser>
 
 const makeTranscriptQuery = jest.fn((transcript: unknown, error: unknown = null) => ({
   select: jest.fn().mockReturnThis(),
@@ -24,6 +30,7 @@ describe('fetchExportData', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
+    mockGetCurrentUser.mockResolvedValue({ id: 'user-1', email: '' })
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
   })
 
@@ -45,9 +52,7 @@ describe('fetchExportData', () => {
       ])
       throw new Error(table)
     })
-    const result = await fetchExportData({ auth: { getUser: jest.fn().mockResolvedValue({
-      data: { user: { id: 'u1' } }, error: null,
-    }) }, from } as any, 't1')
+    const result = await fetchExportData({ from } as any, 't1')
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(from).toHaveBeenCalledTimes(2)
@@ -85,12 +90,6 @@ describe('fetchExportData', () => {
     })
 
     const supabase = {
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-1' } },
-          error: null,
-        }),
-      },
       from,
     }
 
@@ -120,17 +119,10 @@ describe('fetchExportData', () => {
     })
   })
 
-  it('returns unauthorized when auth lookup fails', async () => {
+  it('returns unauthorized when no one is signed in', async () => {
+    mockGetCurrentUser.mockResolvedValueOnce(null)
     const from = jest.fn()
-    const supabase = {
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: null },
-          error: { message: 'token expired' },
-        }),
-      },
-      from,
-    }
+    const supabase = { from }
 
     const result = await fetchExportData(supabase as any, 'p1')
 
@@ -138,7 +130,7 @@ describe('fetchExportData', () => {
       success: false,
       error: { error: 'Unauthorized', status: 401 },
     })
-    expect(supabase.auth.getUser).toHaveBeenCalledTimes(1)
+    expect(mockGetCurrentUser).toHaveBeenCalledWith(supabase)
     expect(from).not.toHaveBeenCalled()
     expect(mockPaginateAllRows).not.toHaveBeenCalled()
     expect(makeTranscriptQuery).not.toHaveBeenCalled()
@@ -152,12 +144,6 @@ describe('fetchExportData', () => {
     })
 
     const supabase = {
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-1' } },
-          error: null,
-        }),
-      },
       from,
     }
 
@@ -190,12 +176,6 @@ describe('fetchExportData', () => {
     })
 
     const supabase = {
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-1' } },
-          error: null,
-        }),
-      },
       from,
     }
 
@@ -235,12 +215,6 @@ describe('fetchExportData', () => {
     })
 
     const supabase = {
-      auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: 'user-1' } },
-          error: null,
-        }),
-      },
       from,
     }
 

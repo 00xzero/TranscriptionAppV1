@@ -14,6 +14,9 @@ const customJestConfig = {
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
     '^react-virtuoso$': '<rootDir>/__mocks__/react-virtuoso.tsx',
     '^@number-flow/react$': '<rootDir>/__mocks__/number-flow-react.tsx',
+    // AuthKit ships ESM only, which Jest's CommonJS resolver cannot load.
+    '^@workos-inc/authkit-nextjs$': '<rootDir>/__mocks__/workos-authkit-nextjs.ts',
+    '^@workos-inc/authkit-nextjs/components$': '<rootDir>/__mocks__/workos-authkit-nextjs-components.tsx',
     // Next swaps `server-only` for an empty module on the server; tests run there too.
     '^server-only$': 'next/dist/compiled/server-only/empty',
   },

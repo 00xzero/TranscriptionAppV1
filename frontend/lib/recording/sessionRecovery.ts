@@ -59,7 +59,8 @@ async function finalizeInterruptedRecovery(
   }
 }
 
-function hydrateRecoverable(info: RecoverableInfo): void {
+function hydrateRecoverable(info: RecoverableInfo, userId: string): void {
+  store.runtime.userId = userId
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recoverable',
@@ -128,7 +129,7 @@ export async function runRecoveryProbe(
     return false
   }
 
-  hydrateRecoverable(result.info)
+  hydrateRecoverable(result.info, probedUserId)
   return true
 }
 
@@ -180,6 +181,8 @@ export interface SaveRecoveredResult {
 export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredResult> {
   const info = store.snapshot.recoverable
   if (!info) return { ok: false, message: 'No recovered recording to save.' }
+  const userId = store.runtime.userId
+  if (!userId) return { ok: false, message: 'Sign in to the original account before saving this recording.' }
 
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return {
@@ -214,6 +217,7 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
   let result: Awaited<ReturnType<typeof runCaptureUpload>>
   try {
     result = await runCaptureUpload(file, title, info.keyTerms, {
+      userId,
       uploadIntentId: info.uploadIntentId ?? undefined,
       allowUpsert: true,
       projectId: info.projectId,

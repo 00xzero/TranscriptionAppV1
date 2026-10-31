@@ -1,9 +1,9 @@
 import React from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import TranscriptSegmentCard, { type TranscriptSegmentCardProps } from '@/app/editor/[id]/components/TranscriptSegmentCard'
-import { createPlaybackClock } from '@/app/editor/[id]/playbackClock'
+import TranscriptSegmentCard, { type TranscriptSegmentCardProps } from '@/app/(app)/editor/[id]/components/TranscriptSegmentCard'
+import { createPlaybackClock } from '@/app/(app)/editor/[id]/playbackClock'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { Seg } from '@/app/editor/[id]/types'
+import type { Seg } from '@/app/(app)/editor/[id]/types'
 
 const segment: Seg = {
   id: 's1', transcript_id: 't1', speaker_id: null, diarization_index: null,

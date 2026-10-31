@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { TalkShareBar } from '@/app/editor/[id]/components/TalkShareBar'
-import { formatShare } from '@/app/editor/[id]/hooks/useSpeakerOverview'
+import { TalkShareBar } from '@/app/(app)/editor/[id]/components/TalkShareBar'
+import { formatShare } from '@/app/(app)/editor/[id]/hooks/useSpeakerOverview'
 import { SPEAKER_COLOR_FALLBACK } from '@/lib/speakers/palette'
 
 const row = (label: string, share: number, color = '#4F638C', isUnknown = false) => ({

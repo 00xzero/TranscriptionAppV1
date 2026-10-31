@@ -321,7 +321,7 @@ export function useTranscriptsRealtime(options: RealtimeHookOptions) {
             )
 
             try {
-                await deleteTranscriptRequest(id)
+                await deleteTranscriptRequest(id, userId)
                 assertCurrentScope()
                 runBackgroundRealtimeRefetch(refetch, 'transcript deletion')
             } catch (err) {

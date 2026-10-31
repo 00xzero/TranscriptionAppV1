@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react'
-import { useUserScrollDetection } from '@/app/editor/[id]/hooks/useUserScrollDetection'
+import { useUserScrollDetection } from '@/app/(app)/editor/[id]/hooks/useUserScrollDetection'
 
 describe('useUserScrollDetection', () => {
   beforeEach(() => {
@@ -13,11 +13,10 @@ describe('useUserScrollDetection', () => {
 
   it('keeps touch intent active until the first scroll event arrives', () => {
     const container = document.createElement('div')
-    const containerRef = { current: container }
     const onUserScroll = jest.fn()
 
     renderHook(() => useUserScrollDetection({
-      containerRef,
+      container,
       isProgrammaticScrollActive: () => false,
       onUserScroll,
     }))
@@ -33,11 +32,10 @@ describe('useUserScrollDetection', () => {
 
   it('expires wheel intent if no scroll follows shortly after', () => {
     const container = document.createElement('div')
-    const containerRef = { current: container }
     const onUserScroll = jest.fn()
 
     renderHook(() => useUserScrollDetection({
-      containerRef,
+      container,
       isProgrammaticScrollActive: () => false,
       onUserScroll,
     }))
