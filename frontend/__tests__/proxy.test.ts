@@ -314,3 +314,75 @@ describe('proxy during a WorkOS outage', () => {
     expect(response.headers.get('location')).toBe(`http://localhost:3000/auth?${new URLSearchParams({ next: '/transcripts' })}`)
   })
 })
+
+describe('the account cookie lives as long as the session', () => {
+  const RENEWED_SESSION = 'wos-session=renewed; Path=/; HttpOnly; Max-Age=34560000'
+
+  function answer(setCookie?: string) {
+    const headers = new Headers()
+    if (setCookie) headers.append('Set-Cookie', setCookie)
+    authkitMock.mockResolvedValue({ session: { user: { id: 'user_01A' } }, headers })
+  }
+
+  function withCookies(path: string, marker: string | null, init: { method?: string; headers?: Record<string, string> } = {}) {
+    const cookie = ['wos-session=sealed', marker && `olivetti-account=${marker}`].filter(Boolean).join('; ')
+    return new NextRequest(`http://localhost:3000${path}`, { ...init, headers: { ...init.headers, cookie } })
+  }
+
+  /** The account cookie this response writes, if any. */
+  function accountCookie(response: Response) {
+    return response.headers.getSetCookie().find((cookie) => cookie.startsWith('olivetti-account='))
+  }
+
+  beforeEach(() => authkitMock.mockReset())
+
+  test('renewed with the same account, its lifetime started again, when AuthKit renews the session', async () => {
+    answer(RENEWED_SESSION)
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a'))
+
+    expect(accountCookie(response)).toMatch(/^olivetti-account=app-user-a;/)
+    expect(accountCookie(response)).toMatch(/Max-Age=34560000/)
+    expect(accountCookie(response)).not.toMatch(/HttpOnly/i)
+  })
+
+  test('a non-renewing Server Action cannot replay an old account marker', async () => {
+    answer()
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a', { method: 'POST', headers: { 'next-action': 'refresh' } }))
+
+    expect(accountCookie(response)).toBeUndefined()
+  })
+
+  test('kept for as long as browsers allow, even when the session cookie is set to last less', async () => {
+    jest.replaceProperty(process, 'env', { ...process.env, WORKOS_COOKIE_MAX_AGE: '3600' })
+    answer('wos-session=renewed; Path=/; HttpOnly; Max-Age=3600')
+
+    const response = await proxy(withCookies('/editor/abc', 'app-user-a'))
+
+    expect(accountCookie(response)).toMatch(/Max-Age=34560000/)
+  })
+
+  test('left alone when the session was not renewed, so pages carry no extra cookie', async () => {
+    answer()
+
+    expect(accountCookie(await proxy(withCookies('/editor/abc', 'app-user-a')))).toBeUndefined()
+  })
+
+  test.each([
+    ['says signed out', 'none'],
+    ['is missing (a session from before it)', null],
+  ])('left alone when it %s', async (_name, marker) => {
+    answer(RENEWED_SESSION)
+
+    expect(accountCookie(await proxy(withCookies('/editor/abc', marker)))).toBeUndefined()
+  })
+
+  test('left to the sign-in pages, which write the new account themselves', async () => {
+    authkitMock.mockResolvedValue({ session: { user: null }, headers: new Headers({ 'Set-Cookie': RENEWED_SESSION }) })
+
+    const response = await proxy(withCookies('/auth', 'app-user-a', { method: 'POST', headers: { 'next-action': 'sign-in' } }))
+
+    expect(accountCookie(response)).toBeUndefined()
+  })
+})

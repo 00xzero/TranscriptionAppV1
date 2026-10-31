@@ -16,6 +16,7 @@ import {
   partitionAuthkitHeaders,
 } from '@workos-inc/authkit-nextjs'
 import { NextResponse, type NextRequest } from 'next/server'
+import { renewAccountMarkOn } from '@/lib/auth/account-marker.server'
 import { authDiagnostics } from '@/lib/auth/diagnostics'
 
 // Routes that require authentication
@@ -149,7 +150,22 @@ export async function proxy(request: NextRequest) {
     return handleAuthkitHeaders(request, headers, { redirect: '/' })
   }
 
-  return handleAuthkitHeaders(request, headers)
+  const response = handleAuthkitHeaders(request, headers)
+  // The account cookie lives as long as the session (account-marker.server.ts).
+  // Sign-in pages write it themselves.
+  if (!isAuthRoute && renewedSession(headers)) renewAccountMarkOn(request, response)
+  return response
+}
+
+/**
+ * Only mirror an actual session-cookie renewal. A non-renewing Server
+ * Action must not replay an old marker after another tab signs in or out.
+ */
+function renewedSession(authkitHeaders: Headers): boolean {
+  return authkitHeaders.getSetCookie().some((cookie) => {
+    const [name, value] = cookie.split(';')[0].trim().split('=')
+    return name === SESSION_COOKIE && Boolean(value)
+  })
 }
 
 export const config = {

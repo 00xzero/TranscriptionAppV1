@@ -3,8 +3,12 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { refreshSession, withAuth } from '@workos-inc/authkit-nextjs'
 import { createClient } from '@/infra/supabase/server'
+import { createCookieJar } from '../helpers/cookieJar'
 
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => ({})) }))
+
+const mockJar = createCookieJar()
+jest.mock('next/headers', () => ({ cookies: async () => mockJar.jar }))
 
 const USER = { id: 'user_01A', email: 'a@example.com' }
 const LIFETIME = 300
@@ -76,6 +80,7 @@ function routeRenewsWith(workos: FakeWorkos, requestRefreshToken: string) {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  mockJar.clear()
   jest.useFakeTimers({ now: NOW })
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.test'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon'
@@ -106,6 +111,31 @@ describe('server Supabase client token', () => {
     await expect(Promise.all([getToken(), getToken(), getToken()])).resolves.toEqual([renewed, renewed, renewed])
     await expect(getToken()).resolves.toBe(renewed)
     expect(refreshSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('renews the account cookie with the session, so it lasts as long', async () => {
+    mockJar.jar.set('olivetti-account', 'app-user-a', { maxAge: 60 })
+    signedInWith(token(USER.id, 49))
+    jest.mocked(refreshSession).mockResolvedValue({ user: USER, accessToken: token(USER.id, LIFETIME) } as never)
+    const getToken = await tokenCallback({ refreshSession: true })
+
+    await getToken()
+
+    expect(mockJar.store.get('olivetti-account')).toEqual({
+      value: 'app-user-a',
+      options: expect.objectContaining({ maxAge: 60 * 60 * 24 * 400, path: '/', httpOnly: false }),
+    })
+  })
+
+  it('leaves a signed-out account cookie alone', async () => {
+    mockJar.jar.set('olivetti-account', 'none', { maxAge: 60 })
+    signedInWith(token(USER.id, 49))
+    jest.mocked(refreshSession).mockResolvedValue({ user: USER, accessToken: token(USER.id, LIFETIME) } as never)
+    const getToken = await tokenCallback({ refreshSession: true })
+
+    await getToken()
+
+    expect(mockJar.store.get('olivetti-account')).toEqual({ value: 'none', options: { maxAge: 60 } })
   })
 
   it('renews longer tokens ahead of their 60-second browser lead', async () => {

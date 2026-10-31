@@ -17,6 +17,7 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { refreshSession, withAuth } from '@workos-inc/authkit-nextjs'
 import { accessTokenTimes } from '@/infra/workos/access-token'
+import { renewAccountMark } from '@/lib/auth/account-marker.server'
 import { authDiagnostics } from '@/lib/auth/diagnostics'
 
 // A refresh token is single-use, but WorkOS answers a reuse within 30 seconds
@@ -63,6 +64,10 @@ export async function createClient({ refreshSession: canRenew = false }: { refre
             if (refreshed.user?.id === workosUserId && refreshed.accessToken) {
                 accessToken = refreshed.accessToken
                 diagnose('recovered')
+                // The session cookie's lifetime started again; the account
+                // cookie's goes with it. Failing that does not undo the renewal.
+                await renewAccountMark().catch((error) =>
+                    authDiagnostics('renewal')('failed', error, { stage: 'save-session' }))
                 return 'renewed'
             }
             diagnose('refused', undefined, { category: 'session-mismatch' })
