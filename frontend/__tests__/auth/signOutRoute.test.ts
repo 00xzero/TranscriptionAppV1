@@ -16,6 +16,12 @@ async function loadRoute() {
   return { POST: route.POST, signOutMock: workos.signOut as unknown as jest.Mock, redirect: navigation.redirect }
 }
 
+/** A sign-out post, from this origin (or none). */
+function post(origin: string | null) {
+  const headers = origin ? { origin } : undefined
+  return new Request('http://localhost:3000/auth/sign-out', { method: 'POST', headers })
+}
+
 describe('POST /auth/sign-out', () => {
   beforeEach(() => {
     jest.replaceProperty(process, 'env', { ...process.env })
@@ -54,7 +60,7 @@ describe('POST /auth/sign-out', () => {
       // A Route Handler's default 307 would POST to WorkOS again.
       signOutMock.mockImplementation(async () => redirect(LOGOUT_URL))
 
-      const response = await POST(new Request('http://localhost:3000/auth/sign-out', { method: 'POST' }))
+      const response = await POST(post(origin))
 
       expect(response.status).toBe(303)
       expect(response.headers.get('location')).toBe(LOGOUT_URL)
@@ -65,7 +71,7 @@ describe('POST /auth/sign-out', () => {
       const { POST, signOutMock } = await loadRoute()
       signOutMock.mockResolvedValue(undefined)
 
-      const response = await POST(new Request('http://localhost:3000/auth/sign-out', { method: 'POST' }))
+      const response = await POST(post(origin))
 
       expect(response.status).toBe(303)
       expect(response.headers.get('location')).toBe(`${origin}/auth`)
@@ -79,7 +85,19 @@ describe('POST /auth/sign-out', () => {
     signOutMock.mockRejectedValue(error)
 
     await expect(
-      POST(new Request('http://localhost:3000/auth/sign-out', { method: 'POST' }))
+      POST(post('http://localhost:3000'))
     ).rejects.toBe(error)
+  })
+
+  test.each([
+    ['another site', 'https://evil.example'],
+    ['no origin at all', null],
+  ])('refuses a post from %s, leaving the session alone', async (_name, origin) => {
+    const { POST, signOutMock } = await loadRoute()
+
+    const response = await POST(post(origin))
+
+    expect(response.status).toBe(403)
+    expect(signOutMock).not.toHaveBeenCalled()
   })
 })

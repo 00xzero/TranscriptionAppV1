@@ -8,6 +8,9 @@
  * which a Route Handler answers with 307: after a POST that would POST again
  * to WorkOS. Its target is answered here with 303, which the browser follows
  * with a GET.
+ *
+ * Only our own pages may post here: another site's form would otherwise sign
+ * people out.
  */
 import { signOut } from '@workos-inc/authkit-nextjs'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
@@ -17,6 +20,7 @@ import { appOrigin } from '@/lib/auth/origin.server'
 
 export async function POST(request: Request) {
   const origin = appOrigin(request)
+  if (request.headers.get('origin') !== origin) return new NextResponse(null, { status: 403 })
   try {
     await signOut({ returnTo: `${origin}/auth` })
   } catch (error) {
