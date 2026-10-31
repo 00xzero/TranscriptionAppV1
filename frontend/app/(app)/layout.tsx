@@ -4,6 +4,7 @@ import { RecordingSessionProvider } from '@/lib/recording/RecordingSessionContex
 import Sidebar from '@/components/Sidebar'
 import ContextualHeader from '@/components/ContextualHeader'
 import CaptureModal from '@/components/CaptureModal'
+import AccountChangedScreen, { CurrentAccountOnly } from '@/components/AccountChangedScreen'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
 import { PROJECT_ARCHIVE_COLLAPSED_KEY, SIDEBAR_COLLAPSED_KEY } from '@/lib/constants'
@@ -30,6 +31,9 @@ const sidebarInitScript = `
 
 // The app shell around every signed-in page. The init script comes first so
 // it runs while the HTML is parsed, before the sidebar below it paints.
+// Once the page's account changes in another tab, everything inside
+// CurrentAccountOnly unmounts, so nothing keeps fetching or showing the old
+// account; the recording (which outlives pages) and the cover stay.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -38,21 +42,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <TooltipProvider delayDuration={700}>
           <AuthProvider>
             <ModalProvider>
-              <ProjectsProvider>
-                <RecordingSessionProvider>
-                  <Sidebar />
-                  <main className="flex-1 relative overflow-hidden z-[1]">
-                    <div className="pointer-events-none absolute top-0 left-0 right-3">
-                      <ContextualHeader />
-                    </div>
-                    <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-                      {children}
-                    </div>
-                  </main>
-                  <CaptureModal />
-                  <Toaster />
-                </RecordingSessionProvider>
-              </ProjectsProvider>
+              <RecordingSessionProvider>
+                <CurrentAccountOnly>
+                  <ProjectsProvider>
+                    <Sidebar />
+                    <main className="flex-1 relative overflow-hidden z-[1]">
+                      <div className="pointer-events-none absolute top-0 left-0 right-3">
+                        <ContextualHeader />
+                      </div>
+                      <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
+                        {children}
+                      </div>
+                    </main>
+                    <CaptureModal />
+                  </ProjectsProvider>
+                </CurrentAccountOnly>
+                <Toaster />
+                <AccountChangedScreen />
+              </RecordingSessionProvider>
             </ModalProvider>
           </AuthProvider>
         </TooltipProvider>

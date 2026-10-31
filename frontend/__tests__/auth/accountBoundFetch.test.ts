@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
+import { accountBoundFetch, pageAccountFetch } from '@/lib/auth/account-bound-fetch'
 import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
 import { ACCOUNT_CHANGED_CODE, AccountChangedError, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 
@@ -115,4 +115,21 @@ test('network failures propagate after dispatch without retrying', async () => {
   expect(onDispatch).toHaveBeenCalledTimes(1)
   expect(fetch).toHaveBeenCalledTimes(1)
   expect(notifyAccountChanged).not.toHaveBeenCalled()
+})
+
+describe('pageAccountFetch', () => {
+  test('passes a read through while the page has its account', async () => {
+    const response = Response.json({ url: 'signed' })
+    jest.mocked(fetch).mockResolvedValue(response)
+
+    expect(await pageAccountFetch('/api/transcripts/t/media-url')).toBe(response)
+    expect(fetch).toHaveBeenCalledWith('/api/transcripts/t/media-url')
+  })
+
+  test('sends nothing once the page has stopped for an account change', async () => {
+    getToken.mockRejectedValue(new AccountChangedError())
+
+    await expect(pageAccountFetch('/api/transcripts/t/export/docx')).rejects.toBeInstanceOf(AccountChangedError)
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })

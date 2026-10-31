@@ -9,6 +9,8 @@
  * to WorkOS. Its target is answered here with 303, which the browser follows
  * with a GET.
  *
+ * The account cookie says `none`, so the app's other open tabs freeze.
+ *
  * Only our own pages may post here: another site's form would otherwise sign
  * people out.
  */
@@ -16,11 +18,13 @@ import { signOut } from '@workos-inc/authkit-nextjs'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { getURLFromRedirectError } from 'next/dist/client/components/redirect'
 import { NextResponse } from 'next/server'
+import { markAccount } from '@/lib/auth/account-marker.server'
 import { appOrigin } from '@/lib/auth/origin.server'
 
 export async function POST(request: Request) {
   const origin = appOrigin(request)
   if (request.headers.get('origin') !== origin) return new NextResponse(null, { status: 403 })
+  await markAccount(null)
   try {
     await signOut({ returnTo: `${origin}/auth` })
   } catch (error) {

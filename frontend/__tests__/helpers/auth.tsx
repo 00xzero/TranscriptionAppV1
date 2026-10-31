@@ -11,11 +11,13 @@
  */
 import type { ReactNode } from 'react'
 import type { AppUser, AuthContextValue } from '@/lib/auth/AuthProvider'
+import type { AccountChange } from '@/lib/auth/auth-policy'
 
 export interface TestAuthIdentity {
   user?: AppUser | null
   userId: string | null
   ready: boolean
+  accountChange?: AccountChange | null
 }
 
 const DEFAULT_IDENTITY: TestAuthIdentity = { user: null, userId: null, ready: false }
@@ -44,6 +46,7 @@ export function useTestAuth(): AuthContextValue {
     user: currentIdentity.user ?? null,
     userId: currentIdentity.userId,
     ready: currentIdentity.ready,
+    accountChange: currentIdentity.accountChange ?? null,
     signOut: mockSignOut,
   }
 }

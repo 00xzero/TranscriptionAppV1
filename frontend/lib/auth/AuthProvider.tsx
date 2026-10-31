@@ -24,9 +24,12 @@ import {
 } from '@/infra/workos/access-token'
 import { getCurrentUserId } from '@/lib/auth/current-user-id'
 import { AccountChangedError } from '@/lib/auth/account-boundary'
+import { readAccountMarker } from '@/lib/auth/account-marker'
 import {
+  accountChangeFromMarker,
   decideTokenRequest,
   resolveIdentity,
+  type AccountChange,
   type AuthSnapshot,
   type Lookup,
 } from '@/lib/auth/auth-policy'
@@ -49,6 +52,12 @@ interface AuthIdentity {
    * recording recovery) must wait for `ready`.
    */
   ready: boolean
+  /**
+   * Set once the browser's session no longer belongs to this page's account
+   * (another tab signed out or switched). The page has stopped for good:
+   * `user` and `userId` stay the old account's, and nothing more is sent.
+   */
+  accountChange: AccountChange | null
 }
 
 export interface AuthContextValue extends AuthIdentity {
@@ -83,6 +92,9 @@ function nextFailures(previous: Failures | null, workosUserId: string): Failures
 /** Timed retries of a failing step (1, 2, 4, 8, 16 s); after them, only on reconnect or focus. */
 const TIMED_RETRIES = 5
 
+/** How often a visible page reads the account cookie, besides on focus. */
+const ACCOUNT_CHECK_MS = 2_000
+
 /**
  * Retries a failing step so one network blip doesn't leave the app unresolved
  * until a reload: after each failed `attempt` (0 = not failing), a few times
@@ -114,19 +126,27 @@ function useRetryWhileFailing(attempt: number, retry: () => void) {
 export const SIGN_IN_UNCONFIRMED_MESSAGE =
   'Could not confirm you are signed in. Check your connection and try again.'
 
+/** The account a page settled on, for the rest of its life. */
+interface PageAccount {
+  userId: string
+  workosUserId: string
+  email: string
+  name: string | null
+}
+
 /**
  * App-wide owner of client auth identity. WorkOS AuthKit owns the session;
  * this resolves it to our own user id (`current_user_id()`) and registers the
  * token getter for the browser Supabase client.
  *
- * The id, the user shown and every request token belong to one session. The
- * session cookie is shared by all tabs, so a token refresh can return another
- * account's token while AuthKit still shows this tab's user. Such a token is
- * never sent: identity goes unresolved (account data clears, recording
- * recovery waits) and AuthKit is asked for the session's user, which then
- * resolves as an account switch. Until it does, the session is checked again
- * with backoff and on reconnect, since an unresolved page makes no requests
- * of its own.
+ * A page belongs to the first account it resolves, for its whole life. The
+ * session cookie is shared by every tab, so another tab can sign out or sign
+ * in as someone else. This page then never takes on the new account: it
+ * stops (`accountChange`), sends nothing more, and the app covers it and asks
+ * for a reload (AccountChangedScreen). It learns of the change from the
+ * account cookie (account-marker.ts), read before and after every token and
+ * whenever the tab is visible; from AuthKit reporting another user; from a
+ * token issued for someone else; or from a route answering ACCOUNT_CHANGED.
  *
  * Pages are prerendered, so AuthKit learns the user only after the page has
  * loaded, while pages start their reads at once. Until AuthKit knows, the
@@ -144,114 +164,146 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   const { getAccessToken } = useAccessToken()
   const [lookup, setLookup] = useState<Lookup | null>(null)
   const [lookupRun, setLookupRun] = useState(0)
-  const [staleFor, setStaleFor] = useState<string | null>(null)
-  const [sessionChecks, setSessionChecks] = useState<Failures | null>(null)
   // Whether AuthKit has read the session since load, and failed reads so far.
   const [sessionRead, setSessionRead] = useState(false)
   const [failedReads, setFailedReads] = useState(0)
+  const [account, setAccount] = useState<PageAccount | null>(null)
+  const [accountChange, setAccountChange] = useState<AccountChange | null>(null)
 
   const workosUserId = workosUser?.id ?? null
-  const email = workosUser?.email ?? ''
-  const name = displayName(workosUser?.firstName ?? null, workosUser?.lastName ?? null)
-  const { userId, ready } = resolveIdentity(workosUserId, loading, lookup, staleFor, sessionRead)
-  const noUserUnconfirmed = !loading && !workosUserId && !sessionRead
+  const resolved = resolveIdentity(workosUserId, loading, lookup, sessionRead)
+  // The first account resolved is this page's for good, so it is settled
+  // while rendering: no render ever shows another one.
+  if (!account && resolved.userId && workosUser) {
+    setAccount({
+      userId: resolved.userId,
+      workosUserId: workosUser.id,
+      email: workosUser.email,
+      name: displayName(workosUser.firstName ?? null, workosUser.lastName ?? null),
+    })
+  }
+  const userId = account?.userId ?? resolved.userId
+  const ready = Boolean(account) || resolved.ready
+  const noUserUnconfirmed = !account && !loading && !workosUserId && !sessionRead
   const readFailing = noUserUnconfirmed && failedReads > 0
   // Reads wait while AuthKit is asking, and while "no user" awaits its first read.
-  const authUnknown = loading || (noUserUnconfirmed && !readFailing)
+  const authUnknown = !account && (loading || (noUserUnconfirmed && !readFailing))
 
-  const authSnapshotRef = useRef<AuthSnapshot>({ workosUserId, userId, staleFor, readFailing, authUnknown })
-  const refreshingForRef = useRef<{ workosUserId: string } | null>(null)
+  const snapshot: AuthSnapshot = {
+    workosUserId: account?.workosUserId ?? workosUserId,
+    userId,
+    readFailing,
+    authUnknown,
+  }
+  const snapshotRef = useRef(snapshot)
+  const changeRef = useRef<AccountChange | null>(null)
+  const activeRef = useRef(true)
   const readingRef = useRef(false)
   const authKnownWaitersRef = useRef(new Set<() => void>())
-  useLayoutEffect(() => {
-    authSnapshotRef.current = { workosUserId, userId, staleFor, readFailing, authUnknown }
-    if (!authUnknown) {
-      authKnownWaitersRef.current.forEach((release) => release())
-      authKnownWaitersRef.current.clear()
-    }
-  }, [workosUserId, userId, staleFor, readFailing, authUnknown])
-  useLayoutEffect(() => {
-    const waiters = authKnownWaitersRef.current
-    return () => {
-      waiters.forEach((release) => release())
-      waiters.clear()
-    }
+  const releaseWaiters = useCallback(() => {
+    authKnownWaitersRef.current.forEach((release) => release())
+    authKnownWaitersRef.current.clear()
   }, [])
+  useLayoutEffect(() => {
+    snapshotRef.current = snapshot
+    if (!snapshot.authUnknown) releaseWaiters()
+  })
+  useLayoutEffect(() => {
+    activeRef.current = true
+    return () => {
+      activeRef.current = false
+      releaseWaiters()
+    }
+  }, [releaseWaiters])
 
   const untilAuthKnown = useCallback(
     () => new Promise<void>((release) => authKnownWaitersRef.current.add(release)),
     []
   )
 
-  const reconcileSession = useCallback(() => {
-    const expected = authSnapshotRef.current.workosUserId
-    if (!expected) return
-    // Quarantine requests immediately, including before React commits the
-    // unresolved identity. A cached token cannot confirm the shared cookie.
-    authSnapshotRef.current = { ...authSnapshotRef.current, staleFor: expected }
-    setStaleFor(expected)
-    if (refreshingForRef.current?.workosUserId === expected) return
+  /**
+   * Stops this page for good: nothing more is sent for its account, and
+   * nothing plays. Playback pauses here, before the app unmounts under the
+   * cover (CurrentAccountOnly), since a removed media element keeps playing.
+   */
+  const freeze = useCallback((reason: AccountChange) => {
+    if (changeRef.current) return
+    changeRef.current = reason
+    document.querySelectorAll<HTMLMediaElement>('audio, video').forEach((media) => media.pause())
+    setAccountChange(reason)
+    releaseWaiters()
+    void createClient().realtime.disconnect()
+  }, [releaseWaiters])
 
-    const attempt = { workosUserId: expected }
-    refreshingForRef.current = attempt
-    const failed = () => {
-      if (refreshingForRef.current === attempt && authSnapshotRef.current.workosUserId === expected) {
-        setSessionChecks((checks) => nextFailures(checks, expected))
-      }
-    }
-    void refreshAuth()
-      .then((result) => {
-        if (result && 'error' in result) {
-          failed()
-          return
-        }
-        if (refreshingForRef.current !== attempt) return
-        // AuthKit has now read the server session and updated its user. It
-        // can confirm a switch to B or a return to A, even with A cached.
-        setSessionRead(true)
-        setStaleFor((stale) => (stale === expected ? null : stale))
-        setSessionChecks((checks) => (checks?.workosUserId === expected ? null : checks))
-      })
-      .catch(failed)
-      .finally(() => {
-        if (refreshingForRef.current === attempt) refreshingForRef.current = null
-      })
-  }, [refreshAuth])
+  /** Whether the page has stopped, reading the account cookie first. */
+  const hasStopped = useCallback(() => {
+    if (changeRef.current) return true
+    const change = accountChangeFromMarker(snapshotRef.current.userId, readAccountMarker(document.cookie))
+    if (change) freeze(change)
+    return Boolean(change)
+  }, [freeze])
 
   // Layout effects run before any component's data-loading effects, so the
   // first Supabase request already carries the token.
   useLayoutEffect(() => {
     setAccessTokenGetter(async (expectedUserId) => {
-      let decision = decideTokenRequest(authSnapshotRef.current, expectedUserId, { phase: 'entry' })
+      if (hasStopped()) throw new AccountChangedError()
+      let decision = decideTokenRequest(snapshotRef.current, expectedUserId, { phase: 'entry' })
       // AuthKit hands out no token before it knows the user.
       if (decision === 'wait-for-auth') {
         await untilAuthKnown()
-        decision = decideTokenRequest(authSnapshotRef.current, expectedUserId, { phase: 'after-auth-wait' })
+        if (hasStopped()) throw new AccountChangedError()
+        decision = decideTokenRequest(snapshotRef.current, expectedUserId, { phase: 'after-auth-wait' })
       }
       if (decision === 'account-changed') throw new AccountChangedError()
       if (decision === 'no-token') return undefined
       if (decision === 'sign-in-unconfirmed') throw new Error(SIGN_IN_UNCONFIRMED_MESSAGE)
       const token = await getAccessToken()
+      if (!activeRef.current) return undefined
       // The account can change while AuthKit is fetching/refreshing its token.
-      const tokenDecision = decideTokenRequest(authSnapshotRef.current, expectedUserId, {
+      if (hasStopped()) throw new AccountChangedError()
+      const tokenDecision = decideTokenRequest(snapshotRef.current, expectedUserId, {
         phase: 'after-token',
         hasToken: Boolean(token),
         subject: token ? accessTokenSubject(token) : null,
       })
       if (tokenDecision === 'account-changed') throw new AccountChangedError()
       if (tokenDecision === 'use-token') return token
-
-      // The token is another session's. Send nothing; ask AuthKit once who
-      // the session belongs to now. Failed server checks retry directly;
-      // neither a cached token nor a background request clears the mismatch.
-      if (tokenDecision === 'reconcile-session') {
-        reconcileSession()
-        if (expectedUserId) throw new AccountChangedError()
+      // Another account's token: the session is no longer this page's.
+      if (tokenDecision === 'freeze') {
+        freeze('switched')
+        throw new AccountChangedError()
       }
       return undefined
-    }, reconcileSession)
+    }, () => freeze('switched'))
     return () => setAccessTokenGetter(null)
-  }, [getAccessToken, reconcileSession, untilAuthKnown])
+  }, [getAccessToken, freeze, hasStopped, untilAuthKnown])
+
+  // Once settled, watch for the account changing while nothing is being
+  // sent, so the old account's page is covered as soon as anyone looks.
+  useEffect(() => {
+    if (!account || accountChange) return
+    const check = () => {
+      if (document.visibilityState === 'visible') hasStopped()
+    }
+    check()
+    const timer = setInterval(check, ACCOUNT_CHECK_MS)
+    window.addEventListener('focus', check)
+    window.addEventListener('pageshow', check)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      clearInterval(timer)
+      window.removeEventListener('focus', check)
+      window.removeEventListener('pageshow', check)
+      document.removeEventListener('visibilitychange', check)
+    }
+  }, [account, accountChange, hasStopped])
+
+  // AuthKit itself reporting someone else, or no one, after the page settled.
+  useEffect(() => {
+    if (!account || loading || workosUserId === account.workosUserId) return
+    freeze(workosUserId ? 'switched' : 'signed-out')
+  }, [account, loading, workosUserId, freeze])
 
   const readSession = useCallback(() => {
     if (readingRef.current) return
@@ -274,8 +326,9 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   }, [noUserUnconfirmed, failedReads, readSession])
   useRetryWhileFailing(readFailing ? failedReads : 0, readSession)
 
+  const settled = Boolean(account)
   useEffect(() => {
-    if (!workosUserId) return
+    if (!workosUserId || settled) return
     let current = true
     void (async () => {
       const supabase = createClient()
@@ -300,23 +353,14 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
     return () => {
       current = false
     }
-  }, [workosUserId, lookupRun])
+  }, [workosUserId, lookupRun, settled])
 
   // A failed lookup reruns the lookup above, which only counts for the
   // WorkOS user it was made for.
   const failedLookups =
-    lookup?.status === 'failed' && lookup.workosUserId === workosUserId ? lookup.attempt : 0
+    !settled && lookup?.status === 'failed' && lookup.workosUserId === workosUserId ? lookup.attempt : 0
   const rerunLookup = useCallback(() => setLookupRun((run) => run + 1), [])
   useRetryWhileFailing(failedLookups, rerunLookup)
-
-  // Retry the server session check itself. AuthKit can still cache A's token
-  // after the server has reported cookie B, so reading that token is not a
-  // reconciliation check.
-  const failedSessionChecks =
-    staleFor && staleFor === workosUserId && sessionChecks?.workosUserId === staleFor
-      ? sessionChecks.attempt
-      : 0
-  useRetryWhileFailing(failedSessionChecks, reconcileSession)
 
   const signOut = useCallback(() => {
     // A plain form POST: the browser follows the redirects itself, so there
@@ -332,14 +376,17 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
     return new Promise<void>(() => {})
   }, [])
 
+  const email = account?.email ?? ''
+  const name = account?.name ?? null
   const value = useMemo<AuthContextValue>(
     () => ({
-      user: userId ? { email, name } : null,
+      user: account ? { email, name } : null,
       userId,
       ready,
+      accountChange,
       signOut,
     }),
-    [userId, ready, email, name, signOut]
+    [account, userId, ready, email, name, accountChange, signOut]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -352,7 +399,9 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   return (
-    <AuthKitProvider>
+    // AuthKit's own focus check reloads the page when it can't reach the
+    // server, losing unsaved work; the account cookie covers what it checks.
+    <AuthKitProvider onSessionExpired={false}>
       <AppAuthProvider>{children}</AppAuthProvider>
     </AuthKitProvider>
   )

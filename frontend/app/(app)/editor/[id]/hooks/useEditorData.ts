@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { z } from 'zod'
+import { pageAccountFetch } from '@/lib/auth/account-bound-fetch'
 import {
   fetchEditorPeopleContext,
   fetchSegmentWordSets,
@@ -113,7 +114,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     }
 
     const loadWaveformPeaks = async () => {
-      const urlRes = await fetch(`/api/transcripts/${transcriptId}/waveform-url`)
+      const urlRes = await pageAccountFetch(`/api/transcripts/${transcriptId}/waveform-url`)
       if (!urlRes.ok) return false
       const { url } = await urlRes.json()
       const peaksRes = await fetch(url)
@@ -247,7 +248,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
           (error) => ({ data: null, error })
         )
 
-        const mediaUrl = await fetch(`/api/transcripts/${transcriptId}/media-url`).then(async (res) => {
+        const mediaUrl = await pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`).then(async (res) => {
           if (!res.ok) throw new Error(`Failed to fetch media URL: ${res.status}`)
           const j = await res.json()
           return j.url as string

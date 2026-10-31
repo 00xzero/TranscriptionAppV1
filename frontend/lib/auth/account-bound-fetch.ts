@@ -1,6 +1,16 @@
 import { getAccessToken, notifyAccountChanged } from '@/infra/workos/access-token'
 import { ACCOUNT_CHANGED_CODE, AccountChangedError, EXPECTED_USER_HEADER } from './account-boundary'
 
+/**
+ * A read from our own API, refused once the page has stopped because its
+ * account changed in another tab, as its Supabase requests are. The route
+ * itself still authenticates by the session cookie.
+ */
+export async function pageAccountFetch(...request: Parameters<typeof fetch>): Promise<Response> {
+  await getAccessToken()
+  return fetch(...request)
+}
+
 /** Cookie-authenticated mutations stay bound to the account that began the operation. */
 export async function accountBoundFetch(
   path: string,

@@ -37,6 +37,19 @@ const startAccounts: Array<string | null> = []
 const apiResponses: Response[] = []
 const link = jest.fn()
 
+/** What the browser's account cookie says (account-marker.ts). */
+function markAccount(userId: string) {
+  document.cookie = `olivetti-account=${userId}; path=/`
+}
+
+/** Another tab signs in as B: the session cookie, its account cookie and AuthKit all move. */
+function switchToB() {
+  cookieSubject = 'user_B'
+  markAccount(USER_B)
+  mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+  setAuthKitState({ user: workosUser('user_B') })
+}
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 }
@@ -50,11 +63,7 @@ const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit): 
   if (url === '/api/transcripts') {
     const response = await POST(new Request('http://localhost:3000/api/transcripts', init) as never)
     apiResponses.push(response.clone())
-    if (response.ok && switchAfterCreate) {
-      cookieSubject = 'user_B'
-      mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
-      setAuthKitState({ user: workosUser('user_B') })
-    }
+    if (response.ok && switchAfterCreate) switchToB()
     return response
   }
   if (url.includes('/rest/v1/transcripts') && init?.method === 'POST') {
@@ -64,11 +73,7 @@ const fetchMock = jest.fn(async (input: RequestInfo | URL, init?: RequestInit): 
   }
   if (url.includes('/storage/v1/object/media/')) {
     storageSubjects.push(subject)
-    if (switchDuringUpload) {
-      cookieSubject = 'user_B'
-      mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
-      setAuthKitState({ user: workosUser('user_B') })
-    }
+    if (switchDuringUpload) switchToB()
     return json({ Key: `media/${USER_A}/${TRANSCRIPT}/clip.wav`, Id: 'object-id' })
   }
   if (url.includes('/rest/v1/transcripts') && init?.method === 'PATCH') {
@@ -100,6 +105,7 @@ beforeEach(() => {
   process.env.SUPABASE_URL = 'http://localhost:54321'
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key'
   global.fetch = fetchMock
+  markAccount(USER_A)
   setAuthKitState({ user: workosUser('user_A') })
   mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
   ;(withAuth as jest.Mock).mockImplementation(async () => ({ user: workosUser(cookieSubject), accessToken: accessTokenFor(cookieSubject) }))
@@ -112,11 +118,12 @@ beforeEach(() => {
 afterEach(() => cleanup())
 afterAll(() => dom.window.close())
 
-test('tab still showing A with cached token A cannot create or upload under the shared cookie for B', async () => {
+test('a tab that has not noticed B yet still cannot create or upload: the route refuses it', async () => {
   const { result } = mountCapture()
   await waitFor(() => expect(result.current.auth.userId).toBe(USER_A))
-  // Only the shared cookie changes in the second tab. This tab's AuthKit
-  // user and cached, unexpired access token still belong to A.
+  // Only the session cookie changes, as if this tab had missed every other
+  // sign (its account cookie, AuthKit and its cached token still say A): the
+  // route's check against the session is the last line.
   cookieSubject = 'user_B'
   expect(result.current.auth.userId).toBe(USER_A)
   expect(await mockGetAccessToken()).toBe(accessTokenFor('user_A'))
@@ -133,7 +140,25 @@ test('tab still showing A with cached token A cannot create or upload under the 
   expect(storageSubjects).toEqual([])
   expect(startAccounts).toEqual([])
   expect(result.current.capture.error).toBe(ACCOUNT_CHANGED_MESSAGE)
-  await waitFor(() => expect(result.current.auth.userId).toBe(USER_B))
+  // The page stops, keeping A: it never becomes B.
+  expect(result.current.auth.accountChange).toBe('switched')
+  expect(result.current.auth.userId).toBe(USER_A)
+})
+
+test('a tab that sees the account cookie name B sends nothing at all', async () => {
+  const { result } = mountCapture()
+  await waitFor(() => expect(result.current.auth.userId).toBe(USER_A))
+  switchToB()
+
+  await act(async () => {
+    await result.current.capture.upload(new File(['audio'], 'clip.wav', { type: 'audio/wav' }), 'Private A title', [])
+  })
+
+  expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith('/api/'))).toEqual([])
+  expect(inserts).toEqual([])
+  expect(storageSubjects).toEqual([])
+  expect(result.current.capture.error).toBe(ACCOUNT_CHANGED_MESSAGE)
+  expect(result.current.auth.accountChange).toBe('switched')
 })
 
 test('the unchanged account can create, upload, link and start using its own identity', async () => {

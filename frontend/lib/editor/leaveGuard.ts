@@ -9,6 +9,8 @@ export type LeaveGuard = {
   pending(): boolean
   /** Lets the user go to `target` once its work is saved or they choose to leave anyway. */
   leave(target: LeaveTarget): void
+  /** The typed text not yet saved, for the user to copy. */
+  unsavedTexts(): string[]
 }
 
 let current: LeaveGuard | null = null
@@ -17,6 +19,11 @@ let current: LeaveGuard | null = null
 export function setLeaveGuard(guard: LeaveGuard): () => void {
   current = guard
   return () => { if (current === guard) current = null }
+}
+
+/** The open editor's typed text not yet saved, if any. */
+export function unsavedEditorTexts(): string[] {
+  return current?.unsavedTexts() ?? []
 }
 
 /**

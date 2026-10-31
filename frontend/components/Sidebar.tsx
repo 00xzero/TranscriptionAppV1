@@ -6,6 +6,7 @@ import { Contact, FolderOpen, Library, PenLine, Users, PanelLeftClose, PanelLeft
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { holdLeave } from '@/lib/editor/leaveGuard'
 import { hasUnresolvedRecordingArtifact } from '@/lib/recording/session'
+import { isRemoteRecordingBlocking, useRemotePresenceStatus } from '@/lib/recording/RemotePresenceContext'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { toast } from '@/components/ui/toaster'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
@@ -31,6 +32,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [theme, setTheme] = useState<AppTheme>('light')
   const [supportsSystemTheme, setSupportsSystemTheme] = useState(false)
   const { user, signOut } = useAuth()
+  const remoteRecording = useRemotePresenceStatus()
   const [mounted, setMounted] = useState(false)
   // Gates transition classes so the first real-DOM paint (at the persisted
   // width) never animates in from the SSR placeholder width. Flipped a frame
@@ -96,6 +98,16 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         title: 'Finish your recording first',
         description:
           'Save & transcribe or discard your in-progress recording before signing out.',
+      })
+      return
+    }
+    // The session is shared by every tab: signing out here would stop another
+    // tab's recording from uploading, so the same rule holds across tabs.
+    if (isRemoteRecordingBlocking(remoteRecording)) {
+      toast({
+        title: 'Finish your recording first',
+        description:
+          'A recording is in progress in another tab. Save & transcribe or discard it there before signing out.',
       })
       return
     }

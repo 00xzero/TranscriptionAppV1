@@ -40,7 +40,7 @@ describe('guarded navigation', () => {
 
   it('hands the navigation to an editor with work not saved, which goes when it may', () => {
     const leave = jest.fn()
-    const remove = setLeaveGuard({ pending: () => true, leave })
+    const remove = setLeaveGuard({ pending: () => true, leave, unsavedTexts: () => [] })
     try {
       const { result } = renderHook(() => useGuardedNavigate())
       result.current.push('/people')
@@ -59,7 +59,7 @@ describe('guarded navigation', () => {
   })
 
   it('lets navigation through once the editor has nothing waiting', () => {
-    const remove = setLeaveGuard({ pending: () => false, leave: jest.fn() })
+    const remove = setLeaveGuard({ pending: () => false, leave: jest.fn(), unsavedTexts: () => [] })
     try {
       const { result } = renderHook(() => useGuardedNavigate())
       result.current.push('/people')

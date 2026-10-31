@@ -3,6 +3,7 @@ import 'server-only'
 import { saveSession, type Session } from '@workos-inc/authkit-nextjs'
 import type { AuthenticationResponse } from '@workos-inc/node'
 import { createAdminClient } from '@/infra/supabase/admin'
+import { markAccount } from './account-marker.server'
 import { finishUrl, redirectUri } from './origin.server'
 import { provisionAppUser } from './provision-app-user.server'
 
@@ -12,6 +13,7 @@ const PROVISION_TRIES = 3
  * The last step of every sign-in, once WorkOS has said yes: make sure the
  * person has an app_users row, and only then write the session cookie, so a
  * failed provisioning never leaves anyone signed in without an account.
+ * The account cookie goes with it, so open tabs of another account freeze.
  * Provisioning is safe to repeat, so it is tried a few times first: the
  * WorkOS answer it follows can't be used again (an OAuth code, a verification
  * token), so giving up means the person signs in again.
@@ -36,6 +38,7 @@ export async function completeSignIn(auth: AuthenticationResponse, next: string)
 
   try {
     await saveSession(sessionOf(auth), redirectUri ?? finishUrl('/'))
+    await markAccount(userId)
   } catch (error) {
     console.error('[sign-in] saving the session failed', error)
     return null

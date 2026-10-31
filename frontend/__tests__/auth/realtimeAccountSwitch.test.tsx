@@ -4,12 +4,11 @@ import React from 'react'
 import { JSDOM } from 'jsdom'
 import { AuthProvider, useAuth } from '@/lib/auth/AuthProvider'
 import { createClient } from '@/infra/supabase/client'
-import { accessTokenSubject, notifyAccountChanged } from '@/infra/workos/access-token'
+import { accessTokenSubject } from '@/infra/workos/access-token'
 import { useSupabaseRealtime } from '@/lib/supabase/realtime'
 import {
   accessTokenFor,
   mockGetAccessToken,
-  mockRefreshAuth,
   resetAuthKitState,
   setAuthKitState,
   workosUser,
@@ -124,8 +123,10 @@ afterAll(() => {
   dom.window.close()
 })
 
-test('account-switch joins use the new token and deliver the first live update without reconnecting', async () => {
+test('a page whose account changes in another tab stops live updates and never joins as the new account', async () => {
   resetAuthKitState()
+  // Signed in as A, as a sign-in writes it.
+  document.cookie = `olivetti-account=${USER_A}; path=/`
   setAuthKitState({ user: workosUser('user_A') })
   mockGetAccessToken.mockResolvedValue(accessTokenFor('user_A'))
   const { result } = renderHook(() => {
@@ -140,26 +141,25 @@ test('account-switch joins use the new token and deliver the first live update w
 
   await waitFor(() => expect(result.current.live.connectionStatus).toBe('connected'))
   expect(joins[0].subject).toBe('user_A')
-  const socketCount = RealtimeServer.sockets.length
 
-  for (const [subject, userId] of [['user_B', USER_B], ['user_A', USER_A]]) {
-    // Another tab changes the cookie; this tab still has the old SDK token.
-    mockRefreshAuth.mockImplementation(async () => {
-      mockGetAccessToken.mockResolvedValue(accessTokenFor(subject))
-      setAuthKitState({ user: workosUser(subject) })
-    })
-    act(() => notifyAccountChanged())
-    await waitFor(() => {
-      expect(result.current.auth.userId).toBe(userId)
-      expect(result.current.live.connectionStatus).toBe('connected')
-    })
-    await act(async () => {})
+  // Another tab signs in as B: the shared session now refreshes into B's token.
+  // This tab is on screen (jsdom's own document never is).
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+  document.cookie = `olivetti-account=${USER_B}; path=/`
+  mockGetAccessToken.mockResolvedValue(accessTokenFor('user_B'))
+  act(() => {
+    window.dispatchEvent(new dom.window.Event('focus'))
+  })
 
-    const latestJoin = joins.filter(join => join.topic.includes(`user_id=eq.${userId}`)).at(-1)
-    expect(latestJoin?.subject).toBe(subject)
-    const row = { id: `first-${subject}`, title: `Private ${subject} update`, user_id: userId }
-    act(() => RealtimeServer.sockets.forEach(socket => socket.insert(row, subject)))
-    expect(result.current.live.data).toEqual([row])
-    expect(RealtimeServer.sockets).toHaveLength(socketCount)
-  }
+  await waitFor(() => expect(RealtimeServer.sockets.every(socket => socket.readyState === 3)).toBe(true))
+  expect(result.current.auth.accountChange).toBe('switched')
+  expect(result.current.auth.userId).toBe(USER_A)
+  await act(async () => {})
+
+  // Nothing more arrives for A, and nothing ever joins as B.
+  const row = { id: 'late-a', title: 'Private A update', user_id: USER_A }
+  act(() => RealtimeServer.sockets.forEach(socket => socket.insert(row, 'user_A')))
+  expect(result.current.live.data).toEqual([])
+  expect(joins.filter(join => join.subject === 'user_B')).toEqual([])
+  document.cookie = 'olivetti-account=; max-age=0; path=/'
 })

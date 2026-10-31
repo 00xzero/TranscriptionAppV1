@@ -104,6 +104,15 @@ export async function submitFinalizedRecording(): Promise<void> {
   }
 }
 
+/**
+ * The stopped recording's audio while it is held in memory to upload (it
+ * stays there after a failed upload, for a retry). The only copy when the
+ * device can't keep recordings (`snapshot.durable` false).
+ */
+export function getFinalizedRecordingFile(): File | null {
+  return store.runtime.finalizedRecording?.file ?? null
+}
+
 export async function retryFinalizedUpload(): Promise<void> {
   if (store.runtime.stopInProgress) return
   if (!store.runtime.finalizedRecording) return

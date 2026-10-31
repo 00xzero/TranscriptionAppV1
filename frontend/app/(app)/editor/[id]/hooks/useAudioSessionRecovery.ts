@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useCallback } from 'react'
+import { pageAccountFetch } from '@/lib/auth/account-bound-fetch'
 
 /**
  * Hook to detect when user returns to the tab after idle time and
@@ -69,7 +70,7 @@ export function useAudioSessionRecovery({
     const savedPosition = audio?.currentTime ?? 0
 
     try {
-      const res = await fetch(`/api/transcripts/${transcriptId}/media-url`)
+      const res = await pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`)
       if (!res.ok) {
         throw new Error(`Failed to refresh media URL: ${res.status}`)
       }

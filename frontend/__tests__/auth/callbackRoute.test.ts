@@ -65,7 +65,9 @@ describe('GET /auth/callback', () => {
       userAgent: 'TestBrowser/1.0',
     })
     expect(provision.mock.invocationCallOrder[0]).toBeLessThan(save.mock.invocationCallOrder[0])
-    expect(mockJar.names()).toEqual([])
+    // Only the account cookie, naming who signed in.
+    expect(mockJar.names()).toEqual(['olivetti-account'])
+    expect(mockJar.store.get('olivetti-account')?.value).toBe('app-user-a')
   })
 
   test('provisioning that keeps failing writes no session, and the person signs in again with their destination kept', async () => {
@@ -173,7 +175,7 @@ describe('GET /auth/callback', () => {
     exchange.mockResolvedValue(AUTH)
 
     expect(location(await callback(`code=c2&state=${second}`))).toBe('http://localhost:3000/auth/finish?to=%2Fpeople')
-    expect(mockJar.names()).toEqual([`olivetti-oauth-${first}`])
+    expect(mockJar.names()).toEqual(['olivetti-account', `olivetti-oauth-${first}`])
     expect(location(await callback(`code=c1&state=${first}`))).toBe('http://localhost:3000/auth/finish?to=%2Fprojects%2Fp1')
   })
 

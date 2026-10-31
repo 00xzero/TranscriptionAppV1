@@ -15,6 +15,8 @@ import {
 const mockFetchSpeakerSummaries = jest.fn()
 const mockFetchProjectPeople = jest.fn()
 
+jest.mock('@/lib/auth/AuthProvider', () => ({ useAuth: () => ({ userId: 'app-user-a' }) }))
+
 jest.mock('@/lib/supabase/queries', () => ({
   fetchProjectSpeakerSummaries: (...args: unknown[]) => mockFetchSpeakerSummaries(...args),
   fetchProjectPeople: (...args: unknown[]) => mockFetchProjectPeople(...args),

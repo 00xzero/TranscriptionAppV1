@@ -129,7 +129,10 @@ export function useLeaveEditor({ queue, editing, reconnecting }: {
     try { go() } finally { leavingAnyway.current = false }
   }, [go])
 
-  useEffect(() => setLeaveGuard({ pending, leave }), [pending, leave])
+  useEffect(
+    () => setLeaveGuard({ pending, leave, unsavedTexts: () => draftEdits().texts }),
+    [pending, leave, draftEdits]
+  )
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {

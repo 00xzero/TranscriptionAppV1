@@ -230,7 +230,9 @@ describe('the code step', () => {
     expect(um.authenticateWithEmailVerification).toHaveBeenCalledWith(
       expect.objectContaining({ code: '123456', pendingAuthenticationToken: 'pending-secret' })
     )
-    expect(mockJar.names()).toEqual([])
+    // Only the account cookie, naming who signed in.
+    expect(mockJar.names()).toEqual(['olivetti-account'])
+    expect(mockJar.store.get('olivetti-account')?.value).toBe('app-user-a')
   })
 
   test('a wrong code keeps the attempt for another try; then the right one works', async () => {

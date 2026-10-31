@@ -30,7 +30,7 @@ export {
   recordChunk,
   stopAndFinalize,
 } from './sessionActions'
-export { retryFinalizedUpload } from './sessionUpload'
+export { getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
 export {
   discardRecovered,
   markInterrupted,

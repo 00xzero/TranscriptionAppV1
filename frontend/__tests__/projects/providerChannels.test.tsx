@@ -50,6 +50,8 @@ let mockCurrentAppUserId: string | null = null
 
 function signInAs(appUserId: string) {
   mockCurrentAppUserId = appUserId
+  // A sign-in writes the account cookie with the session (account-marker.ts).
+  document.cookie = `olivetti-account=${appUserId}; path=/`
   setAuthKitState({ user: workosUser(`workos-${appUserId}`) })
 }
 
@@ -69,7 +71,7 @@ jest.mock('@/infra/supabase/client', () => ({
     channel: mockChannel,
     removeChannel: mockRemoveChannel,
     getChannels: () => mockActiveChannels,
-    realtime: { setAuth: mockSetAuth },
+    realtime: { setAuth: mockSetAuth, disconnect: jest.fn() },
   }),
 }))
 
@@ -345,12 +347,9 @@ describe('ProjectsProvider realtime ownership', () => {
     expect(mockChannel).not.toHaveBeenCalled()
   })
 
-  test('discards the previous account data immediately when identity changes', async () => {
-    const nextProjects = deferred<Project[]>()
+  test('never loads the next account’s data when another tab switches accounts', async () => {
     signInAs('user-a')
-    mockFetchProjects
-      .mockResolvedValueOnce([project('project-a', 'user-a')])
-      .mockReturnValueOnce(nextProjects.promise)
+    mockFetchProjects.mockResolvedValue([project('project-a', 'user-a')])
 
     render(
       <AppProviders>
@@ -362,22 +361,16 @@ describe('ProjectsProvider realtime ownership', () => {
       expect(screen.getByTestId('project-ids')).toHaveTextContent('project-a')
     })
 
-    act(() => {
+    const fetches = mockFetchProjects.mock.calls.length
+    mockFetchProjects.mockResolvedValue([project('project-b', 'user-b')])
+    await act(async () => {
       signInAs('user-b')
     })
 
-    expect(screen.getByTestId('project-ids')).toBeEmptyDOMElement()
-    expect(screen.getByTestId('projects-loading')).toHaveTextContent('true')
-
-    await act(async () => {
-      nextProjects.resolve([project('project-b', 'user-b')])
-      await nextProjects.promise
-    })
-
-    await waitFor(() => {
-      expect(screen.getByTestId('project-ids')).toHaveTextContent('project-b')
-    })
-    expect(screen.getByTestId('project-ids')).not.toHaveTextContent('project-a')
+    // The page stopped as A (AccountChangedScreen covers it): B is never fetched.
+    await act(async () => {})
+    expect(mockFetchProjects).toHaveBeenCalledTimes(fetches)
+    expect(screen.getByTestId('project-ids')).not.toHaveTextContent('project-b')
   })
 
   test('derived project lists follow a realtime move in the shared transcript list', async () => {

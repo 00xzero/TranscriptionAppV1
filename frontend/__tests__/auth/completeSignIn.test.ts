@@ -6,7 +6,10 @@ import { saveSession } from '@workos-inc/authkit-nextjs'
 import type { AuthenticationResponse } from '@workos-inc/node'
 import { completeSignIn, sessionOf } from '@/lib/auth/complete-sign-in.server'
 import { provisionAppUser } from '@/lib/auth/provision-app-user.server'
+import { createCookieJar } from '../helpers/cookieJar'
 
+const mockJar = createCookieJar()
+jest.mock('next/headers', () => ({ cookies: async () => mockJar.jar }))
 jest.mock('@/infra/supabase/admin', () => ({ createAdminClient: jest.fn(() => ({})) }))
 jest.mock('@/lib/auth/provision-app-user.server', () => ({ provisionAppUser: jest.fn() }))
 
@@ -51,7 +54,24 @@ const sealed = (value: unknown) => sealData(value, { password: process.env.WORKO
 describe('completeSignIn', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockJar.clear()
     ;(provisionAppUser as jest.Mock).mockResolvedValue('app-user-a')
+  })
+
+  test('says which account the session is now, in a cookie every tab can read', async () => {
+    await completeSignIn(NORMAL, '/')
+
+    expect(mockJar.store.get('olivetti-account')).toEqual({
+      value: 'app-user-a',
+      options: expect.objectContaining({ httpOnly: false, sameSite: 'lax', path: '/', secure: false }),
+    })
+  })
+
+  test('a session that could not be saved names no account', async () => {
+    save.mockRejectedValueOnce(new Error('cookie too large'))
+
+    await expect(completeSignIn(NORMAL, '/')).resolves.toBeNull()
+    expect(mockJar.names()).toEqual([])
   })
 
   test('saves only the session AuthKit keeps: no provider tokens, no extra fields', async () => {
@@ -85,5 +105,6 @@ describe('completeSignIn', () => {
     await expect(completeSignIn({ ...NORMAL, refreshToken: '' }, '/')).resolves.toBeNull()
     expect(save).not.toHaveBeenCalled()
     expect(provisionAppUser).not.toHaveBeenCalled()
+    expect(mockJar.names()).toEqual([])
   })
 })

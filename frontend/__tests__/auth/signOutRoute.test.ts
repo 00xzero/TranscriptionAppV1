@@ -1,5 +1,10 @@
 /** @jest-environment node */
 
+import { createCookieJar } from '../helpers/cookieJar'
+
+const mockJar = createCookieJar()
+jest.mock('next/headers', () => ({ cookies: async () => mockJar.jar }))
+
 const LOGOUT_URL =
   'https://api.workos.com/user_management/sessions/logout?session_id=session_01&return_to=http%3A%2F%2Flocalhost%3A3000%2Fauth'
 
@@ -24,6 +29,7 @@ function post(origin: string | null) {
 
 describe('POST /auth/sign-out', () => {
   beforeEach(() => {
+    mockJar.clear()
     jest.replaceProperty(process, 'env', { ...process.env })
     delete process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI
     delete process.env.WORKOS_REDIRECT_URI
@@ -65,6 +71,8 @@ describe('POST /auth/sign-out', () => {
       expect(response.status).toBe(303)
       expect(response.headers.get('location')).toBe(LOGOUT_URL)
       expect(signOutMock).toHaveBeenCalledWith({ returnTo: `${origin}/auth` })
+      // The app's other open tabs learn the session ended.
+      expect(mockJar.store.get('olivetti-account')?.value).toBe('none')
     })
 
     test('falls back to the app’s sign-in page with a 303 if AuthKit returns', async () => {
@@ -99,5 +107,6 @@ describe('POST /auth/sign-out', () => {
 
     expect(response.status).toBe(403)
     expect(signOutMock).not.toHaveBeenCalled()
+    expect(mockJar.names()).toEqual([])
   })
 })
