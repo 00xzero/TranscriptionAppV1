@@ -178,13 +178,20 @@ export function CodeStep({
   onChangeEmail: () => void
 }) {
   const radar = code.challenge === 'radar'
+  const at = code.email.lastIndexOf('@')
+  const localPart = at < 0 ? code.email : code.email.slice(0, at)
+  const domain = at < 0 ? '' : code.email.slice(at)
   return (
     <Column
       title={radar ? "Confirm it's you." : 'Check your email.'}
       lede={
         <>
-          We sent a 6-digit code to <span className="text-foreground">{code.email}</span>
-          {radar ? ' to confirm it’s you.' : '.'}
+          We sent a 6-digit code to{' '}
+          <span className="inline-flex max-w-full align-bottom text-foreground" title={code.email}>
+            <span className="truncate">{localPart}</span>
+            <span className="max-w-full shrink-0 truncate">{domain}{!radar && '.'}</span>
+          </span>
+          {radar && ' to confirm it’s you.'}
         </>
       }
     >
@@ -312,7 +319,7 @@ function Column({ title, lede, children }: { title: string; lede: ReactNode; chi
       <h1 className="mb-3.5 font-serif text-[3.5rem] leading-[1.15] font-[350] tracking-[-0.02em] text-balance max-[499px]:text-[3.2rem] max-[349px]:text-[2.375rem]">
         {title}
       </h1>
-      <p className="mb-8 text-lg text-muted max-[767px]:text-base">{lede}</p>
+      <p className="mb-8 max-w-full text-lg text-muted max-[767px]:text-base">{lede}</p>
       <div className="flex w-[min(390px,100%)] flex-col gap-3.5 text-left">{children}</div>
     </div>
   )
