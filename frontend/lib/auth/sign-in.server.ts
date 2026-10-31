@@ -5,6 +5,7 @@ import type { AuthenticationResponse } from '@workos-inc/node'
 import { headers } from 'next/headers'
 import type { SignInError } from '@/contracts/auth'
 import type { PendingCodeAttempt } from './attempt-cookies.server'
+import { authDiagnostics } from './diagnostics'
 
 /**
  * Our own sign-in's calls to WorkOS, and what each WorkOS answer means for the
@@ -141,11 +142,12 @@ async function attempt(
   during: Parameters<typeof describe>[1],
   call: () => Promise<AuthenticationResponse>
 ): Promise<Authenticated> {
+  const diagnose = authDiagnostics(during)
   try {
     return { kind: 'signed-in', auth: await call() }
   } catch (error) {
     const outcome = describe(error, during)
-    if (outcome.kind === 'error' && outcome.error === 'service') console.error(`[sign-in] ${during} failed`, error)
+    if (outcome.kind === 'error' && outcome.error === 'service') diagnose('failed', error)
     return outcome
   }
 }
@@ -170,13 +172,14 @@ export async function createAccount(input: {
   signalsId?: string
 }): Promise<{ kind: 'created'; radarAuthAttemptId?: string } | Failure> {
   const who = await visitor()
+  const diagnose = authDiagnostics('sign-up')
   try {
     const user = await userManagement().createUser({ ...input, ...who })
     return { kind: 'created', radarAuthAttemptId: user.radarAuthAttemptId }
   } catch (error) {
     const outcome = describe(error, 'sign-up')
     if (outcome.kind !== 'error') return failure('service')
-    if (outcome.error === 'service') console.error('[sign-in] sign-up failed', error)
+    if (outcome.error === 'service') diagnose('failed', error)
     return outcome
   }
 }
@@ -202,6 +205,7 @@ export async function exchangeOAuthCode(input: {
 
 /** Sends a new confirmation code. The user id comes from WorkOS, never from the browser. */
 export async function resendVerification(emailVerificationId: string): Promise<'sent' | Failure> {
+  const diagnose = authDiagnostics('resend')
   try {
     const verification = await userManagement().getEmailVerification(emailVerificationId)
     await userManagement().sendVerificationEmail({ userId: verification.userId })
@@ -209,7 +213,7 @@ export async function resendVerification(emailVerificationId: string): Promise<'
   } catch (error) {
     // Not found: the verification is gone, so the person starts again.
     if ((error as WorkOSError).status === 404) return failure('code_expired')
-    console.error('[sign-in] resend failed', error)
+    diagnose('failed', error)
     return failure('service')
   }
 }
@@ -219,12 +223,13 @@ export async function resendVerification(emailVerificationId: string): Promise<'
  * never revealed: only a WorkOS outage is reported.
  */
 export async function requestPasswordReset(email: string): Promise<'sent' | Failure> {
+  const diagnose = authDiagnostics('reset-request')
   try {
     await userManagement().createPasswordReset({ email })
   } catch (error) {
     const status = (error as WorkOSError).status
     if (status === undefined || status >= 500) {
-      console.error('[sign-in] reset request failed', error)
+      diagnose('failed', error)
       return failure('service')
     }
   }
@@ -232,13 +237,14 @@ export async function requestPasswordReset(email: string): Promise<'sent' | Fail
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<{ kind: 'reset'; email: string } | Failure> {
+  const diagnose = authDiagnostics('reset')
   try {
     const { user } = await userManagement().resetPassword({ token, newPassword })
     return { kind: 'reset', email: user.email }
   } catch (error) {
     const outcome = describe(error, 'reset')
     if (outcome.kind !== 'error') return failure('service')
-    if (outcome.error === 'service') console.error('[sign-in] reset failed', error)
+    if (outcome.error === 'service') diagnose('failed', error)
     return outcome
   }
 }

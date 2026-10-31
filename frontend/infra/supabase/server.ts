@@ -17,6 +17,7 @@
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { refreshSession, withAuth } from '@workos-inc/authkit-nextjs'
 import { accessTokenTimes } from '@/infra/workos/access-token'
+import { authDiagnostics } from '@/lib/auth/diagnostics'
 
 // A refresh token is single-use, but WorkOS answers a reuse within 30 seconds
 // of its first use with that same new pair. The browser and the proxy renew
@@ -49,6 +50,7 @@ export async function createClient({ refreshSession: canRenew = false }: { refre
     let renewalRefused = false
     let stopped = !canRenew || !workosUserId
     let timer: ReturnType<typeof setTimeout> | undefined
+    const diagnose = authDiagnostics('renewal')
 
     const renew = async (): Promise<'renewed' | 'retry' | 'refused'> => {
         try {
@@ -60,11 +62,13 @@ export async function createClient({ refreshSession: canRenew = false }: { refre
             // Only ever the same person's token.
             if (refreshed.user?.id === workosUserId && refreshed.accessToken) {
                 accessToken = refreshed.accessToken
+                diagnose('recovered')
                 return 'renewed'
             }
+            diagnose('refused', undefined, { category: 'session-mismatch' })
             return 'refused'
         } catch (error) {
-            console.warn('[supabase] Could not renew the access token:', error)
+            diagnose('failed', error, { category: isTransient(error) ? 'transient' : 'refused' })
             // A network blip or WorkOS outage may pass.
             return isTransient(error) ? 'retry' : 'refused'
         }

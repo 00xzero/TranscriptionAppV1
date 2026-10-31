@@ -6,6 +6,7 @@ import { createAdminClient } from '@/infra/supabase/admin'
 import { markAccount } from './account-marker.server'
 import { finishUrl, redirectUri } from './origin.server'
 import { provisionAppUser } from './provision-app-user.server'
+import { authDiagnostics } from './diagnostics'
 
 const PROVISION_TRIES = 3
 
@@ -22,8 +23,9 @@ const PROVISION_TRIES = 3
  * cookie stuck before going on to `next`. Null when it could not finish.
  */
 export async function completeSignIn(auth: AuthenticationResponse, next: string): Promise<string | null> {
+  const diagnose = authDiagnostics('sign-in-completion', PROVISION_TRIES)
   if (!auth.accessToken || !auth.refreshToken) {
-    console.error('[sign-in] WorkOS answered without session tokens')
+    diagnose('failed', undefined, { stage: 'tokens', category: 'missing-tokens' })
     return null
   }
   let userId: string | null = null
@@ -31,16 +33,17 @@ export async function completeSignIn(auth: AuthenticationResponse, next: string)
     try {
       userId = await provisionAppUser(createAdminClient(), auth.user.id)
     } catch (error) {
-      console.error(`[sign-in] provisioning failed (try ${tries} of ${PROVISION_TRIES})`, error)
+      diagnose('failed', error, { stage: 'provisioning' })
     }
   }
   if (!userId) return null
+  diagnose('recovered', undefined, { stage: 'provisioning' })
 
   try {
     await saveSession(sessionOf(auth), redirectUri ?? finishUrl('/'))
     await markAccount(userId)
   } catch (error) {
-    console.error('[sign-in] saving the session failed', error)
+    diagnose('failed', error, { stage: 'save-session' })
     return null
   }
   return finishUrl(next)

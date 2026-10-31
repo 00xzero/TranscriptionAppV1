@@ -16,6 +16,7 @@ import {
   partitionAuthkitHeaders,
 } from '@workos-inc/authkit-nextjs'
 import { NextResponse, type NextRequest } from 'next/server'
+import { authDiagnostics } from '@/lib/auth/diagnostics'
 
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/transcripts', '/editor', '/recording', '/projects', '/people']
@@ -96,6 +97,7 @@ export async function proxy(request: NextRequest) {
   // if another tab switches accounts meanwhile, AuthKit shows the new user
   // with the old account's token and keeps it, since nothing tells it the
   // user changed. Fetching the token once the user is known costs one request.
+  const diagnose = authDiagnostics('proxy')
   const { session, headers } = await authkit(request)
 
   const path = request.nextUrl.pathname
@@ -120,6 +122,7 @@ export async function proxy(request: NextRequest) {
   // pages themselves are left as they are.
   const isApiRoute = path.startsWith('/api/')
   if ((isProtectedRoute || isApiRoute) && sessionUnconfirmed(request, session.user, headers)) {
+    diagnose('unavailable', undefined, { category: 'unconfirmed' })
     return unavailable(request, headers, path)
   }
 

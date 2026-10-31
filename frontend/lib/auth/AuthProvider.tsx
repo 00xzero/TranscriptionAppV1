@@ -25,6 +25,7 @@ import {
 import { getCurrentUserId } from '@/lib/auth/current-user-id'
 import { AccountChangedError } from '@/lib/auth/account-boundary'
 import { readAccountMarker } from '@/lib/auth/account-marker'
+import { authDiagnostics, type AuthStage } from '@/lib/auth/diagnostics'
 import {
   accountChangeFromMarker,
   decideTokenRequest,
@@ -199,6 +200,11 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   const changeRef = useRef<AccountChange | null>(null)
   const activeRef = useRef(true)
   const readingRef = useRef(false)
+  const readDiagnosticsRef = useRef<ReturnType<typeof authDiagnostics> | null>(null)
+  const lookupDiagnosticsRef = useRef<{
+    workosUserId: string
+    report: ReturnType<typeof authDiagnostics>
+  } | null>(null)
   const authKnownWaitersRef = useRef(new Set<() => void>())
   const releaseWaiters = useCallback(() => {
     authKnownWaitersRef.current.forEach((release) => release())
@@ -308,11 +314,19 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   const readSession = useCallback(() => {
     if (readingRef.current) return
     readingRef.current = true
-    const failed = () => setFailedReads((reads) => reads + 1)
+    const diagnose = readDiagnosticsRef.current ??= authDiagnostics('session-read', TIMED_RETRIES + 1)
+    const failed = (error: unknown) => {
+      diagnose('failed', error)
+      setFailedReads((reads) => reads + 1)
+    }
     void refreshAuth()
       .then((result) => {
-        if (result && 'error' in result) failed()
-        else setSessionRead(true)
+        if (result && 'error' in result) failed(result.error)
+        else {
+          diagnose('recovered')
+          readDiagnosticsRef.current = null
+          setSessionRead(true)
+        }
       })
       .catch(failed)
       .finally(() => {
@@ -329,11 +343,20 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
   const settled = Boolean(account)
   useEffect(() => {
     if (!workosUserId || settled) return
+    if (lookupDiagnosticsRef.current?.workosUserId !== workosUserId) {
+      lookupDiagnosticsRef.current = {
+        workosUserId,
+        report: authDiagnostics('identity', TIMED_RETRIES + 1),
+      }
+    }
+    const diagnose = lookupDiagnosticsRef.current.report
+    let stage: AuthStage = 'lookup'
     let current = true
     void (async () => {
       const supabase = createClient()
       const userId = await getCurrentUserId(supabase)
       if (!current) return
+      stage = 'token'
       const token = await getSupabaseAccessToken()
       if (!current) return
       if (!token || accessTokenSubject(token) !== workosUserId) throw new AccountChangedError()
@@ -341,10 +364,15 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
       // callback already returns the new account. Set that cache before
       // exposing this identity to any subscription effects. Passing the
       // validated token also supersedes older in-flight SDK auth callbacks.
+      stage = 'realtime'
       await supabase.realtime.setAuth(token)
-      if (current) setLookup({ workosUserId, status: 'resolved', userId })
-    })().catch(() => {
+      if (current) {
+        diagnose('recovered', undefined, { stage })
+        setLookup({ workosUserId, status: 'resolved', userId })
+      }
+    })().catch((error) => {
       if (!current) return
+      if (!(error instanceof AccountChangedError)) diagnose('failed', error, { stage })
       setLookup((previous) => ({
         status: 'failed',
         ...nextFailures(previous?.status === 'failed' ? previous : null, workosUserId),
