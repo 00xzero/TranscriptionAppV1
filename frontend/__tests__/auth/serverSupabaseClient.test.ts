@@ -153,34 +153,25 @@ describe('server Supabase client token', () => {
     expect(refreshSession).toHaveBeenCalledTimes(1)
   })
 
-  it('tries again after a renewal that failed for a moment', async () => {
-    signedInWith(token(USER.id, 5))
-    const renewed = token(USER.id, LIFETIME)
-    jest.mocked(refreshSession)
-      .mockRejectedValueOnce(Object.assign(new Error('fetch failed'), { isTransient: true }))
-      .mockResolvedValueOnce({ user: USER, accessToken: renewed } as never)
-    jest.spyOn(console, 'warn').mockImplementation(() => {})
-    const getToken = await tokenCallback({ refreshSession: true })
-
-    await getToken()
-    await expect(getToken()).resolves.toBe(renewed)
-    expect(refreshSession).toHaveBeenCalledTimes(2)
-  })
-
-  it('tries again on its own after a renewal that failed for a moment', async () => {
+  it('tries again after a renewal that failed for a moment: on the next call, and on its own', async () => {
     signedInWith(token(USER.id, 45))
+    const current = token(USER.id, 45)
     const renewed = token(USER.id, LIFETIME)
+    const blip = () => Object.assign(new Error('fetch failed'), { isTransient: true })
     jest.mocked(refreshSession)
-      .mockRejectedValueOnce(Object.assign(new Error('fetch failed'), { isTransient: true }))
+      .mockRejectedValueOnce(blip())
+      .mockRejectedValueOnce(blip())
       .mockResolvedValueOnce({ user: USER, accessToken: renewed } as never)
     jest.spyOn(console, 'warn').mockImplementation(() => {})
     const getToken = await tokenCallback({ refreshSession: true })
 
     await pass(0)
     expect(refreshSession).toHaveBeenCalledTimes(1)
-    await pass(5)
-
+    await expect(getToken()).resolves.toBe(current)
     expect(refreshSession).toHaveBeenCalledTimes(2)
+
+    await pass(5)
+    expect(refreshSession).toHaveBeenCalledTimes(3)
     await expect(getToken()).resolves.toBe(renewed)
   })
 

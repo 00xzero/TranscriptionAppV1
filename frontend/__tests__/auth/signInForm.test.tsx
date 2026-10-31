@@ -252,12 +252,32 @@ describe('SignInForm', () => {
     })
   })
 
-  describe('where messages show, so nothing above them moves', () => {
-    beforeEach(() => mockGetToken.mockResolvedValue('radar-token'))
+  // Where messages show, so nothing above them moves, and a shake for "that's not it".
+  describe('where messages show, and what shakes', () => {
     const isAfter = (node: Element, reference: Element) =>
       Boolean(reference.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)
+    const animate = jest.fn()
+    const setMotion = (reduce: boolean) =>
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: (query: string) => ({ matches: reduce && query.includes('reduce'), media: query }),
+      })
+    // The element each shake ran on.
+    const shaken = () => animate.mock.contexts as HTMLElement[]
 
-    test('a wrong password shows under the password box, which is marked, emptied and focused', async () => {
+    beforeEach(() => {
+      mockGetToken.mockResolvedValue('radar-token')
+      animate.mockClear()
+      HTMLElement.prototype.animate = animate
+      setMotion(false)
+    })
+    afterEach(() => {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).animate
+      delete (window as Partial<Window>).matchMedia
+    })
+
+    test('a wrong password shows under the password box, which is marked, emptied, focused and shaken each time', async () => {
+      const user = userEvent.setup()
       await submitPassword()
 
       const alert = await screen.findByRole('alert')
@@ -271,9 +291,18 @@ describe('SignInForm', () => {
       await waitFor(() => expect(password).toHaveFocus())
       // Radix would give the show/hide eye the box's id too.
       expect(document.querySelectorAll('#password')).toHaveLength(1)
+      // The box shakes, eye and all, but not the message.
+      await waitFor(() => expect(shaken()).toHaveLength(1))
+      expect(shaken()[0]).toContainElement(password)
+      expect(shaken()[0]).toContainElement(screen.getByRole('button', { name: 'Show password' }))
+      expect(shaken()[0]).not.toContainElement(alert)
+
+      await user.type(password, 'still not it')
+      await user.click(screen.getByRole('button', { name: 'Sign in' }))
+      await waitFor(() => expect(shaken()).toHaveLength(2))
     })
 
-    test('an answer about the whole attempt shows under the button, leaving the fields unmarked', async () => {
+    test('an answer about the whole attempt shows under the button, leaving the fields unmarked and still', async () => {
       signInMock.mockResolvedValue({ kind: 'error', error: 'service' })
 
       await submitPassword()
@@ -282,6 +311,7 @@ describe('SignInForm', () => {
       expect(alert).toHaveTextContent('Something went wrong on our side.')
       expect(isAfter(alert, screen.getByRole('button', { name: 'Sign in' }))).toBe(true)
       expect(screen.getByLabelText('Password')).not.toHaveAttribute('aria-invalid')
+      expect(animate).not.toHaveBeenCalled()
     })
 
     test('"we\'ve sent a link" shows under the Send button', async () => {
@@ -298,7 +328,7 @@ describe('SignInForm', () => {
       expect(isAfter(status, screen.getByRole('button', { name: 'Send reset link' }))).toBe(true)
     })
 
-    test('a wrong code shows under the code boxes, which are marked', async () => {
+    test('a wrong code shows under the code boxes, which are marked and shaken', async () => {
       const user = userEvent.setup()
       verifyMock.mockResolvedValue({ kind: 'error', error: 'invalid_code' })
       render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
@@ -308,7 +338,11 @@ describe('SignInForm', () => {
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent("That code isn't right.")
       expect(isAfter(screen.getByRole('button', { name: 'Continue' }), alert)).toBe(true)
-      for (const box of screen.getAllByRole('textbox')) expect(box).toHaveAttribute('aria-invalid', 'true')
+      await waitFor(() => expect(shaken()).toHaveLength(1))
+      for (const box of screen.getAllByRole('textbox')) {
+        expect(box).toHaveAttribute('aria-invalid', 'true')
+        expect(shaken()[0]).toContainElement(box)
+      }
     })
 
     test('after a wrong code the boxes are emptied and the caret is back in the first one', async () => {
@@ -337,7 +371,7 @@ describe('SignInForm', () => {
       expect(alert.className).not.toMatch(/\bbg-/)
     })
 
-    test('an invalid email shows under the email box', async () => {
+    test('an invalid email shows under the email box, which shakes', async () => {
       const user = userEvent.setup()
       render(<SignInForm next="/" />)
 
@@ -349,52 +383,8 @@ describe('SignInForm', () => {
       expect(email).toHaveValue('not an email')
       expect(email).toHaveFocus()
       expect(isAfter(screen.getByRole('button', { name: 'Continue with email' }), screen.getByRole('alert'))).toBe(true)
-    })
-  })
-
-  describe('a shake for "that\'s not it"', () => {
-    const animate = jest.fn()
-    const setMotion = (reduce: boolean) =>
-      Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        value: (query: string) => ({ matches: reduce && query.includes('reduce'), media: query }),
-      })
-    // The element each shake ran on.
-    const shaken = () => animate.mock.contexts as HTMLElement[]
-
-    beforeEach(() => {
-      mockGetToken.mockResolvedValue('radar-token')
-      animate.mockClear()
-      HTMLElement.prototype.animate = animate
-      setMotion(false)
-    })
-    afterEach(() => {
-      delete (HTMLElement.prototype as Partial<HTMLElement>).animate
-      delete (window as Partial<Window>).matchMedia
-    })
-
-    test('a wrong password shakes the password box, eye and all, each time', async () => {
-      const user = userEvent.setup()
-      await submitPassword()
-      await waitFor(() => expect(shaken()).toHaveLength(1))
-      expect(shaken()[0]).toContainElement(screen.getByLabelText('Password'))
-      expect(shaken()[0]).toContainElement(screen.getByRole('button', { name: 'Show password' }))
-      expect(shaken()[0]).not.toContainElement(screen.getByRole('alert'))
-
-      await user.type(screen.getByLabelText('Password'), 'still not it')
-      await user.click(screen.getByRole('button', { name: 'Sign in' }))
-      await waitFor(() => expect(shaken()).toHaveLength(2))
-    })
-
-    test('a wrong code shakes the code boxes', async () => {
-      const user = userEvent.setup()
-      verifyMock.mockResolvedValue({ kind: 'error', error: 'invalid_code' })
-      render(<SignInForm next="/" pendingCode={{ attempt: ATTEMPT_A, challenge: 'email-verification', email: 'ada@example.com' }} />)
-
-      await user.click(screen.getByRole('button', { name: 'Continue' }))
-
-      await waitFor(() => expect(shaken()).toHaveLength(1))
-      for (const box of screen.getAllByRole('textbox')) expect(shaken()[0]).toContainElement(box)
+      expect(shaken()).toHaveLength(1)
+      expect(shaken()[0]).toContainElement(email)
     })
 
     test('a weak password shakes its box', async () => {
@@ -408,25 +398,6 @@ describe('SignInForm', () => {
 
       await waitFor(() => expect(shaken()).toHaveLength(1))
       expect(shaken()[0]).toContainElement(screen.getByLabelText('Password'))
-    })
-
-    test('an invalid email shakes the email box', async () => {
-      const user = userEvent.setup()
-      render(<SignInForm next="/" />)
-
-      await user.type(screen.getByLabelText('Email'), 'not an email')
-      await user.click(screen.getByRole('button', { name: 'Continue with email' }))
-
-      expect(shaken()).toHaveLength(1)
-      expect(shaken()[0]).toContainElement(screen.getByLabelText('Email'))
-    })
-
-    test('other answers do not shake', async () => {
-      signInMock.mockResolvedValue({ kind: 'error', error: 'service' })
-      await submitPassword()
-      await screen.findByRole('alert')
-
-      expect(animate).not.toHaveBeenCalled()
     })
 
     test('no shake for anyone who asked for less motion', async () => {

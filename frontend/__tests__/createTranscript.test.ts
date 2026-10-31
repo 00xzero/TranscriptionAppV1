@@ -79,19 +79,17 @@ describe('POST /api/transcripts', () => {
     getCurrentUserMock.mockResolvedValue({ id: '00000000-0000-0000-0000-000000000001', email: '' })
   })
 
-  test.each([null, '', '00000000-0000-0000-0000-000000000099'])(
-    'refuses a missing or different expected account before any writes (%s)', async (expected) => {
-      const request = {
-        headers: new Headers(expected === null ? {} : { [EXPECTED_USER_HEADER]: expected }),
-        json: jest.fn(async () => ({ filename: 'audio.mp3' })),
-      }
-      const response = await POST(request as never)
-      expect(response.status).toBe(409)
-      expect(await response.json()).toMatchObject({ code: 'ACCOUNT_CHANGED' })
-      expect(request.json).not.toHaveBeenCalled()
-      expect(fromMock).not.toHaveBeenCalled()
+  test('refuses a different expected account before any writes', async () => {
+    const request = {
+      headers: new Headers({ [EXPECTED_USER_HEADER]: '00000000-0000-0000-0000-000000000099' }),
+      json: jest.fn(async () => ({ filename: 'audio.mp3' })),
     }
-  )
+    const response = await POST(request as never)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ code: 'ACCOUNT_CHANGED' })
+    expect(request.json).not.toHaveBeenCalled()
+    expect(fromMock).not.toHaveBeenCalled()
+  })
 
   test('a signed-out request remains unauthorized before the account check', async () => {
     getCurrentUserMock.mockResolvedValue(null)

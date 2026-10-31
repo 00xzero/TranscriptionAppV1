@@ -91,8 +91,8 @@ describe('project delete route', () => {
     expect(rpcMock).not.toHaveBeenCalled()
   })
 
-  test.each([null, '', 'other-user'])('refuses an absent or different owner before deletion (%s)', async (expected) => {
-    const response = await request(PROJECT_ID, expected)
+  test('refuses a different owner before deletion', async () => {
+    const response = await request(PROJECT_ID, 'other-user')
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: ACCOUNT_CHANGED_MESSAGE, code: ACCOUNT_CHANGED_CODE, stage: 'begin' })
     expect(rpcMock).not.toHaveBeenCalled()

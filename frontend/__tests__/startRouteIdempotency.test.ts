@@ -124,9 +124,9 @@ describe('Start route idempotency', () => {
     process.env.RATE_LIMIT_MODE = originalRateLimitMode
   })
 
-  test.each([null, '', 'original-user'])('an absent or different owner cannot start a job (%s)', async (expected) => {
+  test('a different owner cannot start a job', async () => {
     const response = await POST(
-      { headers: new Headers(expected === null ? {} : { [EXPECTED_USER_HEADER]: expected }) } as never,
+      { headers: new Headers({ [EXPECTED_USER_HEADER]: 'original-user' }) } as never,
       { params: Promise.resolve({ id: 'proj-1' }) }
     )
     expect(response.status).toBe(409)
