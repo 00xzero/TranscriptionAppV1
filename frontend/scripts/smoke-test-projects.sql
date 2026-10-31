@@ -30,9 +30,9 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated, service_role;
 
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001', 'projects-smoke-a@example.test'),
-  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002', 'projects-smoke-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001'),
+  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002');
 
 SET LOCAL request.jwt.claims = '{"sub":"user_10000000000000000000000000000001","role":"authenticated"}';
 SET LOCAL ROLE authenticated;

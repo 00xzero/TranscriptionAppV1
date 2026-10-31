@@ -35,9 +35,9 @@ SELECT pg_temp.assert_true(
 );
 
 -- -------------------------------------------------------------- fixtures ----
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('11000000-0000-0000-0000-000000000001', 'user_11000000000000000000000000000001', 'project-people-smoke-a@example.test'),
-  ('11000000-0000-0000-0000-000000000002', 'user_11000000000000000000000000000002', 'project-people-smoke-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('11000000-0000-0000-0000-000000000001', 'user_11000000000000000000000000000001'),
+  ('11000000-0000-0000-0000-000000000002', 'user_11000000000000000000000000000002');
 
 -- Tree for user A:
 --   Root ── Child ── Grand

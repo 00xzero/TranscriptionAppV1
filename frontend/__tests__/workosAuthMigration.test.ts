@@ -37,7 +37,7 @@ describe('WorkOS auth migration', () => {
   })
 
   test('existing owners keep their ids, unlinked', () => {
-    expect(code).toContain('insert into public.app_users (id, email, created_at)\nselect id, email, created_at from auth.users;')
+    expect(code).toContain('insert into public.app_users (id, created_at)\nselect id, created_at from auth.users;')
   })
 
   test('owner foreign keys point at app_users', () => {

@@ -23,9 +23,9 @@ GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated;
 -- User A owns T1 (completed, linked media plus an unlinked waveform), T2 (no
 -- media yet) and T3 (inside project P). User B owns TB.
 
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('f1000000-0000-4000-8000-000000000001', 'user_f1000000000040008000000000000001', 'owned-writes-a@example.test'),
-  ('f1000000-0000-4000-8000-000000000002', 'user_f1000000000040008000000000000002', 'owned-writes-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('f1000000-0000-4000-8000-000000000001', 'user_f1000000000040008000000000000001'),
+  ('f1000000-0000-4000-8000-000000000002', 'user_f1000000000040008000000000000002');
 
 INSERT INTO public.projects (id, user_id, name) VALUES
   ('f2000000-0000-4000-8000-000000000001', 'f1000000-0000-4000-8000-000000000001', 'P');

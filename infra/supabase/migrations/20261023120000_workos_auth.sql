@@ -26,12 +26,11 @@ CREATE TABLE public.app_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workos_user_id text UNIQUE
     CONSTRAINT app_users_workos_user_id_shape CHECK (workos_user_id ~ '^user_[A-Za-z0-9_]+$'),
-  email text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO public.app_users (id, email, created_at)
-SELECT id, email, created_at FROM auth.users;
+INSERT INTO public.app_users (id, created_at)
+SELECT id, created_at FROM auth.users;
 
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 

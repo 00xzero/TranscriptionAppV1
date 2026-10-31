@@ -36,9 +36,9 @@ $$;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_true(boolean, text) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO anon, authenticated, service_role;
 
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('c0000000-0000-0000-0000-00000000000a', 'user_c000000000000000000000000000000a', 'speaker-smoke-a@example.test'),
-  ('c0000000-0000-0000-0000-00000000000b', 'user_c000000000000000000000000000000b', 'speaker-smoke-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('c0000000-0000-0000-0000-00000000000a', 'user_c000000000000000000000000000000a'),
+  ('c0000000-0000-0000-0000-00000000000b', 'user_c000000000000000000000000000000b');
 
 -- A1 and A2 belong to user A; B1 to user B.
 INSERT INTO public.transcripts (id, user_id, title, status) VALUES

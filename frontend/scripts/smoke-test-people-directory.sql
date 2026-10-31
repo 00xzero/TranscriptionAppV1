@@ -56,9 +56,9 @@ SELECT pg_temp.assert_true(
 --   Casey: only a linked speaker without segments in Kickoff
 --   Dana:  Retro, plus a linked speaker without segments in Review; Globex
 -- Account B has one person, one organisation and one transcript.
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('e0000000-0000-4000-8000-00000000000a', 'user_e000000000004000800000000000000a', 'directory-smoke-a@example.test'),
-  ('e0000000-0000-4000-8000-00000000000b', 'user_e000000000004000800000000000000b', 'directory-smoke-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('e0000000-0000-4000-8000-00000000000a', 'user_e000000000004000800000000000000a'),
+  ('e0000000-0000-4000-8000-00000000000b', 'user_e000000000004000800000000000000b');
 INSERT INTO public.projects (id, user_id, parent_id, name) VALUES
   ('e1000000-0000-4000-8000-000000000001', 'e0000000-0000-4000-8000-00000000000a', NULL, 'Client work');
 INSERT INTO public.transcripts (id, user_id, project_id, title, status, created_at) VALUES

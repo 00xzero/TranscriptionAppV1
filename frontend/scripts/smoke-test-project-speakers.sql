@@ -27,9 +27,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION pg_temp.own(jsonb) TO authenticated;
 
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001', 'speakers-smoke-a@example.test'),
-  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002', 'speakers-smoke-b@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'user_10000000000000000000000000000001'),
+  ('10000000-0000-0000-0000-000000000002', 'user_10000000000000000000000000000002');
 
 -- Tree for user A:
 --   Root ── Child ── Grand

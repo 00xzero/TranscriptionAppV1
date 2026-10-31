@@ -136,7 +136,7 @@ describe('signIn', () => {
       ipAddress: mockIp,
       userAgent: 'TestBrowser/1.0',
     })
-    expect(provision).toHaveBeenCalledWith(expect.anything(), { id: 'user_01A', email: 'ada@example.com' })
+    expect(provision).toHaveBeenCalledWith(expect.anything(), 'user_01A')
     expect(save).toHaveBeenCalledWith(AUTH, 'http://localhost:3000/auth/callback')
     expect(provision.mock.invocationCallOrder[0]).toBeLessThan(save.mock.invocationCallOrder[0])
   })

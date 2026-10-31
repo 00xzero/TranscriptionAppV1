@@ -49,10 +49,10 @@ describe('getCurrentUser', () => {
 describe('provisionAppUser', () => {
   // A tiny app_users table with the real constraint: one row per WorkOS id.
   function fakeAdmin() {
-    const rows: Array<{ id: string; workos_user_id: string; email: string }> = []
+    const rows: Array<{ id: string; workos_user_id: string }> = []
     let nextId = 0
     const upsert = jest.fn(
-      async (row: { workos_user_id: string; email: string }, options: unknown) => {
+      async (row: { workos_user_id: string }, options: unknown) => {
         if (!rows.some((existing) => existing.workos_user_id === row.workos_user_id)) {
           nextId += 1
           rows.push({ id: `app-user-${nextId}`, ...row })
@@ -77,12 +77,12 @@ describe('provisionAppUser', () => {
   test('creates a row on first sign-in, without overwriting on conflict', async () => {
     const { admin, rows, upsert } = fakeAdmin()
 
-    await expect(provisionAppUser(admin, { id: 'user_01A', email: 'ada@example.com' })).resolves.toBe(
+    await expect(provisionAppUser(admin, 'user_01A')).resolves.toBe(
       'app-user-1'
     )
-    expect(rows).toEqual([{ id: 'app-user-1', workos_user_id: 'user_01A', email: 'ada@example.com' }])
+    expect(rows).toEqual([{ id: 'app-user-1', workos_user_id: 'user_01A' }])
     expect(upsert).toHaveBeenCalledWith(
-      { workos_user_id: 'user_01A', email: 'ada@example.com' },
+      { workos_user_id: 'user_01A' },
       { onConflict: 'workos_user_id', ignoreDuplicates: true }
     )
   })
@@ -90,8 +90,8 @@ describe('provisionAppUser', () => {
   test('a returning user gets the same id', async () => {
     const { admin, rows } = fakeAdmin()
 
-    const first = await provisionAppUser(admin, { id: 'user_01A', email: 'ada@example.com' })
-    const again = await provisionAppUser(admin, { id: 'user_01A', email: 'ada@example.com' })
+    const first = await provisionAppUser(admin, 'user_01A')
+    const again = await provisionAppUser(admin, 'user_01A')
 
     expect(again).toBe(first)
     expect(rows).toHaveLength(1)
@@ -101,8 +101,8 @@ describe('provisionAppUser', () => {
     const { admin, rows } = fakeAdmin()
 
     const ids = await Promise.all([
-      provisionAppUser(admin, { id: 'user_01A', email: 'ada@example.com' }),
-      provisionAppUser(admin, { id: 'user_01A', email: 'ada@example.com' }),
+      provisionAppUser(admin, 'user_01A'),
+      provisionAppUser(admin, 'user_01A'),
     ])
 
     expect(new Set(ids).size).toBe(1)
@@ -114,8 +114,6 @@ describe('provisionAppUser', () => {
       upsert: async () => ({ error: { message: 'permission denied' } }),
     }))
 
-    await expect(
-      provisionAppUser({ from } as never, { id: 'user_01A', email: 'ada@example.com' })
-    ).rejects.toEqual({ message: 'permission denied' })
+    await expect(provisionAppUser({ from } as never, 'user_01A')).rejects.toEqual({ message: 'permission denied' })
   })
 })

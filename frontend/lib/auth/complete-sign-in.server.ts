@@ -24,17 +24,15 @@ export async function completeSignIn(auth: AuthenticationResponse, next: string)
     console.error('[sign-in] WorkOS answered without session tokens')
     return null
   }
-  const identity = { id: auth.user.id, email: auth.user.email }
-  let provisioned = false
-  for (let tries = 1; tries <= PROVISION_TRIES && !provisioned; tries++) {
+  let userId: string | null = null
+  for (let tries = 1; tries <= PROVISION_TRIES && !userId; tries++) {
     try {
-      await provisionAppUser(createAdminClient(), identity)
-      provisioned = true
+      userId = await provisionAppUser(createAdminClient(), auth.user.id)
     } catch (error) {
       console.error(`[sign-in] provisioning failed (try ${tries} of ${PROVISION_TRIES})`, error)
     }
   }
-  if (!provisioned) return null
+  if (!userId) return null
 
   try {
     await saveSession(sessionOf(auth), redirectUri ?? finishUrl('/'))

@@ -82,8 +82,8 @@ async function resetFixture(admin: Client) {
 async function seedFixture(admin: Client) {
   await resetFixture(admin)
   await admin.query(
-    `INSERT INTO public.app_users (id, workos_user_id, email)
-     VALUES ($1, $2, 'projects-concurrency@example.test')`,
+    `INSERT INTO public.app_users (id, workos_user_id)
+     VALUES ($1, $2)`,
     [USER_ID, WORKOS_USER_ID]
   )
   await admin.query(

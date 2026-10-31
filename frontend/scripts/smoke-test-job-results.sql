@@ -24,8 +24,8 @@ GRANT EXECUTE ON FUNCTION pg_temp.assert_sqlstate(text, text) TO authenticated;
 -- User A owns T1 (with job J1 and a stored response) and T2 (inside project P,
 -- with job J2 and a stored response).
 
-INSERT INTO public.app_users (id, workos_user_id, email) VALUES
-  ('e1000000-0000-4000-8000-000000000001', 'user_e1000000000040008000000000000001', 'job-results-a@example.test');
+INSERT INTO public.app_users (id, workos_user_id) VALUES
+  ('e1000000-0000-4000-8000-000000000001', 'user_e1000000000040008000000000000001');
 
 INSERT INTO public.projects (id, user_id, name) VALUES
   ('e2000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000001', 'P');

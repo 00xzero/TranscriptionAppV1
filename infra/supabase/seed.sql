@@ -5,7 +5,6 @@
 -- NOTE: This seed file seeds the documented staging test account in CLAUDE.md,
 -- found by its unique WorkOS subject in public.app_users. Sign in once with
 -- it (the callback creates its row), or link its existing row, then rerun.
--- Email is not an identity: an unlinked legacy row can have the same email.
 -- ============================================================================
 
 DO $$
@@ -20,7 +19,7 @@ DECLARE
     segment_1_id UUID := 'cccccccc-cccc-cccc-cccc-cccccccccccc';
     segment_2_id UUID := 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 BEGIN
-    -- The documented WorkOS account, even when a legacy row shares its email.
+    -- The documented WorkOS account.
     SELECT id INTO test_user_id FROM public.app_users WHERE workos_user_id = test_workos_user_id;
 
     IF test_user_id IS NULL THEN
