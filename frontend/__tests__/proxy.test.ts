@@ -215,3 +215,102 @@ describe('proxy', () => {
     expect(api.headers.get('location')).toBeNull()
   })
 })
+
+// What real AuthKit answers (checked against the package by
+// authkitOutageContract.test.ts): "no user" with the session cookie kept is an
+// outage; with it deleted, the session is over.
+describe('proxy during a WorkOS outage', () => {
+  const COOKIE = 'wos-session=sealed-session'
+  const DELETE_COOKIE = 'wos-session=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; SameSite=Lax'
+
+  function answer({ deleted }: { deleted: boolean }) {
+    const headers = new Headers()
+    if (deleted) headers.append('Set-Cookie', DELETE_COOKIE)
+    authkitMock.mockResolvedValue({ session: { user: null }, headers })
+  }
+
+  function withCookie(path: string, init: { method?: string; headers?: Record<string, string> } = {}) {
+    return new NextRequest(`http://localhost:3000${path}`, {
+      method: init.method,
+      headers: { cookie: COOKIE, ...init.headers },
+    })
+  }
+
+  beforeEach(() => authkitMock.mockReset())
+
+  test('a page load waits on a page that tries again, instead of going to sign-in', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/editor/abc'))
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('content-type')).toContain('text/html')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    const page = await response.text()
+    expect(page).toContain('<meta http-equiv="refresh" content="5">')
+    expect(page).toContain('trying again')
+  })
+
+  test('a Server Action (such as the browser’s token refresh) fails, with no redirect', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/editor/abc', { method: 'POST', headers: { 'next-action': 'action-id' } }))
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('x-action-redirect')).toBeNull()
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('an API route answers 503 AUTH_UNAVAILABLE rather than 401', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/api/transcripts/t1/media-url'))
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Sign-in is unavailable right now. Try again shortly.',
+      code: 'AUTH_UNAVAILABLE',
+    })
+  })
+
+  test('never deletes the session cookie', async () => {
+    answer({ deleted: false })
+
+    for (const response of [
+      await proxy(withCookie('/projects')),
+      await proxy(withCookie('/api/transcripts')),
+      await proxy(withCookie('/', { method: 'POST', headers: { 'next-action': 'action-id' } })),
+    ]) {
+      expect(response.headers.getSetCookie().filter((cookie) => cookie.startsWith('wos-session='))).toEqual([])
+    }
+  })
+
+  test('the sign-in pages are left as they are', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(withCookie('/auth'))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('location')).toBeNull()
+  })
+
+  test('a session that is over (cookie deleted) still goes to sign-in', async () => {
+    answer({ deleted: true })
+
+    const page = await proxy(withCookie('/editor/abc'))
+    const action = await proxy(withCookie('/editor/abc', { method: 'POST', headers: { 'next-action': 'action-id' } }))
+
+    expect(page.headers.get('location')).toBe(`http://localhost:3000/auth?${new URLSearchParams({ next: '/editor/abc' })}`)
+    expect(action.headers.get('x-action-redirect')).toBe(`/auth?${new URLSearchParams({ next: '/editor/abc' })};replace`)
+  })
+
+  test('no session cookie at all is simply signed out', async () => {
+    answer({ deleted: false })
+
+    const response = await proxy(new NextRequest('http://localhost:3000/transcripts'))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe(`http://localhost:3000/auth?${new URLSearchParams({ next: '/transcripts' })}`)
+  })
+})
