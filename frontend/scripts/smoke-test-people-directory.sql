@@ -241,9 +241,15 @@ SELECT pg_temp.assert_true(
 );
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript(
   'e3000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000001')$sql$, 'SP002');
--- Undo: the returned changes, each expectation and target swapped.
+-- Undo: the returned changes, each expectation and target swapped, at the
+-- revision the removal reported.
+SELECT pg_temp.assert_true(
+  (SELECT bool_and(c->>'expected_revision' = '0')
+   FROM action_result, jsonb_array_elements(data) AS c WHERE name = 'removed'),
+  'remove reports the revision each change was made at'
+);
 SELECT public.reassign_segments('e2000000-0000-4000-8000-000000000001',
-  (SELECT jsonb_agg(jsonb_build_object('segment_id', c->'segment_id',
+  (SELECT jsonb_agg(jsonb_build_object('segment_id', c->'segment_id', 'expected_revision', c->'expected_revision',
      'expected_speaker_id', c->'speaker_id', 'speaker_id', c->'expected_speaker_id'))
    FROM action_result, jsonb_array_elements(data) AS c WHERE name = 'removed'));
 SELECT pg_temp.assert_true(
@@ -289,14 +295,17 @@ BEGIN
     UPDATE public.transcripts SET status = v_status WHERE id = 'e2000000-0000-4000-8000-000000000001';
     SET LOCAL ROLE authenticated;
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.reassign_segments('e2000000-0000-4000-8000-000000000001',
-      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012","speaker_id":null}]')$sql$, 'SP004');
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"e5000000-0000-4000-8000-000000000012","speaker_id":null}]')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.correct_segments_to_person('e2000000-0000-4000-8000-000000000001',
-      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]', NULL, 'Must not be created')$sql$, 'SP004');
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]', NULL, 'Must not be created',
+      'e3000000-0000-4000-8000-0000000000f1')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.create_local_speaker('e2000000-0000-4000-8000-000000000001', 'Must not be created',
-      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]')$sql$, 'SP004');
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"e5000000-0000-4000-8000-000000000012"}]',
+      'e5000000-0000-4000-8000-0000000000f1')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.set_speaker_custom_label('e5000000-0000-4000-8000-000000000012', NULL, 'Must not change')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.undo_created_person_action('e2000000-0000-4000-8000-000000000001',
-      'e3000000-0000-4000-8000-000000000001', now(), 'e5000000-0000-4000-8000-000000000012', '[]')$sql$, 'SP004');
+      'e3000000-0000-4000-8000-000000000001', 'Alex', '#4F638C', 'e5000000-0000-4000-8000-000000000012',
+      '[{"segment_id":"e6000000-0000-4000-8000-000000000001","expected_revision":0,"expected_speaker_id":"e5000000-0000-4000-8000-000000000012","speaker_id":null}]')$sql$, 'SP004');
     PERFORM pg_temp.assert_sqlstate($sql$SELECT public.remove_person_from_transcript('e3000000-0000-4000-8000-000000000001',
       'e2000000-0000-4000-8000-000000000001')$sql$, 'SP004');
   END LOOP;
@@ -308,6 +317,8 @@ $$;
 SELECT pg_temp.assert_true(
   NOT EXISTS (SELECT 1 FROM public.people WHERE name = 'Must not be created')
   AND NOT EXISTS (SELECT 1 FROM public.speakers WHERE custom_label = 'Must not be created')
+  AND NOT EXISTS (SELECT 1 FROM public.people WHERE id = 'e3000000-0000-4000-8000-0000000000f1')
+  AND NOT EXISTS (SELECT 1 FROM public.speakers WHERE id = 'e5000000-0000-4000-8000-0000000000f1')
   AND (SELECT speaker_id = 'e5000000-0000-4000-8000-000000000012' FROM public.segments
     WHERE id = 'e6000000-0000-4000-8000-000000000001'),
   'unfinished transcript writes leave identities and assignments unchanged'
@@ -357,7 +368,7 @@ ROLLBACK TO changed_organisation;
 
 SAVEPOINT changed_appearance;
 SELECT public.correct_segments_to_person('e2000000-0000-4000-8000-000000000001',
-  '[{"segment_id":"e6000000-0000-4000-8000-000000000002","expected_speaker_id":"e5000000-0000-4000-8000-000000000011"}]',
+  '[{"segment_id":"e6000000-0000-4000-8000-000000000002","expected_revision":0,"expected_speaker_id":"e5000000-0000-4000-8000-000000000011"}]',
   'e3000000-0000-4000-8000-000000000002');
 SELECT pg_temp.assert_sqlstate($sql$SELECT public.merge_people('e3000000-0000-4000-8000-000000000001',
   ARRAY['e3000000-0000-4000-8000-000000000004', 'e3000000-0000-4000-8000-000000000002']::uuid[],

@@ -324,8 +324,8 @@ SELECT pg_temp.assert_true(
   (SELECT count(*) FROM public.reassign_segments(
      'c1000000-0000-0000-0000-0000000000a1',
      (SELECT jsonb_build_array(
-        jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000011', 'expected_speaker_id', a1_s0, 'speaker_id', a1_s1),
-        jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000014', 'expected_speaker_id', null, 'speaker_id', a1_s0))
+        jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000011', 'expected_revision', 0, 'expected_speaker_id', a1_s0, 'speaker_id', a1_s1),
+        jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000014', 'expected_revision', 0, 'expected_speaker_id', null, 'speaker_id', a1_s0))
       FROM ids))) = 2,
   'reassign_segments returns every changed segment'
 );
@@ -340,8 +340,8 @@ SELECT pg_temp.assert_true(
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
     (SELECT jsonb_build_array(
-       jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000012', 'expected_speaker_id', a1_s1, 'speaker_id', null),
-       jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000013', 'expected_speaker_id', a1_s1, 'speaker_id', null))
+       jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000012', 'expected_revision', 0, 'expected_speaker_id', a1_s1, 'speaker_id', null),
+       jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000013', 'expected_revision', 0, 'expected_speaker_id', a1_s1, 'speaker_id', null))
      FROM ids))$sql$,
   'SP002'
 );
@@ -353,29 +353,29 @@ SELECT pg_temp.assert_true(
 
 SELECT pg_temp.assert_true(
   (SELECT speaker_id IS NULL FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-     (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000012', 'expected_speaker_id', a1_s1, 'speaker_id', null)) FROM ids))),
+     (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000012', 'expected_revision', 0, 'expected_speaker_id', a1_s1, 'speaker_id', null)) FROM ids))),
   'a null target makes the segment Unknown'
 );
 
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_speaker_id": null, "speaker_id": "c2000000-0000-0000-0000-0000000000a2"}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_revision": 0, "expected_speaker_id": null, "speaker_id": "c2000000-0000-0000-0000-0000000000a2"}]'::jsonb)$sql$,
   'SP001'
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000021", "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-000000000021", "expected_revision": 0, "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
   'SP001'
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000b1',
-    '[{"segment_id": "c3000000-0000-0000-0000-0000000000b1", "expected_speaker_id": "c2000000-0000-0000-0000-0000000000b1", "speaker_id": null}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-0000000000b1", "expected_revision": 0, "expected_speaker_id": "c2000000-0000-0000-0000-0000000000b1", "speaker_id": null}]'::jsonb)$sql$,
   'SP001'
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_speaker_id": null, "speaker_id": null},
-      {"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_revision": 0, "expected_speaker_id": null, "speaker_id": null},
+      {"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_revision": 0, "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
   'SP003'
 );
 SELECT pg_temp.assert_sqlstate(
@@ -384,12 +384,29 @@ SELECT pg_temp.assert_sqlstate(
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "speaker_id": null}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_revision": 0, "speaker_id": null}]'::jsonb)$sql$,
   'SP003'
+);
+-- Every change names the revision it was read at: a segment split or rejoined
+-- since then is refused, and a change that names no revision is malformed.
+SELECT pg_temp.assert_sqlstate(
+  $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
+    (SELECT jsonb_build_array(jsonb_build_object('segment_id', 'c3000000-0000-0000-0000-000000000012',
+       'expected_revision', 1, 'expected_speaker_id', null, 'speaker_id', a1_s1)) FROM ids))$sql$,
+  'SP002'
 );
 SELECT pg_temp.assert_sqlstate(
   $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
-    '[{"segment_id": "not-a-uuid", "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
+    '[{"segment_id": "c3000000-0000-0000-0000-000000000012", "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
+  'SP003'
+);
+SELECT pg_temp.assert_true(
+  (SELECT speaker_id IS NULL FROM public.segments WHERE id = 'c3000000-0000-0000-0000-000000000012'),
+  'a change made against another revision moves nothing'
+);
+SELECT pg_temp.assert_sqlstate(
+  $sql$SELECT * FROM public.reassign_segments('c1000000-0000-0000-0000-0000000000a1',
+    '[{"segment_id": "not-a-uuid", "expected_revision": 0, "expected_speaker_id": null, "speaker_id": null}]'::jsonb)$sql$,
   'SP003'
 );
 
