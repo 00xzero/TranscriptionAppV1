@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IsoSheet } from './IsoSheet'
+import { SlatSheet } from './SlatSheet'
 
 /**
  * The sign-in pages' frame: the logo and the steps' column on the left and,
@@ -16,7 +16,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
             message that appears only pushes down what is below it. */}
         <main className="flex flex-1 flex-col items-center pt-[max(3.9625rem,calc(50dvh-16.6625rem))] pb-10">{children}</main>
       </section>
-      <IsoSheet className="min-h-[calc(100dvh-3.5rem)]" />
+      <SlatSheet className="min-h-[calc(100dvh-3.5rem)]" />
     </div>
   )
 }
