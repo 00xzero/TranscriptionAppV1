@@ -42,21 +42,39 @@ export function isUncertainOutcome(error: unknown): boolean {
   return !!error && typeof error === 'object' && !(error instanceof Error) && !('code' in error) && 'message' in error
 }
 
-/** A user-facing message for a failed directory write. */
-export function mapPeopleWriteError(error: unknown, subject: 'person' | 'organisation' = 'person'): string {
+export type WriteSubject = 'person' | 'organisation' | 'tag'
+
+const NAMED: Record<WriteSubject, { gone: string; invalid: string; taken: string }> = {
+  person: {
+    gone: 'That person no longer exists.',
+    invalid: `Names must be 1 to ${TEXT_LIMITS.speakerName} characters.`,
+    taken: 'Another organisation already has that name.',
+  },
+  organisation: {
+    gone: 'That organisation no longer exists.',
+    invalid: `Organisation names must be 1 to ${TEXT_LIMITS.organisationName} characters.`,
+    taken: 'Another organisation already has that name.',
+  },
+  tag: {
+    gone: 'That tag no longer exists.',
+    invalid: `Tag names must be 1 to ${TEXT_LIMITS.tagName} characters.`,
+    taken: 'Another tag already has that name.',
+  },
+}
+
+/** A user-facing message for a failed directory or tag write. */
+export function mapPeopleWriteError(error: unknown, subject: WriteSubject = 'person'): string {
   switch (errorCode(error)) {
     case 'SP001':
-      return subject === 'organisation' ? 'That organisation no longer exists.' : 'That person no longer exists.'
+      return NAMED[subject].gone
     case 'SP002':
       return 'Changed in another tab. Please try again.'
     case 'SP004':
       return NOT_READY_MESSAGE
     case 'SP003':
-      return subject === 'organisation'
-        ? `Organisation names must be 1 to ${TEXT_LIMITS.organisationName} characters.`
-        : `Names must be 1 to ${TEXT_LIMITS.speakerName} characters.`
+      return NAMED[subject].invalid
     case '23505':
-      return 'Another organisation already has that name.'
+      return NAMED[subject].taken
     default:
       return 'Something went wrong. Please try again.'
   }

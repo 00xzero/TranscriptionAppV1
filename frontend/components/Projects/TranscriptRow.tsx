@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react'
 import type { TranscriptSummary } from '@/contracts/db'
+import { TagChipList } from '@/components/Tags/TagChip'
+import { useTags } from '@/lib/tags/TagsProvider'
 import { ListRow } from './ProjectList'
 import { formatDuration, type TranscriptProjectLabel } from './format'
 
@@ -39,6 +41,7 @@ export function TranscriptRow({ transcript, actions, projectPath }: TranscriptRo
   const title = transcript.title || 'Untitled'
   const isCompleted = transcript.status === 'completed'
   const badge = statusBadge(transcript.status)
+  const tags = useTags().tagsOf(transcript.id)
 
   return (
     <ListRow
@@ -73,6 +76,7 @@ export function TranscriptRow({ transcript, actions, projectPath }: TranscriptRo
             </>
           )}
         </p>
+        <TagChipList tags={tags} className="mt-1.5" />
       </div>
     </ListRow>
   )

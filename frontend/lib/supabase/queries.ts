@@ -24,6 +24,11 @@ import type {
     ProjectSpeakerSummary,
     Speaker,
     SegmentSpeakerChange,
+    Tag,
+    TranscriptTag,
+    CreateTranscriptTagResult,
+    UndoCreatedTagResult,
+    MergeTagsResult,
     SegmentTextEdit,
     SegmentSpeakerAssignment,
     TranscriptSummary,
@@ -52,6 +57,11 @@ import {
     SplitSegmentResultSchema,
     TranscriptSchema,
     TranscriptSummarySchema,
+    TagSchema,
+    TranscriptTagSchema,
+    CreateTranscriptTagResultSchema,
+    UndoCreatedTagResultSchema,
+    MergeTagsResultSchema,
 } from '@/contracts/db'
 import { z } from 'zod'
 
@@ -77,8 +87,9 @@ type PageResult<T> = {
     error: unknown
 }
 
-async function paginateRows<T extends { id: string }>(
-    fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>
+async function paginateRows<T>(
+    fetchPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
+    keyOf: (row: T) => string = (row) => (row as { id: string }).id
 ): Promise<T[]> {
     const rowsById = new Map<string, T>()
     let offset = 0
@@ -89,7 +100,8 @@ async function paginateRows<T extends { id: string }>(
         if (!data || data.length === 0) break
 
         for (const row of data) {
-            if (!rowsById.has(row.id)) rowsById.set(row.id, row)
+            const key = keyOf(row)
+            if (!rowsById.has(key)) rowsById.set(key, row)
         }
         if (data.length < PAGE_SIZE) break
         offset += PAGE_SIZE
@@ -957,4 +969,126 @@ export async function deleteOrganisation(organisationId: string): Promise<void> 
     const { error } = await supabase.rpc('delete_organisation', { p_organisation_id: organisationId })
 
     if (error) throw error
+}
+
+// ============================================================================
+// Tags
+// See infra/supabase/migrations/20261101000000_transcript_tags.sql
+// ============================================================================
+
+const TagsSchema = z.array(TagSchema)
+const TranscriptTagsSchema = z.array(TranscriptTagSchema)
+
+/** Every tag the user owns. */
+export async function fetchTags(): Promise<Tag[]> {
+    const supabase = createClient()
+    const rows = await paginateRows<{ id: string }>((from, to) =>
+        supabase
+            .from('tags')
+            .select('id, user_id, name, color, created_at, updated_at')
+            .order('created_at', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to)
+    )
+    return TagsSchema.parse(rows)
+}
+
+/** Every tag on every one of the user's transcripts. */
+export async function fetchTranscriptTags(): Promise<TranscriptTag[]> {
+    const supabase = createClient()
+    const rows = await paginateRows<{ transcript_id: string; tag_id: string }>(
+        (from, to) =>
+            supabase
+                .from('transcript_tags')
+                .select('transcript_id, tag_id')
+                .order('transcript_id', { ascending: true })
+                .order('tag_id', { ascending: true })
+                .range(from, to),
+        (row) => `${row.transcript_id}:${row.tag_id}`
+    )
+    return TranscriptTagsSchema.parse(rows)
+}
+
+/** Put a tag on a transcript. Already there counts as done. */
+export async function addTranscriptTag(transcriptId: string, tagId: string): Promise<void> {
+    const supabase = createClient()
+    const { error } = await supabase.rpc('add_transcript_tag', { p_transcript_id: transcriptId, p_tag_id: tagId })
+    if (error) throw error
+}
+
+/** Take a tag off a transcript. Not there counts as done. */
+export async function removeTranscriptTag(transcriptId: string, tagId: string): Promise<void> {
+    const supabase = createClient()
+    const { error } = await supabase.rpc('remove_transcript_tag', { p_transcript_id: transcriptId, p_tag_id: tagId })
+    if (error) throw error
+}
+
+/**
+ * Create a tag under an id the caller chose and put it on a transcript. The
+ * outcome says whether it is new, was already there under that id, or another
+ * tag with the name was used instead.
+ */
+export async function createTranscriptTag(
+    transcriptId: string,
+    tagId: string,
+    name: string,
+    color: string
+): Promise<CreateTranscriptTagResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('create_transcript_tag', {
+        p_transcript_id: transcriptId,
+        p_tag_id: tagId,
+        p_name: name,
+        p_color: color,
+    })
+    if (error) throw error
+    return CreateTranscriptTagResultSchema.parse(data)
+}
+
+/** Undo creating a tag on a transcript: deleted, kept (used elsewhere) or gone. */
+export async function undoCreatedTag(transcriptId: string, tagId: string): Promise<UndoCreatedTagResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('undo_created_tag', { p_transcript_id: transcriptId, p_tag_id: tagId })
+    if (error) throw error
+    return UndoCreatedTagResultSchema.parse(data)
+}
+
+/** Rename a tag everywhere. `expectedName` is the name last read. */
+export async function renameTag(tagId: string, expectedName: string, name: string): Promise<Tag> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('rename_tag', {
+        p_tag_id: tagId,
+        p_expected_name: expectedName,
+        p_name: name,
+    })
+    if (error) throw error
+    return TagSchema.parse(data)
+}
+
+/** Recolour a tag everywhere. `expectedColor` is the colour last read. */
+export async function setTagColor(tagId: string, expectedColor: string, color: string): Promise<Tag> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('set_tag_color', {
+        p_tag_id: tagId,
+        p_expected_color: expectedColor,
+        p_color: color,
+    })
+    if (error) throw error
+    return TagSchema.parse(data)
+}
+
+/** Delete a tag and take it off every transcript. False when it was already gone. */
+export async function deleteTag(tagId: string): Promise<boolean> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('delete_tag', { p_tag_id: tagId })
+    if (error) throw error
+    return z.boolean().parse(data)
+}
+
+/** Fold one tag into another. `merged` is false when `fromId` was already gone. */
+export async function mergeTags(fromId: string, intoId: string): Promise<MergeTagsResult> {
+    const supabase = createClient()
+    const { data, error } = await supabase.rpc('merge_tags', { p_from: fromId, p_into: intoId })
+    if (error) throw error
+    return MergeTagsResultSchema.parse(data)
 }

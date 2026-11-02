@@ -22,6 +22,8 @@ type ConfirmDialogProps = {
   confirmLabel?: string
   pendingLabel?: string
   confirmDisabled?: boolean
+  /** Where focus goes once the dialog closes; by default, back where it was. */
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 export function ConfirmDialog({
@@ -36,6 +38,7 @@ export function ConfirmDialog({
   confirmLabel = 'OK',
   pendingLabel,
   confirmDisabled = false,
+  onCloseAutoFocus,
 }: ConfirmDialogProps) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,7 +66,7 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent className="overflow-hidden p-0">
+      <AlertDialogContent className="overflow-hidden p-0" onCloseAutoFocus={onCloseAutoFocus}>
         <div className="px-6 pt-6 pb-5">
           {heading ? (
             <AlertDialogTitle className="mb-2 font-sans text-sm font-semibold not-italic text-ink dark:text-paper">

@@ -14,6 +14,7 @@ import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { Toggle } from '@/components/ui/toggle'
+import { FilterChips } from '@/components/FilterChips'
 import { toast } from '@/components/ui/toaster'
 import type { DirectoryOrganisation, DirectoryPerson } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
@@ -36,14 +37,6 @@ import { PersonRow, PersonRowSkeleton } from './PersonRow'
 import { formatPeopleDate } from './format'
 
 type Dialog = 'create' | 'rename-organisation' | 'delete-organisation' | null
-
-/** An organisation filter chip, on or off. */
-const CHIP = cn(
-  'h-8 max-w-64 gap-1.5 rounded-full border border-border bg-control px-3 text-xs font-normal text-foreground/80',
-  'hover:bg-control-hover hover:text-foreground',
-  'data-[state=on]:border-trust-blue/50 data-[state=on]:bg-warm-highlight data-[state=on]:text-trust-blue',
-  'dark:data-[state=on]:bg-night-border dark:data-[state=on]:text-paper'
-)
 
 /**
  * The People directory (spec §4): search, an organisation filter, recent or
@@ -313,8 +306,7 @@ export function PeopleListSkeleton({ from = null }: { from?: string | null }) {
 
 /**
  * All, each organisation and No organisation (spec §4), as chips that turn on
- * and off, each with the number of people it would list. Any number can be on,
- * and the list shows people in any of them; All turns them all off. While one
+ * and off, each with the number of people it would list. While one
  * organisation is on, its chip carries rename and delete.
  */
 function OrganisationFilter({ people, organisations, selected, onChange, menuOrganisation, onRename, onDelete }: {
@@ -331,37 +323,23 @@ function OrganisationFilter({ people, organisations, selected, onChange, menuOrg
     const key = person.organisation_id ?? NO_ORGANISATION
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
-  const options = [
-    ...organisations.map((entry) => ({ value: entry.id, label: entry.name, count: counts.get(entry.id) ?? 0 })),
-    { value: NO_ORGANISATION, label: 'No organisation', count: counts.get(NO_ORGANISATION) ?? 0 },
-  ]
-  const toggle = (value: string, on: boolean) =>
-    onChange(on ? [...selected, value] : selected.filter((entry) => entry !== value))
-
   return (
-    <div role="group" aria-label="Organisation" className="flex flex-wrap items-center gap-2">
-      <Toggle pressed={selected.length === 0} onPressedChange={() => onChange([])} className={CHIP}>
-        All <span className="font-mono text-[11px] text-muted">{people.length}</span>
-      </Toggle>
-      {options.map((option) => (
-        <span key={option.value} className="inline-flex items-center gap-0.5">
-          <Toggle
-            pressed={selected.includes(option.value)}
-            onPressedChange={(on) => toggle(option.value, on)}
-            className={CHIP}
-          >
-            <span className="truncate">{option.label}</span>
-            <span className="font-mono text-[11px] text-muted">{option.count}</span>
-          </Toggle>
-          {menuOrganisation?.id === option.value && (
-            <RowActionsMenu label={menuOrganisation.name}>
-              <DropdownMenuItem onSelect={onRename}>Rename organisation</DropdownMenuItem>
-              <DestructiveMenuItem onSelect={onDelete}>Delete organisation</DestructiveMenuItem>
-            </RowActionsMenu>
-          )}
-        </span>
-      ))}
-    </div>
+    <FilterChips
+      label="Organisation"
+      total={people.length}
+      options={[
+        ...organisations.map((entry) => ({ value: entry.id, label: entry.name, count: counts.get(entry.id) ?? 0 })),
+        { value: NO_ORGANISATION, label: 'No organisation', count: counts.get(NO_ORGANISATION) ?? 0 },
+      ]}
+      selected={selected}
+      onChange={onChange}
+      menu={(value) => menuOrganisation?.id === value && (
+        <RowActionsMenu label={menuOrganisation.name}>
+          <DropdownMenuItem onSelect={onRename}>Rename organisation</DropdownMenuItem>
+          <DestructiveMenuItem onSelect={onDelete}>Delete organisation</DestructiveMenuItem>
+        </RowActionsMenu>
+      )}
+    />
   )
 }
 

@@ -6,6 +6,7 @@ import { FolderClock, Plus } from 'lucide-react'
 import { ErrorFallback } from '@/components/ErrorFallback'
 import { TranscriptActionsMenu } from '@/components/TranscriptActionsMenu'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
+import { TagFilter, useTagFilter } from '@/components/Tags/TagFilter'
 import { Button } from '@/components/ui/button'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { AddTranscriptsDialog } from '@/components/Projects/AddTranscriptsDialog'
@@ -72,6 +73,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false)
   const projectActions = useProjectActions()
   const transcriptActions = useTranscriptActions()
+  const tagFilter = useTagFilter()
   // The whole branch, as the people dialog lists it: a project's speakers
   // include everyone in the projects nested in it.
   //
@@ -170,6 +172,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
 
   const children = tree.childrenOf.get(project.id) ?? []
   const directTranscripts = transcriptsInProject(transcripts, project.id)
+  const shownTranscripts = directTranscripts.filter((transcript) => tagFilter.matches(transcript.id))
   const counts = transcriptCountsByProject(transcripts)
   const isEmpty = children.length === 0 && directTranscripts.length === 0
   return (
@@ -238,8 +241,21 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
             title="Transcripts"
             meta={countLabel(directTranscripts.length, 'transcript', 'transcripts')}
           />
+          <div className="mb-3 empty:hidden">
+            <TagFilter
+              transcriptIds={directTranscripts.map((transcript) => transcript.id)}
+              selected={tagFilter.selected}
+              onChange={tagFilter.setSelected}
+            />
+          </div>
           <ProjectList>
-            {directTranscripts.map((transcript) => {
+            {shownTranscripts.length === 0 && (
+              <div className="px-6 py-8 text-center text-sm text-muted">
+                <p>No transcripts match.</p>
+                <Button size="sm" variant="secondary" className="mt-4" onClick={tagFilter.clear}>Clear filter</Button>
+              </div>
+            )}
+            {shownTranscripts.map((transcript) => {
               const target = transcriptActionTarget(transcript)
               return (
                 <TranscriptRow
@@ -248,6 +264,7 @@ function ProjectPageContent({ projectId }: { projectId: string }) {
                   actions={(
                     <TranscriptActionsMenu
                       title={target.title}
+                      transcriptId={target.id}
                       onMove={() => transcriptActions.openMove(target)}
                       onDelete={() => transcriptActions.openDelete(target)}
                     />

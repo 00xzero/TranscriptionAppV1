@@ -1,5 +1,6 @@
 import type { MergePreview, MergePreviewVoice, Organisation, PeopleDirectory, Person } from '@/contracts/db'
 import { genericSpeakerLabel, UNKNOWN_SPEAKER_LABEL } from '@/core/speakers/labels'
+import { sameName } from '@/core/names'
 
 /**
  * The People directory's list rules (spec §4): search, the organisation
@@ -59,11 +60,6 @@ type ListedPerson = {
   hidden: boolean
   created_at: string
   last_seen_at: string | null
-}
-
-/** Names equal once trimmed and compared without case: what "Create another" means. */
-export function sameName(a: string, b: string): boolean {
-  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
 }
 
 /** People already called `name`, for the "Create another" wording. None for a blank name. */
@@ -130,19 +126,6 @@ export function appearanceTotals(rows: readonly { created_at: string; talk_ms: n
     if (lastSeen === null || Date.parse(row.created_at) > Date.parse(lastSeen)) lastSeen = row.created_at
   }
   return { transcripts: rows.length, talkMs: rows.reduce((sum, row) => sum + row.talk_ms, 0), lastSeen }
-}
-
-/** Organisations whose name contains the query, for the type-ahead; all of them for a blank query. */
-export function matchOrganisations<T extends { name: string }>(organisations: readonly T[], query: string): T[] {
-  const needle = query.trim().toLocaleLowerCase()
-  if (!needle) return [...organisations]
-  return organisations.filter((organisation) => organisation.name.toLocaleLowerCase().includes(needle))
-}
-
-/** The organisation already called `name`, ignoring case, which the database would reuse. */
-export function exactOrganisation<T extends { name: string }>(organisations: readonly T[], name: string): T | undefined {
-  if (!name.trim()) return undefined
-  return organisations.find((organisation) => sameName(organisation.name, name))
 }
 
 /**

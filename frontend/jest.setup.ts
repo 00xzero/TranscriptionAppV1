@@ -108,4 +108,18 @@ jest.mock('./lib/supabase/queries', () => ({
   // silently exercising the hook's error path.
   fetchProjectSpeakerSummaries: jest.fn().mockResolvedValue(new Map()),
   fetchProjectPeople: jest.fn().mockResolvedValue({ people: [], voices: [] }),
+  // Tags: none by default, and every write succeeds.
+  fetchTags: jest.fn().mockResolvedValue([]),
+  fetchTranscriptTags: jest.fn().mockResolvedValue([]),
+  addTranscriptTag: jest.fn().mockResolvedValue(undefined),
+  removeTranscriptTag: jest.fn().mockResolvedValue(undefined),
+  createTranscriptTag: jest.fn(async (_transcriptId: string, id: string, name: string, color: string) => ({
+    tag: { id, user_id: 'u1', name, color, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' },
+    outcome: 'created',
+  })),
+  undoCreatedTag: jest.fn().mockResolvedValue('deleted'),
+  renameTag: jest.fn(),
+  setTagColor: jest.fn(),
+  deleteTag: jest.fn().mockResolvedValue(true),
+  mergeTags: jest.fn(),
 }))
