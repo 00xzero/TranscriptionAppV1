@@ -50,7 +50,13 @@ describe('sign-in attempt cookies', () => {
     const id = await codeAttempts.save(emailAttempt())
     const name = `olivetti-code-${id}`
 
-    mockJar.store.set(name, { value: mockJar.store.get(name)!.value.replace(/.$/, 'x') })
+    const sealed = mockJar.store.get(name)!.value
+    // Alter the MAC, rather than the unsigned ~version suffix v9 ignores.
+    const macStart = sealed.lastIndexOf('*') + 1
+    const tampered = sealed.slice(0, macStart)
+      + (sealed[macStart] === 'a' ? 'b' : 'a')
+      + sealed.slice(macStart + 1)
+    mockJar.store.set(name, { value: tampered })
     await expect(codeAttempts.read(id)).resolves.toBeNull()
 
     mockJar.store.set(name, { value: await sealData({ hello: 'world' }, { password: PASSWORD, ttl: 600 }) })
@@ -62,6 +68,16 @@ describe('sign-in attempt cookies', () => {
 
     await expect(codeAttempts.read('not-an-id')).resolves.toBeNull()
     await expect(oauthAttempts.read(newAttemptId())).resolves.toBeNull()
+  })
+
+  test('an unsigned version marker cannot reinterpret the authenticated attempt', async () => {
+    const id = await codeAttempts.save(emailAttempt())
+    const name = `olivetti-code-${id}`
+    const body = mockJar.store.get(name)!.value.split('~')[0]
+
+    mockJar.store.set(name, { value: `${body}~1` })
+
+    await expect(codeAttempts.read(id)).resolves.toEqual(emailAttempt())
   })
 
   test('two attempts stay independent, and clearing one leaves the other', async () => {

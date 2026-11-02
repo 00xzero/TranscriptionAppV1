@@ -93,15 +93,11 @@ export interface CaptureUploadOptions {
      * Client-generated upload idempotency key (recording sessions only). When set:
      * transcript create dedupes by (user_id, uploadIntentId), and `/start` is keyed
      * with `start:<uploadIntentId>` so a recovery retry returns the canonical
-     * transcript + job instead of duplicating either.
+     * transcript + job instead of duplicating either. The storage path is then
+     * the same on every attempt, so the upload may replace a file an earlier
+     * attempt left there (it is only reached while no media is linked).
      */
     uploadIntentId?: string
-    /**
-     * Allow overwriting an existing storage object on upload. Used by recovery
-     * saves where the media key may already exist from an interrupted attempt;
-     * the live capture path leaves this false to keep its stricter guarantee.
-     */
-    allowUpsert?: boolean
   projectId?: string | null
     /** How the transcript is made; unset gives the default options. */
     transcriptionOptions?: TranscriptionOptions
@@ -411,7 +407,7 @@ export async function runCaptureUpload(
             await transferToStorage(supabase, storagePath, file, {
                 userId,
                 contentType: mimeType,
-                upsert: options.allowUpsert ?? false,
+                upsert: Boolean(options.uploadIntentId),
                 signal,
                 onProgress: options.onUploadBytes,
             })

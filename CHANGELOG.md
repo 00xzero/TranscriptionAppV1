@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - Recording retry after a lost link
+
+### Fixed
+
+- **Retry upload** now saves a stopped recording whose upload landed but whose link to the transcript was lost, and whose follow-up check failed too. Each retry reused the same transcript and file path, and storage refused to replace the file ("The resource already exists"), so only a page reload could save it. An upload that carries a recording's upload intent now replaces the file an earlier attempt left; the separate `allowUpsert` switch that only recovery set is gone, so Retry and recovery follow one rule. Uploads without an intent (file uploads) still never overwrite. It is only reached while the transcript has no media linked, inside that transcript's own folder.
+
+### Verification
+
+- New regression test `__tests__/recording/retryAfterAmbiguousLink.test.ts` runs the real session and upload against a fake server whose storage refuses to overwrite: before the fix three Retry presses each failed, now the first submits; a reload/recovery save still works. All 227 Jest suites / 2,941 tests and 7 snapshots pass; typecheck and lint (0 errors / 58 warnings) pass.
+- In Chrome on the host dev server (hosted Supabase), with the browser's `/rest/v1/transcripts` requests failed by a page-level stub: before the fix every Retry got a 400 from storage on the same path; after it, one Retry linked the file and started transcription. The `media` bucket's own-folder INSERT/SELECT/UPDATE policies cover the overwrite.
+
+## [2026-11-02] - iron-session 9
+
+### Changed
+
+- Updated the app's `iron-session` from 8.0.4 to 9.0.1 and its sealing dependencies. AuthKit 4.6.2 retains its supported nested iron-session 8.0.4; no dependency override or application auth logic changed.
+- Configured Jest to transform the new ESM sealing packages while preserving Next.js defaults. Tamper tests now corrupt the authenticated MAC rather than the unsigned version suffix; added coverage for the version marker and real v8/v9 seal compatibility in both directions.
+
+### Verification
+
+- All 226 Jest suites / 2,939 tests and 7 snapshots pass. Typecheck, production build, lint (0 errors / 58 warnings), dependency-tree checks, and `git diff --check` pass. Audit counts are unchanged, with 0 critical findings.
+- Live staging checks pass for signup, verification delivery/resend and invalid/superseded codes, password sign-in, reset delivery and recovery, old-password/used-link rejection, session refresh, sign-out, protected-route blocking, and Google/Microsoft OAuth using the approved cached identities.
+- Disposable account, app-user row, and mailbox removed; the protected account's 68 transcript ID/owner rows are unchanged. Its browser session was restored and the normal development server resumed. Details and coverage limits are in `.docs/reviews/2026-11-02-iron-session9-update.md`.
+
+## [2026-11-02] - WorkOS Node 12
+
+### Changed
+
+- Updated `@workos-inc/node` from 10.14.0 to 12.1.0. AuthKit 4.6.2 and iron-session 8.0.4 remain unchanged; no application auth logic or database permissions changed.
+- Extended the real AuthKit/SDK contract probe with realistic user timestamps and two regression checks: reading an existing string-valued sealed session and refreshing through SDK 12 both return valid `Date` values.
+
+### Verification
+
+- All 226 Jest suites / 2,937 tests and 7 snapshots pass. Typecheck, production build, full lint (0 errors / 58 warnings), targeted lint, dependency-tree checks, and `git diff --check` pass. The audit remains at 0 critical findings.
+- Live staging checks pass for signup, verification email delivery/resend, invalid and superseded codes, password sign-in failures, password reset email delivery, weak-password recovery, successful reset, old-password and used-link rejection, session refresh, sign-out, and protected-route blocking. Google and Microsoft OAuth returned to their requested destinations and correct accounts; Microsoft required a user-completed verification step.
+- Disposable account, app-user row, and mailbox removed with exact-identity guards. The protected account's transcript IDs and ownership match the starting snapshot. Its browser session was restored, and the normal development server is running.
+- Revoked refresh tokens are rejected; an already-issued JWT can remain accepted until expiry/renewal. The manually invoked AuthKit refresh action returned a terminal error, and subsequent session checks returned the browser to sign-in. Details and remaining limits are in `.docs/reviews/2026-11-02-workos-node12-update.md`.
+
+## [2026-11-02] - Compatible Dependency Updates
+
+### Changed
+
+- Updated 38 direct dependencies within their existing major versions, including React/React DOM 19.3.1, Radix components, Supabase JS 2.118.0, AuthKit 4.6.2, Inngest 4.26.2, DOCX 9.15.1, Jest/jsdom 30.5.2, and TypeScript 6.0.3. Preserved the existing exact/caret version policy and refreshed the lockfile.
+- Declared JSZip 3.10.2 as a development dependency: the export tests import it directly, and DOCX no longer supplies it transitively. No application logic changed.
+- Deferred WorkOS Node 12, iron-session 9, ESLint 10, and TypeScript 7. WorkOS Node is already current within 10.x; TypeScript uses the latest 6.x patch.
+
+### Verification
+
+- All 226 Jest suites / 2,935 tests and 7 snapshots pass in one full run. Typecheck and production build pass; lint reports 0 errors / 58 warnings.
+- Production-browser smoke checks pass for email/password sign-in, library loading, capture dialog/project popover focus restoration, transcript playback, and authenticated DOCX export. The known hosted Supabase tag-table gap remains separate.
+- npm audit still reports 0 critical findings and 7 affected production package entries; only the four deferred majors remain in `npm outdated`. Details and all version changes are in `.docs/reviews/2026-11-02-compatible-dependency-update.md`.
+
+## [2026-11-02] - Security Dependency Updates
+
+### Changed
+
+- Updated Next.js and `eslint-config-next` from 16.3.1 to 16.4.4 and the app's Zod from 4.3.6 to 4.6.7. Refreshed compatible transitive dependencies, including Sharp 0.35.5, gRPC 1.14.7, `systeminformation` 5.33.19, `source-map-js` 1.2.2, and patched `brace-expansion` and `js-yaml` releases. Other direct dependency versions stay unchanged.
+- Corrected the repository instructions to describe the installed Next.js version and TypeScript-compatible lint tooling.
+
+### Verification
+
+- Typecheck, production build, and lint pass (58 lint warnings, no errors). All 226 Jest suites / 2,935 tests and 7 snapshots pass across the full run and the auth outage suite's retry outside the sandbox. Browser checks pass for email/password sign-in, library loading, opening an existing transcript, and audio playback.
+- npm audit reports no critical findings: affected package entries fell from 47 to 40 overall and from 13 to 7 excluding development dependencies. Remaining advisories concern Inngest's Zod 3 dependency and glob/minimatch chains, plus development-only `deepmerge`; compatible upstream fixes are not available. See `.docs/reviews/2026-11-02-security-dependency-update.md` for the dependency paths and limits.
+- The browser check found missing tag tables on the configured hosted Supabase project (`PGRST205`). The existing tag migration has not been applied there as part of this update.
+
 ## [2026-11-02] - Transcript Tags
 
 Transcripts can carry coloured tags, as in Notion: added from the editor or

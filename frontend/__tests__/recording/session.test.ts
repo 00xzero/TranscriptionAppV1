@@ -1299,7 +1299,7 @@ describe('recording session durability mirror', () => {
     })
     expect(mockRunCaptureUpload.mock.calls[0][3]).toMatchObject({
       projectId: 'project-recovered',
-      allowUpsert: true,
+      uploadIntentId: 'intent-1',
       transcriptionOptions: RECOVERED_OPTIONS,
     })
   })

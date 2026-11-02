@@ -23,4 +23,19 @@ const customJestConfig = {
   testMatch: ['**/__tests__/**/*.test.(ts|tsx)'],
 }
 
-module.exports = createJestConfig(customJestConfig)
+const resolveJestConfig = createJestConfig(customJestConfig)
+
+module.exports = async () => {
+  const config = await resolveJestConfig()
+  return {
+    ...config,
+    // next/jest prepends its own ignore patterns, so adjust the resolved config
+    // to transform the ESM sealing packages while keeping its other exclusions.
+    transformIgnorePatterns: config.transformIgnorePatterns.map((pattern) =>
+      pattern.replace(
+        '/node_modules/',
+        '/node_modules/(?!(iron-session|iron-webcrypto|cookie|uint8array-extras)/)'
+      )
+    ),
+  }
+}

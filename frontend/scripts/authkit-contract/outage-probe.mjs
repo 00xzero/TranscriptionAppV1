@@ -8,10 +8,19 @@
  *   node --import ./scripts/authkit-contract/register.mjs scripts/authkit-contract/outage-probe.mjs
  */
 import http from 'node:http'
+import { createRequire } from 'node:module'
 import { SignJWT, exportJWK, generateKeyPair } from 'jose'
-import { sealData } from 'iron-session'
+import { sealData, unsealData } from 'iron-session'
 
 const PASSWORD = 'contract-cookie-password-at-least-32-chars'
+const user = {
+  object: 'user',
+  id: 'user_A',
+  email: 'a@example.com',
+  created_at: '2026-10-01T12:00:00.000Z',
+  updated_at: '2026-10-02T12:00:00.000Z',
+  last_sign_in_at: '2026-10-03T12:00:00.000Z',
+}
 let mode = { jwks: 'ok', refresh: 'ok' }
 
 const { publicKey, privateKey } = await generateKeyPair('RS256')
@@ -32,7 +41,7 @@ const workos = http.createServer(async (request, response) => {
     if (mode.refresh === 'down') return send(503, { message: 'down' })
     if (mode.refresh === 'refused') return send(400, { error: 'invalid_grant', error_description: 'refresh token revoked' })
     return send(200, {
-      user: { object: 'user', id: 'user_A', email: 'a@example.com' },
+      user,
       access_token: await tokenExpiring('5m'),
       refresh_token: 'refresh-2',
     })
@@ -53,9 +62,20 @@ Object.assign(process.env, {
 // After the environment: AuthKit reads it when it loads.
 const { NextRequest } = await import('next/server')
 const { authkit } = await import('@workos-inc/authkit-nextjs')
+const authkitIron = createRequire(import.meta.resolve('@workos-inc/authkit-nextjs'))('iron-session')
 
 const seal = async (accessToken) =>
-  sealData({ accessToken, refreshToken: 'refresh-1', user: { id: 'user_A', email: 'a@example.com' } }, { password: PASSWORD })
+  sealData({
+    accessToken,
+    refreshToken: 'refresh-1',
+    user: {
+      id: user.id,
+      email: user.email,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      lastSignInAt: user.last_sign_in_at,
+    },
+  }, { password: PASSWORD })
 const foreignSignature = await new SignJWT({}).setProtectedHeader({ alg: 'HS256', kid: 'k1' })
   .setSubject('user_A').setExpirationTime('5m').sign(new TextEncoder().encode('another-key-of-at-least-32-bytes!!'))
 
@@ -72,6 +92,21 @@ const cases = [
 ]
 
 const results = {}
+const attempt = {
+  challenge: 'email-verification',
+  pendingAuthenticationToken: 'synthetic-pending-token',
+  email: 'a@example.com',
+  next: '/projects',
+  emailVerificationId: undefined,
+}
+const sealOptions = { password: PASSWORD, ttl: 600 }
+const previousSeal = await authkitIron.sealData(attempt, sealOptions)
+const currentSeal = await sealData(attempt, sealOptions)
+const expectedAttempt = JSON.stringify(attempt)
+results['mixed iron-session compatibility'] = {
+  existingAttempt: JSON.stringify(await unsealData(previousSeal, sealOptions)) === expectedAttempt,
+  rollback: JSON.stringify(await authkitIron.unsealData(currentSeal, sealOptions)) === expectedAttempt,
+}
 for (const [name, cookie, nextMode] of cases) {
   mode = nextMode
   const { session, headers } = await authkit(
@@ -80,6 +115,15 @@ for (const [name, cookie, nextMode] of cases) {
   results[name] = {
     user: session.user?.id ?? null,
     cookieDeleted: headers.getSetCookie().some((value) => value.split(';')[0].trim() === 'wos-session='),
+  }
+  if (session.user) {
+    // Covers reading an existing v10-style seal as well as SDK v12's refresh response.
+    results[`${name} timestamps`] = Object.fromEntries(
+      ['createdAt', 'updatedAt', 'lastSignInAt'].map((key) => {
+        const value = session.user[key]
+        return [key, value instanceof Date && Number.isFinite(value.getTime())]
+      })
+    )
   }
 }
 workos.close()

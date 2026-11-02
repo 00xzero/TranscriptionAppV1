@@ -219,7 +219,6 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
     result = await runCaptureUpload(file, title, info.keyTerms, {
       userId,
       uploadIntentId: info.uploadIntentId ?? undefined,
-      allowUpsert: true,
       projectId: info.projectId,
       transcriptionOptions: info.transcriptionOptions,
     })
