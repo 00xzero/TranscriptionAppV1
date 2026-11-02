@@ -17,6 +17,10 @@ describe('AuthKit, as proxy.ts relies on it', () => {
     )
   ) as Record<string, { user: string | null; cookieDeleted: boolean }>
 
+  test('existing attempt seals and rollback remain compatible with AuthKit\'s sealing dependency', () => {
+    expect(results['mixed iron-session compatibility']).toEqual({ existingAttempt: true, rollback: true })
+  })
+
   test.each(['signing keys unreachable', 'expired token, refresh service down'])(
     'an outage (%s) finds no user and keeps the session cookie',
     (name) => {

@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - iron-session 9
+
+### Changed
+
+- Updated the app's `iron-session` from 8.0.4 to 9.0.1 and its sealing dependencies. AuthKit 4.6.2 retains its supported nested iron-session 8.0.4; no dependency override or application auth logic changed.
+- Configured Jest to transform the new ESM sealing packages while preserving Next.js defaults. Tamper tests now corrupt the authenticated MAC rather than the unsigned version suffix; added coverage for the version marker and real v8/v9 seal compatibility in both directions.
+
+### Verification
+
+- All 226 Jest suites / 2,939 tests and 7 snapshots pass. Typecheck, production build, lint (0 errors / 58 warnings), dependency-tree checks, and `git diff --check` pass. Audit counts are unchanged, with 0 critical findings.
+- Live staging checks pass for signup, verification delivery/resend and invalid/superseded codes, password sign-in, reset delivery and recovery, old-password/used-link rejection, session refresh, sign-out, protected-route blocking, and Google/Microsoft OAuth using the approved cached identities.
+- Disposable account, app-user row, and mailbox removed; the protected account's 68 transcript ID/owner rows are unchanged. Its browser session was restored and the normal development server resumed. Details and coverage limits are in `.docs/reviews/2026-11-02-iron-session9-update.md`.
+
 ## [2026-11-02] - WorkOS Node 12
 
 ### Changed

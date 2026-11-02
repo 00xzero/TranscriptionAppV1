@@ -162,7 +162,13 @@ describe('GET /auth/callback', () => {
 
     const state = await attempt()
     const name = `olivetti-oauth-${state}`
-    mockJar.store.set(name, { value: mockJar.store.get(name)!.value.replace(/.$/, 'x') })
+    const sealed = mockJar.store.get(name)!.value
+    // The ~version suffix is unsigned; corrupt the authenticated MAC instead.
+    const macStart = sealed.lastIndexOf('*') + 1
+    const tampered = sealed.slice(0, macStart)
+      + (sealed[macStart] === 'a' ? 'b' : 'a')
+      + sealed.slice(macStart + 1)
+    mockJar.store.set(name, { value: tampered })
     expect(location(await callback(`code=c1&state=${state}`))).toBe('http://localhost:3000/auth?error=oauth')
 
     expect(location(await callback('code=c1'))).toBe('http://localhost:3000/auth?error=oauth')

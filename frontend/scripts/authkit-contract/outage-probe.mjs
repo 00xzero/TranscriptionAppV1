@@ -8,8 +8,9 @@
  *   node --import ./scripts/authkit-contract/register.mjs scripts/authkit-contract/outage-probe.mjs
  */
 import http from 'node:http'
+import { createRequire } from 'node:module'
 import { SignJWT, exportJWK, generateKeyPair } from 'jose'
-import { sealData } from 'iron-session'
+import { sealData, unsealData } from 'iron-session'
 
 const PASSWORD = 'contract-cookie-password-at-least-32-chars'
 const user = {
@@ -61,6 +62,7 @@ Object.assign(process.env, {
 // After the environment: AuthKit reads it when it loads.
 const { NextRequest } = await import('next/server')
 const { authkit } = await import('@workos-inc/authkit-nextjs')
+const authkitIron = createRequire(import.meta.resolve('@workos-inc/authkit-nextjs'))('iron-session')
 
 const seal = async (accessToken) =>
   sealData({
@@ -90,6 +92,21 @@ const cases = [
 ]
 
 const results = {}
+const attempt = {
+  challenge: 'email-verification',
+  pendingAuthenticationToken: 'synthetic-pending-token',
+  email: 'a@example.com',
+  next: '/projects',
+  emailVerificationId: undefined,
+}
+const sealOptions = { password: PASSWORD, ttl: 600 }
+const previousSeal = await authkitIron.sealData(attempt, sealOptions)
+const currentSeal = await sealData(attempt, sealOptions)
+const expectedAttempt = JSON.stringify(attempt)
+results['mixed iron-session compatibility'] = {
+  existingAttempt: JSON.stringify(await unsealData(previousSeal, sealOptions)) === expectedAttempt,
+  rollback: JSON.stringify(await authkitIron.unsealData(currentSeal, sealOptions)) === expectedAttempt,
+}
 for (const [name, cookie, nextMode] of cases) {
   mode = nextMode
   const { session, headers } = await authkit(
