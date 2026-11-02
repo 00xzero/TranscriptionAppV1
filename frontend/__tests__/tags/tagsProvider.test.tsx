@@ -112,6 +112,32 @@ test('one failed write undoes only itself, next to one that succeeded', async ()
   expect(linked(result, 't1')).toEqual(['g1'])
 })
 
+test('a read where a link names a tag not read (a change elsewhere between the two) is read again', async () => {
+  const { result } = await loaded()
+  // Another tab created g3 and put it on t2 between the tags read and the links read.
+  const FRESH = tag('g3', 'Fresh')
+  jest.mocked(fetchTags).mockResolvedValueOnce([INTERVIEW, RESEARCH]).mockResolvedValue([INTERVIEW, RESEARCH, FRESH])
+  jest.mocked(fetchTranscriptTags).mockClear().mockResolvedValue([link('t1', 'g1'), link('t2', 'g3')])
+  await act(async () => { await expect(result.current.reload()).resolves.toBe(true) })
+  expect(fetchTranscriptTags).toHaveBeenCalledTimes(2)
+  expect(linked(result, 't2')).toEqual(['g3'])
+})
+
+test('a reload overtaken by a newer one answers with the newer one’s result', async () => {
+  const { result } = await loaded()
+  const older = deferred<Tag[]>()
+  jest.mocked(fetchTags).mockReturnValueOnce(older.promise).mockRejectedValueOnce({ code: '', message: 'Failed to fetch' })
+  let first!: Promise<boolean>
+  let second!: Promise<boolean>
+  act(() => { first = result.current.reload() })
+  act(() => { second = result.current.reload() })
+  await act(async () => {
+    older.resolve([INTERVIEW, RESEARCH])
+    await expect(second).resolves.toBe(false)
+    await expect(first).resolves.toBe(false)
+  })
+})
+
 describe('the three kinds of failure', () => {
   test('a database refusal removes the edit and reads nothing again', async () => {
     const { result } = await loaded()
@@ -138,6 +164,31 @@ describe('the three kinds of failure', () => {
     })
     await waitFor(() => expect(fetchTranscriptTags).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(linked(result, 't3')).toEqual(['g2']))
+  })
+
+  test('an unknown outcome keeps reading until a read works', async () => {
+    const { result } = await loaded()
+    jest.useFakeTimers()
+    try {
+      // The write did happen; the first read back fails, the next one works.
+      jest.mocked(fetchTranscriptTags).mockClear()
+        .mockRejectedValueOnce({ code: '', message: 'Failed to fetch' })
+        .mockResolvedValue([link('t1', 'g1'), link('t3', 'g2')])
+      await act(async () => {
+        await expect(result.current.write({
+          edit: (s) => withLink(s, 't3', 'g2', true),
+          send: () => Promise.reject({ code: '', message: 'Failed to fetch' }),
+        })).rejects.toBeTruthy()
+      })
+      await act(async () => { await Promise.resolve() })
+      expect(fetchTranscriptTags).toHaveBeenCalledTimes(1)
+      expect(linked(result, 't3')).toEqual([])
+      await act(async () => { await jest.advanceTimersByTimeAsync(1_000) })
+      expect(fetchTranscriptTags).toHaveBeenCalledTimes(2)
+      expect(linked(result, 't3')).toEqual(['g2'])
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('a local stop removes the edit and reads nothing again', async () => {

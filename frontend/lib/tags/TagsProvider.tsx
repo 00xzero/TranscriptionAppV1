@@ -39,18 +39,23 @@ export type TagsStore = {
   tagsOf(transcriptId: string): readonly Tag[]
   /** How many of these transcripts carry a tag; links to transcripts no longer listed don't count. */
   countFor(tagId: string, transcriptIds: ReadonlySet<string>): number
-  /** Resolves false when the read failed. */
+  /** Resolves false when the read failed; overtaken by a newer reload, it answers with that one's result. */
   reload(): Promise<boolean>
   /**
    * Runs a write. Its edit shows at once; once answered, the answer joins the
    * snapshot. On failure only this edit is dropped, never an older snapshot
-   * restored; an unknown outcome also reloads. The error is passed on.
+   * restored; an unknown outcome also reads again until a read works. The
+   * error is passed on.
    */
   write<T>(request: TagWrite<T>): Promise<T>
 }
 
 const byName = (a: Tag, b: Tag) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
 const NO_TAGS: readonly Tag[] = []
+// Reads of tags and links taken together before a pair that disagrees is kept anyway.
+const CONSISTENT_READS = 3
+const READ_BACK_FIRST_WAIT_MS = 1_000
+const READ_BACK_MAX_WAIT_MS = 15_000
 
 // Outside the app shell (tests of a single surface, mostly) there are no tags
 // and every write is sent as it is.
@@ -91,34 +96,57 @@ export function TagsProvider({ children }: { children: ReactNode }) {
   const nextEdit = useRef(0)
   const queues = useRef(new Map<string, Promise<unknown>>())
 
-  const reload = useCallback(async (): Promise<boolean> => {
+  const latest = useRef<Promise<boolean>>(Promise.resolve(true))
+  const mounted = useRef(true)
+
+  const reload = useCallback((): Promise<boolean> => {
     const mine = ++generation.current
-    for (;;) {
-      const startedAt = answered.current
-      try {
-        const [tags, links] = await Promise.all([fetchTags(), fetchTranscriptTags()])
-        // A newer reload owns the result.
-        if (generation.current !== mine) return true
-        if (answered.current !== startedAt) continue
-        hasSnapshot.current = true
-        setSnapshot({ tags, links })
-        setError(null)
-        return true
-      } catch (caught) {
-        if (generation.current === mine) {
+    const run = (async (): Promise<boolean> => {
+      for (let reads = 1; ; reads++) {
+        const startedAt = answered.current
+        try {
+          const [tags, links] = await Promise.all([fetchTags(), fetchTranscriptTags()])
+          // A newer reload owns the result, and answers for this one too.
+          if (generation.current !== mine) return latest.current
+          if (answered.current !== startedAt) continue
+          // Every link names an existing tag, so one naming a tag not read means
+          // the two reads straddled a change made elsewhere: read both again.
+          const read = new Set(tags.map((tag) => tag.id))
+          if (reads < CONSISTENT_READS && links.some((link) => !read.has(link.tag_id))) continue
+          hasSnapshot.current = true
+          setSnapshot({ tags, links })
+          setError(null)
+          return true
+        } catch (caught) {
+          if (generation.current !== mine) return latest.current
           console.error('[tags] Failed to load:', caught)
           setError(caught)
+          return false
         }
-        return false
       }
-    }
+    })()
+    latest.current = run
+    return run
   }, [])
 
+  // Reads until a read works, for a write whose outcome is not known: what the
+  // screen shows must catch up with what the database holds.
+  const readBack = useCallback(async () => {
+    for (let wait = READ_BACK_FIRST_WAIT_MS; mounted.current; wait = Math.min(wait * 2, READ_BACK_MAX_WAIT_MS)) {
+      if (await reload()) return
+      await new Promise((resolve) => setTimeout(resolve, wait))
+    }
+  }, [reload])
+
   useEffect(() => {
+    mounted.current = true
     void reload()
     const onFocus = () => { void reload() }
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    return () => {
+      mounted.current = false
+      window.removeEventListener('focus', onFocus)
+    }
   }, [reload])
 
   const write = useCallback(<T,>({ edit, send, via, settle, tagIds = [] }: TagWrite<T>): Promise<T> => {
@@ -131,13 +159,13 @@ export function TagsProvider({ children }: { children: ReactNode }) {
     const accept = (result: T) => {
       answered.current++
       // With nothing loaded there is nothing to fold the answer into: read it instead.
-      if (!hasSnapshot.current) void reload()
+      if (!hasSnapshot.current) void readBack()
       else if (confirm) setSnapshot((current) => (current ? confirm(current, result) : current))
       drop()
     }
     const fail = (caught: unknown) => {
       drop()
-      if (tagWriteFailure(caught) === 'unknown') void reload()
+      if (tagWriteFailure(caught) === 'unknown') void readBack()
     }
     // Settles once a request the sender stopped waiting for has its answer.
     let late: Promise<unknown> = Promise.resolve()
@@ -164,7 +192,7 @@ export function TagsProvider({ children }: { children: ReactNode }) {
       for (const tagId of tagIds) if (queues.current.get(tagId) === settled) queues.current.delete(tagId)
     })
     return run
-  }, [reload])
+  }, [readBack])
 
   const view = useMemo(
     () => (snapshot ? pending.reduce((current, entry) => entry.edit(current), snapshot) : null),

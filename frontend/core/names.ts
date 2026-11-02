@@ -1,16 +1,17 @@
 // Matching user-chosen names (organisations, tags) the way the database tells
-// them apart: trimmed and without case.
+// them apart: trimmed and without case. Case is folded the same in every
+// browser language (toLowerCase, not toLocaleLowerCase), as the database does.
 
 /** Names equal once trimmed and compared without case. */
 export function sameName(a: string, b: string): boolean {
-  return a.trim().toLocaleLowerCase() === b.trim().toLocaleLowerCase()
+  return a.trim().toLowerCase() === b.trim().toLowerCase()
 }
 
 /** Entries whose name contains the query, for a type-ahead; all of them for a blank query. */
 export function matchByName<T extends { name: string }>(entries: readonly T[], query: string): T[] {
-  const needle = query.trim().toLocaleLowerCase()
+  const needle = query.trim().toLowerCase()
   if (!needle) return [...entries]
-  return entries.filter((entry) => entry.name.toLocaleLowerCase().includes(needle))
+  return entries.filter((entry) => entry.name.toLowerCase().includes(needle))
 }
 
 /** The entry already called `name`, ignoring case, which the database would reuse. */

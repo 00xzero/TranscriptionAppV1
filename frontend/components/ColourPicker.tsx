@@ -19,22 +19,23 @@ export function ColourPicker({ current, onChoose, hint, describeError = (error) 
   /** The message for a rejected choice. */
   describeError?: (error: unknown) => string
 }) {
-  const [color, setColor] = useState(current)
-  const [pending, setPending] = useState(false)
+  // The swatch being saved; otherwise the picker shows `current`, which can
+  // change under it (a reload after a change made elsewhere).
+  const [choice, setChoice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const pending = choice !== null
+  const color = choice ?? current
 
   const choose = async (next: string) => {
     if (pending || next === current) return
-    setColor(next)
-    setPending(true)
+    setChoice(next)
     setError(null)
     try {
       await onChoose(next)
     } catch (caught) {
-      setColor(current)
       setError(describeError(caught))
     } finally {
-      setPending(false)
+      setChoice(null)
     }
   }
 

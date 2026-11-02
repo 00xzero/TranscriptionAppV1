@@ -171,10 +171,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         const [speakersRead, row, tagsRead] = await Promise.all([
           speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
         ])
-        if (!speakersRead || !row || !tagsRead) return false
-        data.setTranscriptTitle(row.title)
-        handleTitleSaved(row.title)
-        return true
+        // A title that was read is shown even when another read failed.
+        if (row) {
+          data.setTranscriptTitle(row.title)
+          handleTitleSaved(row.title)
+        }
+        return speakersRead && !!row && tagsRead
       },
       reveal(target) {
         sync.suspendFollow('ui')

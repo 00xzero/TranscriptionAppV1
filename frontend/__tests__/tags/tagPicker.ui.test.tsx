@@ -2,7 +2,17 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { TagPicker, type TagPickerHandlers } from '@/components/Tags/TagPicker'
+import { toast } from '@/components/ui/toaster'
 import type { Tag } from '@/contracts/db'
+
+jest.mock('@/components/ui/toaster', () => ({ toast: jest.fn() }))
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
 
 const tag = (id: string, name: string, color = '#4F638C'): Tag => ({
   id, user_id: 'u1', name, color, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z',
@@ -162,6 +172,23 @@ describe('a tag’s ⋯ menu', () => {
     const field = await openMenu(user, 'Research')
     await user.type(field, ' notes{Enter}')
     expect(await screen.findByRole('alert')).toHaveTextContent('Another tag already has that name.')
+  })
+
+  test('a rename refused after a click outside closed the menu says why in a toast', async () => {
+    const user = userEvent.setup()
+    const refusal = deferred<void>()
+    const actions = handlers({ onRename: jest.fn(() => refusal.promise) })
+    render(<Harness actions={actions} />)
+    const field = await openMenu(user, 'Research')
+    await user.type(field, ' notes')
+    await user.click(search())
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument())
+    expect(actions.onRename).toHaveBeenCalledWith(RESEARCH, 'Research notes')
+    refusal.reject(new Error('Another tag already has that name.'))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({
+      title: "Couldn't rename “Research”: Another tag already has that name.",
+      variant: 'error',
+    }))
   })
 
   test('the name of another tag offers to merge, once, and confirming merges', async () => {

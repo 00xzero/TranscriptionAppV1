@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { Check, MoreHorizontal, Plus, Trash2, X } from 'lucide-react'
 import { ColourPicker } from '@/components/ColourPicker'
 import { nameLength } from '@/components/People/format'
@@ -8,6 +8,7 @@ import { countLabel } from '@/components/Projects/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { toast } from '@/components/ui/toaster'
 import type { Tag } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { exactByName, matchByName, sameName } from '@/core/names'
@@ -313,6 +314,12 @@ function TagOptionFields({ tag, tags, count, onRename, onRecolour, onAskDelete, 
   const skipBlur = useRef(false)
   // The name last sent, so a blur right after Enter does not send it twice.
   const sent = useRef<string | null>(null)
+  // A blur from a click outside closes the menu before a refusal comes back.
+  const open = useRef(true)
+  useEffect(() => {
+    open.current = true
+    return () => { open.current = false }
+  }, [])
 
   const name = draft.trim()
   const tooLong = nameLength(name) > LIMIT
@@ -328,7 +335,8 @@ function TagOptionFields({ tag, tags, count, onRename, onRecolour, onAskDelete, 
     setError(null)
     onRename(tag, name).catch((caught) => {
       sent.current = null
-      setError(messageOf(caught))
+      if (open.current) setError(messageOf(caught))
+      else toast({ title: `Couldn't rename “${tag.name}”: ${messageOf(caught)}`, variant: 'error' })
     })
   }
 
