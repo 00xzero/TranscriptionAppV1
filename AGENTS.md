@@ -6,7 +6,7 @@ This app is currently in development. We have no users yet and are building towa
 
 ## Project Structure & Module Organization
 
-- `frontend/` is the active Next.js App Router application (Next.js 16.2.1, React 19, TypeScript, Tailwind CSS) with API routes and Inngest functions.
+- `frontend/` is the active Next.js App Router application (Next.js 16.4.4, React 19, TypeScript, Tailwind CSS) with API routes and Inngest functions.
   - `frontend/app/`: pages, layouts, and API routes.
   - `frontend/components/`: shared React UI components.
   - `frontend/contracts/`: Zod schemas and shared runtime-validated contracts.
@@ -95,7 +95,7 @@ Keep these credentials available for UI testing. Do not use them as production c
 - Frontend tests use Jest 30 with `jest-environment-jsdom`; keep test files under `frontend/__tests__/` and run targeted tests when possible.
 - Use `npm run typecheck` in addition to lint for TypeScript validation.
 - `npm run lint` uses the current flat ESLint configuration in `frontend/eslint.config.mjs`.
-- The project currently uses TypeScript 6.0.2 while the nested `typescript-eslint` 8.57.2 dependency used by `eslint-config-next` declares support for TypeScript versions below 6.0. The current install resolves TypeScript 6.0.2 for ESLint and npm reports that range as invalid; the separate TypeScript 5.9.3 install belongs to `@inngest/ai`. Lint and typecheck are complementary; do not rely on lint alone for TypeScript 6-specific behavior.
+- The project currently uses TypeScript 6.0.2. The nested `typescript-eslint` 8.67.0 dependency supports TypeScript `>=4.8.4 <6.1.0`; the separate TypeScript 5.9.3 install belongs to `@inngest/ai`. Lint and typecheck are complementary; run both when updating dependencies.
 
 ## Coding Style & Naming Conventions
 

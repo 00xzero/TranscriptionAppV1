@@ -49,14 +49,14 @@
     "inngest": "^4.1.0",
     "iron-session": "8.0.4",
     "lucide-react": "^1.24.0",
-    "next": "16.3.1",
+    "next": "16.4.4",
     "ogl": "^1.0.11",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-virtuoso": "^4.18.3",
     "tailwind-merge": "3.5.0",
     "tus-js-client": "^4.3.1",
-    "zod": "4.3.6"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@inngest/test": "^1.0.0",
@@ -72,7 +72,7 @@
     "@types/react-dom": "^19.2.3",
     "baseline-browser-mapping": "^2.10.0",
     "eslint": "^9.39.5",
-    "eslint-config-next": "16.3.1",
+    "eslint-config-next": "16.4.4",
     "fake-indexeddb": "^6.2.5",
     "identity-obj-proxy": "3.0.0",
     "jest": "30.4.2",

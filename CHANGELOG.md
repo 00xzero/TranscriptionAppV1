@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - Security Dependency Updates
+
+### Changed
+
+- Updated Next.js and `eslint-config-next` from 16.3.1 to 16.4.4 and the app's Zod from 4.3.6 to 4.6.7. Refreshed compatible transitive dependencies, including Sharp 0.35.5, gRPC 1.14.7, `systeminformation` 5.33.19, `source-map-js` 1.2.2, and patched `brace-expansion` and `js-yaml` releases. Other direct dependency versions stay unchanged.
+- Corrected the repository instructions to describe the installed Next.js version and TypeScript-compatible lint tooling.
+
+### Verification
+
+- Typecheck, production build, and lint pass (58 lint warnings, no errors). All 226 Jest suites / 2,935 tests and 7 snapshots pass across the full run and the auth outage suite's retry outside the sandbox. Browser checks pass for email/password sign-in, library loading, opening an existing transcript, and audio playback.
+- npm audit reports no critical findings: affected package entries fell from 47 to 40 overall and from 13 to 7 excluding development dependencies. Remaining advisories concern Inngest's Zod 3 dependency and glob/minimatch chains, plus development-only `deepmerge`; compatible upstream fixes are not available. See `.docs/reviews/2026-11-02-security-dependency-update.md` for the dependency paths and limits.
+- The browser check found missing tag tables on the configured hosted Supabase project (`PGRST205`). The existing tag migration has not been applied there as part of this update.
+
 ## [2026-11-02] - Transcript Tags
 
 Transcripts can carry coloured tags, as in Notion: added from the editor or
