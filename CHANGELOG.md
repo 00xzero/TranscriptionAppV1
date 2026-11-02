@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - WorkOS Node 12
+
+### Changed
+
+- Updated `@workos-inc/node` from 10.14.0 to 12.1.0. AuthKit 4.6.2 and iron-session 8.0.4 remain unchanged; no application auth logic or database permissions changed.
+- Extended the real AuthKit/SDK contract probe with realistic user timestamps and two regression checks: reading an existing string-valued sealed session and refreshing through SDK 12 both return valid `Date` values.
+
+### Verification
+
+- All 226 Jest suites / 2,937 tests and 7 snapshots pass. Typecheck, production build, full lint (0 errors / 58 warnings), targeted lint, dependency-tree checks, and `git diff --check` pass. The audit remains at 0 critical findings.
+- Live staging checks pass for signup, verification email delivery/resend, invalid and superseded codes, password sign-in failures, password reset email delivery, weak-password recovery, successful reset, old-password and used-link rejection, session refresh, sign-out, and protected-route blocking. Google and Microsoft OAuth returned to their requested destinations and correct accounts; Microsoft required a user-completed verification step.
+- Disposable account, app-user row, and mailbox removed with exact-identity guards. The protected account's transcript IDs and ownership match the starting snapshot. Its browser session was restored, and the normal development server is running.
+- Revoked refresh tokens are rejected; an already-issued JWT can remain accepted until expiry/renewal. The manually invoked AuthKit refresh action returned a terminal error, and subsequent session checks returned the browser to sign-in. Details and remaining limits are in `.docs/reviews/2026-11-02-workos-node12-update.md`.
+
 ## [2026-11-02] - Compatible Dependency Updates
 
 ### Changed

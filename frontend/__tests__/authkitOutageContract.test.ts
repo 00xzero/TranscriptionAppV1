@@ -36,4 +36,15 @@ describe('AuthKit, as proxy.ts relies on it', () => {
   test.each(['valid session', 'expired token, refresh works'])('a working session (%s) finds the user', (name) => {
     expect(results[name]).toEqual({ user: 'user_A', cookieDeleted: false })
   })
+
+  test.each(['valid session', 'expired token, refresh works'])(
+    '%s returns valid SDK v12 user timestamps, including from existing seals',
+    (name) => {
+      expect(results[`${name} timestamps`]).toEqual({
+        createdAt: true,
+        updatedAt: true,
+        lastSignInAt: true,
+      })
+    }
+  )
 })
