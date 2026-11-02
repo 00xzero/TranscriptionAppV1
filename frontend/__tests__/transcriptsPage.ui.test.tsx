@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEventLib from '@testing-library/user-event'
 import TranscriptsPage from '@/app/(app)/transcripts/page'
 import type { Transcript } from '@/contracts/db'
@@ -8,6 +8,8 @@ import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import { setTestAuth } from './helpers/auth'
 import { ACCOUNT_CHANGED_MESSAGE, EXPECTED_USER_HEADER } from '@/lib/auth/account-boundary'
 import { getAccessToken } from '@/infra/workos/access-token'
+import { fetchTags, fetchTranscriptTags } from '@/lib/supabase/queries'
+import { TagsProvider } from '@/lib/tags/TagsProvider'
 
 jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
 jest.mock('@/infra/workos/access-token', () => ({
@@ -294,5 +296,38 @@ describe('TranscriptsPage', () => {
 
     await waitFor(() => expect(mockDeleteTranscript).toHaveBeenCalledWith('delete-id'))
     expect(startError).toBeInTheDocument()
+  })
+
+  test('shows each transcript’s tags and filters the list by them', async () => {
+    const user = userEventLib.setup()
+    const alpha = makeTranscript()
+    const beta = makeTranscript({ id: '33333333-3333-3333-3333-333333333333', title: 'Transcript Beta' })
+    mockUseProjectsData.mockReturnValue({
+      transcripts: [alpha, beta],
+      transcriptsLoading: false,
+      transcriptConnectionStatus: 'connected',
+      deleteTranscript: mockDeleteTranscript,
+      refetchTranscripts: mockRefetch,
+    })
+    const stamp = '2026-11-01T00:00:00Z'
+    jest.mocked(fetchTags).mockResolvedValueOnce([
+      { id: '44444444-4444-4444-4444-444444444444', user_id: alpha.user_id, name: 'Interview', color: '#4F638C', created_at: stamp, updated_at: stamp },
+    ])
+    jest.mocked(fetchTranscriptTags).mockResolvedValueOnce([
+      { transcript_id: beta.id, tag_id: '44444444-4444-4444-4444-444444444444' },
+    ])
+    render(
+      <TooltipProvider delayDuration={0}>
+        <TagsProvider>
+          <TranscriptsPage />
+        </TagsProvider>
+      </TooltipProvider>
+    )
+
+    const filter = await screen.findByRole('group', { name: 'Tags' })
+    expect(screen.getAllByText('Interview')).toHaveLength(2)
+    await user.click(within(filter).getByRole('button', { name: /^Interview/ }))
+    expect(screen.queryByText('Transcript Alpha')).not.toBeInTheDocument()
+    expect(screen.getByText('Transcript Beta')).toBeInTheDocument()
   })
 })

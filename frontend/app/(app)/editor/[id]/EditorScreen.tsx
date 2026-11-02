@@ -23,6 +23,8 @@ import { SpeakerSummaryButton } from './components/SpeakerSummaryButton'
 import { SpeakersSidebar, type SpeakersSidebarHandle } from './components/SpeakersSidebar'
 import { useEditorData, wordTimingsFailedToast } from './hooks/useEditorData'
 import { useTranscriptTitleEditing } from './hooks/useTranscriptTitleEditing'
+import { useTranscriptTags } from './hooks/useTranscriptTags'
+import { EditorTagRow } from './components/EditorTagRow'
 import { useTranscriptMutations } from './hooks/useTranscriptMutations'
 import { useSpeakerAssignments } from './hooks/useSpeakerAssignments'
 import { useEditorWriteQueue } from './hooks/useEditorWriteQueue'
@@ -145,6 +147,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     holds,
   })
 
+  const transcriptTags = useTranscriptTags({ transcriptId, send, history, holds })
+
   // 3. Sync
   const sync = useTranscriptSync({
     segments: data.segments,
@@ -160,11 +164,14 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   useEffect(() => {
     bridge.current = {
       // Runs inside the write queue after a change made elsewhere: segments,
-      // then speakers and people alongside the title, each read until answered.
+      // then speakers and people alongside the title and the tags, each read
+      // until answered (tags once: they are the shared store's).
       refresh: async () => {
         if (!(await editing.reloadSegments())) return false
-        const [speakersRead, row] = await Promise.all([speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId))])
-        if (!speakersRead || !row) return false
+        const [speakersRead, row, tagsRead] = await Promise.all([
+          speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
+        ])
+        if (!speakersRead || !row || !tagsRead) return false
         data.setTranscriptTitle(row.title)
         handleTitleSaved(row.title)
         return true
@@ -482,6 +489,18 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               onTitleBlur={title.onTitleBlur}
               onDeleteClick={() => transcriptActions.openDelete(actionTarget)}
               onMoveClick={() => transcriptActions.openMove(actionTarget)}
+              tagRow={(
+                <EditorTagRow
+                  title={actionTarget.title}
+                  tags={transcriptTags.tags}
+                  allTags={transcriptTags.allTags}
+                  countOf={transcriptTags.countOf}
+                  handlers={transcriptTags.handlers}
+                  blocked={transcriptTags.blocked}
+                  loadState={transcriptTags.loadState}
+                  onRetry={transcriptTags.reload}
+                />
+              )}
             />
 
             <TranscriptList

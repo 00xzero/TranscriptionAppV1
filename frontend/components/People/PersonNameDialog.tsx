@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CharacterCount } from '@/components/ui/character-count'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { mapPeopleWriteError } from '@/lib/people/errors'
+import { mapPeopleWriteError, type WriteSubject } from '@/lib/people/errors'
 import { nameLength } from './format'
 
 type PersonNameDialogProps = {
@@ -16,7 +16,7 @@ type PersonNameDialogProps = {
   label: string
   initialName?: string
   maxLength: number
-  subject: 'person' | 'organisation'
+  subject: WriteSubject
   /** The submit button's text for the name as typed, e.g. Create or Create another. */
   submitLabel: (name: string) => string
   pendingLabel: string

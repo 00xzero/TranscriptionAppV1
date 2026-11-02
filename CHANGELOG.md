@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - Transcript Tags
+
+Transcripts can carry coloured tags, as in Notion: added from the editor or
+any list row, shown as soft chips on every transcript list, and used to filter
+the Transcripts page and project pages. Tags belong to transcripts only, not
+projects, and use the people directory's colours.
+
+### Added
+
+- **Migration** `20261101000000_transcript_tags.sql` — `tags` (name unique per person ignoring case, 1–50 characters; colour from `speaker_palette()`) and `transcript_tags`, both cascading with their transcript, tag and owner, so transcript and project deletes need no change. The browser can only read them. Every write is a `SECURITY DEFINER` function that recognises its own earlier success, so a resend after a lost answer is safe: `add_transcript_tag`, `remove_transcript_tag`, `create_transcript_tag`, `undo_created_tag`, `rename_tag`, `set_tag_color`, `delete_tag` and `merge_tags`. The client picks a new tag's id, and creating answers `own` (a resend found its tag), `adopted` (another tag already has the name and is used instead) or `created`. Functions lock tags in id order and then links, so racing creates, renames, deletes and merges either finish cleanly or refuse, and opposite merges can't deadlock.
+- **Tag box** (`TagPicker`) — search, add, remove and Create (in the least-used colour), with keyboard control: arrows, Enter, Backspace on an empty field removes the last tag, and Escape closes one layer at a time. Each tag's ⋯ menu renames it inline (a name another tag has offers to merge them), changes its colour, says how many transcripts carry it, and deletes it after asking. Until tags have loaded it shows "Loading tags…", or "Couldn't load your tags." with Retry, and takes no changes.
+- **Lists** — chips under each transcript (up to three, then "+N") in the Library, Transcripts, project and Unfiled lists, and Tags… in each row's ⋯ menu. The Transcripts page and project pages get a tag filter bar that works like the People organisation filter (any selected tag matches), with Rename, Change colour and Delete for a single selected tag.
+- **Editor** — a tag row under the title. Adding, removing and creating tags are steps of the editor's undo/redo. Undoing a create deletes the new tag, unless another transcript uses it by then, when it only comes off this one and a toast says so. Redo recreates it under the same id, or uses a tag that has taken its name meanwhile. Renaming, recolouring, deleting and merging change every transcript, so they stay out of the history.
+- **Tags store** — `TagsProvider` holds every tag and link for the app, with pending edits shown on top. A write's failure undoes only its own edit: a refusal drops it, a lost answer reloads what the database holds, and a write still out when the editor closes is settled by its own answer. A reload that started before a write was answered is thrown away and run again, so it can never hide that write.
+
+### Changed
+
+- **Shared with People** — the colour picker (`components/ColourPicker.tsx`), the filter chips (`FilterChips`), name matching (`core/names.ts`), the listbox keyboard (`useListboxKeys`), chip tints and least-used colour (`lib/speakers/palette.ts`) and the write error messages (`'tag'` subject) moved out of People so tags use the same pieces. People behaves as before.
+- **Focus** — a popover opened from a menu item (the row's Tags…, the filter's Change colour…) gives focus back to the ⋯ button when closed with Escape, and leaves it where a click outside put it. Arrow keys in a listbox move at once after the list shrinks under the highlight.
+
+### Tests
+
+- 225 suites / 2,929 tests pass; `npm run typecheck`; lint has no errors. `scripts/smoke-test-tags.sql` covers every function with two accounts, and `scripts/concurrency-test-tags.sh` runs 9 two-connection races on the local database. `supabase db diff --local` finds no difference after applying every migration.
+
+### Notes
+
+- Checked in a real browser on the local stack: creating, filtering, editor create, undo (deletes) and redo, undo after another tab used the tag (kept, with the toast), merging by rename, deleting, light and dark, focus on close, and the arrow keys after a delete.
+- Hosted: not pushed yet. Rehearsal, backup check and `db push` come next, with your go-ahead.
+
 ## [2026-10-31] - WorkOS Sign-in
 
 Sign-in moves from Supabase Auth to **WorkOS AuthKit**, so business customers

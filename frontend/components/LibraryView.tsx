@@ -158,6 +158,7 @@ export default function LibraryView() {
                   actions={(
                     <TranscriptActionsMenu
                       title={target.title}
+                      transcriptId={target.id}
                       onMove={() => transcriptActions.openMove(target)}
                       onDelete={() => transcriptActions.openDelete(target)}
                     />

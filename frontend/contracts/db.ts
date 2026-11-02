@@ -477,6 +477,42 @@ export const ProjectPeopleSchema = z.object({
   voices: z.array(ProjectVoicesSchema),
 })
 
+// === Tags ===
+// Source of truth: infra/supabase/migrations/20261101000000_transcript_tags.sql
+
+export const TagSchema = z.object({
+  id: UuidSchema,
+  user_id: UuidSchema,
+  // Plain string on read: TEXT_LIMITS apply to writes only (see contracts/limits.ts).
+  name: z.string(),
+  color: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+
+// One tag on one transcript.
+export const TranscriptTagSchema = z.object({
+  transcript_id: UuidSchema,
+  tag_id: UuidSchema,
+})
+
+// create_transcript_tag: own = a tag already had the requested id (a resend, or
+// the redo of a kept tag); adopted = another tag already had the name; created = new.
+export const CreateTranscriptTagResultSchema = z.object({
+  tag: TagSchema,
+  outcome: z.enum(['own', 'adopted', 'created']),
+})
+
+// undo_created_tag: gone = nothing to do; kept = another transcript uses it, so
+// it only came off this one; deleted = the tag is deleted.
+export const UndoCreatedTagResultSchema = z.enum(['deleted', 'kept', 'gone'])
+
+// merge_tags: merged is false when the merged-away tag was already gone.
+export const MergeTagsResultSchema = z.object({
+  tag: TagSchema,
+  merged: z.boolean(),
+})
+
 // Type exports
 export type JobStatus = z.infer<typeof JobStatusSchema>
 export type TranscriptStatus = z.infer<typeof TranscriptStatusSchema>
@@ -519,6 +555,11 @@ export type ProjectVoicePeer = z.infer<typeof ProjectVoicePeerSchema>
 export type ProjectPerson = z.infer<typeof ProjectPersonSchema>
 export type ProjectVoices = z.infer<typeof ProjectVoicesSchema>
 export type ProjectPeople = z.infer<typeof ProjectPeopleSchema>
+export type Tag = z.infer<typeof TagSchema>
+export type TranscriptTag = z.infer<typeof TranscriptTagSchema>
+export type CreateTranscriptTagResult = z.infer<typeof CreateTranscriptTagResultSchema>
+export type UndoCreatedTagResult = z.infer<typeof UndoCreatedTagResultSchema>
+export type MergeTagsResult = z.infer<typeof MergeTagsResultSchema>
 
 // Json — recursive union, no Zod schema needed (no validation boundary)
 export type Json =
