@@ -6,6 +6,7 @@ Eight reviewers each audited one domain read-only, with an explicit file scope, 
 
 | Report | Domain | Scope |
 |---|---|---|
+| [00-plain-english.md](00-plain-english.md) | Plain-English summary | The whole audit, written for product readers |
 | [01-auth.md](01-auth.md) | Auth & account isolation | `proxy.ts`, `app/auth`, `components/auth`, `lib/auth`, token plumbing |
 | [02-pipeline.md](02-pipeline.md) | Transcription pipeline | `core/transcription`, `lib/inngest`, engines, webhooks, media prep, waveforms |
 | [03-recording.md](03-recording.md) | Capture & recording | `lib/recording`, `lib/capture`, CaptureModal, RecordingSession, create route |
