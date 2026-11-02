@@ -5,6 +5,7 @@ import path from 'node:path'
 import { resolveSpeakerPresentation } from '@/core/speakers/labels'
 import {
   leastUsedSpeakerColor,
+  SPEAKER_COLOR_TINTS,
   resolveTranscriptColors,
   speakerInitials,
   SPEAKER_COLOR_NAMES,
@@ -52,8 +53,8 @@ describe('leastUsedSpeakerColor', () => {
   })
 
   test('takes the least used colour, earliest in the palette on a tie', () => {
-    const used = SPEAKER_COLORS.map((preferred_color) => ({ preferred_color }))
-    expect(leastUsedSpeakerColor([...used, { preferred_color: SPEAKER_COLORS[0] }])).toBe(SPEAKER_COLORS[1])
+    const used = [...SPEAKER_COLORS]
+    expect(leastUsedSpeakerColor([...used, SPEAKER_COLORS[0]])).toBe(SPEAKER_COLORS[1])
     expect(leastUsedSpeakerColor(used.slice(0, 3))).toBe(SPEAKER_COLORS[3])
   })
 })
@@ -78,5 +79,28 @@ describe('speakerInitials', () => {
   // half a surrogate pair.
   test('keeps an astral first character intact', () => {
     expect(speakerInitials('😀 Smith')).toBe('😀S')
+  })
+})
+
+// WCAG relative luminance and contrast ratio.
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+describe('SPEAKER_COLOR_TINTS', () => {
+  test('tints exactly the palette', () => {
+    expect(Object.keys(SPEAKER_COLOR_TINTS)).toEqual([...SPEAKER_COLORS])
+  })
+
+  test.each([...SPEAKER_COLORS])('%s reads at 4.5:1 or better in both themes', (color) => {
+    const tint = SPEAKER_COLOR_TINTS[color]
+    expect(contrast(tint.light.fg, tint.light.bg)).toBeGreaterThanOrEqual(4.5)
+    expect(contrast(tint.dark.fg, tint.dark.bg)).toBeGreaterThanOrEqual(4.5)
   })
 })

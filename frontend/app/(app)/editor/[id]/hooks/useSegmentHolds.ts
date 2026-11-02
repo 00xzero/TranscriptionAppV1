@@ -7,8 +7,9 @@ export type BusyKind = 'splitting' | 'undoing' | 'pending'
  * What a hold closes. `text`: typing, splitting, replacing and the speaker
  * picker. `speaker`: only the speaker picker, so a speaker change waiting on
  * the database never locks a segment's text. `title`: only the title.
+ * `tags`: only the tag box.
  */
-export type HoldScope = 'text' | 'speaker' | 'title'
+export type HoldScope = 'text' | 'speaker' | 'title' | 'tags'
 
 export type Held = { release(): void }
 
@@ -17,7 +18,7 @@ type Hold = { ids: readonly string[]; kind: BusyKind; scope: HoldScope }
 const neverReconnecting = () => false
 
 /**
- * Segments (and the `title`, `person:<id>` and `speaker:<id>` resources) that
+ * Segments (and the `title`, `tags`, `person:<id>` and `speaker:<id>` resources) that
  * a queued write is about to change. Read synchronously, so a second action
  * before the next render is still turned away.
  */

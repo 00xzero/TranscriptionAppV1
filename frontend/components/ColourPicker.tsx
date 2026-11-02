@@ -1,46 +1,47 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import * as RadioGroupPrimitive from '@radix-ui/react-radio-group'
 import { Check } from 'lucide-react'
 import { mapPeopleWriteError } from '@/lib/people/errors'
 import { SPEAKER_COLOR_NAMES, SPEAKER_COLORS } from '@/lib/speakers/palette'
 
 /**
- * Change colour (spec §4, §8), shown in a popover: the person's preferred
- * colour, from the speaker palette. Choosing a swatch applies it. Inside a
- * transcript it still yields to whoever claimed it first.
+ * Change colour, shown in a popover: one of the speaker palette's colours, for
+ * a person (spec §4, §8) or a tag. Choosing a swatch applies it.
  */
-export function ColourPicker({ name, current, onChoose }: {
-  name: string
+export function ColourPicker({ current, onChoose, hint, describeError = (error) => mapPeopleWriteError(error) }: {
   current: string
   /** Rejects to show an error in the picker; the caller closes it once this resolves. */
   onChoose: (color: string) => Promise<void>
+  /** A line above the swatches. */
+  hint?: ReactNode
+  /** The message for a rejected choice. */
+  describeError?: (error: unknown) => string
 }) {
-  const [color, setColor] = useState(current)
-  const [pending, setPending] = useState(false)
+  // The swatch being saved; otherwise the picker shows `current`, which can
+  // change under it (a reload after a change made elsewhere).
+  const [choice, setChoice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const pending = choice !== null
+  const color = choice ?? current
 
   const choose = async (next: string) => {
     if (pending || next === current) return
-    setColor(next)
-    setPending(true)
+    setChoice(next)
     setError(null)
     try {
       await onChoose(next)
     } catch (caught) {
-      setColor(current)
-      setError(mapPeopleWriteError(caught))
+      setError(describeError(caught))
     } finally {
-      setPending(false)
+      setChoice(null)
     }
   }
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted">
-        In a transcript where someone else already has it, {name} takes the next free one.
-      </p>
+      {hint && <p className="text-xs text-muted">{hint}</p>}
       <RadioGroupPrimitive.Root
         aria-label="Colour"
         value={color}

@@ -142,9 +142,11 @@ The editor opens only completed transcripts (the page redirects others to `/tran
 
 ### Data Model
 
-Supabase tables: `app_users`, `transcripts`, `speakers`, `segments`, `words`, `jobs`, `job_events`, `failed_events`, `webhook_receipts`, `watchlist`. All protected by RLS. Owner columns reference `app_users(id)`, not `auth.users`. Migrations in `infra/supabase/migrations/`.
+Supabase tables: `app_users`, `transcripts`, `speakers`, `segments`, `words`, `tags`, `transcript_tags`, `jobs`, `job_events`, `failed_events`, `webhook_receipts`, `watchlist`. All protected by RLS. Owner columns reference `app_users(id)`, not `auth.users`. Migrations in `infra/supabase/migrations/`.
 
 `segments.revision` counts shape changes (split, rejoin). Every write to a segment names the revision it was made against, text saves and speaker changes alike, so text typed against an old shape is refused rather than written into the new one, where it would duplicate the moved text, and a speaker change chosen while a segment was whole is refused rather than applied to its first half only.
+
+**Tags.** `tags` (name unique per person ignoring case, colour from `speaker_palette()`) and `transcript_tags` link them to transcripts; both cascade with their owners. The browser only reads them; every write is a `SECURITY DEFINER` function (`add_transcript_tag`, `remove_transcript_tag`, `create_transcript_tag`, `undo_created_tag`, `rename_tag`, `set_tag_color`, `delete_tag`, `merge_tags`) that recognises its own earlier success, so a resend after a lost answer is safe. The client picks a new tag's id; `create_transcript_tag` answers `own` (that id exists: a resend), `adopted` (another tag has the name, and is used instead) or `created`. Undoing a create deletes the tag unless another transcript uses it by then (`kept`). `lib/tags/TagsProvider.tsx` holds every tag and link for the app, with pending edits on top, and drops a reload that started before a write was answered; the editor's tag changes are steps of its history (`useTranscriptTags`), and rename, recolour, delete and merge are not. `scripts/smoke-test-tags.sql` and `scripts/concurrency-test-tags.sh` (local only) test the functions.
 
 Historical notes for reading migrations: `projects` was renamed to `transcripts`, and the `chunks`/`chunk_words` consolidation tables were dropped — don't reintroduce either.
 

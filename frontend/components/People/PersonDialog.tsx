@@ -38,9 +38,9 @@ import {
 } from '@/lib/supabase/queries'
 import { cn } from '@/lib/utils'
 import { BackToTranscript } from './BackToTranscript'
-import { ColourPicker } from './ColourPicker'
 import { AppearanceList } from './AppearanceList'
 import { MergePeopleDialog } from './MergePeopleDialog'
+import { ColourPicker } from '@/components/ColourPicker'
 import { OrganisationPicker } from './OrganisationPicker'
 import { PersonHeading, PersonHeadingSkeleton } from './PersonHeading'
 import { PersonNameDialog } from './PersonNameDialog'
@@ -348,7 +348,7 @@ export function PersonDialog({ personId }: { personId: string }) {
                 </PopoverTrigger>
                 <PopoverContent align="end" className="z-[110] w-64">
                   <ColourPicker
-                    name={person.name}
+                    hint={`In a transcript where someone else already has it, ${person.name} takes the next free one.`}
                     current={person.preferred_color}
                     onChoose={(color) => guarded(() => setPersonColor(personId, person.preferred_color, color), showPerson)
                       .then(() => setPicker(null))}

@@ -10,7 +10,12 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 /** The "More options" kebab menu shared by transcript and project rows. */
-export function RowActionsMenu({ label, children }: { label: string; children: ReactNode }) {
+export function RowActionsMenu({ label, children, onCloseAutoFocus }: {
+  label: string
+  children: ReactNode
+  /** Where focus goes once the menu closes; by default, back to the button. */
+  onCloseAutoFocus?: (event: Event) => void
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -23,7 +28,7 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
           <MoreVertical className="h-4 w-4" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+      <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>{children}</DropdownMenuContent>
     </DropdownMenu>
   )
 }

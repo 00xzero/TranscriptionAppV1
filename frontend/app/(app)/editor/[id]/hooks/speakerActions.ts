@@ -227,7 +227,7 @@ function provisionalPerson(store: SpeakerStore, name: string, userId: string): E
   const now = new Date().toISOString()
   return {
     id: randomUuid(), user_id: userId, name, organisation_id: null,
-    preferred_color: leastUsedSpeakerColor(store.people().people), hidden: false,
+    preferred_color: leastUsedSpeakerColor(store.people().people.map((person) => person.preferred_color)), hidden: false,
     created_at: now, updated_at: now, ...NEW_PERSON,
   }
 }

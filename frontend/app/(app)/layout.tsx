@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/toaster'
 import { PROJECT_ARCHIVE_COLLAPSED_KEY, SIDEBAR_COLLAPSED_KEY } from '@/lib/constants'
 import { ProjectsProvider } from '@/lib/projects/ProjectsProvider'
+import { TagsProvider } from '@/lib/tags/TagsProvider'
 
 // Navigation widths are persisted in localStorage, which React cannot read
 // during SSR. Seed CSS-only shell variables before the sidebar paints so the
@@ -45,16 +46,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <RecordingSessionProvider>
                 <CurrentAccountOnly>
                   <ProjectsProvider>
-                    <Sidebar />
-                    <main className="flex-1 relative overflow-hidden z-[1]">
-                      <div className="pointer-events-none absolute top-0 left-0 right-3">
-                        <ContextualHeader />
-                      </div>
-                      <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-                        {children}
-                      </div>
-                    </main>
-                    <CaptureModal />
+                    <TagsProvider>
+                      <Sidebar />
+                      <main className="flex-1 relative overflow-hidden z-[1]">
+                        <div className="pointer-events-none absolute top-0 left-0 right-3">
+                          <ContextualHeader />
+                        </div>
+                        <div className="app-scroll-root h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
+                          {children}
+                        </div>
+                      </main>
+                      <CaptureModal />
+                    </TagsProvider>
                   </ProjectsProvider>
                 </CurrentAccountOnly>
                 <Toaster />

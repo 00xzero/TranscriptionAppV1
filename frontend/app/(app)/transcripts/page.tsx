@@ -16,6 +16,9 @@ import { isRealtimeScopeAbortError } from '@/lib/supabase/realtime'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import { accountBoundFetch } from '@/lib/auth/account-bound-fetch'
 import { AccountChangedError } from '@/lib/auth/account-boundary'
+import { TagChipList } from '@/components/Tags/TagChip'
+import { TagFilter, useTagFilter } from '@/components/Tags/TagFilter'
+import { useTags } from '@/lib/tags/TagsProvider'
 
 export default function TranscriptsPage() {
   return (
@@ -47,6 +50,9 @@ function TranscriptsPageContent() {
   const [transcriptErrorLoadErrors, setTranscriptErrorLoadErrors] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
   const transcriptActions = useTranscriptActions()
+  const tags = useTags()
+  const tagFilter = useTagFilter()
+  const shown = tagFilter.active ? transcripts.filter((transcript) => tagFilter.matches(transcript.id)) : transcripts
   const [captureOutcome, setCaptureOutcome] = useState<string | null>(null)
   const [captureTranscriptId, setCaptureTranscriptId] = useState<string | null>(null)
 
@@ -292,8 +298,21 @@ function TranscriptsPageContent() {
         />
       )}
       {transcripts.length > 0 && (
+        <TagFilter
+          transcriptIds={transcripts.map((transcript) => transcript.id)}
+          selected={tagFilter.selected}
+          onChange={tagFilter.setSelected}
+        />
+      )}
+      {transcripts.length > 0 && shown.length === 0 && (
+        <div className="rounded-sm border border-border bg-panel px-6 py-8 text-center text-sm text-muted">
+          <p>No transcripts match.</p>
+          <Button size="sm" variant="secondary" className="mt-4" onClick={tagFilter.clear}>Clear filter</Button>
+        </div>
+      )}
+      {shown.length > 0 && (
       <ul className="divide-y divide-border rounded-sm border border-border bg-panel">
-        {transcripts.map((p) => {
+        {shown.map((p) => {
           const errorInfo = p.status === 'error' ? getErrorInfo(p.id) : null
           const errorLoadError = transcriptErrorLoadErrors[p.id]
           const isKeytermError = errorInfo?.error_type === 'keyterm_error'
@@ -302,9 +321,10 @@ function TranscriptsPageContent() {
           return (
             <li key={p.id} className="px-4 py-3">
               <div className="flex justify-between items-center">
-                <div>
+                <div className="min-w-0">
                   <div className="font-medium">{p.title || p.id}</div>
                   <div className="text-xs text-muted">{p.status} • {new Date(p.created_at).toLocaleString()}</div>
+                  <TagChipList tags={tags.tagsOf(p.id)} className="mt-1.5" />
                 </div>
                 <div className="flex items-center gap-3">
                   {(() => {
@@ -330,6 +350,7 @@ function TranscriptsPageContent() {
                   )}
                   <TranscriptActionsMenu
                     title={actionTarget.title}
+                    transcriptId={actionTarget.id}
                     onMove={() => transcriptActions.openMove(actionTarget)}
                     onDelete={() => transcriptActions.openDelete(actionTarget)}
                   />

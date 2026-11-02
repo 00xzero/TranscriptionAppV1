@@ -25,13 +25,35 @@ export const SPEAKER_COLOR_NAMES: Readonly<Record<SpeakerColor, string>> = {
 export const SPEAKER_COLOR_FALLBACK = '#9CA3AF'
 
 /**
- * The colour a new person gets: the one least used among the account's people,
- * earliest in the palette on a tie. Mirrors editor_create_person, so a person
- * shown before the database confirms it already has its final colour.
+ * Each palette colour as a soft chip (tags): a tinted background with the
+ * colour as text, for the light and the dark theme. Every pair reads at 5:1
+ * or better; a test checks it never drops below 4.5:1.
  */
-export function leastUsedSpeakerColor(people: readonly { preferred_color: string }[]): string {
+export const SPEAKER_COLOR_TINTS: Readonly<Record<SpeakerColor, {
+  light: { bg: string; fg: string }
+  dark: { bg: string; fg: string }
+}>> = {
+  '#4F638C': { light: { bg: '#E3E6ED', fg: '#4D6087' }, dark: { bg: '#2E353F', fg: '#A7AFC0' } },
+  '#C73E1D': { light: { bg: '#F6E0DB', fg: '#A8381C' }, dark: { bg: '#57291A', fg: '#DFA191' } },
+  '#CA8A04': { light: { bg: '#F7ECD7', fg: '#815D0C' }, dark: { bg: '#584311', fg: '#E0C386' } },
+  '#0D9488': { light: { bg: '#D8EEEC', fg: '#126E64' }, dark: { bg: '#18463E', fg: '#8DC7C1' } },
+  '#7C3AED': { light: { bg: '#EADFFC', fg: '#7337D8' }, dark: { bg: '#3D2860', fg: '#BE9FED' } },
+  '#64748B': { light: { bg: '#E6E9EC', fg: '#566374' }, dark: { bg: '#353B3F', fg: '#B1B6C0' } },
+  '#B45309': { light: { bg: '#F3E3D8', fg: '#99490C' }, dark: { bg: '#503013', fg: '#D7AA89' } },
+  '#059669': { light: { bg: '#D7EEE7', fg: '#0D704F' }, dark: { bg: '#154734', fg: '#8AC8B3' } },
+  '#DB2777': { light: { bg: '#F9DCE9', fg: '#AD2560' }, dark: { bg: '#5E2138', fg: '#E89BBB' } },
+  '#2563EB': { light: { bg: '#DCE6FC', fg: '#2458C9' }, dark: { bg: '#203560', fg: '#94AFEC' } },
+}
+
+/**
+ * The colour something new gets (a person, a tag): the one least used among
+ * the colours already taken, earliest in the palette on a tie. Mirrors
+ * editor_create_person, so a person shown before the database confirms it
+ * already has its final colour.
+ */
+export function leastUsedSpeakerColor(taken: readonly string[]): string {
   const uses = new Map<string, number>()
-  for (const person of people) uses.set(person.preferred_color, (uses.get(person.preferred_color) ?? 0) + 1)
+  for (const color of taken) uses.set(color, (uses.get(color) ?? 0) + 1)
   return SPEAKER_COLORS.reduce((best, color) =>
     (uses.get(color) ?? 0) < (uses.get(best) ?? 0) ? color : best)
 }

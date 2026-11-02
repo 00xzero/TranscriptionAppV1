@@ -24,6 +24,7 @@ export default function EditorHeader({
   onTitleBlur,
   onDeleteClick,
   onMoveClick, titleBusy,
+  tagRow,
 }: {
   displayTitle: string
   transcriptCreatedAt: string | null
@@ -44,6 +45,8 @@ export default function EditorHeader({
   onDeleteClick: () => void
   onMoveClick: () => void
   titleBusy: boolean
+  /** The transcript's tags, under the date and speakers. */
+  tagRow?: React.ReactNode
 }) {
   const titleCountId = useId()
   const titleEditHintId = useId()
@@ -128,6 +131,7 @@ export default function EditorHeader({
             onDelete={onDeleteClick}
           />
         </div>
+        {tagRow}
       </div>
       <Separator decorative={false} className="mt-8 bg-subtle-hover" />
     </div>

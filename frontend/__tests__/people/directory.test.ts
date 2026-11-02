@@ -4,16 +4,15 @@ import type { DirectoryPerson, MergePreview, PeopleDirectory } from '@/contracts
 import {
   appearanceTotals,
   describeMergeVoice,
-  exactOrganisation,
   filterDirectory,
   matchesPersonSearch,
-  matchOrganisations,
   mergeDirectoryPeople,
   namesakesOf,
   NO_ORGANISATION,
   sortDirectory,
   talkShare,
 } from '@/core/people/directory'
+import { exactByName, matchByName } from '@/core/names'
 
 const person = (overrides: Partial<DirectoryPerson> & { id: string; name: string }): DirectoryPerson => ({
   user_id: 'u1', organisation_id: null, organisation_name: null, preferred_color: '#4F638C', hidden: false,
@@ -178,14 +177,14 @@ describe('organisation type-ahead', () => {
   const organisations = [{ id: 'acme', name: 'ACME' }, { id: 'globex', name: 'Globex Corp' }]
 
   test('matches substrings ignoring case, and lists every organisation for a blank query', () => {
-    expect(matchOrganisations(organisations, 'corp').map((entry) => entry.id)).toEqual(['globex'])
-    expect(matchOrganisations(organisations, ' ').map((entry) => entry.id)).toEqual(['acme', 'globex'])
+    expect(matchByName(organisations, 'corp').map((entry) => entry.id)).toEqual(['globex'])
+    expect(matchByName(organisations, ' ').map((entry) => entry.id)).toEqual(['acme', 'globex'])
   })
 
   test('an exact name ignoring case is reused, not created again', () => {
-    expect(exactOrganisation(organisations, ' acme ')?.id).toBe('acme')
-    expect(exactOrganisation(organisations, 'acm')).toBeUndefined()
-    expect(exactOrganisation(organisations, '')).toBeUndefined()
+    expect(exactByName(organisations, ' acme ')?.id).toBe('acme')
+    expect(exactByName(organisations, 'acm')).toBeUndefined()
+    expect(exactByName(organisations, '')).toBeUndefined()
   })
 })
 

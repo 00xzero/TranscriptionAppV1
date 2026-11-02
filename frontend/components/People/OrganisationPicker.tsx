@@ -6,7 +6,8 @@ import { CharacterCount } from '@/components/ui/character-count'
 import { Input } from '@/components/ui/input'
 import type { DirectoryOrganisation } from '@/contracts/db'
 import { TEXT_LIMITS } from '@/contracts/limits'
-import { exactOrganisation, matchOrganisations } from '@/core/people/directory'
+import { exactByName, matchByName } from '@/core/names'
+import { useListboxKeys } from '@/lib/hooks/useListboxKeys'
 import { mapPeopleWriteError } from '@/lib/people/errors'
 import { nameLength } from './format'
 
@@ -29,7 +30,6 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
   onChoose: (choice: OrganisationChoice) => Promise<void>
 }) {
   const [query, setQuery] = useState('')
-  const [active, setActive] = useState(0)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const id = useId()
@@ -39,18 +39,16 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
   const tooLong = nameLength(name) > LIMIT
   const options: Option[] = [
     ...(currentId && !name ? [{ key: 'clear', label: 'No organisation', choice: null, icon: 'clear' as const }] : []),
-    ...matchOrganisations(organisations, query)
+    ...matchByName(organisations, query)
       .filter((organisation) => organisation.id !== currentId)
       .map((organisation) => ({
         key: organisation.id, label: organisation.name,
         choice: { organisationId: organisation.id }, icon: 'organisation' as const,
       })),
-    ...(name && !tooLong && !exactOrganisation(organisations, name)
+    ...(name && !tooLong && !exactByName(organisations, name)
       ? [{ key: 'create', label: `Create “${name}”`, choice: { newOrganisationName: name }, icon: 'create' as const }]
       : []),
   ]
-  const highlighted = options[Math.min(active, options.length - 1)]
-
   const choose = async (option: Option) => {
     if (pending) return
     setPending(true)
@@ -63,6 +61,8 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
       setPending(false)
     }
   }
+  const keys = useListboxKeys(options, (option) => void choose(option))
+  const highlighted = keys.highlighted
 
   return (
     <div>
@@ -88,14 +88,10 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
           placeholder="Search or add an organisation"
           onChange={(event) => {
             setQuery(event.target.value)
-            setActive(0)
+            keys.reset()
             setError(null)
           }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') { event.preventDefault(); setActive((index) => Math.min(index + 1, options.length - 1)) }
-            else if (event.key === 'ArrowUp') { event.preventDefault(); setActive((index) => Math.max(index - 1, 0)) }
-            else if (event.key === 'Enter' && highlighted) { event.preventDefault(); void choose(highlighted) }
-          }}
+          onKeyDown={keys.onKeyDown}
         />
         {tooLong
           ? <p role="alert" className="text-sm text-ember-red">Organisation names must be {LIMIT} characters or fewer.</p>
@@ -113,7 +109,7 @@ export function OrganisationPicker({ organisations, currentId, currentName, onCh
             role="option"
             aria-selected={option === highlighted}
             disabled={pending}
-            onMouseEnter={() => setActive(options.indexOf(option))}
+            onMouseEnter={() => keys.point(option)}
             onClick={() => void choose(option)}
             className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm ${option === highlighted ? 'bg-subtle' : ''}`}
           >
