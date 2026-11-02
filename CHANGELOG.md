@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - Recording retry after a lost link
+
+### Fixed
+
+- **Retry upload** now saves a stopped recording whose upload landed but whose link to the transcript was lost, and whose follow-up check failed too. Each retry reused the same transcript and file path, and storage refused to replace the file ("The resource already exists"), so only a page reload could save it. An upload that carries a recording's upload intent now replaces the file an earlier attempt left; the separate `allowUpsert` switch that only recovery set is gone, so Retry and recovery follow one rule. Uploads without an intent (file uploads) still never overwrite. It is only reached while the transcript has no media linked, inside that transcript's own folder.
+
+### Verification
+
+- New regression test `__tests__/recording/retryAfterAmbiguousLink.test.ts` runs the real session and upload against a fake server whose storage refuses to overwrite: before the fix three Retry presses each failed, now the first submits; a reload/recovery save still works. All 227 Jest suites / 2,941 tests and 7 snapshots pass; typecheck and lint (0 errors / 58 warnings) pass.
+- In Chrome on the host dev server (hosted Supabase), with the browser's `/rest/v1/transcripts` requests failed by a page-level stub: before the fix every Retry got a 400 from storage on the same path; after it, one Retry linked the file and started transcription. The `media` bucket's own-folder INSERT/SELECT/UPDATE policies cover the overwrite.
+
 ## [2026-11-02] - iron-session 9
 
 ### Changed

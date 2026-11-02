@@ -189,6 +189,7 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(result.kind).toBe('success')
     // Fresh transcript with no linked media → upload + link ran.
     expect(uploadMock).toHaveBeenCalledTimes(1)
+    expect(uploadMock).toHaveBeenCalledWith('u/p1/rec.webm', expect.any(File), expect.objectContaining({ upsert: false }))
     expect(updateMock).toHaveBeenCalledTimes(1)
     expect(startCallHeaders(1)['x-idempotency-key']).toBeUndefined()
   })
@@ -324,7 +325,6 @@ describe('runCaptureUpload upload idempotency', () => {
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
       userId: 'u',
       uploadIntentId: 'intent-1',
-      allowUpsert: true,
     })
 
     expect(result).toEqual({
@@ -332,6 +332,8 @@ describe('runCaptureUpload upload idempotency', () => {
       message: 'Failed to update transcript: link failed',
     })
     expect(uploadMock).toHaveBeenCalledTimes(1)
+    // Same intent, same path: the upload may replace what an earlier attempt left.
+    expect(uploadMock).toHaveBeenCalledWith('u/p1/rec.webm', expect.any(File), expect.objectContaining({ upsert: true }))
     expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
     expect(deleteRequestMock).not.toHaveBeenCalled()
   })
@@ -509,7 +511,6 @@ describe('runCaptureUpload upload idempotency', () => {
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
       userId: 'u',
       uploadIntentId: 'intent-1',
-      allowUpsert: true,
     })
 
     expect(deleteRequestMock).toHaveBeenCalledWith('p1', 'u')
@@ -537,7 +538,6 @@ describe('runCaptureUpload upload idempotency', () => {
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
       userId: 'u',
       uploadIntentId: 'intent-1',
-      allowUpsert: true,
     })
 
     expect(deleteRequestMock).not.toHaveBeenCalled()
