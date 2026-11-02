@@ -95,7 +95,7 @@ Keep these credentials available for UI testing. Do not use them as production c
 - Frontend tests use Jest 30 with `jest-environment-jsdom`; keep test files under `frontend/__tests__/` and run targeted tests when possible.
 - Use `npm run typecheck` in addition to lint for TypeScript validation.
 - `npm run lint` uses the current flat ESLint configuration in `frontend/eslint.config.mjs`.
-- The project currently uses TypeScript 6.0.2. The nested `typescript-eslint` 8.67.0 dependency supports TypeScript `>=4.8.4 <6.1.0`; the separate TypeScript 5.9.3 install belongs to `@inngest/ai`. Lint and typecheck are complementary; run both when updating dependencies.
+- The project currently uses TypeScript 6.0.3. The nested `typescript-eslint` 8.67.0 dependency supports TypeScript `>=4.8.4 <6.1.0`; the separate TypeScript 5.9.3 install belongs to `@inngest/ai`. Lint and typecheck are complementary; run both when updating dependencies.
 
 ## Coding Style & Naming Conventions
 

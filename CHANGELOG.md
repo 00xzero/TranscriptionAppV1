@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-02] - Compatible Dependency Updates
+
+### Changed
+
+- Updated 38 direct dependencies within their existing major versions, including React/React DOM 19.3.1, Radix components, Supabase JS 2.118.0, AuthKit 4.6.2, Inngest 4.26.2, DOCX 9.15.1, Jest/jsdom 30.5.2, and TypeScript 6.0.3. Preserved the existing exact/caret version policy and refreshed the lockfile.
+- Declared JSZip 3.10.2 as a development dependency: the export tests import it directly, and DOCX no longer supplies it transitively. No application logic changed.
+- Deferred WorkOS Node 12, iron-session 9, ESLint 10, and TypeScript 7. WorkOS Node is already current within 10.x; TypeScript uses the latest 6.x patch.
+
+### Verification
+
+- All 226 Jest suites / 2,935 tests and 7 snapshots pass in one full run. Typecheck and production build pass; lint reports 0 errors / 58 warnings.
+- Production-browser smoke checks pass for email/password sign-in, library loading, capture dialog/project popover focus restoration, transcript playback, and authenticated DOCX export. The known hosted Supabase tag-table gap remains separate.
+- npm audit still reports 0 critical findings and 7 affected production package entries; only the four deferred majors remain in `npm outdated`. Details and all version changes are in `.docs/reviews/2026-11-02-compatible-dependency-update.md`.
+
 ## [2026-11-02] - Security Dependency Updates
 
 ### Changed
