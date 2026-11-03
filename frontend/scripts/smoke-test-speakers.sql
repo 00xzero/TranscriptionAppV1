@@ -46,12 +46,18 @@ INSERT INTO public.transcripts (id, user_id, title, status) VALUES
   ('c1000000-0000-0000-0000-0000000000a2', 'c0000000-0000-0000-0000-00000000000a', 'A2', 'processing'),
   ('c1000000-0000-0000-0000-0000000000b1', 'c0000000-0000-0000-0000-00000000000b', 'B1', 'processing');
 
+-- A save names the transcript's running job (see smoke-test-segment-save-guard.sql).
+INSERT INTO public.jobs (id, transcript_id, type, status) VALUES
+  ('c4000000-0000-0000-0000-0000000000a1', 'c1000000-0000-0000-0000-0000000000a1', 'transcription', 'processing'),
+  ('c4000000-0000-0000-0000-0000000000a2', 'c1000000-0000-0000-0000-0000000000a2', 'transcription', 'processing');
+
 -- ------------------------------------------------- save_transcript_segments ----
 
 SET LOCAL ROLE service_role;
 
 SELECT public.save_transcript_segments(
   'c1000000-0000-0000-0000-0000000000a1',
+  'c4000000-0000-0000-0000-0000000000a1',
   '{
     "speakers": [{"num": 0}, {"num": 1}],
     "segments": [
@@ -88,6 +94,7 @@ SELECT pg_temp.assert_true(
 -- A re-run (never on a completed transcript) replaces segments but reuses speakers.
 SELECT public.save_transcript_segments(
   'c1000000-0000-0000-0000-0000000000a1',
+  'c4000000-0000-0000-0000-0000000000a1',
   '{
     "speakers": [{"num": 1}, {"num": 0}],
     "segments": [
@@ -115,6 +122,7 @@ SET LOCAL ROLE service_role;
 
 SELECT public.save_transcript_segments(
   'c1000000-0000-0000-0000-0000000000a2',
+  'c4000000-0000-0000-0000-0000000000a2',
   '{
     "speakers": [{"num": 0}],
     "segments": [
@@ -133,6 +141,7 @@ SELECT pg_temp.assert_true(
 -- A segment's number missing from the speaker list still gets its speaker.
 SELECT public.save_transcript_segments(
   'c1000000-0000-0000-0000-0000000000a2',
+  'c4000000-0000-0000-0000-0000000000a2',
   '{
     "speakers": [],
     "segments": [
@@ -148,7 +157,7 @@ SELECT pg_temp.assert_true(
 );
 
 SELECT pg_temp.assert_sqlstate(
-  $sql$SELECT public.save_transcript_segments('c1000000-0000-0000-0000-00000000ffff', '{"speakers": [], "segments": []}'::jsonb)$sql$,
+  $sql$SELECT public.save_transcript_segments('c1000000-0000-0000-0000-00000000ffff', 'c4000000-0000-0000-0000-0000000000a1', '{"speakers": [], "segments": []}'::jsonb)$sql$,
   'SP001'
 );
 

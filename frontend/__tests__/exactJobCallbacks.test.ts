@@ -80,7 +80,7 @@ describe('recordEngineResult with an exact job', () => {
 
     expect(mockUpload).toHaveBeenCalledWith(expect.anything(), `${userId}/${transcriptId}/${jobA}.json.gz`, '{"result":true}')
     expect(job(db, jobA)).toEqual(expect.objectContaining({ result_object_key: `${userId}/${transcriptId}/${jobA}.json.gz` }))
-    expect(mockSend).toHaveBeenCalledWith({ name: 'transcription/webhook', data: { requestId: requestA, transcriptId } })
+    expect(mockSend).toHaveBeenCalledWith({ name: 'transcription/webhook', id: `transcription-webhook:${jobA}`, data: { requestId: requestA, transcriptId } })
     expect(db.rows('webhook_receipts')).toEqual([expect.objectContaining({ provider: 'soniox', request_id: requestA, status: 'completed' })])
   })
 

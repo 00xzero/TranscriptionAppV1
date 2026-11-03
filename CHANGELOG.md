@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-03] - Late segment saves refused
+
+### Fixed
+
+- A late duplicate run of the transcription pipeline can no longer replace a finished transcript's segments. Saving deletes every segment and writes the engine's result again, and nothing checked whether the transcript had finished since; a duplicate run that read its job before completion could reach its save after the user had edited, silently reverting text fixes, splits and per-segment speaker changes and giving every segment a new id. `save_transcript_segments` now names its job (`p_job_id`) and is refused (`SP005`) once the transcript is `completed`, or unless that job is the transcript's and still `processing`. Both are checked under the transcript row lock the save already took, so a completion that committed first is always seen and one in flight waits for the save; the job itself is not locked, since that would deadlock with a transcript delete (transcript, then its jobs) or with completion (job, then transcript). The handler then skips without sending `transcription/completed`. A future re-transcription, as a new job, saves as usual; leftovers of the old job are refused. `transcription/webhook` is now sent with the id `transcription-webhook:<jobId>`, so Inngest drops a resend after a lost answer.
+- Migration `20261103000000_segment_save_guard.sql` replaces the two-argument function, keeping it service-role only. It rewrites no existing rows.
+
+### Verification
+
+- `__tests__/transcriptionWebhookReplay.test.ts` reproduced the bug before the fix (a resent event without an id; a duplicate with a memoised `processing` read reaching the save on a completed job) and now shows the late save refused with nothing completed, the running attempt saving, and other save errors still retried. All 228 Jest suites / 2,946 tests and 7 snapshots pass (the Deepgram baseline is unchanged); typecheck and lint (0 errors / 58 warnings) pass.
+- On the local database: `scripts/smoke-test-segment-save-guard.sql` (the reproduction, now refused, with the editor's edit and segment ids kept; re-saves while processing; wrong, unknown and old jobs refused) and `scripts/concurrency-test-segment-save.sh` (completion first, save first, two overlapping saves, an old job against a new attempt, a delete before and after a save) pass. Without the transcript lock the late save gets through, and with the job locked first a delete deadlocks: the race test catches both. `smoke-test-speakers.sql` is updated and passes. Not yet run end to end in the app, and the hosted migration is not pushed.
+
 ## [2026-11-02] - Recording retry after a lost link
 
 ### Fixed

@@ -367,6 +367,7 @@ describe('Inngest handlers', () => {
     expect(rpcMock).toHaveBeenCalledTimes(1)
     expect(rpcMock).toHaveBeenCalledWith('save_transcript_segments', expect.objectContaining({
       p_transcript_id: transcriptId,
+      p_job_id: jobId,
     }))
 
     const payload = getSavePayload()
