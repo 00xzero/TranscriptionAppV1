@@ -511,6 +511,8 @@ export async function recordEngineResult(opts: {
     try {
         await sendInngestEvent({
             name: 'transcription/webhook',
+            // One job is one attempt: a resend (a lost answer, a takeover) becomes the same event.
+            id: `transcription-webhook:${exact.jobId}`,
             data: { requestId, transcriptId },
         })
     } catch (sendError) {

@@ -19,6 +19,9 @@ import { getEngine } from "@/lib/transcription/engines.server";
 import { buildRpcPayload } from "@/lib/transcription/segments-payload";
 import { writeTranscriptionFailureFallback } from "./_shared";
 
+/** save_transcript_segments refused: the job is no longer the running attempt. */
+const STALE_SAVE_CODE = "SP005";
+
 export const handleTranscriptionWebhook = inngest.createFunction(
     {
         id: "handle-transcription-webhook",
@@ -175,10 +178,16 @@ export const handleTranscriptionWebhook = inngest.createFunction(
                 "save_transcript_segments",
                 {
                     p_transcript_id: transcriptId,
+                    p_job_id: job.id,
                     p_payload: validatedPayload,
                 }
             );
 
+            // The job completed (or failed) since find-job read it: this run is a
+            // late duplicate, and saving would replace what the user edited since.
+            if (rpcError?.code === STALE_SAVE_CODE) {
+                return { stale: true as const };
+            }
             if (rpcError) {
                 throw new Error(`save_transcript_segments RPC failed: ${rpcError.message}`);
             }
@@ -186,11 +195,17 @@ export const handleTranscriptionWebhook = inngest.createFunction(
             const summary = SaveTranscriptSegmentsResultSchema.parse(rpcData);
 
             return {
+                stale: false as const,
                 segmentCount: summary.segment_count,
                 wordCount: summary.word_count,
                 durationMs: summary.duration_ms,
             };
         });
+
+        if (transcriptionResult.stale) {
+            console.log(`[inngest] Job ${job.id} is no longer processing — skipping late save for transcript ${transcriptId}`);
+            return { status: "skipped", transcriptId, jobId: job.id };
+        }
 
         // Step 3: Trigger completion event
         console.log(`[inngest] Sending transcription/completed event for transcript: ${transcriptId}`);
