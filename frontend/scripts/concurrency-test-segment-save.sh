@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Two-connection coverage for the segment save guard
 # (20261103000000_segment_save_guard.sql, audit finding pipeline-3): what a
-# save does when completion, another save or a new attempt holds the same job.
+# save does when completion, another save, a new attempt or a delete holds the
+# same transcript.
 #
 # LOCAL DATABASE ONLY. It commits a throwaway account (and its transcripts and
 # jobs) and deletes it again on exit. Session A opens a transaction, acts, and
@@ -66,6 +67,24 @@ COMMIT;
 SQL
 }
 
+# Runs SQL as the throwaway account (the editor's delete) in one transaction.
+as_user() {
+  local out
+  if out=$(psql_run 2>&1 <<SQL
+\set VERBOSITY verbose
+BEGIN;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims = '{"sub":"$SUB","role":"authenticated"}';
+$1
+COMMIT;
+SQL
+  ); then
+    echo "$out" | sed '/^$/d' | tail -1
+  else
+    echo "ERROR $(echo "$out" | sed -n 's/^ERROR: *\([0-9A-Z]\{5\}\):.*/\1/p' | head -1)"
+  fi
+}
+
 query() { psql_run -c "$1" | sed '/^$/d' | tail -1; }
 first_text() { query "SELECT text FROM public.segments WHERE transcript_id = '$(transcript "$1")' ORDER BY start_ms LIMIT 1;"; }
 segment_ids() { query "SELECT string_agg(id::text, ',' ORDER BY start_ms) FROM public.segments WHERE transcript_id = '$(transcript "$1")';"; }
@@ -88,12 +107,16 @@ INSERT INTO public.transcripts (id, user_id, title, status) VALUES
   ('$(transcript 1)', '$USER_ID', 'Completion first', 'processing'),
   ('$(transcript 2)', '$USER_ID', 'Save first', 'processing'),
   ('$(transcript 3)', '$USER_ID', 'Two saves', 'processing'),
-  ('$(transcript 4)', '$USER_ID', 'New attempt', 'processing');
+  ('$(transcript 4)', '$USER_ID', 'New attempt', 'processing'),
+  ('$(transcript 5)', '$USER_ID', 'Deleted first', 'processing'),
+  ('$(transcript 6)', '$USER_ID', 'Deleted after', 'processing');
 INSERT INTO public.jobs (id, transcript_id, type, status) VALUES
   ('$(job 1)', '$(transcript 1)', 'transcription', 'processing'),
   ('$(job 2)', '$(transcript 2)', 'transcription', 'processing'),
   ('$(job 3)', '$(transcript 3)', 'transcription', 'processing'),
-  ('$(job 4)', '$(transcript 4)', 'transcription', 'processing');
+  ('$(job 4)', '$(transcript 4)', 'transcription', 'processing'),
+  ('$(job 6)', '$(transcript 5)', 'transcription', 'processing'),
+  ('$(job 7)', '$(transcript 6)', 'transcription', 'processing');
 SQL
 
 # 1. Completion commits first: the late save waits on the job, then finds it
@@ -141,5 +164,32 @@ wait
 expect "new attempt: the old job's late save is refused" "$got" "ERROR SP005"
 expect "new attempt: the new job saves" "$(as_pipeline "$(save 4 5 'New attempt.')")" "2"
 expect "new attempt: its segments are the transcript's" "$(first_text 4)" "New attempt."
+
+# 5. A delete holds the transcript (delete_transcript locks it first, then its
+#    cascade removes the jobs) when a save arrives: the save waits behind it,
+#    never holding a job the cascade needs, and finds the transcript gone.
+psql_run >/dev/null <<SQL &
+BEGIN;
+SELECT 1 FROM public.transcripts WHERE id = '$(transcript 5)' FOR UPDATE;
+SELECT pg_sleep($HOLD);
+DELETE FROM public.transcripts WHERE id = '$(transcript 5)';
+COMMIT;
+SQL
+delete_pid=$!
+sleep "$START"
+got=$(as_pipeline "$(save 5 6 'Saved during a delete.')")
+delete_ok=0; wait "$delete_pid" || delete_ok=$?
+expect "delete first: the delete goes through" "$delete_ok" "0"
+expect "delete first: the save finds the transcript gone" "$got" "ERROR SP001"
+
+# 6. A save holds the transcript when the user deletes it: the delete waits for
+#    the save, then removes the transcript, its job and the saved segments.
+hold_as_pipeline "$(save 6 7 'Saved before a delete.')" &
+sleep "$START"
+got=$(as_user "SELECT public.delete_transcript('$(transcript 6)');")
+wait
+expect "save first, then delete: the delete goes through" "$got" ""
+expect "save first, then delete: nothing left" \
+  "$(query "SELECT count(*) FROM public.segments WHERE transcript_id = '$(transcript 6)';")" "0"
 
 echo "segment save concurrency test passed"

@@ -6,9 +6,14 @@
 -- still processing. A future re-transcription runs as a new job and saves as
 -- usual; leftovers of the old one are refused.
 --
--- Locking order: the speaker identity advisory lock, then the job, then the
--- transcript, as completion takes them (transition_job_status locks the job;
--- its trigger then updates the transcript).
+-- Locking order is unchanged: the speaker identity advisory lock, then the
+-- transcript row, the order delete_transcript takes too. Both checks are made
+-- under that lock. The transcript's status is read from the row the save
+-- holds, so a completion that committed first is always seen, and one still
+-- in flight waits for the save (its trigger updates this row) and lands
+-- after it. The job is not locked: locking it before the transcript would
+-- deadlock with a delete (transcript, then its jobs), and after it with
+-- completion (the job, then the transcript).
 --
 -- SQLSTATEs follow the people migrations: SP001 not found; SP005 the save is
 -- not the running attempt's (the pipeline skips it).
@@ -29,6 +34,7 @@ SET search_path = public
 AS $$
 DECLARE
     v_user_id UUID;
+    v_transcript_status TEXT;
     v_job_status TEXT;
     v_num INT;
     v_speaker_id UUID;
@@ -41,25 +47,24 @@ BEGIN
     IF NOT FOUND THEN RAISE EXCEPTION 'transcript not found' USING ERRCODE = 'SP001'; END IF;
     PERFORM public.lock_speaker_identity_writes(v_user_id);
 
-    -- Held until commit, so the job cannot complete (or fail) under the save.
-    -- One active job per transcript, so a processing job is the running attempt.
-    SELECT j.status INTO v_job_status
-    FROM public.jobs AS j
-    WHERE j.id = p_job_id AND j.transcript_id = p_transcript_id
-    FOR SHARE;
-
-    IF v_job_status IS DISTINCT FROM 'processing' THEN
-        RAISE EXCEPTION 'only the running attempt may save segments' USING ERRCODE = 'SP005';
-    END IF;
-
-    -- The row lock serialises ordinal allocation with create_transcript_speaker.
-    SELECT t.user_id INTO v_user_id
+    -- The row lock serialises ordinal allocation with create_transcript_speaker,
+    -- and the checks below with completion.
+    SELECT t.user_id, t.status INTO v_user_id, v_transcript_status
     FROM public.transcripts AS t
     WHERE t.id = p_transcript_id
     FOR NO KEY UPDATE;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'transcript not found' USING ERRCODE = 'SP001';
+    END IF;
+
+    -- One active job per transcript, so a processing job is the running attempt.
+    SELECT j.status INTO v_job_status
+    FROM public.jobs AS j
+    WHERE j.id = p_job_id AND j.transcript_id = p_transcript_id;
+
+    IF v_transcript_status = 'completed' OR v_job_status IS DISTINCT FROM 'processing' THEN
+        RAISE EXCEPTION 'only the running attempt may save segments' USING ERRCODE = 'SP005';
     END IF;
 
     -- 1. Delete existing transcript content for this transcript.
@@ -218,4 +223,5 @@ COMMENT ON FUNCTION public.save_transcript_segments IS
 'Atomically replaces the transcript content (segments + words) for a transcript
 from a JSONB payload built by the Inngest webhook handler, creating transcript
 speakers keyed on (transcript_id, diarization_index). Never creates people.
-Refused (SP005) unless p_job_id is the transcript''s job and still processing.';
+Refused (SP005) once the transcript is completed, or unless p_job_id is the
+transcript''s job and still processing.';
