@@ -1,9 +1,9 @@
 import { renderHook, act } from '@testing-library/react'
 import { useEditorPlayback } from '../../app/(app)/editor/[id]/hooks/useEditorPlayback'
 
-jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({
-  useAudioSessionRecovery: jest.fn(),
-}))
+import { toast } from '@/components/ui/toaster'
+
+jest.mock('@/components/ui/toaster', () => ({ toast: jest.fn() }))
 
 function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
   return {
@@ -279,5 +279,75 @@ describe('useEditorPlayback', () => {
     seconds = 13.5
     act(() => result.current.handleTimeUpdate(seconds))
     expect(result.current.playbackClock.getMs()).toBe(13500)
+  })
+})
+
+
+describe('playback during audio recovery', () => {
+  const mediaError = { code: 4 } as MediaError
+  const originalFetch = global.fetch
+  beforeEach(() => { jest.useFakeTimers(); jest.mocked(toast).mockClear() })
+  afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); global.fetch = originalFetch })
+
+  function playingSource() {
+    const hook = setup()
+    const audio = Object.assign(new EventTarget(), { currentTime: 42, paused: false, error: null as MediaError | null, play: jest.fn(async () => {}) })
+    const player = createPlayer({ getAudioElement: jest.fn(() => audio), getCurrentTime: jest.fn(() => audio.currentTime) })
+    act(() => {
+      hook.result.current.handleAudioPlayerRef(player as any)
+      hook.result.current.handlePlayingChange(true)
+    })
+    expect(hook.result.current.playbackClock.getMs()).toBe(42000)
+    return { ...hook, audio }
+  }
+
+  it('holds the clock across reset frames and terminal failure', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) })) as unknown as typeof fetch
+    const { result, audio, props } = playingSource()
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    expect(props.setAudioSrc).toHaveBeenCalledWith('fresh.mp3')
+    act(() => {
+      audio.error = null
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      result.current.handleTimeUpdate(0)
+      result.current.handleSeeked()
+      jest.advanceTimersByTime(32)
+    })
+    expect(result.current.playbackClock.getMs()).toBe(42000)
+    act(() => { audio.error = mediaError; audio.dispatchEvent(new Event('error')) })
+    expect(result.current.playing).toBe(false)
+    expect(result.current.playbackClock.getMs()).toBe(42000)
+    expect(toast).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the clock during a successful proactive swap and resumes sampling after restoration', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) })) as unknown as typeof fetch
+    const { result, audio } = playingSource()
+    act(() => { jest.setSystemTime(Date.now() + 51 * 60 * 1000) })
+    await act(async () => { audio.dispatchEvent(new Event('stalled')) })
+    act(() => {
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      jest.advanceTimersByTime(32)
+    })
+    expect(result.current.playbackClock.getMs()).toBe(42000)
+    act(() => { audio.dispatchEvent(new Event('loadeddata')) })
+    expect(audio.currentTime).toBe(42)
+    act(() => { audio.currentTime = 43; jest.advanceTimersByTime(32) })
+    expect(result.current.playbackClock.getMs()).toBe(43000)
+  })
+
+  it('keeps playing when a healthy stale source cannot refresh', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    global.fetch = jest.fn(async () => ({ ok: false, status: 503 })) as unknown as typeof fetch
+    const { result, audio } = playingSource()
+    act(() => { jest.setSystemTime(Date.now() + 51 * 60 * 1000) })
+    await act(async () => { audio.dispatchEvent(new Event('stalled')) })
+    act(() => { audio.currentTime = 43; jest.advanceTimersByTime(32) })
+    expect(result.current.playing).toBe(true)
+    expect(result.current.playbackClock.getMs()).toBe(43000)
+    expect(toast).not.toHaveBeenCalled()
   })
 })

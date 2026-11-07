@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScrubEndReason } from '@/lib/audio/useScrubGesture'
 import type { AudioPlayerRef } from '@/components/AudioPlayer'
 import { createPlaybackClock } from '../playbackClock'
+import { toast } from '@/components/ui/toaster'
 import { useAudioSessionRecovery } from './useAudioSessionRecovery'
 
 export function useEditorPlayback({
@@ -46,6 +47,19 @@ export function useEditorPlayback({
   const readyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
   const [playbackClock] = useState(createPlaybackClock)
+  const holdingPosition = useRef(false)
+  const setPositionHold = useCallback((hold: boolean) => {
+    holdingPosition.current = hold
+    if (!hold && playbackClock.getMs() !== null) playbackClock.refresh()
+  }, [playbackClock])
+  const lastPosition = useCallback(() => {
+    const ms = playbackClock.getMs()
+    return ms === null ? undefined : ms / 1000
+  }, [playbackClock])
+  const reportRecoveryFailure = useCallback((retry: () => void) => {
+    setPlaying(false)
+    toast({ title: "Couldn't load the audio", variant: 'error', action: { label: 'Retry', onClick: retry } })
+  }, [])
 
   // While playing, the clock follows the audio every frame. When playback
   // stops, one last read captures where it stopped; before anything has
@@ -59,16 +73,23 @@ export function useEditorPlayback({
   }, [playing, playbackClock])
   const handleAudioPlayerRef = useCallback((player: AudioPlayerRef | null) => {
     audioPlayerRef.current = player
-    playbackClock.attach(player ? () => Math.floor(player.getCurrentTime() * 1000) : null)
-    setAudioElement(player?.getAudioElement?.() ?? null)
+    const audio = player?.getAudioElement?.() ?? null
+    playbackClock.attach(player ? () =>
+      holdingPosition.current || audio?.error ? null : Math.floor(player.getCurrentTime() * 1000)
+    : null)
+    setAudioElement(audio)
   }, [playbackClock])
 
-  useAudioSessionRecovery({
+  const { toggleWhileRecovering } = useAudioSessionRecovery({
     transcriptId,
     audioSrc,
     audioElement,
-    onUrlRefreshed: (newUrl) => setAudioSrc(newUrl),
-    onRecoveryError: (error) => console.warn('[Editor] Audio recovery failed:', error),
+    onUrlRefreshed: setAudioSrc,
+    onRecoveryError: reportRecoveryFailure,
+    onPositionHold: setPositionHold,
+    lastPosition,
+    wasPlaying: () => playing,
+    onResumeRejected: () => setPlaying(false),
   })
 
   const seekToMs = useCallback((targetMs: number) => {
@@ -84,6 +105,7 @@ export function useEditorPlayback({
   const handleAudioReady = useCallback(() => {
     readyRef.current = true
     setStatus('Ready')
+    if (holdingPosition.current || audioElement?.error) return
     const player = audioPlayerRef.current
     const currentTime = player?.getCurrentTime?.() ?? 0
     const dur = player?.getDuration?.() ?? 0
@@ -95,7 +117,7 @@ export function useEditorPlayback({
       pendingSeekRef.current = null
       seekToMs(pendingSeekMs)
     }
-  }, [seekToMs, setStatus])
+  }, [seekToMs, setStatus, audioElement])
 
   const handleAudioError = useCallback((error: string) => {
     setStatus(`Error: ${error}`)
@@ -110,6 +132,7 @@ export function useEditorPlayback({
   }, [])
 
   const handleTimeUpdate = useCallback((currentTime: number) => {
+    if (holdingPosition.current || audioElement?.error) return
     // A floor under the frame loop, which browsers throttle in hidden or
     // occluded windows; before anything has played or seeked there is no
     // position to show yet.
@@ -120,7 +143,7 @@ export function useEditorPlayback({
     setAudioDuration(dur)
     updateAudioProgress(currentTime, dur)
     onAudioTick(Math.floor(currentTime * 1000))
-  }, [onAudioTick, playbackClock, updateAudioProgress])
+  }, [onAudioTick, playbackClock, updateAudioProgress, audioElement])
 
   // The media element's `seeked` fires once its position has really moved:
   // after word and segment seeks, each scrub write, and the final scrub flush.
@@ -153,8 +176,12 @@ export function useEditorPlayback({
   const togglePlay = useCallback(() => {
     const player = audioPlayerRef.current
     if (!player) return
-    player.togglePlay()
-  }, [])
+    if (toggleWhileRecovering(playing)) {
+      if (playing) setPlaying(false)
+    } else {
+      player.togglePlay()
+    }
+  }, [playing, toggleWhileRecovering])
 
   const seekRelative = useCallback((sec: number) => {
     const player = audioPlayerRef.current

@@ -312,7 +312,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
       const audio = audioRef.current
       if (!audio) return
       if (audio.paused) {
-        audio.play()
+        void audio.play().catch(() => {
+          setPlaying(false)
+          onPlayingChange?.(false)
+        })
       } else {
         audio.pause()
       }
@@ -361,7 +364,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime])
+  }), [onPlayingChange, beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime])
 
   // Audio event handlers
   useEffect(() => {
