@@ -39,10 +39,10 @@ export function useAudioSessionRecovery({
 }: RecoveryOptions) {
   const session = useRef<Recovery | null>(null)
   const urlFetchedAt = useRef(Date.now())
-  const callbacks = useRef({ audioSrc, onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected })
+  const callbacks = useRef({ onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected })
   useLayoutEffect(() => {
-    callbacks.current = { audioSrc, onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected }
-  }, [audioSrc, onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected])
+    callbacks.current = { onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected }
+  }, [onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected])
 
   useEffect(() => {
     if (audioSrc) urlFetchedAt.current = Date.now()
@@ -79,6 +79,11 @@ export function useAudioSessionRecovery({
         if (session.current === current && current.reported && audio.error) void refresh(true)
       })
     }
+    const releasePosition = () => {
+      current.restore = undefined
+      current.playIntent = undefined
+      callbacks.current.onPositionHold?.(false)
+    }
 
     if (audio.error) holdPosition()
     if (resume) current.playIntent = true
@@ -92,6 +97,7 @@ export function useAudioSessionRecovery({
       return
     }
 
+    current.removeSourceListeners?.()
     current.usedAutomaticAttempt = true
     current.reported = false
     const attempt = new AbortController()
@@ -105,46 +111,54 @@ export function useAudioSessionRecovery({
       holdPosition()
       let newSourceStarted = false
       const playWait = window.setTimeout(() => { current.playWaitExpired = true }, PLAY_WAIT_MS)
-      const finish = () => {
+      const releaseAttempt = () => {
         window.clearTimeout(playWait)
+        if (current.attempt === attempt) current.attempt = undefined
+        current.playWaitExpired = false
+      }
+      const finish = () => {
+        releaseAttempt()
         audio.removeEventListener('loadstart', started)
+        audio.removeEventListener('loadedmetadata', restorePosition)
         audio.removeEventListener('loadeddata', loaded)
         audio.removeEventListener('error', failed)
         audio.removeEventListener('abort', failed)
         current.removeSourceListeners = undefined
-        current.attempt = undefined
-        current.playWaitExpired = false
       }
       const started = () => { newSourceStarted = true }
-      const loaded = () => {
-        if (!newSourceStarted || session.current !== current) return
+      const restorePosition = () => {
+        if (!newSourceStarted || session.current !== current || current.attempt !== attempt) return
         const restore = current.restore
         const play = current.playIntent ?? restore?.play
-        current.playIntent = undefined
         if (restore) audio.currentTime = restore.position
-        current.restore = undefined
-        current.loadedAt = Date.now()
-        current.reported = false
-        finish()
-        callbacks.current.onPositionHold?.(false)
+        releaseAttempt()
+        releasePosition()
         if (play) void audio.play().catch(() => {
           if (session.current === current) callbacks.current.onResumeRejected?.()
         })
       }
+      const loaded = () => {
+        if (!newSourceStarted || session.current !== current) return
+        // Metadata releases the position hold. Media data starts the retry window.
+        restorePosition()
+        current.loadedAt = Date.now()
+        current.reported = false
+        finish()
+      }
       const failed = () => {
         if (!newSourceStarted) return
         finish()
-        reportFailure()
+        if (audio.error) reportFailure()
+        else releasePosition()
       }
       audio.addEventListener('loadstart', started)
+      audio.addEventListener('loadedmetadata', restorePosition)
       audio.addEventListener('loadeddata', loaded)
       audio.addEventListener('error', failed)
       audio.addEventListener('abort', failed)
       current.removeSourceListeners = finish
       urlFetchedAt.current = Date.now()
-      // A signer can return the same URL within its timestamp granularity.
-      if (url === callbacks.current.audioSrc) audio.load()
-      else callbacks.current.onUrlRefreshed(url)
+      callbacks.current.onUrlRefreshed(url)
     } catch (error) {
       if (session.current !== current) return
       current.removeSourceListeners?.()
@@ -158,9 +172,7 @@ export function useAudioSessionRecovery({
         holdPosition()
         reportFailure()
       } else {
-        current.restore = undefined
-        current.playIntent = undefined
-        callbacks.current.onPositionHold?.(false)
+        releasePosition()
       }
     }
   }, [audioElement, transcriptId])
@@ -188,7 +200,7 @@ export function useAudioSessionRecovery({
   /** True when recovery owns the control press. A pending source may load late. */
   const toggleWhileRecovering = useCallback((playing: boolean) => {
     const current = session.current
-    if (!current || (!current.attempt && !current.restore && !current.audio.error)) return false
+    if (!current || (!current.restore && !current.audio.error)) return false
     if (current.playWaitExpired && !current.audio.error) {
       // Let the gesture reach the media element. Keep the late seek restore,
       // but let this press own playback instead of replaying the old intent.

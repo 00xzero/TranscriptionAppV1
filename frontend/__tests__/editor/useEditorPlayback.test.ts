@@ -17,6 +17,7 @@ function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
     isPlaying: jest.fn(() => false),
     pause: jest.fn(),
     play: jest.fn(),
+    reload: jest.fn(),
     beginScrub: jest.fn(),
     scrubToFraction: jest.fn(),
     endScrub: jest.fn(),
@@ -301,8 +302,41 @@ describe('playback during audio recovery', () => {
       hook.result.current.handlePlayingChange(true)
     })
     expect(hook.result.current.playbackClock.getMs()).toBe(42000)
-    return { ...hook, audio }
+    return { ...hook, audio, player }
   }
+
+  it('plays the healthy source immediately while a proactive URL fetch is pending', async () => {
+    let resolveFetch!: (response: Response) => void
+    const fetch = jest.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve }))
+    global.fetch = fetch as unknown as typeof global.fetch
+    const { result, audio, props } = playingSource()
+    audio.paused = true
+    act(() => {
+      result.current.handlePlayingChange(false)
+      jest.setSystemTime(Date.now() + 51 * 60 * 1000)
+    })
+    await act(async () => { audio.dispatchEvent(new Event('stalled')) })
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    act(() => result.current.togglePlay())
+    expect(audio.play).toHaveBeenCalledTimes(1)
+    expect(props.setAudioSrc).not.toHaveBeenCalled()
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      resolveFetch({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response)
+    })
+    expect(props.setAudioSrc).toHaveBeenCalledWith('fresh.mp3')
+  })
+
+  it('reloads the player when the signer returns the current URL', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'audio.mp3' }) })) as unknown as typeof fetch
+    const { audio, player, props } = playingSource()
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    expect(player.reload).toHaveBeenCalledTimes(1)
+    expect(props.setAudioSrc).not.toHaveBeenCalled()
+  })
 
   it('holds the clock across reset frames and terminal failure', async () => {
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) })) as unknown as typeof fetch

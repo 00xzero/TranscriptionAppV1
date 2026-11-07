@@ -137,10 +137,10 @@ export default function FindReplaceModal({
     wasOpenRef.current = open
   }, [open, restoreFocus])
 
-  const handleClose = () => {
+  const handleClose = (options?: FocusOptions) => {
     restoreOnExternalCloseRef.current = false
     onClose()
-    restoreFocus()
+    restoreFocus(options)
   }
 
   useEffect(() => {
@@ -268,7 +268,7 @@ export default function FindReplaceModal({
                 matches={matches}
                 segments={segments}
                 matchIndex={matchIndex}
-                onMatchClick={(index) => { onMatchClick(index); handleClose() }}
+                onMatchClick={(index) => { onMatchClick(index); handleClose({ preventScroll: true }) }}
               />
             )}
           </div>
@@ -324,7 +324,7 @@ export default function FindReplaceModal({
             </button>
             <button
               type="button"
-              onClick={handleClose}
+              onClick={() => handleClose()}
               aria-label="Close find/replace (Esc)"
               title="Close (Esc)"
               className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-mono transition-colors ${flashEsc

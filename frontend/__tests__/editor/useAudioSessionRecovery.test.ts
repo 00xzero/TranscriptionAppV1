@@ -166,6 +166,51 @@ describe.each(['inline', 'stable'])('recovery cap with %s callbacks', (style) =>
     }
   )
 
+  test('metadata releases a paused source without granting another automatic attempt', async () => {
+    const { audio, fail, startSource, result, fetchMock, errors, hold } = mount()
+    audio.paused = true
+    await fail()
+    startSource()
+    act(() => { audio.dispatchEvent(new Event('loadedmetadata')) })
+
+    expect(audio.currentTime).toBe(42)
+    expect(hold).toHaveBeenLastCalledWith(false)
+    expect(result.current.toggleWhileRecovering(false)).toBe(false)
+    expect(audio.play).not.toHaveBeenCalled()
+
+    act(() => { jest.advanceTimersByTime(60_000) })
+    await fail()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(errors).toHaveBeenCalledTimes(1)
+  })
+
+  test('late data after metadata keeps a newer seek and starts the retry window', async () => {
+    const { audio, fail, startSource, fetchMock } = mount()
+    await fail()
+    startSource()
+    act(() => { audio.dispatchEvent(new Event('loadedmetadata')) })
+    audio.currentTime = 90
+    act(() => { audio.dispatchEvent(new Event('loadeddata')) })
+    expect(audio.currentTime).toBe(90)
+    expect(audio.play).toHaveBeenCalledTimes(1)
+    act(() => { jest.advanceTimersByTime(60_000) })
+    await fail()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  test('a clean abort of the refreshed load releases the hold and Play', async () => {
+    const { audio, fail, startSource, result, fetchMock, errors, hold } = mount()
+    await fail()
+    startSource()
+    expect(hold).toHaveBeenLastCalledWith(true)
+    act(() => { audio.dispatchEvent(new Event('abort')) })
+
+    expect(hold).toHaveBeenLastCalledWith(false)
+    expect(result.current.toggleWhileRecovering(false)).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(errors).not.toHaveBeenCalled()
+  })
+
   test('a healthy source survives a failed proactive fetch, and its later terminal error reports', async () => {
     jest.spyOn(console, 'warn').mockImplementation(() => {})
     const { audio, fail, errors, fetchMock, hold } = mount(true)

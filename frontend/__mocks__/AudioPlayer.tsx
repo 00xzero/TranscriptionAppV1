@@ -41,6 +41,10 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
       setPlaying(false)
       onPlayingChange?.(false)
     },
+    reload: () => {
+      setCurrentTime(0)
+      onReady?.()
+    },
     togglePlay: () => {
       const newState = !playing
       setPlaying(newState)
@@ -93,7 +97,7 @@ const MockAudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function Mo
     isPlaying: () => playing,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [playing, currentTime, duration, onPlayingChange, onTimeUpdate, onSeeked, onScrubPreview, onScrubPreviewFraction])
+  }), [playing, currentTime, duration, onReady, onPlayingChange, onTimeUpdate, onSeeked, onScrubPreview, onScrubPreviewFraction])
 
   // Simulate ready event after mount
   useEffect(() => {

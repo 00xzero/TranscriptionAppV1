@@ -80,11 +80,17 @@ export function useEditorPlayback({
     setAudioElement(audio)
   }, [playbackClock])
 
+  const handleUrlRefreshed = useCallback((url: string) => {
+    // A signer can return the same URL within its timestamp granularity.
+    if (url === audioSrc) audioPlayerRef.current?.reload()
+    else setAudioSrc(url)
+  }, [audioSrc, setAudioSrc])
+
   const { toggleWhileRecovering } = useAudioSessionRecovery({
     transcriptId,
     audioSrc,
     audioElement,
-    onUrlRefreshed: setAudioSrc,
+    onUrlRefreshed: handleUrlRefreshed,
     onRecoveryError: reportRecoveryFailure,
     onPositionHold: setPositionHold,
     lastPosition,

@@ -90,6 +90,38 @@ describe('AudioPlayer', () => {
   const originalUserAgent = navigator.userAgent
   const originalVendor = navigator.vendor
 
+  it('reports readiness again and applies the latest seek after reloading the same source', () => {
+    const player = React.createRef<AudioPlayerRef>()
+    const onReady = jest.fn()
+    const onError = jest.fn()
+    const { container } = render(
+      <AudioPlayer ref={player} src="test.mp3" audioEngineOnly onReady={onReady} onError={onError} />
+    )
+    const audio = container.querySelector('audio')!
+    setupAudioElement(audio)
+    const load = jest.spyOn(audio, 'load').mockImplementation(() => { audio.currentTime = 0 })
+    fireEvent.canPlay(audio)
+    fireEvent.error(audio)
+    expect(onReady).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(1)
+
+    act(() => { player.current!.reload() })
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(player.current!.isReady()).toBe(false)
+    act(() => {
+      player.current!.seekToMs(70_000)
+      player.current!.seekToMs(90_000)
+    })
+    expect(audio.currentTime).toBe(0)
+    fireEvent.loadedMetadata(audio)
+    // Recovery restores the old position at metadata, before the player is ready.
+    audio.currentTime = 42
+    fireEvent.loadedData(audio)
+    fireEvent.canPlay(audio)
+    expect(audio.currentTime).toBe(90)
+    expect(onReady).toHaveBeenCalledTimes(2)
+  })
+
   function setNavigator(userAgent: string, vendor: string): void {
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
