@@ -3,6 +3,40 @@ import type { Seg, Match, SegmentMatch } from '../types'
 import { isUnicodeWordChar } from '../utils'
 import type { TextEdit } from './useTranscriptMutations'
 
+/** Match against whole-string lowercase, but return ranges in the source. */
+function findTextMatches(text: string, needle: string, caseSensitive: boolean, wholeWord: boolean) {
+  const haystack = caseSensitive ? text : text.toLowerCase()
+  const ranges: Pick<Match, 'index' | 'length'>[] = []
+  if (!needle.length) return ranges
+
+  // A lowercase expansion can shift every offset after it. Record the source
+  // start for each folded UTF-16 unit, so partial hits cover its whole character.
+  const sourceStarts: number[] = []
+  if (haystack.length !== text.length) {
+    let start = 0
+    for (const char of text) {
+      for (let i = 0; i < char.toLowerCase().length; i++) sourceStarts.push(start)
+      start += char.length
+    }
+  }
+
+  let sourceEnd = 0
+  for (let start = 0; ; ) {
+    const index = haystack.indexOf(needle, start)
+    if (index < 0) break
+    start = index + needle.length
+    if (wholeWord && (isUnicodeWordChar(haystack[index - 1]) || isUnicodeWordChar(haystack[start]))) continue
+
+    const from = sourceStarts[index] ?? index
+    const last = sourceStarts[start - 1]
+    const end = last === undefined ? start : last + (text.codePointAt(last)! > 0xffff ? 2 : 1)
+    if (from < sourceEnd) continue
+    ranges.push({ index: from, length: end - from })
+    sourceEnd = end
+  }
+  return ranges
+}
+
 export function useTranscriptSearch({
   segments,
   editingTexts,
@@ -49,25 +83,11 @@ export function useTranscriptSearch({
   const matches = useMemo<Match[]>(() => {
     if (!findTerm) return []
     const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
-    if (!needle.length) return []
     const found: Match[] = []
     for (const seg of segments) {
       const text = editingTexts[seg.id] ?? seg.text ?? ''
-      const haystack = caseSensitive ? text : text.toLowerCase()
-      let start = 0
-      while (true) {
-        const idx = haystack.indexOf(needle, start)
-        if (idx === -1) break
-        if (wholeWord) {
-          const before = idx > 0 ? haystack[idx - 1] : ''
-          const after = idx + needle.length < haystack.length ? haystack[idx + needle.length] : ''
-          if ((before && isUnicodeWordChar(before)) || (after && isUnicodeWordChar(after))) {
-            start = idx + Math.max(needle.length, 1)
-            continue
-          }
-        }
-        found.push({ segId: seg.id, index: idx, length: needle.length })
-        start = idx + Math.max(needle.length, 1)
+      for (const range of findTextMatches(text, needle, caseSensitive, wholeWord)) {
+        found.push({ segId: seg.id, ...range })
       }
     }
     return found
