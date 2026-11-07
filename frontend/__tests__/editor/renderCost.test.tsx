@@ -253,6 +253,28 @@ describe('editor render cost on a 10-hour transcript', () => {
     await waitFor(() => expect(screen.getByTestId('match-summary')).toHaveTextContent(/of [\d,]+ matches/))
     const summary = screen.getByTestId('match-summary').textContent
     report['find "the": matches'] = summary ?? ''
+    const resultButtons = await screen.findAllByTitle(/Current match|Jump to this match/)
+    const renderedResults = resultButtons.length
+    report['find "the": mounted snippets'] = renderedResults
+    expect(renderedResults).toBeLessThan(100)
+    if (SEGMENTS === 5000) {
+      const scroller = resultButtons[0].closest<HTMLElement>('[data-virtuoso-scroller]')!
+      // The mock context supplies row sizes, but imperative scrolling also
+      // reads DOM geometry and waits for a browser scroll event.
+      Object.defineProperties(scroller, {
+        offsetHeight: { value: 900 },
+        scrollHeight: { value: 9998 * 110 },
+        scrollTo: { value: ({ top }: ScrollToOptions) => {
+          scroller.scrollTop = top ?? 0
+          fireEvent.scroll(scroller)
+        } },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Previous match' }))
+      await waitFor(() => expect(screen.getByTestId('match-summary')).toHaveTextContent('9998 of 9998'))
+      await waitFor(() => expect(screen.getByTitle('Current match')).toBeInTheDocument())
+      fireEvent.click(screen.getByRole('button', { name: 'Next match' }))
+      await waitFor(() => expect(screen.getByTestId('match-summary')).toHaveTextContent('1 of 9998'))
+    }
     report['find "the": wall ms to show matches (jsdom)'] = round(search.wallMs)
     fireEvent.change(screen.getByPlaceholderText('Replacement'), { target: { value: 'a' } })
     const setTexts = supabaseQueries.setSegmentTexts as jest.Mock

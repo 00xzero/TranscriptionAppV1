@@ -379,7 +379,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}
-        onMatchClick={(idx: number) => search.setMatchIndex(idx)}
+        onMatchClick={search.jumpToMatch}
       />
 
       <div className="relative flex min-h-0 flex-1">

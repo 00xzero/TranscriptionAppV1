@@ -125,14 +125,21 @@ export function useTranscriptSearch({
     }
   }, [findTerm, caseSensitive, wholeWord, suspendFollow])
 
+  const scrollToMatch = useCallback((match: Match) => {
+    const index = segments.findIndex((segment) => segment.id === match.segId)
+    if (index >= 0) scrollToSegmentIndex(index)
+  }, [segments, scrollToSegmentIndex])
+
   useEffect(() => {
-    if (!findReplaceOpen) return
-    if (!currentMatch) return
-    const idx = segments.findIndex((s: Seg) => s.id === currentMatch.segId)
-    if (idx >= 0) {
-      scrollToSegmentIndex(idx)
-    }
-  }, [currentMatch, findReplaceOpen, segments, scrollToSegmentIndex])
+    if (findReplaceOpen && currentMatch) scrollToMatch(currentMatch)
+  }, [currentMatch, findReplaceOpen, scrollToMatch])
+
+  const jumpToMatch = useCallback((index: number) => {
+    const match = matches[index]
+    if (!match) return
+    setMatchIndex(index)
+    scrollToMatch(match)
+  }, [matches, scrollToMatch])
 
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
@@ -248,7 +255,7 @@ export function useTranscriptSearch({
     findInput, setFindInput,
     findTerm,
     replaceTerm, setReplaceTerm,
-    matchIndex, setMatchIndex,
+    matchIndex, jumpToMatch,
     caseSensitive, setCaseSensitive,
     wholeWord, setWholeWord,
     findReplaceOpen, setFindReplaceOpen,
