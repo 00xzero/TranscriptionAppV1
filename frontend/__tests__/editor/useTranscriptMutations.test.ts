@@ -144,6 +144,21 @@ describe('useTranscriptMutations', () => {
     timeouts.mockRestore()
   })
 
+  it('advances the saved baseline even when the RPC caps its returned rows', async () => {
+    mockSetSegmentTexts.mockImplementationOnce(async (edits: SegmentTextEdit[]) => written(edits.slice(0, 1)))
+    const { result } = setup([seg('a', 'before'), seg('b', 'before')])
+    act(() => result.current.scheduleSaves(['a', 'b'].map((segId) => ({ segId, before: 'before', after: 'bulk' }))))
+    await settle()
+    act(() => result.current.scheduleSave('b', 'next'))
+    expect(result.current.draftEdits().edits).toEqual([
+      { segment_id: 'b', expected_revision: 0, expected_text: 'bulk', text: 'next' },
+    ])
+    await settle()
+    expect(mockSetSegmentTexts).toHaveBeenLastCalledWith([
+      { segment_id: 'b', expected_revision: 0, expected_text: 'bulk', text: 'next' },
+    ])
+  })
+
   it('settles only the sent drafts and keeps newer saved statuses through older expiry', async () => {
     let answer!: () => void
     mockSetSegmentTexts.mockImplementationOnce((edits: SegmentTextEdit[]) => new Promise((resolve) => {

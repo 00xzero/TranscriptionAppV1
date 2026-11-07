@@ -202,7 +202,10 @@ export function useTranscriptMutations({
   const writeTexts = useCallback(async (edits: readonly SegmentTextEdit[]) => {
     edits.forEach((e) => baseline.current.set(e.segment_id, { text: e.expected_text, unconfirmed: e.text }))
     try {
-      adopt(await send(() => setSegmentTexts(edits)))
+      const written = await send(() => setSegmentTexts(edits))
+      // The RPC commits the whole batch, even when PostgREST caps its returned rows.
+      for (const edit of edits) baseline.current.set(edit.segment_id, { text: edit.text })
+      adopt(written)
     } catch (error) {
       // Refused at the first attempt: nothing was written.
       if (!(error instanceof OutcomeUnknown)) edits.forEach((e) => baseline.current.set(e.segment_id, { text: e.expected_text }))
