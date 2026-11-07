@@ -226,7 +226,7 @@ export default function FindReplaceModal({
               size="sm"
               className="rounded-lg disabled:opacity-40"
               onClick={onReplace}
-              disabled={!canNavigate || !canReplace}
+              disabled={!canNavigate || !canReplace || matchIndex < 0}
               title="Replace current match"
             >
               Replace

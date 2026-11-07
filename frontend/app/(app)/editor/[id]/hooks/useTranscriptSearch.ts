@@ -104,10 +104,10 @@ export function useTranscriptSearch({
   }, [matches])
 
   const totalMatches = matches.length
-  const currentMatch = totalMatches ? matches[Math.min(matchIndex, totalMatches - 1)] : null
+  const currentMatch = totalMatches && matchIndex >= 0 ? matches[Math.min(matchIndex, totalMatches - 1)] : null
 
   useEffect(() => {
-    if (totalMatches === 0 && matchIndex !== 0) {
+    if (totalMatches === 0 && matchIndex > 0) {
       setMatchIndex(0)
       return
     }
@@ -135,6 +135,7 @@ export function useTranscriptSearch({
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
     setMatchIndex((prev: number) => {
+      if (prev < 0) return delta > 0 ? 0 : totalMatches - 1
       const next = (prev + delta + totalMatches) % totalMatches
       return next
     })
@@ -151,11 +152,27 @@ export function useTranscriptSearch({
     const before = text.slice(0, currentMatch.index)
     const after = text.slice(currentMatch.index + currentMatch.length)
     const updated = before + replaceTerm + after
-    recordReplace?.([{ segId: seg.id, before: text, after: updated }], { start: currentMatch.index, end: currentMatch.index + currentMatch.length })
-    setEditingTexts((prev: Record<string, string>) => ({ ...prev, [seg.id]: updated }))
-    scheduleSave(seg.id, updated)
-    handleNext()
-  }, [currentMatch, canReplace, segments, editingTexts, replaceTerm, scheduleSave, handleNext, setEditingTexts, recordReplace])
+    if (updated !== text) {
+      recordReplace?.([{ segId: seg.id, before: text, after: updated }], { start: currentMatch.index, end: currentMatch.index + currentMatch.length })
+      setEditingTexts((prev) => ({ ...prev, [seg.id]: updated }))
+      scheduleSave(seg.id, updated)
+    }
+
+    // The old ordinal no longer describes the result list. Recount only this
+    // segment and advance from the end of the insertion in its new text.
+    const first = matches.findIndex((match) => match.segId === seg.id)
+    const pastSegment = first + (matchesBySeg.get(seg.id)?.length ?? 0)
+    const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
+    const remaining = findTextMatches(updated, needle, caseSensitive, wholeWord)
+    const next = remaining.findIndex((range) => range.index >= currentMatch.index + replaceTerm.length)
+    if (next >= 0) setMatchIndex(first + next)
+    else if (pastSegment < totalMatches) setMatchIndex(first + remaining.length)
+    else if (first > 0 || remaining.some((range) => range.index + range.length <= currentMatch.index)) setMatchIndex(0)
+    // If only matches touching the insertion remain, let the user choose
+    // one explicitly with Next/Previous rather than replacing it again.
+    else setMatchIndex(-1)
+  }, [currentMatch, canReplace, segments, editingTexts, replaceTerm, scheduleSave, setEditingTexts, recordReplace,
+    matches, matchesBySeg, totalMatches, caseSensitive, findTerm, wholeWord])
 
   const handleReplaceAll = useCallback(() => {
     if (!totalMatches || !canReplace) return
@@ -214,7 +231,7 @@ export function useTranscriptSearch({
   const matchSummary = isFindDirty
     ? 'Searching...'
     : totalMatches
-      ? `${matchIndex + 1} of ${totalMatches} matches`
+      ? (matchIndex < 0 ? `${totalMatches} matches` : `${Math.min(matchIndex + 1, totalMatches)} of ${totalMatches} matches`)
       : (findTerm ? '0 matches' : '')
 
   const clearSearch = useCallback(() => {
