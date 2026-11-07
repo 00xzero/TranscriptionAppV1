@@ -30,11 +30,11 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     playbackClock: clock,
     matchesForSeg: [],
     matchIndex: -1,
-    speaker: { label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null },
+    speakerLabel: 'Speaker 1', speakerColor: '#4F638C', speakerAvatar: 'S1', speakerOrganisation: null,
     needHeader: true,
-    editingId: null,
-    editingTexts: {},
-    saveStatus: {},
+    isEditing: false,
+    editingText: undefined,
+    saveStatus: undefined,
     onSegmentClick: jest.fn(),
     onWordClick,
     onSpeakerClick: jest.fn(),
@@ -115,11 +115,11 @@ it('shows no highlight while the segment is being edited', () => {
   moveTo(1600)
   expect(state('there,')).toBe('current')
 
-  rerender({ editingId: 's1' })
+  rerender({ isEditing: true })
   expect(screen.getByRole('textbox')).toBeInTheDocument()
   expect(document.querySelector('.text-ember-red')).toBeNull()
 
-  rerender({ editingId: null })
+  rerender({ isEditing: false })
   expect(state('there,')).toBe('current')
 })
 

@@ -28,11 +28,11 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     playbackClock: createPlaybackClock(),
     matchesForSeg: [],
     matchIndex: -1,
-    speaker: { label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null },
+    speakerLabel: 'Speaker 1', speakerColor: '#4F638C', speakerAvatar: 'S1', speakerOrganisation: null,
     needHeader: false,
-    editingId: 's1',
-    editingTexts: { s1: TEXT },
-    saveStatus: {},
+    isEditing: true,
+    editingText: TEXT,
+    saveStatus: undefined,
     onSegmentClick: jest.fn(),
     onWordClick: jest.fn(),
     onSpeakerClick: jest.fn(),
@@ -126,7 +126,7 @@ describe('splitting from the segment editor', () => {
   })
 
   it('a waiting write closes the field without a label of its own, showing the save status instead', () => {
-    const { textarea } = setup({ busy: 'pending', saveStatus: { s1: 'saving' } })
+    const { textarea } = setup({ busy: 'pending', saveStatus: 'saving' })
     expect(textarea).toHaveAttribute('readonly')
     expect(screen.getByText('Saving…')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
@@ -149,7 +149,7 @@ describe('splitting from the segment editor', () => {
     let hint: { start: number; end: number; seq: number } | undefined
     const { textarea, rerender } = setup({ caretHint: () => hint })
     hint = { start: 6, end: 11, seq: 2 }
-    rerender({ editingTexts: { s1: 'Hello world, friend.' }, caretHint: () => hint })
+    rerender({ editingText: 'Hello world, friend.', caretHint: () => hint })
     expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([6, 11])
   })
 
@@ -167,7 +167,7 @@ describe('splitting from the segment editor', () => {
       placeCaret(5)
 
       const joined = `${TEXT} And the second half, joined back by an undo.`
-      rerender({ editingTexts: { s1: joined } })
+      rerender({ editingText: joined })
       expect(textarea.value).toBe(joined)
       expect(textarea.style.height).toBe(`${20 + joined.length}px`)
       expect(textarea.selectionStart).toBe(5)
@@ -188,8 +188,8 @@ describe('splitting from the segment editor', () => {
         <TranscriptSegmentCard
           segment={segment} sourceWords={sourceWords} busy={undefined} isActive={false}
           playbackClock={createPlaybackClock()} matchesForSeg={[]} matchIndex={-1}
-          speaker={{ label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null }}
-          needHeader editingId={null} editingTexts={{}} saveStatus={{}}
+          speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
+          needHeader isEditing={false} editingText={undefined} saveStatus={undefined}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
           setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
           onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}
@@ -284,8 +284,8 @@ describe('the undo history from the segment editor', () => {
         <TranscriptSegmentCard
           segment={segment} sourceWords={sourceWords} busy={undefined} isActive={false}
           playbackClock={createPlaybackClock()} matchesForSeg={[]} matchIndex={-1}
-          speaker={{ label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null }}
-          needHeader editingId={null} editingTexts={{}} saveStatus={{}}
+          speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
+          needHeader isEditing={false} editingText={undefined} saveStatus={undefined}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
           setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
           onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}

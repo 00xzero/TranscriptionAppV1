@@ -2,11 +2,10 @@ import React from 'react'
 import { Pencil, Scissors, X } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { SpeakerDisplay } from '@/lib/speakers/display'
 import { alignTokens, type SourceWord } from '@/core/transcript/word-alignment'
 import { findSplit } from '@/core/transcript/segment-split'
 import type { PlaybackClock } from '../playbackClock'
-import type { Seg, SegmentMatch, SaveStatusBySegment } from '../types'
+import type { Seg, SegmentMatch, SaveStatus } from '../types'
 import { useCurrentWordIndex } from '../hooks/useCurrentWordIndex'
 import type { BusyKind } from '../hooks/useSegmentHolds'
 import type { CaretHint } from '../hooks/useTranscriptMutations'
@@ -24,17 +23,23 @@ function autosize(el: HTMLTextAreaElement) {
   el.style.height = `${el.scrollHeight}px`
 }
 
-type SegmentHeaderRowProps = {
+type SpeakerFields = {
+  speakerLabel: string
+  speakerColor: string
+  speakerAvatar: string
+  speakerOrganisation: string | null
+}
+
+type SegmentHeaderRowProps = SpeakerFields & {
   showSpeaker: boolean
-  speaker: SpeakerDisplay
   timestamp: string
-  saveStatus: SaveStatusBySegment
+  saveStatus: SaveStatus | undefined
   busy: BusyKind | undefined
   /** A write about to change this segment is waiting: its speaker can't be changed meanwhile. */
   locked: boolean
   segmentId: string
   segmentText: string
-  editingId: string | null
+  isEditing: boolean
   /** Whether the caret is at a place the segment can split; the button shows only while editing. */
   canSplit: boolean
   onSplitClick: () => void
@@ -52,21 +57,23 @@ const BUSY_LABEL: Record<BusyKind, string | null> = {
 
 function SegmentHeaderRow({
   showSpeaker,
-  speaker,
+  speakerLabel,
+  speakerColor,
+  speakerAvatar,
+  speakerOrganisation,
   timestamp,
   saveStatus,
   busy,
   locked,
   segmentId,
   segmentText,
-  editingId,
+  isEditing,
   canSplit,
   onSplitClick,
   onSpeakerClick,
   setEditingId,
   setEditingTexts,
 }: SegmentHeaderRowProps) {
-  const speakerLabel = speaker.label
   const speakerButtonClassName = [
     'font-sans font-bold text-sm text-ink dark:text-paper cursor-pointer hover:text-trust-blue transition-all duration-200 ease-out motion-reduce:transition-none bg-transparent border-0 p-0 rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-trust-blue/40 whitespace-nowrap',
     showSpeaker
@@ -90,12 +97,12 @@ function SegmentHeaderRow({
               tabIndex={0}
             >
               <span className="inline-flex items-center gap-2">
-                <Avatar color={speaker.color}>{speaker.avatarText}</Avatar>
+                <Avatar color={speakerColor}>{speakerAvatar}</Avatar>
                 {speakerLabel}
               </span>
             </button>
           </TooltipTrigger>
-          <TooltipContent>{speaker.organisation ? `${speakerLabel} · ${speaker.organisation}` : 'Click to change speaker'}</TooltipContent>
+          <TooltipContent>{speakerOrganisation ? `${speakerLabel} · ${speakerOrganisation}` : 'Click to change speaker'}</TooltipContent>
         </Tooltip>
       )}
       <span className="font-mono text-[10px] text-ink/40 dark:text-paper/30">{timestamp}</span>
@@ -104,13 +111,13 @@ function SegmentHeaderRow({
           <span className="text-trust-blue">{BUSY_LABEL[busy]}</span>
         ) : (
           <>
-            {saveStatus[segmentId] === 'saving' && <span className="text-trust-blue">Saving…</span>}
-            {saveStatus[segmentId] === 'saved' && <span className="text-emerald-600">Saved</span>}
-            {saveStatus[segmentId] === 'error' && <span className="text-ember-red">Save failed</span>}
+            {saveStatus === 'saving' && <span className="text-trust-blue">Saving…</span>}
+            {saveStatus === 'saved' && <span className="text-emerald-600">Saved</span>}
+            {saveStatus === 'error' && <span className="text-ember-red">Save failed</span>}
           </>
         )}
       </span>
-      {editingId === segmentId && (
+      {isEditing && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -136,29 +143,29 @@ function SegmentHeaderRow({
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`${editingId === segmentId ? '' : 'ml-auto '}p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${editingId === segmentId ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
+            className={`${isEditing ? '' : 'ml-auto '}p-1 rounded-md hover:bg-ink/10 dark:hover:bg-paper/10 transition-opacity ${isEditing ? 'opacity-100 text-trust-blue' : 'opacity-0 group-hover:opacity-60'}`}
             onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
               e.stopPropagation()
               setEditingId((prev: string | null) => (prev === segmentId ? null : segmentId))
               setEditingTexts((prev: Record<string, string>) => ({ ...prev, [segmentId]: segmentText }))
             }}
-            aria-label={editingId === segmentId ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
+            aria-label={isEditing ? `Close text editor for ${speakerLabel}` : `Edit transcript text for ${speakerLabel}`}
           >
             {/* Both icons occupy the same box; the active one twists in as the other
                 twists out, so toggling edit mode reads as one gesture. */}
             <span className="relative block w-3.5 h-3.5">
               <Pencil
-                className={`absolute inset-0 h-full w-full transition-all duration-200 ease-out motion-reduce:transition-none ${editingId === segmentId ? 'opacity-0 rotate-45 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
+                className={`absolute inset-0 h-full w-full transition-all duration-200 ease-out motion-reduce:transition-none ${isEditing ? 'opacity-0 rotate-45 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
                 aria-hidden
               />
               <X
-                className={`absolute inset-0 h-full w-full transition-all duration-200 ease-out motion-reduce:transition-none ${editingId === segmentId ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-45 scale-75'}`}
+                className={`absolute inset-0 h-full w-full transition-all duration-200 ease-out motion-reduce:transition-none ${isEditing ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-45 scale-75'}`}
                 aria-hidden
               />
             </span>
           </button>
         </TooltipTrigger>
-        <TooltipContent>{editingId === segmentId ? 'Close editor' : 'Edit text'}</TooltipContent>
+        <TooltipContent>{isEditing ? 'Close editor' : 'Edit text'}</TooltipContent>
       </Tooltip>
     </div>
   )
@@ -210,7 +217,7 @@ function playbackWordClass(index: number, currentIndex: number | null): string {
   return `${WORD_TRANSITION} ${index === currentIndex ? WORD_CURRENT : WORD_UPCOMING}`
 }
 
-export type TranscriptSegmentCardProps = {
+export type TranscriptSegmentCardProps = SpeakerFields & {
   segment: Seg
   /** The engine's words for this segment; the text is aligned against them for timing. */
   sourceWords: readonly SourceWord[] | undefined
@@ -221,13 +228,12 @@ export type TranscriptSegmentCardProps = {
   /** The current segment; its words also follow playback, unless it is being edited. */
   isActive: boolean
   playbackClock: PlaybackClock
-  matchesForSeg: SegmentMatch[]
+  matchesForSeg: readonly SegmentMatch[]
   matchIndex: number
-  speaker: SpeakerDisplay
   needHeader: boolean
-  editingId: string | null
-  editingTexts: Record<string, string>
-  saveStatus: SaveStatusBySegment
+  isEditing: boolean
+  editingText: string | undefined
+  saveStatus: SaveStatus | undefined
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
   onSpeakerClick: (e: React.MouseEvent, segmentId: string, speakerId: string | null) => void
@@ -249,7 +255,7 @@ export type TranscriptSegmentCardProps = {
   onHistory: (dir: 'undo' | 'redo') => void
 }
 
-export default function TranscriptSegmentCard({
+function TranscriptSegmentCard({
   segment: s,
   sourceWords,
   busy,
@@ -258,10 +264,13 @@ export default function TranscriptSegmentCard({
   playbackClock,
   matchesForSeg,
   matchIndex,
-  speaker,
+  speakerLabel,
+  speakerColor,
+  speakerAvatar,
+  speakerOrganisation,
   needHeader,
-  editingId,
-  editingTexts,
+  isEditing,
+  editingText,
   saveStatus,
   onSegmentClick,
   onWordClick,
@@ -277,8 +286,6 @@ export default function TranscriptSegmentCard({
   endDrag,
   onHistory,
 }: TranscriptSegmentCardProps) {
-  const isEditing = editingId === s.id
-  const speakerLabel = speaker.label
   // Where keyboard focus returns when Escape closes the editor.
   const cardRef = React.useRef<HTMLDivElement | null>(null)
   const textAreaRef = React.useRef<HTMLTextAreaElement | null>(null)
@@ -356,7 +363,7 @@ export default function TranscriptSegmentCard({
   // Mounted cards only (the list is virtualized); re-aligns whenever the text
   // changes. While editing it aligns the text being typed, which the split
   // button and Enter cut.
-  const text = isEditing ? (editingTexts[s.id] ?? s.text) : s.text
+  const text = isEditing ? (editingText ?? s.text) : s.text
   const tokens = React.useMemo(
     () => alignTokens(text, sourceWords ?? [], s.start_ms, s.end_ms),
     [text, sourceWords, s.start_ms, s.end_ms]
@@ -438,7 +445,7 @@ export default function TranscriptSegmentCard({
     >
       <div
         className={`shrink-0 self-stretch rounded-full transition-all ${isActive ? 'w-1.5 shadow-xs' : 'w-1 opacity-60'}`}
-        style={{ backgroundColor: speaker.color }}
+        style={{ backgroundColor: speakerColor }}
       />
 
       <div className="flex-1 min-w-0">
@@ -446,14 +453,17 @@ export default function TranscriptSegmentCard({
           // While editing, the name shows even mid-turn, so the new half of a
           // split can take its speaker straight away.
           showSpeaker={needHeader || isEditing}
-          speaker={speaker}
+          speakerLabel={speakerLabel}
+          speakerColor={speakerColor}
+          speakerAvatar={speakerAvatar}
+          speakerOrganisation={speakerOrganisation}
           timestamp={formatElapsedTime(s.start_ms)}
           saveStatus={saveStatus}
           busy={busy}
           locked={locked}
           segmentId={s.id}
           segmentText={s.text}
-          editingId={editingId}
+          isEditing={isEditing}
           canSplit={canSplit}
           onSplitClick={splitAtCaret}
           onSpeakerClick={(e: React.MouseEvent<HTMLButtonElement>) => {
@@ -593,3 +603,5 @@ export default function TranscriptSegmentCard({
     </div>
   )
 }
+
+export default React.memo(TranscriptSegmentCard)

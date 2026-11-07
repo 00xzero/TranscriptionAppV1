@@ -518,6 +518,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               activeSegId={currentSegId}
               matchesBySeg={search.matchesBySeg}
               matchIndex={search.matchIndex}
+              currentMatchSegId={search.currentMatch?.segId}
               displayForSpeaker={speakerHook.displayForSpeaker}
               editingId={editing.editingId}
               editingTexts={editing.editingTexts}

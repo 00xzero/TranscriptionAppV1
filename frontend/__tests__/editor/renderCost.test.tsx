@@ -170,6 +170,7 @@ describe('editor render cost on a 10-hour transcript', () => {
       const value = (field as HTMLTextAreaElement).value + 'x'
       perKey.push(await measure(() => { fireEvent.change(field, { target: { value } }) }))
     }
+    expect(perKey.every((key) => key.cards > 0 && [...key.byStartMs.keys()].every((start) => start === 0))).toBe(true)
     report['typing: card renders per keystroke'] = median(perKey.map((m) => m.cards))
     report['typing: EditorScreen calls per keystroke'] = median(perKey.map((m) => m.screen))
     report['typing: subtree commits per keystroke'] = median(perKey.map((m) => m.commits))
@@ -193,6 +194,8 @@ describe('editor render cost on a 10-hour transcript', () => {
       }
       act(() => { mockAudio.props!.onPlayingChange(false) })
     })
+    const playingStart = Math.floor(30 / 7.2) * 7200
+    expect([...second.byStartMs.keys()].every((start) => start === 0 || start === playingStart)).toBe(true)
     report['playback ' + ticks + ' Hz: card renders'] = second.cards
     report['playback ' + ticks + ' Hz: React render ms'] = round(second.reactMs)
     report['playback ' + ticks + ' Hz: subtree commits'] = second.commits
@@ -213,6 +216,7 @@ describe('editor render cost on a 10-hour transcript', () => {
       }))
     }
     act(() => { mockAudio.props!.onSeekEnd?.() })
+    expect(moves.every((move) => move.cards <= 2)).toBe(true)
     report['scrub: card renders per pointer move'] = median(moves.map((m) => m.cards))
     report['scrub: EditorScreen calls per move'] = median(moves.map((m) => m.screen))
     report['scrub: React render ms per pointer move (median)'] = round(median(moves.map((m) => m.reactMs)))
@@ -240,6 +244,7 @@ describe('editor render cost on a 10-hour transcript', () => {
     report['scroll: new rows across moves'] = moves.reduce((n, move) => n + move.entered, 0)
     report['scroll: retained card renders across moves'] = moves.reduce((n, move) => n + move.retainedRenders, 0)
     expect(report['scroll: new rows across moves']).toBeGreaterThan(0)
+    expect(report['scroll: retained card renders across moves']).toBe(0)
   })
 
   test('Replace All on a common word', async () => {
