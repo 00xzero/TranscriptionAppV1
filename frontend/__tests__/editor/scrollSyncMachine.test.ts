@@ -1,3 +1,5 @@
+import { act, renderHook } from '@testing-library/react'
+import { useScrollSyncMachine } from '@/app/(app)/editor/[id]/hooks/useScrollSyncMachine'
 import {
   createInitialScrollSyncState,
   transitionScrollSyncState,
@@ -32,6 +34,22 @@ describe('scrollSyncMachine', () => {
     const next = transitionScrollSyncState(previous, { type: 'FOLLOW_REQUESTED', now: 10 })
     expect(next.state).toBe(previous)
     expect(next.commands).toContainEqual({ type: 'SCROLL_TO_ACTIVE', behavior: 'auto' })
+  })
+
+  it('executes the scroll command when Follow is already active', () => {
+    const onScrollToActive = jest.fn()
+    const { result } = renderHook(() => useScrollSyncMachine({
+      onScrollToActive,
+      onEnsureActiveVisible: jest.fn(),
+      onScrollToTop: jest.fn(),
+    }))
+    act(() => { result.current.send({ type: 'AUDIO_TICK', now: Date.now(), segId: 's1' }) })
+    onScrollToActive.mockClear()
+    const before = result.current.state
+
+    act(() => { expect(result.current.resumeFollow()).toBe(before) })
+    expect(onScrollToActive).toHaveBeenCalledTimes(1)
+    expect(onScrollToActive).toHaveBeenCalledWith(before, 'auto')
   })
 
   it('moves from following to userScrolling on user scroll', () => {

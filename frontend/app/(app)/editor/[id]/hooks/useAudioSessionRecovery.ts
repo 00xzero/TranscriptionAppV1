@@ -6,6 +6,7 @@ import { isAccountChangedError } from '@/lib/auth/account-boundary'
 
 const URL_STALE_THRESHOLD_MS = 50 * 60 * 1000
 const STABLE_SOURCE_MS = 60_000
+const URL_REFRESH_TIMEOUT_MS = 15_000
 const PLAY_WAIT_MS = 5_000
 
 interface RecoveryOptions {
@@ -28,9 +29,36 @@ type Recovery = {
   reported: boolean
   playIntent?: boolean
   restore?: { position: number; play: boolean }
+  pendingSeek?: number
   attempt?: AbortController
   playWaitExpired?: boolean
   removeSourceListeners?: () => void
+}
+
+async function fetchAudioUrl(transcriptId: string, attempt: AbortController): Promise<string> {
+  const { signal } = attempt
+  let onAbort!: () => void
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  const deadline = window.setTimeout(() => {
+    attempt.abort(new Error('Audio URL refresh timed out'))
+  }, URL_REFRESH_TIMEOUT_MS)
+
+  try {
+    const request = pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`, { signal }).then(async (response) => {
+      signal.throwIfAborted()
+      if (!response.ok) throw new Error(`Failed to refresh media URL: ${response.status}`)
+      const { url } = await response.json()
+      return url
+    })
+    // Token acquisition and response parsing can outlive the fetch signal.
+    return await Promise.race([request, aborted])
+  } finally {
+    window.clearTimeout(deadline)
+    signal.removeEventListener('abort', onAbort)
+  }
 }
 
 /** Refreshes signed URLs and restores playback across source swaps. */
@@ -67,9 +95,10 @@ export function useAudioSessionRecovery({
 
     const holdPosition = () => {
       current.restore ??= {
-        position: audio.currentTime || (audio.error && callbacks.current.lastPosition?.()) || 0,
+        position: current.pendingSeek ?? (audio.currentTime || (audio.error && callbacks.current.lastPosition?.()) || 0),
         play: !audio.paused || (!!audio.error && !!callbacks.current.wasPlaying?.()),
       }
+      current.pendingSeek = undefined
       callbacks.current.onPositionHold?.(true)
     }
     const reportFailure = () => {
@@ -103,9 +132,7 @@ export function useAudioSessionRecovery({
     const attempt = new AbortController()
     current.attempt = attempt
     try {
-      const response = await pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`, { signal: attempt.signal })
-      if (!response.ok) throw new Error(`Failed to refresh media URL: ${response.status}`)
-      const { url } = await response.json()
+      const url = await fetchAudioUrl(transcriptId, attempt)
       if (session.current !== current) return
 
       holdPosition()
@@ -216,5 +243,22 @@ export function useAudioSessionRecovery({
     return true
   }, [refreshAudioUrl])
 
-  return { toggleWhileRecovering }
+  const captureSeek = useCallback((position: number) => {
+    const current = session.current
+    if (!current) return false
+    if (current.restore) {
+      current.restore.position = position
+      return true
+    }
+    // Until seeked, the clock can still be at the position before this seek.
+    current.pendingSeek = position
+    return false
+  }, [])
+
+  const confirmSeek = useCallback(() => {
+    const current = session.current
+    if (current && !current.audio.error && !current.audio.seeking) current.pendingSeek = undefined
+  }, [])
+
+  return { toggleWhileRecovering, captureSeek, confirmSeek }
 }

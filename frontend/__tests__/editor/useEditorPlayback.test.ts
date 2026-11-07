@@ -14,6 +14,7 @@ function createPlayer(overrides: Partial<Record<string, jest.Mock>> = {}) {
     seekToFraction: jest.fn(),
     getCurrentTime: jest.fn(() => 12),
     getDuration: jest.fn(() => 60),
+    isReady: jest.fn(() => true),
     isPlaying: jest.fn(() => false),
     pause: jest.fn(),
     play: jest.fn(),
@@ -296,6 +297,7 @@ describe('playback during audio recovery', () => {
     const player = createPlayer({
       getAudioElement: jest.fn(() => audio), getCurrentTime: jest.fn(() => audio.currentTime),
       togglePlay: jest.fn(() => { if (audio.paused) void audio.play() }),
+      seekToMs: jest.fn((ms: number) => { audio.currentTime = ms / 1000 }),
     })
     act(() => {
       hook.result.current.handleAudioPlayerRef(player as any)
@@ -304,6 +306,105 @@ describe('playback during audio recovery', () => {
     expect(hook.result.current.playbackClock.getMs()).toBe(42000)
     return { ...hook, audio, player }
   }
+
+  it.each(['request', 'body'] as const)('times out a hung %s and ignores its late result after Retry', async (phase) => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {})
+    let resolveResponse!: (response: Response) => void
+    let resolveBody!: (body: { url: string }) => void
+    const lateUrl = { url: 'late.mp3' }
+    const fetch = jest.fn<ReturnType<typeof global.fetch>, Parameters<typeof global.fetch>>()
+      .mockImplementationOnce(() => phase === 'request'
+        ? new Promise((resolve) => { resolveResponse = resolve })
+        : Promise.resolve({ ok: true, json: () => new Promise((resolve) => { resolveBody = resolve }) } as Response))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'retry.mp3' }) } as Response)
+    global.fetch = fetch
+    const { result, audio, props } = playingSource()
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+
+    await act(async () => { jest.advanceTimersByTime(14_999) })
+    expect(toast).not.toHaveBeenCalled()
+    await act(async () => { jest.advanceTimersByTime(1) })
+    expect(fetch.mock.calls[0][1]?.signal?.aborted).toBe(true)
+    expect(result.current.playing).toBe(false)
+    expect(toast).toHaveBeenCalledTimes(1)
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledTimes(1)
+
+    await act(async () => { jest.mocked(toast).mock.calls[0][0].action?.onClick() })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(props.setAudioSrc).toHaveBeenCalledWith('retry.mp3')
+
+    await act(async () => {
+      if (phase === 'request') resolveResponse({ ok: true, json: async () => lateUrl } as Response)
+      else resolveBody(lateUrl)
+    })
+    expect(props.setAudioSrc).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([50, 58])('restores the latest seek to %is after a failed-source refresh', async (seconds) => {
+    let resolveFetch!: (response: Response) => void
+    global.fetch = jest.fn(() => new Promise<Response>((resolve) => { resolveFetch = resolve }))
+    const { result, audio } = playingSource()
+    act(() => result.current.handleAudioReady())
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => result.current.onWordClick('s2', 50_000))
+    await act(async () => {
+      resolveFetch({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response)
+    })
+    act(() => {
+      audio.error = null
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      if (seconds === 58) result.current.onSegmentClick('s3', 58_000)
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+    expect(audio.currentTime).toBe(seconds)
+    expect(result.current.playbackClock.getMs()).toBe(seconds * 1000)
+  })
+
+  it('keeps an explicit seek to zero when audio fails before seeked updates the clock', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response))
+    const { result, audio } = playingSource()
+    act(() => {
+      result.current.handleAudioReady()
+      result.current.onWordClick('s1', 0)
+    })
+    expect(audio.currentTime).toBe(0)
+    expect(result.current.playbackClock.getMs()).toBe(42_000)
+
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => {
+      audio.error = null
+      audio.dispatchEvent(new Event('loadstart'))
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+    expect(audio.currentTime).toBe(0)
+    expect(result.current.playbackClock.getMs()).toBe(0)
+  })
+
+  it('uses the live position after an earlier seek has completed', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response))
+    const { result, audio } = playingSource()
+    act(() => {
+      result.current.handleAudioReady()
+      result.current.onWordClick('s1', 0)
+      result.current.handleSeeked()
+    })
+    audio.currentTime = 12
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => {
+      audio.error = null
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+    expect(audio.currentTime).toBe(12)
+  })
 
   it('plays the healthy source immediately while a proactive URL fetch is pending', async () => {
     let resolveFetch!: (response: Response) => void
@@ -376,6 +477,32 @@ describe('playback during audio recovery', () => {
     expect(result.current.playbackClock.getMs()).toBe(43000)
   })
 
+  it('keeps the mini scrubber at the held position until the refreshed audio is ready', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response))
+    const { result, audio, player } = playingSource()
+    act(() => result.current.handleAudioReady())
+    expect(result.current.audioProgress).toBe(70)
+
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => {
+      audio.error = null
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      player.getDuration.mockReturnValue(120)
+      result.current.handleAudioDurationChange(120)
+    })
+    expect(result.current.audioCurrentTime).toBe(42)
+    expect(result.current.audioProgress).toBe(70)
+
+    act(() => {
+      audio.dispatchEvent(new Event('loadedmetadata'))
+      result.current.handleAudioReady()
+    })
+    expect(result.current.audioDuration).toBe(120)
+    expect(result.current.audioProgress).toBe(35)
+  })
+
   it('lets Play reach a stalled source after five seconds and restores a later load', async () => {
     const fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) }))
     global.fetch = fetch as unknown as typeof global.fetch
@@ -408,12 +535,17 @@ describe('playback during audio recovery', () => {
     expect(audio.play).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps playing when a healthy stale source cannot refresh', async () => {
+  it.each(['fails', 'times out'] as const)('keeps playing when a healthy stale refresh %s', async (outcome) => {
     jest.spyOn(console, 'warn').mockImplementation(() => {})
-    global.fetch = jest.fn(async () => ({ ok: false, status: 503 })) as unknown as typeof fetch
+    global.fetch = outcome === 'fails'
+      ? jest.fn(async () => ({ ok: false, status: 503 } as Response))
+      : jest.fn(() => new Promise<Response>(() => {}))
     const { result, audio } = playingSource()
     act(() => { jest.setSystemTime(Date.now() + 51 * 60 * 1000) })
     await act(async () => { audio.dispatchEvent(new Event('stalled')) })
+    await act(async () => { jest.advanceTimersByTime(15_000) })
+    await act(async () => { audio.dispatchEvent(new Event('stalled')) })
+    expect(global.fetch).toHaveBeenCalledTimes(1)
     act(() => { audio.currentTime = 43; jest.advanceTimersByTime(32) })
     expect(result.current.playing).toBe(true)
     expect(result.current.playbackClock.getMs()).toBe(43000)

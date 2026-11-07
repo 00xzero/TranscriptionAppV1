@@ -50,6 +50,8 @@ export function useEditorPlayback({
   const holdingPosition = useRef(false)
   const setPositionHold = useCallback((hold: boolean) => {
     holdingPosition.current = hold
+    // Recovery owns any seek that was queued before the player became ready.
+    if (hold) pendingSeekRef.current = null
     if (!hold && playbackClock.getMs() !== null) playbackClock.refresh()
   }, [playbackClock])
   const lastPosition = useCallback(() => {
@@ -86,7 +88,7 @@ export function useEditorPlayback({
     else setAudioSrc(url)
   }, [audioSrc, setAudioSrc])
 
-  const { toggleWhileRecovering } = useAudioSessionRecovery({
+  const { toggleWhileRecovering, captureSeek, confirmSeek } = useAudioSessionRecovery({
     transcriptId,
     audioSrc,
     audioElement,
@@ -101,12 +103,13 @@ export function useEditorPlayback({
   const seekToMs = useCallback((targetMs: number) => {
     const player = audioPlayerRef.current
     if (!player) return
+    if (captureSeek(targetMs / 1000)) return
     if (!readyRef.current) {
       pendingSeekRef.current = targetMs
       return
     }
     player.seekToMs(targetMs)
-  }, [])
+  }, [captureSeek])
 
   const handleAudioReady = useCallback(() => {
     readyRef.current = true
@@ -155,15 +158,17 @@ export function useEditorPlayback({
   // after word and segment seeks, each scrub write, and the final scrub flush.
   // Scrub previews arrive before their write lands, so they never refresh.
   const handleSeeked = useCallback(() => {
+    if (audioPlayerRef.current?.isReady()) confirmSeek()
     playbackClock.refresh()
-  }, [playbackClock])
+  }, [confirmSeek, playbackClock])
 
   const handleAudioDurationChange = useCallback((duration: number) => {
+    if (holdingPosition.current || audioElement?.error) return
     const player = audioPlayerRef.current
     const currentTime = player?.getCurrentTime?.() ?? 0
     setAudioDuration(duration)
     updateAudioProgress(currentTime, duration)
-  }, [updateAudioProgress])
+  }, [audioElement, updateAudioProgress])
 
   const handleScrubPreview = useCallback((currentTime: number) => {
     const player = audioPlayerRef.current

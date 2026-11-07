@@ -12,7 +12,13 @@ import Waveform from '@/components/Waveform'
 import { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import { TooltipProvider } from '../components/ui/tooltip'
 
-jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({ useAudioSessionRecovery: jest.fn(() => ({ toggleWhileRecovering: () => false })) }))
+jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({
+  useAudioSessionRecovery: jest.fn(() => ({
+    toggleWhileRecovering: () => false,
+    captureSeek: () => false,
+    confirmSeek: () => {},
+  })),
+}))
 
 function mockProgressRect(el: HTMLElement, left: number, width: number) {
   jest.spyOn(el, 'getBoundingClientRect').mockReturnValue({

@@ -140,18 +140,22 @@ describe('FindReplaceModal', () => {
 
   test('restores focus without scrolling after jumping to a result', () => {
     const opener = <button type="button">Open search</button>
-    const view = render(<>{opener}<FindReplaceModal {...baseProps} open={false} /></>)
+    const onClose = jest.fn()
+    const modal = (open: boolean) => <>{opener}<FindReplaceModal {...baseProps} open={open} onClose={onClose} /></>
+    const view = render(modal(false))
     const openButton = screen.getByRole('button', { name: 'Open search' })
     openButton.focus()
     const focus = jest.spyOn(openButton, 'focus')
-    view.rerender(<>{opener}<FindReplaceModal {...baseProps} /></>)
+    view.rerender(modal(true))
 
     fireEvent.click(screen.getByTitle('Current match'))
     expect(baseProps.onMatchClick).toHaveBeenCalledWith(0)
-    expect(baseProps.onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    view.rerender(modal(false))
     expect(focus).not.toHaveBeenCalled()
 
     act(() => { jest.runOnlyPendingTimers() })
+    expect(focus).toHaveBeenCalledTimes(1)
     expect(focus).toHaveBeenCalledWith({ preventScroll: true })
     expect(openButton).toHaveFocus()
   })
