@@ -11,6 +11,7 @@ const defaultParams = {
   editingTexts: {},
   setEditingTexts: jest.fn(),
   scheduleSave: jest.fn(),
+  scheduleSaves: jest.fn(),
   setEditingId: jest.fn(),
   scrollToSegmentIndex: jest.fn(),
   suspendFollow: jest.fn(),
@@ -25,6 +26,7 @@ describe('useTranscriptSearch', () => {
     jest.useFakeTimers()
     defaultParams.setEditingTexts.mockClear()
     defaultParams.scheduleSave.mockClear()
+    defaultParams.scheduleSaves.mockClear()
     defaultParams.setEditingId.mockClear()
     defaultParams.scrollToSegmentIndex.mockClear()
     defaultParams.suspendFollow.mockClear()
@@ -69,7 +71,7 @@ describe('useTranscriptSearch', () => {
     act(() => { jest.advanceTimersByTime(800) })
     expect(result.current.matches).toEqual([{ segId: 's1', index, length }])
     act(() => { result.current.handleReplaceAll() })
-    expect(defaultParams.scheduleSave).toHaveBeenCalledWith('s1', replaced)
+    expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
   })
 
   function setupReplace(texts: string[], replacement: string) {

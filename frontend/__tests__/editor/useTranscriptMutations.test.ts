@@ -120,7 +120,49 @@ describe('useTranscriptMutations', () => {
     await settle()
     expect(result.current.saveStatus['seg-1']).toBe('saved')
     act(() => { jest.advanceTimersByTime(1200) })
-    expect(result.current.saveStatus['seg-1']).toBe('idle')
+    expect(result.current.saveStatus['seg-1']).toBeUndefined()
+  })
+
+  it('debounces and expires a large batch with one timer per phase', async () => {
+    const timeouts = jest.spyOn(window, 'setTimeout')
+    const rows = Array.from({ length: 100 }, (_, i) => seg(`row-${i}`, 'before', i))
+    const { result } = setup(rows)
+    const edits = rows.map((row) => ({ segId: row.id, before: row.text, after: 'after' }))
+    act(() => {
+      result.current.scheduleSaves(edits)
+      expect(result.current.hasDrafts()).toBe(true)
+      expect(result.current.draftEdits().edits).toHaveLength(rows.length)
+      expect(jest.getTimerCount()).toBe(1)
+    })
+    await settle()
+    expect(mockSetSegmentTexts).toHaveBeenCalledTimes(1)
+    expect(mockSetSegmentTexts.mock.calls[0][0]).toHaveLength(rows.length)
+    expect(Object.values(result.current.saveStatus)).toEqual(rows.map(() => 'saved'))
+    expect(timeouts.mock.calls.filter(([, delay]) => delay === 1200)).toHaveLength(1)
+    await settle(1200)
+    expect(result.current.saveStatus).toEqual({})
+    timeouts.mockRestore()
+  })
+
+  it('settles only the sent drafts and keeps newer saved statuses through older expiry', async () => {
+    let answer!: () => void
+    mockSetSegmentTexts.mockImplementationOnce((edits: SegmentTextEdit[]) => new Promise((resolve) => {
+      answer = () => resolve(written(edits))
+    }))
+    const { result } = setup([seg('a', 'before'), seg('b', 'before')])
+    act(() => result.current.scheduleSaves(['a', 'b'].map((segId) => ({ segId, before: 'before', after: 'bulk' }))))
+    await settle()
+    act(() => result.current.scheduleSave('a', 'newer'))
+    await act(async () => { answer() })
+    expect(result.current.saveStatus).toEqual({ a: 'saving', b: 'saved' })
+    expect(result.current.draftEdits().edits).toEqual([
+      { segment_id: 'a', expected_revision: 0, expected_text: 'bulk', text: 'newer' },
+    ])
+    await settle()
+    await settle(1190)
+    expect(result.current.saveStatus).toEqual({ a: 'saved' })
+    await settle(10)
+    expect(result.current.saveStatus).toEqual({})
   })
 
   it('scheduleSave sets error status when the database refuses for another reason', async () => {

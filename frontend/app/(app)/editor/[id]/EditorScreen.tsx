@@ -245,6 +245,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     editingTexts: editing.editingTexts,
     setEditingTexts: editing.setEditingTexts,
     scheduleSave: editing.scheduleSave,
+    scheduleSaves: editing.scheduleSaves,
     setEditingId: editing.setEditingId,
     scrollToSegmentIndex: sync.scrollToSegmentIndex,
     suspendFollow: sync.suspendFollow,

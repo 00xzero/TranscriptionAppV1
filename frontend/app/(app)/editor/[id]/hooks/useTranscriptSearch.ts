@@ -42,6 +42,7 @@ export function useTranscriptSearch({
   editingTexts,
   setEditingTexts,
   scheduleSave,
+  scheduleSaves,
   setEditingId,
   scrollToSegmentIndex,
   suspendFollow,
@@ -53,6 +54,7 @@ export function useTranscriptSearch({
   editingTexts: Record<string, string>
   setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
+  scheduleSaves: (edits: readonly TextEdit[]) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
   scrollToSegmentIndex: (idx: number, opts?: { smooth?: boolean }) => void
   suspendFollow: (reason?: 'search' | 'ui') => void
@@ -176,30 +178,30 @@ export function useTranscriptSearch({
 
   const handleReplaceAll = useCallback(() => {
     if (!totalMatches || !canReplace) return
-    const baseTexts: Record<string, string> = {}
-    segments.forEach((seg: Seg) => {
-      baseTexts[seg.id] = editingTexts[seg.id] ?? seg.text ?? ''
+    const edits: TextEdit[] = []
+    for (const segment of segments) {
+      const ranges = matchesBySeg.get(segment.id)
+      if (!ranges?.length) continue
+      const before = editingTexts[segment.id] ?? segment.text ?? ''
+      const pieces: string[] = []
+      let end = 0
+      for (const range of ranges) {
+        pieces.push(before.slice(end, range.index), replaceTerm)
+        end = range.index + range.length
+      }
+      pieces.push(before.slice(end))
+      const after = pieces.join('')
+      if (after !== before) edits.push({ segId: segment.id, before, after })
+    }
+    if (!edits.length) return
+    recordReplace?.(edits, undefined, true)
+    setEditingTexts((previous) => {
+      const next = { ...previous }
+      for (const { segId, after } of edits) if (Object.hasOwn(next, segId)) next[segId] = after
+      return next
     })
-    const shifts: Record<string, number> = {}
-    const updatedTexts: Record<string, string> = {}
-
-    matches.forEach((match: Match) => {
-      const segId = match.segId
-      const prior = updatedTexts[segId] ?? baseTexts[segId]
-      const shift = shifts[segId] ?? 0
-      const idx = match.index + shift
-      const before = prior.slice(0, idx)
-      const after = prior.slice(idx + match.length)
-      const updated = before + replaceTerm + after
-      updatedTexts[segId] = updated
-      shifts[segId] = shift + replaceTerm.length - match.length
-    })
-
-    if (Object.keys(updatedTexts).length === 0) return
-    recordReplace?.(Object.entries(updatedTexts).map(([segId, after]) => ({ segId, before: baseTexts[segId], after })), undefined, true)
-    setEditingTexts((prev: Record<string, string>) => ({ ...prev, ...updatedTexts }))
-    Object.entries(updatedTexts).forEach(([segId, text]) => scheduleSave(segId, text))
-  }, [totalMatches, canReplace, matches, segments, editingTexts, replaceTerm, scheduleSave, setEditingTexts, recordReplace])
+    scheduleSaves(edits)
+  }, [totalMatches, canReplace, matchesBySeg, segments, editingTexts, replaceTerm, scheduleSaves, setEditingTexts, recordReplace])
 
   // Debounce findInput into findTerm
   useEffect(() => {
