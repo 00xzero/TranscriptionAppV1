@@ -27,9 +27,12 @@ export function useScrollSyncMachine({
   stateRef.current = state
 
   const send = useCallback((event: ScrollSyncEvent) => {
-    const { state: nextState, commands } = transitionScrollSyncState(stateRef.current, event)
-    stateRef.current = nextState
-    replaceState(nextState)
+    const current = stateRef.current
+    const { state: nextState, commands } = transitionScrollSyncState(current, event)
+    if (nextState !== current) {
+      stateRef.current = nextState
+      replaceState(nextState)
+    }
     executeCommandsRef.current(nextState, commands)
     return nextState
   }, [])

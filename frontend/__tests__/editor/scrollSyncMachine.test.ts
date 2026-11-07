@@ -4,6 +4,36 @@ import {
 } from '@/app/(app)/editor/[id]/scrollSyncMachine'
 
 describe('scrollSyncMachine', () => {
+  it('reuses the same state on an unchanged tick or repeated user scroll', () => {
+    const following = { ...createInitialScrollSyncState(), activeSegId: 's1' }
+    const tick = transitionScrollSyncState(following, { type: 'AUDIO_TICK', now: 10, segId: 's1' })
+    expect(tick.state).toBe(following)
+    expect(tick.commands).toEqual([])
+    const first = transitionScrollSyncState(following, { type: 'USER_SCROLL', now: 11 }).state
+    expect(transitionScrollSyncState(first, { type: 'USER_SCROLL', now: 12 }).state).toBe(first)
+  })
+
+  it('publishes real lock expiry even when nothing else changes', () => {
+    const previous = {
+      ...createInitialScrollSyncState(), mode: 'userScrolling' as const, hasUserScrolled: true,
+      seekLockUntil: 12, programmaticScrollUntil: 13,
+    }
+    const first = transitionScrollSyncState(previous, { type: 'USER_SCROLL', now: 12 }).state
+    expect(first).not.toBe(previous)
+    expect(first).toMatchObject({ seekLockUntil: null, programmaticScrollUntil: 13 })
+    const second = transitionScrollSyncState(first, { type: 'USER_SCROLL', now: 13 }).state
+    expect(second).not.toBe(first)
+    expect(second.programmaticScrollUntil).toBeNull()
+    expect(transitionScrollSyncState(second, { type: 'USER_SCROLL', now: 14 }).state).toBe(second)
+  })
+
+  it('keeps follow commands when the requested follow state is already in place', () => {
+    const previous = { ...createInitialScrollSyncState(), activeSegId: 's1' }
+    const next = transitionScrollSyncState(previous, { type: 'FOLLOW_REQUESTED', now: 10 })
+    expect(next.state).toBe(previous)
+    expect(next.commands).toContainEqual({ type: 'SCROLL_TO_ACTIVE', behavior: 'auto' })
+  })
+
   it('moves from following to userScrolling on user scroll', () => {
     const { state } = transitionScrollSyncState(createInitialScrollSyncState(), {
       type: 'USER_SCROLL',
