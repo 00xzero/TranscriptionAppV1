@@ -292,7 +292,10 @@ describe('playback during audio recovery', () => {
   function playingSource() {
     const hook = setup()
     const audio = Object.assign(new EventTarget(), { currentTime: 42, paused: false, error: null as MediaError | null, play: jest.fn(async () => {}) })
-    const player = createPlayer({ getAudioElement: jest.fn(() => audio), getCurrentTime: jest.fn(() => audio.currentTime) })
+    const player = createPlayer({
+      getAudioElement: jest.fn(() => audio), getCurrentTime: jest.fn(() => audio.currentTime),
+      togglePlay: jest.fn(() => { if (audio.paused) void audio.play() }),
+    })
     act(() => {
       hook.result.current.handleAudioPlayerRef(player as any)
       hook.result.current.handlePlayingChange(true)
@@ -337,6 +340,38 @@ describe('playback during audio recovery', () => {
     expect(audio.currentTime).toBe(42)
     act(() => { audio.currentTime = 43; jest.advanceTimersByTime(32) })
     expect(result.current.playbackClock.getMs()).toBe(43000)
+  })
+
+  it('lets Play reach a stalled source after five seconds and restores a later load', async () => {
+    const fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) }))
+    global.fetch = fetch as unknown as typeof global.fetch
+    const { result, audio } = playingSource()
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => {
+      audio.dispatchEvent(new Event('abort'))
+      audio.error = null
+      audio.currentTime = 0
+      audio.paused = true
+      result.current.handlePlayingChange(false)
+      audio.dispatchEvent(new Event('emptied'))
+      audio.dispatchEvent(new Event('loadstart'))
+    })
+    act(() => {
+      jest.advanceTimersByTime(4999)
+      result.current.togglePlay()
+    })
+    expect(audio.play).not.toHaveBeenCalled()
+
+    act(() => { jest.advanceTimersByTime(1); result.current.togglePlay() })
+    expect(audio.play).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(toast).not.toHaveBeenCalled()
+    expect(result.current.playbackClock.getMs()).toBe(42000)
+
+    act(() => { audio.dispatchEvent(new Event('loadeddata')) })
+    expect(audio.currentTime).toBe(42)
+    expect(audio.play).toHaveBeenCalledTimes(1)
   })
 
   it('keeps playing when a healthy stale source cannot refresh', async () => {

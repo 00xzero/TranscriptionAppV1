@@ -6,6 +6,7 @@ import { isAccountChangedError } from '@/lib/auth/account-boundary'
 
 const URL_STALE_THRESHOLD_MS = 50 * 60 * 1000
 const STABLE_SOURCE_MS = 60_000
+const PLAY_WAIT_MS = 5_000
 
 interface RecoveryOptions {
   transcriptId: string
@@ -28,6 +29,7 @@ type Recovery = {
   playIntent?: boolean
   restore?: { position: number; play: boolean }
   attempt?: AbortController
+  playWaitExpired?: boolean
   removeSourceListeners?: () => void
 }
 
@@ -102,13 +104,16 @@ export function useAudioSessionRecovery({
 
       holdPosition()
       let newSourceStarted = false
+      const playWait = window.setTimeout(() => { current.playWaitExpired = true }, PLAY_WAIT_MS)
       const finish = () => {
+        window.clearTimeout(playWait)
         audio.removeEventListener('loadstart', started)
         audio.removeEventListener('loadeddata', loaded)
         audio.removeEventListener('error', failed)
         audio.removeEventListener('abort', failed)
         current.removeSourceListeners = undefined
         current.attempt = undefined
+        current.playWaitExpired = false
       }
       const started = () => { newSourceStarted = true }
       const loaded = () => {
@@ -184,6 +189,12 @@ export function useAudioSessionRecovery({
   const toggleWhileRecovering = useCallback((playing: boolean) => {
     const current = session.current
     if (!current || (!current.attempt && !current.restore && !current.audio.error)) return false
+    if (current.playWaitExpired && !current.audio.error) {
+      // Let the gesture reach the media element. Keep the late seek restore,
+      // but let this press own playback instead of replaying the old intent.
+      current.playIntent = false
+      return false
+    }
     if (playing) {
       current.playIntent = false
       current.audio.pause()

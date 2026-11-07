@@ -86,9 +86,20 @@ The final production build repeated the operation in one request with the same
 response cap. Typing on a row beyond the first 1,000 returned rows saved in one
 additional request. Typing undo and bulk undo each took one guarded request.
 Both copies matched their captured text checksums afterward and were removed
-by ID from the local database. The named 10-hour fixture changed between the
-initial and final reads. Verification compared the copies against the checksums
-captured before copying and left the named fixture's current text in place.
+by ID from the local database.
+
+The named 10-hour fixture changed between the initial and final reads. At
+03:02:45.550249 UTC on 7 November, 3,333 rows acquired the same update timestamp.
+They now contain `Friday`. Substituting `Thursday` for `Friday` in a read-only
+checksum query reproduces the captured text checksum exactly. The fixture has
+3,666 edited rows, up from 3,333. The matching API logs show guarded text saves
+from the development app on port 3000. They do not identify the initiating
+action or user. Replace All and history use the same endpoint. The PR 1 browser
+save tests ran on port 3001 and wrote to the disposable copies.
+
+For comparable PR 2 browser measurements, capture and checksum a fresh test
+copy, then use that text for both the before and after runs. The named fixture
+was left in its current state.
 
 ## Checks and limits
 
@@ -98,5 +109,9 @@ captured before copying and left the named fixture's current text in place.
 - Audio failure, delayed recovery and position continuity were exercised
   through the actual hooks with simulated media events. The production browser
   exercised regular playback, scrubbing, Find, editing, saves and undo.
+- The review follow-up restored the five-second Play fallback. The regression
+  exercises Play before and after the limit, verifies one URL request and one
+  media play call, and checks late position restoration. The follow-up passed
+  518 tests across 36 suites, typecheck and lint for the changed files.
 - The Chrome task timings come from one Mac at 4x CPU slowdown. Safari,
   Windows and hosted behavior were outside these runs.

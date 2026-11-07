@@ -200,7 +200,7 @@ describe.each(['inline', 'stable'])('recovery cap with %s callbacks', (style) =>
     await act(async () => { retry() })
     startSource()
     act(() => {
-      jest.advanceTimersByTime(6000)
+      jest.advanceTimersByTime(4999)
       expect(result.current.toggleWhileRecovering(false)).toBe(true)
       audio.dispatchEvent(new Event('loadeddata'))
     })
