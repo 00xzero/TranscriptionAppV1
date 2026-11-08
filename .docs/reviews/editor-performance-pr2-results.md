@@ -79,11 +79,21 @@ batches, so compare the ranges across runs when interpreting p95.
   The isolated production port differs from the configured WorkOS origin,
   so the browser run did not verify session clearing. Jest covers the
   departure and sign-out guards.
-- Safari WebDriver reported that remote automation was disabled. The
-  Safari-style drag and final-input ordering ran in Jest. The macOS IME
-  candidate UI, browser menu undo/redo, and a live account switch were outside
-  these browser runs. Jest covers native history input routing and the
-  account-change protections.
+- Safari 27.0.1 ran the real editor card and text history hook through
+  WebDriver on a disposable sample with an in-memory save callback.
+  Replayed `insertFromComposition` and `insertText` events after
+  `compositionend` both kept the caret immediately after the insertion,
+  recorded one save callback and one undo step, and restored the original
+  text in one undo. Enter during composition did not trigger a split.
+  Programmatically activating the close button preserved the text when
+  confirmation was replayed on blur. Escape followed by cancellation
+  left the editor open with zero saves and zero undo steps.
+- Native macOS Japanese IME behavior in Safari remains unverified. A
+  real keyboard session is still needed to check the candidate UI and
+  event order for Enter, clicking the close button and Escape. Jest covers
+  Safari-style drag and final-input ordering, native history input routing,
+  and account-change protections. Browser menu undo/redo and a live account
+  switch were outside the browser runs.
 
 After the local review, the split button stays disabled when an undo or reload
 discards the preview of a composition that is still running. The Jest regression
@@ -91,7 +101,7 @@ checks that the button is disabled until composition ends and that late input
 cannot overwrite the restored text. In an isolated Chrome harness with the real
 card, DevTools confirmed Japanese text in the middle of a line. The caret stayed
 immediately after the insertion, with one save callback and one history entry.
-The harness used an in-memory save callback. The manual Safari check is pending.
+The harness used an in-memory save callback.
 
 ## Automated checks
 
