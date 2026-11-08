@@ -98,3 +98,17 @@ produced **186.2 KB**. The processing column measures synchronous schema
 validation and reconciliation. Browser JSON decoding and React rendering are
 outside that column. The wall-time column ends when the refresh has applied
 its state updates. These are local measurements.
+
+### Final review polish
+
+- A refused speaker change now names the action in the rendered sticky
+  recovery toast and reports when undo history was cleared. The editor test
+  checks the recovered draft and the real toast controls. Chrome confirmed
+  that Copy keeps the toast open and Close dismisses it.
+- A failed metadata revalidation keeps visible details and logs a warning.
+  When the first metadata read fails without a seed, the editor offers Retry.
+  Both cases were tested and captured in Chrome with controlled read failures.
+  Retry restored the title in the unseeded case.
+
+All 535 tests across 35 editor and account-change suites passed. Typecheck
+passed. Lint reported zero errors and 60 warnings.

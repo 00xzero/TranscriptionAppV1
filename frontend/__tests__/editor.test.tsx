@@ -865,6 +865,62 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitFor(() => expect(row).toHaveFocus())
   })
 
+  test('the rendered recovery toast explains a refused speaker change and cleared history', async () => {
+    const actualToaster = jest.requireActual<typeof import('@/components/ui/toaster')>('@/components/ui/toaster')
+    const stamp = '2024-01-01T00:00:00Z'
+    const rows = ['sp1', 'sp2'].map((speaker_id, index) => ({
+      id: `s${index + 1}`, transcript_id: 'p1', speaker_id, diarization_index: index,
+      start_ms: index * 2000, end_ms: (index + 1) * 2000, text: `Original text ${index + 1}`,
+      is_edited: false, is_filler: false, algo_version: 'test', revision: 0, created_at: stamp, updated_at: stamp,
+    }))
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({ items: rows })
+    ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce(rows.map((row, index) => ({
+      id: row.speaker_id, transcript_id: 'p1', user_id: 'u1', ordinal: index + 1,
+      custom_label: null, person_id: null, diarization_index: index, created_at: stamp, updated_at: stamp,
+    })))
+    ;(supabaseQueries.fetchEditorSegmentSnapshot as jest.Mock).mockResolvedValueOnce([
+      rows[0], { ...rows[1], text: 'Saved by someone else' },
+    ])
+    let refuse!: () => void
+    ;(supabaseQueries.reassignSegments as jest.Mock).mockImplementationOnce(() => new Promise((_, reject) => {
+      refuse = () => reject({ code: 'SP002' })
+    }))
+    mockToast.mockImplementation(actualToaster.toast)
+    const toaster = render(<actualToaster.Toaster />)
+    try {
+      renderEditorScreen()
+      await waitForEditorContent()
+      fireEvent.click(await screen.findByRole('button', { name: 'Test Transcript' }))
+      const title = screen.getByRole('textbox', { name: 'Transcript title' })
+      fireEvent.change(title, { target: { value: 'Renamed transcript' } })
+      fireEvent.keyDown(title, { key: 'Enter' })
+      await screen.findByRole('button', { name: 'Renamed transcript' })
+
+      const [first, second] = screen.getAllByTestId('segment-card')
+      fireEvent.click(within(first).getByRole('button', { name: /Change speaker/i }))
+      const picker = await screen.findByRole('dialog', { name: 'Speaker assignment' })
+      await userEventLib.setup().click(within(picker).getByRole('tab', { name: 'This segment' }))
+      fireEvent.click(within(picker).getByRole('option', { name: 'Speaker 2' }))
+      await waitFor(() => expect(refuse).toBeDefined())
+
+      fireEvent.click(within(second).getByRole('button', { name: /edit/i }))
+      fireEvent.change(within(second).getByRole('textbox'), { target: { value: 'My unsaved edit' } })
+      await act(async () => refuse())
+
+      const sticky = (await screen.findByText('Your edit wasn’t saved', { selector: '[data-recovery-toast] *' }))
+        .closest('[data-recovery-toast]') as HTMLElement
+      expect(sticky).toHaveTextContent("Couldn't change the speaker. Undo history cleared.")
+      expect(within(sticky).getByText('My unsaved edit')).toBeVisible()
+      expect(within(sticky).getByRole('button', { name: 'Copy text' })).toBeVisible()
+      fireEvent.click(within(sticky).getByRole('button', { name: 'Close' }))
+      expect(actualToaster.retainedToastTexts()).toEqual([])
+    } finally {
+      toaster.unmount()
+      actualToaster.__resetToastsForTesting()
+      mockToast.mockReset()
+    }
+  })
+
   test('auto-closes speaker popover when opening Find/Replace', async () => {
     const user = userEventLib.setup()
     renderEditorScreen()

@@ -50,6 +50,7 @@ function createStableMeasurable(el: HTMLElement): Measurable {
 function speakerStep(label: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
   return {
     label, scope: 'speaker', touches: ids,
+    failure: label === 'speaker change' ? "Couldn't change the speaker" : undefined,
     target: () => ({ ids: ids.filter((id) => !id.includes(':')) }),
     async run(_dir, applied) {
       if (!ops.next) throw changedSince('The action never completed')

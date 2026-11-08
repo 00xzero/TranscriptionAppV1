@@ -88,6 +88,23 @@ const seed: EditorTranscript = {
   created_at: '2024-01-01T00:00:00Z', engine: 'deepgram', engine_model: null, duration_seconds: 60,
 }
 
+it('keeps visible seeded details when revalidation fails without offering Retry', async () => {
+  const warning = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const failure = new Error('metadata read failed')
+  fetchTranscriptById.mockRejectedValueOnce(failure)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  try {
+    const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+    await waitFor(() => expect(warning).toHaveBeenCalledWith(
+      '[useEditorData] failed to refresh transcript metadata', failure,
+    ))
+    expect(result.current.transcriptTitle).toBe('Cached title')
+    expect(mockToast).not.toHaveBeenCalled()
+  } finally {
+    warning.mockRestore()
+  }
+})
+
 it('revalidates seeded details and retains the seed for malformed fields', async () => {
   const metadata = deferred<unknown>()
   fetchTranscriptById.mockReturnValueOnce(metadata.promise)

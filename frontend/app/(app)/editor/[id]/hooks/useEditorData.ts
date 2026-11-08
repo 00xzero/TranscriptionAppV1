@@ -96,6 +96,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
     let waveformVersion = 0
     let lastWaveformStatus = metadataSeed?.waveform_status
     let metadataReading = false
+    let hasDetails = metadataSeed !== null
     setPeaks(null)
     setWaveformDurationSecs(null)
     setWaveformStatus('skipped')
@@ -178,7 +179,10 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
         const invalid: (keyof EditorTranscript)[] = []
         const read = <K extends keyof EditorTranscript>(key: K, apply: (value: EditorTranscript[K]) => void) => {
           const result = EditorTranscriptSchema.shape[key].safeParse(data[key])
-          if (result.success) apply(result.data as EditorTranscript[K])
+          if (result.success) {
+            if (key !== 'waveform_status') hasDetails = true
+            apply(result.data as EditorTranscript[K])
+          }
           else invalid.push(key)
         }
         read('title', (title) => {
@@ -198,6 +202,10 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
         if (invalid.length) console.warn('[useEditorData] invalid transcript metadata fields', invalid)
       } catch (error) {
         if (cancelled) return
+        if (hasDetails) {
+          console.warn('[useEditorData] failed to refresh transcript metadata', error)
+          return
+        }
         console.error('[useEditorData] failed to load transcript metadata', error)
         toast({
           title: "Couldn't load transcript details",

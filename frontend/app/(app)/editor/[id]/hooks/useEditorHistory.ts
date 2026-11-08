@@ -135,7 +135,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
    * because something changed elsewhere, or whose outcome is unknown, clears
    * the history and reads the database again; anything else is `otherwise`.
    */
-  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void, direction?: Direction) => {
+  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void, refusal: string) => {
     if (error instanceof SendClosed) return
     if (!changedElsewhere(error)) { otherwise(); return }
     if (!hasDrafts?.()) {
@@ -143,11 +143,9 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
       await repair()
       return
     }
-    // Include the refused history action in any draft recovery notice.
+    // Include the refused action in any draft recovery notice.
     const cleared = clear()
-    const action = direction === 'undo' ? 'Undo' : 'Redo'
-    const refusal = error instanceof OutcomeUnknown ? `Couldn’t confirm ${action}.` : `${action} couldn’t be applied.`
-    const notice = direction ? refusal + (cleared ? ' Undo history cleared.' : '') : undefined
+    const notice = refusal + (cleared ? ' Undo history cleared.' : '')
     const result = await repair(notice)
     if (typeof result !== 'string') {
       toast({ title, description: cleared ? 'Undo history cleared' : undefined, variant: 'error' })
@@ -172,6 +170,8 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
           if (mounted.current && reveals) reveal(step.target(dir))
         })
       } catch (error) {
+        const action = dir === 'undo' ? 'Undo' : 'Redo'
+        const refusal = error instanceof OutcomeUnknown ? `Couldn’t confirm ${action}.` : `${action} couldn’t be applied.`
         await failed(error, `Can't ${dir} — this changed elsewhere`, () => {
           // Nothing was written: back to before this press, unless something
           // was recorded since, which was built on the press having happened.
@@ -182,7 +182,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
             : emptied(history.current)
           notify()
           toast({ title: `Couldn't ${dir} ${step.label}`, variant: 'error' })
-        }, dir)
+        }, refusal)
       } finally { held.release() }
     })
   }, [hold, notify, enqueue, reveal, failed, cancelPending, emptied, isReconnecting])
@@ -209,10 +209,11 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
       if (!mounted.current) { unsettled.current.delete(step); held.release(); return }
       try { await perform() } catch (error) {
         drop(step)
+        const failure = step.failure ?? `Couldn't ${step.label}`
         if (error !== NOTHING_CHANGED) await failed(error, CONFLICT_TOAST, () => {
           if (onFailed) onFailed(error)
-          else toast({ title: step.failure ?? `Couldn't ${step.label}`, variant: 'error' })
-        })
+          else toast({ title: failure, variant: 'error' })
+        }, error instanceof OutcomeUnknown ? 'Couldn’t confirm the action.' : `${failure}.`)
       } finally {
         unsettled.current.delete(step)
         held.release()
