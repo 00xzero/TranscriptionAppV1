@@ -15,7 +15,17 @@ export const EditorSourceWordSchema = WordSchema.pick({
   message: 'word timing must satisfy 0 <= start_ms <= end_ms',
 })
 
-export const EditorTranscriptSchema = TranscriptSchema
+export const EditorTranscriptSchema = TranscriptSchema.pick({
+  status: true,
+  title: true,
+  project_id: true,
+  created_at: true,
+  engine: true,
+  engine_model: true,
+  duration_seconds: true,
+  waveform_status: true,
+})
+export type EditorTranscript = z.infer<typeof EditorTranscriptSchema>
 export const EditorSpeakerSchema = SpeakerSchema
 
 export type EditorSourceWord = z.infer<typeof EditorSourceWordSchema>

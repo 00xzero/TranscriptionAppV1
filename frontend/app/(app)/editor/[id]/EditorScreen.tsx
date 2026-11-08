@@ -46,11 +46,15 @@ import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
 import { publishUndoControls } from '@/lib/editor/undoControls'
 import { fetchTranscriptById } from '@/lib/supabase/queries'
 import { engineLabel } from '@/core/transcription/engines/capabilities'
+import type { EditorTranscript } from '@/contracts/editor'
 
 const noSegmentOnServer = () => undefined
 const noPositionOnServer = () => false
 
-export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
+export default function EditorScreen({ transcriptId, initialMetadata = null }: {
+  transcriptId: string
+  initialMetadata?: EditorTranscript | null
+}) {
   const router = useRouter()
   const { mutateTranscripts } = useTranscriptsData()
 
@@ -59,7 +63,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // the write queue and the text drafts exist.
   const reloadContentRef = useRef<() => void>(() => {})
   const reloadContent = useCallback(() => reloadContentRef.current(), [])
-  const data = useEditorData(transcriptId, reloadContent)
+  const data = useEditorData(transcriptId, reloadContent, initialMetadata)
   const segmentLayout = useSegmentLayout(data.segments)
   const actionTarget = transcriptActionTarget({
     id: transcriptId,

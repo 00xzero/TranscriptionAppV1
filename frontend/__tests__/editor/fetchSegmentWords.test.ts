@@ -31,7 +31,7 @@ jest.mock('@/infra/supabase/client', () => ({ createClient: () => mockBuilder() 
 const { fetchSegmentWordSets, fetchSegmentsWithWords } =
   jest.requireActual<typeof import('@/lib/supabase/queries')>('@/lib/supabase/queries')
 
-const WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
+const WORD_COLUMNS = 'id, start_ms, end_ms, text, punctuated_text, order_index'
 
 beforeEach(() => {
   mockCalls.length = 0

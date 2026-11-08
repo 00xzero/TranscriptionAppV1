@@ -59,6 +59,7 @@ import {
     TranscriptSummarySchema,
     TagSchema,
     TranscriptTagSchema,
+    WaveformStatusSchema,
     CreateTranscriptTagResultSchema,
     UndoCreatedTagResultSchema,
     MergeTagsResultSchema,
@@ -310,6 +311,16 @@ export async function fetchTranscriptById(id: string): Promise<Transcript | null
     return data
 }
 
+export async function fetchTranscriptWaveformStatus(id: string) {
+    const { data, error } = await createClient()
+        .from('transcripts')
+        .select('waveform_status')
+        .eq('id', id)
+        .single()
+    if (error) throw error
+    return WaveformStatusSchema.parse(data?.waveform_status)
+}
+
 /**
  * Fetch error info for a transcript's latest failed job.
  */
@@ -464,7 +475,7 @@ export async function fetchSegmentSpeakerAssignments(
     )
 }
 
-const STORED_WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
+const STORED_WORD_COLUMNS = 'id, start_ms, end_ms, text, punctuated_text, order_index'
 
 /** A segment's stored words, read in the same query as its revision. Word rows are unvalidated; see groupSourceWords. */
 export type SegmentWordSet = { id: string; revision: number; words: unknown[] }

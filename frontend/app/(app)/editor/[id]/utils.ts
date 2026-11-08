@@ -64,6 +64,14 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWo
   return wordsBySegment
 }
 
+/** The embedded relationship already identifies each word's segment. */
+export function groupEmbeddedWords(sets: readonly { id: string; words: readonly unknown[] }[]) {
+  return groupSourceWords(sets.flatMap(({ id, words }) => words.map((word) => ({
+    ...(word as object),
+    segment_id: id,
+  }))))
+}
+
 /** Ids in the database's byte order, which breaks ties in display order. */
 export const compareIds = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 

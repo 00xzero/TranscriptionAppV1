@@ -9,6 +9,7 @@ jest.mock('@/components/ui/toaster', () => ({
 
 const fetchSegmentWordSets = supabaseQueries.fetchSegmentWordSets as jest.Mock
 const fetchTranscriptData = supabaseQueries.fetchTranscriptData as jest.Mock
+const fetchTranscriptById = supabaseQueries.fetchTranscriptById as jest.Mock
 
 const SEG = '11111111-1111-4111-8111-111111111111'
 const SEG_B = '22222222-2222-4222-8222-222222222222'
@@ -58,6 +59,24 @@ it('loads the words grouped per segment', async () => {
   ])
   expect(fetchSegmentWordSets).toHaveBeenCalledWith('t1')
   expect(reloadContent).not.toHaveBeenCalled()
+})
+
+it('shows a metadata Retry even while initial segments are still loading', async () => {
+  const data = deferred<{ items: unknown[] }>()
+  fetchTranscriptData.mockReturnValue(data.promise)
+  fetchSegmentWordSets.mockResolvedValue([])
+  fetchTranscriptById.mockRejectedValueOnce(new Error('metadata read failed'))
+    .mockResolvedValueOnce({ title: 'Retried title', waveform_status: 'skipped' })
+  const { result } = render()
+
+  await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+    title: "Couldn't load transcript details",
+    action: expect.objectContaining({ label: 'Retry' }),
+  })))
+  expect(result.current.isLoaded()).toBe(false)
+  const failure = mockToast.mock.calls.find(([options]) => options.title === "Couldn't load transcript details")
+  await act(async () => { failure![0].action.onClick() })
+  expect(result.current.transcriptTitle).toBe('Retried title')
 })
 
 // Codex: a split elsewhere between reading the segments and their words must

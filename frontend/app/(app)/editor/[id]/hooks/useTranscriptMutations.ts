@@ -6,7 +6,7 @@ import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, STALE_TOAST, changedSince } from
 import { OutcomeUnknown, SendClosed, type Send } from '@/lib/editor/untilAnswered'
 import { toastUnsaved } from '@/lib/editor/unsavedToasts'
 import type { Seg, SaveStatusBySegment, WordsBySegment } from '../types'
-import { SAVE_DEBOUNCE_MS, groupSourceWords } from '../utils'
+import { SAVE_DEBOUNCE_MS, groupEmbeddedWords } from '../utils'
 import type { Enqueue } from './useEditorWriteQueue'
 import type { LiveStore } from './useLiveStore'
 import { changedElsewhere, type Direction } from './useEditorHistory'
@@ -131,11 +131,10 @@ export function useTranscriptMutations({
    */
   const reloadSegments = useCallback(async (): Promise<boolean> => {
     let rows: Seg[]
-    let wordRows: readonly unknown[]
+    let wordSets: Awaited<ReturnType<typeof fetchSegmentsWithWords>>
     try {
-      const fetched = await send(() => fetchSegmentsWithWords(transcriptId))
-      rows = fetched.map(({ words: _words, ...row }) => row)
-      wordRows = fetched.flatMap((row) => row.words)
+      wordSets = await send(() => fetchSegmentsWithWords(transcriptId))
+      rows = wordSets.map(({ words: _words, ...row }) => row)
     } catch (error) {
       if (error instanceof SendClosed) throw error
       console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
@@ -179,7 +178,7 @@ export function useTranscriptMutations({
       return draft ? { ...row, text: draft.text } : row
     })
     // Worked out once: a live store runs its updater again inside React.
-    const grouped = groupSourceWords(wordRows)
+    const grouped = groupEmbeddedWords(wordSets)
     segments.update(() => next)
     words.update(() => grouped)
     setEditingId((prev) => (prev && fetched.has(prev) ? prev : null))

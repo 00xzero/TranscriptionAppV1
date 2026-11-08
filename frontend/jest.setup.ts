@@ -76,6 +76,7 @@ jest.mock('./lib/supabase/queries', () => ({
   fetchSegmentsWithWords: jest.fn().mockResolvedValue([]),
   fetchSpeakers: jest.fn().mockResolvedValue([]),
   fetchTranscriptById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Transcript', status: 'created' }),
+  fetchTranscriptWaveformStatus: jest.fn().mockResolvedValue('skipped'),
   fetchSegments: jest.fn().mockResolvedValue([]),
   fetchSegmentSpeakerAssignments: jest.fn().mockResolvedValue([]),
   updateTranscript: jest.fn().mockResolvedValue({}),
