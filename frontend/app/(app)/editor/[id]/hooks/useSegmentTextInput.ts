@@ -14,6 +14,10 @@ function autosize(el: HTMLTextAreaElement) {
   el.style.height = `${el.scrollHeight}px`
 }
 
+function usesNativeSizing() {
+  return globalThis.CSS?.supports?.('field-sizing', 'content') === true
+}
+
 // Keys that move the caret, which ends a typing step as in Word.
 const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'])
 
@@ -123,7 +127,8 @@ export function useSegmentTextInput({
     const node = textAreaRef.current
     if (!node) return
 
-    autosize(node)
+    const nativeSizing = usesNativeSizing()
+    if (!nativeSizing) autosize(node)
     // The editing identity is the caret and the focus ring, so entering edit
     // mode must hand focus over; caret goes to the end (or where a split or
     // undo put it), scroll stays put. The caret is placed first so the focus
@@ -134,6 +139,7 @@ export function useSegmentTextInput({
     if (hint) hintSequence.current = hint.seq
     node.focus({ preventScroll: true })
     typedRef.current = node.value
+    if (nativeSizing) return
     // Re-fit on width changes only; reacting to our own height writes would loop.
     let lastWidth = node.clientWidth
     const observer = new ResizeObserver(() => {
@@ -151,7 +157,7 @@ export function useSegmentTextInput({
   React.useLayoutEffect(() => {
     const node = textAreaRef.current
     if (!isEditing || !node) return
-    autosize(node)
+    if (!usesNativeSizing()) autosize(node)
     const hint = caretHint(s.id)
     if (hint && hint.seq !== hintSequence.current) {
       hintSequence.current = hint.seq

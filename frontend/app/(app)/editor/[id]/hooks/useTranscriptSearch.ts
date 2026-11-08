@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { Seg, Match, SegmentMatch } from '../types'
 import { isUnicodeWordChar } from '../utils'
 import type { TextEdit } from './useTranscriptMutations'
+
+type SegmentMatches = { id: string; text: string; ranges: SegmentMatch[]; matches: Match[] }
 
 /** Match against whole-string lowercase, but return ranges in the source. */
 function findTextMatches(text: string, needle: string, caseSensitive: boolean, wholeWord: boolean) {
@@ -46,6 +48,7 @@ export function useTranscriptSearch({
   suspendFollow,
   closeSpeakerPopover,
   exportModalOpen,
+  editingText = false,
   canReplace, recordReplace,
 }: {
   segments: Seg[]
@@ -56,6 +59,7 @@ export function useTranscriptSearch({
   suspendFollow: (reason?: 'search' | 'ui') => void
   closeSpeakerPopover: (reason?: 'dismiss' | 'outside' | 'selection' | 'external') => void
   exportModalOpen: boolean
+  editingText?: boolean
   /** False while a split or undo is pending: replaced text would land on a changing shape. */
   canReplace: boolean
   recordReplace?: (edits: TextEdit[], selection?: { start: number; end: number }, all?: boolean) => void
@@ -67,6 +71,11 @@ export function useTranscriptSearch({
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
   const [findReplaceOpen, setFindReplaceOpen] = useState(false)
+  // The textarea owns the current keystroke. Refresh retained highlights in
+  // a lower-priority render, and always use fresh text for the Find dialog.
+  const deferHighlights = editingText && !findReplaceOpen && !!findTerm
+  const deferredSegments = useDeferredValue(deferHighlights ? segments : null)
+  const searchSegments = (deferHighlights && deferredSegments) || segments
 
   const openFindReplaceModal = useCallback(() => {
     if (exportModalOpen) return
@@ -78,31 +87,63 @@ export function useTranscriptSearch({
     }
   }, [closeSpeakerPopover, exportModalOpen, findTerm, setEditingId, suspendFollow])
 
-  const matches = useMemo<Match[]>(() => {
-    if (!findTerm) return []
-    const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
-    const found: Match[] = []
-    for (const seg of segments) {
-      const text = seg.text
-      for (const range of findTextMatches(text, needle, caseSensitive, wholeWord)) {
-        found.push({ segId: seg.id, ...range })
+  const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
+  const collectMatches = useMemo(() => {
+    let entries: SegmentMatches[] = []
+    let positions = new Map<string, number>()
+    return (rows: readonly Seg[]) => {
+      const sameOrder = rows.length === entries.length && rows.every((row, index) => row.id === entries[index].id)
+      const nextPositions = sameOrder ? positions : new Map<string, number>()
+      const next: SegmentMatches[] = []
+      let total = 0
+      if (needle) {
+        for (let index = 0; index < rows.length; index++) {
+          const seg = rows[index]
+          const previousIndex = sameOrder ? index : positions.get(seg.id)
+          let entry = previousIndex === undefined ? undefined : entries[previousIndex]
+          if (entry?.text !== seg.text) {
+            const ranges = findTextMatches(seg.text, needle, caseSensitive, wholeWord)
+            entry = {
+              id: seg.id,
+              text: seg.text,
+              ranges: ranges.map((range, matchIdx) => ({ ...range, matchIdx })),
+              matches: ranges.map((range) => ({ segId: seg.id, ...range })),
+            }
+          }
+          next.push(entry)
+          if (!sameOrder) nextPositions.set(seg.id, index)
+          total += entry.matches.length
+        }
+      }
+      entries = next
+      positions = nextPositions
+      // The closed dialog only needs the active match and the per-card ranges.
+      let flattened: Match[] | undefined
+      return {
+        matchRangesFor: (id: string) => {
+          const index = nextPositions.get(id)
+          return index === undefined ? undefined : next[index].ranges
+        },
+        totalMatches: total,
+        getMatches: () => flattened ??= next.flatMap((entry) => entry.matches),
+        matchAt: (index: number) => {
+          if (index < 0 || index >= total) return null
+          for (const { matches } of next) {
+            if (index < matches.length) return { match: matches[index], localIndex: index }
+            index -= matches.length
+          }
+          return null
+        },
       }
     }
-    return found
-  }, [segments, findTerm, caseSensitive, wholeWord])
+  }, [needle, caseSensitive, wholeWord])
+  const { getMatches, matchAt, matchRangesFor, totalMatches } =
+    useMemo(() => collectMatches(searchSegments), [collectMatches, searchSegments])
 
-  const matchesBySeg = useMemo(() => {
-    const map = new Map<string, SegmentMatch[]>()
-    matches.forEach((match: Match, idx: number) => {
-      const arr = map.get(match.segId) ?? []
-      arr.push({ index: match.index, length: match.length, matchIdx: idx })
-      map.set(match.segId, arr)
-    })
-    return map
-  }, [matches])
-
-  const totalMatches = matches.length
-  const currentMatch = totalMatches && matchIndex >= 0 ? matches[Math.min(matchIndex, totalMatches - 1)] : null
+  const currentIndex = Math.min(matchIndex, totalMatches - 1)
+  const selection = matchAt(currentIndex)
+  const currentMatch = selection?.match ?? null
+  const currentLocalMatchIndex = selection?.localIndex ?? -1
 
   useEffect(() => {
     if (totalMatches === 0 && matchIndex > 0) {
@@ -131,11 +172,11 @@ export function useTranscriptSearch({
   }, [currentMatch, findReplaceOpen, scrollToMatch])
 
   const jumpToMatch = useCallback((index: number) => {
-    const match = matches[index]
+    const match = matchAt(index)?.match
     if (!match) return
     setMatchIndex(index)
     scrollToMatch(match)
-  }, [matches, scrollToMatch])
+  }, [matchAt, scrollToMatch])
 
   const goToDelta = useCallback((delta: number) => {
     if (!totalMatches) return
@@ -164,8 +205,8 @@ export function useTranscriptSearch({
 
     // The old ordinal no longer describes the result list. Recount only this
     // segment and advance from the end of the insertion in its new text.
-    const first = matches.findIndex((match) => match.segId === seg.id)
-    const pastSegment = first + (matchesBySeg.get(seg.id)?.length ?? 0)
+    const first = currentIndex - currentLocalMatchIndex
+    const pastSegment = first + (matchRangesFor(seg.id)?.length ?? 0)
     const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
     const remaining = findTextMatches(updated, needle, caseSensitive, wholeWord)
     const next = remaining.findIndex((range) => range.index >= currentMatch.index + replaceTerm.length)
@@ -176,13 +217,13 @@ export function useTranscriptSearch({
     // one explicitly with Next/Previous rather than replacing it again.
     else setMatchIndex(-1)
   }, [currentMatch, canReplace, segments, replaceTerm, scheduleSave, recordReplace,
-    matches, matchesBySeg, totalMatches, caseSensitive, findTerm, wholeWord])
+    currentIndex, currentLocalMatchIndex, matchRangesFor, totalMatches, caseSensitive, findTerm, wholeWord])
 
   const handleReplaceAll = useCallback(() => {
     if (!totalMatches || !canReplace) return
     const edits: TextEdit[] = []
     for (const segment of segments) {
-      const ranges = matchesBySeg.get(segment.id)
+      const ranges = matchRangesFor(segment.id)
       if (!ranges?.length) continue
       const before = segment.text
       const pieces: string[] = []
@@ -198,7 +239,7 @@ export function useTranscriptSearch({
     if (!edits.length) return
     recordReplace?.(edits, undefined, true)
     scheduleSaves(edits)
-  }, [totalMatches, canReplace, matchesBySeg, segments, replaceTerm, scheduleSaves, recordReplace])
+  }, [totalMatches, canReplace, matchRangesFor, segments, replaceTerm, scheduleSaves, recordReplace])
 
   // Debounce findInput into findTerm
   useEffect(() => {
@@ -250,10 +291,11 @@ export function useTranscriptSearch({
     wholeWord, setWholeWord,
     findReplaceOpen, setFindReplaceOpen,
     clearSearch,
-    matches,
-    matchesBySeg,
+    getMatches,
+    matchRangesFor,
     totalMatches,
     currentMatch,
+    currentLocalMatchIndex,
     isFindDirty,
     canNavigate,
     matchSummary,

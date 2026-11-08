@@ -12,7 +12,7 @@ import { SendClosed, type Send } from '@/lib/editor/untilAnswered'
 import { NOTHING_CHANGED, type EditorHistory, type HistoryStep } from './useEditorHistory'
 import type { SegmentHolds } from './useSegmentHolds'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
-import type { Seg } from '../types'
+import type { Seg, SegmentLayout } from '../types'
 import { revisionsMatch } from '../utils'
 import { mergeSpeakerAssignments } from './useEditorData'
 import {
@@ -61,11 +61,12 @@ function speakerStep(label: string, ids: readonly string[], ops: { next?: Speake
   }
 }
 
-export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentsStore, peopleContext,
+export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentLayout = segments, segmentsStore, peopleContext,
   setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded, send, history, holds }: {
   transcriptId: string
   speakers: Speaker[]
   segments: Seg[]
+  segmentLayout?: readonly SegmentLayout[]
   /** The same segments, live: actions read and change them through it. */
   segmentsStore: LiveStore<Seg[]>
   peopleContext: EditorPeopleContext
@@ -174,8 +175,8 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     }
   }, [enqueue, refresh, isLoaded])
 
-  const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segments, peopleContext.people),
-    [speakers, segments, peopleContext.people])
+  const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segmentLayout, peopleContext.people),
+    [speakers, segmentLayout, peopleContext.people])
   const displayForSpeaker = useMemo(() => buildSpeakerDisplay(speakers, presentation, peopleContext.people),
     [speakers, presentation, peopleContext.people])
   const labelForSpeaker = useCallback((speakerId: string | null | undefined) =>

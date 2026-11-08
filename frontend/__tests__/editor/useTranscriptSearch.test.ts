@@ -48,9 +48,26 @@ describe('useTranscriptSearch', () => {
 
     expect(result.current.findTerm).toBe('Hello')
     expect(result.current.totalMatches).toBe(2)
-    expect(result.current.matches).toHaveLength(2)
-    expect(result.current.matches[0]).toEqual({ segId: 's1', index: 0, length: 5 })
-    expect(result.current.matches[1]).toEqual({ segId: 's2', index: 0, length: 5 })
+    expect(result.current.getMatches()).toHaveLength(2)
+    expect(result.current.getMatches()[0]).toEqual({ segId: 's1', index: 0, length: 5 })
+    expect(result.current.getMatches()[1]).toEqual({ segId: 's2', index: 0, length: 5 })
+  })
+
+  it('keeps unchanged card ranges when a preceding edit shifts global match indices', () => {
+    const { segments } = defaultParams
+    const { result, rerender } = renderHook((rows: Seg[]) =>
+      useTranscriptSearch({ ...defaultParams, segments: rows }), { initialProps: segments })
+    act(() => { result.current.setFindInput('Hello') })
+    act(() => { jest.advanceTimersByTime(800) })
+    const ranges = result.current.matchRangesFor('s2')
+    const match = result.current.getMatches()[1]
+
+    rerender([{ ...segments[0], text: 'Hello Hello world' }, { ...segments[1] }])
+    expect(result.current.matchRangesFor('s2')).toBe(ranges)
+    expect(result.current.getMatches()[2]).toBe(match)
+    act(() => { result.current.jumpToMatch(2) })
+    expect(result.current.currentMatch).toBe(match)
+    expect(result.current.currentLocalMatchIndex).toBe(0)
   })
 
   it.each([
@@ -66,7 +83,7 @@ describe('useTranscriptSearch', () => {
     }))
     act(() => { result.current.setFindInput(query); result.current.setReplaceTerm('X') })
     act(() => { jest.advanceTimersByTime(800) })
-    expect(result.current.matches).toEqual([{ segId: 's1', index, length }])
+    expect(result.current.getMatches()).toEqual([{ segId: 's1', index, length }])
     act(() => { result.current.handleReplaceAll() })
     expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
   })
@@ -154,7 +171,7 @@ describe('useTranscriptSearch', () => {
 
     expect(result.current.findTerm).toBe('hello')
     expect(result.current.totalMatches).toBe(0)
-    expect(result.current.matches).toHaveLength(0)
+    expect(result.current.getMatches()).toHaveLength(0)
   })
 
   it('whole word search', () => {

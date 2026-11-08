@@ -40,7 +40,7 @@ export function formatShare(share: number): string {
 }
 
 export function useSpeakerOverview({ segments, speakers, presentation, displayForSpeaker, durationSecs }: {
-  segments: Seg[]
+  segments: readonly Seg[]
   speakers: Speaker[]
   presentation: SpeakerPresentation
   displayForSpeaker: (speakerId: string | null) => SpeakerDisplay

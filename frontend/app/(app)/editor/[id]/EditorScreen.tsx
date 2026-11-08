@@ -37,6 +37,7 @@ import { useSpeakerOverview } from './hooks/useSpeakerOverview'
 import { useKeepReadingPosition } from './hooks/useKeepReadingPosition'
 import { createSegmentLocator } from './utils'
 import { useSegmentHolds } from './hooks/useSegmentHolds'
+import { useSegmentLayout } from './hooks/useSegmentLayout'
 import { useEditorHistory, type HistoryTarget } from './hooks/useEditorHistory'
 import { useTextHistory } from './hooks/useTextHistory'
 import { useLeaveEditor } from './hooks/useLeaveEditor'
@@ -59,6 +60,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const reloadContentRef = useRef<() => void>(() => {})
   const reloadContent = useCallback(() => reloadContentRef.current(), [])
   const data = useEditorData(transcriptId, reloadContent)
+  const segmentLayout = useSegmentLayout(data.segments)
   const actionTarget = transcriptActionTarget({
     id: transcriptId,
     title: data.transcriptTitle,
@@ -100,6 +102,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     transcriptId,
     speakers: data.speakers,
     segments: data.segments,
+    segmentLayout,
     segmentsStore,
     peopleContext: data.peopleContext,
     setSpeakers: data.setSpeakers,
@@ -150,7 +153,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   // 3. Sync
   const sync = useTranscriptSync({
-    segments: data.segments,
+    segments: segmentLayout,
     editingId: editing.editingId,
     speakerPopover: speakerHook.speakerPopover,
   })
@@ -223,7 +226,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // the audio (offset, timeupdate-paced, held after seeks), so it only stands
   // in until the clock has a position. Primitive snapshots mean this screen
   // re-renders only when the current segment changes.
-  const locateSegment = useMemo(() => createSegmentLocator(data.segments), [data.segments])
+  const locateSegment = useMemo(() => createSegmentLocator(segmentLayout), [segmentLayout])
   const getClockSegId = useCallback(() => {
     const ms = playbackClock.getMs()
     return ms === null ? undefined : locateSegment(ms)
@@ -248,6 +251,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     suspendFollow: sync.suspendFollow,
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
+    editingText: editing.editingId !== null,
     canReplace, recordReplace: textHistory.recordReplace,
   })
 
@@ -271,8 +275,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   })
 
   // 7. Speakers sidebar
+  const [speakersOpen, setSpeakersOpen] = useState(false)
   const speakerOverview = useSpeakerOverview({
-    segments: data.segments,
+    segments: speakersOpen ? data.segments : segmentLayout,
     speakers: data.speakers,
     presentation: speakerHook.presentation,
     displayForSpeaker: speakerHook.displayForSpeaker,
@@ -281,7 +286,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const speakersSidebarId = useId()
   const speakerButtonRef = useRef<HTMLButtonElement>(null)
   const speakersSidebarRef = useRef<SpeakersSidebarHandle>(null)
-  const [speakersOpen, setSpeakersOpen] = useState(false)
   const { keepReadingPosition, releaseReadingPosition } = useKeepReadingPosition({
     scrollRef: sync.transcriptScrollRef,
     virtuosoRef: sync.virtuosoRef,
@@ -365,7 +369,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
         canReplace={canReplace}
-        matches={search.matches}
+        matches={search.findReplaceOpen ? search.getMatches() : []}
         segments={data.segments}
         matchIndex={search.matchIndex}
         onMatchClick={search.jumpToMatch}
@@ -505,8 +509,8 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               virtuosoRef={sync.virtuosoRef}
               onRangeChanged={sync.handleRangeChanged}
               activeSegId={currentSegId}
-              matchesBySeg={search.matchesBySeg}
-              matchIndex={search.matchIndex}
+              matchRangesFor={search.matchRangesFor}
+              matchIndex={search.currentLocalMatchIndex}
               currentMatchSegId={search.currentMatch?.segId}
               displayForSpeaker={speakerHook.displayForSpeaker}
               editingId={editing.editingId}
