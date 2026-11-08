@@ -8,8 +8,6 @@ const defaultParams = {
     { id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello world', speaker_id: 'sp1' },
     { id: 's2', start_ms: 1000, end_ms: 2000, text: 'Hello again', speaker_id: 'sp1' },
   ] as Seg[],
-  editingTexts: {},
-  setEditingTexts: jest.fn(),
   scheduleSave: jest.fn(),
   scheduleSaves: jest.fn(),
   setEditingId: jest.fn(),
@@ -24,7 +22,6 @@ const defaultParams = {
 describe('useTranscriptSearch', () => {
   beforeEach(() => {
     jest.useFakeTimers()
-    defaultParams.setEditingTexts.mockClear()
     defaultParams.scheduleSave.mockClear()
     defaultParams.scheduleSaves.mockClear()
     defaultParams.setEditingId.mockClear()
@@ -77,8 +74,15 @@ describe('useTranscriptSearch', () => {
   function setupReplace(texts: string[], replacement: string) {
     const segments = texts.map((text, i) => ({ ...defaultParams.segments[0], id: `s${i}`, text }))
     const hook = renderHook(() => {
-      const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
-      return useTranscriptSearch({ ...defaultParams, segments, editingTexts, setEditingTexts })
+      const [rows, setRows] = useState(segments)
+      return useTranscriptSearch({
+        ...defaultParams,
+        segments: rows,
+        scheduleSave: (id, text) => {
+          defaultParams.scheduleSave(id, text)
+          setRows((previous) => previous.map((row) => row.id === id ? { ...row, text } : row))
+        },
+      })
     })
     act(() => { hook.result.current.setFindInput('the'); hook.result.current.setReplaceTerm(replacement) })
     act(() => { jest.advanceTimersByTime(800) })

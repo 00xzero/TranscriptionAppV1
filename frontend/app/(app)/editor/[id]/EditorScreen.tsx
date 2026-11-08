@@ -3,13 +3,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { useRouter } from 'next/navigation'
 import { useScrubberFocus } from '@/lib/audio/useScrubberFocus'
 import AudioPlayer from '@/components/AudioPlayer'
-import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
 import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
-import { Popover, PopoverAnchor, PopoverContent, PopoverFrozenWhileClosed } from '@/components/ui/popover'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { toast } from '@/components/ui/toaster'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
@@ -19,6 +17,7 @@ import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
+import { EditorSpeakerPopover } from './components/EditorSpeakerPopover'
 import { SpeakerSummaryButton } from './components/SpeakerSummaryButton'
 import { SpeakersSidebar, type SpeakersSidebarHandle } from './components/SpeakersSidebar'
 import { useEditorData, wordTimingsFailedToast } from './hooks/useEditorData'
@@ -242,8 +241,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const canReplace = !holds.any && !reconnecting
   const search = useTranscriptSearch({
     segments: data.segments,
-    editingTexts: editing.editingTexts,
-    setEditingTexts: editing.setEditingTexts,
     scheduleSave: editing.scheduleSave,
     scheduleSaves: editing.scheduleSaves,
     setEditingId: editing.setEditingId,
@@ -344,14 +341,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     attachExpanded(element)
     expandedWaveformContainerRef(element)
   }, [attachExpanded, expandedWaveformContainerRef])
-
-  const didInteractOutsidePopoverRef = useRef(false)
-  // True while the popover holds a name over the length limit; an outside click
-  // then leaves it open rather than discarding the typed name.
-  const holdSpeakerPopoverOpenRef = useRef(false)
-  const setHoldSpeakerPopoverOpen = useCallback((hold: boolean) => {
-    holdSpeakerPopoverOpenRef.current = hold
-  }, [])
 
   return (
     <div className="editor-scroll-shell flex flex-col h-full relative">
@@ -521,13 +510,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               currentMatchSegId={search.currentMatch?.segId}
               displayForSpeaker={speakerHook.displayForSpeaker}
               editingId={editing.editingId}
-              editingTexts={editing.editingTexts}
               saveStatus={editing.saveStatus}
               onSegmentClick={playback.onSegmentClick}
               onWordClick={playback.onWordClick}
               onSpeakerClick={speakerHook.handleAvatarClick}
               setEditingId={editing.setEditingId}
-              setEditingTexts={editing.setEditingTexts}
+              getCurrentSegment={editing.getCurrentSegment}
               scheduleSave={editing.scheduleSave}
               onSplit={splitting.split}
               caretHint={editing.caretHint}
@@ -584,79 +572,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         onCopy={() => { void leaving.copyUnsaved() }}
       />
 
-      <Popover
-        open={!!speakerHook.speakerPopover}
-        onOpenChange={(open) => {
-          if (!open) {
-            const reason = didInteractOutsidePopoverRef.current ? 'outside' : 'dismiss'
-            didInteractOutsidePopoverRef.current = false
-            speakerHook.closeSpeakerPopover(reason)
-          }
-        }}
-      >
-        <PopoverAnchor virtualRef={speakerHook.anchorRef} />
-        <PopoverContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          className="w-[min(20rem,calc(100vw-2rem))] overflow-hidden p-0"
-          aria-label="Speaker assignment"
-          // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
-          // own search input on mount (SpeakerPopoverContent.tsx useEffect)
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          onInteractOutside={(event) => {
-            if (holdSpeakerPopoverOpenRef.current) {
-              event.preventDefault()
-              return
-            }
-            // Radix dismisses after the click, so a press on a speaker name
-            // would close the picker that name's click just opened. The click
-            // decides instead: another name moves the picker, the same one
-            // closes it (handleAvatarClick).
-            if (event.detail.originalEvent.type === 'pointerdown'
-              && event.target instanceof Element && event.target.closest('[data-speaker-trigger]')) {
-              event.preventDefault()
-              return
-            }
-            didInteractOutsidePopoverRef.current = true
-          }}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-
-            const shouldRestoreFocus =
-              speakerHook.closeReasonRef.current !== 'outside' &&
-              speakerHook.closeReasonRef.current !== 'external'
-            const triggerElement = speakerHook.lastTriggerElementRef.current
-
-            if (shouldRestoreFocus && triggerElement?.isConnected) {
-              window.setTimeout(() => triggerElement.focus(), 0)
-            }
-
-            didInteractOutsidePopoverRef.current = false
-            speakerHook.closeReasonRef.current = null
-          }}
-        >
-          <PopoverFrozenWhileClosed open={!!speakerHook.speakerPopover}>
-            <SpeakerPopoverContent
-              key={speakerHook.speakerPopover?.segmentId}
-              transcriptId={transcriptId}
-              presentation={speakerHook.presentation}
-              peopleContext={data.peopleContext}
-              currentSpeaker={speakerHook.currentSpeaker}
-              scopes={speakerHook.scopes}
-              removable={speakerHook.removable}
-              onSelectTarget={speakerHook.selectTarget}
-              onRemove={speakerHook.removeSpeaker}
-              onRenameLocal={speakerHook.renameLocal}
-              onRenamePerson={speakerHook.renameLinkedPerson}
-              labelForSpeaker={speakerHook.labelForSpeaker}
-              displayForSpeaker={speakerHook.displayForSpeaker}
-              onHoldOpenChange={setHoldSpeakerPopoverOpen}
-              onShowInSpeakers={showInSpeakers}
-            />
-          </PopoverFrozenWhileClosed>
-        </PopoverContent>
-      </Popover>
+      <EditorSpeakerPopover
+        transcriptId={transcriptId}
+        peopleContext={data.peopleContext}
+        speakerHook={speakerHook}
+        showInSpeakers={showInSpeakers}
+      />
     </div>
   )
 }

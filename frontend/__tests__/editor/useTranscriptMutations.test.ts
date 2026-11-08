@@ -285,14 +285,12 @@ describe('useTranscriptMutations', () => {
       const { result, onExternalChange } = setup([seg('seg-1', 'first half second half')])
       act(() => {
         result.current.setEditingId('seg-1')
-        result.current.setEditingTexts({ 'seg-1': 'first half second half, edited' })
         result.current.scheduleSave('seg-1', 'first half second half, edited')
       })
       await settle(SAVE_DEBOUNCE_MS)
 
       expect(mockFetchSegmentsWithWords).toHaveBeenCalledTimes(1)
       expect(result.current.segments.map((s) => [s.id, s.text])).toEqual([['seg-1', 'first half'], ['seg-2', 'second half']])
-      expect(result.current.editingTexts['seg-1']).toBe('first half')
       expect(mockToast).toHaveBeenCalledTimes(1)
       const shown = mockToast.mock.calls[0][0]
       expect(shown).toMatchObject({
@@ -549,11 +547,10 @@ describe('useTranscriptMutations', () => {
       const { result } = setup([seg('a', 'first'), seg('b', 'second')])
       act(() => {
         result.current.setEditingId('b')
-        result.current.setEditingTexts({ b: 'second' })
       })
       await act(async () => { await result.current.reloadSegments() })
       expect(result.current.editingId).toBeNull()
-      expect(result.current.editingTexts).toEqual({})
+      expect(result.current.getCurrentSegment('b')).toBeUndefined()
     })
 
     it('changes nothing when the database refuses the read', async () => {

@@ -217,6 +217,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   const closeSpeakerPopover = useCallback((reason: SpeakerPopoverCloseReason = 'dismiss') => {
     closeReasonRef.current = reason; setSpeakerPopover(null)
   }, [])
+  const takeCloseReason = useCallback(() => {
+    const reason = closeReasonRef.current
+    closeReasonRef.current = null
+    return reason
+  }, [])
   const handleAvatarClick = useCallback((event: React.MouseEvent, segmentId: string, speakerId: string | null) => {
     event.stopPropagation()
     if (blocked([segmentId])) return
@@ -297,7 +302,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     if (personId) execute('rename person', () => renamePersonAction(store, personId, name), [...store.segments().filter(s => store.speakers().some(sp => sp.id === s.speaker_id && sp.person_id === personId)).map(s => s.id), `person:${personId}`])
   }, [currentSpeaker, execute, store, closeSpeakerPopover])
 
-  return { speakerPopover, setSpeakerPopover, closeSpeakerPopover, closeReasonRef,
+  return { speakerPopover, setSpeakerPopover, closeSpeakerPopover, takeCloseReason,
     lastTriggerElementRef, anchorRef, presentation, displayForSpeaker, labelForSpeaker,
     currentSpeaker, selectedSegment, scopes, removable,
     handleAvatarClick, selectTarget, removeSpeaker, renameLocal, renameLinkedPerson, refresh }

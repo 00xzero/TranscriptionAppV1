@@ -36,13 +36,13 @@ it('server-renders the current segment without a store error and without highlig
         speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
         needHeader
         isEditing={false}
-        editingText={undefined}
+
         saveStatus={undefined}
         onSegmentClick={() => {}}
         onWordClick={() => {}}
         onSpeakerClick={() => {}}
         setEditingId={() => {}}
-        setEditingTexts={() => {}}
+        getCurrentSegment={() => undefined}
         scheduleSave={() => {}}
         busy={undefined}
         locked={false}

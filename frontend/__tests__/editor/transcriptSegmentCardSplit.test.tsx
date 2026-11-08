@@ -31,13 +31,13 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     speakerLabel: 'Speaker 1', speakerColor: '#4F638C', speakerAvatar: 'S1', speakerOrganisation: null,
     needHeader: false,
     isEditing: true,
-    editingText: TEXT,
+
     saveStatus: undefined,
     onSegmentClick: jest.fn(),
     onWordClick: jest.fn(),
     onSpeakerClick: jest.fn(),
     setEditingId: jest.fn(),
-    setEditingTexts: jest.fn(),
+    getCurrentSegment: () => segment,
     scheduleSave: jest.fn(),
     onSplit: jest.fn(),
     caretHint: () => undefined,
@@ -57,7 +57,7 @@ function setup(overrides: Partial<TranscriptSegmentCardProps> = {}) {
     fireEvent.keyUp(textarea, { key: 'ArrowLeft' })
   }
   const splitButton = () => screen.getByRole('button', { name: 'Split segment here' })
-  return { props, textarea, placeCaret, splitButton, rerender }
+  return { props, textarea, placeCaret, splitButton, rerender, unmount: view.unmount }
 }
 
 describe('splitting from the segment editor', () => {
@@ -149,7 +149,7 @@ describe('splitting from the segment editor', () => {
     let hint: { start: number; end: number; seq: number } | undefined
     const { textarea, rerender } = setup({ caretHint: () => hint })
     hint = { start: 6, end: 11, seq: 2 }
-    rerender({ editingText: 'Hello world, friend.', caretHint: () => hint })
+    rerender({ segment: { ...segment, text: 'Hello world, friend.' }, caretHint: () => hint })
     expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([6, 11])
   })
 
@@ -167,7 +167,7 @@ describe('splitting from the segment editor', () => {
       placeCaret(5)
 
       const joined = `${TEXT} And the second half, joined back by an undo.`
-      rerender({ editingText: joined })
+      rerender({ segment: { ...segment, text: joined } })
       expect(textarea.value).toBe(joined)
       expect(textarea.style.height).toBe(`${20 + joined.length}px`)
       expect(textarea.selectionStart).toBe(5)
@@ -189,9 +189,9 @@ describe('splitting from the segment editor', () => {
           segment={segment} sourceWords={sourceWords} busy={undefined} isActive={false}
           playbackClock={createPlaybackClock()} matchesForSeg={[]} matchIndex={-1}
           speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
-          needHeader isEditing={false} editingText={undefined} saveStatus={undefined}
+          needHeader isEditing={false} saveStatus={undefined}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
-          setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
+          setEditingId={jest.fn()} getCurrentSegment={() => segment} scheduleSave={jest.fn()}
           onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}
           onTextInput={jest.fn()} sealTyping={jest.fn()} onHistory={jest.fn()}
         />
@@ -285,9 +285,9 @@ describe('the undo history from the segment editor', () => {
           segment={segment} sourceWords={sourceWords} busy={undefined} isActive={false}
           playbackClock={createPlaybackClock()} matchesForSeg={[]} matchIndex={-1}
           speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
-          needHeader isEditing={false} editingText={undefined} saveStatus={undefined}
+          needHeader isEditing={false} saveStatus={undefined}
           onSegmentClick={jest.fn()} onWordClick={jest.fn()} onSpeakerClick={jest.fn()}
-          setEditingId={jest.fn()} setEditingTexts={jest.fn()} scheduleSave={jest.fn()}
+          setEditingId={jest.fn()} getCurrentSegment={() => segment} scheduleSave={jest.fn()}
           onSplit={jest.fn()} caretHint={() => undefined} locked={false} flashing={false}
           onTextInput={jest.fn()} sealTyping={sealTyping} onHistory={jest.fn()}
         />
@@ -329,6 +329,144 @@ describe('the undo history from the segment editor', () => {
     } finally {
       jest.useRealTimers()
     }
+  })
+
+  it('keeps the composition and selection across a same-text reload', () => {
+    const { props, textarea, rerender } = setup()
+    const preview = TEXT + 'にほ'
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: preview } })
+    textarea.setSelectionRange(TEXT.length, preview.length)
+    rerender({ segment: { ...segment, updated_at: '2026-11-08T12:00:00Z' } })
+    expect(textarea.value).toBe(preview)
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([TEXT.length, preview.length])
+    expect(props.scheduleSave).not.toHaveBeenCalled()
+    textarea.value = TEXT + '日本'
+    fireEvent.compositionEnd(textarea)
+    expect(props.scheduleSave).toHaveBeenCalledWith(segment.id, TEXT + '日本')
+  })
+
+  it.each(['insertCompositionText', 'insertText'])('keeps undo text and ignores invalidated composition input (%s)', (inputType) => {
+    const { props, textarea, rerender, splitButton, placeCaret } = setup()
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: TEXT + 'にほ' } })
+    const restored = { ...segment, text: TEXT + ' Again.' }
+    rerender({ segment: restored, getCurrentSegment: () => restored, caretHint: () => ({ start: 13, end: 19, seq: 1 }) })
+    expect(textarea.value).toBe(restored.text)
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([13, 19])
+    placeCaret(13)
+    expect(splitButton()).toBeDisabled()
+    fireEvent.compositionEnd(textarea, { data: '日本' })
+    expect(splitButton()).toBeEnabled()
+    fireEvent.input(textarea, { inputType, data: '日本', target: { value: TEXT + '日本' } })
+    expect(textarea.value).toBe(restored.text)
+    expect(props.onTextInput).not.toHaveBeenCalled()
+    expect(props.scheduleSave).not.toHaveBeenCalled()
+  })
+
+  describe('when the browser never ends an invalidated composition', () => {
+    const invalidate = () => {
+      const view = setup()
+      fireEvent.compositionStart(view.textarea)
+      fireEvent.change(view.textarea, { target: { value: TEXT + 'にほ' } })
+      const restored = { ...segment, text: TEXT + ' Again.' }
+      view.rerender({ segment: restored, getCurrentSegment: () => restored })
+      expect(view.textarea.value).toBe(restored.text)
+      return { ...view, restored }
+    }
+
+    it('ignores its composition input but saves the next plain input', () => {
+      const { props, textarea, restored } = invalidate()
+      fireEvent.input(textarea, { inputType: 'insertCompositionText', target: { value: TEXT + '日本' } })
+      expect(textarea.value).toBe(restored.text)
+      expect(props.scheduleSave).not.toHaveBeenCalled()
+
+      fireEvent.input(textarea, { inputType: 'insertText', data: '!', target: { value: restored.text + '!' } })
+      expect(props.onTextInput).toHaveBeenCalledTimes(1)
+      expect(props.scheduleSave).toHaveBeenCalledWith(segment.id, restored.text + '!')
+    })
+
+    it('hands Escape back to the editor once a key comes from outside the input method', () => {
+      const { props, textarea } = invalidate()
+      const imeEscape = createEvent.keyDown(textarea, { key: 'Escape', keyCode: 229 })
+      fireEvent(textarea, imeEscape)
+      expect(imeEscape.defaultPrevented).toBe(false)
+      expect(props.setEditingId).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(textarea, { key: 'Escape' })
+      expect(props.setEditingId).toHaveBeenCalledWith(null)
+      expect(props.scheduleSave).not.toHaveBeenCalled()
+    })
+
+    it('lets Enter split once a key comes from outside the input method', () => {
+      const { props, textarea, placeCaret, splitButton } = invalidate()
+      placeCaret(13)
+      fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+      expect(props.onSplit).not.toHaveBeenCalled()
+      expect(splitButton()).toBeDisabled()
+
+      fireEvent.keyDown(textarea, { key: 'Enter' })
+      expect(props.onSplit).toHaveBeenCalledWith(segment.id, TEXT + ' Again.', 13)
+      expect(splitButton()).toBeEnabled()
+    })
+  })
+
+  it('rejects a composition if a queued update changes the live row before React renders it', () => {
+    let live = segment
+    const { props, textarea } = setup({ getCurrentSegment: () => live })
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: TEXT + '日本' } })
+    live = { ...segment, revision: segment.revision + 1 }
+    fireEvent.compositionEnd(textarea)
+    expect(props.onTextInput).not.toHaveBeenCalled()
+    expect(props.scheduleSave).not.toHaveBeenCalled()
+  })
+
+  it('leaves Escape with the IME and does not save a cancelled composition', () => {
+    const { props, textarea } = setup()
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: TEXT + 'に' } })
+    const escape = createEvent.keyDown(textarea, { key: 'Escape' })
+    fireEvent(textarea, escape)
+    expect(escape.defaultPrevented).toBe(false)
+    expect(props.setEditingId).not.toHaveBeenCalled()
+    textarea.value = TEXT
+    fireEvent.compositionEnd(textarea)
+    expect(props.onTextInput).not.toHaveBeenCalled()
+    expect(props.scheduleSave).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea, { key: 'Escape' })
+    expect(props.setEditingId).toHaveBeenCalledWith(null)
+  })
+
+  it('saves a native click-away confirmation before the close button ends the session', () => {
+    const { props, textarea } = setup()
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: TEXT + 'にほ' } })
+    textarea.addEventListener('blur', () => {
+      textarea.value = TEXT + '日本'
+      fireEvent.compositionEnd(textarea)
+    }, { once: true })
+
+    fireEvent.click(screen.getByRole('button', { name: /Close text editor/ }))
+
+    expect(props.onTextInput).toHaveBeenCalledTimes(1)
+    expect(props.scheduleSave).toHaveBeenCalledTimes(1)
+    expect(props.scheduleSave).toHaveBeenCalledWith(segment.id, TEXT + '日本')
+    expect((props.scheduleSave as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+      (props.setEditingId as jest.Mock).mock.invocationCallOrder[0],
+    )
+  })
+
+  it('drops unconfirmed text on virtual row unmount and starts with optimistic text on remount', () => {
+    const pending = { ...segment, text: TEXT + ' pending' }
+    const { props, textarea, unmount } = setup({ segment: pending })
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: pending.text + 'にほ' } })
+    expect(textarea.value).toBe(pending.text + 'にほ')
+    unmount()
+    expect(props.scheduleSave).not.toHaveBeenCalled()
+    expect(props.onTextInput).not.toHaveBeenCalled()
+    expect(setup({ segment: pending }).textarea.value).toBe(pending.text)
   })
 
   it('keeps the edit ring while lit after an undo', () => {

@@ -34,6 +34,7 @@ export function useTranscriptSync({
   const waveformTransitioningRef = useRef(false)
   const waveformTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
+  const rangeUpdatePending = useRef(false)
   const segmentsRef = useRef(segments)
   const prevEditingBlockedRef = useRef<boolean>(false)
   const prevPopoverBlockedRef = useRef<boolean>(false)
@@ -205,8 +206,8 @@ export function useTranscriptSync({
     scrollToSegmentIndexImpl(idx, opts)
   }, [markProgrammaticScroll, scrollToSegmentIndexImpl])
 
-  const handleRangeChanged = useCallback((range: ListRange) => {
-    visibleRangeRef.current = range
+  const updateSyncDirection = useCallback(() => {
+    const range = visibleRangeRef.current
     const { activeSegId } = machineStateRef.current
     if (!activeSegId) return
     const activeIdx = segmentsRef.current.findIndex((segment) => segment.id === activeSegId)
@@ -215,9 +216,21 @@ export function useTranscriptSync({
     else if (activeIdx > range.endIndex) setSyncDirection('down')
   }, [machineStateRef])
 
+  const handleRangeChanged = useCallback((range: ListRange) => {
+    visibleRangeRef.current = range
+    if (rangeUpdatePending.current) return
+    rangeUpdatePending.current = true
+    // Virtuoso can report from a child layout effect before segmentsRef has
+    // the committed rows. Keep the range immediately but defer the comparison.
+    void Promise.resolve().then(() => {
+      rangeUpdatePending.current = false
+      updateSyncDirection()
+    })
+  }, [updateSyncDirection])
+
   useEffect(() => {
-    handleRangeChanged(visibleRangeRef.current)
-  }, [handleRangeChanged, machineState.activeSegId, segments])
+    updateSyncDirection()
+  }, [updateSyncDirection, machineState.activeSegId, segments])
 
   // Collapse waveform once most of the in-flow player has scrolled away.
   useEffect(() => {

@@ -44,7 +44,6 @@ export function useTranscriptMutations({
   onExternalChange?: (quiet: boolean) => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
   const saveTimers = useRef<Record<string, number>>({})
   const statusDeadlines = useRef(new Map<string, number>())
@@ -179,15 +178,11 @@ export function useTranscriptMutations({
       const draft = drafts.current.get(row.id)
       return draft ? { ...row, text: draft.text } : row
     })
-    const textById = new Map(next.map((row) => [row.id, row.text]))
     // Worked out once: a live store runs its updater again inside React.
     const grouped = groupSourceWords(wordRows)
     segments.update(() => next)
     words.update(() => grouped)
-    setEditingTexts((prev) => Object.fromEntries(
-      Object.keys(prev).flatMap((id) => textById.has(id) ? [[id, textById.get(id)!]] : [])
-    ))
-    setEditingId((prev) => (prev && textById.has(prev) ? prev : null))
+    setEditingId((prev) => (prev && fetched.has(prev) ? prev : null))
     if (external) onExternalChange?.(dropped.length > 0)
     if (dropped.length > 0) toastUnsaved(CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, dropped)
     return true
@@ -276,7 +271,6 @@ export function useTranscriptMutations({
     const show = (pairs: readonly (readonly [string, string])[]) => {
       const map = new Map(pairs)
       segments.update((rows) => rows.map((row) => map.has(row.id) ? { ...row, text: map.get(row.id)! } : row))
-      setEditingTexts((prev) => Object.fromEntries(Object.entries(prev).map(([id, text]) => [id, map.get(id) ?? text])))
     }
     show(request.map((e) => [e.segment_id, e.text] as const))
     applied()
@@ -354,12 +348,15 @@ export function useTranscriptMutations({
     }, SAVE_DEBOUNCE_MS)
   }, [segments, showSaveStatuses, clearSaveTimer, saveAll])
 
+  const getCurrentSegment = useCallback((segId: string) =>
+    segments.get().find((row) => row.id === segId), [segments])
+
   const scheduleSave = useCallback((segId: string, text: string) => {
-    const segment = segments.get().find((row) => row.id === segId)
+    const segment = getCurrentSegment(segId)
     if (!segment) return
     captureDraft(segment, text)
     stageSave(new Map([[segId, text]]), segId)
-  }, [segments, captureDraft, stageSave])
+  }, [getCurrentSegment, captureDraft, stageSave])
 
   const scheduleSaves = useCallback((edits: readonly TextEdit[]) => {
     const rows = new Map(segments.get().map((row) => [row.id, row]))
@@ -412,7 +409,7 @@ export function useTranscriptMutations({
 
   return {
     editingId, setEditingId,
-    editingTexts, setEditingTexts,
+    getCurrentSegment,
     saveStatus,
     scheduleSave, scheduleSaves,
     saveNow,

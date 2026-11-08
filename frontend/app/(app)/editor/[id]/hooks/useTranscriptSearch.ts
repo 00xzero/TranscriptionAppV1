@@ -39,8 +39,6 @@ function findTextMatches(text: string, needle: string, caseSensitive: boolean, w
 
 export function useTranscriptSearch({
   segments,
-  editingTexts,
-  setEditingTexts,
   scheduleSave,
   scheduleSaves,
   setEditingId,
@@ -51,8 +49,6 @@ export function useTranscriptSearch({
   canReplace, recordReplace,
 }: {
   segments: Seg[]
-  editingTexts: Record<string, string>
-  setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
   scheduleSave: (segId: string, newText: string) => void
   scheduleSaves: (edits: readonly TextEdit[]) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
@@ -87,13 +83,13 @@ export function useTranscriptSearch({
     const needle = caseSensitive ? findTerm : findTerm.toLowerCase()
     const found: Match[] = []
     for (const seg of segments) {
-      const text = editingTexts[seg.id] ?? seg.text ?? ''
+      const text = seg.text
       for (const range of findTextMatches(text, needle, caseSensitive, wholeWord)) {
         found.push({ segId: seg.id, ...range })
       }
     }
     return found
-  }, [segments, editingTexts, findTerm, caseSensitive, wholeWord])
+  }, [segments, findTerm, caseSensitive, wholeWord])
 
   const matchesBySeg = useMemo(() => {
     const map = new Map<string, SegmentMatch[]>()
@@ -157,13 +153,12 @@ export function useTranscriptSearch({
     if (!currentMatch || !canReplace) return
     const seg = segments.find((s: Seg) => s.id === currentMatch.segId)
     if (!seg) return
-    const text = editingTexts[seg.id] ?? seg.text ?? ''
+    const text = seg.text
     const before = text.slice(0, currentMatch.index)
     const after = text.slice(currentMatch.index + currentMatch.length)
     const updated = before + replaceTerm + after
     if (updated !== text) {
       recordReplace?.([{ segId: seg.id, before: text, after: updated }], { start: currentMatch.index, end: currentMatch.index + currentMatch.length })
-      setEditingTexts((prev) => ({ ...prev, [seg.id]: updated }))
       scheduleSave(seg.id, updated)
     }
 
@@ -180,7 +175,7 @@ export function useTranscriptSearch({
     // If only matches touching the insertion remain, let the user choose
     // one explicitly with Next/Previous rather than replacing it again.
     else setMatchIndex(-1)
-  }, [currentMatch, canReplace, segments, editingTexts, replaceTerm, scheduleSave, setEditingTexts, recordReplace,
+  }, [currentMatch, canReplace, segments, replaceTerm, scheduleSave, recordReplace,
     matches, matchesBySeg, totalMatches, caseSensitive, findTerm, wholeWord])
 
   const handleReplaceAll = useCallback(() => {
@@ -189,7 +184,7 @@ export function useTranscriptSearch({
     for (const segment of segments) {
       const ranges = matchesBySeg.get(segment.id)
       if (!ranges?.length) continue
-      const before = editingTexts[segment.id] ?? segment.text ?? ''
+      const before = segment.text
       const pieces: string[] = []
       let end = 0
       for (const range of ranges) {
@@ -202,13 +197,8 @@ export function useTranscriptSearch({
     }
     if (!edits.length) return
     recordReplace?.(edits, undefined, true)
-    setEditingTexts((previous) => {
-      const next = { ...previous }
-      for (const { segId, after } of edits) if (Object.hasOwn(next, segId)) next[segId] = after
-      return next
-    })
     scheduleSaves(edits)
-  }, [totalMatches, canReplace, matchesBySeg, segments, editingTexts, replaceTerm, scheduleSaves, setEditingTexts, recordReplace])
+  }, [totalMatches, canReplace, matchesBySeg, segments, replaceTerm, scheduleSaves, recordReplace])
 
   // Debounce findInput into findTerm
   useEffect(() => {

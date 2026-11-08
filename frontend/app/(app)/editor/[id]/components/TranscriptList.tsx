@@ -26,13 +26,12 @@ export type TranscriptListProps = {
   currentMatchSegId: string | undefined
   displayForSpeaker: (speakerId: string | null) => SpeakerDisplay
   editingId: string | null
-  editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
   onSpeakerClick: (e: React.MouseEvent, segmentId: string, speakerId: string | null) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
-  setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  getCurrentSegment: (segId: string) => Seg | undefined
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
   caretHint: (segId: string) => CaretHint | undefined
@@ -62,13 +61,12 @@ function TranscriptList({
   currentMatchSegId,
   displayForSpeaker,
   editingId,
-  editingTexts,
   saveStatus,
   onSegmentClick,
   onWordClick,
   onSpeakerClick,
   setEditingId,
-  setEditingTexts,
+  getCurrentSegment,
   scheduleSave,
   onSplit,
   caretHint,
@@ -116,13 +114,12 @@ function TranscriptList({
                 speakerOrganisation={speaker.organisation}
                 needHeader={needHeader}
                 isEditing={isEditing}
-                editingText={isEditing ? editingTexts[s.id] : undefined}
                 saveStatus={saveStatus[s.id]}
                 onSegmentClick={onSegmentClick}
                 onWordClick={onWordClick}
                 onSpeakerClick={onSpeakerClick}
                 setEditingId={setEditingId}
-                setEditingTexts={setEditingTexts}
+                getCurrentSegment={getCurrentSegment}
                 scheduleSave={scheduleSave}
                 onSplit={onSplit}
                 caretHint={caretHint}
