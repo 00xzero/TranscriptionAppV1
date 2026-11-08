@@ -781,6 +781,33 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(document.querySelector('[data-testid="segment-card"] textarea')).toBeNull()
   })
 
+  test('preserves redo when undo invalidates a composition in the same segment', async () => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+    await waitForEditorContent()
+    await user.click(screen.getAllByRole('button', { name: /Edit transcript text/i })[0])
+    const textarea = screen.getByRole('textbox', { name: /Transcript text/i }) as HTMLTextAreaElement
+    const original = textarea.value
+    const edited = original + '!'
+    fireEvent.change(textarea, { target: { value: edited } })
+    await waitFor(() => expect(supabaseQueries.setSegmentTexts).toHaveBeenCalledTimes(1))
+
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: edited + 'に' } })
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'historyUndo', bubbles: true, cancelable: true }))
+    await waitFor(() => expect(textarea.value).toBe(original))
+
+    fireEvent.compositionEnd(textarea)
+    fireEvent.input(textarea, { inputType: 'insertCompositionText', target: { value: edited + '日本' } })
+    expect(textarea.value).toBe(original)
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'historyRedo', bubbles: true, cancelable: true }))
+    await waitFor(() => expect(textarea.value).toBe(edited))
+
+    expect((supabaseQueries.setSegmentTexts as jest.Mock).mock.calls.flatMap(([edits]) => edits.map(
+      (edit: { text: string }) => edit.text,
+    ))).toEqual([edited, original, edited])
+  })
+
   test('the header speaker summary opens the sidebar, whose jumps scroll once to the turn', async () => {
     const user = userEventLib.setup()
     renderEditorScreen()
