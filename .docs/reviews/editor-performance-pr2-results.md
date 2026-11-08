@@ -103,6 +103,12 @@ card, DevTools confirmed Japanese text in the middle of a line. The caret stayed
 immediately after the insertion, with one save callback and one history entry.
 The harness used an in-memory save callback.
 
+An undo or reload can invalidate a composition that the browser then ends
+without a `compositionend` event. The editor now clears the stale state on
+the next ordinary input or key press. Regression tests cover resuming typing,
+Escape and Enter while continuing to ignore input from the invalidated
+composition.
+
 ## Automated checks
 
 - Full Jest passed with 229 suites, 3,022 tests and seven snapshots. Jest

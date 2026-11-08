@@ -174,6 +174,15 @@ export function useSegmentTextInput({
     if (node && !composition.current) onSplit(s.id, node.value, node.selectionStart)
   }
   const focus = () => textAreaRef.current?.focus({ preventScroll: true })
+  // An undo or reload discarded this composition's text. A browser may end the
+  // composition without sending compositionend, so input or a key press outside
+  // a composition means it is over.
+  const endStaleComposition = (native: { isComposing?: boolean }, imeKey = false) => {
+    if (!composition.current?.invalidated || native.isComposing || imeKey) return false
+    composition.current = null
+    setPreview(null)
+    return true
+  }
   const handlers = {
     onFocus: (e: React.FocusEvent<HTMLTextAreaElement>) => trackCaret(e.currentTarget.selectionStart),
     onSelect: (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
@@ -213,8 +222,9 @@ export function useSegmentTextInput({
       const native = e.nativeEvent as InputEvent
       const captured = beforeInput.current
       beforeInput.current = null
+      if (composition.current?.invalidated &&
+          !endStaleComposition(native, !!native.inputType?.includes('Composition'))) return
       const active = composition.current
-      if (active?.invalidated) return
       const completed = completedComposition.current
       if (!active && (native.isComposing || native.inputType?.includes('Composition') ||
           completed?.text === after.text ||
@@ -243,6 +253,7 @@ export function useSegmentTextInput({
         return
       }
       if (CARET_KEYS.has(e.key)) sealTyping(s.id)
+      endStaleComposition(e.nativeEvent, e.keyCode === 229)
       const ime = !!composition.current || e.nativeEvent.isComposing || e.keyCode === 229
       if (e.key === 'Escape' && !ime) {
         e.preventDefault()

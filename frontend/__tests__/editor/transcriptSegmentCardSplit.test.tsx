@@ -364,6 +364,53 @@ describe('the undo history from the segment editor', () => {
     expect(props.scheduleSave).not.toHaveBeenCalled()
   })
 
+  describe('when the browser never ends an invalidated composition', () => {
+    const invalidate = () => {
+      const view = setup()
+      fireEvent.compositionStart(view.textarea)
+      fireEvent.change(view.textarea, { target: { value: TEXT + 'にほ' } })
+      const restored = { ...segment, text: TEXT + ' Again.' }
+      view.rerender({ segment: restored, getCurrentSegment: () => restored })
+      expect(view.textarea.value).toBe(restored.text)
+      return { ...view, restored }
+    }
+
+    it('ignores its composition input but saves the next plain input', () => {
+      const { props, textarea, restored } = invalidate()
+      fireEvent.input(textarea, { inputType: 'insertCompositionText', target: { value: TEXT + '日本' } })
+      expect(textarea.value).toBe(restored.text)
+      expect(props.scheduleSave).not.toHaveBeenCalled()
+
+      fireEvent.input(textarea, { inputType: 'insertText', data: '!', target: { value: restored.text + '!' } })
+      expect(props.onTextInput).toHaveBeenCalledTimes(1)
+      expect(props.scheduleSave).toHaveBeenCalledWith(segment.id, restored.text + '!')
+    })
+
+    it('hands Escape back to the editor once a key comes from outside the input method', () => {
+      const { props, textarea } = invalidate()
+      const imeEscape = createEvent.keyDown(textarea, { key: 'Escape', keyCode: 229 })
+      fireEvent(textarea, imeEscape)
+      expect(imeEscape.defaultPrevented).toBe(false)
+      expect(props.setEditingId).not.toHaveBeenCalled()
+
+      fireEvent.keyDown(textarea, { key: 'Escape' })
+      expect(props.setEditingId).toHaveBeenCalledWith(null)
+      expect(props.scheduleSave).not.toHaveBeenCalled()
+    })
+
+    it('lets Enter split once a key comes from outside the input method', () => {
+      const { props, textarea, placeCaret, splitButton } = invalidate()
+      placeCaret(13)
+      fireEvent.keyDown(textarea, { key: 'Enter', keyCode: 229 })
+      expect(props.onSplit).not.toHaveBeenCalled()
+      expect(splitButton()).toBeDisabled()
+
+      fireEvent.keyDown(textarea, { key: 'Enter' })
+      expect(props.onSplit).toHaveBeenCalledWith(segment.id, TEXT + ' Again.', 13)
+      expect(splitButton()).toBeEnabled()
+    })
+  })
+
   it('rejects a composition if a queued update changes the live row before React renders it', () => {
     let live = segment
     const { props, textarea } = setup({ getCurrentSegment: () => live })
