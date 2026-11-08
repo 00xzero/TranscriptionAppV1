@@ -81,6 +81,7 @@ export interface AudioPlayerProps {
 export interface AudioPlayerRef {
   play: () => void
   pause: () => void
+  reload: () => void
   togglePlay: () => void
   seekToMs: (ms: number) => void
   beginScrub: () => void
@@ -304,15 +305,38 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     else onTimeUpdate?.(nextTime)
   }, [onScrubPreview, resolveDuration, queuePendingScrubFraction, clearPendingScrubFraction, clampFraction, onTimeUpdate])
 
+  const resetSource = useCallback(() => {
+    readyRef.current = false
+    setReady(false)
+    setCurrentTime(0)
+    setDuration(0)
+    lastEmittedDurationRef.current = 0
+    didPrimeSafariWebmRef.current = false
+    pendingSeekRef.current = null
+    latestScrubTimeRef.current = 0
+    lastEmittedTimeRef.current = -Infinity
+    clearPendingScrubFraction()
+    isScrubbingRef.current = false
+    cancelPendingScrubFrame()
+    wasPlayingBeforeDragRef.current = false
+  }, [cancelPendingScrubFrame, clearPendingScrubFraction])
+
   // Expose imperative methods
   useImperativeHandle(ref, () => ({
     play: () => audioRef.current?.play(),
     pause: () => audioRef.current?.pause(),
+    reload: () => {
+      resetSource()
+      audioRef.current?.load()
+    },
     togglePlay: () => {
       const audio = audioRef.current
       if (!audio) return
       if (audio.paused) {
-        audio.play()
+        void audio.play().catch(() => {
+          setPlaying(false)
+          onPlayingChange?.(false)
+        })
       } else {
         audio.pause()
       }
@@ -361,7 +385,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime])
+  }), [onPlayingChange, beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime, resetSource])
 
   // Audio event handlers
   useEffect(() => {
@@ -504,22 +528,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     if (!audioEngineOnly && audioRef.current) setCurrentTime(audioRef.current.currentTime)
   }, [audioEngineOnly])
 
-  // Only a new source needs a fresh readiness cycle.
+  // A source change and an explicit reload both start a new readiness cycle.
   useEffect(() => {
-    readyRef.current = false
-    setReady(false)
-    setCurrentTime(0)
-    setDuration(0)
-    lastEmittedDurationRef.current = 0
-    didPrimeSafariWebmRef.current = false
-    pendingSeekRef.current = null
-    latestScrubTimeRef.current = 0
-    lastEmittedTimeRef.current = -Infinity
-    clearPendingScrubFraction()
-    isScrubbingRef.current = false
-    cancelPendingScrubFrame()
-    wasPlayingBeforeDragRef.current = false
-  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
+    resetSource()
+  }, [resetSource, src])
 
   useEffect(() => () => {
     cancelPendingScrubFrame()

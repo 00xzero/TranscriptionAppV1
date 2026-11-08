@@ -637,6 +637,21 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     await waitForMatchSummary(/1 of 3 matches/i)
   })
 
+  test('clicking a Find result scrolls to the segment as the dialog closes', async () => {
+    renderEditorScreen()
+    await waitForEditorContent()
+    await openFindReplaceModalWithShortcut()
+    const input = screen.getByPlaceholderText(/Search text/i)
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitForMatchSummary(/1 of 3 matches/i)
+    scrollToIndexMock.mockClear()
+    fireEvent.click(screen.getAllByTitle('Jump to this match').at(-1)!)
+    expect(scrollToIndexMock).toHaveBeenCalledTimes(1)
+    expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({ index: 1 }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
   test('replaces one match and then replaces all remaining matches', async () => {
     const user = userEventLib.setup()
     renderEditorScreen()

@@ -38,7 +38,7 @@ export function useTranscriptSync({
   const prevEditingBlockedRef = useRef<boolean>(false)
   const prevPopoverBlockedRef = useRef<boolean>(false)
 
-  useEffect(() => { segmentsRef.current = segments }, [segments])
+  useLayoutEffect(() => { segmentsRef.current = segments }, [segments])
 
   const scrollContainerRef = useCallback((el: HTMLDivElement | null) => {
     transcriptScrollRef.current = el
@@ -207,21 +207,17 @@ export function useTranscriptSync({
 
   const handleRangeChanged = useCallback((range: ListRange) => {
     visibleRangeRef.current = range
-    if (!machineState.activeSegId) return
-    const activeIdx = segments.findIndex(s => s.id === machineState.activeSegId)
+    const { activeSegId } = machineStateRef.current
+    if (!activeSegId) return
+    const activeIdx = segmentsRef.current.findIndex((segment) => segment.id === activeSegId)
     if (activeIdx < 0) return
     if (activeIdx < range.startIndex) setSyncDirection('up')
     else if (activeIdx > range.endIndex) setSyncDirection('down')
-  }, [segments, machineState.activeSegId])
+  }, [machineStateRef])
 
   useEffect(() => {
-    if (!machineState.activeSegId) return
-    const activeIdx = segments.findIndex(s => s.id === machineState.activeSegId)
-    if (activeIdx < 0) return
-    const range = visibleRangeRef.current
-    if (activeIdx < range.startIndex) setSyncDirection('up')
-    else if (activeIdx > range.endIndex) setSyncDirection('down')
-  }, [machineState.activeSegId, segments])
+    handleRangeChanged(visibleRangeRef.current)
+  }, [handleRangeChanged, machineState.activeSegId, segments])
 
   // Collapse waveform once most of the in-flow player has scrolled away.
   useEffect(() => {

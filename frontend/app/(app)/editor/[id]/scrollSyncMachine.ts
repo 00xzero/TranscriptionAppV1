@@ -66,6 +66,25 @@ export function transitionScrollSyncState(
   currentState: ScrollSyncState,
   event: ScrollSyncEvent,
 ): { state: ScrollSyncState; commands: ScrollSyncCommand[] } {
+  const result = transition(currentState, event)
+  const next = result.state
+  if (currentState.mode === next.mode &&
+      currentState.activeSegId === next.activeSegId &&
+      currentState.hasUserScrolled === next.hasUserScrolled &&
+      currentState.resumeModeAfterSeek === next.resumeModeAfterSeek &&
+      currentState.seekLockUntil === next.seekLockUntil &&
+      currentState.programmaticScrollUntil === next.programmaticScrollUntil &&
+      currentState.editBlocked === next.editBlocked &&
+      currentState.popoverBlocked === next.popoverBlocked) {
+    return { state: currentState, commands: result.commands }
+  }
+  return result
+}
+
+function transition(
+  currentState: ScrollSyncState,
+  event: ScrollSyncEvent,
+): { state: ScrollSyncState; commands: ScrollSyncCommand[] } {
   const state = clearExpiredLocks(currentState, event.now)
   const commands: ScrollSyncCommand[] = []
 

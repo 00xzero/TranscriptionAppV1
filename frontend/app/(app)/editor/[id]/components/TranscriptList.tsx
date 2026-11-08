@@ -23,6 +23,7 @@ export type TranscriptListProps = {
   activeSegId: string | undefined
   matchesBySeg: Map<string, SegmentMatch[]>
   matchIndex: number
+  currentMatchSegId: string | undefined
   displayForSpeaker: (speakerId: string | null) => SpeakerDisplay
   editingId: string | null
   editingTexts: Record<string, string>
@@ -43,7 +44,10 @@ export type TranscriptListProps = {
   onHistory: (dir: 'undo' | 'redo') => void
 }
 
-export default function TranscriptList({
+const NO_MATCHES: readonly SegmentMatch[] = []
+const segmentKey = (_index: number, segment: Seg) => segment.id
+
+function TranscriptList({
   segments,
   wordsBySegment,
   busy,
@@ -55,6 +59,7 @@ export default function TranscriptList({
   activeSegId,
   matchesBySeg,
   matchIndex,
+  currentMatchSegId,
   displayForSpeaker,
   editingId,
   editingTexts,
@@ -82,7 +87,7 @@ export default function TranscriptList({
         data={segments}
         // Keyed by segment, so a split or undo inserting or removing a row
         // never hands one card's state (its textarea, caret) to another.
-        computeItemKey={(_idx: number, s: Seg) => s.id}
+        computeItemKey={segmentKey}
         overscan={1200}
         rangeChanged={onRangeChanged}
         itemContent={(idx: number, s: Seg) => {
@@ -90,7 +95,8 @@ export default function TranscriptList({
           // A new turn starts when the displayed identity changes (spec §3).
           const needHeader = idx === 0 ||
             speaker.identityKey !== displayForSpeaker(segments[idx - 1]?.speaker_id ?? null).identityKey
-          const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+          const matchesForSeg = matchesBySeg.get(s.id) ?? NO_MATCHES
+          const isEditing = editingId === s.id
           // Contain the card's top margin so Virtuoso measures the turn spacing
           // when replacing off-screen rows with padding.
           return (
@@ -103,12 +109,15 @@ export default function TranscriptList({
                 isActive={activeSegId === s.id}
                 playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
-                matchIndex={matchIndex}
-                speaker={speaker}
+                matchIndex={currentMatchSegId === s.id ? matchIndex : -1}
+                speakerLabel={speaker.label}
+                speakerColor={speaker.color}
+                speakerAvatar={speaker.avatarText}
+                speakerOrganisation={speaker.organisation}
                 needHeader={needHeader}
-                editingId={editingId}
-                editingTexts={editingTexts}
-                saveStatus={saveStatus}
+                isEditing={isEditing}
+                editingText={isEditing ? editingTexts[s.id] : undefined}
+                saveStatus={saveStatus[s.id]}
                 onSegmentClick={onSegmentClick}
                 onWordClick={onWordClick}
                 onSpeakerClick={onSpeakerClick}
@@ -130,3 +139,5 @@ export default function TranscriptList({
     </div>
   )
 }
+
+export default React.memo(TranscriptList)

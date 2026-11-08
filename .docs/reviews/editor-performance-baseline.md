@@ -134,3 +134,24 @@ not fixed or diagnosed by this work. Lint's 58 warnings are likewise retained.
   network transfer bytes, hosted behavior and long-session memory remain unverified.
 - No improvements are claimed in this baseline commit. Compare post-PR results
   against this report and record workload changes explicitly.
+
+## PR 1 enriched harness baseline
+
+Application tip `30861c2`. The harness now counts EditorScreen calls separately
+from subtree commits and tracks retained versus entering cards on scroll. The
+same command above passed all seven scenarios in 31.2 seconds with 5,000
+segments and 100,000 words.
+
+| Scenario | Card renders | EditorScreen calls | React render time |
+| --- | ---: | ---: | ---: |
+| Typing, median per key | 20 | 2 | 10.7 ms |
+| Playback, 10 ticks | 264 | 25 | 293.2 ms |
+| Playback, 4 ticks | 143 | 13 | 213 ms |
+| Scrub, median per move | 20 | 2 | 8.6 ms |
+| User scroll, 10 moves | 196 retained renders, 12 rows entered | 2 per move (median) | — |
+| Replace All click | 20 | — | 2,654.7 ms |
+| After Replace All | — | 2 | 9,850.9 ms |
+
+Find showed 9,998 matches in 820.2 ms wall time. Replace All took 3,185.6 ms wall
+time and sent one mock request with all 5,000 edits. These are jsdom measurements
+with mocked audio and data, including the limitations above for batched timers.

@@ -245,6 +245,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     editingTexts: editing.editingTexts,
     setEditingTexts: editing.setEditingTexts,
     scheduleSave: editing.scheduleSave,
+    scheduleSaves: editing.scheduleSaves,
     setEditingId: editing.setEditingId,
     scrollToSegmentIndex: sync.scrollToSegmentIndex,
     suspendFollow: sync.suspendFollow,
@@ -378,7 +379,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matches={search.matches}
         segments={data.segments}
         matchIndex={search.matchIndex}
-        onMatchClick={(idx: number) => search.setMatchIndex(idx)}
+        onMatchClick={search.jumpToMatch}
       />
 
       <div className="relative flex min-h-0 flex-1">
@@ -517,6 +518,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               activeSegId={currentSegId}
               matchesBySeg={search.matchesBySeg}
               matchIndex={search.matchIndex}
+              currentMatchSegId={search.currentMatch?.segId}
               displayForSpeaker={speakerHook.displayForSpeaker}
               editingId={editing.editingId}
               editingTexts={editing.editingTexts}

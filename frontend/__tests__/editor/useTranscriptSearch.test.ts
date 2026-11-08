@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { useTranscriptSearch } from '../../app/(app)/editor/[id]/hooks/useTranscriptSearch'
 import type { Seg } from '../../app/(app)/editor/[id]/types'
@@ -10,6 +11,7 @@ const defaultParams = {
   editingTexts: {},
   setEditingTexts: jest.fn(),
   scheduleSave: jest.fn(),
+  scheduleSaves: jest.fn(),
   setEditingId: jest.fn(),
   scrollToSegmentIndex: jest.fn(),
   suspendFollow: jest.fn(),
@@ -24,6 +26,7 @@ describe('useTranscriptSearch', () => {
     jest.useFakeTimers()
     defaultParams.setEditingTexts.mockClear()
     defaultParams.scheduleSave.mockClear()
+    defaultParams.scheduleSaves.mockClear()
     defaultParams.setEditingId.mockClear()
     defaultParams.scrollToSegmentIndex.mockClear()
     defaultParams.suspendFollow.mockClear()
@@ -51,6 +54,65 @@ describe('useTranscriptSearch', () => {
     expect(result.current.matches).toHaveLength(2)
     expect(result.current.matches[0]).toEqual({ segId: 's1', index: 0, length: 5 })
     expect(result.current.matches[1]).toEqual({ segId: 's2', index: 0, length: 5 })
+  })
+
+  it.each([
+    ['İstanbul the end', 'the', 9, 3, 'İstanbul X end'],
+    ['İstanbul', 'i', 0, 1, 'Xstanbul'],
+    ['İstanbul', 'i\u0307', 0, 1, 'Xstanbul'],
+    ['İ 𐐀', '𐐨', 2, 2, 'İ X'],
+    ['ΛΟΓΟΣ', 'λογος', 0, 5, 'X'],
+    ['İİİ', '\u0307i', 0, 2, 'Xİ'],
+  ])('uses source ranges for %s with %s', (text, query, index, length, replaced) => {
+    const { result } = renderHook(() => useTranscriptSearch({
+      ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+    }))
+    act(() => { result.current.setFindInput(query); result.current.setReplaceTerm('X') })
+    act(() => { jest.advanceTimersByTime(800) })
+    expect(result.current.matches).toEqual([{ segId: 's1', index, length }])
+    act(() => { result.current.handleReplaceAll() })
+    expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
+  })
+
+  function setupReplace(texts: string[], replacement: string) {
+    const segments = texts.map((text, i) => ({ ...defaultParams.segments[0], id: `s${i}`, text }))
+    const hook = renderHook(() => {
+      const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
+      return useTranscriptSearch({ ...defaultParams, segments, editingTexts, setEditingTexts })
+    })
+    act(() => { hook.result.current.setFindInput('the'); hook.result.current.setReplaceTerm(replacement) })
+    act(() => { jest.advanceTimersByTime(800) })
+    return hook.result
+  }
+
+  it('repeated Replace advances through adjacent matches and the next segment', () => {
+    const result = setupReplace(['thethe', 'the'], '')
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch).toMatchObject({ segId: 's0', index: 0 })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch).toMatchObject({ segId: 's1' })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.totalMatches).toBe(0)
+    expect(defaultParams.scheduleSave.mock.calls).toEqual([['s0', 'the'], ['s0', ''], ['s1', '']])
+  })
+
+  it('skips inserted matches and allows explicit navigation after the last replacement', () => {
+    const result = setupReplace(['the'], 'the the')
+    act(() => { result.current.handleReplace() })
+    expect(result.current.totalMatches).toBe(2)
+    expect(result.current.currentMatch).toBeNull()
+    act(() => { result.current.handleReplace() })
+    expect(defaultParams.scheduleSave).toHaveBeenCalledTimes(1)
+    act(() => { result.current.handlePrev() })
+    expect(result.current.currentMatch?.index).toBe(4)
+  })
+
+  it('wraps to an earlier match and does not save an unchanged replacement', () => {
+    const result = setupReplace(['the the'], 'the')
+    act(() => { result.current.handlePrev() })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch?.index).toBe(0)
+    expect(defaultParams.scheduleSave).not.toHaveBeenCalled()
   })
 
   it('debounces find input to findTerm', () => {

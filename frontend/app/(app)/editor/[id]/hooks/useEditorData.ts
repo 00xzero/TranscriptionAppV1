@@ -62,9 +62,14 @@ export function mergeSpeakerAssignments(
   fetched: readonly { id: string; speaker_id: string | null }[]
 ): Seg[] {
   const speakerIdBySegment = new Map(fetched.map((s) => [s.id, s.speaker_id]))
-  return current.map((s) =>
-    speakerIdBySegment.has(s.id) ? { ...s, speaker_id: speakerIdBySegment.get(s.id) ?? null } : s
-  )
+  let changed = false
+  const next = current.map((segment) => {
+    const speakerId = speakerIdBySegment.get(segment.id)
+    if (speakerId === undefined || speakerId === segment.speaker_id) return segment
+    changed = true
+    return { ...segment, speaker_id: speakerId }
+  })
+  return changed ? next : current
 }
 
 /**

@@ -1,213 +1,264 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { pageAccountFetch } from '@/lib/auth/account-bound-fetch'
+import { isAccountChangedError } from '@/lib/auth/account-boundary'
 
-/**
- * Hook to detect when user returns to the tab after idle time and
- * refresh the audio URL if it may have expired.
- * 
- * Supabase signed URLs expire after 1 hour. This hook:
- * 1. Tracks when the URL was last fetched
- * 2. On visibility change (tab becomes visible), checks if URL is stale
- * 3. Fetches a fresh URL and preserves playback position
- */
-
-// URL is considered stale if older than 50 minutes (buffer before 60-min expiry)
 const URL_STALE_THRESHOLD_MS = 50 * 60 * 1000
-const RECOVERY_WAIT_TIMEOUT_MS = 5000
+const STABLE_SOURCE_MS = 60_000
+const URL_REFRESH_TIMEOUT_MS = 15_000
+const PLAY_WAIT_MS = 5_000
 
-interface UseAudioSessionRecoveryOptions {
-  /** Transcript ID to fetch fresh URL for */
+interface RecoveryOptions {
   transcriptId: string
-  /** Current audio source URL */
   audioSrc: string | null
-  /** Audio element to manage (from AudioPlayer) */
   audioElement: HTMLAudioElement | null
-  /** Callback when a fresh URL is fetched */
-  onUrlRefreshed: (newUrl: string) => void
-  /** Optional callback for recovery errors */
-  onRecoveryError?: (error: string) => void
+  onUrlRefreshed: (url: string) => void
+  onRecoveryError?: (retry: () => void) => void
+  onPositionHold?: (hold: boolean) => void
+  lastPosition?: () => number | undefined
+  wasPlaying?: () => boolean
+  onResumeRejected?: () => void
 }
 
+type Recovery = {
+  audio: HTMLAudioElement
+  transcriptId: string
+  usedAutomaticAttempt: boolean
+  loadedAt?: number
+  reported: boolean
+  playIntent?: boolean
+  restore?: { position: number; play: boolean }
+  pendingSeek?: number
+  attempt?: AbortController
+  playWaitExpired?: boolean
+  removeSourceListeners?: () => void
+}
+
+async function fetchAudioUrl(transcriptId: string, attempt: AbortController): Promise<string> {
+  const { signal } = attempt
+  let onAbort!: () => void
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  const deadline = window.setTimeout(() => {
+    attempt.abort(new Error('Audio URL refresh timed out'))
+  }, URL_REFRESH_TIMEOUT_MS)
+
+  try {
+    const request = pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`, { signal }).then(async (response) => {
+      signal.throwIfAborted()
+      if (!response.ok) throw new Error(`Failed to refresh media URL: ${response.status}`)
+      const { url } = await response.json()
+      return url
+    })
+    // Token acquisition and response parsing can outlive the fetch signal.
+    return await Promise.race([request, aborted])
+  } finally {
+    window.clearTimeout(deadline)
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+/** Refreshes signed URLs and restores playback across source swaps. */
 export function useAudioSessionRecovery({
-  transcriptId,
-  audioSrc,
-  audioElement,
-  onUrlRefreshed,
-  onRecoveryError,
-}: UseAudioSessionRecoveryOptions) {
-  // Track when the current URL was fetched
-  const urlFetchedAtRef = useRef<number>(Date.now())
-  const isRecoveringRef = useRef(false)
-  const pendingRecoveryCleanupRef = useRef<(() => void) | null>(null)
+  transcriptId, audioSrc, audioElement, onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected,
+}: RecoveryOptions) {
+  const session = useRef<Recovery | null>(null)
+  const urlFetchedAt = useRef(Date.now())
+  const callbacks = useRef({ onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected })
+  useLayoutEffect(() => {
+    callbacks.current = { onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected }
+  }, [onUrlRefreshed, onRecoveryError, onPositionHold, lastPosition, wasPlaying, onResumeRejected])
 
-  const clearPendingRecoveryWait = useCallback(() => {
-    pendingRecoveryCleanupRef.current?.()
-    pendingRecoveryCleanupRef.current = null
-  }, [])
-
-  // Update timestamp when audioSrc changes (new fetch)
   useEffect(() => {
-    if (audioSrc) {
-      urlFetchedAtRef.current = Date.now()
-    }
+    if (audioSrc) urlFetchedAt.current = Date.now()
   }, [audioSrc])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!audioElement) return
+    const current: Recovery = { audio: audioElement, transcriptId, usedAutomaticAttempt: false, reported: false }
+    session.current = current
     return () => {
-      clearPendingRecoveryWait()
-      isRecoveringRef.current = false
+      session.current = null
+      current.attempt?.abort()
+      current.removeSourceListeners?.()
+      callbacks.current.onPositionHold?.(false)
     }
-  }, [clearPendingRecoveryWait])
+  }, [audioElement, transcriptId])
 
-  const refreshAudioUrl = useCallback(async () => {
-    if (isRecoveringRef.current) return
-    isRecoveringRef.current = true
+  const refreshAudioUrl = useCallback(async function refresh(manual = false, resume = false) {
+    const current = session.current
+    if (!current || current.audio !== audioElement || current.transcriptId !== transcriptId) return
+    const { audio } = current
 
-    const audio = audioElement
-    const wasPlaying = audio ? !audio.paused : false
-    const savedPosition = audio?.currentTime ?? 0
+    const holdPosition = () => {
+      current.restore ??= {
+        position: current.pendingSeek ?? (audio.currentTime || (audio.error && callbacks.current.lastPosition?.()) || 0),
+        play: !audio.paused || (!!audio.error && !!callbacks.current.wasPlaying?.()),
+      }
+      current.pendingSeek = undefined
+      callbacks.current.onPositionHold?.(true)
+    }
+    const reportFailure = () => {
+      if (!audio.error || current.reported) return
+      current.reported = true
+      callbacks.current.onRecoveryError?.(() => {
+        if (session.current === current && current.reported && audio.error) void refresh(true)
+      })
+    }
+    const releasePosition = () => {
+      current.restore = undefined
+      current.playIntent = undefined
+      callbacks.current.onPositionHold?.(false)
+    }
 
+    if (audio.error) holdPosition()
+    if (resume) current.playIntent = true
+    if (current.attempt) return
+
+    const stable = current.loadedAt !== undefined && Date.now() - current.loadedAt >= STABLE_SOURCE_MS
+    // Consume the load's credit even when this failure is suppressed.
+    current.loadedAt = undefined
+    if (!manual && current.usedAutomaticAttempt && !stable) {
+      reportFailure()
+      return
+    }
+
+    current.removeSourceListeners?.()
+    current.usedAutomaticAttempt = true
+    current.reported = false
+    const attempt = new AbortController()
+    current.attempt = attempt
     try {
-      const res = await pageAccountFetch(`/api/transcripts/${transcriptId}/media-url`)
-      if (!res.ok) {
-        throw new Error(`Failed to refresh media URL: ${res.status}`)
+      const url = await fetchAudioUrl(transcriptId, attempt)
+      if (session.current !== current) return
+
+      holdPosition()
+      let newSourceStarted = false
+      const playWait = window.setTimeout(() => { current.playWaitExpired = true }, PLAY_WAIT_MS)
+      const releaseAttempt = () => {
+        window.clearTimeout(playWait)
+        if (current.attempt === attempt) current.attempt = undefined
+        current.playWaitExpired = false
       }
-      const { url } = await res.json()
-      
-      // Update the timestamp
-      urlFetchedAtRef.current = Date.now()
-      
-      // Notify parent to update audioSrc state
-      onUrlRefreshed(url)
-
-      // Wait a tick for the new src to be applied, then restore position
-      if (audio) {
-        const currentAudio = audio
-        clearPendingRecoveryWait()
-        let finished = false
-        // Swapping the src first fires `abort` for the old source, then
-        // `loadstart` for the new one; only events after that are the new
-        // source's.
-        let newSourceStarted = false
-        let recoveryTimeoutId: number | null = null
-
-        const cleanupListeners = () => {
-          currentAudio.removeEventListener('loadstart', handleLoadStart)
-          currentAudio.removeEventListener('loadeddata', handleLoaded)
-          currentAudio.removeEventListener('error', handleErrorOrAbort)
-          currentAudio.removeEventListener('abort', handleErrorOrAbort)
-        }
-
-        const finishRecoveryWait = () => {
-          if (finished) return
-          finished = true
-          if (recoveryTimeoutId !== null) {
-            window.clearTimeout(recoveryTimeoutId)
-            recoveryTimeoutId = null
-          }
-          cleanupListeners()
-          if (pendingRecoveryCleanupRef.current === finishRecoveryWait) {
-            pendingRecoveryCleanupRef.current = null
-          }
-          isRecoveringRef.current = false
-        }
-
-        const handleLoadStart = () => {
-          newSourceStarted = true
-        }
-
-        const handleLoaded = () => {
-          if (!newSourceStarted) return
-          currentAudio.currentTime = savedPosition
-          if (wasPlaying) {
-            currentAudio.play().catch(() => {
-              // Autoplay may be blocked, user can click play manually
-            })
-          }
-          finishRecoveryWait()
-        }
-
-        const handleErrorOrAbort = () => {
-          if (!newSourceStarted) return
-          finishRecoveryWait()
-        }
-
-        currentAudio.addEventListener('loadstart', handleLoadStart)
-        currentAudio.addEventListener('loadeddata', handleLoaded)
-        currentAudio.addEventListener('error', handleErrorOrAbort)
-        currentAudio.addEventListener('abort', handleErrorOrAbort)
-        pendingRecoveryCleanupRef.current = finishRecoveryWait
-        recoveryTimeoutId = window.setTimeout(() => {
-          if (finished) return
-          // Allow future recovery attempts if reload is slow, but keep the event
-          // listeners so a late `loadeddata` can still restore position/playback.
-          recoveryTimeoutId = null
-          isRecoveringRef.current = false
-        }, RECOVERY_WAIT_TIMEOUT_MS)
+      const finish = () => {
+        releaseAttempt()
+        audio.removeEventListener('loadstart', started)
+        audio.removeEventListener('loadedmetadata', restorePosition)
+        audio.removeEventListener('loadeddata', loaded)
+        audio.removeEventListener('error', failed)
+        audio.removeEventListener('abort', failed)
+        current.removeSourceListeners = undefined
+      }
+      const started = () => { newSourceStarted = true }
+      const restorePosition = () => {
+        if (!newSourceStarted || session.current !== current || current.attempt !== attempt) return
+        const restore = current.restore
+        const play = current.playIntent ?? restore?.play
+        if (restore) audio.currentTime = restore.position
+        releaseAttempt()
+        releasePosition()
+        if (play) void audio.play().catch(() => {
+          if (session.current === current) callbacks.current.onResumeRejected?.()
+        })
+      }
+      const loaded = () => {
+        if (!newSourceStarted || session.current !== current) return
+        // Metadata releases the position hold. Media data starts the retry window.
+        restorePosition()
+        current.loadedAt = Date.now()
+        current.reported = false
+        finish()
+      }
+      const failed = () => {
+        if (!newSourceStarted) return
+        finish()
+        if (audio.error) reportFailure()
+        else releasePosition()
+      }
+      audio.addEventListener('loadstart', started)
+      audio.addEventListener('loadedmetadata', restorePosition)
+      audio.addEventListener('loadeddata', loaded)
+      audio.addEventListener('error', failed)
+      audio.addEventListener('abort', failed)
+      current.removeSourceListeners = finish
+      urlFetchedAt.current = Date.now()
+      callbacks.current.onUrlRefreshed(url)
+    } catch (error) {
+      if (session.current !== current) return
+      current.removeSourceListeners?.()
+      current.attempt = undefined
+      if (isAccountChangedError(error)) {
+        session.current = null
+        return
+      }
+      console.warn('[useAudioSessionRecovery] Failed to refresh URL:', error)
+      if (audio.error) {
+        holdPosition()
+        reportFailure()
       } else {
-        isRecoveringRef.current = false
+        releasePosition()
       }
-    } catch (err) {
-      console.error('[useAudioSessionRecovery] Failed to refresh URL:', err)
-      onRecoveryError?.(err instanceof Error ? err.message : 'Failed to refresh audio')
-      isRecoveringRef.current = false
     }
-  }, [transcriptId, audioElement, onUrlRefreshed, onRecoveryError, clearPendingRecoveryWait])
+  }, [audioElement, transcriptId])
 
-  // Check if URL is stale
-  const isUrlStale = useCallback(() => {
-    const age = Date.now() - urlFetchedAtRef.current
-    return age > URL_STALE_THRESHOLD_MS
+  useEffect(() => {
+    if (!audioElement) return
+    const stale = () => Date.now() - urlFetchedAt.current > URL_STALE_THRESHOLD_MS
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && audioSrc && (stale() || audioElement.error)) {
+        void refreshAudioUrl()
+      }
+    }
+    const onStalled = () => { if (stale()) void refreshAudioUrl() }
+    const onError = () => { void refreshAudioUrl() }
+    document.addEventListener('visibilitychange', onVisible)
+    audioElement.addEventListener('stalled', onStalled)
+    audioElement.addEventListener('error', onError)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      audioElement.removeEventListener('stalled', onStalled)
+      audioElement.removeEventListener('error', onError)
+    }
+  }, [audioElement, audioSrc, refreshAudioUrl])
+
+  /** True when recovery owns the control press. A pending source may load late. */
+  const toggleWhileRecovering = useCallback((playing: boolean) => {
+    const current = session.current
+    if (!current || (!current.restore && !current.audio.error)) return false
+    if (current.playWaitExpired && !current.audio.error) {
+      // Let the gesture reach the media element. Keep the late seek restore,
+      // but let this press own playback instead of replaying the old intent.
+      current.playIntent = false
+      return false
+    }
+    if (playing) {
+      current.playIntent = false
+      current.audio.pause()
+    } else {
+      void refreshAudioUrl(true, true)
+    }
+    return true
+  }, [refreshAudioUrl])
+
+  const captureSeek = useCallback((position: number) => {
+    const current = session.current
+    if (!current) return false
+    if (current.restore) {
+      current.restore.position = position
+      return true
+    }
+    // Until seeked, the clock can still be at the position before this seek.
+    current.pendingSeek = position
+    return false
   }, [])
 
-  // Handle visibility change
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') return
-      if (!audioSrc) return
+  const confirmSeek = useCallback(() => {
+    const current = session.current
+    if (current && !current.audio.error && !current.audio.seeking) current.pendingSeek = undefined
+  }, [])
 
-      // Check if URL is stale OR if audio has errored
-      const audio = audioElement
-      const hasError = audio?.error != null
-      
-      if (isUrlStale() || hasError) {
-        console.log('[useAudioSessionRecovery] Tab visible, refreshing stale/errored audio URL')
-        refreshAudioUrl()
-      }
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [audioSrc, audioElement, isUrlStale, refreshAudioUrl])
-
-  // Also handle audio stalled/error events as fallback
-  useEffect(() => {
-    const audio = audioElement
-    if (!audio) return
-
-    const handleStalled = () => {
-      // Only recover if URL is also stale (avoid false positives from network hiccups)
-      if (isUrlStale()) {
-        console.log('[useAudioSessionRecovery] Audio stalled with stale URL, refreshing')
-        refreshAudioUrl()
-      }
-    }
-
-    const handleError = () => {
-      console.log('[useAudioSessionRecovery] Audio error, attempting recovery')
-      refreshAudioUrl()
-    }
-
-    audio.addEventListener('stalled', handleStalled)
-    audio.addEventListener('error', handleError)
-
-    return () => {
-      audio.removeEventListener('stalled', handleStalled)
-      audio.removeEventListener('error', handleError)
-    }
-  }, [audioElement, isUrlStale, refreshAudioUrl])
+  return { toggleWhileRecovering, captureSeek, confirmSeek }
 }

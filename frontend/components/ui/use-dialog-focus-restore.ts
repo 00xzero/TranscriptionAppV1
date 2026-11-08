@@ -17,10 +17,10 @@ export function useDialogFocusRestore() {
         : null
   }, [])
 
-  const restoreFocus = useCallback(() => {
+  const restoreFocus = useCallback((options?: FocusOptions) => {
     const previousFocus = previousFocusRef.current
     if (previousFocus?.isConnected) {
-      window.setTimeout(() => previousFocus.focus(), 0)
+      window.setTimeout(() => previousFocus.focus(options), 0)
     }
   }, [])
 

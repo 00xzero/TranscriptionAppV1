@@ -10,7 +10,7 @@
  */
 export type PlaybackClock = {
   /** Read positions from this source (the audio player), or from nothing when null. */
-  attach: (readMs: (() => number) | null) => void
+  attach: (readMs: (() => number | null) | null) => void
   /** Position in ms, or null until playback has started or a seek has completed. */
   getMs: () => number | null
   subscribe: (listener: () => void) => () => void
@@ -23,7 +23,7 @@ export type PlaybackClock = {
 }
 
 export function createPlaybackClock(): PlaybackClock {
-  let readMs: (() => number) | null = null
+  let readMs: (() => number | null) | null = null
   let ms: number | null = null
   let frame: number | null = null
   const listeners = new Set<() => void>()
@@ -31,7 +31,7 @@ export function createPlaybackClock(): PlaybackClock {
   const refresh = () => {
     if (!readMs) return
     const next = readMs()
-    if (next === ms) return
+    if (next === null || next === ms) return
     ms = next
     listeners.forEach((listener) => listener())
   }

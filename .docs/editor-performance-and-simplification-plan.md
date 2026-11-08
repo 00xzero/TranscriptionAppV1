@@ -1,6 +1,6 @@
 # Editor performance and simplification
 
-Status: baseline and implementation plan only. No production editor changes implemented.
+Status: PR 1 implementation and verification are recorded on its delivery branch.
 
 Agreed on 2026-11-07. The work is delivered through three sequential PRs into
 one integration feature branch, then one final PR into `main`.
@@ -479,7 +479,7 @@ Attach baseline-to-final measurements and disclose unverified environments.
 | Delivery | Status |
 | --- | --- |
 | Feature branch baseline | First commit; see baseline report |
-| PR 1 | Not implemented; revised plan ready for the planning chat |
+| PR 1 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr1-results.md). |
 | PR 2 | Not started |
 | PR 3 | Not started |
 | Feature branch to main | Not started |
