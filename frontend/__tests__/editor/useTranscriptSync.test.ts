@@ -1,4 +1,5 @@
-import { renderHook, act } from '@testing-library/react'
+import { createElement, useLayoutEffect } from 'react'
+import { render, renderHook, act } from '@testing-library/react'
 import { useTranscriptSync } from '@/app/(app)/editor/[id]/hooks/useTranscriptSync'
 import type { Seg } from '@/app/(app)/editor/[id]/types'
 
@@ -56,6 +57,34 @@ afterEach(() => {
 })
 
 describe('useTranscriptSync', () => {
+  it('uses the committed segment order when a child reports a range during split undo', async () => {
+    const split = [segments[0], makeSegment({ id: 'split' }), ...segments.slice(1)]
+    type Sync = ReturnType<typeof useTranscriptSync>
+
+    function RangeReport({ endIndex, report }: {
+      endIndex: number
+      report: Sync['handleRangeChanged']
+    }) {
+      useLayoutEffect(() => report({ startIndex: endIndex, endIndex }), [endIndex, report])
+      return null
+    }
+
+    let sync!: Sync
+    function Editor({ undo }: { undo: boolean }) {
+      sync = useTranscriptSync({ segments: undo ? segments : split, editingId: null, speakerPopover: null })
+      return createElement(RangeReport, { endIndex: undo ? 2 : 4, report: sync.handleRangeChanged })
+    }
+
+    const view = render(createElement(Editor, { undo: false }))
+    await act(async () => { sync.onWordSeek('s3') })
+    expect(sync.syncDirection).toBe('up')
+    const originalCallback = sync.handleRangeChanged
+
+    await act(async () => { view.rerender(createElement(Editor, { undo: true })) })
+    expect(sync.handleRangeChanged).toBe(originalCallback)
+    expect(sync.syncDirection).toBe('up')
+  })
+
   describe('findActiveSegmentId', () => {
     it('returns correct segment for a given time', () => {
       const { result } = setup()
