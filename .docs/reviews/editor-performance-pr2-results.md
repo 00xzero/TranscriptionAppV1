@@ -85,6 +85,14 @@ batches, so compare the ranges across runs when interpreting p95.
   these browser runs. Jest covers native history input routing and the
   account-change protections.
 
+After the local review, the split button stays disabled when an undo or reload
+discards the preview of a composition that is still running. The Jest regression
+checks that the button is disabled until composition ends and that late input
+cannot overwrite the restored text. In an isolated Chrome harness with the real
+card, DevTools confirmed Japanese text in the middle of a line. The caret stayed
+immediately after the insertion, with one save callback and one history entry.
+The harness used an in-memory save callback. The manual Safari check is pending.
+
 ## Automated checks
 
 - Full Jest passed with 229 suites, 3,022 tests and seven snapshots. Jest
@@ -95,3 +103,5 @@ batches, so compare the ranges across runs when interpreting p95.
   per keystroke and zero retained card renders during the scroll moves.
 - Typecheck and the isolated production build passed. Lint reported zero
   errors and 55 warnings.
+- The local review follow-up passed 98 targeted Jest tests, typecheck and
+  lint for the changed code and test.

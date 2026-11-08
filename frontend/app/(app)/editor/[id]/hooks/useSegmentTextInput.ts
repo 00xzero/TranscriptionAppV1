@@ -53,10 +53,16 @@ export function useSegmentTextInput({
     before: SelectionText
     invalidated: boolean
   } | null>(null)
-  const [preview, setPreview] = React.useState<{ base: CompositionBase; text: string } | null>(null)
-  const composing = isEditing && preview !== null && matchesBase(s, preview.base)
-  if (preview && !composing) setPreview(null)
-  const text = composing ? preview.text : s.text
+  const [preview, setPreview] = React.useState<{ base: CompositionBase; text: string | null } | null>(null)
+  const isComposing = isEditing && preview !== null && preview.base.id === s.id
+  const previewMatches = isComposing && matchesBase(s, preview.base)
+  if (preview && !isComposing) {
+    setPreview(null)
+  } else if (preview?.text != null && !previewMatches) {
+    // The native composition is still running after its preview is discarded.
+    setPreview({ ...preview, text: null })
+  }
+  const text = (previewMatches ? preview.text : null) ?? s.text
   // Some browsers send the final input after compositionend.
   const completedComposition = React.useRef<{ text: string; data: string } | null>(null)
   const compositionEndTimer = React.useRef<number | undefined>(undefined)
@@ -251,5 +257,5 @@ export function useSegmentTextInput({
       }
     },
   }
-  return { ref: textAreaRef, text, caret, splitAtCaret, isComposing: composing, focus, handlers }
+  return { ref: textAreaRef, text, caret, splitAtCaret, isComposing, focus, handlers }
 }

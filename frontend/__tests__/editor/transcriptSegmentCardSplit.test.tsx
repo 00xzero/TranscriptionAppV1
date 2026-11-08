@@ -347,14 +347,17 @@ describe('the undo history from the segment editor', () => {
   })
 
   it.each(['insertCompositionText', 'insertText'])('keeps undo text and ignores invalidated composition input (%s)', (inputType) => {
-    const { props, textarea, rerender } = setup()
+    const { props, textarea, rerender, splitButton, placeCaret } = setup()
     fireEvent.compositionStart(textarea)
     fireEvent.change(textarea, { target: { value: TEXT + 'にほ' } })
-    const restored = { ...segment, text: 'Hello, friend.' }
-    rerender({ segment: restored, getCurrentSegment: () => restored, caretHint: () => ({ start: 0, end: 5, seq: 1 }) })
+    const restored = { ...segment, text: TEXT + ' Again.' }
+    rerender({ segment: restored, getCurrentSegment: () => restored, caretHint: () => ({ start: 13, end: 19, seq: 1 }) })
     expect(textarea.value).toBe(restored.text)
-    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([0, 5])
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([13, 19])
+    placeCaret(13)
+    expect(splitButton()).toBeDisabled()
     fireEvent.compositionEnd(textarea, { data: '日本' })
+    expect(splitButton()).toBeEnabled()
     fireEvent.input(textarea, { inputType, data: '日本', target: { value: TEXT + '日本' } })
     expect(textarea.value).toBe(restored.text)
     expect(props.onTextInput).not.toHaveBeenCalled()
