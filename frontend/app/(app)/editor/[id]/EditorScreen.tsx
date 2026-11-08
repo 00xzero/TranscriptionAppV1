@@ -61,8 +61,9 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   // 1. Data layer. Words that arrive out of step with the segments shown, or
   // that failed to load, come back with a reload of both, set up below once
   // the write queue and the text drafts exist.
-  const reloadContentRef = useRef<() => void>(() => {})
-  const reloadContent = useCallback(() => reloadContentRef.current(), [])
+  const reloadContentRef = useRef<(retryWordMismatch: boolean) => void>(() => {})
+  const reloadContent = useCallback(() => reloadContentRef.current(true), [])
+  const retryWordsAfterMismatch = useCallback(() => reloadContentRef.current(false), [])
   const deletedRef = useRef<() => void>(() => {})
   const onDeleted = useCallback(() => deletedRef.current(), [])
   const reportWordLoadFailure = useCallback(() => toast(wordTimingsFailedToast(reloadContent)), [reloadContent])
@@ -85,11 +86,11 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   // The history reveals and refreshes through hooks set up after it.
   const bridge = useRef({
     reveal: (_target: HistoryTarget) => {},
-    refresh: async (): Promise<RepairResult> => false,
+    refresh: async (_historyNotice?: string): Promise<RepairResult> => false,
     hasDrafts: (): boolean => false,
   })
   const reveal = useCallback((target: HistoryTarget) => bridge.current.reveal(target), [])
-  const refreshAll = useCallback(() => bridge.current.refresh(), [])
+  const refreshAll = useCallback((historyNotice?: string) => bridge.current.refresh(historyNotice), [])
   const hasDrafts = useCallback(() => bridge.current.hasDrafts(), [])
   const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, hasDrafts, isReconnecting, reconnecting })
   const { clear: clearHistory } = history
@@ -107,6 +108,7 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
     onExternalChange: externalChange,
     onDeleted,
     onWordLoadFailure: reportWordLoadFailure,
+    onWordMismatch: retryWordsAfterMismatch,
   })
   const textHistory = useTextHistory(history, editing)
   // Leaving waits for what the editor has not saved yet.
@@ -138,9 +140,9 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
 
   const { reloadSegments } = editing
   useEffect(() => {
-    reloadContentRef.current = () => {
+    reloadContentRef.current = (retryWordMismatch) => {
       void enqueue(async () => {
-        if (!(await reloadSegments(true))) reportWordLoadFailure()
+        if (!(await reloadSegments({ refreshWords: true, retryWordMismatch }))) reportWordLoadFailure()
       }, 'read').catch((error: unknown) => {
         // A closed editor has nothing to show it on; anything else is a bug.
         if (!(error instanceof SendClosed)) console.error('[editor] failed to reload word timings:', error)
@@ -190,10 +192,10 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
       // Runs inside the write queue after a change made elsewhere: segments,
       // then speakers and people alongside the title and the tags, each read
       // until answered (tags once: they are the shared store's).
-      refresh: async () => {
+      refresh: async (historyNotice) => {
         let recovered = false
-        if (!(await editing.reloadSegments(false, () => { recovered = true }))) {
-          return editing.reportRefreshFailure() ? 'retry offered' : false
+        if (!(await editing.reloadSegments({ onRecovered: () => { recovered = true }, historyNotice }))) {
+          return editing.reportRefreshFailure(historyNotice) ? 'retry offered' : false
         }
         const [speakersRead, row, tagsRead] = await Promise.all([
           speakerHook.refresh(false), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),

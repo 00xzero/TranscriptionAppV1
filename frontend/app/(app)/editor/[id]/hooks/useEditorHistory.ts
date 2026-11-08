@@ -57,7 +57,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
   holds: SegmentHolds
   reveal(target: HistoryTarget): void
   /** Reads segments, speakers and the title again; false if the database refused. */
-  refresh(): Promise<RepairResult>
+  refresh(historyNotice?: string): Promise<RepairResult>
   hasDrafts?(): boolean
   isReconnecting(): boolean
   reconnecting: boolean
@@ -115,10 +115,10 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
 
   // Runs inside the write queue: read the database again, holding undo/redo
   // until it has answered. The reads themselves resend until answered.
-  const repair = useCallback(async () => {
+  const repair = useCallback(async (historyNotice?: string) => {
     repairing.current = true; notify()
     try {
-      const result = await refresh()
+      const result = await refresh(historyNotice)
       if (!result) toast({ title: STALE_TOAST, variant: 'error' })
       return result
     } catch (error) {
@@ -135,7 +135,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
    * because something changed elsewhere, or whose outcome is unknown, clears
    * the history and reads the database again; anything else is `otherwise`.
    */
-  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void) => {
+  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void, direction?: Direction) => {
     if (error instanceof SendClosed) return
     if (!changedElsewhere(error)) { otherwise(); return }
     if (!hasDrafts?.()) {
@@ -143,9 +143,12 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
       await repair()
       return
     }
-    // A draft conflict already explains the refusal if repair can recover it.
+    // Include the refused history action in any draft recovery notice.
     const cleared = clear()
-    const result = await repair()
+    const action = direction === 'undo' ? 'Undo' : 'Redo'
+    const refusal = error instanceof OutcomeUnknown ? `Couldn’t confirm ${action}.` : `${action} couldn’t be applied.`
+    const notice = direction ? refusal + (cleared ? ' Undo history cleared.' : '') : undefined
+    const result = await repair(notice)
     if (typeof result !== 'string') {
       toast({ title, description: cleared ? 'Undo history cleared' : undefined, variant: 'error' })
     }
@@ -179,7 +182,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, i
             : emptied(history.current)
           notify()
           toast({ title: `Couldn't ${dir} ${step.label}`, variant: 'error' })
-        })
+        }, dir)
       } finally { held.release() }
     })
   }, [hold, notify, enqueue, reveal, failed, cancelPending, emptied, isReconnecting])

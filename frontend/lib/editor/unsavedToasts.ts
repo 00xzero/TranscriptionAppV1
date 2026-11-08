@@ -24,7 +24,7 @@ function previewText(text: string): string {
   return preview
 }
 
-export function toastOvertakenEdits(edits: readonly OvertakenEdit[], transcriptDeleted = false) {
+export function toastOvertakenEdits(edits: readonly OvertakenEdit[], transcriptDeleted = false, historyNotice?: string) {
   const texts = edits.map(({ text }) => text)
   const single = texts.length === 1
   const lead = transcriptDeleted ? TRANSCRIPT_DELETED_MESSAGE : single
@@ -35,7 +35,7 @@ export function toastOvertakenEdits(edits: readonly OvertakenEdit[], transcriptD
   }
   toast({
     title: single ? 'Your edit wasn’t saved' : `${texts.length} edits weren’t saved`,
-    description: `${lead}. Copy your text before closing this message.`,
+    description: [`${lead}. Copy your text before closing this message.`, historyNotice].filter(Boolean).join(' '),
     variant: 'error',
     recovery: {
       texts,

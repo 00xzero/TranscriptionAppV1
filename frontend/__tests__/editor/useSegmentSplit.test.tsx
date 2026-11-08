@@ -136,7 +136,8 @@ function setup({ resend = false } = {}) {
     const send = resend ? sender.send : sendOnce
     const editing = useTranscriptMutations({ transcriptId: uuid(0x70), segments: segmentsStore, words: wordsStore, enqueue, send })
     const history = useEditorHistory({
-      enqueue, holds, reveal: () => {}, refresh: editing.reloadSegments, isReconnecting: () => false, reconnecting: false,
+      enqueue, holds, reveal: () => {}, refresh: (historyNotice) => editing.reloadSegments({ historyNotice }),
+      isReconnecting: () => false, reconnecting: false,
     })
     const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
     return { editing, splitting, segments, words, history, enqueue, holds }

@@ -27,10 +27,10 @@ function guardedEdit(segId: string, draft: Draft, expected: string): SegmentText
   return { segment_id: segId, expected_revision: draft.revision, expected_text: expected, text: draft.text }
 }
 
-function toastRefreshFailure(retry: () => void) {
+function toastRefreshFailure(retry: () => void, notice?: string) {
   toast({
     title: 'Couldn’t refresh the transcript',
-    description: 'Your unsaved edits are still here.',
+    description: ['Your unsaved edits are still here.', notice].filter(Boolean).join(' '),
     variant: 'error',
     action: { label: 'Retry', onClick: retry },
   })
@@ -45,6 +45,7 @@ export function useTranscriptMutations({
   onExternalChange,
   onDeleted,
   onWordLoadFailure,
+  onWordMismatch,
 }: {
   transcriptId: string
   segments: LiveStore<Seg[]>
@@ -55,6 +56,7 @@ export function useTranscriptMutations({
   onExternalChange?: (quiet: boolean) => void
   onDeleted?: () => void
   onWordLoadFailure?: () => void
+  onWordMismatch?: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
@@ -134,7 +136,7 @@ export function useTranscriptMutations({
     scheduleStatusExpiry()
   }, [scheduleStatusExpiry])
 
-  const loadWords = useCallback(async () => {
+  const loadWords = useCallback(async (retryMismatch: boolean) => {
     const request = ++wordLoad.current
     const current = () => active.current && !deleted.current && request === wordLoad.current
     try {
@@ -142,7 +144,8 @@ export function useTranscriptMutations({
       if (!current()) return
       const shown = segments.get()
       if (shown.length !== sets.length || !revisionsMatch(shown, sets)) {
-        onWordLoadFailure?.()
+        if (retryMismatch && onWordMismatch) onWordMismatch()
+        else onWordLoadFailure?.()
         return
       }
       const grouped = groupEmbeddedWords(sets)
@@ -150,10 +153,20 @@ export function useTranscriptMutations({
     } catch {
       if (current()) onWordLoadFailure?.()
     }
-  }, [transcriptId, segments, words, onWordLoadFailure])
+  }, [transcriptId, segments, words, onWordLoadFailure, onWordMismatch])
 
   /** Reconcile a complete snapshot inside the queue. Timings load independently. */
-  const reloadSegments = useCallback(async (refreshWords = false, onRecovered?: () => void): Promise<boolean> => {
+  const reloadSegments = useCallback(async ({
+    refreshWords = false,
+    retryWordMismatch = true,
+    onRecovered,
+    historyNotice,
+  }: {
+    refreshWords?: boolean
+    retryWordMismatch?: boolean
+    onRecovered?: () => void
+    historyNotice?: string
+  } = {}): Promise<boolean> => {
     if (!active.current || deleted.current) throw new SendClosed()
     let rows: Seg[] | null
     try {
@@ -169,7 +182,7 @@ export function useTranscriptMutations({
       const overtaken = [...drafts.current.values()].map(({ text }) => ({ text }))
       drafts.current.clear()
       onExternalChange?.(true)
-      if (overtaken.length) toastOvertakenEdits(overtaken, true)
+      if (overtaken.length) toastOvertakenEdits(overtaken, true, historyNotice)
       else toast({ title: TRANSCRIPT_DELETED_MESSAGE, variant: 'error' })
       onDeleted?.()
       throw new SendClosed()
@@ -222,7 +235,7 @@ export function useTranscriptMutations({
       return draft ? { ...row, text } : row
     })
     if (overtaken.length) {
-      toastOvertakenEdits(overtaken)
+      toastOvertakenEdits(overtaken, false, historyNotice)
       onRecovered?.()
     }
     if (reshaped) {
@@ -243,7 +256,7 @@ export function useTranscriptMutations({
       return after && before?.text === after.text && before.revision === after.revision ? prev : null
     })
     if (external) onExternalChange?.(overtaken.length > 0)
-    if (reshaped || refreshWords) void loadWords()
+    if (reshaped || refreshWords) void loadWords(retryWordMismatch)
     return true
   }, [transcriptId, segments, words, send, clearSaveTimer, showSaveStatuses, adopt, onExternalChange, onDeleted, loadWords])
 
@@ -400,10 +413,10 @@ export function useTranscriptMutations({
     }, 'save')
   }, [transcriptId, showSaveStatuses, clearSaveTimers, enqueue, writeDrafts, reloadSegments])
 
-  const reportRefreshFailure = useCallback(() => {
+  const reportRefreshFailure = useCallback((notice?: string) => {
     if (!drafts.current.size) return false
     showSaveStatuses([...drafts.current.keys()], 'error')
-    toastRefreshFailure(() => saveAll(true))
+    toastRefreshFailure(() => saveAll(true), notice)
     return true
   }, [showSaveStatuses, saveAll])
 

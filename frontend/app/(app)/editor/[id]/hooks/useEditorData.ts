@@ -73,9 +73,9 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
   const [transcriptEngineModel, setTranscriptEngineModel] = useState<string | null>(initialMetadata?.engine_model ?? null)
   const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(initialMetadata?.duration_seconds ?? null)
   const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(initialMetadata?.project_id ?? null)
-  const titleUpdated = useRef(false)
+  const titleVersion = useRef(0)
   const setTranscriptTitle = useCallback((title: string | null) => {
-    titleUpdated.current = true
+    titleVersion.current++
     setTitle(title)
   }, [])
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
@@ -93,6 +93,8 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
     let waveformPollId: ReturnType<typeof setInterval> | null = null
     let waveformPollStartedAt = 0
     let waveformReading = false
+    let waveformVersion = 0
+    let lastWaveformStatus = metadataSeed?.waveform_status
     let metadataReading = false
     setPeaks(null)
     setWaveformDurationSecs(null)
@@ -155,8 +157,10 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
         }
         if (waveformReading) return
         waveformReading = true
+        waveformVersion++
         try {
-          await showWaveform(await fetchTranscriptWaveformStatus(transcriptId))
+          lastWaveformStatus = await fetchTranscriptWaveformStatus(transcriptId)
+          await showWaveform(lastWaveformStatus)
         } catch { /* Poll again until it answers or times out. */ }
         finally { waveformReading = false }
       }, WAVEFORM_POLL_INTERVAL_MS)
@@ -165,18 +169,33 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
     const loadTranscriptMetadata = async () => {
       if (cancelled || metadataReading) return
       metadataReading = true
+      const expectedTitleVersion = titleVersion.current
+      const expectedWaveformVersion = waveformVersion
       try {
         const data = await fetchTranscriptById(transcriptId)
         if (cancelled) return
         if (!data) throw new Error('Transcript metadata unavailable')
-        const row = EditorTranscriptSchema.parse(data)
-        if (!titleUpdated.current) setTitle(row.title || null)
-        setTranscriptCreatedAt(row.created_at)
-        setTranscriptEngine(row.engine)
-        setTranscriptEngineModel(row.engine_model)
-        setTranscriptDurationSecs(row.duration_seconds)
-        setTranscriptProjectId(row.project_id)
-        void showWaveform(row.waveform_status)
+        const invalid: (keyof EditorTranscript)[] = []
+        const read = <K extends keyof EditorTranscript>(key: K, apply: (value: EditorTranscript[K]) => void) => {
+          const result = EditorTranscriptSchema.shape[key].safeParse(data[key])
+          if (result.success) apply(result.data as EditorTranscript[K])
+          else invalid.push(key)
+        }
+        read('title', (title) => {
+          if (titleVersion.current === expectedTitleVersion) setTitle(title || null)
+        })
+        read('created_at', setTranscriptCreatedAt)
+        read('engine', setTranscriptEngine)
+        read('engine_model', setTranscriptEngineModel)
+        read('duration_seconds', setTranscriptDurationSecs)
+        read('project_id', setTranscriptProjectId)
+        read('waveform_status', (status) => {
+          if (status !== lastWaveformStatus && waveformVersion === expectedWaveformVersion && !waveformReading) {
+            lastWaveformStatus = status
+            void showWaveform(status)
+          }
+        })
+        if (invalid.length) console.warn('[useEditorData] invalid transcript metadata fields', invalid)
       } catch (error) {
         if (cancelled) return
         console.error('[useEditorData] failed to load transcript metadata', error)
@@ -248,7 +267,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
         setStatus('Loading media...')
 
         if (metadataSeed) void showWaveform(metadataSeed.waveform_status)
-        else void loadTranscriptMetadata()
+        void loadTranscriptMetadata()
         void loadWords().then(showWords).catch(reportWordLoadFailure)
 
         const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
@@ -298,9 +317,14 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
         resolveSegmentsShown(null)
       }
     }
-    init()
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) void loadTranscriptMetadata()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    void init()
     return () => {
       cancelled = true
+      window.removeEventListener('pageshow', onPageShow)
       stopWaveformPolling()
     }
   }, [transcriptId, reloadContent, metadataSeed])

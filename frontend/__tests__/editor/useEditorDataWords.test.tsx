@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import * as supabaseQueries from '@/lib/supabase/queries'
 import { useEditorData } from '@/app/(app)/editor/[id]/hooks/useEditorData'
+import type { EditorTranscript } from '@/contracts/editor'
 
 const mockToast = jest.fn()
 jest.mock('@/components/ui/toaster', () => ({
@@ -80,6 +81,36 @@ it('shows a metadata Retry even while initial segments are still loading', async
   const failure = mockToast.mock.calls.find(([options]) => options.title === "Couldn't load transcript details")
   await act(async () => { failure![0].action.onClick() })
   expect(result.current.transcriptTitle).toBe('Retried title')
+})
+
+const seed: EditorTranscript = {
+  title: 'Cached title', project_id: null, status: 'completed', waveform_status: 'skipped',
+  created_at: '2024-01-01T00:00:00Z', engine: 'deepgram', engine_model: null, duration_seconds: 60,
+}
+
+it('revalidates seeded details and retains the seed for malformed fields', async () => {
+  const metadata = deferred<unknown>()
+  fetchTranscriptById.mockReturnValueOnce(metadata.promise)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+  expect(result.current.transcriptTitle).toBe('Cached title')
+  await act(async () => metadata.resolve({
+    ...seed, title: 'Current title', project_id: SEG_B, duration_seconds: 'invalid',
+  }))
+  expect(result.current.transcriptTitle).toBe('Current title')
+  expect(result.current.transcriptProjectId).toBe(SEG_B)
+  expect(result.current.transcriptDurationSecs).toBe(60)
+  expect(mockToast).not.toHaveBeenCalled()
+})
+
+it('keeps a local rename completed while seeded details are revalidating', async () => {
+  const metadata = deferred<EditorTranscript>()
+  fetchTranscriptById.mockReturnValueOnce(metadata.promise)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+  act(() => result.current.setTranscriptTitle('Just renamed'))
+  await act(async () => metadata.resolve({ ...seed, title: 'Earlier title' }))
+  expect(result.current.transcriptTitle).toBe('Just renamed')
 })
 
 // Codex: a split elsewhere between reading the segments and their words must

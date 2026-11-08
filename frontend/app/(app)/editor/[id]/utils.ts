@@ -1,4 +1,4 @@
-import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/editor'
+import { EditorEmbeddedWordSchema, EditorSourceWordSchema, type EditorEmbeddedWord } from '@/contracts/editor'
 import type { EditorWord } from './types'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
@@ -28,13 +28,24 @@ export const isUnicodeWordChar = (char: string) => {
   return char.toLowerCase() !== char.toUpperCase()
 }
 
-/**
- * Validate loaded word rows one by one and group them per segment in spoken
- * order. Rows with a bad shape or impossible timing are dropped, so nothing
- * malformed reaches alignment or the playback binary searches.
- */
+function normaliseWords(words: EditorEmbeddedWord[]): EditorWord[] {
+  // (order_index, id) is the order the database splits and joins words in.
+  words.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
+  return words.map((word) => ({
+    id: word.id,
+    text: word.punctuated_text ?? word.text,
+    startMs: word.start_ms,
+    endMs: word.end_ms,
+  }))
+}
+
+function warnDroppedWords(dropped: number) {
+  if (dropped) console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
+}
+
+/** Validate flat word rows and group them per segment in spoken order. */
 export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWord[]> {
-  const rowsBySegment = new Map<string, EditorSourceWord[]>()
+  const rowsBySegment = new Map<string, EditorEmbeddedWord[]>()
   let dropped = 0
   for (const row of rows) {
     const parsed = EditorSourceWordSchema.safeParse(row)
@@ -46,30 +57,25 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWo
     if (list) list.push(parsed.data)
     else rowsBySegment.set(parsed.data.segment_id, [parsed.data])
   }
-  if (dropped > 0) {
-    console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
-  }
-
-  const wordsBySegment = new Map<string, EditorWord[]>()
-  for (const [segmentId, list] of rowsBySegment) {
-    // (order_index, id): the order the database splits and joins words in.
-    list.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
-    wordsBySegment.set(segmentId, list.map((word) => ({
-      id: word.id,
-      text: word.punctuated_text ?? word.text,
-      startMs: word.start_ms,
-      endMs: word.end_ms,
-    })))
-  }
-  return wordsBySegment
+  warnDroppedWords(dropped)
+  return new Map([...rowsBySegment].map(([id, words]) => [id, normaliseWords(words)]))
 }
 
-/** The embedded relationship already identifies each word's segment. */
+/** Validate embedded words under their parent without copying or flattening the payload. */
 export function groupEmbeddedWords(sets: readonly { id: string; words: readonly unknown[] }[]) {
-  return groupSourceWords(sets.flatMap(({ id, words }) => words.map((word) => ({
-    ...(word as object),
-    segment_id: id,
-  }))))
+  const wordsBySegment = new Map<string, EditorWord[]>()
+  let dropped = 0
+  for (const { id, words } of sets) {
+    const valid: EditorEmbeddedWord[] = []
+    for (const word of words) {
+      const parsed = EditorEmbeddedWordSchema.safeParse(word)
+      if (parsed.success) valid.push(parsed.data)
+      else dropped++
+    }
+    if (valid.length) wordsBySegment.set(id, normaliseWords(valid))
+  }
+  warnDroppedWords(dropped)
+  return wordsBySegment
 }
 
 /** Ids in the database's byte order, which breaks ties in display order. */

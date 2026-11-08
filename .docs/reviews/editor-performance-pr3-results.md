@@ -65,3 +65,36 @@ integration coverage gaps.
 The 10-hour copy matched its pre-test text and timing checksum before cleanup.
 Both named recordings matched their checksums, and both disposable copies
 were removed.
+
+## Review follow-up
+
+Chrome verified rename → Library → Back on a disposable 2-hour copy. The
+editor shows the saved title when it revalidates its first-paint metadata.
+The regression tests also cover a stale project seed, a malformed metadata
+field, a newer local rename, a bounded word-timing retry, and the refused
+Undo notice.
+
+The row-identity check uses a successful local save with a new `updated_at`
+and `is_edited`. The next refresh replaces the displayed row as it adopts
+those fields. A second unchanged refresh keeps that same row object. The
+review follow-up leaves this adoption behavior in place.
+
+### Tab return on the 10-hour copy
+
+Instrumented local production Chrome at 4× CPU slowdown, after the word pages
+loaded. Each scenario had one warm-up and three measured focus events.
+The external-edit scenario toggled a text suffix on a disposable segment
+between samples and checked that the editor adopted each version.
+
+| Scenario | Focus to refresh complete, ms | Snapshot validation + reconciliation, ms |
+| --- | --- | --- |
+| Unchanged | 118.9, 128.7, 136.1 | 30.3, 32.9, 29.8 |
+| External text edit | 130.3, 123.5, 114.5 | 24.9, 22.5, 26.6 |
+
+Each return made one segment snapshot request alongside the speaker and people
+reads. The snapshot was about **2.62 MB** over the local connection, which
+served the response without compression. Gzip applied to the captured bodies
+produced **186.2 KB**. The processing column measures synchronous schema
+validation and reconciliation. Browser JSON decoding and React rendering are
+outside that column. The wall-time column ends when the refresh has applied
+its state updates. These are local measurements.
