@@ -1,6 +1,7 @@
 # Editor performance and simplification
 
-Status: PR 1 implementation and verification are recorded on its delivery branch.
+Status: PR 1 is merged into the integration branch. PR 2 is implemented on
+`codex/editor-performance-pr2` for review.
 
 Agreed on 2026-11-07. The work is delivered through three sequential PRs into
 one integration feature branch, then one final PR into `main`.
@@ -363,61 +364,124 @@ Do not change text ownership, extract the popover/textarea, or rescope provision
 IDs in this PR. Do not change
 database grants/RPCs, auth, the pipeline, shared pagination or loading policy.
 
-## PR 2: UI and text simplification; conditional draft separation
+## PR 2: Editor text ownership and interaction extraction
 
-### Scope
+### Implementation order
 
-- Introduce one effective-text interface, migrate consumers, and remove redundant
-  `editingTexts` storage. Keep saved baseline, unsaved draft and IME composition
-  as explicitly distinct responsibilities.
-- Keep optimistic `segments[].text` ownership by default. After PR 1, profile
-  production-build typing on the 2-hour and 10-hour fixtures with repeated
-  comparable inputs and separate render/derived-work measurements. Split drafts
-  from the segment collection only if meaningful, reproducible length-dependent
-  cost remains attributable to those updates. A tiny difference or jsdom timings
-  alone do not justify the added ownership model.
-- If draft separation is justified, first audit every optimistic-text consumer,
-  especially `applyTexts` undo checks and `useSegmentSplit`'s current-text guard.
-  Migrate those semantics together; simply leaving `segments[].text` as saved text
-  would change correctness. Keep the queue, sender, history and holds.
-- Keep text-dependent search and speaker excerpts current deliberately; do not
-  hide a rebuilt merged transcript array behind a selector and recreate the cost.
-- Extract `useSegmentTextInput` against the settled interface, preserving native
-  undo, Safari drag handling, composition, caret restoration, autosizing and split
-  shortcuts. Keep ref lifetimes and unmount cleanup equivalent.
-- Extract `EditorSpeakerPopover` to own dismissal, trigger switching, invalid-name
-  hold-open behavior, close animation and focus restoration. Keep mount/ref
-  lifetimes and frozen-closing-content behavior. Provisional-ID scoping is dropped
-  from this feature unless a concrete correctness issue is found.
+1. **Isolate the [#156 sync-arrow fix](https://github.com/00xzero/TranscriptionAppV1/issues/156)
+   in the first implementation commit.** A child layout-effect range report can
+   read the pre-undo segment order and publish the wrong arrow direction. Add
+   the commit-order Jest regression and derive the direction from the current
+   committed rows while preserving the stable range callback and PR 1's scroll
+   render isolation. The exact Virtuoso browser sequence is unconfirmed. Try
+   undoing a split above the active segment with Follow paused, a short
+   viewport and the list scrolled to the bottom. The Jest reproduction is
+   sufficient to proceed. Track the [#155 Whole Word fix](https://github.com/00xzero/TranscriptionAppV1/issues/155)
+   separately.
+2. **Remove `editingTexts`.** Read committed editor text from optimistic
+   `segments[].text`, including text awaiting a save. Remove mirror writes from
+   typing, Replace/Replace All, reload, history and split/rejoin. Find matches,
+   snippets, highlights and Replace use the same optimistic segment text.
+   Speaker excerpts continue to use that text, and export keeps its existing
+   server read path. Keep the saved baseline, identity-tracked pending drafts,
+   write queue, sender, guards and holds. Keep draft separation outside the
+   default scope.
+3. **Keep composition in the card and extract `useSegmentTextInput`.** Apply the
+   composition rules below. Preserve native undo/redo, Safari drag ordering,
+   caret hints, selection, focus, autosizing and split shortcuts. Keep
+   `TranscriptSegmentCard` and `TranscriptList` memoized and keep the Virtuoso
+   segment ID key.
+4. **Extract `EditorSpeakerPopover` at the current mount point.** Move the
+   dismissal, trigger switching, invalid-name hold-open, close animation and
+   focus handling into the wrapper. Keep the segment-keyed picker, virtual
+   anchor, close reasons and frozen closing content. Reuse the existing speaker
+   actions and sidebar navigation. Leave provisional-ID scoping out of this
+   feature unless a concrete correctness issue is found.
 
-Removing redundant display text and extracting the textarea/popover can proceed
-even if the draft separation gate is not met. Record the gate's result explicitly.
+### Composition behavior
+
+- Keep provisional input in the mounted card. Preserve the starting segment
+  ID, revision, optimistic text and selection. A reload that leaves the ID,
+  revision and optimistic text the same preserves the composition and its
+  selection, even when it supplies a new row object.
+- If undo, reload or another update changes the underlying optimistic text or
+  replaces the segment revision, discard the preview and show the current row.
+  Suppress the invalidated composition's end and any trailing input belonging
+  to it. Verify against current live segment state before recording or staging
+  a save, including when a queued update lands before React renders it.
+- A valid composition that changes text produces one history step and one
+  scheduled save in either browser event order. Cancellation or an unchanged
+  result produces neither. Escape during composition stays with the input
+  method, using the existing Enter IME guard signals. Escape outside composition
+  keeps its current close and focus behavior.
+- On click-away, allow a valid native IME confirmation to reach the original
+  textarea before closing or switching the editor. A confirmation while the
+  textarea is mounted counts as one history step and one scheduled save for
+  that segment. Discard only the preview the browser leaves unconfirmed when
+  the session ends or the virtual row unmounts. Remounting shows current
+  optimistic text, including pending committed edits. Preserve typing-step
+  cleanup and verify that late events cannot revive discarded text or cross
+  segment boundaries.
 
 ### Reuse first
 
 | Responsibility | Existing implementation to reuse | Planned change |
 | --- | --- | --- |
-| Effective text | Optimistic segment text, baseline and drafts | Consolidate readers and remove redundant `editingTexts` |
-| Textarea | Existing card refs, effects and event handlers | Extract without changing interaction/ref lifetimes |
-| Speaker picker | Existing actions, Popover primitives and frozen closing content | Move interaction rules into a focused component |
-| Optional subscription model | PR 1 memo boundaries and existing live stores | Add selective draft subscriptions only if production profiling warrants it |
+| Sync direction | Current range, active segment and sync hook | Correct the commit ordering while retaining the stable Virtuoso callback |
+| Committed text | Optimistic segment rows, live store and save functions | Remove the mirror and use the live store to guard composition completion |
+| Textarea | Existing card refs, selection snapshots, history callbacks and caret hints | Extract their lifecycle together and add a card-local value for unfinished input |
+| Speaker picker | Existing actions, virtual anchor, Popover primitives and frozen closing content | Extract the controlled UI wrapper while retaining the action and sidebar owners |
+
+### Draft ownership gate
+
+The [PR 1 browser save runs](reviews/editor-performance-pr1-results.md) sampled
+five inputs per size. The 33.3 ms and 33.0 ms medians were near the two-frame
+measurement floor. The 5,000-segment jsdom workload fell from 20 card renders
+per key to one. Keep optimistic segment ownership and use the following check
+to decide whether to revisit it.
+
+- Checksum fresh disposable local 2-hour and 10-hour copies. Use the same
+  starting content for each run on the integration base and PR head. The
+  named 10-hour fixture changed during PR 1, so use captured copies for the
+  comparison.
+- Use Chrome DevTools main-thread input task timings at 4× CPU slowdown with
+  the local production build. Repeat matched typing batches with identical
+  input cadence, segment positions and viewport. Cross Find cleared/retained
+  with speaker sidebar closed/open at both sizes. Report per-run sample counts,
+  median and p95 for each combination. Record the two-frame proxy separately
+  if collected for comparison with PR 1.
+- Attribute draft staging and segment-array updates, playback locator rebuilds,
+  speaker overview, sync direction recomputation and retained Find matching
+  separately from React render/commit and browser layout. A pass can depend on
+  active playback or Find state. Revisit draft separation only if 10-hour
+  input-task p95 is at least 16 ms, is consistently higher than 2-hour p95
+  beyond run-to-run variation in the same condition, and traces attribute the
+  gap to segment collection updates. Record the result. Any later draft split
+  needs its own review of the optimistic readers, especially `applyTexts`
+  and the split/rejoin guards.
 
 ### Risks and acceptance
 
-- Verify typing during saves/reloads, draft identity, composition commit/cancel,
-  composition overlapping undo/reload, virtualisation and segment split/rejoin.
-- Search, display, exports and speaker excerpts must read the intended text;
-  audit consumers before changing the base segment semantics.
-- Browser-check Chrome and Safari interactions where available; report gaps.
-- Re-run production-browser typing at both sizes, with search cleared/set and the
-  sidebar open/closed. Record whether draft separation was needed; do not promise
-  to eliminate every linear pass regardless of measured cost.
-- Popover: browser-check same/different trigger clicks, outside click, Escape,
-  invalid names, close animation, trigger removal and sidebar navigation.
-- Verify leave/sign-out and account-change protections, with disposable fixtures.
+- Run the existing card, search, mutation, text history, split, sync, speaker,
+  leave and render-cost suites. Assert visible text and guarded writes in
+  place of mirror state. Add focused regressions for same-text reload, undo
+  during composition with Redo preserved, late IME input, Escape and virtual
+  remount. Confirm that an unchanged or cancelled composition schedules no
+  write. Run full Jest, lint, typecheck and the local production build.
+- Browser-check real IME commit/cancel, native menu undo/redo, Safari drag,
+  split/rejoin selection and retained Find highlights and Replace in Chrome
+  and Safari where available. Start a composition and click the editor's X,
+  another card and outside the editor in separate trials without pressing
+  Enter. Check that a native confirmation saves once on the original segment
+  and can be undone in one step, and that an unconfirmed preview creates
+  neither a save nor a history step. Verify committed typing during saves
+  and reloads, plus leave, sign-out and account-change protections, on
+  disposable fixtures. Record simulated coverage and browser gaps separately.
+- Check popover same/different triggers, outside click, Escape, invalid names,
+  close animation, trigger removal, focus return and sidebar navigation.
 
-A full `EditorSession` rewrite is not a prerequisite. Do not alter loading or
-external-change policy as a side effect of this refactor.
+Loading, sync recovery and the conflict interaction belong to PR 3. The user's
+review and approval of the conflict interaction still precede implementation.
 
 ## PR 3: loading and external-change recovery
 
@@ -480,6 +544,6 @@ Attach baseline-to-final measurements and disclose unverified environments.
 | --- | --- |
 | Feature branch baseline | First commit; see baseline report |
 | PR 1 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr1-results.md). |
-| PR 2 | Not started |
+| PR 2 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr2-results.md). |
 | PR 3 | Not started |
 | Feature branch to main | Not started |
