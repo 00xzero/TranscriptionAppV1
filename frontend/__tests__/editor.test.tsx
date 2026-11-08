@@ -164,6 +164,13 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
     mockFetch()
     jest.clearAllMocks()
+    const initialRows = async () => {
+      await Promise.resolve()
+      return (await (supabaseQueries.fetchTranscriptData as jest.Mock).mock.results.at(-1)?.value)?.items ?? []
+    }
+    ;(supabaseQueries.fetchSegmentWordSets as jest.Mock).mockImplementation(async () =>
+      (await initialRows()).map(({ id, revision = 0 }: { id: string; revision?: number }) => ({ id, revision, words: [] })))
+    ;(supabaseQueries.fetchEditorSegmentSnapshot as jest.Mock).mockImplementation(initialRows)
     mockUseProjectsData.mockReturnValue(projectProviderData([]))
     mockUseTranscriptsData.mockReturnValue(
       transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
@@ -433,13 +440,13 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('uses the normalized transcript duration as the waveform-backed audio hint', async () => {
-    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockResolvedValueOnce({
+    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockResolvedValueOnce(makeTranscript({
       id: 'p1',
       title: 'Test Transcript',
       status: 'completed',
       duration_seconds: 78,
       waveform_status: 'ready',
-    })
+    }))
     const fetchMock = global.fetch as jest.Mock
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url =
@@ -513,7 +520,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
   })
 
-  test('renders segments normally when transcript metadata fetch fails silently', async () => {
+  test('renders segments normally when transcript metadata fetch fails', async () => {
     ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
 
     renderEditorScreen()

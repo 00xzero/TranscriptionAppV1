@@ -4,9 +4,6 @@ import { TEXT_LIMITS } from '@/contracts/limits'
 export const CONFLICT_TOAST = 'Changed in another tab — refreshed'
 export const STALE_TOAST = "Changed in another tab — couldn't refresh"
 export const NOT_READY_MESSAGE = 'Speaker changes are available when transcription is complete.'
-/** Said with CONFLICT_TOAST when a reload drops text typed against a segment's old shape. */
-export const DROPPED_DRAFT_MESSAGE = "Your last edit to a segment that changed wasn't saved."
-
 export function errorCode(error: unknown): string | null {
   if (!error || typeof error !== 'object' || !('code' in error)) return null
   return typeof error.code === 'string' ? error.code : null

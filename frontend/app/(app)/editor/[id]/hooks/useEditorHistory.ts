@@ -8,6 +8,7 @@ import type { Enqueue } from './useEditorWriteQueue'
 import type { SegmentHolds, BusyKind, HoldScope } from './useSegmentHolds'
 
 export type Direction = 'undo' | 'redo'
+export type RepairResult = boolean | 'recovered' | 'retry offered'
 export type HistoryTarget = { ids?: readonly string[]; selection?: { start: number; end: number }; title?: boolean }
 export type HistoryStep = {
   label: string
@@ -51,12 +52,13 @@ type Press = { step: HistoryStep; before: stack.History<HistoryStep>; records: n
  * it has run. Undo and redo pause while a write waits for the connection, and
  * while the editor reads the database again after a change made elsewhere.
  */
-export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecting, reconnecting }: {
+export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, isReconnecting, reconnecting }: {
   enqueue: Enqueue
   holds: SegmentHolds
   reveal(target: HistoryTarget): void
   /** Reads segments, speakers and the title again; false if the database refused. */
-  refresh(): Promise<boolean>
+  refresh(): Promise<RepairResult>
+  hasDrafts?(): boolean
   isReconnecting(): boolean
   reconnecting: boolean
 }) {
@@ -90,14 +92,14 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
     version: h.version + 1,
   }), [])
 
-  /** Empties the history; says so (once) when it removed anything. Returns whether it said so. */
+  /** Empties the history and returns whether it removed a step. */
   const clear = useCallback((title?: string): boolean => {
     const held = [...history.current.done, ...history.current.undone]
     history.current = emptied(history.current)
     const removed = held.some((s) => !history.current.done.includes(s))
     cancelPending(); notify()
     if (title && removed) toast({ title, description: 'Undo history cleared', variant: 'error' })
-    return !!title && removed
+    return removed
   }, [emptied, cancelPending, notify])
 
   const record = useCallback((step: HistoryStep) => {
@@ -116,9 +118,13 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
   const repair = useCallback(async () => {
     repairing.current = true; notify()
     try {
-      if (!(await refresh())) toast({ title: STALE_TOAST, variant: 'error' })
+      const result = await refresh()
+      if (!result) toast({ title: STALE_TOAST, variant: 'error' })
+      return result
     } catch (error) {
-      if (!(error instanceof SendClosed)) toast({ title: STALE_TOAST, variant: 'error' })
+      if (error instanceof SendClosed) return 'closed'
+      toast({ title: STALE_TOAST, variant: 'error' })
+      return false
     } finally {
       repairing.current = false; notify()
     }
@@ -132,9 +138,18 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
   const failed = useCallback(async (error: unknown, title: string, otherwise: () => void) => {
     if (error instanceof SendClosed) return
     if (!changedElsewhere(error)) { otherwise(); return }
-    if (!clear(title)) toast({ title, variant: 'error' })
-    await repair()
-  }, [clear, repair])
+    if (!hasDrafts?.()) {
+      if (!clear(title)) toast({ title, variant: 'error' })
+      await repair()
+      return
+    }
+    // A draft conflict already explains the refusal if repair can recover it.
+    const cleared = clear()
+    const result = await repair()
+    if (typeof result !== 'string') {
+      toast({ title, description: cleared ? 'Undo history cleared' : undefined, variant: 'error' })
+    }
+  }, [clear, repair, hasDrafts])
 
   /** One undo or redo; `reveals` false when a later press of the same click will show where it landed. */
   const press = useCallback((dir: Direction, reveals = true) => {

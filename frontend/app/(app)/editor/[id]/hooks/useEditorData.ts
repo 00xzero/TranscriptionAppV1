@@ -11,7 +11,6 @@ import {
 } from '@/lib/supabase/queries'
 import {
   SegmentSchema,
-  WaveformStatusSchema,
   type EditorPeopleContext,
   type WaveformStatus,
 } from '@/contracts/db'
@@ -51,26 +50,6 @@ export function chooseEditorDuration(
   )
   if (durations.length === 0) return null
   return Math.max(...durations)
-}
-
-/**
- * Takes each segment's speaker_id from `fetched` and keeps everything else as
- * the editor holds it — above all the text, which may carry an edit whose
- * debounced save has not reached the database yet.
- */
-export function mergeSpeakerAssignments(
-  current: Seg[],
-  fetched: readonly { id: string; speaker_id: string | null }[]
-): Seg[] {
-  const speakerIdBySegment = new Map(fetched.map((s) => [s.id, s.speaker_id]))
-  let changed = false
-  const next = current.map((segment) => {
-    const speakerId = speakerIdBySegment.get(segment.id)
-    if (speakerId === undefined || speakerId === segment.speaker_id) return segment
-    changed = true
-    return { ...segment, speaker_id: speakerId }
-  })
-  return changed ? next : current
 }
 
 /**
@@ -187,19 +166,17 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
       if (cancelled || metadataReading) return
       metadataReading = true
       try {
-        const row = await fetchTranscriptById(transcriptId)
+        const data = await fetchTranscriptById(transcriptId)
         if (cancelled) return
-        if (!row) throw new Error('Transcript metadata unavailable')
-        const parsed = EditorTranscriptSchema.safeParse(row)
-        if (!parsed.success) console.warn('[useEditorData] transcript schema mismatch', parsed.error.issues)
+        if (!data) throw new Error('Transcript metadata unavailable')
+        const row = EditorTranscriptSchema.parse(data)
         if (!titleUpdated.current) setTitle(row.title || null)
-        setTranscriptCreatedAt(row.created_at ?? null)
-        setTranscriptEngine(row.engine ?? null)
-        setTranscriptEngineModel(row.engine_model ?? null)
-        setTranscriptDurationSecs(row.duration_seconds ?? null)
-        setTranscriptProjectId(row.project_id ?? null)
-        const status = WaveformStatusSchema.safeParse(row.waveform_status)
-        void showWaveform(status.data ?? 'skipped')
+        setTranscriptCreatedAt(row.created_at)
+        setTranscriptEngine(row.engine)
+        setTranscriptEngineModel(row.engine_model)
+        setTranscriptDurationSecs(row.duration_seconds)
+        setTranscriptProjectId(row.project_id)
+        void showWaveform(row.waveform_status)
       } catch (error) {
         if (cancelled) return
         console.error('[useEditorData] failed to load transcript metadata', error)
@@ -272,7 +249,7 @@ export function useEditorData(transcriptId: string, reloadContent: () => void, i
 
         if (metadataSeed) void showWaveform(metadataSeed.waveform_status)
         else void loadTranscriptMetadata()
-        void loadWords().then(showWords, reportWordLoadFailure)
+        void loadWords().then(showWords).catch(reportWordLoadFailure)
 
         const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
           (data) => ({ data, error: null as unknown }),

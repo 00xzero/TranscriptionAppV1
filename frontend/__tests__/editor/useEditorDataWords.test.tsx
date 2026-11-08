@@ -18,9 +18,8 @@ const segment = (id: string, revision: number) => ({
   is_edited: false, is_filler: false, algo_version: 'test', revision,
   created_at: '2026-10-13T00:00:00Z', updated_at: '2026-10-13T00:00:00Z',
 })
-const word = (order_index: number, text: string, start_ms: number, end_ms: number, segment_id = SEG) => ({
+const word = (order_index: number, text: string, start_ms: number, end_ms: number) => ({
   id: `00000000-0000-4000-8000-${String(order_index + 1).padStart(12, '0')}`,
-  segment_id,
   start_ms,
   end_ms,
   text,
@@ -66,7 +65,11 @@ it('shows a metadata Retry even while initial segments are still loading', async
   fetchTranscriptData.mockReturnValue(data.promise)
   fetchSegmentWordSets.mockResolvedValue([])
   fetchTranscriptById.mockRejectedValueOnce(new Error('metadata read failed'))
-    .mockResolvedValueOnce({ title: 'Retried title', waveform_status: 'skipped' })
+    .mockResolvedValueOnce({
+      title: 'Retried title', waveform_status: 'skipped', status: 'completed',
+      project_id: null, created_at: '2024-01-01T00:00:00Z', engine: 'deepgram',
+      engine_model: null, duration_seconds: null,
+    })
   const { result } = render()
 
   await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
@@ -86,7 +89,7 @@ it('does not use words read at another revision; it reloads segments and words t
   // another tab had split it (revision 1, a new second half).
   fetchSegmentWordSets.mockResolvedValue([
     { id: SEG, revision: 1, words: [word(0, 'hello', 0, 300)] },
-    { id: SEG_B, revision: 0, words: [word(1, 'world', 300, 600, SEG_B)] },
+    { id: SEG_B, revision: 0, words: [word(1, 'world', 300, 600)] },
   ])
   const { result } = render()
 

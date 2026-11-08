@@ -132,9 +132,9 @@ export function createSender(onReconnecting: (reconnecting: boolean) => void): S
  * finds it still open, so sends out at that moment are not given up while
  * the editor stays.
  */
-export function useUntilAnswered(): { send: Send; reconnecting: boolean; isReconnecting(): boolean } {
+export function useUntilAnswered(): { send: Send; reconnecting: boolean; isReconnecting(): boolean; close(): void } {
   const [reconnecting, setReconnecting] = useState(false)
   const sender = useMemo(() => createSender(setReconnecting), [])
   useAfterUnmount(useCallback(() => () => sender.close(), [sender]))
-  return { send: sender.send, reconnecting, isReconnecting: sender.isReconnecting }
+  return { send: sender.send, reconnecting, isReconnecting: sender.isReconnecting, close: sender.close }
 }

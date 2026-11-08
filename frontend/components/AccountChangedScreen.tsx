@@ -13,6 +13,7 @@ import { readAccountMarker } from '@/lib/auth/account-marker'
 import { accountChangeFromMarker, type AccountChange } from '@/lib/auth/auth-policy'
 import { unsavedEditorTexts } from '@/lib/editor/leaveGuard'
 import { copyText } from '@/lib/editor/unsavedToasts'
+import { retainedToastTexts } from '@/components/ui/toaster'
 import { useRecordingActions, useRecordingSession } from '@/lib/recording/RecordingSessionContext'
 import { getFinalizedRecordingFile } from '@/lib/recording/session'
 
@@ -81,7 +82,7 @@ function Covered({ change }: { change: AccountChange }) {
   const { userId, signOut } = useAuth()
   const recording = useRecordingSession()
   const { stopAndFinalize } = useRecordingActions()
-  const [unsaved] = useState(unsavedEditorTexts)
+  const [unsaved] = useState(() => [...unsavedEditorTexts(), ...retainedToastTexts()])
   const [copied, setCopied] = useState(false)
   const [stopping, setStopping] = useState(false)
   const [downloaded, setDownloaded] = useState(false)

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchEditorPeopleContext,
-  fetchSegmentSpeakerAssignments,
   fetchSpeakers,
 } from '@/lib/supabase/queries'
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
@@ -13,8 +12,6 @@ import { NOTHING_CHANGED, type EditorHistory, type HistoryStep } from './useEdit
 import type { SegmentHolds } from './useSegmentHolds'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
 import type { Seg, SegmentLayout } from '../types'
-import { revisionsMatch } from '../utils'
-import { mergeSpeakerAssignments } from './useEditorData'
 import {
   correctAction,
   removalChanges,
@@ -74,7 +71,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
   enqueue: Enqueue
   /**
-   * Reloads segments and words when they were split or rejoined elsewhere.
+   * Reconciles current segment text and shape before refreshing the speakers.
    * False if the database refused the read; throws SendClosed once the editor has closed.
    */
   reloadSegments: () => Promise<boolean>
@@ -109,19 +106,18 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     updatePeople: peopleStore.update,
   }), [transcriptId, speakersStore, segmentsStore, peopleStore, send])
 
-  // Reloads speaker data and segment assignments, never segment text — unless
-  // a segment was split or rejoined elsewhere (its id or revision differs),
-  // when segments and words reload whole and keep only drafts still valid.
-  // Anything changed elsewhere that the history's steps rest on (a segment's
-  // speaker, a speaker here, a person linked to one) clears the history. The
-  // reads are sent until answered; false means the database refused one.
-  const refresh = useCallback(async (): Promise<boolean> => {
+  // History repair has already read segments. A tab return reads them here.
+  const refresh = useCallback(async (includeSegments = true): Promise<boolean> => {
     try {
-      const [assignments, speakerRows, people] = await send(() => Promise.all([
-        fetchSegmentSpeakerAssignments(store.transcriptId),
+      const details = send(() => Promise.all([
         fetchSpeakers(store.transcriptId),
         fetchEditorPeopleContext(store.transcriptId),
-      ]))
+      ])).then((data) => ({ data }), (error: unknown) => ({ error }))
+      const segmentsRead = !includeSegments || await reloadSegments()
+      const result = await details
+      if (!segmentsRead) return false
+      if ('error' in result) throw result.error
+      const [speakerRows, people] = result.data
       const linkedHere = new Set(store.speakers().flatMap((sp) => sp.person_id ? [savedId(sp.person_id)] : []))
       const peopleById = new Map(people.people.map((row) => [row.id, row]))
       const externalPeople = store.people().people.some((p) => {
@@ -135,16 +131,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
         const row = speakersById.get(p.id)
         return !row || row.person_id !== p.person_id || row.custom_label !== p.custom_label
       })
-      const shown = store.segments()
-      const shownSpeaker = new Map(shown.map((s) => [s.id, s.speaker_id]))
-      const externalAssignments = assignments.some((a) => shownSpeaker.get(a.id) !== a.speaker_id)
-      if (externalPeople || externalSpeakers || externalAssignments) clearHistory('This changed elsewhere')
-      const reshaped = assignments.length !== shown.length || !revisionsMatch(shown, assignments)
-      if (reshaped) {
-        if (!(await reloadSegments())) return false
-      } else {
-        store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
-      }
+      if (externalPeople || externalSpeakers) clearHistory('This changed elsewhere')
       store.updateSpeakers(() => speakerRows)
       store.updatePeople(() => people)
       return true

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import AccountChangedScreen, { CurrentAccountOnly } from '@/components/AccountChangedScreen'
 import { setLeaveGuard } from '@/lib/editor/leaveGuard'
 import { copyText } from '@/lib/editor/unsavedToasts'
+import { __resetToastsForTesting, retainedToastTexts, toast, Toaster } from '@/components/ui/toaster'
 import { mockSignOut, resetTestAuth, setTestAuth } from '@/__tests__/helpers/auth'
 
 jest.mock('@/lib/auth/AuthProvider', () => require('@/__tests__/helpers/auth').authProviderMock)
@@ -51,6 +52,7 @@ describe('AccountChangedScreen', () => {
   afterEach(() => {
     removeGuard?.()
     removeGuard = null
+    __resetToastsForTesting()
   })
 
   test('shows nothing while the page still belongs to the session', () => {
@@ -68,6 +70,39 @@ describe('AccountChangedScreen', () => {
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Copy unsaved text' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Stop recording' })).not.toBeInTheDocument()
+  })
+
+  test('snapshots a conflict toast even after the editor and its leave guard are gone', () => {
+    toast({ title: 'Your edit wasn’t saved', recovery: { texts: ['Full draft'], previews: ['Preview'] } })
+    freezeAs('switched')
+    render(<AccountChangedScreen />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy unsaved text' }))
+    expect(copyText).toHaveBeenCalledWith(['Full draft'])
+  })
+
+  test('a conflict toast keeps its text after time, copy, and Escape until Close', () => {
+    jest.useFakeTimers()
+    try {
+      const copy = jest.fn()
+      render(<Toaster />)
+      act(() => toast({
+        title: '4 edits weren’t saved',
+        recovery: { texts: ['one', 'two', 'three', 'four'], previews: ['one', 'two', 'three'] },
+        action: { label: 'Copy text', onClick: copy },
+      }))
+      expect(screen.getByText('and 1 more')).toBeInTheDocument()
+      act(() => jest.advanceTimersByTime(30000))
+      const button = screen.getByRole('button', { name: 'Copy text' })
+      fireEvent.click(button)
+      expect(copy).toHaveBeenCalledTimes(1)
+      fireEvent.keyDown(button, { key: 'Escape' })
+      expect(retainedToastTexts()).toEqual(['one', 'two', 'three', 'four'])
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+      expect(retainedToastTexts()).toEqual([])
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('signed out in another tab offers Sign in', () => {

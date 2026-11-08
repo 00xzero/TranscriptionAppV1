@@ -20,7 +20,6 @@ jest.mock('@/lib/supabase/queries', () => ({
   renamePerson: jest.fn(),
   undoCreatedPerson: jest.fn(),
   restoreCreatedPerson: jest.fn(),
-  fetchSegmentSpeakerAssignments: jest.fn(),
   fetchSpeakers: jest.fn(),
   fetchEditorPeopleContext: jest.fn(),
 }))
@@ -57,9 +56,6 @@ let loaded = true
 
 function setup(initialSpeakers = [detected('a', 0), detected('b', 1)],
   initialSegments = [segment('s1', 'a', 0), segment('s2', 'a', 1000)]) {
-  // By default a refresh finds the database as the editor holds it.
-  queries.fetchSegmentSpeakerAssignments.mockImplementation(async () => rendered.result.current.segments
-    .map(({ id, speaker_id, revision }) => ({ id, speaker_id, revision })))
   queries.fetchSpeakers.mockResolvedValue(initialSpeakers)
   queries.fetchEditorPeopleContext.mockResolvedValue(context)
   const reloadSegments = jest.fn().mockResolvedValue(true)
@@ -457,32 +453,22 @@ test('a tab return before the first load has shown segments leaves the load to i
   const { reloadSegments } = setup([detected('a', 0)], [])
   act(() => window.dispatchEvent(new Event('focus')))
   await act(async () => {})
-  expect(queries.fetchSegmentSpeakerAssignments).not.toHaveBeenCalled()
   expect(reloadSegments).not.toHaveBeenCalled()
 
   loaded = true
   act(() => window.dispatchEvent(new Event('focus')))
-  await waitFor(() => expect(queries.fetchSegmentSpeakerAssignments).toHaveBeenCalledTimes(1))
+  await waitFor(() => expect(reloadSegments).toHaveBeenCalledTimes(1))
 })
 
-test('a segment split or rejoined elsewhere reloads segments and words on return', async () => {
+test('a tab return reconciles segments while fetching speaker data', async () => {
+  let finish!: (value: boolean) => void
   const { reloadSegments } = setup()
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
-    { id: 's1', speaker_id: 'a', revision: 1 }, { id: 's2', speaker_id: 'a', revision: 0 }, { id: 's3', speaker_id: 'a', revision: 0 },
-  ])
+  reloadSegments.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
   act(() => window.dispatchEvent(new Event('focus')))
   await waitFor(() => expect(reloadSegments).toHaveBeenCalledTimes(1))
   expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1)
-})
-
-test('an unchanged shape on return merges assignments without reloading', async () => {
-  const { reloadSegments, speakerIds } = setup()
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
-    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
-  ])
-  act(() => window.dispatchEvent(new Event('focus')))
-  await waitFor(() => expect(speakerIds()).toEqual(['b', 'a']))
-  expect(reloadSegments).not.toHaveBeenCalled()
+  await act(async () => { finish(true) })
+  expect(queries.fetchSpeakers).toHaveBeenCalledTimes(1)
 })
 
 test('a tab switch that fires both events refreshes once', async () => {
@@ -537,11 +523,12 @@ test('Undo after inline creation moves the segments back and removes the unchang
 })
 
 test('an open picker closes when a refresh moves its segment to another speaker', async () => {
-  const { result, open } = setup()
+  const { result, open, reloadSegments } = setup()
   open()
-  queries.fetchSegmentSpeakerAssignments.mockResolvedValueOnce([
-    { id: 's1', speaker_id: 'b', revision: 0 }, { id: 's2', speaker_id: 'a', revision: 0 },
-  ])
+  reloadSegments.mockImplementationOnce(async () => {
+    result.current.segmentsStore.update(() => [segment('s1', 'b', 0), segment('s2', 'a', 1000)])
+    return true
+  })
   act(() => window.dispatchEvent(new Event('focus')))
   // Its Current row would still say Speaker 1 while All acted on Speaker 2.
   await waitFor(() => expect(result.current.speakerPopover).toBeNull())

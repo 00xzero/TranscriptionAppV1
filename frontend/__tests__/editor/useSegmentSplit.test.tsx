@@ -15,7 +15,8 @@ import type { SegmentTextEdit } from '@/contracts/db'
 
 jest.mock('@/lib/supabase/queries', () => ({
   setSegmentTexts: jest.fn(),
-  fetchSegmentsWithWords: jest.fn(),
+  fetchEditorSegmentSnapshot: jest.fn(),
+  fetchSegmentWordSets: jest.fn(),
   splitSegment: jest.fn(),
   rejoinSegments: jest.fn(),
 }))
@@ -170,11 +171,12 @@ beforeEach(() => {
     calls.push('rejoin')
     return fake.rejoin(req)
   })
-  queries.fetchSegmentsWithWords.mockImplementation(async () => {
+  queries.fetchEditorSegmentSnapshot.mockImplementation(async () => {
     calls.push('reload')
     return [...fake.db.segments].sort(compareSegments)
-      .map((s) => ({ ...s, words: fake.db.words.filter((w) => w.segment_id === s.id).map((w) => ({ ...w })) }))
   })
+  queries.fetchSegmentWordSets.mockImplementation(async () => fake.db.segments
+    .map(({ id, revision }) => ({ id, revision, words: fake.db.words.filter((w) => w.segment_id === id) })))
 })
 
 it('waits for the database, then shows both halves and words, with no Undo toast', async () => {

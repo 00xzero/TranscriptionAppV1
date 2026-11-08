@@ -38,7 +38,7 @@ import { useKeepReadingPosition } from './hooks/useKeepReadingPosition'
 import { createSegmentLocator } from './utils'
 import { useSegmentHolds } from './hooks/useSegmentHolds'
 import { useSegmentLayout } from './hooks/useSegmentLayout'
-import { useEditorHistory, type HistoryTarget } from './hooks/useEditorHistory'
+import { useEditorHistory, type HistoryTarget, type RepairResult } from './hooks/useEditorHistory'
 import { useTextHistory } from './hooks/useTextHistory'
 import { useLeaveEditor } from './hooks/useLeaveEditor'
 import LeaveEditorDialog from './components/LeaveEditorDialog'
@@ -63,6 +63,9 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   // the write queue and the text drafts exist.
   const reloadContentRef = useRef<() => void>(() => {})
   const reloadContent = useCallback(() => reloadContentRef.current(), [])
+  const deletedRef = useRef<() => void>(() => {})
+  const onDeleted = useCallback(() => deletedRef.current(), [])
+  const reportWordLoadFailure = useCallback(() => toast(wordTimingsFailedToast(reloadContent)), [reloadContent])
   const data = useEditorData(transcriptId, reloadContent, initialMetadata)
   const segmentLayout = useSegmentLayout(data.segments)
   const actionTarget = transcriptActionTarget({
@@ -77,13 +80,18 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   // stores. Each write is sent until the database answers it; every one
   // recognises its own earlier success, so a resend is always safe.
   const enqueue = useEditorWriteQueue()
-  const { send, reconnecting, isReconnecting } = useUntilAnswered()
+  const { send, reconnecting, isReconnecting, close: closeSender } = useUntilAnswered()
   const holds = useSegmentHolds(isReconnecting, reconnecting)
   // The history reveals and refreshes through hooks set up after it.
-  const bridge = useRef({ reveal: (_target: HistoryTarget) => {}, refresh: async () => false })
+  const bridge = useRef({
+    reveal: (_target: HistoryTarget) => {},
+    refresh: async (): Promise<RepairResult> => false,
+    hasDrafts: (): boolean => false,
+  })
   const reveal = useCallback((target: HistoryTarget) => bridge.current.reveal(target), [])
   const refreshAll = useCallback(() => bridge.current.refresh(), [])
-  const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, isReconnecting, reconnecting })
+  const hasDrafts = useCallback(() => bridge.current.hasDrafts(), [])
+  const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, hasDrafts, isReconnecting, reconnecting })
   const { clear: clearHistory } = history
   const externalChange = useCallback((quiet: boolean) => {
     clearHistory(quiet ? undefined : 'This changed elsewhere')
@@ -97,10 +105,19 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
     enqueue,
     send,
     onExternalChange: externalChange,
+    onDeleted,
+    onWordLoadFailure: reportWordLoadFailure,
   })
   const textHistory = useTextHistory(history, editing)
   // Leaving waits for what the editor has not saved yet.
   const leaving = useLeaveEditor({ queue: enqueue, editing, reconnecting })
+  const { abandon } = leaving
+  const finishDeletion = useCallback(() => {
+    abandon()
+    closeSender()
+    router.replace('/transcripts')
+  }, [abandon, closeSender, router])
+  useEffect(() => { deletedRef.current = finishDeletion }, [finishDeletion])
 
   const speakerHook = useSpeakerAssignments({
     transcriptId,
@@ -123,13 +140,13 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   useEffect(() => {
     reloadContentRef.current = () => {
       void enqueue(async () => {
-        if (!(await reloadSegments())) toast(wordTimingsFailedToast(reloadContent))
+        if (!(await reloadSegments(true))) reportWordLoadFailure()
       }, 'read').catch((error: unknown) => {
         // A closed editor has nothing to show it on; anything else is a bug.
         if (!(error instanceof SendClosed)) console.error('[editor] failed to reload word timings:', error)
       })
     }
-  }, [enqueue, reloadSegments, reloadContent])
+  }, [enqueue, reloadSegments, reportWordLoadFailure])
 
   const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
 
@@ -169,20 +186,24 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
   useEffect(() => {
     bridge.current = {
+      hasDrafts: editing.hasDrafts,
       // Runs inside the write queue after a change made elsewhere: segments,
       // then speakers and people alongside the title and the tags, each read
       // until answered (tags once: they are the shared store's).
       refresh: async () => {
-        if (!(await editing.reloadSegments())) return false
+        let recovered = false
+        if (!(await editing.reloadSegments(false, () => { recovered = true }))) {
+          return editing.reportRefreshFailure() ? 'retry offered' : false
+        }
         const [speakersRead, row, tagsRead] = await Promise.all([
-          speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
+          speakerHook.refresh(false), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
         ])
         // A title that was read is shown even when another read failed.
         if (row) {
           data.setTranscriptTitle(row.title)
           handleTitleSaved(row.title)
         }
-        return speakersRead && !!row && tagsRead
+        return recovered ? 'recovered' : speakersRead && !!row && tagsRead
       },
       reveal(target) {
         sync.suspendFollow('ui')
@@ -570,7 +591,7 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
         />
       )}
 
-      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => { leaving.abandon(); router.replace('/transcripts') }} />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={finishDeletion} />
 
       <LeaveEditorDialog
         phase={leaving.phase}
