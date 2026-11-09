@@ -122,9 +122,7 @@ export function canTransition(
         fromState === 'paused' ||
         fromState === 'finalizing' ||
         fromState === 'uploading' ||
-        fromState === 'submitted' ||
-        // Recovery save transitions straight from the recoverable state.
-        fromState === 'recoverable'
+        fromState === 'submitted'
       )
     case 'discard':
       return DISCARDABLE_STATES.has(fromState)

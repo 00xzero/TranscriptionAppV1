@@ -72,7 +72,7 @@ export function __setOwnerLockForTesting(lock: BrowserOwnerLock | null): void {
   resolvedOwner = null
 }
 
-export type { SessionLock } from './types'
+export type { SessionClaim, SessionLock } from './types'
 export type { BrowserOwnerLock } from './ownerTypes'
 export { recordingLockName } from './types'
 export { OWNER_LOCK_NAME } from './ownerTypes'

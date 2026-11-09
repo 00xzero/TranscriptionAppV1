@@ -12,17 +12,17 @@
  * different session). Cross-tab duplicate-start blocking + presence are Phase 4,
  * which will extend this seam; Phase 2 keeps the interface to acquire/isHeld/release.
  */
+export interface SessionClaim {
+  readonly sessionId: string
+  /** Releases this acquisition only. Safe to call more than once. */
+  release(): Promise<void>
+}
+
 export interface SessionLock {
-  /**
-   * Try to take ownership of `sessionId`. Returns false (without blocking) when
-   * the lock is already held by another holder — this is what makes recovery a
-   * race-free claim. A holder may hold at most one session lock at a time.
-   */
-  acquire(sessionId: string): Promise<boolean>
+  /** Try without waiting. A holder can have only one pending or held claim. */
+  acquire(sessionId: string): Promise<SessionClaim | null>
   /** Read-only: is the session currently owned (by any tab)? */
   isHeld(sessionId: string): Promise<boolean>
-  /** Release the lock this holder currently owns (no-op if none). */
-  release(): Promise<void>
 }
 
 export function recordingLockName(sessionId: string): string {

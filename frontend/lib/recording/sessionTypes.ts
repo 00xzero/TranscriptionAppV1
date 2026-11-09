@@ -1,4 +1,5 @@
 import type { CodecSelection } from './codecs'
+import type { SessionClaim } from './lock/types'
 import type { AutoStopReason } from './durationBudget'
 import type { CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
@@ -110,6 +111,8 @@ export interface Runtime {
   // Durable persistence (Phase 1). `sessionId`/`writeQueue` are null when idle;
   // `nextChunkSeq` is the monotonic seq assigned to the next persisted chunk.
   sessionId: string | null
+  sessionClaim: SessionClaim | null
+  recoveryClaim: SessionClaim | null
   nextChunkSeq: number
   writeQueue: SessionWriteQueue | null
   // Phase 2: client-generated upload idempotency key for this session; null when

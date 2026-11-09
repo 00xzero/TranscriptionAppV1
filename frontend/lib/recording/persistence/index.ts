@@ -48,7 +48,6 @@ export {
   type ChunkStreamInvalidReason,
 } from './validation'
 export {
-  gcExpiredSessions,
   sweepExpiredSessions,
   SESSION_MAX_AGE_MS,
   type GcSweepResult,

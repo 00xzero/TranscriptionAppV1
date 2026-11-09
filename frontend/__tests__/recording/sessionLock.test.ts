@@ -14,23 +14,24 @@ describe('FakeSessionLock', () => {
   test('acquires a free session and reports it held; releases it', async () => {
     const lock = new FakeSessionLock()
     expect(await lock.isHeld('s1')).toBe(false)
-    expect(await lock.acquire('s1')).toBe(true)
+    const claim = await lock.acquire('s1')
+    expect(claim?.sessionId).toBe('s1')
     expect(await lock.isHeld('s1')).toBe(true)
-    await lock.release()
+    await claim?.release()
     expect(await lock.isHeld('s1')).toBe(false)
   })
 
   test('refuses to acquire a session owned elsewhere', async () => {
     const lock = new FakeSessionLock(new Set(['s1']))
     expect(await lock.isHeld('s1')).toBe(true)
-    expect(await lock.acquire('s1')).toBe(false)
+    expect(await lock.acquire('s1')).toBeNull()
   })
 
   test('refuses to overwrite a different session it already holds', async () => {
     const lock = new FakeSessionLock()
-    expect(await lock.acquire('s1')).toBe(true)
-    expect(await lock.acquire('s1')).toBe(true)
-    expect(await lock.acquire('s2')).toBe(false)
+    expect(await lock.acquire('s1')).not.toBeNull()
+    expect(await lock.acquire('s1')).toBeNull()
+    expect(await lock.acquire('s2')).toBeNull()
     expect(await lock.isHeld('s1')).toBe(true)
     expect(await lock.isHeld('s2')).toBe(false)
   })
@@ -63,9 +64,14 @@ describe('NoWebLocksSessionLock (degraded fallback)', () => {
     }
   }
 
-  test('acquire always succeeds (no real coordination)', async () => {
+  test('claims one session per tab without cross-tab coordination', async () => {
     const lock = new NoWebLocksSessionLock(new InMemorySessionPersistence(), 30_000, () => 100_000)
-    expect(await lock.acquire('s1')).toBe(true)
+    const first = await lock.acquire('s1')
+    expect(first).not.toBeNull()
+    expect(await lock.acquire('s2')).toBeNull()
+    expect(await new NoWebLocksSessionLock(new InMemorySessionPersistence()).acquire('s1')).not.toBeNull()
+    await first?.release()
+    expect(await lock.acquire('s2')).not.toBeNull()
   })
 
   test('isHeld is true while chunks are fresh, false once stale', async () => {
@@ -121,15 +127,27 @@ describe('WebLocksSessionLock', () => {
 
   test('acquires when available and reports the lock held by name', async () => {
     const lock = new WebLocksSessionLock()
-    expect(await lock.acquire('s1')).toBe(true)
+    expect(await lock.acquire('s1')).not.toBeNull()
     expect(heldNames).toContain(recordingLockName('s1'))
     expect(await lock.isHeld('s1')).toBe(true)
   })
 
-  test('returns false immediately when the lock is not available (ifAvailable)', async () => {
+  test('releasing an old handle again cannot release a newer claim', async () => {
+    const lock = new WebLocksSessionLock()
+    const previous = await lock.acquire('s1')
+    await previous?.release()
+    const current = await lock.acquire('s1')
+    expect(current).not.toBeNull()
+    await previous?.release()
+    expect(await lock.acquire('s2')).toBeNull()
+    await current?.release()
+    expect(await lock.acquire('s2')).not.toBeNull()
+  })
+
+  test('returns null immediately when the lock is not available (ifAvailable)', async () => {
     available = false
     const lock = new WebLocksSessionLock()
-    expect(await lock.acquire('s1')).toBe(false)
+    expect(await lock.acquire('s1')).toBeNull()
   })
 
   test('treats query failures as held so recovery does not claim unknown ownership', async () => {

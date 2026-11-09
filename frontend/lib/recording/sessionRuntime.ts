@@ -15,6 +15,8 @@ export function createRuntime(): Runtime {
     maxActiveMs: null,
     finalizedRecording: null,
     sessionId: null,
+    sessionClaim: null,
+    recoveryClaim: null,
     nextChunkSeq: 0,
     writeQueue: null,
     uploadIntentId: null,

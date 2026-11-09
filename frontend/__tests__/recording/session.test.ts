@@ -732,9 +732,8 @@ describe('recording session singleton', () => {
   test('failed recorder construction releases the acquired session lock', async () => {
     const release = jest.fn(async () => {})
     const lock: SessionLock = {
-      acquire: jest.fn(async () => true),
+      acquire: jest.fn(async (sessionId: string) => ({ sessionId, release })),
       isHeld: jest.fn(async () => false),
-      release,
     }
     __setSessionLockForTesting(lock)
 
@@ -992,9 +991,8 @@ describe('recording session singleton', () => {
     const clearSpy = jest.spyOn(presence, 'clear')
     const release = jest.fn(async () => {})
     __setSessionLockForTesting({
-      acquire: jest.fn(async () => true),
+      acquire: jest.fn(async (sessionId: string) => ({ sessionId, release })),
       isHeld: jest.fn(async () => false),
-      release,
     })
     const ownerRelease = jest.fn(async () => {})
     __setOwnerLockForTesting({
@@ -1054,19 +1052,19 @@ class CountingSessionLock implements SessionLock {
   held: string | null = null
   releaseCount = 0
 
-  async acquire(sessionId: string): Promise<boolean> {
+  async acquire(sessionId: string) {
+    if (this.held) return null
     this.held = sessionId
-    return true
+    return { sessionId, release: async () => {
+      this.releaseCount++
+      this.held = null
+    } }
   }
 
   async isHeld(sessionId: string): Promise<boolean> {
     return this.held === sessionId
   }
 
-  async release(): Promise<void> {
-    this.releaseCount++
-    this.held = null
-  }
 }
 
 class DelayedDeletePersistence extends InMemorySessionPersistence {
@@ -1260,11 +1258,11 @@ describe('recording session durability mirror', () => {
       title: 'Live recording',
       recoverable: null,
     })
-    expect(lock.releaseCount).toBe(1)
+    expect(lock.releaseCount).toBe(0)
     expect(await delayedPersistence.getSession(session.sessionId)).not.toBeNull()
   })
 
-  test('a recovery probe releases its claim when identity changes before hydration', async () => {
+  test('a recovery probe releases nothing when identity changes before it acquired a claim', async () => {
     const delayedPersistence = new DelayedChunkStatsPersistence()
     installPersistence(delayedPersistence)
     const lock = new CountingSessionLock()
@@ -1304,7 +1302,7 @@ describe('recording session durability mirror', () => {
 
     await expect(probe).resolves.toBe(false)
     expect(getSnapshot().state).toBe('idle')
-    expect(lock.releaseCount).toBe(1)
+    expect(lock.releaseCount).toBe(0)
   })
 
   test('a failing chunk write downgrades the session but recording continues', async () => {
@@ -1358,9 +1356,8 @@ describe('recording session durability mirror', () => {
     installPersistence(delayedPersistence)
     const release = jest.fn(async () => {})
     __setSessionLockForTesting({
-      acquire: jest.fn(async () => true),
+      acquire: jest.fn(async (sessionId: string) => ({ sessionId, release })),
       isHeld: jest.fn(async () => false),
-      release,
     })
 
     await attachRecording({ title: 'Ordered cleanup', maxBytes: 1024 * 1024 })
@@ -1463,27 +1460,18 @@ describe('recording session durability mirror', () => {
   test('discardRecovered surfaces local delete failure and keeps recovery open', async () => {
     const failingDelete = new FailingDeletePersistence()
     installPersistence(failingDelete)
-    __setSnapshotForTesting({
-      state: 'recoverable',
-      title: 'Recovered title',
-      keyTerms: [],
+    const now = Date.now()
+    await failingDelete.putSession({
+      sessionId: 'recoverable-1', userId: 'user-123', uploadIntentId: 'intent-1',
+      projectId: null, title: 'Recovered title', generatedTitle: null, keyTerms: [],
       transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
-      recoverable: {
-        sessionId: 'recoverable-1',
-        uploadIntentId: 'intent-1',
-        projectId: null,
-        title: 'Recovered title',
-        generatedTitle: null,
-        keyTerms: [],
-        transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
-        codecMime: 'audio/webm',
-        codecExtension: 'webm',
-        bytesSoFar: 8192,
-        createdAt: 1_000,
-        remainingCount: 0,
-        mayBeTruncated: false,
-      },
+      codecMime: 'audio/webm', codecExtension: 'webm', deviceId: null,
+      createdAt: now - 60_000, startedAt: now - 60_000, lastResumeAt: null,
+      pausedAccumulatedMs: 3000, bytesSoFar: 8192, lastChunkSeq: 0,
+      lastChunkReceivedAt: now - 60_000, phase: 'capturing', armed: true, failureReason: null,
     })
+    await failingDelete.putChunk('recoverable-1', 0, new Blob([new Uint8Array(8192)]))
+    expect(await runRecoveryProbe()).toBe(true)
 
     await expect(discardRecovered()).rejects.toThrow('delete failed')
     expect(getSnapshot()).toMatchObject({
@@ -1506,9 +1494,9 @@ describe('recording session durability mirror', () => {
     __setPresenceForTesting(presence)
     const release = jest.fn(async () => {})
     __setSessionLockForTesting({
-      acquire: jest.fn(async () => true),
+      acquire: jest.fn(async (sessionId: string) => ({ sessionId, release: async () => {} }))
+        .mockImplementationOnce(async (sessionId) => ({ sessionId, release })),
       isHeld: jest.fn(async () => false),
-      release,
     })
     const ownerRelease = jest.fn(async () => {})
     __setOwnerLockForTesting({

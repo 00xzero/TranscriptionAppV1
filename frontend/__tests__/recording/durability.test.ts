@@ -72,13 +72,12 @@ class FailingChunkPersistence implements SessionPersistence {
 }
 
 class AlwaysAcquireLock implements SessionLock {
-  async acquire(): Promise<boolean> {
-    return true
+  async acquire(sessionId: string) {
+    return { sessionId, release: async () => {} }
   }
   async isHeld(): Promise<boolean> {
     return false
   }
-  async release(): Promise<void> {}
 }
 
 class DeferredFirstChunkPersistence extends InMemorySessionPersistence {
@@ -147,7 +146,7 @@ describe('durability snapshot wiring', () => {
     expect(getSnapshot().durable).toBe(false)
   })
 
-  test('ignores a downgrade from an old queue after a new session starts', async () => {
+  test('settles an old queue before allowing a new session', async () => {
     const persistence = new DeferredFirstChunkPersistence()
     __setPersistenceForTesting(persistence)
     __setSessionLockForTesting(new AlwaysAcquireLock())
@@ -157,11 +156,11 @@ describe('durability snapshot wiring', () => {
     await persistence.firstChunkStarted
 
     discard()
-    await attach()
-    expect(getSnapshot().durable).toBe(true)
+    await expect(attach()).rejects.toMatchObject({ code: 'recording_already_active' })
 
     persistence.rejectFirstChunk(new Error('old write failed'))
     await flushAsync()
+    await attach()
 
     expect(getSnapshot().state).toBe('recording')
     expect(getSnapshot().durable).toBe(true)

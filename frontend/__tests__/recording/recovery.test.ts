@@ -172,13 +172,12 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
 
   test('skips a candidate when ownership liveness cannot be determined', async () => {
     await seed(persistence, baseSession({ sessionId: 's1' }), [0, 1])
-    const acquire = jest.fn(async () => true)
+    const acquire = jest.fn(async () => null)
     const failingLock: SessionLock = {
       isHeld: async () => {
         throw new Error('query failed')
       },
       acquire,
-      release: async () => {},
     }
 
     const result = await probeRecoverableSessions(persistence, failingLock, USER, NOW)
@@ -193,8 +192,7 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     // isHeld false (not yet owned) but acquire fails — another probing tab won.
     const raceLock: SessionLock = {
       isHeld: async () => false,
-      acquire: async () => false,
-      release: async () => {},
+      acquire: async () => null,
     }
 
     const result = await probeRecoverableSessions(persistence, raceLock, USER, NOW)

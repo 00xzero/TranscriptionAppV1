@@ -24,7 +24,6 @@ import {
 import { shouldIgnoreRecorderFailure } from './sessionTransitions'
 import {
   getPersistence,
-  gcExpiredSessions,
   requestPersistentStorage,
   SessionWriteQueue,
   __setPersistenceForTesting,
@@ -106,7 +105,19 @@ export class RecordingIdentityRequiredError extends Error {
   }
 }
 
+let attaching = false
+
 export async function attachAndStart(params: AttachAndStartParams): Promise<void> {
+  if (attaching) throw new RecordingAlreadyActiveError()
+  attaching = true
+  try {
+    await startRecording(params)
+  } finally {
+    attaching = false
+  }
+}
+
+async function startRecording(params: AttachAndStartParams): Promise<void> {
   // A pending recovery must be saved/discarded before a new recording can start.
   if (store.snapshot.state === 'recoverable') {
     throw new RecoveryPendingError()
@@ -117,6 +128,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   // leak the newly acquired stream and pretend a new recording started.
   if (
     (store.runtime.controller && store.runtime.controller.isAttached()) ||
+    store.runtime.sessionClaim ||
     hasUnsavedRecording()
   ) {
     throw new RecordingAlreadyActiveError()
@@ -157,11 +169,12 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   // Take ownership of this session before constructing the recorder, so another
   // tab cannot claim it as a recoverable orphan while it is live. On failure the
   // caller still owns the stream (it releases it); we only own the lock here.
-  const acquired = await lock.acquire(sessionId)
-  if (!acquired) {
+  const claim = await lock.acquire(sessionId)
+  if (!claim) {
     await releaseOwnerLockQuietly()
     throw new RecordingAlreadyActiveError()
   }
+  store.runtime.sessionClaim = claim
 
   try {
     const controller = createRecorderController(params.stream, params.codec.mime, {
@@ -215,8 +228,9 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.lastChunkReceivedAt = null
     store.runtime.flushRequested = false
     store.runtime.writeQueue = null
-    void lock.release()
-    void releaseOwnerLockQuietly()
+    await claim.release().catch(() => {})
+    await releaseOwnerLockQuietly()
+    store.runtime.sessionClaim = null
     throw err
   }
 
@@ -242,7 +256,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   })
 
   // Persist the session row first (queue invariant: putSession is op #0), then
-  // best-effort durable-storage request and an opportunistic 7-day GC sweep.
+  // best-effort durable-storage request. The recovery probe swept expired rows.
   store.runtime.writeQueue.enqueueSession({
     sessionId,
     userId: identity.userId,
@@ -267,7 +281,6 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     failureReason: null,
   })
   void requestPersistentStorage()
-  void gcExpiredSessions(persistence)
 
   startIntervalIfNeeded()
   // Announce ownership to same-browser tabs immediately so they reflect the live
@@ -511,6 +524,8 @@ function setSalvageMessage(message: string | null): void {
 
 export function __resetForTesting(): void {
   void releaseOwnerLockQuietly()
+  void store.runtime.sessionClaim?.release()
+  void store.runtime.recoveryClaim?.release()
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   abortUpload(store)

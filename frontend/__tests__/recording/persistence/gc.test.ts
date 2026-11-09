@@ -1,6 +1,7 @@
+import { FakeSessionLock } from '@/lib/recording/lock'
 import { InMemorySessionPersistence } from '@/lib/recording/persistence/inMemory'
 import {
-  gcExpiredSessions,
+  sweepExpiredSessions,
   SESSION_MAX_AGE_MS,
 } from '@/lib/recording/persistence/gc'
 import type { PersistedSession } from '@/lib/recording/persistence/types'
@@ -35,7 +36,7 @@ function makeSession(
   }
 }
 
-describe('gcExpiredSessions', () => {
+describe('sweepExpiredSessions', () => {
   const NOW = 1_000_000_000_000
 
   test('deletes sessions older than the max age and their chunks', async () => {
@@ -46,7 +47,7 @@ describe('gcExpiredSessions', () => {
     await store.putSession(fresh)
     await store.putChunk('old', 0, new Blob([new Uint8Array(10)]))
 
-    const deleted = await gcExpiredSessions(store, NOW)
+    const { deleted } = await sweepExpiredSessions(store, new FakeSessionLock(), await store.listSessions(), NOW)
 
     expect(deleted).toBe(1)
     expect(await store.getSession('old')).toBeNull()
@@ -58,7 +59,7 @@ describe('gcExpiredSessions', () => {
     const store = new InMemorySessionPersistence()
     await store.putSession(makeSession('edge', NOW - SESSION_MAX_AGE_MS + 1))
 
-    const deleted = await gcExpiredSessions(store, NOW)
+    const { deleted } = await sweepExpiredSessions(store, new FakeSessionLock(), await store.listSessions(), NOW)
 
     expect(deleted).toBe(0)
     expect(await store.getSession('edge')).not.toBeNull()
@@ -68,16 +69,21 @@ describe('gcExpiredSessions', () => {
     const store = new InMemorySessionPersistence()
     await store.putSession(makeSession('edge', NOW - SESSION_MAX_AGE_MS))
 
-    const deleted = await gcExpiredSessions(store, NOW)
+    const { deleted } = await sweepExpiredSessions(store, new FakeSessionLock(), await store.listSessions(), NOW)
 
     expect(deleted).toBe(1)
   })
 
-  test('swallows a persistence failure and returns 0', async () => {
-    const failing = {
-      listSessions: jest.fn().mockRejectedValue(new Error('boom')),
-    } as unknown as InMemorySessionPersistence
-
-    await expect(gcExpiredSessions(failing, NOW)).resolves.toBe(0)
+  test('leaves an expired row intact while a different claim is held', async () => {
+    const store = new InMemorySessionPersistence()
+    const old = makeSession('old', NOW - SESSION_MAX_AGE_MS)
+    await store.putSession(old)
+    const lock = new FakeSessionLock()
+    const claim = await lock.acquire('active')
+    const result = await sweepExpiredSessions(store, lock, [old], NOW)
+    expect(result.deleted).toBe(0)
+    expect(await store.getSession('old')).not.toBeNull()
+    expect(await lock.isHeld('active')).toBe(true)
+    await claim?.release()
   })
 })

@@ -1,4 +1,4 @@
-import { recordingLockName, type SessionLock } from './types'
+import { recordingLockName, type SessionClaim, type SessionLock } from './types'
 import { WebLocksMutex } from './webLocksMutex'
 
 /**
@@ -11,16 +11,32 @@ import { WebLocksMutex } from './webLocksMutex'
  */
 export class WebLocksSessionLock implements SessionLock {
   private readonly mutex = new WebLocksMutex({ onQueryFailure: 'held' })
+  private occupied = false
 
-  acquire(sessionId: string): Promise<boolean> {
-    return this.mutex.acquire(recordingLockName(sessionId))
+  async acquire(sessionId: string): Promise<SessionClaim | null> {
+    if (this.occupied) return null
+    this.occupied = true
+    if (!(await this.mutex.acquire(recordingLockName(sessionId)))) {
+      this.occupied = false
+      return null
+    }
+    let released = false
+    return {
+      sessionId,
+      release: async () => {
+        if (released) return
+        released = true
+        try {
+          await this.mutex.release()
+        } finally {
+          this.occupied = false
+        }
+      },
+    }
   }
 
   isHeld(sessionId: string): Promise<boolean> {
     return this.mutex.isHeld(recordingLockName(sessionId))
   }
 
-  release(): Promise<void> {
-    return this.mutex.release()
-  }
 }

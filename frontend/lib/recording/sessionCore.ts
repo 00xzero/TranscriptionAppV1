@@ -10,8 +10,9 @@
  * graph acyclic.
  */
 
-import { getOwnerLock, getSessionLock } from './lock'
-import { clearPresenceQuietly, publishPresence } from './sessionPresence'
+import { getOwnerLock, type SessionClaim } from './lock'
+import { publishPresence } from './sessionPresence'
+import { clearPresenceForSession } from './presence'
 import {
   clearInterruptedSessionRuntime,
   clearTerminalSessionRuntime,
@@ -88,9 +89,9 @@ export function hasUnresolvedRecordingArtifact(): boolean {
 
 // Release session ownership, swallowing errors. Lock release is always
 // best-effort: a failed release must never block a terminal/recovery flow.
-export async function releaseSessionLockQuietly(): Promise<void> {
+export async function releaseSessionLockQuietly(claim: SessionClaim | null): Promise<void> {
   try {
-    await getSessionLock().release()
+    await claim?.release()
   } catch {
     // ignore — best-effort
   }
@@ -109,11 +110,23 @@ export async function releaseOwnerLockQuietly(): Promise<void> {
 // then clear presence, then release ownership — so another tab never sees "no
 // owner" while chunks still exist, and cannot briefly claim chunks this tab is
 // deleting (especially important for discard).
-export async function finalizeTerminalCleanup(): Promise<void> {
-  await clearTerminalSessionRuntime(store, clearSessionActivity)
-  clearPresenceQuietly()
-  await releaseSessionLockQuietly()
+export async function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> {
+  if (!claim || store.runtime.sessionClaim !== claim) return
+  clearPresenceForSession(claim.sessionId)
+  await releaseSessionLockQuietly(claim)
   await releaseOwnerLockQuietly()
+  if (store.runtime.sessionClaim === claim) store.runtime.sessionClaim = null
+}
+
+let terminalCleanup: Promise<void> | null = null
+
+export function finalizeTerminalCleanup(): Promise<void> {
+  if (terminalCleanup) return terminalCleanup
+  const claim = store.runtime.sessionClaim
+  terminalCleanup = clearTerminalSessionRuntime(store, clearSessionActivity)
+    .then(() => releaseLiveOwnership(claim))
+    .finally(() => { terminalCleanup = null })
+  return terminalCleanup
 }
 
 // Persist pause/resume timing from the POST-transition snapshot. `dispatch()`
@@ -184,8 +197,8 @@ const releaseOwnershipIfNonRetryable: TransitionEffect = () => {
   // null): if this tab dies while parked on the error, other tabs can map the
   // released owner lock back to the lost session id and run recovery.
   if (store.runtime.finalizedRecording == null) {
-    clearPresenceQuietly()
-    void releaseOwnerLockQuietly()
+    const { sessionClaim, writeQueue } = store.runtime
+    void Promise.resolve(writeQueue?.whenSettled()).then(() => releaseLiveOwnership(sessionClaim))
   }
 }
 const disposeLiveController: TransitionEffect = () => {
@@ -345,6 +358,7 @@ export function markError(message: string): void {
 }
 
 export function resetRecordingSession(): void {
+  if (store.snapshot.state === 'recoverable') return
   void finalizeTerminalCleanup()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }

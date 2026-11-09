@@ -5,6 +5,7 @@
  * `structuredClone`, `Blob`, and `DOMException` globals it relies on.
  */
 import 'fake-indexeddb/auto'
+import { FakeSessionLock } from '@/lib/recording/lock'
 import { IDBFactory } from 'fake-indexeddb'
 
 import {
@@ -12,7 +13,7 @@ import {
   InMemorySessionPersistence,
   type SessionPersistence,
 } from '@/lib/recording/persistence'
-import { gcExpiredSessions, SESSION_MAX_AGE_MS } from '@/lib/recording/persistence/gc'
+import { sweepExpiredSessions, SESSION_MAX_AGE_MS } from '@/lib/recording/persistence/gc'
 import {
   PersistedSessionSchema,
   type PersistedSession,
@@ -171,7 +172,7 @@ describe('IndexedDBSessionPersistence', () => {
     await store.putSession(makeSession('fresh', { createdAt: now - 5_000 }))
     await store.putChunk('old', 0, new Blob([new Uint8Array([1])]))
 
-    const deleted = await gcExpiredSessions(store, now)
+    const { deleted } = await sweepExpiredSessions(store, new FakeSessionLock(), await store.listSessions(), now)
 
     expect(deleted).toBe(1)
     expect(await store.getSession('old')).toBeNull()

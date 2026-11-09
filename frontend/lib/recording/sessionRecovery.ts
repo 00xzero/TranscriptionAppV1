@@ -6,18 +6,15 @@
  * the recorder lifecycle.
  */
 
-import { getSessionLock } from './lock'
+import { getSessionLock, type SessionClaim } from './lock'
 import { getPersistence, type SessionWriteQueue } from './persistence'
 import { probeRecoverableSessions } from './recovery'
 import {
   dispatch,
-  markSubmitted,
-  releaseOwnerLockQuietly,
+  releaseLiveOwnership,
   releaseSessionLockQuietly,
-  setSubmissionResult,
 } from './sessionCore'
 import { getIdentity } from './sessionIdentity'
-import { clearPresenceQuietly } from './sessionPresence'
 import { setSnapshot, store } from './sessionStore'
 import { IDLE_SNAPSHOT, type RecoverableInfo } from './sessionTypes'
 import type { CreateTranscriptWarning } from '@/contracts/api'
@@ -29,8 +26,9 @@ export function markInterrupted(message?: string): void {
   // writes can settle before we probe. Only finalize recovery when the state
   // transition was accepted; a rejected transition must not release ownership.
   const queue = store.runtime.writeQueue
+  const claim = store.runtime.sessionClaim
   if (dispatch('markInterrupted', { errorMessage: message ?? null })) {
-    void finalizeInterruptedRecovery(queue)
+    void finalizeInterruptedRecovery(queue, claim)
   }
 }
 
@@ -39,7 +37,8 @@ export function markInterrupted(message?: string): void {
 // claimable, then probe: if the persisted audio is valid it surfaces as
 // recoverable; otherwise it is silently cleaned up and we stay interrupted.
 async function finalizeInterruptedRecovery(
-  queue: SessionWriteQueue | null
+  queue: SessionWriteQueue | null,
+  claim: SessionClaim | null
 ): Promise<void> {
   try {
     if (queue) await queue.whenSettled()
@@ -49,9 +48,7 @@ async function finalizeInterruptedRecovery(
   // The live owner is gone: clear presence first, then drop ownership so the
   // orphan is claimable (by this tab's probe or another tab) without remote tabs
   // momentarily seeing a fresh heartbeat for a session that is no longer live.
-  clearPresenceQuietly()
-  await releaseSessionLockQuietly()
-  await releaseOwnerLockQuietly()
+  await releaseLiveOwnership(claim)
   try {
     await runRecoveryProbe()
   } catch {
@@ -59,8 +56,9 @@ async function finalizeInterruptedRecovery(
   }
 }
 
-function hydrateRecoverable(info: RecoverableInfo, userId: string): void {
+function hydrateRecoverable(info: RecoverableInfo, userId: string, claim: SessionClaim): void {
   store.runtime.userId = userId
+  store.runtime.recoveryClaim = claim
   setSnapshot({
     ...IDLE_SNAPSHOT,
     state: 'recoverable',
@@ -91,16 +89,25 @@ function isRecoveryEligibleState(): boolean {
  * already showing a recoverable (to chain to the next orphan after save/discard).
  * Returns true when a recoverable session was surfaced.
  */
-export async function runRecoveryProbe(
-  excludeSessionId?: string | null
-): Promise<boolean> {
+let pendingProbe: Promise<boolean> | null = null
+
+export function runRecoveryProbe(excludeSessionId?: string | null): Promise<boolean> {
+  if (pendingProbe) return pendingProbe
+  pendingProbe = probeAndHydrate(excludeSessionId).finally(() => { pendingProbe = null })
+  return pendingProbe
+}
+
+async function probeAndHydrate(excludeSessionId?: string | null): Promise<boolean> {
   const identity = getIdentity()
   if (!identity.ready || !identity.userId) return false
   const probedUserId = identity.userId
 
-  if (!isRecoveryEligibleState()) {
-    return false
+  const canProceed = () => {
+    const current = getIdentity()
+    return current.ready && current.userId === probedUserId &&
+      !store.runtime.sessionClaim && !store.runtime.recoveryClaim && isRecoveryEligibleState()
   }
+  if (!canProceed()) return false
 
   // Exclude an explicitly-resolved orphan (recovery chaining) so a failed
   // deleteSession can't make this same probe re-surface it in a loop; otherwise
@@ -110,26 +117,19 @@ export async function runRecoveryProbe(
     getSessionLock(),
     probedUserId,
     Date.now(),
-    excludeSessionId ?? store.runtime.sessionId
+    excludeSessionId ?? store.runtime.sessionId,
+    undefined,
+    canProceed
   )
-
-  const currentIdentity = getIdentity()
-  if (!currentIdentity.ready || currentIdentity.userId !== probedUserId) {
-    await releaseSessionLockQuietly()
-    return false
-  }
 
   if (!result) return false
 
-  if (!isRecoveryEligibleState()) {
-    // The probe may have taken longer than the provider's startup gate. If the
-    // user started/continued live work in the meantime, leave that session alone
-    // and release the claimed orphan so it can be recovered on a later idle probe.
-    await releaseSessionLockQuietly()
+  if (!canProceed()) {
+    await releaseSessionLockQuietly(result.claim)
     return false
   }
 
-  hydrateRecoverable(result.info, probedUserId)
+  hydrateRecoverable(result.info, probedUserId, result.claim)
   return true
 }
 
@@ -146,6 +146,10 @@ interface ClearRecoveredResult {
 async function clearRecoveredOrphanAndChain(
   sessionId: string
 ): Promise<ClearRecoveredResult> {
+  const claim = store.runtime.recoveryClaim
+  if (claim?.sessionId !== sessionId) {
+    return { ok: false, chainedToNext: false, message: 'The recovery claim is no longer available.' }
+  }
   try {
     await getPersistence().deleteSession(sessionId)
   } catch (err) {
@@ -155,7 +159,8 @@ async function clearRecoveredOrphanAndChain(
       message: (err as Error)?.message ?? 'Could not delete the recovered recording.',
     }
   }
-  await releaseSessionLockQuietly()
+  await releaseSessionLockQuietly(claim)
+  store.runtime.recoveryClaim = null
   try {
     return {
       ok: true,
@@ -247,12 +252,16 @@ export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredR
     }
   }
   if (!cleared.chainedToNext) {
-    setSubmissionResult({
-      transcriptId: result.transcriptId,
-      outcome: result.outcome,
-      warning: result.warning,
+    setSnapshot({
+      ...store.snapshot,
+      state: 'submitted',
+      recoverable: null,
+      submissionResult: {
+        transcriptId: result.transcriptId,
+        outcome: result.outcome,
+        warning: result.warning,
+      },
     })
-    markSubmitted()
   }
   return {
     ok: true,
