@@ -1,7 +1,7 @@
 import type { CodecSelection } from './codecs'
 import type { SessionClaim } from './lock/types'
 import type { AutoStopReason } from './durationBudget'
-import type { CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
+import type { CaptureTransferPhase, CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
@@ -17,6 +17,8 @@ export type RecordingState =
   | 'error'
   | 'interrupted'
   | 'recoverable'
+
+export type RecordingUploadPhase = CaptureTransferPhase | 'preparing' | 'creating' | 'settling' | 'canceling'
 
 /**
  * Metadata for a recoverable orphan surfaced to the recovery modal. Carries only
@@ -86,6 +88,7 @@ export interface SessionSnapshot {
    * nothing to count (before that, or a retry whose file was already in).
    */
   uploadBytes: UploadBytes | null
+  uploadPhase: RecordingUploadPhase | null
 }
 
 export interface FinalizedRecording {
@@ -160,6 +163,7 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   recoverable: null,
   submissionResult: null,
   uploadBytes: null,
+  uploadPhase: null,
 })
 
 export const SERVER_SNAPSHOT: SessionSnapshot = IDLE_SNAPSHOT

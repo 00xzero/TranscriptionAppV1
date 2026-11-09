@@ -129,10 +129,10 @@ export function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> 
 
 let terminalCleanup: Promise<void> | null = null
 
-export function finalizeTerminalCleanup(): Promise<void> {
+function finalizeTerminalCleanup(canDelete?: () => boolean): Promise<void> {
   if (terminalCleanup) return terminalCleanup
   const claim = store.runtime.sessionClaim
-  terminalCleanup = clearTerminalSessionRuntime(store, clearSessionActivity)
+  terminalCleanup = clearTerminalSessionRuntime(store, clearSessionActivity, canDelete)
     .then(() => releaseLiveOwnership(claim))
     .finally(() => { terminalCleanup = null })
   return terminalCleanup
@@ -199,6 +199,10 @@ const rebaselineChunkClock: TransitionEffect = () => {
 const beginTerminalCleanup: TransitionEffect = () => {
   void finalizeTerminalCleanup()
 }
+const beginDiscardCleanup: TransitionEffect = () => {
+  const userId = store.runtime.userId
+  void finalizeTerminalCleanup(userId ? () => isRecordingAccountCurrent(userId) : undefined)
+}
 const releaseOwnershipIfNonRetryable: TransitionEffect = () => {
   // Non-retryable errors have no recoverable artifact, so drop the public
   // presence and release ownership. Retryable upload errors intentionally keep
@@ -246,7 +250,7 @@ const TRANSITION_EFFECTS = {
   // re-entering from the parked error state republishes the upload heartbeat.
   markUploading: { before: [startIntervalIfNeeded], after: [publishPresence] },
   markSubmitted: { before: [beginTerminalCleanup], after: [publishPresence] },
-  discard: { before: [beginTerminalCleanup], after: [publishPresence] },
+  discard: { before: [beginDiscardCleanup], after: [publishPresence] },
   markError: {
     before: [
       clearIntervalIfRunning,
@@ -263,6 +267,10 @@ export function dispatch(
   action: SnapshotTransitionAction,
   patch?: Partial<SessionSnapshot>
 ): boolean {
+  if (store.runtime.uploadAbortController &&
+    (action === 'discard' || action === 'markInterrupted' || action === 'markError' || action === 'markSubmitted')) {
+    return false
+  }
   const prev = store.snapshot
   if (!canTransition(prev.state, action)) return false
   const effects: TransitionEffects = TRANSITION_EFFECTS[action]
@@ -376,8 +384,8 @@ export function markError(message: string): void {
 }
 
 export function resetRecordingSession(): void {
-  if (isRecordingPageStopped() || store.snapshot.state === 'recoverable' ||
+  if (store.runtime.uploadAbortController || isRecordingPageStopped() || store.snapshot.state === 'recoverable' ||
     (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return
-  void finalizeTerminalCleanup()
+  beginDiscardCleanup()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }

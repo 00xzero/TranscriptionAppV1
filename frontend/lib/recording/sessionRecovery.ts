@@ -22,6 +22,7 @@ import {
   beginRecordingSubmission,
   endRecordingSubmission,
   runRecordingSubmission,
+  setRecordingUploadPhase,
 } from './sessionUpload'
 import { cleanUpConfirmedHandoff } from './confirmedHandoff'
 import { isValidRecordingIntent, recordingMediaFilename } from './recordingIntent'
@@ -66,6 +67,7 @@ function hydrateRecoverable(info: RecoverableInfo, userId: string, claim: Sessio
   store.runtime.recoveryClaim = claim
   setSnapshot({
     ...IDLE_SNAPSHOT,
+    uploadPhase: store.snapshot.uploadPhase,
     state: 'recoverable',
     projectId: info.projectId,
     title: info.title,
@@ -179,7 +181,7 @@ async function finishRecoveryAction(action: RecoveryAction): Promise<void> {
   if (busyClaim === action.claim) busyClaim = null
   if (store.runtime.recoveryClaim === action.claim && !isRecordingAccountCurrent(action.userId)) {
     await releaseRecoveryClaim(action.claim)
-    setSnapshot({ ...IDLE_SNAPSHOT })
+    setSnapshot({ ...IDLE_SNAPSHOT, uploadPhase: store.snapshot.uploadPhase })
   }
 }
 
@@ -204,7 +206,7 @@ export async function exportRecovered(expectedSessionId: string): Promise<void> 
 async function releaseAndChain(action: RecoveryAction): Promise<boolean> {
   await releaseRecoveryClaim(action.claim)
   if (!isRecordingAccountCurrent(action.userId)) {
-    setSnapshot({ ...IDLE_SNAPSHOT })
+    setSnapshot({ ...IDLE_SNAPSHOT, uploadPhase: store.snapshot.uploadPhase })
     return false
   }
   return runRecoveryProbe(action.claim.sessionId).catch(() => false)
@@ -228,7 +230,7 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
       throw new Error("You're offline. Reconnect to save this recording.")
     }
 
-    controller = beginRecordingSubmission()
+    controller = beginRecordingSubmission('preparing')
     if (!controller) throw new Error('A recording upload is already running.')
     const file = await readRecoveredFile(action)
     if (!canContinueRecovery(action)) throw new Error('Sign in to the original account before saving.')
@@ -243,11 +245,12 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
     }, userId, info.uploadIntentId, controller)
 
     if (result.kind !== 'success') return { ok: false, message: result.message }
+    setRecordingUploadPhase(controller, 'settling')
     await cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
     const chainedToNext = await releaseAndChain(action)
     if (!isRecordingAccountCurrent(userId)) return { ok: true }
     setSnapshot({
-      ...(chainedToNext ? store.snapshot : { ...IDLE_SNAPSHOT, state: 'submitted' }),
+      ...(chainedToNext ? store.snapshot : { ...IDLE_SNAPSHOT, state: 'submitted', uploadPhase: 'settling' }),
       submissionResult: {
         transcriptId: result.transcriptId,
         outcome: result.outcome,
@@ -267,7 +270,7 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
 export async function discardRecovered(expectedSessionId?: string): Promise<void> {
   const action = beginRecoveryAction(expectedSessionId)
   try {
-    await action.persistence.deleteSession(action.claim.sessionId)
+    await action.persistence.deleteSession(action.claim.sessionId, () => canContinueRecovery(action))
     const chainedToNext = await releaseAndChain(action)
     if (!chainedToNext) setSnapshot({ ...IDLE_SNAPSHOT })
   } finally {

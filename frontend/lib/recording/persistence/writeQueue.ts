@@ -8,7 +8,7 @@ type QueueOp =
   | { kind: 'session'; record: PersistedSession }
   | { kind: 'chunk'; seq: number; blob: Blob }
   | { kind: 'metadata'; patch: PersistedSessionPatch }
-  | { kind: 'delete' }
+  | { kind: 'delete'; canDelete?: () => boolean }
 
 /**
  * Write-behind persistence for a single recording session.
@@ -87,15 +87,16 @@ export class SessionWriteQueue {
   }
 
   /**
-   * Queue-owned terminal teardown. Stops accepting new ops, cancels writes that
-   * have not started, and deletes the session + chunks after any in-flight write
-   * settles. Safe to call after a downgrade. Resolves once the delete has run.
+   * Stop accepting writes and settle deletion. A guarded delete drains pending
+   * writes first so the session stays recoverable if deletion is refused.
    */
-  async closeAndDelete(): Promise<void> {
+  async closeAndDelete(canDelete?: () => boolean): Promise<void> {
     this.accepting = false
     this.closing = true
-    // Drop not-yet-started writes; the delete cleans up anything already written.
-    this.ops = [{ kind: 'delete' }]
+    const deletion = { kind: 'delete', canDelete } as const
+    // A guarded discard may be refused after the account switches. Drain its
+    // pending writes so the original account can still recover that audio.
+    this.ops = canDelete ? [...this.ops, deletion] : [deletion]
     this.kick()
     await this.whenSettled()
   }
@@ -154,7 +155,9 @@ export class SessionWriteQueue {
       case 'metadata':
         return this.persistence.patchSession(this.sessionId, op.patch)
       case 'delete':
-        return this.persistence.deleteSession(this.sessionId)
+        return op.canDelete
+          ? this.persistence.deleteSession(this.sessionId, op.canDelete)
+          : this.persistence.deleteSession(this.sessionId)
     }
   }
 

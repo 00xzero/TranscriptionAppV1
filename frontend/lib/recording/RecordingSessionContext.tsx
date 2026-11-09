@@ -84,7 +84,7 @@ export function RecordingSessionProvider({
 
   // App-level unload guard: warns on refresh/close/quit while a recording is active
   // (through upload completion), on every route — not just `/recording/new`.
-  useBeforeUnloadGuard(isRecordingSessionActive(snapshot))
+  useBeforeUnloadGuard(isRecordingSessionActive(snapshot) || snapshot.uploadPhase !== null)
 
   const { startedAt, state, durationWarning, autoStopReason } = snapshot
   useEffect(() => {
@@ -240,6 +240,8 @@ export function RecordingSessionProvider({
           key={recoverable.sessionId}
           info={recoverable}
           previousSave={snapshot.submissionResult}
+          uploadPhase={snapshot.uploadPhase}
+          uploadBytes={snapshot.uploadBytes}
         />
       )}
     </RemotePresenceProvider>

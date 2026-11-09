@@ -1,9 +1,6 @@
 /**
- * Upload orchestration: drives a finalized recording through the capture upload
- * and maps the result onto the session state machine (submitted / retryable
- * error). Also owns the storage filename helper, since that name is part of the
- * upload/storage idempotency contract and is shared by the live finalize path and
- * recovery save.
+ * Shared recording submission and the live session's upload transitions.
+ * Recovered attempts use the same executor and keep their own claim and cleanup.
  */
 
 import {
@@ -15,12 +12,13 @@ import {
   setUploadBytes,
 } from './sessionCore'
 import { disposeController } from './sessionRuntime'
-import { store } from './sessionStore'
+import { setSnapshot, store } from './sessionStore'
 import { runCaptureUpload, type CaptureUploadResult } from '@/lib/capture/upload'
-import type { FinalizedRecording } from './sessionTypes'
+import type { FinalizedRecording, RecordingUploadPhase } from './sessionTypes'
 import { getPersistence } from './persistence'
 import { cleanUpConfirmedHandoff } from './confirmedHandoff'
 import { isValidRecordingIntent } from './recordingIntent'
+import { canCancelRecordingUpload } from './uploadProgress'
 import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
 import { isRecordingAccountCurrent } from './sessionIdentity'
 import { downloadRecording } from './downloadRecording'
@@ -30,18 +28,33 @@ function markUploadError(message: string): void {
   markError(message)
 }
 
-export function beginRecordingSubmission(): AbortController | null {
+export function beginRecordingSubmission(phase: 'preparing' | 'creating'): AbortController | null {
   if (store.runtime.uploadAbortController) return null
   const controller = new AbortController()
   store.runtime.uploadAbortController = controller
+  setSnapshot({ ...store.snapshot, uploadPhase: phase })
   return controller
 }
 
 export function endRecordingSubmission(controller: AbortController): void {
   if (store.runtime.uploadAbortController === controller) {
     store.runtime.uploadAbortController = null
-    setUploadBytes(null)
+    setSnapshot({ ...store.snapshot, uploadPhase: null, uploadBytes: null })
   }
+}
+
+export function setRecordingUploadPhase(controller: AbortController, phase: RecordingUploadPhase): void {
+  if (store.runtime.uploadAbortController === controller) {
+    setSnapshot({ ...store.snapshot, uploadPhase: phase })
+  }
+}
+
+export function cancelRecordingUpload(expectedSessionId?: string): void {
+  const { uploadAbortController: controller, recoveryClaim, userId } = store.runtime
+  if (!controller || recoveryClaim?.sessionId !== expectedSessionId ||
+    !canCancelRecordingUpload(store.snapshot.uploadPhase) || !isRecordingAccountCurrent(userId)) return
+  setRecordingUploadPhase(controller, 'canceling')
+  controller.abort()
 }
 
 export async function runRecordingSubmission(
@@ -56,6 +69,8 @@ export async function runRecordingSubmission(
   if (!isValidRecordingIntent(uploadIntentId)) {
     return { kind: 'failure', message: 'This recording is available for download only.' }
   }
+  if (controller.signal.aborted) return { kind: 'failure', message: 'Upload canceled.' }
+  setRecordingUploadPhase(controller, 'creating')
   const updateBytes = (sent: number, total: number) => {
     if (store.runtime.uploadAbortController === controller && !controller.signal.aborted) {
       setUploadBytes({ sent, total })
@@ -72,6 +87,9 @@ export async function runRecordingSubmission(
         if (stage === 'uploading') updateBytes(0, recording.file.size)
       },
       onUploadBytes: updateBytes,
+      onTransferPhase: (phase) => {
+        if (!controller.signal.aborted) setRecordingUploadPhase(controller, phase)
+      },
     })
   } catch (err) {
     return { kind: 'failure', message: (err as Error)?.message ?? 'Could not upload the recording.' }
@@ -90,7 +108,7 @@ export async function submitFinalizedRecording(): Promise<void> {
     return
   }
 
-  const controller = beginRecordingSubmission()
+  const controller = beginRecordingSubmission('creating')
   if (!controller) return
   try {
     if (!dispatch('markUploading')) return
@@ -99,6 +117,7 @@ export async function submitFinalizedRecording(): Promise<void> {
     if (store.runtime.uploadAbortController !== controller) return
 
     if (result.kind === 'success') {
+      setRecordingUploadPhase(controller, 'settling')
       if (sessionClaim) {
         const persistence = getPersistence()
         await writeQueue?.seal()
@@ -113,6 +132,7 @@ export async function submitFinalizedRecording(): Promise<void> {
       endRecordingSubmission(controller)
       markSubmitted()
     } else {
+      endRecordingSubmission(controller)
       markUploadError(result.message)
       if (!isRecordingAccountCurrent(userId)) releaseFrozenLiveRecording()
     }

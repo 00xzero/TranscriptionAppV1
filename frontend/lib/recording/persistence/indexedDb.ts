@@ -126,8 +126,9 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     return out
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
+  async deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void> {
     const db = await this.openDb()
+    if (canDelete?.() === false) throw new Error('Recording deletion is no longer available.')
     const tx = db.transaction([SESSIONS_STORE, CHUNKS_STORE], 'readwrite')
     tx.objectStore(SESSIONS_STORE).delete(sessionId)
     tx.objectStore(CHUNKS_STORE).delete(chunkRange(sessionId))

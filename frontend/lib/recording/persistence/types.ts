@@ -73,8 +73,8 @@ export interface SessionPersistence {
   patchSession(sessionId: string, patch: PersistedSessionPatch): Promise<void>
   getSession(sessionId: string): Promise<PersistedSession | null>
   listSessions(): Promise<PersistedSession[]>
-  /** Deletes the session row and every chunk belonging to it. */
-  deleteSession(sessionId: string): Promise<void>
+  /** Deletes the row and its chunks after the optional pre-transaction check. */
+  deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void>
   putChunk(sessionId: string, seq: number, blob: Blob): Promise<void>
   listChunkSeqs(sessionId: string): Promise<number[]>
   /**

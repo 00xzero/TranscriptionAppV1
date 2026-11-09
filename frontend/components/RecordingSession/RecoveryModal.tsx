@@ -4,14 +4,17 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
+import RecordingUploadStatus from '@/components/RecordingSession/RecordingUploadStatus'
 import { CharacterCount } from '@/components/ui/character-count'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/capture/warnings'
 import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
 import { isValidRecordingIntent } from '@/lib/recording/recordingIntent'
+import { canCancelRecordingUpload } from '@/lib/recording/uploadProgress'
 import {
   discardRecovered,
+  cancelRecordingUpload,
   exportRecovered,
   saveRecovered,
   type RecoverableInfo,
@@ -34,9 +37,13 @@ function formatApproxSize(bytes: number): string {
 export default function RecoveryModal({
   info,
   previousSave,
+  uploadPhase = null,
+  uploadBytes = null,
 }: {
   info: RecoverableInfo
   previousSave?: SessionSnapshot['submissionResult']
+  uploadPhase?: SessionSnapshot['uploadPhase']
+  uploadBytes?: SessionSnapshot['uploadBytes']
 }) {
   const [title, setTitle] = useState(info.title ?? info.generatedTitle ?? '')
   const titleCountId = useId()
@@ -71,6 +78,7 @@ export default function RecoveryModal({
 
   const titleTooLong = transcriptTitleTooLong(title)
   const exportOnly = !isValidRecordingIntent(info.uploadIntentId)
+  const busy = saving || uploadPhase !== null
 
   const handleSave = async () => {
     if (titleTooLong) {
@@ -150,7 +158,7 @@ export default function RecoveryModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              disabled={saving}
+              disabled={busy || exportOnly}
               placeholder="Untitled recording"
               aria-describedby={titleCountId}
               aria-invalid={titleTooLong ? true : undefined}
@@ -205,31 +213,44 @@ export default function RecoveryModal({
               {error}
             </div>
           )}
+          {uploadPhase && <RecordingUploadStatus phase={uploadPhase} bytes={uploadBytes} />}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-5 py-4">
           <button
             ref={discardButtonRef}
             type="button"
             onClick={() => setDiscardOpen(true)}
-            disabled={saving}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
+            disabled={busy}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
           >
             Discard
           </button>
-          <Button type="button" variant="ghost" onClick={handleDownload} disabled={saving}>
+          <Button type="button" variant="ghost" onClick={handleDownload} disabled={busy} className="px-3">
             Download recording
           </Button>
-          {!exportOnly && <Button
-            type="button"
-            variant="destructive"
-            onClick={handleSave}
-            disabled={saving || !online}
-            title={!online ? 'You are offline' : 'Save and transcribe'}
-            className="rounded-lg px-5 focus-visible:ring-destructive/40 disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : 'Save & transcribe'}
-          </Button>}
+          {!exportOnly && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleSave}
+              disabled={busy || !online}
+              title={!online ? 'You are offline' : 'Save and transcribe'}
+              className="rounded-lg focus-visible:ring-destructive/40 disabled:opacity-40"
+            >
+              Save &amp; transcribe
+            </Button>
+          )}
+          {uploadPhase && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => cancelRecordingUpload(info.sessionId)}
+              disabled={!canCancelRecordingUpload(uploadPhase)}
+            >
+              Cancel upload
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

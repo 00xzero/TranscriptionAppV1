@@ -19,7 +19,7 @@ import {
     mapProjectWriteError,
 } from '@/lib/supabase/project-errors'
 import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
-import { transferToStorage } from './storageTransfer'
+import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, transferToStorage } from './storageTransfer'
 import { fitTranscriptTitle } from '@/core/transcripts/title'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
 
@@ -77,6 +77,7 @@ const MIME_NORMALIZATION: Record<string, string> = {
 const MAX_FILE_SIZE_BYTES = CONFIGURED_MAX_FILE_SIZE_BYTES
 
 export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'done'
+export type CaptureTransferPhase = 'uploading' | 'single_transfer' | 'linking' | 'starting'
 
 /** How much of the file is in storage, from the moment it starts uploading. */
 export type UploadBytes = { sent: number; total: number }
@@ -85,6 +86,8 @@ export interface CaptureUploadOptions {
     /** The account shown when capture started; fixed for this entire attempt. */
     userId: string
     onProgress?: (p: CaptureUploadProgress) => void
+    /** Synchronous transfer boundaries for callers that offer cancellation. */
+    onTransferPhase?: (phase: CaptureTransferPhase) => void
     /** Bytes of the file in storage so far, while it uploads. */
     onUploadBytes?: (sentBytes: number, totalBytes: number) => void
     signal?: AbortSignal
@@ -280,7 +283,7 @@ export async function runCaptureUpload(
 ): Promise<CaptureUploadResult> {
     const userId = options.userId
     const supabase = createClientForUser(userId)
-    const signal = options.signal
+    let signal = options.signal
     let transcriptId: string | null = null
     let storagePath: string | null = null
     let didUploadFile = false
@@ -300,6 +303,10 @@ export async function runCaptureUpload(
         if (isCanceled()) {
             throw new DOMException('Upload canceled.', 'AbortError')
         }
+    }
+    const closeRecordingCancelGate = () => {
+        throwIfCanceled()
+        if (options.uploadIntentId) signal = undefined
     }
 
     if (isCanceled()) return canceledResult()
@@ -362,6 +369,7 @@ export async function runCaptureUpload(
             storagePath = alreadyLinkedKey
             didUploadFile = true
             didLinkMediaToTranscript = true
+            closeRecordingCancelGate()
             console.log('[capture] Media already linked; skipping upload/link steps')
         } else {
             options.onProgress?.('uploading')
@@ -373,6 +381,7 @@ export async function runCaptureUpload(
             })
 
             const mimeType = getMimeType(file)
+            options.onTransferPhase?.(file.size <= RESUMABLE_UPLOAD_THRESHOLD_BYTES ? 'single_transfer' : 'uploading')
             // Transfer bytes to storage: single-PUT for small files, resumable
             // (TUS, 6 MB chunks) for large ones. The resumable path honours the
             // AbortSignal; the single-PUT path still can't be aborted mid-flight,
@@ -385,7 +394,11 @@ export async function runCaptureUpload(
                 onProgress: options.onUploadBytes,
             })
             didUploadFile = true
-            throwIfCanceled()
+            closeRecordingCancelGate()
+            options.onTransferPhase?.('linking')
+            // A lost PATCH may still commit after a reconciliation read. Keep
+            // intent-keyed media for retry until a definite rejection is known.
+            if (options.uploadIntentId) shouldRollbackPartialCapture = false
             console.log('[capture] File uploaded successfully')
 
             console.log('[capture] Updating transcript with source_object_key...')
@@ -406,12 +419,15 @@ export async function runCaptureUpload(
                 const updateErrorMessage =
                     updateError?.message ?? 'the transcript is no longer available'
                 if (linkRejection === 'deleting') {
+                    shouldRollbackPartialCapture = true
                     throw new Error(mapProjectWriteError(updateError))
                 }
                 if (linkRejection === 'gone') {
+                    shouldRollbackPartialCapture = true
                     throw new Error('Failed to update transcript: the transcript is no longer available')
                 }
                 if (!updateError && !linkedTranscript) {
+                    shouldRollbackPartialCapture = true
                     throw new Error('Failed to update transcript: the transcript is no longer available')
                 }
 
@@ -444,6 +460,7 @@ export async function runCaptureUpload(
             console.log('[capture] Transcript updated with source_object_key')
         }
 
+        options.onTransferPhase?.('starting')
         options.onProgress?.('starting')
         throwIfCanceled()
         const startRes = await dispatchStart(transcriptId, options.uploadIntentId, signal, userId, () => {

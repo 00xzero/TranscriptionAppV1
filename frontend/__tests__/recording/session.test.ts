@@ -6,6 +6,7 @@ import {
   __resetForTesting,
   __setSnapshotForTesting,
   attachAndStart,
+  cancelRecordingUpload,
   closeRecoveryForAccountChange,
   discard,
   discardRecovered,
@@ -841,52 +842,58 @@ describe('recording session singleton', () => {
     expect(hasUnsavedRecording()).toBe(false)
   })
 
-  test('discard during upload aborts the uploader and ignores late success', async () => {
-    let uploadSignal: AbortSignal | undefined
-    let resolveUpload:
-      | ((result: {
-          kind: 'success'
-          transcriptId: string
-          outcome: 'started'
-        }) => void)
-      | undefined
+  test.each(['single_transfer', 'linking'] as const)(
+    'stale cancel and teardown actions cannot interrupt %s',
+    async (phase) => {
+      let uploadSignal: AbortSignal | undefined
+      let resolveUpload!: (result: CaptureUploadResult) => void
+      mockRunCaptureUpload.mockImplementation((_file, _title, _keyTerms, options) => {
+        uploadSignal = options.signal
+        options.onTransferPhase?.(phase)
+        return new Promise((resolve) => { resolveUpload = resolve })
+      })
+      await attachRecording({ maxBytes: 1024 * 1024 })
+      dispatchChunk(lastRecorder(), 8192)
+      advanceClockPastEmptyFloor()
+      const stopped = stopAndFinalize()
+      dispatchStopDrain(lastRecorder(), 512)
+      await Promise.resolve()
+      expect(getSnapshot()).toMatchObject({ state: 'uploading', uploadPhase: phase })
+
+      cancelRecordingUpload()
+      discard()
+      resetRecordingSession()
+      markInterrupted()
+      markError('stale')
+      expect(getSnapshot()).toMatchObject({ state: 'uploading', uploadPhase: phase })
+      expect(uploadSignal?.aborted).toBe(false)
+
+      resolveUpload({ kind: 'success', transcriptId: 't1', outcome: 'started' })
+      await stopped
+      expect(getSnapshot()).toMatchObject({ state: 'submitted', uploadPhase: null })
+    }
+  )
+
+  test('cancel before linking keeps the finalized audio retryable', async () => {
     mockRunCaptureUpload.mockImplementation((_file, _title, _keyTerms, options) => {
-      uploadSignal = options?.signal
+      options.onTransferPhase?.('uploading')
       return new Promise((resolve) => {
-        resolveUpload = resolve
+        options.signal?.addEventListener('abort', () => resolve({ kind: 'failure', message: 'Upload canceled.' }))
       })
     })
-
-    await attachRecording({
-      title: 'Discard during upload',
-      maxBytes: 1024 * 1024,
-    })
-    recordChunk(new Blob([new Uint8Array(4096)]))
+    await attachRecording({ maxBytes: 1024 * 1024 })
+    dispatchChunk(lastRecorder(), 8192)
     advanceClockPastEmptyFloor()
-
-    const stopPromise = stopAndFinalize()
+    const stopped = stopAndFinalize()
     dispatchStopDrain(lastRecorder(), 512)
     await Promise.resolve()
+    expect(getSnapshot().uploadPhase).toBe('uploading')
 
-    expect(getSnapshot().state).toBe('uploading')
-    expect(uploadSignal?.aborted).toBe(false)
-
-    discard()
-
-    expect(uploadSignal?.aborted).toBe(true)
-
-    resolveUpload?.({
-      kind: 'success',
-      transcriptId: 'transcript-1',
-      outcome: 'started',
-    })
-    await stopPromise
-
+    cancelRecordingUpload()
+    await stopped
     expect(getSnapshot()).toMatchObject({
-      state: 'discarded',
-      submissionResult: null,
+      state: 'error', errorMessage: 'Upload canceled.', canRetryUpload: true, uploadPhase: null,
     })
-    expect(hasUnsavedRecording()).toBe(false)
   })
 
   test('late recorder chunks after finalized file creation are ignored', async () => {
@@ -1088,13 +1095,16 @@ class DelayedDeletePersistence extends InMemorySessionPersistence {
     })
   }
 
-  override async deleteSession(sessionId: string): Promise<void> {
+  override async deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void> {
     this.resolveDeleteStarted()
     await new Promise<void>((resolve) => {
       this.releaseDelete = resolve
     })
-    await super.deleteSession(sessionId)
-    this.resolveDeleteFinished()
+    try {
+      await super.deleteSession(sessionId, canDelete)
+    } finally {
+      this.resolveDeleteFinished()
+    }
   }
 }
 
@@ -1420,6 +1430,11 @@ describe('recording session durability mirror', () => {
   })
 
   test('successful recovered save clears the recoverable payload', async () => {
+    const presence = new FakeRecordingPresence()
+    __setPresenceForTesting(presence)
+    const ownerLock = new FakeOwnerLock(false)
+    __setOwnerLockForTesting(ownerLock)
+    const releaseOwner = jest.spyOn(ownerLock, 'release')
     const session: PersistedSession = {
       sessionId: 'recoverable-1',
       userId: 'user-123',
@@ -1453,8 +1468,17 @@ describe('recording session durability mirror', () => {
       warning: 'project_missing',
     })
     expect(await runRecoveryProbe()).toBe(true)
+    const remote = {
+      userId: 'user-123', sessionId: 'another-tabs-live', ownerClientId: 'another-tab',
+      state: 'recording' as const, title: 'Another tab', startedAt: 1_000,
+      lastResumeAt: 1_000, pausedAccumulatedMs: 0, bytesSoFar: 8192, lastChunkSeq: 0,
+      lastChunkReceivedAt: 1_000, heartbeatAt: 1_000,
+    }
+    presence.publish(remote)
 
     await expect(saveRecovered('Recovered title')).resolves.toEqual({ ok: true })
+    expect(presence.read()).toEqual(remote)
+    expect(releaseOwner).not.toHaveBeenCalled()
 
     expect(getSnapshot()).toMatchObject({
       state: 'submitted',
@@ -1526,6 +1550,87 @@ describe('recording session durability mirror', () => {
     expect(await persistence.listChunkSeqs('export-only')).toEqual([0])
     await discardRecovered('export-only')
     expect(await persistence.getSession('export-only')).toBeNull()
+  })
+
+  test('cancel while reading a recovered file keeps its claim and skips the network', async () => {
+    await seedRecovery('cancel-read')
+    await runRecoveryProbe()
+    let finishRead!: (chunks: Blob[]) => void
+    jest.spyOn(persistence, 'readChunks').mockReturnValueOnce(new Promise((resolve) => { finishRead = resolve }))
+    const saving = saveRecovered('Original', 'cancel-read')
+    expect(getSnapshot()).toMatchObject({ state: 'recoverable', uploadPhase: 'preparing' })
+    cancelRecordingUpload('another-row')
+    expect(getSnapshot().uploadPhase).toBe('preparing')
+    cancelRecordingUpload('cancel-read')
+    expect(getSnapshot().uploadPhase).toBe('canceling')
+    finishRead([new Blob([new Uint8Array(8192)])])
+
+    await expect(saving).resolves.toEqual({ ok: false, message: 'Upload canceled.' })
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+    expect(getSnapshot()).toMatchObject({ state: 'recoverable', uploadPhase: null })
+    expect(await persistence.listChunkSeqs('cancel-read')).toEqual([0])
+  })
+
+  test.each([false, true])('account switch at discard settlement (already committed: %s)', async (committed) => {
+    await seedRecovery('discard-race')
+    await runRecoveryProbe()
+    const deleteSession = persistence.deleteSession.bind(persistence)
+    let unblock!: () => void
+    let entered!: () => void
+    const began = new Promise<void>((resolve) => { entered = resolve })
+    const blocked = new Promise<void>((resolve) => { unblock = resolve })
+    jest.spyOn(persistence, 'deleteSession').mockImplementationOnce(async (id, canDelete) => {
+      if (committed) await deleteSession(id, canDelete)
+      entered()
+      await blocked
+      if (!committed) await deleteSession(id, canDelete)
+    })
+    const discarding = discardRecovered('discard-race')
+    await began
+    setIdentity({ userId: 'user-123', ready: true, accountChanged: true })
+    unblock()
+    if (committed) await expect(discarding).resolves.toBeUndefined()
+    else await expect(discarding).rejects.toThrow('Recording deletion is no longer available.')
+    expect(Boolean(await persistence.getSession('discard-race'))).toBe(!committed)
+    expect(getSnapshot().state).toBe('idle')
+  })
+
+  test('a queued live discard retains its audio if the account freezes before deletion', async () => {
+    const delayed = new DelayedDeletePersistence()
+    installPersistence(delayed)
+    await attachRecording({ maxBytes: 1024 * 1024 })
+    dispatchChunk(lastRecorder(), 8192)
+    discard()
+    await delayed.deleteStarted
+    setIdentity({ userId: 'user-123', ready: true, accountChanged: true })
+    delayed.releaseDelete()
+    await delayed.deleteFinished
+    const [row] = await persistence.listSessions()
+    expect(row?.userId).toBe('user-123')
+    expect(await persistence.listChunkSeqs(row.sessionId)).toEqual([0])
+  })
+
+  test('a failed marker and deletion cannot expose another Save in the same page', async () => {
+    await seedRecovery('both-failed')
+    await seedRecovery('older', { createdAt: Date.now() - 120_000 })
+    const patch = jest.spyOn(persistence, 'patchSession').mockRejectedValueOnce(new Error('marker failed'))
+    const deleteSession = persistence.deleteSession.bind(persistence)
+    const remove = jest.spyOn(persistence, 'deleteSession').mockImplementation((id, canDelete) =>
+      id === 'both-failed' ? Promise.reject(new Error('delete failed')) : deleteSession(id, canDelete)
+    )
+    mockRunCaptureUpload.mockResolvedValueOnce({ kind: 'success', transcriptId: 't1', outcome: 'started' })
+    await runRecoveryProbe()
+    await expect(saveRecovered('Original', 'both-failed')).resolves.toEqual({ ok: true })
+    expect(getSnapshot().recoverable?.sessionId).toBe('older')
+    await discardRecovered('older')
+
+    expect(getSnapshot().state).toBe('idle')
+    expect(await persistence.getSession('both-failed')).not.toBeNull()
+    patch.mockRestore()
+    remove.mockRestore()
+    await expect(runRecoveryProbe()).resolves.toBe(false)
+    expect(await persistence.getSession('both-failed')).toBeNull()
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
   })
 
   test('persists a confirmed live handoff even when the queue downgraded', async () => {

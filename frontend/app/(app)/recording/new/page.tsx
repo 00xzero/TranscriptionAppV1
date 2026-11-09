@@ -10,7 +10,7 @@ import {
   isRemoteRecordingBlocking,
   useRemotePresenceStatus,
 } from '@/lib/recording/RemotePresenceContext'
-import { exportFinalizedRecording, type SessionSnapshot } from '@/lib/recording/session'
+import { cancelRecordingUpload, exportFinalizedRecording, getSnapshot, type SessionSnapshot } from '@/lib/recording/session'
 import { isRecordingPageStopped } from '@/lib/recording/sessionIdentity'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from '@/lib/recording/durationBudget'
@@ -26,8 +26,8 @@ import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { formatUploadedBytes } from '@/lib/utils'
+import RecordingUploadStatus from '@/components/RecordingSession/RecordingUploadStatus'
+import { canCancelRecordingUpload } from '@/lib/recording/uploadProgress'
 
 const COMPLETION_REDIRECT_DELAY_MS = 600
 const COMPLETION_REDIRECT_RETRY_MS = 1_500
@@ -200,10 +200,10 @@ export default function RecordingNewPage() {
   }
 
   const returnToLibrary = () => {
-    if (isRecordingPageStopped()) return
+    if (isRecordingPageStopped() || getSnapshot().uploadPhase !== null) return
     intentionalReturnRef.current = true
     actions.resetRecordingSession()
-    router.push('/transcripts')
+    if (!isRecordingPageStopped()) router.push('/transcripts')
   }
 
   const handleDownload = () => {
@@ -413,32 +413,23 @@ export default function RecordingNewPage() {
 
       {!isInFlight && <RecordingKeyTerms />}
 
-      {uploadBytes ? (
-        <div className="flex flex-col gap-2" data-testid="recording-upload-progress">
-          <Progress
-            value={uploadBytes.sent}
-            max={Math.max(1, uploadBytes.total)}
-            getValueLabel={() => `${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)} uploaded`}
-            aria-label="Upload progress"
-            className="rounded-full"
+      {isInFlight ? (
+        <div className="flex flex-col items-start gap-3">
+          <RecordingUploadStatus
+            phase={snapshot.uploadPhase}
+            bytes={uploadBytes}
+            fallback={snapshot.state === 'finalizing' ? 'Saving recording…' : 'Uploading…'}
           />
-          <span className="text-sm tabular-nums text-ink/60 dark:text-paper/60">
-            {uploadBytes.sent >= uploadBytes.total
-              ? 'Starting transcription…'
-              : `Uploading… ${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)}`}
-          </span>
-        </div>
-      ) : isInFlight ? (
-        <div
-          className="flex items-center gap-3 text-sm text-ink/60 dark:text-paper/60"
-          data-testid="recording-spinner"
-        >
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-ember-red border-t-transparent" />
-          <span>
-            {snapshot.state === 'finalizing'
-              ? 'Saving recording…'
-              : 'Uploading…'}
-          </span>
+          {snapshot.state === 'uploading' && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => cancelRecordingUpload()}
+              disabled={!canCancelRecordingUpload(snapshot.uploadPhase)}
+            >
+              Cancel upload
+            </Button>
+          )}
         </div>
       ) : (
         <RecordingControls />

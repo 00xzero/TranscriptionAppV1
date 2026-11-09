@@ -162,4 +162,17 @@ describe('RecordingSessionContext', () => {
       description: expect.stringContaining(message),
     })
   })
+
+  test('keeps the unload guard on during recovered settlement', () => {
+    render(<RecordingSessionProvider><div>Child</div></RecordingSessionProvider>)
+    act(() => {
+      __setSnapshotForTesting({ state: 'recoverable', uploadPhase: 'settling' })
+    })
+    expect(window.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(false)
+
+    act(() => {
+      __setSnapshotForTesting({ state: 'recoverable', uploadPhase: null })
+    })
+    expect(window.dispatchEvent(new Event('beforeunload', { cancelable: true }))).toBe(true)
+  })
 })

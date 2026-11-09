@@ -133,7 +133,7 @@ export async function probeRecoverableSessions(
         const current = await persistence.getSession(row.sessionId)
         if (canProceed() && isEligible(current) &&
           (cleanupOnly(current) || !(await inspectAudio(persistence, current))) && canProceed()) {
-          await persistence.deleteSession(row.sessionId)
+          await persistence.deleteSession(row.sessionId, canProceed)
         }
       } finally {
         await claim.release()

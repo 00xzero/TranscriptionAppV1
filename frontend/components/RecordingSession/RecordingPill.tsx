@@ -240,7 +240,16 @@ export default function RecordingPill() {
     status = 'Uploading'
     detail = 'The recording is being saved for transcription.'
     dotClass = 'bg-trust-blue animate-pulse'
-    if (bytes && bytes.sent >= bytes.total) {
+    if (snapshot.uploadPhase === 'linking' || snapshot.uploadPhase === 'settling') {
+      uploadedPercent = bytes ? 100 : null
+      label = 'Saving...'
+      ariaLabel = 'Return to recording session, saving audio'
+      status = 'Saving audio to the transcript'
+    } else if (snapshot.uploadPhase === 'canceling') {
+      label = 'Canceling...'
+      ariaLabel = 'Return to recording session, canceling upload'
+      status = 'Canceling upload'
+    } else if (snapshot.uploadPhase === 'starting' || (bytes && bytes.sent >= bytes.total)) {
       uploadedPercent = 100
       label = 'Starting...'
       ariaLabel = 'Return to recording session, starting transcription'

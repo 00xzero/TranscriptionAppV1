@@ -304,7 +304,7 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(deleteRequestMock).not.toHaveBeenCalled()
   })
 
-  test('dedup hit without linked media does not delete the canonical transcript on rollback', async () => {
+  test('a lost link response preserves an intent-keyed object even if the reconcile read sees no link', async () => {
     updateSingleMock.mockResolvedValueOnce({
       data: null,
       error: { message: 'link failed' },
@@ -332,8 +332,31 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(uploadMock).toHaveBeenCalledTimes(1)
     // Same intent, same path: the upload may replace what an earlier attempt left.
     expect(uploadMock).toHaveBeenCalledWith('u/p1/rec.webm', expect.any(File), expect.objectContaining({ upsert: true }))
-    expect(removeMock).toHaveBeenCalledWith(['u/p1/rec.webm'])
+    expect(removeMock).not.toHaveBeenCalled()
     expect(deleteRequestMock).not.toHaveBeenCalled()
+  })
+
+  test('removes the caller signal from linking and start after transfer completes', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(200, {
+        transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm',
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, { jobId: 'j1' }))
+    const controller = new AbortController()
+    const phases: string[] = []
+    const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u', uploadIntentId: 'intent-1', signal: controller.signal,
+      onTransferPhase: (phase) => {
+        phases.push(phase)
+        if (phase === 'linking') controller.abort()
+      },
+    })
+
+    expect(phases).toEqual(['single_transfer', 'linking', 'starting'])
+    expect(result).toMatchObject({ kind: 'success', outcome: 'started' })
+    expect(updateAbortSignalMock).not.toHaveBeenCalled()
+    expect(fetchMock.mock.calls[1][1].signal).toBeUndefined()
+    expect(removeMock).not.toHaveBeenCalled()
   })
 
   test('continues when an ambiguous link failure reconciles to the uploaded key', async () => {

@@ -25,8 +25,9 @@ export async function sweepExpiredSessions(
       if (!claim) continue
       try {
         const current = await persistence.getSession(row.sessionId)
-        if (canProceed() && current && now - current.createdAt >= SESSION_MAX_AGE_MS) {
-          await persistence.deleteSession(row.sessionId)
+        if (canProceed() && current && current.userId === row.userId &&
+          now - current.createdAt >= SESSION_MAX_AGE_MS) {
+          await persistence.deleteSession(row.sessionId, canProceed)
           deleted++
         }
       } finally {

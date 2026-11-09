@@ -31,7 +31,12 @@ export {
   resume,
   stopAndFinalize,
 } from './sessionActions'
-export { exportFinalizedRecording, getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
+export {
+  cancelRecordingUpload,
+  exportFinalizedRecording,
+  getFinalizedRecordingFile,
+  retryFinalizedUpload,
+} from './sessionUpload'
 export {
   discardRecovered,
   closeRecoveryForAccountChange,
