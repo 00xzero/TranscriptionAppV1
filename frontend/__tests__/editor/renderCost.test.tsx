@@ -177,10 +177,13 @@ describe('editor render cost on a 10-hour transcript', () => {
     report['typing: React render ms per keystroke (median)'] = round(median(perKey.map((m) => m.reactMs)))
     report['typing: wall ms per keystroke (median, jsdom)'] = round(median(perKey.map((m) => m.wallMs)))
     // The pause after typing: the save goes out, then "Saved", then idle.
-    const settle = await measure(async () => {
-      await act(async () => { await new Promise((r) => setTimeout(r, 1500)) })
-    })
-    report['typing: card renders for the save after a pause'] = settle.cards
+    // Only the report reads it, so the wait runs only when reporting.
+    if (REPORT) {
+      const settle = await measure(async () => {
+        await act(async () => { await new Promise((r) => setTimeout(r, 1500)) })
+      })
+      report['typing: card renders for the save after a pause'] = settle.cards
+    }
   })
 
   test.each([10, 4])('one second of playback at %i ticks', async (ticks) => {
@@ -291,16 +294,18 @@ describe('editor render cost on a 10-hour transcript', () => {
     report['Replace All: React render ms'] = round(replace.reactMs)
     report['Replace All: card renders'] = replace.cards
     // The save goes out, then "Saved" shows for 1.2 s per segment, each on
-    // its own timer.
-    const after = await measure(async () => {
-      await act(async () => { await new Promise((r) => setTimeout(r, 8000)) })
-    })
-    report['Replace All: save requests'] = setTexts.mock.calls.length
-    report['Replace All: segments in the save'] = setTexts.mock.calls.reduce((n, [edits]) => n + edits.length, 0)
-    report['Replace All: subtree commits in the 8 s after'] = after.commits
-    report['Replace All: EditorScreen calls in the 8 s after'] = after.screen
-    report['Replace All: React render ms in the 8 s after'] = round(after.reactMs)
-    report['Replace All: longest single render in the 8 s after'] = round(after.longestMs)
-    report['Replace All: wall ms of the 8 s after (jsdom)'] = round(after.wallMs)
+    // its own timer. Only the report reads it, so the wait runs only when reporting.
+    if (REPORT) {
+      const after = await measure(async () => {
+        await act(async () => { await new Promise((r) => setTimeout(r, 8000)) })
+      })
+      report['Replace All: save requests'] = setTexts.mock.calls.length
+      report['Replace All: segments in the save'] = setTexts.mock.calls.reduce((n, [edits]) => n + edits.length, 0)
+      report['Replace All: subtree commits in the 8 s after'] = after.commits
+      report['Replace All: EditorScreen calls in the 8 s after'] = after.screen
+      report['Replace All: React render ms in the 8 s after'] = round(after.reactMs)
+      report['Replace All: longest single render in the 8 s after'] = round(after.longestMs)
+      report['Replace All: wall ms of the 8 s after (jsdom)'] = round(after.wallMs)
+    }
   }, 120000)
 })

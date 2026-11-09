@@ -37,6 +37,14 @@ export interface FindReplaceModalProps {
 
 const MAX_RESULT_HEIGHT = 300
 
+/** Move a snippet edge outward so it never splits a surrogate pair. */
+function snippetEdge(text: string, at: number, direction: -1 | 1) {
+  const high = text.charCodeAt(at - 1)
+  const low = text.charCodeAt(at)
+  const splitsPair = high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff
+  return splitsPair ? at + direction : at
+}
+
 function FindResults({ matches, segments, matchIndex, onMatchClick }: Pick<
   FindReplaceModalProps, 'matches' | 'segments' | 'matchIndex' | 'onMatchClick'
 >) {
@@ -63,8 +71,8 @@ function FindResults({ matches, segments, matchIndex, onMatchClick }: Pick<
       itemContent={(i, match) => {
         const text = textById.get(match.segId) ?? ''
         const end = match.index + match.length
-        const from = Math.max(0, match.index - 30)
-        const to = Math.min(text.length, end + 30)
+        const from = snippetEdge(text, Math.max(0, match.index - 30), -1)
+        const to = snippetEdge(text, Math.min(text.length, end + 30), 1)
         const current = i === index
         return (
           <div className="pb-1">

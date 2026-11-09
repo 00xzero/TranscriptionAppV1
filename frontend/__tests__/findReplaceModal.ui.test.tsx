@@ -159,4 +159,16 @@ describe('FindReplaceModal', () => {
     expect(focus).toHaveBeenCalledWith({ preventScroll: true })
     expect(openButton).toHaveFocus()
   })
+  test('keeps snippet edges outside letters made of two code units', () => {
+    // The 30-character context would cut 𐐀 in half on both sides of the match.
+    const text = 'a\u{10400}' + 'b'.repeat(29) + 'hello' + 'c'.repeat(29) + '\u{10400}z'
+    render(<FindReplaceModal
+      {...baseProps}
+      matches={[{ segId: 's1', index: text.indexOf('hello'), length: 5 }]}
+      segments={[{ id: 's1', text }]}
+    />)
+    const snippet = screen.getByTitle('Current match').textContent ?? ''
+    expect(snippet).toBe('...\u{10400}' + 'b'.repeat(29) + 'hello' + 'c'.repeat(29) + '\u{10400}...')
+    expect(snippet).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
+  })
 })

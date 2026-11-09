@@ -66,6 +66,8 @@ export interface AudioPlayerProps {
   onSeekStart?: () => void
   /** Close pointer seeking, including ordinary clicks and taps. */
   onSeekEnd?: ScrubEndHandler
+  /** Called with the target time in seconds for a fallback slider keyboard seek. */
+  onKeyboardSeek?: (seconds: number) => void
   /** Called when the user starts dragging the progress bar */
   onDragStart?: () => void
   /** Called when the user ends dragging the progress bar */
@@ -114,6 +116,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   audioEngineOnly = false,
   onSeekStart,
   onSeekEnd,
+  onKeyboardSeek,
   onDragStart,
   onDragEnd,
   interactive = true,
@@ -287,7 +290,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isScrubbingRef.current = false
   }, [flushScrubSeek])
 
-  const seekToFraction = useCallback((fraction: number) => {
+  const seekToFraction = useCallback((fraction: number, onTarget?: (seconds: number) => void) => {
     const audio = audioRef.current
     if (!audio) return
     const resolvedDuration = resolveDuration(audio)
@@ -298,6 +301,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
     clearPendingScrubFraction()
     const nextTime = clampFraction(fraction) * resolvedDuration
+    onTarget?.(nextTime)
     latestScrubTimeRef.current = nextTime
     audio.currentTime = nextTime
     setCurrentTime(nextTime)
@@ -517,7 +521,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const scrub = useScrubGesture({
     duration, fraction: previewFraction ?? (duration > 0 ? currentTime / duration : 0),
     sourceKey: src, interactive: interactive && !audioEngineOnly,
-    onSeek: seekToFraction, onSeekStart: startPointerSeek, onSeekEnd: finishPointerSeek, onScrub: scrubToFraction,
+    onSeek: (fraction) => seekToFraction(fraction, pointerSeekActiveRef.current ? undefined : onKeyboardSeek),
+    onSeekStart: startPointerSeek, onSeekEnd: finishPointerSeek, onScrub: scrubToFraction,
     onScrubStart: startFallbackScrub, onScrubEnd: finishFallbackScrub,
   })
   const isDragging = scrub.isDragging

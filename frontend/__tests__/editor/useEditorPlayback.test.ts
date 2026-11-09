@@ -365,6 +365,34 @@ describe('playback during audio recovery', () => {
     expect(result.current.playbackClock.getMs()).toBe(seconds * 1000)
   })
 
+  it.each(['±5 s', 'scrubber', 'keyboard'] as const)('restores a %s seek made while the audio is recovering', async (control) => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response))
+    const { result, audio, player } = playingSource()
+    act(() => result.current.handleAudioReady())
+    audio.error = mediaError
+    await act(async () => { audio.dispatchEvent(new Event('error')) })
+    act(() => {
+      if (control === '±5 s') {
+        result.current.seekRelative(5)
+      } else if (control === 'scrubber') {
+        result.current.handleMiniScrubStart()
+        result.current.handleMiniScrub(0.5)
+        result.current.handleMiniScrubEnd()
+      } else {
+        result.current.handleMiniSeek(0.25)
+      }
+    })
+    // The element is reloading, so its own time is not the held position.
+    expect(player.seekRelative).not.toHaveBeenCalled()
+    act(() => {
+      audio.error = null
+      audio.currentTime = 0
+      audio.dispatchEvent(new Event('loadstart'))
+      audio.dispatchEvent(new Event('loadedmetadata'))
+    })
+    expect(audio.currentTime).toBe({ '±5 s': 47, scrubber: 30, keyboard: 15 }[control])
+  })
+
   it('keeps an explicit seek to zero when audio fails before seeked updates the clock', async () => {
     global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ url: 'fresh.mp3' }) } as Response))
     const { result, audio } = playingSource()

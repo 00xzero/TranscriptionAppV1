@@ -88,7 +88,7 @@ export function useEditorPlayback({
     else setAudioSrc(url)
   }, [audioSrc, setAudioSrc])
 
-  const { toggleWhileRecovering, captureSeek, confirmSeek } = useAudioSessionRecovery({
+  const { toggleWhileRecovering, captureSeek, seekWhileHeld, confirmSeek } = useAudioSessionRecovery({
     transcriptId,
     audioSrc,
     audioElement,
@@ -197,8 +197,10 @@ export function useEditorPlayback({
   const seekRelative = useCallback((sec: number) => {
     const player = audioPlayerRef.current
     if (!player) return
+    // While recovery holds a position, the element's own time is not it.
+    if (seekWhileHeld((held) => held + sec)) return
     player.seekRelative(sec)
-  }, [])
+  }, [seekWhileHeld])
 
   const onRateChange = useCallback((r: number) => {
     setPlaybackRate(r)
@@ -247,10 +249,11 @@ export function useEditorPlayback({
       return
     }
     // Keyboard seeks are atomic and have no pointer transaction to retain.
+    seekWhileHeld(targetMs / 1000)
     startSeek()
     player.seekToFraction(fraction)
     commitSeek(targetMs, { lockSeek: false })
-  }, [audioDuration, commitSeek, previewSeek, startSeek])
+  }, [audioDuration, commitSeek, previewSeek, startSeek, seekWhileHeld])
 
   const handleMiniScrub = useCallback((fraction: number) => {
     const player = audioPlayerRef.current ?? scrubPlayerRef.current
@@ -262,7 +265,10 @@ export function useEditorPlayback({
   const finishEditorSeek = useCallback((reason: ScrubEndReason, lockSeek = true) => {
     if (!seekGestureActiveRef.current) return
     const player = audioPlayerRef.current
-    const currentMs = reason === 'teardown' || !player
+    // During recovery the drag's target replaces the held position; the
+    // element's own time is not the position the user sees.
+    const held = reason !== 'teardown' && seekWhileHeld(lastPreviewMsRef.current / 1000)
+    const currentMs = held || reason === 'teardown' || !player
       ? lastPreviewMsRef.current
       : Math.floor(player.getCurrentTime() * 1000)
     seekGestureActiveRef.current = false
@@ -271,7 +277,7 @@ export function useEditorPlayback({
     if (lockSeek) commitSeek(currentMs)
     else commitSeek(currentMs, { lockSeek: false })
     if (reason !== 'teardown') setWaveformCollapsed(shouldCollapseWaveform())
-  }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed])
+  }, [commitSeek, shouldCollapseWaveform, setWaveformCollapsed, seekWhileHeld])
 
   const handleMiniScrubEnd = useCallback((_fraction?: number, reason: ScrubEndReason = 'release') => {
     if (!seekGestureActiveRef.current) return
@@ -310,6 +316,7 @@ export function useEditorPlayback({
 
   return {
     handleAudioPlayerRef,
+    handleFallbackKeyboardSeek: seekWhileHeld,
     playing,
     audioProgress,
     audioCurrentTime,
