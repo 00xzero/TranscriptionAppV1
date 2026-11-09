@@ -316,6 +316,7 @@ export function useEditorPlayback({
 
   return {
     handleAudioPlayerRef,
+    handleFallbackKeyboardSeek: seekWhileHeld,
     playing,
     audioProgress,
     audioCurrentTime,

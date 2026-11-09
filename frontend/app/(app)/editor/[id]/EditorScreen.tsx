@@ -255,7 +255,9 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
     shouldCollapseWaveform: sync.shouldCollapseForCurrentScroll,
   })
 
-  const { handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart, playbackClock } = playback
+  const {
+    handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart, handleFallbackKeyboardSeek, playbackClock,
+  } = playback
 
   // The current segment, straight from the playback clock. The card highlight
   // and the word highlight both follow it, so they switch in the same frame.
@@ -464,6 +466,7 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
                     onScrubPreviewFraction={playback.handleScrubPreviewFraction}
                     onSeekStart={handleExpandedSeekStart}
                     onSeekEnd={handleMiniSeekEnd}
+                    onKeyboardSeek={handleFallbackKeyboardSeek}
                     onDragStart={playback.handlePlayerDragStart}
                     onDragEnd={playback.handlePlayerDragEnd}
                     initialPlaybackRate={playback.playbackRate}
