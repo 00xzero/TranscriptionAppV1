@@ -258,4 +258,43 @@ describe.each(['inline', 'stable'])('recovery cap with %s callbacks', (style) =>
     await act(async () => { retry() })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+  test('a scrubber or ±5 s seek during the hold is where the restore lands', async () => {
+    const audio = new FakeAudio()
+    const onUrlRefreshed = jest.fn()
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ url: 'https://media.test/fresh' }) })
+    const { result } = renderHook(() => useAudioSessionRecovery({
+      transcriptId: 't1', audioSrc: 'https://media.test/old',
+      audioElement: audio as unknown as HTMLAudioElement, onUrlRefreshed,
+    }))
+    // Nothing is held yet: the player seeks the element itself.
+    expect(result.current.seekWhileHeld(100)).toBe(false)
+
+    act(() => { audio.dispatchEvent(new Event('error')) })
+    await waitFor(() => expect(onUrlRefreshed).toHaveBeenCalled())
+    expect(result.current.seekWhileHeld((held) => held + 5)).toBe(true)
+    expect(result.current.seekWhileHeld((held) => held - 60)).toBe(true)
+    expect(result.current.seekWhileHeld(30)).toBe(true)
+    expect(result.current.seekWhileHeld((held) => held + 5)).toBe(true)
+    swapSource(audio, 'loadeddata')
+    expect(audio.currentTime).toBe(35)
+
+    // Released after the restore: a later seek goes to the element again.
+    expect(result.current.seekWhileHeld(10)).toBe(false)
+  })
+
+  test('a seek before any hold never becomes a later recovery position', async () => {
+    const audio = new FakeAudio()
+    const onUrlRefreshed = jest.fn()
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ url: 'https://media.test/fresh' }) })
+    const { result } = renderHook(() => useAudioSessionRecovery({
+      transcriptId: 't1', audioSrc: 'https://media.test/old',
+      audioElement: audio as unknown as HTMLAudioElement, onUrlRefreshed,
+    }))
+    expect(result.current.seekWhileHeld(5)).toBe(false)
+    audio.currentTime = 60
+    act(() => { audio.dispatchEvent(new Event('error')) })
+    await waitFor(() => expect(onUrlRefreshed).toHaveBeenCalled())
+    swapSource(audio, 'loadeddata')
+    expect(audio.currentTime).toBe(60)
+  })
 })

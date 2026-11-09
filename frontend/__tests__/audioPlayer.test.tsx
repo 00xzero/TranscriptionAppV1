@@ -16,6 +16,7 @@ jest.mock('@/app/(app)/editor/[id]/hooks/useAudioSessionRecovery', () => ({
   useAudioSessionRecovery: jest.fn(() => ({
     toggleWhileRecovering: () => false,
     captureSeek: () => false,
+    seekWhileHeld: () => false,
     confirmSeek: () => {},
   })),
 }))

@@ -255,10 +255,22 @@ export function useAudioSessionRecovery({
     return false
   }, [])
 
+  /**
+   * A seek the player made directly (scrubber, ±5 s) while recovery holds a
+   * position replaces that position, so the restore lands where the user went.
+   * True when a position was held.
+   */
+  const seekWhileHeld = useCallback((position: number | ((held: number) => number)) => {
+    const restore = session.current?.restore
+    if (!restore) return false
+    restore.position = Math.max(0, typeof position === 'function' ? position(restore.position) : position)
+    return true
+  }, [])
+
   const confirmSeek = useCallback(() => {
     const current = session.current
     if (current && !current.audio.error && !current.audio.seeking) current.pendingSeek = undefined
   }, [])
 
-  return { toggleWhileRecovering, captureSeek, confirmSeek }
+  return { toggleWhileRecovering, captureSeek, seekWhileHeld, confirmSeek }
 }
