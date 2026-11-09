@@ -83,6 +83,20 @@ export function Toaster(): React.JSX.Element {
     }
   }, [])
 
+  // Reloading or closing the tab would lose text kept in a recovery toast, so
+  // the browser asks first while one is open, as the editor does for drafts.
+  const holdingText = list.some((item) => item.open && item.recovery)
+  React.useEffect(() => {
+    if (!holdingText) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      // Required by some browsers to show the warning.
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [holdingText])
+
   return (
     <ToastProvider swipeDirection="right" duration={5000}>
       {list.map((item) => (

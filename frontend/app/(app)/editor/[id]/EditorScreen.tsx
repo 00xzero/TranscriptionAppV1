@@ -45,6 +45,7 @@ import LeaveEditorDialog from './components/LeaveEditorDialog'
 import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
 import { publishUndoControls } from '@/lib/editor/undoControls'
 import { fetchTranscriptById } from '@/lib/supabase/queries'
+import { STALE_TOAST } from '@/lib/people/errors'
 import { engineLabel } from '@/core/transcription/engines/capabilities'
 import type { EditorTranscript } from '@/contracts/editor'
 
@@ -197,15 +198,24 @@ export default function EditorScreen({ transcriptId, initialMetadata = null }: {
         if (!(await editing.reloadSegments({ onRecovered: () => { recovered = true }, historyNotice }))) {
           return editing.reportRefreshFailure(historyNotice) ? 'retry offered' : false
         }
+        const titleRead = send(() => fetchTranscriptById(transcriptId)).catch((error: unknown) => {
+          if (!recovered || error instanceof SendClosed) throw error
+          return null
+        })
         const [speakersRead, row, tagsRead] = await Promise.all([
-          speakerHook.refresh(false), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
+          speakerHook.refresh(false), titleRead, transcriptTags.reload(),
         ])
         // A title that was read is shown even when another read failed.
         if (row) {
           data.setTranscriptTitle(row.title)
           handleTitleSaved(row.title)
         }
-        return recovered ? 'recovered' : speakersRead && !!row && tagsRead
+        const read = speakersRead && !!row && tagsRead
+        if (!recovered) return read
+        // The recovery toast explains the conflict, not that speakers, the
+        // title or tags may be out of date: say so separately.
+        if (!read) toast({ title: STALE_TOAST, variant: 'error' })
+        return 'recovered'
       },
       reveal(target) {
         sync.suspendFollow('ui')

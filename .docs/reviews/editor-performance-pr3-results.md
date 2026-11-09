@@ -112,3 +112,9 @@ its state updates. These are local measurements.
 
 All 535 tests across 35 editor and account-change suites passed. Typecheck
 passed. Lint reported zero errors and 60 warnings.
+
+CodeRabbit follow-up keeps the browser’s reload and close warning active
+until the last recovery toast is dismissed, and reports a failed speaker,
+title, or tag refresh separately when the draft has already been recovered.
+Chrome on a disposable copy confirmed the warning was active only while the
+recovery toast was open.

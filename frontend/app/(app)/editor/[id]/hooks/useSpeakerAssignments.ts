@@ -47,10 +47,9 @@ function createStableMeasurable(el: HTMLElement): Measurable {
  * answered with. Built apart from the action, so the history keeps only what
  * the step needs, not the segments the action was chosen for.
  */
-function speakerStep(label: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
+function speakerStep(label: string, failure: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
   return {
-    label, scope: 'speaker', touches: ids,
-    failure: label === 'speaker change' ? "Couldn't change the speaker" : undefined,
+    label, failure, scope: 'speaker', touches: ids,
     target: () => ({ ids: ids.filter((id) => !id.includes(':')) }),
     async run(_dir, applied) {
       if (!ops.next) throw changedSince('The action never completed')
@@ -237,16 +236,18 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
    * segments chosen before a split or join queued ahead of it changes nothing.
    */
   const execute = useCallback(function executeAction(
-    label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[]
+    label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[],
+    failure = `Couldn't ${label}`
   ): void {
+    const retry = () => executeAction(label, build, ids, failure)
     closeSpeakerPopover('selection')
     if (blocked(ids)) {
       toast({ title: "Can't change the speaker yet", description: 'A change here is still saving. Nothing changed. Try again in a moment.',
-        variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+        variant: 'error', action: { label: 'Retry', onClick: retry } })
       return
     }
     const ops: { next?: SpeakerOp } = {}
-    let failedMessage = `Couldn't ${label}`
+    let failedMessage = failure
     const perform = async () => {
       const action = build()
       if (action === UNCHANGED) throw NOTHING_CHANGED
@@ -255,11 +256,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       failedMessage = action.failed
       ops.next = await runOp(action)
     }
-    original(speakerStep(label, ids, ops), perform, (error) => {
+    original(speakerStep(label, failure, ids, ops), perform, (error) => {
       if (isNotReady(error)) toast({ title: NOT_READY_MESSAGE, variant: 'error' })
       else if (errorCode(error) === 'RESHAPED') {
         toast({ title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.', variant: 'error' })
-      } else toast({ title: failedMessage, variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+      } else toast({ title: failedMessage, variant: 'error', action: { label: 'Retry', onClick: retry } })
     })
   }, [closeSpeakerPopover, original, blocked])
 
@@ -267,7 +268,8 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
 
   const selectTarget = useCallback((target: SpeakerTarget, applyTo: ApplyTo) => {
     const chosen = scopes[applyTo]
-    execute('speaker change', () => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }), [...chosen.map(s => s.id), ...(target.kind === 'person' ? [`person:${target.id}`] : [])])
+    execute('speaker change', () => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }), [...chosen.map(s => s.id), ...(target.kind === 'person' ? [`person:${target.id}`] : [])],
+      "Couldn't change the speaker")
   }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
   const removeSpeaker = useCallback((applyTo: ApplyTo) => {
