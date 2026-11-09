@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { Seg, Match, SegmentMatch } from '../types'
-import { isUnicodeWordChar } from '../utils'
+import { codePointBefore, isUnicodeWordChar } from '../utils'
 import type { TextEdit } from './useTranscriptMutations'
 
 type SegmentMatches = { id: string; text: string; ranges: SegmentMatch[]; matches: Match[] }
@@ -27,7 +27,7 @@ function findTextMatches(text: string, needle: string, caseSensitive: boolean, w
     const index = haystack.indexOf(needle, start)
     if (index < 0) break
     start = index + needle.length
-    if (wholeWord && (isUnicodeWordChar(haystack[index - 1]) || isUnicodeWordChar(haystack[start]))) continue
+    if (wholeWord && (isUnicodeWordChar(codePointBefore(haystack, index)) || isUnicodeWordChar(haystack.slice(start, start + 2)))) continue
 
     const from = sourceStarts[index] ?? index
     const last = sourceStarts[start - 1]

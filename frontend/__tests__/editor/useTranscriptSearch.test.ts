@@ -204,6 +204,29 @@ describe('useTranscriptSearch', () => {
     expect(result.current.totalMatches).toBe(2)
   })
 
+  it.each([
+    // Letters outside the Basic Multilingual Plane take two UTF-16 units (#155).
+    ['cased letter', '\u{10400}cat cat\u{10400} cat', 12, '\u{10400}cat cat\u{10400} X'],
+    ['uncased letter', '\u{20000}cat cat\u{20000} cat', 12, '\u{20000}cat cat\u{20000} X'],
+  ])('whole word ignores matches beside a supplementary %s', (_name, text, index, replaced) => {
+    for (const caseSensitive of [false, true]) {
+      defaultParams.scheduleSaves.mockClear()
+      const { result } = renderHook(() => useTranscriptSearch({
+        ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+      }))
+      act(() => {
+        result.current.setWholeWord(true)
+        result.current.setCaseSensitive(caseSensitive)
+        result.current.setFindInput('cat')
+        result.current.setReplaceTerm('X')
+      })
+      act(() => { jest.advanceTimersByTime(800) })
+      expect(result.current.getMatches()).toEqual([{ segId: 's1', index, length: 3 }])
+      act(() => { result.current.handleReplaceAll() })
+      expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
+    }
+  })
+
   it('handleNext and handlePrev cycle through matches', () => {
     const { result } = renderHook(() => useTranscriptSearch({ ...defaultParams }))
 

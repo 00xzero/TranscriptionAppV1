@@ -1,5 +1,6 @@
 import {
   isUnicodeWordChar,
+  codePointBefore,
   groupSourceWords,
   createSegmentLocator,
   findCurrentTokenIndex,
@@ -40,6 +41,33 @@ describe('isUnicodeWordChar', () => {
   it('returns true for cased Unicode letters', () => {
     expect(isUnicodeWordChar('\u00E9')).toBe(true) // e-acute
     expect(isUnicodeWordChar('\u00DF')).toBe(true) // German eszett
+  })
+})
+
+describe('isUnicodeWordChar beyond the Basic Multilingual Plane', () => {
+  it('reads a whole surrogate pair', () => {
+    expect(isUnicodeWordChar('\u{10400}')).toBe(true) // Deseret capital letter
+    expect(isUnicodeWordChar('\u{20000}')).toBe(true) // CJK Extension B
+    expect(isUnicodeWordChar('\u{1D7CE}')).toBe(true) // mathematical digit zero
+    expect(isUnicodeWordChar('\u{1F600}')).toBe(false) // emoji
+  })
+
+  it('treats letters and marks of uncased scripts as word characters', () => {
+    expect(isUnicodeWordChar('\u0E01')).toBe(true) // Thai
+    expect(isUnicodeWordChar('\u0915')).toBe(true) // Devanagari
+    expect(isUnicodeWordChar('\u093F')).toBe(true) // Devanagari vowel sign
+  })
+})
+
+describe('codePointBefore', () => {
+  it('returns both halves of a surrogate pair', () => {
+    expect(codePointBefore('a\u{10400}b', 3)).toBe('\u{10400}')
+    expect(codePointBefore('a\u{10400}b', 1)).toBe('a')
+  })
+
+  it('returns an empty string at the start and a lone half as it is', () => {
+    expect(codePointBefore('abc', 0)).toBe('')
+    expect(codePointBefore('\uDC00x', 1)).toBe('\uDC00')
   })
 })
 
