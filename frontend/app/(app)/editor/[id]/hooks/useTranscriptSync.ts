@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { VirtuosoHandle, ListRange } from 'react-virtuoso'
-import type { Seg } from '../types'
+import type { SegmentLayout } from '../types'
 import {
   DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX,
   SYNC_OFFSET_MS,
@@ -16,7 +16,7 @@ export function useTranscriptSync({
   editingId,
   speakerPopover,
 }: {
-  segments: Seg[]
+  segments: readonly SegmentLayout[]
   editingId: string | null
   speakerPopover: unknown
 }) {

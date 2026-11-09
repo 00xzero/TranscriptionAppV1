@@ -15,7 +15,8 @@ import type { SegmentTextEdit } from '@/contracts/db'
 
 jest.mock('@/lib/supabase/queries', () => ({
   setSegmentTexts: jest.fn(),
-  fetchSegmentsWithWords: jest.fn(),
+  fetchEditorSegmentSnapshot: jest.fn(),
+  fetchSegmentWordSets: jest.fn(),
   splitSegment: jest.fn(),
   rejoinSegments: jest.fn(),
 }))
@@ -135,7 +136,8 @@ function setup({ resend = false } = {}) {
     const send = resend ? sender.send : sendOnce
     const editing = useTranscriptMutations({ transcriptId: uuid(0x70), segments: segmentsStore, words: wordsStore, enqueue, send })
     const history = useEditorHistory({
-      enqueue, holds, reveal: () => {}, refresh: editing.reloadSegments, isReconnecting: () => false, reconnecting: false,
+      enqueue, holds, reveal: () => {}, refresh: (historyNotice) => editing.reloadSegments({ historyNotice }),
+      isReconnecting: () => false, reconnecting: false,
     })
     const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
     return { editing, splitting, segments, words, history, enqueue, holds }
@@ -170,11 +172,12 @@ beforeEach(() => {
     calls.push('rejoin')
     return fake.rejoin(req)
   })
-  queries.fetchSegmentsWithWords.mockImplementation(async () => {
+  queries.fetchEditorSegmentSnapshot.mockImplementation(async () => {
     calls.push('reload')
     return [...fake.db.segments].sort(compareSegments)
-      .map((s) => ({ ...s, words: fake.db.words.filter((w) => w.segment_id === s.id).map((w) => ({ ...w })) }))
   })
+  queries.fetchSegmentWordSets.mockImplementation(async () => fake.db.segments
+    .map(({ id, revision }) => ({ id, revision, words: fake.db.words.filter((w) => w.segment_id === id) })))
 })
 
 it('waits for the database, then shows both halves and words, with no Undo toast', async () => {

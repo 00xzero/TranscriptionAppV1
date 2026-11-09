@@ -5,15 +5,21 @@ import { useEditorWriteQueue } from '../../app/(app)/editor/[id]/hooks/useEditor
 import { useLiveStore } from '../../app/(app)/editor/[id]/hooks/useLiveStore'
 import type { Seg, WordsBySegment } from '../../app/(app)/editor/[id]/types'
 import { SAVE_DEBOUNCE_MS } from '../../app/(app)/editor/[id]/utils'
-import { STALE_TOAST } from '@/lib/people/errors'
-import { RESEND_DELAYS_MS, createSender, type Send } from '@/lib/editor/untilAnswered'
+import { RESEND_DELAYS_MS, SendClosed, createSender, type Send } from '@/lib/editor/untilAnswered'
 import type { SegmentTextEdit } from '@/contracts/db'
 
 const mockSetSegmentTexts = jest.fn()
-const mockFetchSegmentsWithWords = jest.fn()
+const mockSnapshotRows = jest.fn()
+let mockWordSets: unknown[] = []
+const mockFetchWords = jest.fn()
 jest.mock('@/lib/supabase/queries', () => ({
   setSegmentTexts: (...args: unknown[]) => mockSetSegmentTexts(...args),
-  fetchSegmentsWithWords: (...args: unknown[]) => mockFetchSegmentsWithWords(...args),
+  fetchEditorSegmentSnapshot: async (...args: unknown[]) => {
+    const rows = await mockSnapshotRows(...args) as Array<Seg & { words: unknown[] }> | null
+    mockWordSets = rows?.map(({ id, revision, words }) => ({ id, revision, words })) ?? []
+    return rows?.map(({ words: _words, ...row }) => row) ?? null
+  },
+  fetchSegmentWordSets: () => mockFetchWords(),
 }))
 const mockToast = jest.fn()
 jest.mock('@/components/ui/toaster', () => ({ toast: (...args: unknown[]) => mockToast(...args) }))
@@ -33,7 +39,9 @@ const LOST = { code: '', message: 'TypeError: Failed to fetch' }
 /** Sends once; a test that needs resending passes the real sender. */
 const sendOnce: Send = (call) => call()
 
-function setup(initial: Seg[] = [seg('seg-1', 'original text')], { send = sendOnce, resend = false, onExternalChange = jest.fn() } = {}) {
+function setup(initial: Seg[] = [seg('seg-1', 'original text')],
+  { send = sendOnce, resend = false, onExternalChange = jest.fn(), onDeleted = jest.fn(),
+    onWordMismatch = jest.fn(), onWordLoadFailure = jest.fn() } = {}) {
   const hook = renderHook(() => {
     const [segments, setSegments] = useState(initial)
     const [words, setWords] = useState<WordsBySegment>(new Map())
@@ -42,11 +50,12 @@ function setup(initial: Seg[] = [seg('seg-1', 'original text')], { send = sendOn
     const wordsStore = useLiveStore(words, setWords)
     const realSend = useRealSender()
     const hook = useTranscriptMutations({
-      transcriptId: 't1', segments: segmentsStore, words: wordsStore, enqueue, send: resend ? realSend : send, onExternalChange,
+      transcriptId: 't1', segments: segmentsStore, words: wordsStore, enqueue, send: resend ? realSend : send, onExternalChange, onDeleted,
+      onWordMismatch, onWordLoadFailure,
     })
     return { ...hook, segments, words, enqueue, segmentsStore }
   })
-  return { ...hook, onExternalChange }
+  return { ...hook, onExternalChange, onDeleted, onWordMismatch, onWordLoadFailure }
 }
 
 /** A real sender, open for the test: lost answers are sent again. */
@@ -68,7 +77,9 @@ describe('useTranscriptMutations', () => {
   beforeEach(() => {
     jest.useFakeTimers()
     mockSetSegmentTexts.mockReset().mockImplementation(async (edits: SegmentTextEdit[]) => written(edits))
-    mockFetchSegmentsWithWords.mockReset()
+    mockSnapshotRows.mockReset()
+    mockWordSets = []
+    mockFetchWords.mockReset().mockImplementation(async () => mockWordSets)
     mockToast.mockReset()
   })
 
@@ -279,7 +290,7 @@ describe('useTranscriptMutations', () => {
     it('reloads once, and drops the overtaken draft with its text to copy', async () => {
       mockSetSegmentTexts.mockRejectedValue(CHANGED)
       // Split elsewhere: seg-1 is now revision 1 with only its first half.
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('seg-1', 'first half', 1)), withWords(seg('seg-2', 'second half'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'first half', 1)), withWords(seg('seg-2', 'second half'))])
       const writeText = jest.fn().mockResolvedValue(undefined)
       Object.assign(navigator, { clipboard: { writeText } })
       const { result, onExternalChange } = setup([seg('seg-1', 'first half second half')])
@@ -289,12 +300,12 @@ describe('useTranscriptMutations', () => {
       })
       await settle(SAVE_DEBOUNCE_MS)
 
-      expect(mockFetchSegmentsWithWords).toHaveBeenCalledTimes(1)
+      expect(mockSnapshotRows).toHaveBeenCalledTimes(1)
       expect(result.current.segments.map((s) => [s.id, s.text])).toEqual([['seg-1', 'first half'], ['seg-2', 'second half']])
       expect(mockToast).toHaveBeenCalledTimes(1)
       const shown = mockToast.mock.calls[0][0]
       expect(shown).toMatchObject({
-        title: 'Changed in another tab — refreshed', description: "Your last edit to a segment that changed wasn't saved.",
+        title: 'Your edit wasn’t saved', description: 'This segment changed elsewhere. Copy your text before closing this message.',
         action: { label: 'Copy text' },
       })
       shown.action.onClick()
@@ -309,7 +320,7 @@ describe('useTranscriptMutations', () => {
     it('writes again the drafts the reload kept from a batch one conflict refused', async () => {
       mockSetSegmentTexts.mockRejectedValueOnce(CHANGED)
       // a was edited elsewhere; b is as this editor last saw it.
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'a, edited elsewhere')), withWords(seg('b', 'b'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('a', 'a, edited elsewhere')), withWords(seg('b', 'b'))])
       const { result } = setup([seg('a', 'a'), seg('b', 'b')])
       act(() => { for (const id of ['a', 'b']) result.current.scheduleSave(id, `${id} typed`) })
       await settle(SAVE_DEBOUNCE_MS)
@@ -324,13 +335,39 @@ describe('useTranscriptMutations', () => {
     it('stops, and says the drafts are not saved, when the database refuses the reload', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
       mockSetSegmentTexts.mockRejectedValue(CHANGED)
-      mockFetchSegmentsWithWords.mockRejectedValue({ code: '42501', message: 'denied' })
+      mockSnapshotRows.mockRejectedValue({ code: '42501', message: 'denied' })
       const { result } = setup([seg('a', 'a'), seg('b', 'b')])
       act(() => { for (const id of ['a', 'b']) result.current.scheduleSave(id, `${id} typed`) })
       await settle(SAVE_DEBOUNCE_MS)
       await settle(SAVE_DEBOUNCE_MS * 4)
       expect(mockSetSegmentTexts).toHaveBeenCalledTimes(1)
       expect(result.current.saveStatus).toMatchObject({ a: 'error', b: 'error' })
+      consoleSpy.mockRestore()
+    })
+
+    it('retries the read before sending the drafts that survive it', async () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+      mockSetSegmentTexts.mockRejectedValueOnce(CHANGED)
+      mockSnapshotRows.mockRejectedValueOnce({ code: '42501' })
+        .mockResolvedValueOnce([withWords(seg('a', 'remote a')), withWords(seg('b', 'b'))])
+      const { result } = setup([seg('a', 'a'), seg('b', 'b')])
+      act(() => {
+        result.current.scheduleSave('a', 'local a')
+        result.current.scheduleSave('b', 'local b')
+      })
+      await settle(SAVE_DEBOUNCE_MS)
+      const retry = mockToast.mock.calls.find(([options]) => options.title === 'Couldn’t refresh the transcript')?.[0].action
+      expect(retry?.label).toBe('Retry')
+      act(() => retry.onClick())
+      await settle()
+      expect(mockSnapshotRows).toHaveBeenCalledTimes(2)
+      expect(mockSetSegmentTexts).toHaveBeenCalledTimes(2)
+      expect(mockSetSegmentTexts).toHaveBeenLastCalledWith([
+        { segment_id: 'b', expected_revision: 0, expected_text: 'b', text: 'local b' },
+      ])
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        recovery: expect.objectContaining({ texts: ['local a'] }),
+      }))
       consoleSpy.mockRestore()
     })
 
@@ -347,7 +384,7 @@ describe('useTranscriptMutations', () => {
 
     it('keeps typing done on top of a save whose outcome was unknown, when the database holds that save', async () => {
       lostThenRefused()
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('seg-1', 'first'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'first'))])
       const { result } = setup(undefined, { resend: true })
       act(() => { result.current.scheduleSave('seg-1', 'first') })
       await settle(SAVE_DEBOUNCE_MS)
@@ -363,7 +400,7 @@ describe('useTranscriptMutations', () => {
 
     it('keeps typing done on top of an undo whose outcome was unknown, when the database holds the undo', async () => {
       lostThenRefused()
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'one'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('a', 'one'))])
       const { result } = setup([seg('a', 'one two')], { resend: true })
       act(() => {
         // The text being undone was saved earlier.
@@ -388,7 +425,7 @@ describe('useTranscriptMutations', () => {
     it('settles quietly when the database already holds the draft (the answer was lost, then refused)', async () => {
       // The first attempt committed; the resend then found the text changed... to the draft itself.
       mockSetSegmentTexts.mockRejectedValue(CHANGED)
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('seg-1', 'typed'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'typed'))])
       const { result, onExternalChange } = setup()
       act(() => { result.current.scheduleSave('seg-1', 'typed') })
       await settle(SAVE_DEBOUNCE_MS)
@@ -493,11 +530,85 @@ describe('useTranscriptMutations', () => {
   })
 
   describe('reloadSegments', () => {
+    it('requests one quiet retry for mismatched words and accepts the paired result', async () => {
+      mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'saved', 1))])
+      mockFetchWords.mockResolvedValueOnce([{ id: 'seg-1', revision: 0, words: [] }])
+      const { result, onWordMismatch, onWordLoadFailure } = setup()
+      await act(async () => { await result.current.reloadSegments() })
+      expect(onWordMismatch).toHaveBeenCalledTimes(1)
+      expect(onWordLoadFailure).not.toHaveBeenCalled()
+      await act(async () => { await result.current.reloadSegments({ refreshWords: true, retryWordMismatch: false }) })
+      expect(mockFetchWords).toHaveBeenCalledTimes(2)
+      expect(onWordMismatch).toHaveBeenCalledTimes(1)
+      expect(onWordLoadFailure).not.toHaveBeenCalled()
+    })
+
+    it('reports a persistent word mismatch after the quiet retry', async () => {
+      mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'saved', 1))])
+      mockFetchWords.mockResolvedValue([{ id: 'seg-1', revision: 0, words: [] }])
+      const { result, onWordMismatch, onWordLoadFailure } = setup()
+      await act(async () => { await result.current.reloadSegments({ refreshWords: true, retryWordMismatch: false }) })
+      expect(onWordMismatch).not.toHaveBeenCalled()
+      expect(onWordLoadFailure).toHaveBeenCalledTimes(1)
+    })
+
+    it('replaces an edited row on the first refresh that adopts its save metadata, then reuses it', async () => {
+      const saved = { ...seg('seg-1', 'typed'), is_edited: true, updated_at: '2026-10-14T00:00:00Z' }
+      mockSetSegmentTexts.mockResolvedValue([saved])
+      mockSnapshotRows.mockResolvedValue([withWords(saved)])
+      const { result, onExternalChange } = setup()
+      act(() => result.current.scheduleSave('seg-1', 'typed'))
+      await settle(SAVE_DEBOUNCE_MS)
+      const before = result.current.segments[0]
+      await act(async () => { await result.current.reloadSegments() })
+      const adopted = result.current.segments[0]
+      expect(adopted).not.toBe(before)
+      expect(adopted).toEqual(saved)
+      await act(async () => { await result.current.reloadSegments() })
+      expect(result.current.segments[0]).toBe(adopted)
+      expect(onExternalChange).not.toHaveBeenCalled()
+    })
+    it('recovers the latest typing if the saved base changes during the read', async () => {
+      let answer!: (rows: ReturnType<typeof withWords>[]) => void
+      mockSnapshotRows.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve }))
+      const { result, onExternalChange } = setup()
+      act(() => { result.current.setEditingId('seg-1') })
+      let reading!: Promise<boolean>
+      await act(async () => { reading = result.current.reloadSegments() })
+      act(() => result.current.scheduleSave('seg-1', 'typed while reading'))
+      await act(async () => {
+        answer([withWords(seg('seg-1', 'changed elsewhere'))])
+        await reading
+      })
+      expect(result.current.editingId).toBeNull()
+      expect(result.current.segments[0].text).toBe('changed elsewhere')
+      expect(onExternalChange).toHaveBeenCalledWith(true)
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        recovery: expect.objectContaining({ texts: ['typed while reading'] }),
+      }))
+      await settle(SAVE_DEBOUNCE_MS)
+      expect(mockSetSegmentTexts).not.toHaveBeenCalled()
+    })
+
+    it('retains drafts and closes the editor on a confirmed transcript deletion', async () => {
+      mockSnapshotRows.mockResolvedValueOnce(null)
+      const { result, onDeleted } = setup()
+      act(() => result.current.scheduleSave('seg-1', 'copy after deletion'))
+      await act(async () => { await expect(result.current.reloadSegments()).rejects.toBeInstanceOf(SendClosed) })
+      expect(onDeleted).toHaveBeenCalledTimes(1)
+      expect(result.current.hasDrafts()).toBe(false)
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+        description: expect.stringContaining('This transcript was deleted in another tab'),
+        recovery: expect.objectContaining({ texts: ['copy after deletion'] }),
+      }))
+      await settle(SAVE_DEBOUNCE_MS)
+      expect(mockSetSegmentTexts).not.toHaveBeenCalled()
+    })
     it('keeps a draft still written against what the database holds, and drops one overtaken', async () => {
       // Word rows are validated, so these need real uuids.
       const C = '00000000-0000-4000-8000-00000000000c'
       const W1 = '00000000-0000-4000-8000-0000000000a1'
-      mockFetchSegmentsWithWords.mockResolvedValue([
+      mockSnapshotRows.mockResolvedValue([
         withWords(seg('a', 'saved a')), withWords(seg('b', 'b first half', 1)),
         withWords(seg(C, 'b second half'), [{ id: W1, segment_id: C, start_ms: 0, end_ms: 100, text: 'second', punctuated_text: null, order_index: 1 }]),
       ])
@@ -514,7 +625,7 @@ describe('useTranscriptMutations', () => {
 
       expect(reloaded).toBe(true)
       expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Changed in another tab — refreshed', description: "Your last edit to a segment that changed wasn't saved.",
+        title: 'Your edit wasn’t saved', description: 'This segment changed elsewhere. Copy your text before closing this message.',
       }))
       expect(onExternalChange).toHaveBeenCalledWith(true)
       expect(result.current.segments.map((s) => [s.id, s.text])).toEqual([
@@ -528,14 +639,14 @@ describe('useTranscriptMutations', () => {
     })
 
     it('says nothing changed elsewhere when the database holds what was shown', async () => {
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'one')), withWords(seg('b', 'two'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('a', 'one')), withWords(seg('b', 'two'))])
       const { result, onExternalChange } = setup([seg('a', 'one'), seg('b', 'two')])
       await act(async () => { await result.current.reloadSegments() })
       expect(onExternalChange).not.toHaveBeenCalled()
     })
 
     it('reports text another tab changed', async () => {
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'one, edited elsewhere'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('a', 'one, edited elsewhere'))])
       const { result, onExternalChange } = setup([seg('a', 'one')])
       await act(async () => { await result.current.reloadSegments() })
       expect(onExternalChange).toHaveBeenCalledWith(false)
@@ -543,7 +654,7 @@ describe('useTranscriptMutations', () => {
     })
 
     it('closes the editor on a segment that is gone', async () => {
-      mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('a', 'joined'))])
+      mockSnapshotRows.mockResolvedValue([withWords(seg('a', 'joined'))])
       const { result } = setup([seg('a', 'first'), seg('b', 'second')])
       act(() => {
         result.current.setEditingId('b')
@@ -555,7 +666,7 @@ describe('useTranscriptMutations', () => {
 
     it('changes nothing when the database refuses the read', async () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
-      mockFetchSegmentsWithWords.mockRejectedValue({ code: '42501', message: 'denied' })
+      mockSnapshotRows.mockRejectedValue({ code: '42501', message: 'denied' })
       const { result } = setup()
       let reloaded: unknown
       await act(async () => { reloaded = await result.current.reloadSegments() })
@@ -578,14 +689,14 @@ describe('useTranscriptMutations', () => {
   it('logs a bug in the reload after a refused save, and says the refresh failed', async () => {
     const error = jest.spyOn(console, 'error').mockImplementation(() => {})
     mockSetSegmentTexts.mockRejectedValue(CHANGED)
-    mockFetchSegmentsWithWords.mockResolvedValue([withWords(seg('seg-1', 'changed elsewhere text'))])
+    mockSnapshotRows.mockResolvedValue([withWords(seg('seg-1', 'changed elsewhere text'))])
     const onExternalChange = jest.fn(() => { throw new Error('bug') })
     const { result } = setup(undefined, { onExternalChange })
     act(() => { result.current.scheduleSave('seg-1', 'typed') })
     await settle(SAVE_DEBOUNCE_MS)
     expect(onExternalChange).toHaveBeenCalled()
     expect(error).toHaveBeenCalledWith(expect.stringContaining('failed to reload segments'), expect.any(Error))
-    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: STALE_TOAST }))
+    expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Couldn’t refresh the transcript' }))
     error.mockRestore()
   })
 

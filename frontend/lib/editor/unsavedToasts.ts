@@ -9,6 +9,43 @@ export function toastUnsaved(title: string, description: string, texts: readonly
   })
 }
 
+type OvertakenEdit = { text: string; reason?: 'reshaped' | 'deleted' }
+export const TRANSCRIPT_DELETED_MESSAGE = 'This transcript was deleted in another tab'
+
+function previewText(text: string): string {
+  const compact = text.replace(/\s+/gu, ' ').trim()
+  let preview = ''
+  let count = 0
+  for (const { segment } of new Intl.Segmenter().segment(compact)) {
+    if (count === 60) return `${preview}…`
+    preview += segment
+    count++
+  }
+  return preview
+}
+
+export function toastOvertakenEdits(edits: readonly OvertakenEdit[], transcriptDeleted = false, historyNotice?: string) {
+  const texts = edits.map(({ text }) => text)
+  const single = texts.length === 1
+  const lead = transcriptDeleted ? TRANSCRIPT_DELETED_MESSAGE : single
+    ? 'This segment changed elsewhere' : 'These segments changed elsewhere'
+  const reasons = {
+    reshaped: 'This segment was split or joined elsewhere',
+    deleted: 'This segment was deleted elsewhere',
+  }
+  toast({
+    title: single ? 'Your edit wasn’t saved' : `${texts.length} edits weren’t saved`,
+    description: [`${lead}. Copy your text before closing this message.`, historyNotice].filter(Boolean).join(' '),
+    variant: 'error',
+    recovery: {
+      texts,
+      previews: edits.slice(0, 3).map(({ text, reason }) =>
+        [previewText(text), reason && reasons[reason]].filter(Boolean).join(' · ')),
+    },
+    action: { label: 'Copy text', onClick: () => { void copyText(texts) } },
+  })
+}
+
 /**
  * Puts these texts on the clipboard, one paragraph each. Without the
  * Clipboard API (plain http) it copies the old way; says so if neither works.

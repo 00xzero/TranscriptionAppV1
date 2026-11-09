@@ -1,7 +1,7 @@
 # Editor performance and simplification
 
-Status: PR 1 is merged into the integration branch. PR 2 is implemented on
-`codex/editor-performance-pr2` for review.
+Status: PRs 1 and 2 are merged into the integration branch. PR 3 is implemented
+on `codex/editor-performance-pr3`.
 
 Agreed on 2026-11-07. The work is delivered through three sequential PRs into
 one integration feature branch, then one final PR into `main`.
@@ -545,5 +545,5 @@ Attach baseline-to-final measurements and disclose unverified environments.
 | Feature branch baseline | First commit; see baseline report |
 | PR 1 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr1-results.md). |
 | PR 2 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr2-results.md). |
-| PR 3 | Not started |
+| PR 3 | Implemented on its delivery branch. See [verification results](reviews/editor-performance-pr3-results.md). |
 | Feature branch to main | Not started |

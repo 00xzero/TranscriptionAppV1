@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   fetchEditorPeopleContext,
-  fetchSegmentSpeakerAssignments,
   fetchSpeakers,
 } from '@/lib/supabase/queries'
 import { displayedIdentityKey, resolveSpeakerPresentation, speakerLabelFor } from '@/core/speakers/labels'
@@ -12,9 +11,7 @@ import { SendClosed, type Send } from '@/lib/editor/untilAnswered'
 import { NOTHING_CHANGED, type EditorHistory, type HistoryStep } from './useEditorHistory'
 import type { SegmentHolds } from './useSegmentHolds'
 import type { EditorPeopleContext, Speaker } from '@/contracts/db'
-import type { Seg } from '../types'
-import { revisionsMatch } from '../utils'
-import { mergeSpeakerAssignments } from './useEditorData'
+import type { Seg, SegmentLayout } from '../types'
 import {
   correctAction,
   removalChanges,
@@ -50,9 +47,9 @@ function createStableMeasurable(el: HTMLElement): Measurable {
  * answered with. Built apart from the action, so the history keeps only what
  * the step needs, not the segments the action was chosen for.
  */
-function speakerStep(label: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
+function speakerStep(label: string, failure: string, ids: readonly string[], ops: { next?: SpeakerOp }): HistoryStep {
   return {
-    label, scope: 'speaker', touches: ids,
+    label, failure, scope: 'speaker', touches: ids,
     target: () => ({ ids: ids.filter((id) => !id.includes(':')) }),
     async run(_dir, applied) {
       if (!ops.next) throw changedSince('The action never completed')
@@ -61,11 +58,12 @@ function speakerStep(label: string, ids: readonly string[], ops: { next?: Speake
   }
 }
 
-export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentsStore, peopleContext,
+export function useSpeakerAssignments({ transcriptId, speakers, segments, segmentLayout = segments, segmentsStore, peopleContext,
   setSpeakers, setPeopleContext, enqueue, reloadSegments, isLoaded, send, history, holds }: {
   transcriptId: string
   speakers: Speaker[]
   segments: Seg[]
+  segmentLayout?: readonly SegmentLayout[]
   /** The same segments, live: actions read and change them through it. */
   segmentsStore: LiveStore<Seg[]>
   peopleContext: EditorPeopleContext
@@ -73,7 +71,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
   setPeopleContext: React.Dispatch<React.SetStateAction<EditorPeopleContext>>
   enqueue: Enqueue
   /**
-   * Reloads segments and words when they were split or rejoined elsewhere.
+   * Reconciles current segment text and shape before refreshing the speakers.
    * False if the database refused the read; throws SendClosed once the editor has closed.
    */
   reloadSegments: () => Promise<boolean>
@@ -108,19 +106,18 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     updatePeople: peopleStore.update,
   }), [transcriptId, speakersStore, segmentsStore, peopleStore, send])
 
-  // Reloads speaker data and segment assignments, never segment text — unless
-  // a segment was split or rejoined elsewhere (its id or revision differs),
-  // when segments and words reload whole and keep only drafts still valid.
-  // Anything changed elsewhere that the history's steps rest on (a segment's
-  // speaker, a speaker here, a person linked to one) clears the history. The
-  // reads are sent until answered; false means the database refused one.
-  const refresh = useCallback(async (): Promise<boolean> => {
+  // History repair has already read segments. A tab return reads them here.
+  const refresh = useCallback(async (includeSegments = true): Promise<boolean> => {
     try {
-      const [assignments, speakerRows, people] = await send(() => Promise.all([
-        fetchSegmentSpeakerAssignments(store.transcriptId),
+      const details = send(() => Promise.all([
         fetchSpeakers(store.transcriptId),
         fetchEditorPeopleContext(store.transcriptId),
-      ]))
+      ])).then((data) => ({ data }), (error: unknown) => ({ error }))
+      const segmentsRead = !includeSegments || await reloadSegments()
+      const result = await details
+      if (!segmentsRead) return false
+      if ('error' in result) throw result.error
+      const [speakerRows, people] = result.data
       const linkedHere = new Set(store.speakers().flatMap((sp) => sp.person_id ? [savedId(sp.person_id)] : []))
       const peopleById = new Map(people.people.map((row) => [row.id, row]))
       const externalPeople = store.people().people.some((p) => {
@@ -134,16 +131,7 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
         const row = speakersById.get(p.id)
         return !row || row.person_id !== p.person_id || row.custom_label !== p.custom_label
       })
-      const shown = store.segments()
-      const shownSpeaker = new Map(shown.map((s) => [s.id, s.speaker_id]))
-      const externalAssignments = assignments.some((a) => shownSpeaker.get(a.id) !== a.speaker_id)
-      if (externalPeople || externalSpeakers || externalAssignments) clearHistory('This changed elsewhere')
-      const reshaped = assignments.length !== shown.length || !revisionsMatch(shown, assignments)
-      if (reshaped) {
-        if (!(await reloadSegments())) return false
-      } else {
-        store.updateSegments((rows) => mergeSpeakerAssignments(rows, assignments))
-      }
+      if (externalPeople || externalSpeakers) clearHistory('This changed elsewhere')
       store.updateSpeakers(() => speakerRows)
       store.updatePeople(() => people)
       return true
@@ -174,8 +162,8 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
     }
   }, [enqueue, refresh, isLoaded])
 
-  const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segments, peopleContext.people),
-    [speakers, segments, peopleContext.people])
+  const presentation = useMemo(() => resolveSpeakerPresentation(speakers, segmentLayout, peopleContext.people),
+    [speakers, segmentLayout, peopleContext.people])
   const displayForSpeaker = useMemo(() => buildSpeakerDisplay(speakers, presentation, peopleContext.people),
     [speakers, presentation, peopleContext.people])
   const labelForSpeaker = useCallback((speakerId: string | null | undefined) =>
@@ -248,16 +236,18 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
    * segments chosen before a split or join queued ahead of it changes nothing.
    */
   const execute = useCallback(function executeAction(
-    label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[]
+    label: string, build: () => SpeakerAction | typeof RESHAPED | typeof UNCHANGED | null, ids: readonly string[],
+    failure = `Couldn't ${label}`
   ): void {
+    const retry = () => executeAction(label, build, ids, failure)
     closeSpeakerPopover('selection')
     if (blocked(ids)) {
       toast({ title: "Can't change the speaker yet", description: 'A change here is still saving. Nothing changed. Try again in a moment.',
-        variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+        variant: 'error', action: { label: 'Retry', onClick: retry } })
       return
     }
     const ops: { next?: SpeakerOp } = {}
-    let failedMessage = `Couldn't ${label}`
+    let failedMessage = failure
     const perform = async () => {
       const action = build()
       if (action === UNCHANGED) throw NOTHING_CHANGED
@@ -266,11 +256,11 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
       failedMessage = action.failed
       ops.next = await runOp(action)
     }
-    original(speakerStep(label, ids, ops), perform, (error) => {
+    original(speakerStep(label, failure, ids, ops), perform, (error) => {
       if (isNotReady(error)) toast({ title: NOT_READY_MESSAGE, variant: 'error' })
       else if (errorCode(error) === 'RESHAPED') {
         toast({ title: 'A segment was split or joined meanwhile', description: 'Nothing changed. Choose again.', variant: 'error' })
-      } else toast({ title: failedMessage, variant: 'error', action: { label: 'Retry', onClick: () => executeAction(label, build, ids) } })
+      } else toast({ title: failedMessage, variant: 'error', action: { label: 'Retry', onClick: retry } })
     })
   }, [closeSpeakerPopover, original, blocked])
 
@@ -278,7 +268,8 @@ export function useSpeakerAssignments({ transcriptId, speakers, segments, segmen
 
   const selectTarget = useCallback((target: SpeakerTarget, applyTo: ApplyTo) => {
     const chosen = scopes[applyTo]
-    execute('speaker change', () => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }), [...chosen.map(s => s.id), ...(target.kind === 'person' ? [`person:${target.id}`] : [])])
+    execute('speaker change', () => correctAction(store, { chosen, applyTo, target, fromLabel, labelForSpeaker }), [...chosen.map(s => s.id), ...(target.kind === 'person' ? [`person:${target.id}`] : [])],
+      "Couldn't change the speaker")
   }, [scopes, execute, store, fromLabel, labelForSpeaker])
 
   const removeSpeaker = useCallback((applyTo: ApplyTo) => {

@@ -73,11 +73,15 @@ jest.mock('./lib/supabase/queries', () => ({
   }),
   // No stored words by default: cards fall back to spreading words evenly.
   fetchSegmentWordSets: jest.fn().mockResolvedValue([]),
-  fetchSegmentsWithWords: jest.fn().mockResolvedValue([]),
+  fetchEditorSegmentSnapshot: jest.fn().mockResolvedValue([]),
   fetchSpeakers: jest.fn().mockResolvedValue([]),
-  fetchTranscriptById: jest.fn().mockResolvedValue({ id: 'p1', title: 'Test Transcript', status: 'created' }),
+  fetchTranscriptById: jest.fn().mockResolvedValue({
+    id: 'p1', title: 'Test Transcript', status: 'created', project_id: null,
+    created_at: '2024-01-01T00:00:00Z', engine: 'deepgram', engine_model: null,
+    duration_seconds: null, waveform_status: 'skipped',
+  }),
+  fetchTranscriptWaveformStatus: jest.fn().mockResolvedValue('skipped'),
   fetchSegments: jest.fn().mockResolvedValue([]),
-  fetchSegmentSpeakerAssignments: jest.fn().mockResolvedValue([]),
   updateTranscript: jest.fn().mockResolvedValue({}),
   // The editor's guarded writes answer with what they wrote.
   updateTranscriptTitleGuarded: jest.fn(async (id: string, _expected: string | null, title: string | null) => ({ id, title })),

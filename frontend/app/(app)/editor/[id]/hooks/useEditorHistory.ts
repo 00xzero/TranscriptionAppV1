@@ -8,6 +8,7 @@ import type { Enqueue } from './useEditorWriteQueue'
 import type { SegmentHolds, BusyKind, HoldScope } from './useSegmentHolds'
 
 export type Direction = 'undo' | 'redo'
+export type RepairResult = boolean | 'recovered' | 'retry offered'
 export type HistoryTarget = { ids?: readonly string[]; selection?: { start: number; end: number }; title?: boolean }
 export type HistoryStep = {
   label: string
@@ -51,12 +52,13 @@ type Press = { step: HistoryStep; before: stack.History<HistoryStep>; records: n
  * it has run. Undo and redo pause while a write waits for the connection, and
  * while the editor reads the database again after a change made elsewhere.
  */
-export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecting, reconnecting }: {
+export function useEditorHistory({ enqueue, holds, reveal, refresh, hasDrafts, isReconnecting, reconnecting }: {
   enqueue: Enqueue
   holds: SegmentHolds
   reveal(target: HistoryTarget): void
   /** Reads segments, speakers and the title again; false if the database refused. */
-  refresh(): Promise<boolean>
+  refresh(historyNotice?: string): Promise<RepairResult>
+  hasDrafts?(): boolean
   isReconnecting(): boolean
   reconnecting: boolean
 }) {
@@ -90,14 +92,14 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
     version: h.version + 1,
   }), [])
 
-  /** Empties the history; says so (once) when it removed anything. Returns whether it said so. */
+  /** Empties the history and returns whether it removed a step. */
   const clear = useCallback((title?: string): boolean => {
     const held = [...history.current.done, ...history.current.undone]
     history.current = emptied(history.current)
     const removed = held.some((s) => !history.current.done.includes(s))
     cancelPending(); notify()
     if (title && removed) toast({ title, description: 'Undo history cleared', variant: 'error' })
-    return !!title && removed
+    return removed
   }, [emptied, cancelPending, notify])
 
   const record = useCallback((step: HistoryStep) => {
@@ -113,12 +115,16 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
 
   // Runs inside the write queue: read the database again, holding undo/redo
   // until it has answered. The reads themselves resend until answered.
-  const repair = useCallback(async () => {
+  const repair = useCallback(async (historyNotice?: string) => {
     repairing.current = true; notify()
     try {
-      if (!(await refresh())) toast({ title: STALE_TOAST, variant: 'error' })
+      const result = await refresh(historyNotice)
+      if (!result) toast({ title: STALE_TOAST, variant: 'error' })
+      return result
     } catch (error) {
-      if (!(error instanceof SendClosed)) toast({ title: STALE_TOAST, variant: 'error' })
+      if (error instanceof SendClosed) return 'closed'
+      toast({ title: STALE_TOAST, variant: 'error' })
+      return false
     } finally {
       repairing.current = false; notify()
     }
@@ -129,12 +135,22 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
    * because something changed elsewhere, or whose outcome is unknown, clears
    * the history and reads the database again; anything else is `otherwise`.
    */
-  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void) => {
+  const failed = useCallback(async (error: unknown, title: string, otherwise: () => void, refusal: string) => {
     if (error instanceof SendClosed) return
     if (!changedElsewhere(error)) { otherwise(); return }
-    if (!clear(title)) toast({ title, variant: 'error' })
-    await repair()
-  }, [clear, repair])
+    if (!hasDrafts?.()) {
+      if (!clear(title)) toast({ title, variant: 'error' })
+      await repair()
+      return
+    }
+    // Include the refused action in any draft recovery notice.
+    const cleared = clear()
+    const notice = refusal + (cleared ? ' Undo history cleared.' : '')
+    const result = await repair(notice)
+    if (typeof result !== 'string') {
+      toast({ title, description: cleared ? 'Undo history cleared' : undefined, variant: 'error' })
+    }
+  }, [clear, repair, hasDrafts])
 
   /** One undo or redo; `reveals` false when a later press of the same click will show where it landed. */
   const press = useCallback((dir: Direction, reveals = true) => {
@@ -154,6 +170,8 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
           if (mounted.current && reveals) reveal(step.target(dir))
         })
       } catch (error) {
+        const action = dir === 'undo' ? 'Undo' : 'Redo'
+        const refusal = error instanceof OutcomeUnknown ? `Couldn’t confirm ${action}.` : `${action} couldn’t be applied.`
         await failed(error, `Can't ${dir} — this changed elsewhere`, () => {
           // Nothing was written: back to before this press, unless something
           // was recorded since, which was built on the press having happened.
@@ -164,7 +182,7 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
             : emptied(history.current)
           notify()
           toast({ title: `Couldn't ${dir} ${step.label}`, variant: 'error' })
-        })
+        }, refusal)
       } finally { held.release() }
     })
   }, [hold, notify, enqueue, reveal, failed, cancelPending, emptied, isReconnecting])
@@ -191,10 +209,11 @@ export function useEditorHistory({ enqueue, holds, reveal, refresh, isReconnecti
       if (!mounted.current) { unsettled.current.delete(step); held.release(); return }
       try { await perform() } catch (error) {
         drop(step)
+        const failure = step.failure ?? `Couldn't ${step.label}`
         if (error !== NOTHING_CHANGED) await failed(error, CONFLICT_TOAST, () => {
           if (onFailed) onFailed(error)
-          else toast({ title: step.failure ?? `Couldn't ${step.label}`, variant: 'error' })
-        })
+          else toast({ title: failure, variant: 'error' })
+        }, error instanceof OutcomeUnknown ? 'Couldn’t confirm the action.' : `${failure}.`)
       } finally {
         unsettled.current.delete(step)
         held.release()

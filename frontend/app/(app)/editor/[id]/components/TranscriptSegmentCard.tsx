@@ -187,7 +187,7 @@ const SEGMENT_FLASH = 'bg-warm-highlight dark:bg-warm-highlight/15'
 // The textarea carries no box of its own: same width, zero padding, no border, so the
 // text sits exactly where the read view painted it.
 const SEGMENT_EDIT_FIELD =
-  'block w-full p-0 resize-none overflow-hidden bg-transparent caret-accent outline-hidden'
+  'block min-h-[1lh] w-full p-0 resize-none overflow-hidden bg-transparent caret-accent outline-hidden [field-sizing:content]'
 
 // Playing-word highlight in the segment the audio is in: spoken words keep the
 // text color, the current word takes ember, upcoming words fall well back so the

@@ -21,7 +21,7 @@ export type TranscriptListProps = {
   onRangeChanged: (range: ListRange) => void
   /** The current segment: highlighted as a card, and the one whose words follow playback. */
   activeSegId: string | undefined
-  matchesBySeg: Map<string, SegmentMatch[]>
+  matchRangesFor: (id: string) => readonly SegmentMatch[] | undefined
   matchIndex: number
   currentMatchSegId: string | undefined
   displayForSpeaker: (speakerId: string | null) => SpeakerDisplay
@@ -56,7 +56,7 @@ function TranscriptList({
   virtuosoRef,
   onRangeChanged,
   activeSegId,
-  matchesBySeg,
+  matchRangesFor,
   matchIndex,
   currentMatchSegId,
   displayForSpeaker,
@@ -93,7 +93,7 @@ function TranscriptList({
           // A new turn starts when the displayed identity changes (spec §3).
           const needHeader = idx === 0 ||
             speaker.identityKey !== displayForSpeaker(segments[idx - 1]?.speaker_id ?? null).identityKey
-          const matchesForSeg = matchesBySeg.get(s.id) ?? NO_MATCHES
+          const matchesForSeg = matchRangesFor(s.id) ?? NO_MATCHES
           const isEditing = editingId === s.id
           // Contain the card's top margin so Virtuoso measures the turn spacing
           // when replacing off-screen rows with padding.
