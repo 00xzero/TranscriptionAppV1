@@ -73,6 +73,7 @@ export function RecordingSessionProvider({
   children: React.ReactNode
 }) {
   const identity = useAuth()
+  const { accountChange, hasStopped } = identity
   const snapshot = useRecordingSession()
   const pathname = usePathname()
   const warnedDurationRef = useRef<number | null>(null)
@@ -108,8 +109,8 @@ export function RecordingSessionProvider({
     if (
       snapshot.state !== 'submitted' ||
       !result ||
-      identity.accountChange ||
-      identity.hasStopped?.() ||
+      accountChange ||
+      hasStopped?.() ||
       warnedTranscriptIdRef.current === result.transcriptId
     ) {
       return
@@ -124,7 +125,7 @@ export function RecordingSessionProvider({
     } else {
       showCaptureWarning(result.warning)
     }
-  }, [identity.accountChange, identity.hasStopped, pathname, snapshot.state, snapshot.submissionResult])
+  }, [accountChange, hasStopped, pathname, snapshot.state, snapshot.submissionResult])
 
   // Phase 4: derive same-browser remote-presence status once, here, and share it
   // via context. `localActive` suppresses remote state when this tab is itself the
