@@ -227,6 +227,34 @@ describe('useTranscriptSearch', () => {
     }
   })
 
+  it.each([
+    // Invisible format characters inside a word don't make a word boundary.
+    ['Persian zero-width non-joiner', 'تن\u200cها', 'ها', 0],
+    ['Persian plural suffix', 'کتاب\u200cها', 'کتاب', 0],
+    ['Devanagari zero-width joiner', 'क्\u200dष', 'ष', 0],
+    ['soft hyphen', 'soft\u00adware', 'ware', 0],
+    ['two format characters', 'soft\u00ad\u200eware', 'ware', 0],
+    // These stay boundaries.
+    ['zero-width space', 'cat\u200bcat', 'cat', 2],
+    ['format character then space', 'cat\u200e cat', 'cat', 2],
+    ['format character at the edge', '\u200ecat\u200e', 'cat', 1],
+    ['ordinary spaces', 'the cat sat', 'cat', 1],
+  ])('whole word with %s', (_name, text, query, count) => {
+    const { result } = renderHook(() => useTranscriptSearch({
+      ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+    }))
+    act(() => {
+      result.current.setWholeWord(true)
+      result.current.setFindInput(query)
+      result.current.setReplaceTerm('X')
+    })
+    act(() => { jest.advanceTimersByTime(800) })
+    expect(result.current.getMatches()).toHaveLength(count)
+    defaultParams.scheduleSaves.mockClear()
+    act(() => { result.current.handleReplaceAll() })
+    if (count === 0) expect(defaultParams.scheduleSaves).not.toHaveBeenCalled()
+  })
+
   it('handleNext and handlePrev cycle through matches', () => {
     const { result } = renderHook(() => useTranscriptSearch({ ...defaultParams }))
 

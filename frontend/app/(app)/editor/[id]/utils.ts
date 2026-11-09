@@ -28,6 +28,33 @@ export function codePointBefore(text: string, index: number): string {
   return text[index - 1]
 }
 
+// Invisible format characters (joiners, soft hyphens, direction marks) sit
+// inside words, so Unicode's word-boundary rules look past them. A zero-width
+// space is the exception: it marks a break.
+const FORMAT_CHAR = /^\p{Cf}/u
+const ZERO_WIDTH_SPACE = '\u200b'
+const isIgnoredFormatChar = (char: string) => char !== ZERO_WIDTH_SPACE && FORMAT_CHAR.test(char)
+
+/** The nearest code point before `index` that isn't an invisible format character. */
+export function wordCharBefore(text: string, index: number): string {
+  let char = codePointBefore(text, index)
+  while (char && isIgnoredFormatChar(char)) {
+    index -= char.length
+    char = codePointBefore(text, index)
+  }
+  return char
+}
+
+/** The nearest code point from `index` on that isn't an invisible format character. */
+export function wordCharAfter(text: string, index: number): string {
+  while (index < text.length) {
+    const char = String.fromCodePoint(text.codePointAt(index)!)
+    if (!isIgnoredFormatChar(char)) return char
+    index += char.length
+  }
+  return ''
+}
+
 function normaliseWords(words: EditorEmbeddedWord[]): EditorWord[] {
   // (order_index, id) is the order the database splits and joins words in.
   words.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))

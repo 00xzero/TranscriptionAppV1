@@ -1,6 +1,8 @@
 import {
   isUnicodeWordChar,
   codePointBefore,
+  wordCharBefore,
+  wordCharAfter,
   groupSourceWords,
   createSegmentLocator,
   findCurrentTokenIndex,
@@ -68,6 +70,21 @@ describe('codePointBefore', () => {
   it('returns an empty string at the start and a lone half as it is', () => {
     expect(codePointBefore('abc', 0)).toBe('')
     expect(codePointBefore('\uDC00x', 1)).toBe('\uDC00')
+  })
+})
+
+describe('wordCharBefore and wordCharAfter', () => {
+  it('look past invisible format characters', () => {
+    expect(wordCharBefore('a\u200c\u00adb', 3)).toBe('a')
+    expect(wordCharAfter('a\u200d\u2060b', 1)).toBe('b')
+    expect(wordCharBefore('\u{10400}\u200cb', 3)).toBe('\u{10400}')
+  })
+
+  it('stop at a zero-width space and at the ends of the text', () => {
+    expect(wordCharBefore('a\u200bb', 2)).toBe('\u200b')
+    expect(wordCharAfter('a\u200bb', 1)).toBe('\u200b')
+    expect(wordCharBefore('\u200eb', 1)).toBe('')
+    expect(wordCharAfter('a\u200e', 1)).toBe('')
   })
 })
 
