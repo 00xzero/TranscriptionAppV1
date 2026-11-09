@@ -52,6 +52,7 @@ import {
   hasUnsavedRecording,
   isRecordingSessionActive,
   releaseOwnerLockQuietly,
+  resume as resumeSession,
 } from './sessionCore'
 import {
   recordingMediaFilename,
@@ -62,8 +63,11 @@ import {
   runRecoveryProbe,
 } from './sessionRecovery'
 import { getIdentity, __resetIdentityForTesting } from './sessionIdentity'
+import { DURATION_STOP_HEADROOM_MS, DURATION_WARNING_MS } from './durationBudget'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { randomId } from '@/lib/ids'
+import { resolveTranscriptionOptions } from '@/contracts/transcription-options'
+import { ENGINE_CAPABILITIES } from '@/core/transcription/engines/capabilities'
 
 export class RecordingAlreadyActiveError extends Error {
   readonly code = 'recording_already_active' as const
@@ -139,6 +143,8 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   // Distinct from sessionId: the user-scoped upload idempotency key. Generated at
   // start so a session that crashes before stop still carries its dedup key.
   const uploadIntentId = randomId('sess-')
+  const transcriptionOptions = resolveTranscriptionOptions(params.transcriptionOptions)
+  const durationLimit = ENGINE_CAPABILITIES[transcriptionOptions.engine].maxDurationSeconds
 
   // Phase 4: take the global per-browser owner lock first. If another same-browser
   // tab already owns a live recording, this fails fast and we never touch the
@@ -174,6 +180,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.deviceId = params.deviceId
     store.runtime.codecMime = params.codec.mime
     store.runtime.maxBytes = params.maxBytes
+    store.runtime.maxActiveMs = durationLimit === null ? null : durationLimit * 1000
 
     // Initialize durable persistence identity BEFORE start(): `acceptingChunks` is
     // already true, so the chunk path is live and a (theoretical) synchronous chunk
@@ -200,6 +207,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.deviceId = null
     store.runtime.codecMime = null
     store.runtime.maxBytes = 0
+    store.runtime.maxActiveMs = null
     store.runtime.sessionId = null
     store.runtime.userId = null
     store.runtime.uploadIntentId = null
@@ -225,7 +233,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     lastResumeAt: now,
     pausedAccumulatedMs: 0,
     keyTerms: params.keyTerms,
-    transcriptionOptions: params.transcriptionOptions,
+    transcriptionOptions,
     codecExtension: params.codec.extension,
     bytesSoFar: 0,
     // Unavailable-from-start detection: a no-op adapter never persists, so the
@@ -243,7 +251,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     title: params.title,
     generatedTitle,
     keyTerms: params.keyTerms,
-    transcriptionOptions: params.transcriptionOptions,
+    transcriptionOptions,
     codecMime: params.codec.mime,
     codecExtension: params.codec.extension,
     deviceId: params.deviceId,
@@ -267,8 +275,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   publishPresence()
 }
 
-// Single-flight, drain-aware Stop. Used by the recording page's controls and
-// by the size-budget auto-stop.
+// Single-flight, drain-aware Stop for the manual control and both budgets.
 export async function stopAndFinalize(): Promise<void> {
   if (store.runtime.stopInProgress) return
   store.runtime.stopInProgress = true
@@ -342,6 +349,40 @@ export async function stopAndFinalize(): Promise<void> {
   }
 }
 
+export function resume(): void {
+  if (store.snapshot.state !== 'paused') return
+  if (!checkRecordingLimits(Date.now())) resumeSession()
+}
+
+/** Return true when a budget stops capture, so a paused recorder stays paused. */
+function checkRecordingLimits(now: number): boolean {
+  const snapshot = store.snapshot
+  const { stopInProgress, maxActiveMs, bytesSoFar, maxBytes } = store.runtime
+  if (
+    stopInProgress ||
+    (snapshot.state !== 'recording' && snapshot.state !== 'paused')
+  ) return false
+
+  const activeMs = getElapsedActiveMs(snapshot, now)
+  const stopAtMs = maxActiveMs === null
+    ? Infinity
+    : Math.max(0, maxActiveMs - DURATION_STOP_HEADROOM_MS)
+  const reason = shouldAutoStop(bytesSoFar, maxBytes) ? 'size'
+    : activeMs >= stopAtMs ? 'duration'
+    : null
+
+  if (reason) {
+    setSnapshot({ ...snapshot, autoStopReason: reason, durationWarning: false })
+    void stopAndFinalize()
+    return true
+  }
+
+  if (!snapshot.durationWarning && activeMs >= stopAtMs - DURATION_WARNING_MS) {
+    setSnapshot({ ...snapshot, durationWarning: true })
+  }
+  return false
+}
+
 export function recordChunk(blob: Blob): void {
   if (!store.runtime.acceptingChunks) return
   if (blob.size <= 0) return
@@ -373,13 +414,8 @@ export function recordChunk(blob: Blob): void {
     captureHealthWarning: null,
   })
 
-  if (
-    !store.runtime.stopInProgress &&
-    store.runtime.maxBytes > 0 &&
-    shouldAutoStop(store.runtime.bytesSoFar, store.runtime.maxBytes)
-  ) {
-    void stopAndFinalize()
-  }
+  // MediaRecorder delivery drives the guard even if background timers lag.
+  checkRecordingLimits(now)
 }
 
 export function handleRecorderFailure(reason: string): void {

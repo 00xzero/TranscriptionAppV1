@@ -28,6 +28,7 @@ export {
   checkCaptureHealth,
   handleRecorderFailure,
   recordChunk,
+  resume,
   stopAndFinalize,
 } from './sessionActions'
 export { getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
@@ -52,7 +53,6 @@ export {
   markUploading,
   pause,
   resetRecordingSession,
-  resume,
   updateSessionKeyTerms,
   updateSessionTitle,
 } from './sessionCore'

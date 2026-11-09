@@ -12,6 +12,7 @@ export function createRuntime(): Runtime {
     deviceId: null,
     codecMime: null,
     maxBytes: 0,
+    maxActiveMs: null,
     finalizedRecording: null,
     sessionId: null,
     nextChunkSeq: 0,

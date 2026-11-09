@@ -4,6 +4,7 @@ import userEventLib from '@testing-library/user-event'
 import RecordingPill from '@/components/RecordingSession/RecordingPill'
 import {
   __resetForTesting,
+  __setSnapshotForTesting,
   discard,
   markSubmitted,
   startMock,
@@ -78,6 +79,16 @@ describe('RecordingPill', () => {
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toHaveTextContent(/Paused/)
     expect(pill).toHaveTextContent(/00:01:05/)
+  })
+
+  test('exposes the time limit in the pill visually and in its accessible name', () => {
+    act(() => {
+      __setSnapshotForTesting({ state: 'recording', durationWarning: true })
+    })
+    renderPill()
+    const pill = screen.getByTestId('recording-pill')
+    expect(pill).toHaveTextContent('Time limit near')
+    expect(pill).toHaveAccessibleName(/Recording will stop and start transcription automatically/)
   })
 
   test('shows a saved terminal pill briefly after submitted', async () => {

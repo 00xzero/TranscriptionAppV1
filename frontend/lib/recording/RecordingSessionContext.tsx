@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { usePathname } from 'next/navigation'
 import {
   attachAndStart as attachAndStartAction,
   discard as discardAction,
@@ -30,7 +31,9 @@ import { RemotePresenceProvider } from './RemotePresenceContext'
 import { clearPresenceForSession } from './presence'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
+import { toast } from '@/components/ui/toaster'
 import { showCaptureWarning } from '@/lib/capture/warnings'
+import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from './durationBudget'
 export { RecordingAlreadyActiveError } from './session'
 
 interface RecordingActions {
@@ -68,6 +71,9 @@ export function RecordingSessionProvider({
 }) {
   const identity = useAuth()
   const snapshot = useRecordingSession()
+  const pathname = usePathname()
+  const warnedDurationRef = useRef<number | null>(null)
+  const noticedAutoStopRef = useRef<number | null>(null)
   const probedUserRef = useRef<string | null>(null)
   const warnedTranscriptIdRef = useRef<string | null>(null)
   const ownerLossHandledSessionRef = useRef<string | null>(null)
@@ -76,6 +82,23 @@ export function RecordingSessionProvider({
   // App-level unload guard: warns on refresh/close/quit while a recording is active
   // (through upload completion), on every route — not just `/recording/new`.
   useBeforeUnloadGuard(isRecordingSessionActive(snapshot))
+
+  const { startedAt, state, durationWarning, autoStopReason } = snapshot
+  useEffect(() => {
+    if (pathname === '/recording/new' || identity.accountChange || startedAt === null) return
+
+    if (autoStopReason && noticedAutoStopRef.current !== startedAt) {
+      noticedAutoStopRef.current = startedAt
+      toast({ title: AUTO_STOP_MESSAGES[autoStopReason] })
+    } else if (
+      durationWarning &&
+      (state === 'recording' || state === 'paused') &&
+      warnedDurationRef.current !== startedAt
+    ) {
+      warnedDurationRef.current = startedAt
+      toast({ title: 'Recording is nearing the time limit', description: DURATION_WARNING_MESSAGE })
+    }
+  }, [pathname, identity.accountChange, startedAt, state, durationWarning, autoStopReason])
 
   useEffect(() => {
     const result = snapshot.submissionResult

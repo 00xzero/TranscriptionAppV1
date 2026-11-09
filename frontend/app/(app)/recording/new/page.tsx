@@ -12,6 +12,7 @@ import {
 } from '@/lib/recording/RemotePresenceContext'
 import type { SessionSnapshot } from '@/lib/recording/session'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
+import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from '@/lib/recording/durationBudget'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
@@ -146,12 +147,15 @@ export default function RecordingNewPage() {
   const title =
     snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
 
-  const salvageBanner = snapshot.salvageMessage ? (
+  const autoStopMessage = snapshot.autoStopReason && AUTO_STOP_MESSAGES[snapshot.autoStopReason]
+  const stopBanner = autoStopMessage || snapshot.salvageMessage ? (
     <div
       role="status"
       aria-live="polite"
       className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
     >
+      {autoStopMessage}
+      {autoStopMessage && snapshot.salvageMessage && ' '}
       {snapshot.salvageMessage}
     </div>
   ) : null
@@ -265,7 +269,7 @@ export default function RecordingNewPage() {
     return (
       <>
         <RecordingStatusLayout title={title}>
-          {salvageBanner}
+          {stopBanner}
           <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
             {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
           </div>
@@ -314,7 +318,7 @@ export default function RecordingNewPage() {
     return (
       <>
         <RecordingStatusLayout title={title}>
-          {salvageBanner}
+          {stopBanner}
           <p className="text-sm text-ink/70 dark:text-paper/70">
             Your recording was interrupted and couldn&apos;t be recovered.
           </p>
@@ -338,7 +342,7 @@ export default function RecordingNewPage() {
         title={title}
         labelClassName="mt-2 text-sm text-ink/60 dark:text-paper/60"
       >
-        {salvageBanner}
+        {stopBanner}
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
@@ -371,11 +375,20 @@ export default function RecordingNewPage() {
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
 
+      {!isInFlight && snapshot.durationWarning && (
+        <div
+          role="status"
+          className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+        >
+          {DURATION_WARNING_MESSAGE}
+        </div>
+      )}
+
       {durabilityBanner}
 
       {captureHealthBanner}
 
-      {salvageBanner}
+      {stopBanner}
 
       {!isInFlight && <RecordingKeyTerms />}
 

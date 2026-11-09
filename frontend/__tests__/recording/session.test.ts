@@ -295,6 +295,109 @@ describe('recording session singleton', () => {
     expect(hasUnsavedRecording()).toBe(false)
   })
 
+  test.each([
+    ['soniox', 5 * 60 * 60 * 1000],
+    ['assemblyai', 10 * 60 * 60 * 1000],
+  ] as const)('warns and stops %s on chunk delivery without a timer tick', async (engine, capMs) => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    mockRunCaptureUpload.mockResolvedValue({
+      kind: 'failure',
+      message: 'Temporary upload error',
+    })
+    await attachRecording({
+      transcriptionOptions: { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine },
+      maxBytes: 1024 * 1024,
+    })
+    const recorder = lastRecorder()
+    const stop = jest.spyOn(recorder, 'stop')
+    const stopAt = 1_000_000 + capMs - 60_000
+
+    now.mockReturnValue(stopAt - 300_001)
+    dispatchChunk(recorder, 4096)
+    expect(getSnapshot().durationWarning).toBe(false)
+    now.mockReturnValue(stopAt - 300_000)
+    dispatchChunk(recorder, 512)
+    expect(getSnapshot().durationWarning).toBe(true)
+    now.mockReturnValue(stopAt - 1)
+    dispatchChunk(recorder, 512)
+    expect(stop).not.toHaveBeenCalled()
+    now.mockReturnValue(stopAt)
+    dispatchChunk(recorder, 512)
+    expect(getSnapshot()).toMatchObject({
+      state: 'finalizing',
+      autoStopReason: 'duration',
+      durationWarning: false,
+    })
+
+    dispatchStopDrain(recorder, 512)
+    await flushAsync()
+
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+    expect(mockRunCaptureUpload.mock.calls[0][0].size).toBe(6144)
+    expect(mockRunCaptureUpload.mock.calls[0][3]?.transcriptionOptions?.engine).toBe(engine)
+    expect(getSnapshot()).toMatchObject({
+      state: 'error',
+      canRetryUpload: true,
+      autoStopReason: 'duration',
+    })
+  })
+
+  test('ignores paused wall time and stops before resuming if active time already crossed the limit', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    const stopAtMs = 5 * 60 * 60 * 1000 - 60_000
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'success', transcriptId: 't1', outcome: 'started' })
+    await attachRecording({
+      transcriptionOptions: { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine: 'soniox' },
+      maxBytes: 1024 * 1024,
+    })
+    const recorder = lastRecorder()
+    const resumeRecorder = jest.spyOn(recorder, 'resume')
+    dispatchChunk(recorder, 4096)
+
+    now.mockReturnValue(1_000_000 + stopAtMs - 500)
+    pause()
+    now.mockReturnValue(1_000_000 + stopAtMs + 300_000)
+    resume()
+    expect(getSnapshot().state).toBe('recording')
+    expect(resumeRecorder).toHaveBeenCalledTimes(1)
+
+    now.mockReturnValue(1_000_000 + stopAtMs + 300_500)
+    pause()
+    resume()
+    expect(getSnapshot()).toMatchObject({ state: 'finalizing', autoStopReason: 'duration' })
+    expect(resumeRecorder).toHaveBeenCalledTimes(1)
+    dispatchStopDrain(recorder, 512)
+    await flushAsync()
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+  })
+
+  test.each([
+    ['deepgram', 4096, null],
+    ['deepgram', 9700, 'size'],
+    ['soniox', 9700, 'size'],
+  ] as const)('uses the byte guard for %s with %s bytes even after the duration threshold', async (engine, bytes, reason) => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'success', transcriptId: 't1', outcome: 'started' })
+    await attachRecording({
+      transcriptionOptions: { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine },
+      maxBytes: 10_000,
+    })
+    now.mockReturnValue(1_000_000 + 10 * 60 * 60 * 1000)
+    const recorder = lastRecorder()
+    dispatchChunk(recorder, bytes)
+    expect(getSnapshot()).toMatchObject({
+      state: reason ? 'finalizing' : 'recording',
+      autoStopReason: reason,
+      durationWarning: false,
+    })
+    if (reason) {
+      dispatchStopDrain(recorder, 512)
+      await flushAsync()
+      expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+    }
+  })
+
   test('markError sets state and message', () => {
     startMock()
     markError('Microphone unplugged')

@@ -1,4 +1,5 @@
 import type { CodecSelection } from './codecs'
+import type { AutoStopReason } from './durationBudget'
 import type { CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
@@ -57,6 +58,8 @@ export interface SessionSnapshot {
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
   salvageMessage: string | null
+  durationWarning: boolean
+  autoStopReason: AutoStopReason | null
   canRetryUpload: boolean
   /**
    * Backup/durability status (Phase 3). `true` = the recording is being mirrored
@@ -102,6 +105,7 @@ export interface Runtime {
   deviceId: string | null
   codecMime: string | null
   maxBytes: number
+  maxActiveMs: number | null
   finalizedRecording: FinalizedRecording | null
   // Durable persistence (Phase 1). `sessionId`/`writeQueue` are null when idle;
   // `nextChunkSeq` is the monotonic seq assigned to the next persisted chunk.
@@ -143,6 +147,8 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   codecExtension: null,
   bytesSoFar: 0,
   salvageMessage: null,
+  durationWarning: false,
+  autoStopReason: null,
   canRetryUpload: false,
   durable: true,
   captureHealthWarning: null,
