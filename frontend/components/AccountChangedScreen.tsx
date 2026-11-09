@@ -16,6 +16,7 @@ import { copyText } from '@/lib/editor/unsavedToasts'
 import { retainedToastTexts } from '@/components/ui/toaster'
 import { useRecordingActions, useRecordingSession } from '@/lib/recording/RecordingSessionContext'
 import { getFinalizedRecordingFile } from '@/lib/recording/session'
+import { downloadRecording } from '@/lib/recording/downloadRecording'
 
 /** What the browser's session now is, for a stopped page: `back` is its own account again. */
 type SessionNow = AccountChange | 'back'
@@ -125,13 +126,7 @@ function Covered({ change }: { change: AccountChange }) {
   }
   const download = () => {
     if (!memoryOnly) return
-    const url = URL.createObjectURL(memoryOnly)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = memoryOnly.name
-    link.click()
-    // Long enough for the browser to start saving it.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    downloadRecording(memoryOnly)
     setDownloaded(true)
   }
   // Decided from the session as it is at the click: a button left over from

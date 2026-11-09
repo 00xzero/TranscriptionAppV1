@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 import { CharacterCount } from '@/components/ui/character-count'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
@@ -10,6 +11,7 @@ import { toast } from '@/components/ui/toaster'
 import { showCaptureWarning } from '@/lib/capture/warnings'
 import {
   discardRecovered,
+  exportRecovered,
   saveRecovered,
   type RecoverableInfo,
 } from '@/lib/recording/session'
@@ -31,10 +33,12 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
   const [title, setTitle] = useState(info.title ?? info.generatedTitle ?? '')
   const titleCountId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const discardButtonRef = useRef<HTMLButtonElement>(null)
   const [titleSaveBlocked, setTitleSaveBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   // Reset editable fields when a different orphan is surfaced (multi-orphan chain).
   useEffect(() => {
@@ -69,7 +73,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
     setError(null)
     const savedTitle =
       title.trim() || info.title || info.generatedTitle || 'Recording'
-    const result = await saveRecovered(savedTitle)
+    const result = await saveRecovered(savedTitle, info.sessionId)
     if (!result.ok) {
       setError(result.message ?? 'Could not save the recording.')
       setSaving(false)
@@ -91,14 +95,26 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
     setSaving(true)
     setError(null)
     try {
-      await discardRecovered()
+      await discardRecovered(info.sessionId)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await exportRecovered(info.sessionId)
     } catch (err) {
-      setError((err as Error)?.message ?? 'Could not discard the recording.')
+      setError((err as Error)?.message ?? 'Could not download the recording.')
+    } finally {
       setSaving(false)
     }
   }
 
   return (
+    <>
     <Dialog open={true} onOpenChange={() => { /* blocking: resolve via Save/Discard */ }}>
       <DialogContent
         className="w-[480px] overflow-hidden p-0"
@@ -164,7 +180,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               role="status"
               className="rounded-lg border border-ink/15 bg-warm-highlight px-3 py-2 text-xs text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
             >
-              You&apos;re offline. Reconnect to save this recording — or discard it.
+              You&apos;re offline. You can still download the recording.
             </div>
           )}
 
@@ -180,13 +196,17 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
 
         <div className="flex items-center justify-end gap-3 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
           <button
+            ref={discardButtonRef}
             type="button"
-            onClick={handleDiscard}
+            onClick={() => setDiscardOpen(true)}
             disabled={saving}
             className="rounded-lg px-4 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
           >
             Discard
           </button>
+          <Button type="button" variant="ghost" onClick={handleDownload} disabled={saving}>
+            Download recording
+          </Button>
           <Button
             type="button"
             variant="destructive"
@@ -200,5 +220,15 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
         </div>
       </DialogContent>
     </Dialog>
+    <DiscardRecordingDialog
+      open={discardOpen}
+      onOpenChange={setDiscardOpen}
+      onConfirm={handleDiscard}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault()
+        discardButtonRef.current?.focus()
+      }}
+    />
+    </>
   )
 }

@@ -1,21 +1,23 @@
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 jest.mock('@/lib/recording/session', () => ({
   saveRecovered: jest.fn(),
   discardRecovered: jest.fn(),
+  exportRecovered: jest.fn(),
   // jest.setup.ts calls this global reset; keep it defined under the mock.
   __resetForTesting: jest.fn(),
 }))
 
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 import { Toaster, __resetToastsForTesting } from '@/components/ui/toaster'
-import { saveRecovered, discardRecovered } from '@/lib/recording/session'
+import { saveRecovered, discardRecovered, exportRecovered } from '@/lib/recording/session'
 import type { RecoverableInfo } from '@/lib/recording/session'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const mockSave = jest.mocked(saveRecovered)
 const mockDiscard = jest.mocked(discardRecovered)
+const mockExport = jest.mocked(exportRecovered)
 
 function makeInfo(overrides: Partial<RecoverableInfo> = {}): RecoverableInfo {
   return {
@@ -61,29 +63,36 @@ describe('RecoveryModal', () => {
     const input = screen.getByLabelText(/recovered recording title/i)
     fireEvent.change(input, { target: { value: 'Edited title' } })
     fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
-    await waitFor(() => expect(mockSave).toHaveBeenCalledWith('Edited title'))
+    await waitFor(() => expect(mockSave).toHaveBeenCalledWith('Edited title', 's1'))
   })
 
-  test('discard calls discardRecovered', async () => {
+  test('requires confirmation before discarding the exact row', async () => {
     render(<RecoveryModal info={makeInfo()} />)
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
-    await waitFor(() => expect(mockDiscard).toHaveBeenCalledTimes(1))
+    expect(mockDiscard).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole('alertdialog', { name: 'Discard this recording?' })
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(mockDiscard).toHaveBeenCalledWith('s1'))
   })
 
   test('discard failure shows an error and re-enables actions', async () => {
     mockDiscard.mockRejectedValueOnce(new Error('Discard failed'))
     render(<RecoveryModal info={makeInfo()} />)
     fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Discard failed')
-    expect(screen.getByRole('button', { name: /^discard$/i })).toBeEnabled()
+    const confirmation = screen.getByRole('alertdialog')
+    fireEvent.click(within(confirmation).getByRole('button', { name: 'Discard' }))
+    expect(await within(confirmation).findByRole('alert')).toHaveTextContent('Discard failed')
+    expect(within(confirmation).getByRole('button', { name: 'Discard' })).toBeEnabled()
   })
 
-  test('offline disables Save but keeps Discard enabled', () => {
+  test('offline disables Save and still allows a local download or discard', async () => {
     setOnline(false)
     render(<RecoveryModal info={makeInfo()} />)
     expect(screen.getByRole('button', { name: /save & transcribe/i })).toBeDisabled()
     expect(screen.getByRole('button', { name: /^discard$/i })).toBeEnabled()
     expect(screen.getByText(/offline/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Download recording' }))
+    await waitFor(() => expect(mockExport).toHaveBeenCalledWith('s1'))
   })
 
   test('shows "1 of N" when more orphans remain', () => {

@@ -14,10 +14,11 @@ import {
   releaseLiveOwnership,
   releaseSessionLockQuietly,
 } from './sessionCore'
-import { getIdentity } from './sessionIdentity'
+import { getIdentity, isRecordingAccountCurrent } from './sessionIdentity'
 import { setSnapshot, store } from './sessionStore'
 import { IDLE_SNAPSHOT, type RecoverableInfo } from './sessionTypes'
 import type { CreateTranscriptWarning } from '@/contracts/api'
+import { downloadRecording } from './downloadRecording'
 import { recordingMediaFilename } from './sessionUpload'
 import { runCaptureUpload } from '@/lib/capture/upload'
 
@@ -103,8 +104,7 @@ async function probeAndHydrate(excludeSessionId?: string | null): Promise<boolea
   const probedUserId = identity.userId
 
   const canProceed = () => {
-    const current = getIdentity()
-    return current.ready && current.userId === probedUserId &&
+    return isRecordingAccountCurrent(probedUserId) &&
       !store.runtime.sessionClaim && !store.runtime.recoveryClaim && isRecoveryEligibleState()
   }
   if (!canProceed()) return false
@@ -133,152 +133,135 @@ async function probeAndHydrate(excludeSessionId?: string | null): Promise<boolea
   return true
 }
 
-// Shared save/discard tail: delete the resolved orphan, release its lock, then
-// chain to the next orphan (defensive multi-orphan handling). Returns true when a
-// subsequent recoverable was surfaced — callers use that to decide whether to
-// apply their own terminal snapshot.
-interface ClearRecoveredResult {
-  ok: boolean
-  chainedToNext: boolean
-  message?: string
+let busyClaim: SessionClaim | null = null
+
+function beginRecoveryAction(expectedSessionId?: string) {
+  const info = store.snapshot.recoverable
+  const { recoveryClaim: claim, userId } = store.runtime
+  if (!info || !claim || claim.sessionId !== info.sessionId ||
+    (expectedSessionId !== undefined && expectedSessionId !== info.sessionId)) {
+    throw new Error('This recovered recording is no longer available.')
+  }
+  if (!userId || !isRecordingAccountCurrent(userId)) {
+    throw new Error('Sign in to the original account to use this recording.')
+  }
+  if (busyClaim) throw new Error('An action is already running for this recording.')
+  busyClaim = claim
+  return { info, claim, userId, persistence: getPersistence() }
 }
 
-async function clearRecoveredOrphanAndChain(
-  sessionId: string
-): Promise<ClearRecoveredResult> {
-  const claim = store.runtime.recoveryClaim
-  if (claim?.sessionId !== sessionId) {
-    return { ok: false, chainedToNext: false, message: 'The recovery claim is no longer available.' }
-  }
-  try {
-    await getPersistence().deleteSession(sessionId)
-  } catch (err) {
-    return {
-      ok: false,
-      chainedToNext: false,
-      message: (err as Error)?.message ?? 'Could not delete the recovered recording.',
-    }
-  }
+type RecoveryAction = ReturnType<typeof beginRecoveryAction>
+
+async function releaseRecoveryClaim(claim: SessionClaim): Promise<void> {
   await releaseSessionLockQuietly(claim)
-  store.runtime.recoveryClaim = null
-  try {
-    return {
-      ok: true,
-      chainedToNext: await runRecoveryProbe(sessionId),
-    }
-  } catch {
-    return { ok: true, chainedToNext: false }
+  if (store.runtime.recoveryClaim === claim) {
+    store.runtime.recoveryClaim = null
+    store.runtime.userId = null
   }
+}
+
+export function closeRecoveryForAccountChange(): void {
+  const claim = store.runtime.recoveryClaim
+  if (!claim || claim === busyClaim) return
+  void releaseRecoveryClaim(claim)
+  setSnapshot({ ...IDLE_SNAPSHOT })
+}
+
+function canContinueRecovery(action: RecoveryAction): boolean {
+  return store.runtime.recoveryClaim === action.claim && isRecordingAccountCurrent(action.userId)
+}
+
+async function finishRecoveryAction(action: RecoveryAction): Promise<void> {
+  if (busyClaim === action.claim) busyClaim = null
+  if (store.runtime.recoveryClaim === action.claim && !isRecordingAccountCurrent(action.userId)) {
+    await releaseRecoveryClaim(action.claim)
+    setSnapshot({ ...IDLE_SNAPSHOT })
+  }
+}
+
+async function readRecoveredFile({ info, persistence }: RecoveryAction): Promise<File> {
+  const chunks = await persistence.readChunks(info.sessionId)
+  if (chunks.length === 0) throw new Error('The recovered audio is empty.')
+  return new File(chunks, recordingMediaFilename(info.uploadIntentId, info.codecExtension), {
+    type: (info.codecMime ?? 'audio/webm').split(';')[0],
+  })
+}
+
+export async function exportRecovered(expectedSessionId: string): Promise<void> {
+  const action = beginRecoveryAction(expectedSessionId)
+  try {
+    const file = await readRecoveredFile(action)
+    if (canContinueRecovery(action)) downloadRecording(file)
+  } finally {
+    await finishRecoveryAction(action)
+  }
+}
+
+async function deleteRecoveredAndChain(action: RecoveryAction): Promise<boolean> {
+  await action.persistence.deleteSession(action.claim.sessionId)
+  await releaseRecoveryClaim(action.claim)
+  if (!isRecordingAccountCurrent(action.userId)) {
+    setSnapshot({ ...IDLE_SNAPSHOT })
+    return false
+  }
+  return runRecoveryProbe(action.claim.sessionId).catch(() => false)
 }
 
 export interface SaveRecoveredResult {
   ok: boolean
   message?: string
   warning?: CreateTranscriptWarning
-  /**
-   * True when the save succeeded and another recovered orphan was immediately
-   * surfaced. The caller shows a confirmation toast in this case (the next modal
-   * replaces the redirect that a final save performs).
-   */
   chainedToNext?: boolean
 }
 
-export async function saveRecovered(editedTitle: string): Promise<SaveRecoveredResult> {
-  const info = store.snapshot.recoverable
-  if (!info) return { ok: false, message: 'No recovered recording to save.' }
-  const userId = store.runtime.userId
-  if (!userId) return { ok: false, message: 'Sign in to the original account before saving this recording.' }
-
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return {
-      ok: false,
-      message: "You're offline. Reconnect to save this recording.",
+export async function saveRecovered(editedTitle: string, expectedSessionId?: string): Promise<SaveRecoveredResult> {
+  let action: RecoveryAction | undefined
+  try {
+    action = beginRecoveryAction(expectedSessionId)
+    const { info, userId } = action
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error("You're offline. Reconnect to save this recording.")
     }
-  }
 
-  const persistence = getPersistence()
-  let blobs: Blob[]
-  try {
-    blobs = await persistence.readChunks(info.sessionId)
-  } catch {
-    return { ok: false, message: 'Could not read the recovered audio.' }
-  }
-  if (blobs.length === 0) {
-    return { ok: false, message: 'The recovered audio is empty.' }
-  }
-
-  const normalizedMime = (info.codecMime ?? 'audio/webm').split(';')[0]
-  const file = new File(
-    blobs,
-    recordingMediaFilename(info.uploadIntentId, info.codecExtension),
-    { type: normalizedMime }
-  )
-  const title =
-    editedTitle.trim() ||
-    info.title ||
-    info.generatedTitle ||
-    `Recording — ${new Date(info.createdAt).toISOString()}`
-
-  let result: Awaited<ReturnType<typeof runCaptureUpload>>
-  try {
-    result = await runCaptureUpload(file, title, info.keyTerms, {
+    const file = await readRecoveredFile(action)
+    if (!canContinueRecovery(action)) throw new Error('Sign in to the original account before saving.')
+    const title = editedTitle.trim() || info.title || info.generatedTitle ||
+      `Recording — ${new Date(info.createdAt).toISOString()}`
+    const result = await runCaptureUpload(file, title, info.keyTerms, {
       userId,
       uploadIntentId: info.uploadIntentId ?? undefined,
       projectId: info.projectId,
       transcriptionOptions: info.transcriptionOptions,
     })
+
+    if (result.kind !== 'success') return { ok: false, message: result.message }
+    const chainedToNext = await deleteRecoveredAndChain(action)
+    if (!isRecordingAccountCurrent(userId)) return { ok: true }
+    if (!chainedToNext) {
+      setSnapshot({
+        ...IDLE_SNAPSHOT,
+        state: 'submitted',
+        submissionResult: {
+          transcriptId: result.transcriptId,
+          outcome: result.outcome,
+          warning: result.warning,
+        },
+      })
+    }
+    return { ok: true, chainedToNext, warning: result.warning }
   } catch (err) {
-    return {
-      ok: false,
-      message: (err as Error)?.message ?? 'Could not save the recording.',
-    }
-  }
-
-  if (result.kind !== 'success') {
-    // Leave the IDB row intact so the user can retry safely (server dedup makes
-    // a repeated save idempotent).
-    return { ok: false, message: result.message ?? 'Could not save the recording.' }
-  }
-
-  // Success: clear the orphan and release ownership, then surface the next orphan
-  // (defensive multi-orphan handling) or finish as submitted.
-  const cleared = await clearRecoveredOrphanAndChain(info.sessionId)
-  if (!cleared.ok) {
-    return {
-      ok: false,
-      message:
-        cleared.message ??
-        'Recording was saved, but the local recovery copy could not be removed.',
-    }
-  }
-  if (!cleared.chainedToNext) {
-    setSnapshot({
-      ...store.snapshot,
-      state: 'submitted',
-      recoverable: null,
-      submissionResult: {
-        transcriptId: result.transcriptId,
-        outcome: result.outcome,
-        warning: result.warning,
-      },
-    })
-  }
-  return {
-    ok: true,
-    chainedToNext: cleared.chainedToNext,
-    warning: result.warning,
+    return { ok: false, message: (err as Error)?.message ?? 'Could not save the recording.' }
+  } finally {
+    if (action) await finishRecoveryAction(action)
   }
 }
 
-export async function discardRecovered(): Promise<void> {
-  const info = store.snapshot.recoverable
-  if (!info) return
-
-  const cleared = await clearRecoveredOrphanAndChain(info.sessionId)
-  if (!cleared.ok) {
-    throw new Error(cleared.message ?? 'Could not discard the recording.')
-  }
-  if (!cleared.chainedToNext) {
-    setSnapshot({ ...IDLE_SNAPSHOT })
+export async function discardRecovered(expectedSessionId?: string): Promise<void> {
+  const action = beginRecoveryAction(expectedSessionId)
+  try {
+    const chainedToNext = await deleteRecoveredAndChain(action)
+    if (!chainedToNext) setSnapshot({ ...IDLE_SNAPSHOT })
+  } finally {
+    await finishRecoveryAction(action)
   }
 }

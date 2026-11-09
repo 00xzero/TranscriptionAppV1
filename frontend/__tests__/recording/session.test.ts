@@ -1196,7 +1196,7 @@ describe('recording session durability mirror', () => {
     expect(await persistence.listSessions()).toEqual([])
   })
 
-  test('an account switch never reassigns a live recording or its upload', async () => {
+  test('an account switch keeps the recording and skips the upload', async () => {
     mockRunCaptureUpload.mockResolvedValue({ kind: 'failure', message: 'Account changed' })
     await attachRecording({ title: 'Patch auth', maxBytes: 1024 * 1024 })
     setIdentity({ userId: 'user-late', ready: true })
@@ -1207,10 +1207,9 @@ describe('recording session durability mirror', () => {
     const stopPromise = stopAndFinalize()
     dispatchStopDrain(lastRecorder(), 512)
     await stopPromise
-    expect(runCaptureUpload).toHaveBeenCalledWith(
-      expect.any(File), expect.any(String), expect.any(Array),
-      expect.objectContaining({ userId: 'user-123' })
-    )
+    expect(runCaptureUpload).not.toHaveBeenCalled()
+    expect(getSnapshot()).toMatchObject({ state: 'error', canRetryUpload: true })
+    expect((await persistence.listSessions())[0].userId).toBe('user-123')
   })
 
   test('a stale recovery probe does not overwrite a live recording', async () => {

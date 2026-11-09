@@ -50,6 +50,7 @@ import {
   getElapsedActiveMs,
   hasUnsavedRecording,
   isRecordingSessionActive,
+  markError,
   releaseOwnerLockQuietly,
   resume as resumeSession,
 } from './sessionCore'
@@ -61,7 +62,7 @@ import {
   markInterrupted,
   runRecoveryProbe,
 } from './sessionRecovery'
-import { getIdentity, __resetIdentityForTesting } from './sessionIdentity'
+import { getIdentity, isRecordingAccountCurrent, __resetIdentityForTesting } from './sessionIdentity'
 import { DURATION_STOP_HEADROOM_MS, DURATION_WARNING_MS } from './durationBudget'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { randomId } from '@/lib/ids'
@@ -135,7 +136,8 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
   }
 
   const identity = getIdentity()
-  if (!identity.ready || !identity.userId) {
+  const userId = identity.userId
+  if (!userId || !isRecordingAccountCurrent(userId)) {
     throw new RecordingIdentityRequiredError()
   }
 
@@ -144,6 +146,7 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
   if (await runRecoveryProbe()) {
     throw new RecoveryPendingError()
   }
+  if (!isRecordingAccountCurrent(userId)) throw new RecordingIdentityRequiredError()
 
   clearMockLifecycleTimeouts()
   clearFinalizedRecording(store)
@@ -165,6 +168,10 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
   if (!ownerAcquired) {
     throw new RemoteRecordingActiveError()
   }
+  if (!isRecordingAccountCurrent(userId)) {
+    await releaseOwnerLockQuietly()
+    throw new RecordingIdentityRequiredError()
+  }
 
   // Take ownership of this session before constructing the recorder, so another
   // tab cannot claim it as a recoverable orphan while it is live. On failure the
@@ -177,6 +184,7 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
   store.runtime.sessionClaim = claim
 
   try {
+    if (!isRecordingAccountCurrent(userId)) throw new RecordingIdentityRequiredError()
     const controller = createRecorderController(params.stream, params.codec.mime, {
       onChunk: (blob) => recordChunk(blob),
       onError: (reason) => handleRecorderFailure(reason),
@@ -200,7 +208,7 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
     // must find an initialized queue. The session row is only enqueued after start
     // succeeds, so a start failure leaves no orphan row.
     store.runtime.sessionId = sessionId
-    store.runtime.userId = identity.userId
+    store.runtime.userId = userId
     store.runtime.uploadIntentId = uploadIntentId
     store.runtime.nextChunkSeq = 0
     store.runtime.lastChunkReceivedAt = null
@@ -259,7 +267,7 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
   // best-effort durable-storage request. The recovery probe swept expired rows.
   store.runtime.writeQueue.enqueueSession({
     sessionId,
-    userId: identity.userId,
+    userId,
     uploadIntentId,
     projectId: params.projectId,
     title: params.title,
@@ -326,9 +334,12 @@ export async function stopAndFinalize(): Promise<void> {
     return
   }
 
-  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar)) {
+  const accountCurrent = isRecordingAccountCurrent(store.runtime.userId)
+  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar) &&
+    (accountCurrent || store.runtime.bytesSoFar === 0)) {
     store.runtime.stopInProgress = false
-    discard('Recording discarded before enough audio was captured.')
+    if (accountCurrent) discard('Recording discarded before enough audio was captured.')
+    else markError('No audio was captured.')
     return
   }
 

@@ -10,12 +10,16 @@ import {
   dispatch,
   markError,
   markSubmitted,
+  releaseFrozenLiveRecording,
   setSubmissionResult,
   setUploadBytes,
 } from './sessionCore'
 import { disposeController } from './sessionRuntime'
 import { store } from './sessionStore'
 import { runCaptureUpload } from '@/lib/capture/upload'
+import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
+import { isRecordingAccountCurrent } from './sessionIdentity'
+import { downloadRecording } from './downloadRecording'
 
 // Storage filename for an uploaded recording. Keyed on uploadIntentId so the live
 // finalize path and any later recovery save of the SAME recording produce the
@@ -47,6 +51,11 @@ export async function submitFinalizedRecording(): Promise<void> {
   const userId = store.runtime.userId
   if (!userId) {
     markError('Sign in to the original account before uploading this recording.')
+    return
+  }
+  if (!isRecordingAccountCurrent(userId)) {
+    markUploadError(ACCOUNT_CHANGED_MESSAGE)
+    releaseFrozenLiveRecording()
     return
   }
 
@@ -101,6 +110,7 @@ export async function submitFinalizedRecording(): Promise<void> {
     markSubmitted()
   } else {
     markUploadError(result.message)
+    if (!isRecordingAccountCurrent(userId)) releaseFrozenLiveRecording()
   }
 }
 
@@ -111,6 +121,13 @@ export async function submitFinalizedRecording(): Promise<void> {
  */
 export function getFinalizedRecordingFile(): File | null {
   return store.runtime.finalizedRecording?.file ?? null
+}
+
+export function exportFinalizedRecording(): void {
+  if (!isRecordingAccountCurrent(store.runtime.userId)) throw new Error(ACCOUNT_CHANGED_MESSAGE)
+  const file = getFinalizedRecordingFile()
+  if (!file || store.snapshot.state !== 'error') throw new Error('No recording is available to download.')
+  downloadRecording(file)
 }
 
 export async function retryFinalizedUpload(): Promise<void> {

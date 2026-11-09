@@ -31,9 +31,11 @@ export {
   resume,
   stopAndFinalize,
 } from './sessionActions'
-export { getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
+export { exportFinalizedRecording, getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
 export {
   discardRecovered,
+  closeRecoveryForAccountChange,
+  exportRecovered,
   markInterrupted,
   runRecoveryProbe,
   saveRecovered,
@@ -53,6 +55,7 @@ export {
   markUploading,
   pause,
   resetRecordingSession,
+  releaseFrozenLiveRecording,
   updateSessionKeyTerms,
   updateSessionTitle,
 } from './sessionCore'

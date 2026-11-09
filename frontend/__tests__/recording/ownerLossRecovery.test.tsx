@@ -172,6 +172,6 @@ describe('owner-loss → recovery probe (provider)', () => {
     render(<RecordingSessionProvider>x</RecordingSessionProvider>)
     await flush()
 
-    expect(seenIdentities).toContainEqual({ ready: true, userId: 'u1' })
+    expect(seenIdentities).toContainEqual(expect.objectContaining({ ready: true, userId: 'u1' }))
   })
 })

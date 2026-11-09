@@ -13,6 +13,8 @@ export interface RecordingIdentity {
   userId: string | null
   /** True once the first auth check has resolved (see useAuth). */
   ready: boolean
+  accountChanged?: boolean
+  hasStopped?: () => boolean
 }
 
 let currentIdentity: RecordingIdentity = { userId: null, ready: false }
@@ -23,6 +25,15 @@ export function setIdentity(identity: RecordingIdentity): void {
 
 export function getIdentity(): RecordingIdentity {
   return currentIdentity
+}
+
+export function isRecordingPageStopped(): boolean {
+  return Boolean(currentIdentity.accountChanged || currentIdentity.hasStopped?.())
+}
+
+export function isRecordingAccountCurrent(userId: string | null): boolean {
+  return currentIdentity.ready && userId !== null && currentIdentity.userId === userId &&
+    !isRecordingPageStopped()
 }
 
 export function __resetIdentityForTesting(): void {

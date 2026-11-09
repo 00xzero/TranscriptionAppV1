@@ -10,7 +10,8 @@ import {
   isRemoteRecordingBlocking,
   useRemotePresenceStatus,
 } from '@/lib/recording/RemotePresenceContext'
-import type { SessionSnapshot } from '@/lib/recording/session'
+import { exportFinalizedRecording, type SessionSnapshot } from '@/lib/recording/session'
+import { isRecordingPageStopped } from '@/lib/recording/sessionIdentity'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from '@/lib/recording/durationBudget'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
@@ -85,6 +86,7 @@ export default function RecordingNewPage() {
   const actions = useRecordingActions()
   const [retryingUpload, setRetryingUpload] = useState(false)
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const completionRedirectTarget = getCompletionRedirectTarget({
     state: snapshot.state,
     submissionResult: snapshot.submissionResult,
@@ -109,11 +111,13 @@ export default function RecordingNewPage() {
     if (!completionRedirectTarget) return
 
     const navigate = () => {
+      if (isRecordingPageStopped()) return
       routerRef.current.replace(completionRedirectTarget)
     }
     const primaryId = window.setTimeout(navigate, COMPLETION_REDIRECT_DELAY_MS)
     const retryId = window.setTimeout(navigate, COMPLETION_REDIRECT_RETRY_MS)
     const fallbackId = window.setTimeout(() => {
+      if (isRecordingPageStopped()) return
       try {
         window.location.replace(completionRedirectTarget)
       } catch {
@@ -132,7 +136,7 @@ export default function RecordingNewPage() {
   // the global modal (RecordingSessionProvider), not this route, so production
   // just sends the user back to the library.
   useEffect(() => {
-    if (intentionalReturnRef.current) return
+    if (intentionalReturnRef.current || isRecordingPageStopped()) return
     if (
       shouldRedirectMissingRecordingSession({
         state: snapshot.state,
@@ -186,6 +190,7 @@ export default function RecordingNewPage() {
   ) : null
 
   const handleRetryUpload = async () => {
+    setDownloadError(null)
     setRetryingUpload(true)
     try {
       await actions.retryFinalizedUpload()
@@ -195,9 +200,19 @@ export default function RecordingNewPage() {
   }
 
   const returnToLibrary = () => {
+    if (isRecordingPageStopped()) return
     intentionalReturnRef.current = true
     actions.resetRecordingSession()
     router.push('/transcripts')
+  }
+
+  const handleDownload = () => {
+    setDownloadError(null)
+    try {
+      exportFinalizedRecording()
+    } catch (error) {
+      setDownloadError((error as Error)?.message ?? 'Could not download the recording.')
+    }
   }
 
   const handleReturnToLibrary = () => {
@@ -273,6 +288,7 @@ export default function RecordingNewPage() {
           <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
             {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
           </div>
+          {downloadError && <p role="alert" className="text-sm text-ember-red">{downloadError}</p>}
           <div className="flex flex-wrap gap-3">
             {snapshot.canRetryUpload && (
               <Button
@@ -283,6 +299,11 @@ export default function RecordingNewPage() {
                 className="hover:shadow-md disabled:opacity-60"
               >
                 {retryingUpload ? 'Retrying…' : 'Retry upload'}
+              </Button>
+            )}
+            {snapshot.canRetryUpload && (
+              <Button type="button" variant="ghost" onClick={handleDownload} disabled={retryingUpload}>
+                Download recording
               </Button>
             )}
             <button

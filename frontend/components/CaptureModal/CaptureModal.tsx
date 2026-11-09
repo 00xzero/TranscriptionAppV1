@@ -9,6 +9,7 @@ import { useDialogFocusRestore } from '@/components/ui/use-dialog-focus-restore'
 import { useModal } from '@/lib/ModalContext'
 import { selectCodec } from '@/lib/recording/codecs'
 import { isRecordingSessionActive } from '@/lib/recording/session'
+import { isRecordingPageStopped } from '@/lib/recording/sessionIdentity'
 import {
   useRecordingActions,
   useRecordingSession,
@@ -257,6 +258,7 @@ export default function CaptureModal() {
       // Attach succeeded — the controller now owns the stream. Flip the
       // ownership flag so closing the modal doesn't stop the live tracks.
       micTest.transferStream()
+      if (isRecordingPageStopped()) return
       try {
         guardedNav.push('/recording/new')
       } catch (err) {

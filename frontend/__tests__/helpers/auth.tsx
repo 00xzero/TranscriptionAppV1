@@ -47,6 +47,7 @@ export function useTestAuth(): AuthContextValue {
     userId: currentIdentity.userId,
     ready: currentIdentity.ready,
     accountChange: currentIdentity.accountChange ?? null,
+    hasStopped: () => Boolean(currentIdentity.accountChange),
     signOut: mockSignOut,
   }
 }

@@ -13,6 +13,7 @@
 import { getOwnerLock, type SessionClaim } from './lock'
 import { publishPresence } from './sessionPresence'
 import { clearPresenceForSession } from './presence'
+import { isRecordingAccountCurrent, isRecordingPageStopped } from './sessionIdentity'
 import {
   clearInterruptedSessionRuntime,
   clearTerminalSessionRuntime,
@@ -350,7 +351,16 @@ export function markSubmitted(): void {
 }
 
 export function discard(salvageMessage?: string): void {
+  if (isRecordingPageStopped() ||
+    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return
   dispatch('discard', { salvageMessage: salvageMessage ?? null })
+}
+
+/** A stopped page can release durable audio for the original account to recover. */
+export function releaseFrozenLiveRecording(): void {
+  const { sessionClaim, writeQueue } = store.runtime
+  if (store.snapshot.state !== 'error' || !sessionClaim) return
+  void Promise.resolve(writeQueue?.whenSettled()).then(() => releaseLiveOwnership(sessionClaim))
 }
 
 export function markError(message: string): void {
@@ -358,7 +368,8 @@ export function markError(message: string): void {
 }
 
 export function resetRecordingSession(): void {
-  if (store.snapshot.state === 'recoverable') return
+  if (isRecordingPageStopped() || store.snapshot.state === 'recoverable' ||
+    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return
   void finalizeTerminalCleanup()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }

@@ -1,15 +1,17 @@
 "use client"
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { usePathname } from 'next/navigation'
 import {
   attachAndStart as attachAndStartAction,
   discard as discardAction,
   discardRecovered as discardRecoveredAction,
+  closeRecoveryForAccountChange,
   getServerSnapshot,
   getSnapshot,
   isRecordingSessionActive,
   pause as pauseAction,
+  releaseFrozenLiveRecording,
   resetRecordingSession as resetRecordingSessionAction,
   retryFinalizedUpload as retryFinalizedUploadAction,
   resume as resumeAction,
@@ -24,7 +26,7 @@ import {
   type SaveRecoveredResult,
   type SessionSnapshot,
 } from './session'
-import { setIdentity } from './sessionIdentity'
+import { isRecordingAccountCurrent, setIdentity } from './sessionIdentity'
 import { useBeforeUnloadGuard } from './useBeforeUnloadGuard'
 import { useRemotePresence } from './useRemotePresence'
 import { RemotePresenceProvider } from './RemotePresenceContext'
@@ -44,8 +46,8 @@ interface RecordingActions {
   retryFinalizedUpload: () => Promise<void>
   discard: () => void
   resetRecordingSession: () => void
-  saveRecovered: (title: string) => Promise<SaveRecoveredResult>
-  discardRecovered: () => Promise<void>
+  saveRecovered: (title: string, expectedSessionId?: string) => Promise<SaveRecoveredResult>
+  discardRecovered: (expectedSessionId?: string) => Promise<void>
   updateSessionTitle: (title: string | null) => void
   updateSessionKeyTerms: (keyTerms: string[]) => void
 }
@@ -124,9 +126,21 @@ export function RecordingSessionProvider({
   // Push the authenticated identity into the recording seam (keeps lib/recording
   // free of any supabase import).
   // Keep this before any recovery-probe effects: runRecoveryProbe reads this seam.
+  useLayoutEffect(() => {
+    setIdentity({
+      userId: identity.userId,
+      ready: identity.ready,
+      accountChanged: Boolean(identity.accountChange),
+      hasStopped: identity.hasStopped,
+    })
+  }, [identity.userId, identity.ready, identity.accountChange, identity.hasStopped])
+
   useEffect(() => {
-    setIdentity({ userId: identity.userId, ready: identity.ready })
-  }, [identity.userId, identity.ready])
+    if (identity.accountChange) {
+      closeRecoveryForAccountChange()
+      releaseFrozenLiveRecording()
+    }
+  }, [identity.accountChange])
 
   // Single owner-loss side effect: when a same-user recording loses its owner tab,
   // probe once for recoverable chunks. The probe hydrates `recoverable` (surfacing
@@ -142,7 +156,7 @@ export function RecordingSessionProvider({
       return
     }
     if (ownerLossHandledSessionRef.current === lostSessionId) return
-    if (!identity.ready || !identity.userId) return
+    if (!identity.ready || !identity.userId || identity.accountChange) return
     ownerLossHandledSessionRef.current = lostSessionId
     let cancelled = false
     let retryTimer: number | null = null
@@ -150,7 +164,7 @@ export function RecordingSessionProvider({
     const probeOwnerLoss = async () => {
       try {
         const foundRecoverable = await runRecoveryProbe()
-        if (cancelled) return
+        if (cancelled || !isRecordingAccountCurrent(identity.userId)) return
         if (!foundRecoverable) {
           clearPresenceForSession(lostSessionId)
         }
@@ -173,13 +187,13 @@ export function RecordingSessionProvider({
       cancelled = true
       if (retryTimer !== null) window.clearTimeout(retryTimer)
     }
-  }, [lostSessionId, identity.ready, identity.userId, ownerLossRetryTick])
+  }, [lostSessionId, identity.ready, identity.userId, identity.accountChange, ownerLossRetryTick])
 
   // App-wide recovery probe: runs once per resolved user. Recovery is surfaced via
   // the blocking modal below (and attachAndStart re-probes as a backstop before any
   // new recording starts), so the probe never gates app rendering.
   useEffect(() => {
-    if (!identity.ready) return
+    if (!identity.ready || identity.accountChange) return
 
     if (!identity.userId) {
       probedUserRef.current = null
@@ -201,15 +215,17 @@ export function RecordingSessionProvider({
     return () => {
       cancelled = true
     }
-  }, [identity.ready, identity.userId])
+  }, [identity.ready, identity.userId, identity.accountChange])
 
   const recoverable =
-    snapshot.state === 'recoverable' ? snapshot.recoverable : null
+    snapshot.state === 'recoverable' && identity.ready && identity.userId && !identity.accountChange
+      ? snapshot.recoverable
+      : null
 
   return (
     <RemotePresenceProvider value={remoteStatus}>
       {children}
-      {recoverable && <RecoveryModal info={recoverable} />}
+      {recoverable && <RecoveryModal key={recoverable.sessionId} info={recoverable} />}
     </RemotePresenceProvider>
   )
 }
