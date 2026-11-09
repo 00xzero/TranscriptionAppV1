@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-11-09] - Transcript editor performance and recovery
+
+### Changed
+
+- Find displays a continuous virtualised list of results. Replace All batches the text changes, save acknowledgements and expiry of the Saved labels. Cards keep their render state when unrelated text, playback or scroll state changes.
+- Typing stays responsive with a Find search kept open: matches are recounted only for the segment that changed, and kept highlights update at lower priority than the keystroke.
+- The editor uses one source for committed text and keeps unfinished input-method composition in the textarea. Text input and speaker picker interactions have their own components or hooks.
+- Initial metadata arrives alongside transcript data, and word responses omit repeated fields. Focus refresh and save repair reconcile against a single segment snapshot.
+
+### Fixed
+
+- Find and Replace use ranges in the original text when case folding changes its length. Whole Word handles supplementary Unicode letters and invisible joiners, and Find results never cut such a letter in half at their edges.
+- Audio recovery caps automatic URL refreshes and offers Retry after failure. Playback keeps the latest seek during recovery, whether it came from a word, a segment, the scrubber or the ±5 s buttons.
+- If another tab changes a segment while you are editing it, the editor displays the saved version and offers to copy your local draft. The recovery notice stays available until dismissed and protects against accidental page reload or close while open.
+
+### Verification
+
+- The final production build's median first-card times were 173 ms for the 2-hour fixture and 360 ms for the 10-hour fixture. The original baseline measured 186 ms and 338 ms respectively. Word responses transferred about 26% less data on both fixtures. See the [integration benchmark and checks](.docs/reviews/editor-performance-final-integration.md).
+- Migration `20261108000000_editor_segment_snapshot.sql` is required for focus refresh and repair. It adds one read-only function and changes no rows. It was exercised on the local Supabase stack, rehearsed on hosted Supabase in a rolled-back transaction, and pushed to hosted on 2026-11-09 after that day's backup.
+
 ## [2026-11-03] - Late segment saves refused
 
 ### Fixed

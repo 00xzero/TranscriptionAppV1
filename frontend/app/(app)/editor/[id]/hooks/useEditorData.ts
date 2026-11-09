@@ -7,18 +7,18 @@ import {
   fetchTranscriptData,
   fetchSpeakers,
   fetchTranscriptById,
+  fetchTranscriptWaveformStatus,
 } from '@/lib/supabase/queries'
 import {
   SegmentSchema,
-  WaveformStatusSchema,
   type EditorPeopleContext,
   type WaveformStatus,
 } from '@/contracts/db'
-import { EditorTranscriptSchema, EditorSpeakerSchema } from '@/contracts/editor'
+import { EditorTranscriptSchema, EditorSpeakerSchema, type EditorTranscript } from '@/contracts/editor'
 import { WAVEFORM_ARTIFACT_VERSION } from '@/lib/audio/compute-peaks'
 import { toast, type ToastOptions } from '@/components/ui/toaster'
 import type { Seg, Speaker, WordsBySegment } from '../types'
-import { groupSourceWords, revisionsMatch } from '../utils'
+import { groupEmbeddedWords, revisionsMatch } from '../utils'
 import type { TranscriptionEngine } from '@/contracts/transcription-options'
 
 const WaveformArtifactSchema = z.object({
@@ -53,26 +53,12 @@ export function chooseEditorDuration(
 }
 
 /**
- * Takes each segment's speaker_id from `fetched` and keeps everything else as
- * the editor holds it — above all the text, which may carry an edit whose
- * debounced save has not reached the database yet.
- */
-export function mergeSpeakerAssignments(
-  current: Seg[],
-  fetched: readonly { id: string; speaker_id: string | null }[]
-): Seg[] {
-  const speakerIdBySegment = new Map(fetched.map((s) => [s.id, s.speaker_id]))
-  return current.map((s) =>
-    speakerIdBySegment.has(s.id) ? { ...s, speaker_id: speakerIdBySegment.get(s.id) ?? null } : s
-  )
-}
-
-/**
  * `reloadContent` reloads segments and words together, keeping unsaved text.
  * It is called when words arrive out of step with the segments shown, and
  * from Retry after words failed to load. It must be stable.
  */
-export function useEditorData(transcriptId: string, reloadContent: () => void) {
+export function useEditorData(transcriptId: string, reloadContent: () => void, initialMetadata: EditorTranscript | null = null) {
+  const [metadataSeed] = useState(initialMetadata)
   const [audioSrc, setAudioSrc] = useState<string | null>(null)
   const [status, setStatus] = useState('Loading media...')
   const [segments, setSegments] = useState<Seg[]>([])
@@ -80,13 +66,18 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
   const [wordsBySegment, setWordsBySegment] = useState<WordsBySegment>(NO_WORDS)
   const [speakers, setSpeakers] = useState<Speaker[]>([])
   const [peopleContext, setPeopleContext] = useState<EditorPeopleContext>({ people: [] })
-  const [transcriptTitle, setTranscriptTitle] = useState<string | null>(null)
-  const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(null)
-  const [transcriptEngine, setTranscriptEngine] = useState<TranscriptionEngine | null>(null)
+  const [transcriptTitle, setTitle] = useState<string | null>(initialMetadata?.title ?? null)
+  const [transcriptCreatedAt, setTranscriptCreatedAt] = useState<string | null>(initialMetadata?.created_at ?? null)
+  const [transcriptEngine, setTranscriptEngine] = useState<TranscriptionEngine | null>(initialMetadata?.engine ?? null)
   // The model that really made it, when the engine says (AssemblyAI's fallback).
-  const [transcriptEngineModel, setTranscriptEngineModel] = useState<string | null>(null)
-  const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(null)
-  const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(null)
+  const [transcriptEngineModel, setTranscriptEngineModel] = useState<string | null>(initialMetadata?.engine_model ?? null)
+  const [transcriptDurationSecs, setTranscriptDurationSecs] = useState<number | null>(initialMetadata?.duration_seconds ?? null)
+  const [transcriptProjectId, setTranscriptProjectId] = useState<string | null>(initialMetadata?.project_id ?? null)
+  const titleVersion = useRef(0)
+  const setTranscriptTitle = useCallback((title: string | null) => {
+    titleVersion.current++
+    setTitle(title)
+  }, [])
   const [waveformDurationSecs, setWaveformDurationSecs] = useState<number | null>(null)
   const [peaks, setPeaks] = useState<number[] | null>(null)
   const [waveformStatus, setWaveformStatus] = useState<WaveformStatus>('skipped')
@@ -101,6 +92,11 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     loadedRef.current = false
     let waveformPollId: ReturnType<typeof setInterval> | null = null
     let waveformPollStartedAt = 0
+    let waveformReading = false
+    let waveformVersion = 0
+    let lastWaveformStatus = metadataSeed?.waveform_status
+    let metadataReading = false
+    let hasDetails = metadataSeed !== null
     setPeaks(null)
     setWaveformDurationSecs(null)
     setWaveformStatus('skipped')
@@ -131,53 +127,94 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
       return false
     }
 
-    const loadTranscriptMetadata = async (): Promise<WaveformStatus | null> => {
-      const transcriptData = await fetchTranscriptById(transcriptId)
-      if (cancelled || !transcriptData) return null
-      const transcriptParsed = EditorTranscriptSchema.safeParse(transcriptData)
-      if (!transcriptParsed.success) {
-        console.warn('[useEditorData] transcript schema mismatch', transcriptParsed.error.issues)
-      }
-      setTranscriptTitle(transcriptData.title || null)
-      setTranscriptCreatedAt(transcriptData.created_at)
-      setTranscriptEngine(transcriptData.engine)
-      setTranscriptEngineModel(transcriptData.engine_model ?? null)
-      setTranscriptDurationSecs(transcriptData.duration_seconds)
-      setTranscriptProjectId(transcriptData.project_id)
-
-      const statusParsed = WaveformStatusSchema.safeParse(transcriptData.waveform_status)
-      const wfStatus: WaveformStatus = statusParsed.success ? statusParsed.data : 'skipped'
+    const showWaveform = async (wfStatus: WaveformStatus) => {
+      if (cancelled) return
       setWaveformStatus(wfStatus)
       if (wfStatus === 'ready') {
         try {
           const loaded = await loadWaveformPeaks()
           if (loaded) {
             stopWaveformPolling()
-            return wfStatus
+            return
           }
         } catch (err) {
           console.warn('[useEditorData] failed to load waveform peaks (non-fatal):', err)
         }
-        return 'processing'
       }
-      if (!WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
-        stopWaveformPolling()
-      }
-      return wfStatus
+      if (wfStatus === 'ready' || WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
+        if (!cancelled) startWaveformPolling()
+      } else stopWaveformPolling()
     }
 
     const startWaveformPolling = () => {
       if (waveformPollId) return
       waveformPollStartedAt = Date.now()
-      waveformPollId = setInterval(() => {
+      waveformPollId = setInterval(async () => {
         if (Date.now() - waveformPollStartedAt >= WAVEFORM_POLL_TIMEOUT_MS) {
           console.warn(`[useEditorData] stopped waveform polling for transcript ${transcriptId} after timeout`)
           stopWaveformPolling()
           setWaveformStatus('skipped')
           return
         }
-        void loadTranscriptMetadata().catch(() => { /* ignore */ })
+        if (waveformReading) return
+        waveformReading = true
+        waveformVersion++
+        try {
+          lastWaveformStatus = await fetchTranscriptWaveformStatus(transcriptId)
+          await showWaveform(lastWaveformStatus)
+        } catch { /* Poll again until it answers or times out. */ }
+        finally { waveformReading = false }
       }, WAVEFORM_POLL_INTERVAL_MS)
+    }
+
+    const loadTranscriptMetadata = async () => {
+      if (cancelled || metadataReading) return
+      metadataReading = true
+      const expectedTitleVersion = titleVersion.current
+      const expectedWaveformVersion = waveformVersion
+      try {
+        const data = await fetchTranscriptById(transcriptId)
+        if (cancelled) return
+        if (!data) throw new Error('Transcript metadata unavailable')
+        const invalid: (keyof EditorTranscript)[] = []
+        const read = <K extends keyof EditorTranscript>(key: K, apply: (value: EditorTranscript[K]) => void) => {
+          const result = EditorTranscriptSchema.shape[key].safeParse(data[key])
+          if (result.success) {
+            if (key !== 'waveform_status') hasDetails = true
+            apply(result.data as EditorTranscript[K])
+          }
+          else invalid.push(key)
+        }
+        read('title', (title) => {
+          if (titleVersion.current === expectedTitleVersion) setTitle(title || null)
+        })
+        read('created_at', setTranscriptCreatedAt)
+        read('engine', setTranscriptEngine)
+        read('engine_model', setTranscriptEngineModel)
+        read('duration_seconds', setTranscriptDurationSecs)
+        read('project_id', setTranscriptProjectId)
+        read('waveform_status', (status) => {
+          if (status !== lastWaveformStatus && waveformVersion === expectedWaveformVersion && !waveformReading) {
+            lastWaveformStatus = status
+            void showWaveform(status)
+          }
+        })
+        if (invalid.length) console.warn('[useEditorData] invalid transcript metadata fields', invalid)
+      } catch (error) {
+        if (cancelled) return
+        if (hasDetails) {
+          console.warn('[useEditorData] failed to refresh transcript metadata', error)
+          return
+        }
+        console.error('[useEditorData] failed to load transcript metadata', error)
+        toast({
+          title: "Couldn't load transcript details",
+          variant: 'error',
+          action: { label: 'Retry', onClick: () => { void loadTranscriptMetadata() } },
+        })
+      } finally {
+        metadataReading = false
+      }
     }
 
     // Speakers and people arrive together: a linked speaker shown without its
@@ -218,13 +255,13 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
     const showWords = async (sets: Awaited<ReturnType<typeof fetchSegmentWordSets>>) => {
       const shown = await segmentsShown
       if (cancelled || !shown) return
-      if (!revisionsMatch(shown, sets)) {
+      if (shown.length !== sets.length || !revisionsMatch(shown, sets)) {
         reloadContent()
         return
       }
       // A reload, or a split here, may have stored newer words while these
       // were in flight; those already match the segments, so keep them.
-      const grouped = groupSourceWords(sets.flatMap((set) => set.words))
+      const grouped = groupEmbeddedWords(sets)
       setWordsBySegment((current) => (current === NO_WORDS ? grouped : current))
     }
     const reportWordLoadFailure = (error: unknown) => {
@@ -237,7 +274,9 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
       try {
         setStatus('Loading media...')
 
-        void loadWords().then(showWords, reportWordLoadFailure)
+        if (metadataSeed) void showWaveform(metadataSeed.waveform_status)
+        void loadTranscriptMetadata()
+        void loadWords().then(showWords).catch(reportWordLoadFailure)
 
         const transcriptDataPromise = fetchTranscriptData(transcriptId).then(
           (data) => ({ data, error: null as unknown }),
@@ -279,27 +318,24 @@ export function useEditorData(transcriptId: string, reloadContent: () => void) {
         if (speakersResult.data) showSpeakers(speakersResult.data)
         else reportSpeakerLoadFailure(speakersResult.error)
 
-        void loadTranscriptMetadata()
-          .then((wfStatus) => {
-            if (!cancelled && wfStatus && WAVEFORM_POLLABLE_STATUSES.has(wfStatus)) {
-              startWaveformPolling()
-            }
-          })
-          .catch(() => { /* ignore */ })
-
       } catch (e: any) {
         console.error(e)
-        setStatus(`Error: ${e.message || e}`)
+        if (!cancelled) setStatus(`Error: ${e.message || e}`)
       } finally {
         resolveSegmentsShown(null)
       }
     }
-    init()
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) void loadTranscriptMetadata()
+    }
+    window.addEventListener('pageshow', onPageShow)
+    void init()
     return () => {
       cancelled = true
+      window.removeEventListener('pageshow', onPageShow)
       stopWaveformPolling()
     }
-  }, [transcriptId, reloadContent])
+  }, [transcriptId, reloadContent, metadataSeed])
 
   return {
     audioSrc, setAudioSrc,

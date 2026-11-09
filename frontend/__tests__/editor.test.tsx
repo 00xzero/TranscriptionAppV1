@@ -13,6 +13,7 @@ import {
   transcriptProviderData,
 } from './projects/fixtures'
 import { RealtimeScopeAbortError } from '@/lib/supabase/realtime'
+import { CONFLICT_TOAST, STALE_TOAST } from '@/lib/people/errors'
 
 const mockRouterReplace = jest.fn()
 const mockToast = jest.fn()
@@ -164,6 +165,13 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000'
     mockFetch()
     jest.clearAllMocks()
+    const initialRows = async () => {
+      await Promise.resolve()
+      return (await (supabaseQueries.fetchTranscriptData as jest.Mock).mock.results.at(-1)?.value)?.items ?? []
+    }
+    ;(supabaseQueries.fetchSegmentWordSets as jest.Mock).mockImplementation(async () =>
+      (await initialRows()).map(({ id, revision = 0 }: { id: string; revision?: number }) => ({ id, revision, words: [] })))
+    ;(supabaseQueries.fetchEditorSegmentSnapshot as jest.Mock).mockImplementation(initialRows)
     mockUseProjectsData.mockReturnValue(projectProviderData([]))
     mockUseTranscriptsData.mockReturnValue(
       transcriptProviderData([makeTranscript({ id: 'p1', title: 'Test Transcript' })])
@@ -433,13 +441,13 @@ describe('EditorPage - Phase 7 UI regressions', () => {
   })
 
   test('uses the normalized transcript duration as the waveform-backed audio hint', async () => {
-    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockResolvedValueOnce({
+    ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockResolvedValueOnce(makeTranscript({
       id: 'p1',
       title: 'Test Transcript',
       status: 'completed',
       duration_seconds: 78,
       waveform_status: 'ready',
-    })
+    }))
     const fetchMock = global.fetch as jest.Mock
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url =
@@ -513,7 +521,7 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.queryByText(/Error:/)).not.toBeInTheDocument()
   })
 
-  test('renders segments normally when transcript metadata fetch fails silently', async () => {
+  test('renders segments normally when transcript metadata fetch fails', async () => {
     ;(supabaseQueries.fetchTranscriptById as jest.Mock).mockRejectedValueOnce(new Error('Network error'))
 
     renderEditorScreen()
@@ -635,6 +643,21 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(screen.getByDisplayValue('hello')).toBeInTheDocument()
     expect(screen.getByDisplayValue('earth')).toBeInTheDocument()
     await waitForMatchSummary(/1 of 3 matches/i)
+  })
+
+  test('clicking a Find result scrolls to the segment as the dialog closes', async () => {
+    renderEditorScreen()
+    await waitForEditorContent()
+    await openFindReplaceModalWithShortcut()
+    const input = screen.getByPlaceholderText(/Search text/i)
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitForMatchSummary(/1 of 3 matches/i)
+    scrollToIndexMock.mockClear()
+    fireEvent.click(screen.getAllByTitle('Jump to this match').at(-1)!)
+    expect(scrollToIndexMock).toHaveBeenCalledTimes(1)
+    expect(scrollToIndexMock).toHaveBeenCalledWith(expect.objectContaining({ index: 1 }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   test('replaces one match and then replaces all remaining matches', async () => {
@@ -766,6 +789,33 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(document.querySelector('[data-testid="segment-card"] textarea')).toBeNull()
   })
 
+  test('preserves redo when undo invalidates a composition in the same segment', async () => {
+    const user = userEventLib.setup()
+    renderEditorScreen()
+    await waitForEditorContent()
+    await user.click(screen.getAllByRole('button', { name: /Edit transcript text/i })[0])
+    const textarea = screen.getByRole('textbox', { name: /Transcript text/i }) as HTMLTextAreaElement
+    const original = textarea.value
+    const edited = original + '!'
+    fireEvent.change(textarea, { target: { value: edited } })
+    await waitFor(() => expect(supabaseQueries.setSegmentTexts).toHaveBeenCalledTimes(1))
+
+    fireEvent.compositionStart(textarea)
+    fireEvent.change(textarea, { target: { value: edited + 'に' } })
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'historyUndo', bubbles: true, cancelable: true }))
+    await waitFor(() => expect(textarea.value).toBe(original))
+
+    fireEvent.compositionEnd(textarea)
+    fireEvent.input(textarea, { inputType: 'insertCompositionText', target: { value: edited + '日本' } })
+    expect(textarea.value).toBe(original)
+    fireEvent(textarea, new InputEvent('beforeinput', { inputType: 'historyRedo', bubbles: true, cancelable: true }))
+    await waitFor(() => expect(textarea.value).toBe(edited))
+
+    expect((supabaseQueries.setSegmentTexts as jest.Mock).mock.calls.flatMap(([edits]) => edits.map(
+      (edit: { text: string }) => edit.text,
+    ))).toEqual([edited, original, edited])
+  })
+
   test('the header speaker summary opens the sidebar, whose jumps scroll once to the turn', async () => {
     const user = userEventLib.setup()
     renderEditorScreen()
@@ -814,6 +864,112 @@ describe('EditorPage - Phase 7 UI regressions', () => {
     expect(row).toHaveAttribute('aria-expanded', 'true')
     expect(within(panel).getByText(/^turn 1 of \d+$/)).toBeInTheDocument()
     await waitFor(() => expect(row).toHaveFocus())
+  })
+
+  test('the rendered recovery toast explains a refused speaker change and cleared history', async () => {
+    const actualToaster = jest.requireActual<typeof import('@/components/ui/toaster')>('@/components/ui/toaster')
+    const stamp = '2024-01-01T00:00:00Z'
+    const rows = ['sp1', 'sp2'].map((speaker_id, index) => ({
+      id: `s${index + 1}`, transcript_id: 'p1', speaker_id, diarization_index: index,
+      start_ms: index * 2000, end_ms: (index + 1) * 2000, text: `Original text ${index + 1}`,
+      is_edited: false, is_filler: false, algo_version: 'test', revision: 0, created_at: stamp, updated_at: stamp,
+    }))
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({ items: rows })
+    ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce(rows.map((row, index) => ({
+      id: row.speaker_id, transcript_id: 'p1', user_id: 'u1', ordinal: index + 1,
+      custom_label: null, person_id: null, diarization_index: index, created_at: stamp, updated_at: stamp,
+    })))
+    ;(supabaseQueries.fetchEditorSegmentSnapshot as jest.Mock).mockResolvedValueOnce([
+      rows[0], { ...rows[1], text: 'Saved by someone else' },
+    ])
+    let refuse!: () => void
+    ;(supabaseQueries.reassignSegments as jest.Mock).mockImplementationOnce(() => new Promise((_, reject) => {
+      refuse = () => reject({ code: 'SP002' })
+    }))
+    mockToast.mockImplementation(actualToaster.toast)
+    const toaster = render(<actualToaster.Toaster />)
+    try {
+      renderEditorScreen()
+      await waitForEditorContent()
+      fireEvent.click(await screen.findByRole('button', { name: 'Test Transcript' }))
+      const title = screen.getByRole('textbox', { name: 'Transcript title' })
+      fireEvent.change(title, { target: { value: 'Renamed transcript' } })
+      fireEvent.keyDown(title, { key: 'Enter' })
+      await screen.findByRole('button', { name: 'Renamed transcript' })
+
+      const [first, second] = screen.getAllByTestId('segment-card')
+      fireEvent.click(within(first).getByRole('button', { name: /Change speaker/i }))
+      const picker = await screen.findByRole('dialog', { name: 'Speaker assignment' })
+      await userEventLib.setup().click(within(picker).getByRole('tab', { name: 'This segment' }))
+      fireEvent.click(within(picker).getByRole('option', { name: 'Speaker 2' }))
+      await waitFor(() => expect(refuse).toBeDefined())
+
+      fireEvent.click(within(second).getByRole('button', { name: /edit/i }))
+      fireEvent.change(within(second).getByRole('textbox'), { target: { value: 'My unsaved edit' } })
+      await act(async () => refuse())
+
+      const sticky = (await screen.findByText('Your edit wasn’t saved', { selector: '[data-recovery-toast] *' }))
+        .closest('[data-recovery-toast]') as HTMLElement
+      expect(sticky).toHaveTextContent("Couldn't change the speaker. Undo history cleared.")
+      expect(within(sticky).getByText('My unsaved edit')).toBeVisible()
+      expect(within(sticky).getByRole('button', { name: 'Copy text' })).toBeVisible()
+      // The draft has moved into the toast: reloading or closing the tab still asks first.
+      const unloadBlocked = () => {
+        const event = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      }
+      expect(unloadBlocked()).toBe(true)
+      fireEvent.click(within(sticky).getByRole('button', { name: 'Close' }))
+      expect(actualToaster.retainedToastTexts()).toEqual([])
+      await waitFor(() => expect(unloadBlocked()).toBe(false))
+    } finally {
+      toaster.unmount()
+      actualToaster.__resetToastsForTesting()
+      mockToast.mockReset()
+    }
+  })
+
+  test.each(['speakers', 'title'] as const)('a recovered draft still reports %s that could not be refreshed', async (failedRead) => {
+    const stamp = '2024-01-01T00:00:00Z'
+    const rows = ['sp1', 'sp2'].map((speaker_id, index) => ({
+      id: `s${index + 1}`, transcript_id: 'p1', speaker_id, diarization_index: index,
+      start_ms: index * 2000, end_ms: (index + 1) * 2000, text: `Original text ${index + 1}`,
+      is_edited: false, is_filler: false, algo_version: 'test', revision: 0, created_at: stamp, updated_at: stamp,
+    }))
+    ;(supabaseQueries.fetchTranscriptData as jest.Mock).mockResolvedValueOnce({ items: rows })
+    ;(supabaseQueries.fetchSpeakers as jest.Mock).mockResolvedValueOnce(rows.map((row, index) => ({
+      id: row.speaker_id, transcript_id: 'p1', user_id: 'u1', ordinal: index + 1,
+      custom_label: null, person_id: null, diarization_index: index, created_at: stamp, updated_at: stamp,
+    })))
+    ;(supabaseQueries.fetchEditorSegmentSnapshot as jest.Mock).mockResolvedValueOnce([
+      rows[0], { ...rows[1], text: 'Saved by someone else' },
+    ])
+    let refuse!: () => void
+    ;(supabaseQueries.reassignSegments as jest.Mock).mockImplementationOnce(() => new Promise((_, reject) => {
+      refuse = () => reject({ code: 'SP002' })
+    }))
+    renderEditorScreen()
+    await waitForEditorContent()
+    const repairRead = failedRead === 'speakers' ? supabaseQueries.fetchSpeakers : supabaseQueries.fetchTranscriptById
+    ;(repairRead as jest.Mock).mockRejectedValueOnce({ code: '42501' })
+
+    const [first, second] = screen.getAllByTestId('segment-card')
+    fireEvent.click(within(first).getByRole('button', { name: /Change speaker/i }))
+    const picker = await screen.findByRole('dialog', { name: 'Speaker assignment' })
+    await userEventLib.setup().click(within(picker).getByRole('tab', { name: 'This segment' }))
+    fireEvent.click(within(picker).getByRole('option', { name: 'Speaker 2' }))
+    await waitFor(() => expect(refuse).toBeDefined())
+
+    fireEvent.click(within(second).getByRole('button', { name: /edit/i }))
+    fireEvent.change(within(second).getByRole('textbox'), { target: { value: 'My unsaved edit' } })
+    await act(async () => refuse())
+
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Your edit wasn’t saved', recovery: expect.anything(),
+    })))
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: STALE_TOAST })))
+    expect(mockToast).not.toHaveBeenCalledWith(expect.objectContaining({ title: CONFLICT_TOAST }))
   })
 
   test('auto-closes speaker popover when opening Find/Replace', async () => {

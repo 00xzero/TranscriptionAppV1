@@ -66,6 +66,8 @@ export interface AudioPlayerProps {
   onSeekStart?: () => void
   /** Close pointer seeking, including ordinary clicks and taps. */
   onSeekEnd?: ScrubEndHandler
+  /** Called with the target time in seconds for a fallback slider keyboard seek. */
+  onKeyboardSeek?: (seconds: number) => void
   /** Called when the user starts dragging the progress bar */
   onDragStart?: () => void
   /** Called when the user ends dragging the progress bar */
@@ -81,6 +83,7 @@ export interface AudioPlayerProps {
 export interface AudioPlayerRef {
   play: () => void
   pause: () => void
+  reload: () => void
   togglePlay: () => void
   seekToMs: (ms: number) => void
   beginScrub: () => void
@@ -113,6 +116,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   audioEngineOnly = false,
   onSeekStart,
   onSeekEnd,
+  onKeyboardSeek,
   onDragStart,
   onDragEnd,
   interactive = true,
@@ -286,7 +290,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isScrubbingRef.current = false
   }, [flushScrubSeek])
 
-  const seekToFraction = useCallback((fraction: number) => {
+  const seekToFraction = useCallback((fraction: number, onTarget?: (seconds: number) => void) => {
     const audio = audioRef.current
     if (!audio) return
     const resolvedDuration = resolveDuration(audio)
@@ -297,6 +301,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     }
     clearPendingScrubFraction()
     const nextTime = clampFraction(fraction) * resolvedDuration
+    onTarget?.(nextTime)
     latestScrubTimeRef.current = nextTime
     audio.currentTime = nextTime
     setCurrentTime(nextTime)
@@ -304,15 +309,38 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     else onTimeUpdate?.(nextTime)
   }, [onScrubPreview, resolveDuration, queuePendingScrubFraction, clearPendingScrubFraction, clampFraction, onTimeUpdate])
 
+  const resetSource = useCallback(() => {
+    readyRef.current = false
+    setReady(false)
+    setCurrentTime(0)
+    setDuration(0)
+    lastEmittedDurationRef.current = 0
+    didPrimeSafariWebmRef.current = false
+    pendingSeekRef.current = null
+    latestScrubTimeRef.current = 0
+    lastEmittedTimeRef.current = -Infinity
+    clearPendingScrubFraction()
+    isScrubbingRef.current = false
+    cancelPendingScrubFrame()
+    wasPlayingBeforeDragRef.current = false
+  }, [cancelPendingScrubFrame, clearPendingScrubFraction])
+
   // Expose imperative methods
   useImperativeHandle(ref, () => ({
     play: () => audioRef.current?.play(),
     pause: () => audioRef.current?.pause(),
+    reload: () => {
+      resetSource()
+      audioRef.current?.load()
+    },
     togglePlay: () => {
       const audio = audioRef.current
       if (!audio) return
       if (audio.paused) {
-        audio.play()
+        void audio.play().catch(() => {
+          setPlaying(false)
+          onPlayingChange?.(false)
+        })
       } else {
         audio.pause()
       }
@@ -361,7 +389,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     isPlaying: () => !audioRef.current?.paused,
     isReady: () => readyRef.current,
     getAudioElement: () => audioRef.current,
-  }), [beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime])
+  }), [onPlayingChange, beginScrub, endScrub, getResolvedDuration, seekToFraction, scrubToFraction, scrubToTime, resetSource])
 
   // Audio event handlers
   useEffect(() => {
@@ -493,7 +521,8 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
   const scrub = useScrubGesture({
     duration, fraction: previewFraction ?? (duration > 0 ? currentTime / duration : 0),
     sourceKey: src, interactive: interactive && !audioEngineOnly,
-    onSeek: seekToFraction, onSeekStart: startPointerSeek, onSeekEnd: finishPointerSeek, onScrub: scrubToFraction,
+    onSeek: (fraction) => seekToFraction(fraction, pointerSeekActiveRef.current ? undefined : onKeyboardSeek),
+    onSeekStart: startPointerSeek, onSeekEnd: finishPointerSeek, onScrub: scrubToFraction,
     onScrubStart: startFallbackScrub, onScrubEnd: finishFallbackScrub,
   })
   const isDragging = scrub.isDragging
@@ -504,22 +533,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(function AudioP
     if (!audioEngineOnly && audioRef.current) setCurrentTime(audioRef.current.currentTime)
   }, [audioEngineOnly])
 
-  // Only a new source needs a fresh readiness cycle.
+  // A source change and an explicit reload both start a new readiness cycle.
   useEffect(() => {
-    readyRef.current = false
-    setReady(false)
-    setCurrentTime(0)
-    setDuration(0)
-    lastEmittedDurationRef.current = 0
-    didPrimeSafariWebmRef.current = false
-    pendingSeekRef.current = null
-    latestScrubTimeRef.current = 0
-    lastEmittedTimeRef.current = -Infinity
-    clearPendingScrubFraction()
-    isScrubbingRef.current = false
-    cancelPendingScrubFrame()
-    wasPlayingBeforeDragRef.current = false
-  }, [cancelPendingScrubFrame, clearPendingScrubFraction, src])
+    resetSource()
+  }, [resetSource, src])
 
   useEffect(() => () => {
     cancelPendingScrubFrame()

@@ -137,4 +137,38 @@ describe('FindReplaceModal', () => {
 
     expect(openButton).toHaveFocus()
   })
+
+  test('restores focus without scrolling after jumping to a result', () => {
+    const opener = <button type="button">Open search</button>
+    const onClose = jest.fn()
+    const modal = (open: boolean) => <>{opener}<FindReplaceModal {...baseProps} open={open} onClose={onClose} /></>
+    const view = render(modal(false))
+    const openButton = screen.getByRole('button', { name: 'Open search' })
+    openButton.focus()
+    const focus = jest.spyOn(openButton, 'focus')
+    view.rerender(modal(true))
+
+    fireEvent.click(screen.getByTitle('Current match'))
+    expect(baseProps.onMatchClick).toHaveBeenCalledWith(0)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    view.rerender(modal(false))
+    expect(focus).not.toHaveBeenCalled()
+
+    act(() => { jest.runOnlyPendingTimers() })
+    expect(focus).toHaveBeenCalledTimes(1)
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(openButton).toHaveFocus()
+  })
+  test('keeps snippet edges outside letters made of two code units', () => {
+    // The 30-character context would cut 𐐀 in half on both sides of the match.
+    const text = 'a\u{10400}' + 'b'.repeat(29) + 'hello' + 'c'.repeat(29) + '\u{10400}z'
+    render(<FindReplaceModal
+      {...baseProps}
+      matches={[{ segId: 's1', index: text.indexOf('hello'), length: 5 }]}
+      segments={[{ id: 's1', text }]}
+    />)
+    const snippet = screen.getByTitle('Current match').textContent ?? ''
+    expect(snippet).toBe('...\u{10400}' + 'b'.repeat(29) + 'hello' + 'c'.repeat(29) + '\u{10400}...')
+    expect(snippet).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
+  })
 })

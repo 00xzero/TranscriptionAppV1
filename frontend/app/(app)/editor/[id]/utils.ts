@@ -1,4 +1,4 @@
-import { EditorSourceWordSchema, type EditorSourceWord } from '@/contracts/editor'
+import { EditorEmbeddedWordSchema, EditorSourceWordSchema, type EditorEmbeddedWord } from '@/contracts/editor'
 import type { EditorWord } from './types'
 
 export const SAVE_DEBOUNCE_MS = (typeof process !== 'undefined' && process.env.JEST_WORKER_ID) ? 10 : 500
@@ -9,32 +9,70 @@ export const ACTIVE_CARD_VISIBILITY_MARGIN_PX = 24
 export const WAVEFORM_COLLAPSE_THRESHOLD_RATIO = 0.6
 export const WAVEFORM_EXPAND_THRESHOLD_RATIO = 0.35
 export const DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX = 256
-export const ASCII_WORD_CHAR_REGEX = /[A-Za-z0-9_]/
-// Scripts with little/no case mapping support; used for whole-word boundary checks.
-export const NON_CASED_WORD_CHAR_REGEX = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u3040-\u30FF\u31F0-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uAC00-\uD7AF]/
-export const COMBINING_MARK_START = 0x0300
-export const COMBINING_MARK_END = 0x036f
 export const SCROLL_INTENT_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'])
 
-export const isUnicodeWordChar = (char: string) => {
-  if (!char) return false
-  if (ASCII_WORD_CHAR_REGEX.test(char)) return true
-  if (NON_CASED_WORD_CHAR_REGEX.test(char)) return true
+// Letters, digits, combining marks and underscore count as part of a word.
+const WORD_CHAR = /^[\p{L}\p{N}\p{M}_]/u
 
-  const code = char.charCodeAt(0)
-  if (code >= COMBINING_MARK_START && code <= COMBINING_MARK_END) return true
+/** Whether the code point starting at `char[0]` belongs to a word. */
+export const isUnicodeWordChar = (char: string) => WORD_CHAR.test(char)
 
-  // Unicode letters generally have different upper/lower-case transforms.
-  return char.toLowerCase() !== char.toUpperCase()
+/** The whole code point that ends just before `index` (both halves of a surrogate pair). */
+export function codePointBefore(text: string, index: number): string {
+  if (index <= 0) return ''
+  const low = text.charCodeAt(index - 1)
+  if (low >= 0xdc00 && low <= 0xdfff && index >= 2) {
+    const high = text.charCodeAt(index - 2)
+    if (high >= 0xd800 && high <= 0xdbff) return text.slice(index - 2, index)
+  }
+  return text[index - 1]
 }
 
-/**
- * Validate loaded word rows one by one and group them per segment in spoken
- * order. Rows with a bad shape or impossible timing are dropped, so nothing
- * malformed reaches alignment or the playback binary searches.
- */
+// Invisible format characters (joiners, soft hyphens, direction marks) sit
+// inside words, so Unicode's word-boundary rules look past them. A zero-width
+// space is the exception: it marks a break.
+const FORMAT_CHAR = /^\p{Cf}/u
+const ZERO_WIDTH_SPACE = '\u200b'
+const isIgnoredFormatChar = (char: string) => char !== ZERO_WIDTH_SPACE && FORMAT_CHAR.test(char)
+
+/** The nearest code point before `index` that isn't an invisible format character. */
+export function wordCharBefore(text: string, index: number): string {
+  let char = codePointBefore(text, index)
+  while (char && isIgnoredFormatChar(char)) {
+    index -= char.length
+    char = codePointBefore(text, index)
+  }
+  return char
+}
+
+/** The nearest code point from `index` on that isn't an invisible format character. */
+export function wordCharAfter(text: string, index: number): string {
+  while (index < text.length) {
+    const char = String.fromCodePoint(text.codePointAt(index)!)
+    if (!isIgnoredFormatChar(char)) return char
+    index += char.length
+  }
+  return ''
+}
+
+function normaliseWords(words: EditorEmbeddedWord[]): EditorWord[] {
+  // (order_index, id) is the order the database splits and joins words in.
+  words.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
+  return words.map((word) => ({
+    id: word.id,
+    text: word.punctuated_text ?? word.text,
+    startMs: word.start_ms,
+    endMs: word.end_ms,
+  }))
+}
+
+function warnDroppedWords(dropped: number) {
+  if (dropped) console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
+}
+
+/** Validate flat word rows and group them per segment in spoken order. */
 export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWord[]> {
-  const rowsBySegment = new Map<string, EditorSourceWord[]>()
+  const rowsBySegment = new Map<string, EditorEmbeddedWord[]>()
   let dropped = 0
   for (const row of rows) {
     const parsed = EditorSourceWordSchema.safeParse(row)
@@ -46,21 +84,24 @@ export function groupSourceWords(rows: readonly unknown[]): Map<string, EditorWo
     if (list) list.push(parsed.data)
     else rowsBySegment.set(parsed.data.segment_id, [parsed.data])
   }
-  if (dropped > 0) {
-    console.warn(`[editor] dropped ${dropped} word row(s) with an invalid shape or timing`)
-  }
+  warnDroppedWords(dropped)
+  return new Map([...rowsBySegment].map(([id, words]) => [id, normaliseWords(words)]))
+}
 
+/** Validate embedded words under their parent without copying or flattening the payload. */
+export function groupEmbeddedWords(sets: readonly { id: string; words: readonly unknown[] }[]) {
   const wordsBySegment = new Map<string, EditorWord[]>()
-  for (const [segmentId, list] of rowsBySegment) {
-    // (order_index, id): the order the database splits and joins words in.
-    list.sort((a, b) => a.order_index - b.order_index || compareIds(a.id, b.id))
-    wordsBySegment.set(segmentId, list.map((word) => ({
-      id: word.id,
-      text: word.punctuated_text ?? word.text,
-      startMs: word.start_ms,
-      endMs: word.end_ms,
-    })))
+  let dropped = 0
+  for (const { id, words } of sets) {
+    const valid: EditorEmbeddedWord[] = []
+    for (const word of words) {
+      const parsed = EditorEmbeddedWordSchema.safeParse(word)
+      if (parsed.success) valid.push(parsed.data)
+      else dropped++
+    }
+    if (valid.length) wordsBySegment.set(id, normaliseWords(valid))
   }
+  warnDroppedWords(dropped)
   return wordsBySegment
 }
 

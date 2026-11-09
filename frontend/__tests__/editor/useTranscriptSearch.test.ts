@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { useTranscriptSearch } from '../../app/(app)/editor/[id]/hooks/useTranscriptSearch'
 import type { Seg } from '../../app/(app)/editor/[id]/types'
@@ -7,9 +8,8 @@ const defaultParams = {
     { id: 's1', start_ms: 0, end_ms: 1000, text: 'Hello world', speaker_id: 'sp1' },
     { id: 's2', start_ms: 1000, end_ms: 2000, text: 'Hello again', speaker_id: 'sp1' },
   ] as Seg[],
-  editingTexts: {},
-  setEditingTexts: jest.fn(),
   scheduleSave: jest.fn(),
+  scheduleSaves: jest.fn(),
   setEditingId: jest.fn(),
   scrollToSegmentIndex: jest.fn(),
   suspendFollow: jest.fn(),
@@ -22,8 +22,8 @@ const defaultParams = {
 describe('useTranscriptSearch', () => {
   beforeEach(() => {
     jest.useFakeTimers()
-    defaultParams.setEditingTexts.mockClear()
     defaultParams.scheduleSave.mockClear()
+    defaultParams.scheduleSaves.mockClear()
     defaultParams.setEditingId.mockClear()
     defaultParams.scrollToSegmentIndex.mockClear()
     defaultParams.suspendFollow.mockClear()
@@ -48,9 +48,92 @@ describe('useTranscriptSearch', () => {
 
     expect(result.current.findTerm).toBe('Hello')
     expect(result.current.totalMatches).toBe(2)
-    expect(result.current.matches).toHaveLength(2)
-    expect(result.current.matches[0]).toEqual({ segId: 's1', index: 0, length: 5 })
-    expect(result.current.matches[1]).toEqual({ segId: 's2', index: 0, length: 5 })
+    expect(result.current.getMatches()).toHaveLength(2)
+    expect(result.current.getMatches()[0]).toEqual({ segId: 's1', index: 0, length: 5 })
+    expect(result.current.getMatches()[1]).toEqual({ segId: 's2', index: 0, length: 5 })
+  })
+
+  it('keeps unchanged card ranges when a preceding edit shifts global match indices', () => {
+    const { segments } = defaultParams
+    const { result, rerender } = renderHook((rows: Seg[]) =>
+      useTranscriptSearch({ ...defaultParams, segments: rows }), { initialProps: segments })
+    act(() => { result.current.setFindInput('Hello') })
+    act(() => { jest.advanceTimersByTime(800) })
+    const ranges = result.current.matchRangesFor('s2')
+    const match = result.current.getMatches()[1]
+
+    rerender([{ ...segments[0], text: 'Hello Hello world' }, { ...segments[1] }])
+    expect(result.current.matchRangesFor('s2')).toBe(ranges)
+    expect(result.current.getMatches()[2]).toBe(match)
+    act(() => { result.current.jumpToMatch(2) })
+    expect(result.current.currentMatch).toBe(match)
+    expect(result.current.currentLocalMatchIndex).toBe(0)
+  })
+
+  it.each([
+    ['İstanbul the end', 'the', 9, 3, 'İstanbul X end'],
+    ['İstanbul', 'i', 0, 1, 'Xstanbul'],
+    ['İstanbul', 'i\u0307', 0, 1, 'Xstanbul'],
+    ['İ 𐐀', '𐐨', 2, 2, 'İ X'],
+    ['ΛΟΓΟΣ', 'λογος', 0, 5, 'X'],
+    ['İİİ', '\u0307i', 0, 2, 'Xİ'],
+  ])('uses source ranges for %s with %s', (text, query, index, length, replaced) => {
+    const { result } = renderHook(() => useTranscriptSearch({
+      ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+    }))
+    act(() => { result.current.setFindInput(query); result.current.setReplaceTerm('X') })
+    act(() => { jest.advanceTimersByTime(800) })
+    expect(result.current.getMatches()).toEqual([{ segId: 's1', index, length }])
+    act(() => { result.current.handleReplaceAll() })
+    expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
+  })
+
+  function setupReplace(texts: string[], replacement: string) {
+    const segments = texts.map((text, i) => ({ ...defaultParams.segments[0], id: `s${i}`, text }))
+    const hook = renderHook(() => {
+      const [rows, setRows] = useState(segments)
+      return useTranscriptSearch({
+        ...defaultParams,
+        segments: rows,
+        scheduleSave: (id, text) => {
+          defaultParams.scheduleSave(id, text)
+          setRows((previous) => previous.map((row) => row.id === id ? { ...row, text } : row))
+        },
+      })
+    })
+    act(() => { hook.result.current.setFindInput('the'); hook.result.current.setReplaceTerm(replacement) })
+    act(() => { jest.advanceTimersByTime(800) })
+    return hook.result
+  }
+
+  it('repeated Replace advances through adjacent matches and the next segment', () => {
+    const result = setupReplace(['thethe', 'the'], '')
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch).toMatchObject({ segId: 's0', index: 0 })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch).toMatchObject({ segId: 's1' })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.totalMatches).toBe(0)
+    expect(defaultParams.scheduleSave.mock.calls).toEqual([['s0', 'the'], ['s0', ''], ['s1', '']])
+  })
+
+  it('skips inserted matches and allows explicit navigation after the last replacement', () => {
+    const result = setupReplace(['the'], 'the the')
+    act(() => { result.current.handleReplace() })
+    expect(result.current.totalMatches).toBe(2)
+    expect(result.current.currentMatch).toBeNull()
+    act(() => { result.current.handleReplace() })
+    expect(defaultParams.scheduleSave).toHaveBeenCalledTimes(1)
+    act(() => { result.current.handlePrev() })
+    expect(result.current.currentMatch?.index).toBe(4)
+  })
+
+  it('wraps to an earlier match and does not save an unchanged replacement', () => {
+    const result = setupReplace(['the the'], 'the')
+    act(() => { result.current.handlePrev() })
+    act(() => { result.current.handleReplace() })
+    expect(result.current.currentMatch?.index).toBe(0)
+    expect(defaultParams.scheduleSave).not.toHaveBeenCalled()
   })
 
   it('debounces find input to findTerm', () => {
@@ -88,7 +171,7 @@ describe('useTranscriptSearch', () => {
 
     expect(result.current.findTerm).toBe('hello')
     expect(result.current.totalMatches).toBe(0)
-    expect(result.current.matches).toHaveLength(0)
+    expect(result.current.getMatches()).toHaveLength(0)
   })
 
   it('whole word search', () => {
@@ -119,6 +202,57 @@ describe('useTranscriptSearch', () => {
 
     expect(result.current.findTerm).toBe('Hello')
     expect(result.current.totalMatches).toBe(2)
+  })
+
+  it.each([
+    // Letters outside the Basic Multilingual Plane take two UTF-16 units (#155).
+    ['cased letter', '\u{10400}cat cat\u{10400} cat', 12, '\u{10400}cat cat\u{10400} X'],
+    ['uncased letter', '\u{20000}cat cat\u{20000} cat', 12, '\u{20000}cat cat\u{20000} X'],
+  ])('whole word ignores matches beside a supplementary %s', (_name, text, index, replaced) => {
+    for (const caseSensitive of [false, true]) {
+      defaultParams.scheduleSaves.mockClear()
+      const { result } = renderHook(() => useTranscriptSearch({
+        ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+      }))
+      act(() => {
+        result.current.setWholeWord(true)
+        result.current.setCaseSensitive(caseSensitive)
+        result.current.setFindInput('cat')
+        result.current.setReplaceTerm('X')
+      })
+      act(() => { jest.advanceTimersByTime(800) })
+      expect(result.current.getMatches()).toEqual([{ segId: 's1', index, length: 3 }])
+      act(() => { result.current.handleReplaceAll() })
+      expect(defaultParams.scheduleSaves).toHaveBeenCalledWith([{ segId: 's1', before: text, after: replaced }])
+    }
+  })
+
+  it.each([
+    // Invisible format characters inside a word don't make a word boundary.
+    ['Persian zero-width non-joiner', 'تن\u200cها', 'ها', 0],
+    ['Persian plural suffix', 'کتاب\u200cها', 'کتاب', 0],
+    ['Devanagari zero-width joiner', 'क्\u200dष', 'ष', 0],
+    ['soft hyphen', 'soft\u00adware', 'ware', 0],
+    ['two format characters', 'soft\u00ad\u200eware', 'ware', 0],
+    // These stay boundaries.
+    ['zero-width space', 'cat\u200bcat', 'cat', 2],
+    ['format character then space', 'cat\u200e cat', 'cat', 2],
+    ['format character at the edge', '\u200ecat\u200e', 'cat', 1],
+    ['ordinary spaces', 'the cat sat', 'cat', 1],
+  ])('whole word with %s', (_name, text, query, count) => {
+    const { result } = renderHook(() => useTranscriptSearch({
+      ...defaultParams, segments: [{ ...defaultParams.segments[0], text }],
+    }))
+    act(() => {
+      result.current.setWholeWord(true)
+      result.current.setFindInput(query)
+      result.current.setReplaceTerm('X')
+    })
+    act(() => { jest.advanceTimersByTime(800) })
+    expect(result.current.getMatches()).toHaveLength(count)
+    defaultParams.scheduleSaves.mockClear()
+    act(() => { result.current.handleReplaceAll() })
+    if (count === 0) expect(defaultParams.scheduleSaves).not.toHaveBeenCalled()
   })
 
   it('handleNext and handlePrev cycle through matches', () => {

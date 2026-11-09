@@ -28,10 +28,10 @@ function mockBuilder() {
 jest.mock('@/infra/supabase/client', () => ({ createClient: () => mockBuilder() }))
 
 // jest.setup.ts globally mocks this module, so reach past it for the real code.
-const { fetchSegmentWordSets, fetchSegmentsWithWords } =
+const { fetchSegmentWordSets } =
   jest.requireActual<typeof import('@/lib/supabase/queries')>('@/lib/supabase/queries')
 
-const WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
+const WORD_COLUMNS = 'id, start_ms, end_ms, text, punctuated_text, order_index'
 
 beforeEach(() => {
   mockCalls.length = 0
@@ -62,20 +62,6 @@ test("reads each segment's words in the same query as its revision", async () =>
   expect(mockCalls).toEqual([
     ['from', 'segments'],
     ['select', `id, revision, words(${WORD_COLUMNS})`],
-    ['eq', 'transcript_id', 't1'],
-    ['order', 'start_ms', { ascending: true }],
-    ['order', 'id', { ascending: true }],
-    ['range', 0, 999],
-  ])
-})
-
-test('reloads whole segments with their words in the same row', async () => {
-  mockRows = []
-  await fetchSegmentsWithWords('t1')
-
-  expect(mockCalls).toEqual([
-    ['from', 'segments'],
-    ['select', `*, words(${WORD_COLUMNS})`],
     ['eq', 'transcript_id', 't1'],
     ['order', 'start_ms', { ascending: true }],
     ['order', 'id', { ascending: true }],

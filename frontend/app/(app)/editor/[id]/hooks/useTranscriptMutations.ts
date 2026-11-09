@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchSegmentsWithWords, setSegmentTexts } from '@/lib/supabase/queries'
+import { fetchEditorSegmentSnapshot, fetchSegmentWordSets, setSegmentTexts } from '@/lib/supabase/queries'
 import type { SegmentTextEdit } from '@/contracts/db'
 import { toast } from '@/components/ui/toaster'
-import { CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, STALE_TOAST, changedSince } from '@/lib/people/errors'
+import { changedSince } from '@/lib/people/errors'
 import { OutcomeUnknown, SendClosed, type Send } from '@/lib/editor/untilAnswered'
-import { toastUnsaved } from '@/lib/editor/unsavedToasts'
+import { toastOvertakenEdits, TRANSCRIPT_DELETED_MESSAGE } from '@/lib/editor/unsavedToasts'
 import type { Seg, SaveStatusBySegment, WordsBySegment } from '../types'
-import { SAVE_DEBOUNCE_MS, groupSourceWords } from '../utils'
+import { SAVE_DEBOUNCE_MS, groupEmbeddedWords, revisionsMatch } from '../utils'
 import type { Enqueue } from './useEditorWriteQueue'
 import type { LiveStore } from './useLiveStore'
 import { changedElsewhere, type Direction } from './useEditorHistory'
@@ -20,6 +20,22 @@ type Draft = { text: string; revision: number }
 /** A segment's draft as a save took it; gone if there was none. */
 type SentDraft = { segId: string; draft: Draft | undefined }
 
+const BULK_SAVE = 'bulk'
+const SAVED_STATUS_MS = 1200
+
+function guardedEdit(segId: string, draft: Draft, expected: string): SegmentTextEdit {
+  return { segment_id: segId, expected_revision: draft.revision, expected_text: expected, text: draft.text }
+}
+
+function toastRefreshFailure(retry: () => void, notice?: string) {
+  toast({
+    title: 'Couldn’t refresh the transcript',
+    description: ['Your unsaved edits are still here.', notice].filter(Boolean).join(' '),
+    variant: 'error',
+    action: { label: 'Retry', onClick: retry },
+  })
+}
+
 export function useTranscriptMutations({
   transcriptId,
   segments,
@@ -27,6 +43,9 @@ export function useTranscriptMutations({
   enqueue,
   send,
   onExternalChange,
+  onDeleted,
+  onWordLoadFailure,
+  onWordMismatch,
 }: {
   transcriptId: string
   segments: LiveStore<Seg[]>
@@ -35,17 +54,24 @@ export function useTranscriptMutations({
   send: Send
   /** A reload found changes made elsewhere; `quiet` when the editor has already said so. */
   onExternalChange?: (quiet: boolean) => void
+  onDeleted?: () => void
+  onWordLoadFailure?: () => void
+  onWordMismatch?: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingTexts, setEditingTexts] = useState<Record<string, string>>({})
   const [saveStatus, setSaveStatus] = useState<SaveStatusBySegment>({})
   const saveTimers = useRef<Record<string, number>>({})
-  const saveStatusResetTimers = useRef<Record<string, number>>({})
+  const statusDeadlines = useRef(new Map<string, number>())
+  const statusTimer = useRef<number | undefined>(undefined)
   // Text not saved yet, per segment. A save clears only the draft it wrote, so
   // an edit made while it was in flight keeps its own.
   const drafts = useRef(new Map<string, Draft>())
   // Set while a save of every waiting draft is queued and has not started.
   const saveAllQueued = useRef(false)
+  const refreshBeforeSave = useRef(false)
+  const active = useRef(true)
+  const deleted = useRef(false)
+  const wordLoad = useRef(0)
   // Each segment's text as the database holds it, as far as this editor knows:
   // what a save expects to replace. Set when a segment's first draft starts,
   // and from every row a write or reload returns. While a write's outcome is
@@ -69,88 +95,170 @@ export function useTranscriptMutations({
     if (t) { window.clearTimeout(t); delete saveTimers.current[segId] }
   }, [])
 
-  const showSaveStatus = useCallback((segId: string, status: SaveStatusBySegment[string]) => {
-    const resetT = saveStatusResetTimers.current[segId]
-    if (resetT) { window.clearTimeout(resetT); delete saveStatusResetTimers.current[segId] }
-    setSaveStatus((prev) => ({ ...prev, [segId]: status }))
-    if (status !== 'saved') return
-    saveStatusResetTimers.current[segId] = window.setTimeout(() => {
-      delete saveStatusResetTimers.current[segId]
-      setSaveStatus((p) => ({ ...p, [segId]: 'idle' }))
-    }, 1200)
+  const scheduleStatusExpiry = useCallback(function scheduleExpiry() {
+    window.clearTimeout(statusTimer.current)
+    statusTimer.current = undefined
+    let next = Infinity
+    for (const deadline of statusDeadlines.current.values()) next = Math.min(next, deadline)
+    if (next === Infinity) return
+    statusTimer.current = window.setTimeout(() => {
+      const now = Date.now()
+      const due: string[] = []
+      for (const [id, deadline] of statusDeadlines.current) {
+        if (deadline > now) continue
+        statusDeadlines.current.delete(id)
+        due.push(id)
+      }
+      if (due.length) setSaveStatus((previous) => {
+        const next = { ...previous }
+        for (const id of due) if (next[id] === 'saved') delete next[id]
+        return next
+      })
+      scheduleExpiry()
+    }, Math.max(0, next - Date.now()))
   }, [])
 
-  /**
-   * Replace the segments and words with the database's, read together so each
-   * segment's words belong to the revision it is shown at. A draft the
-   * database already holds was saved (its answer was lost). A draft still
-   * written against what the database holds survives; any other was overtaken
-   * by a change made elsewhere and is dropped, and the user is told, with its
-   * text to copy. Resolves false if the database refused the read, leaving
-   * everything as it was; an unanswered read is sent again until answered.
-   * Once the editor has closed it reads nothing and throws SendClosed.
-   *
-   * It writes nothing, so it runs inside a queued task, never queueing one.
-   */
-  const reloadSegments = useCallback(async (): Promise<boolean> => {
-    let rows: Seg[]
-    let wordRows: readonly unknown[]
+  const showSaveStatuses = useCallback((ids: readonly string[], status: SaveStatusBySegment[string]) => {
+    if (!ids.length) return
+    const deadline = Date.now() + SAVED_STATUS_MS
+    for (const id of ids) {
+      if (status === 'saved') statusDeadlines.current.set(id, deadline)
+      else statusDeadlines.current.delete(id)
+    }
+    setSaveStatus((previous) => {
+      const next = { ...previous }
+      for (const id of ids) {
+        if (status === 'idle') delete next[id]
+        else next[id] = status
+      }
+      return next
+    })
+    scheduleStatusExpiry()
+  }, [scheduleStatusExpiry])
+
+  const loadWords = useCallback(async (retryMismatch: boolean) => {
+    const request = ++wordLoad.current
+    const current = () => active.current && !deleted.current && request === wordLoad.current
     try {
-      const fetched = await send(() => fetchSegmentsWithWords(transcriptId))
-      rows = fetched.map(({ words: _words, ...row }) => row)
-      wordRows = fetched.flatMap((row) => row.words)
+      const sets = await fetchSegmentWordSets(transcriptId)
+      if (!current()) return
+      const shown = segments.get()
+      if (shown.length !== sets.length || !revisionsMatch(shown, sets)) {
+        if (retryMismatch && onWordMismatch) onWordMismatch()
+        else onWordLoadFailure?.()
+        return
+      }
+      const grouped = groupEmbeddedWords(sets)
+      words.update(() => grouped)
+    } catch {
+      if (current()) onWordLoadFailure?.()
+    }
+  }, [transcriptId, segments, words, onWordLoadFailure, onWordMismatch])
+
+  /** Reconcile a complete snapshot inside the queue. Timings load independently. */
+  const reloadSegments = useCallback(async ({
+    refreshWords = false,
+    retryWordMismatch = true,
+    onRecovered,
+    historyNotice,
+  }: {
+    refreshWords?: boolean
+    retryWordMismatch?: boolean
+    onRecovered?: () => void
+    historyNotice?: string
+  } = {}): Promise<boolean> => {
+    if (!active.current || deleted.current) throw new SendClosed()
+    let rows: Seg[] | null
+    try {
+      rows = await send(() => fetchEditorSegmentSnapshot(transcriptId))
     } catch (error) {
       if (error instanceof SendClosed) throw error
       console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
       return false
     }
+    if (!active.current || deleted.current) throw new SendClosed()
+    if (!rows) {
+      deleted.current = true
+      const overtaken = [...drafts.current.values()].map(({ text }) => ({ text }))
+      drafts.current.clear()
+      onExternalChange?.(true)
+      if (overtaken.length) toastOvertakenEdits(overtaken, true, historyNotice)
+      else toast({ title: TRANSCRIPT_DELETED_MESSAGE, variant: 'error' })
+      onDeleted?.()
+      throw new SendClosed()
+    }
 
     const fetched = new Map(rows.map((row) => [row.id, row]))
-    for (const [segId, draft] of drafts.current) {
-      const row = fetched.get(segId)
-      if (row?.text !== draft.text || row.revision !== draft.revision) continue
-      drafts.current.delete(segId)
-      clearSaveTimer(segId)
-      showSaveStatus(segId, 'saved')
-      adopt([row])
-    }
-    const dropped: string[] = []
+    const shownRows = segments.get()
+    const shown = new Map(shownRows.map((row) => [row.id, row]))
+    const settled: string[] = []
+    const overtaken: Parameters<typeof toastOvertakenEdits>[0][number][] = []
+    const droppedIds: string[] = []
     for (const [segId, draft] of drafts.current) {
       const row = fetched.get(segId)
       const known = baseline.current.get(segId)
-      if (row && row.revision === draft.revision && (row.text === known?.text || row.text === known?.unconfirmed)) continue
-      dropped.push(draft.text)
+      if (row?.revision === draft.revision && row.text === draft.text) {
+        settled.push(segId)
+      } else if (row?.revision === draft.revision && (row.text === known?.text || row.text === known?.unconfirmed)) {
+        continue
+      } else {
+        overtaken.push({
+          text: draft.text,
+          reason: !row ? 'deleted' : row.revision !== draft.revision ? 'reshaped' : undefined,
+        })
+        droppedIds.push(segId)
+      }
       drafts.current.delete(segId)
       clearSaveTimer(segId)
-      showSaveStatus(segId, 'idle')
     }
+    showSaveStatuses(settled, 'saved')
+    showSaveStatuses(droppedIds, 'idle')
     // Anything the database holds that this editor did not show, beyond its
     // own unsaved text, was changed elsewhere.
-    const shown = new Map(segments.get().map((row) => [row.id, row]))
-    const external = dropped.length > 0 || [...shown.keys()].some((id) => !fetched.has(id)) || rows.some((row) => {
+    const reshaped = rows.length !== shownRows.length || !revisionsMatch(shownRows, rows)
+    const external = overtaken.length > 0 || reshaped || rows.some((row) => {
       const was = shown.get(row.id)
-      return !was || was.revision !== row.revision || was.speaker_id !== row.speaker_id ||
-        (!drafts.current.has(row.id) && was.text !== row.text)
+      const known = baseline.current.get(row.id)
+      return !was || was.speaker_id !== row.speaker_id ||
+        (!drafts.current.has(row.id) && was.text !== row.text && row.text !== known?.text && row.text !== known?.unconfirmed)
     })
 
+    for (const id of shown.keys()) if (!fetched.has(id)) baseline.current.delete(id)
     adopt(rows)
     const next = rows.map((row) => {
       const draft = drafts.current.get(row.id)
-      return draft ? { ...row, text: draft.text } : row
+      const text = draft?.text ?? row.text
+      const was = shown.get(row.id)
+      if (was?.text === text && was.revision === row.revision && was.speaker_id === row.speaker_id &&
+          was.updated_at === row.updated_at && was.is_edited === row.is_edited &&
+          was.start_ms === row.start_ms && was.end_ms === row.end_ms) return was
+      return draft ? { ...row, text } : row
     })
-    const textById = new Map(next.map((row) => [row.id, row.text]))
-    // Worked out once: a live store runs its updater again inside React.
-    const grouped = groupSourceWords(wordRows)
-    segments.update(() => next)
-    words.update(() => grouped)
-    setEditingTexts((prev) => Object.fromEntries(
-      Object.keys(prev).flatMap((id) => textById.has(id) ? [[id, textById.get(id)!]] : [])
-    ))
-    setEditingId((prev) => (prev && textById.has(prev) ? prev : null))
-    if (external) onExternalChange?.(dropped.length > 0)
-    if (dropped.length > 0) toastUnsaved(CONFLICT_TOAST, DROPPED_DRAFT_MESSAGE, dropped)
+    if (overtaken.length) {
+      toastOvertakenEdits(overtaken, false, historyNotice)
+      onRecovered?.()
+    }
+    if (reshaped) {
+      const paired = new Map([...words.get()].filter(([id]) => {
+        const row = fetched.get(id)
+        return row && shown.get(id)?.revision === row.revision
+      }))
+      words.update(() => paired)
+    }
+    if (next.length !== shownRows.length || next.some((row, index) => row !== shownRows[index])) {
+      segments.update(() => next)
+    }
+    const nextById = new Map(next.map((row) => [row.id, row]))
+    setEditingId((prev) => {
+      if (!prev) return prev
+      const before = shown.get(prev)
+      const after = nextById.get(prev)
+      return after && before?.text === after.text && before.revision === after.revision ? prev : null
+    })
+    if (external) onExternalChange?.(overtaken.length > 0)
+    if (reshaped || refreshWords) void loadWords(retryWordMismatch)
     return true
-  }, [transcriptId, segments, words, send, clearSaveTimer, showSaveStatus, adopt, onExternalChange])
+  }, [transcriptId, segments, words, send, clearSaveTimer, showSaveStatuses, adopt, onExternalChange, onDeleted, loadWords])
 
   /**
    * Write segment texts, sending until answered. Until then, the text each
@@ -161,7 +269,10 @@ export function useTranscriptMutations({
   const writeTexts = useCallback(async (edits: readonly SegmentTextEdit[]) => {
     edits.forEach((e) => baseline.current.set(e.segment_id, { text: e.expected_text, unconfirmed: e.text }))
     try {
-      adopt(await send(() => setSegmentTexts(edits)))
+      const written = await send(() => setSegmentTexts(edits))
+      // The RPC commits the whole batch, even when PostgREST caps its returned rows.
+      for (const edit of edits) baseline.current.set(edit.segment_id, { text: edit.text })
+      adopt(written)
     } catch (error) {
       // Refused at the first attempt: nothing was written.
       if (!(error instanceof OutcomeUnknown)) edits.forEach((e) => baseline.current.set(e.segment_id, { text: e.expected_text }))
@@ -183,34 +294,38 @@ export function useTranscriptMutations({
       return draft && known ? [{ segId, draft, expected: known.text }] : []
     })
     if (!waiting.length) return
-    const edits: SegmentTextEdit[] = waiting.map(({ segId, draft, expected }) => ({
-      segment_id: segId, expected_revision: draft.revision, expected_text: expected, text: draft.text,
-    }))
+    const edits = waiting.map(({ segId, draft, expected }) => guardedEdit(segId, draft, expected))
+    const currentDrafts = () => waiting.filter(({ segId, draft }) => drafts.current.get(segId) === draft).map(({ segId }) => segId)
     try {
       await writeTexts(edits)
     } catch (error) {
       if (!(error instanceof SendClosed) && !changedElsewhere(error)) {
         console.error('save failed', error)
-        for (const { segId, draft } of waiting) if (drafts.current.get(segId) === draft) showSaveStatus(segId, 'error')
+        showSaveStatuses(currentDrafts(), 'error')
       }
       throw error
     }
-    for (const { segId, draft } of waiting) if (drafts.current.get(segId) === draft) {
-      drafts.current.delete(segId)
-      showSaveStatus(segId, 'saved')
-    }
-  }, [writeTexts, showSaveStatus])
+    const saved = currentDrafts()
+    for (const id of saved) drafts.current.delete(id)
+    showSaveStatuses(saved, 'saved')
+  }, [writeTexts, showSaveStatuses])
+
+  const clearSaveTimers = useCallback(() => {
+    Object.keys(saveTimers.current).forEach(clearSaveTimer)
+  }, [clearSaveTimer])
 
   useEffect(() => {
-    const timers = saveTimers.current
-    const statusTimers = saveStatusResetTimers.current
+    active.current = true
+    const deadlines = statusDeadlines.current
     return () => {
-      Object.values(timers).forEach((timerId) => window.clearTimeout(timerId))
-      Object.values(statusTimers).forEach((timerId) => window.clearTimeout(timerId))
-      for (const id of Object.keys(timers)) delete timers[id]
-      for (const id of Object.keys(statusTimers)) delete statusTimers[id]
+      active.current = false
+      wordLoad.current++
+      clearSaveTimers()
+      window.clearTimeout(statusTimer.current)
+      statusTimer.current = undefined
+      deadlines.clear()
     }
-  }, [])
+  }, [clearSaveTimers])
 
   /**
    * Runs a text step of the history inside the write queue: the drafts of its
@@ -231,7 +346,6 @@ export function useTranscriptMutations({
     const show = (pairs: readonly (readonly [string, string])[]) => {
       const map = new Map(pairs)
       segments.update((rows) => rows.map((row) => map.has(row.id) ? { ...row, text: map.get(row.id)! } : row))
-      setEditingTexts((prev) => Object.fromEntries(Object.entries(prev).map(([id, text]) => [id, map.get(id) ?? text])))
     }
     show(request.map((e) => [e.segment_id, e.text] as const))
     applied()
@@ -250,15 +364,32 @@ export function useTranscriptMutations({
    * Saves every waiting draft, together, in the write queue, unless a save of
    * them is already queued and has not started.
    */
-  const saveAll = useCallback(() => {
+  const saveAll = useCallback(function saveAll(refreshFirst = false) {
+    if (!active.current || deleted.current) return
+    refreshBeforeSave.current ||= refreshFirst
     if (saveAllQueued.current) return
     saveAllQueued.current = true
     void enqueue(async () => {
       saveAllQueued.current = false
+      if (!active.current || deleted.current) return
+      const needsRefresh = refreshBeforeSave.current
+      refreshBeforeSave.current = false
       // Every draft waiting now is saved with this one, so the drafts a
       // Replace All made together are written together, not one by one.
+      clearSaveTimers()
+      const repair = async () => {
+        try {
+          if (await reloadSegments()) return !deleted.current
+        } catch (error) {
+          if (error instanceof SendClosed) return false
+          console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
+        }
+        showSaveStatuses([...drafts.current.keys()], 'error')
+        toastRefreshFailure(() => saveAll(true))
+        return false
+      }
+      if (needsRefresh && !(await repair())) return
       let batch = [...drafts.current.keys()]
-      batch.forEach(clearSaveTimer)
       while (batch.length) {
         const sent: SentDraft[] = batch.map((segId) => ({ segId, draft: drafts.current.get(segId) }))
         try {
@@ -269,52 +400,77 @@ export function useTranscriptMutations({
           if (!changedElsewhere(error)) return
         }
         // One conflict refuses the whole batch. The database's segments
-        // settle it: the reload drops the drafts it overtook and keeps the
+        // settle it: the reload retains overtaken drafts in the toast and keeps the
         // rest, which are written again, except any typed over since: typing
         // queues its own save.
-        let reloaded: boolean
-        try { reloaded = await reloadSegments() } catch (error) {
-          if (error instanceof SendClosed) return
-          // A bug, not a refusal: the drafts stay, shown as not saved below.
-          console.error(`[editor] failed to reload segments for transcript ${transcriptId}:`, error)
-          reloaded = false
-        }
-        if (!reloaded) toast({ title: STALE_TOAST, variant: 'error' })
+        if (!(await repair())) return
         const kept = sent.filter(({ segId, draft }) => drafts.current.get(segId) === draft).map(({ segId }) => segId)
         // None settled, dropped or typed over: the reload or the write was
         // refused for another reason. Stop, and say so.
-        if (kept.length === batch.length) { kept.forEach((id) => showSaveStatus(id, 'error')); return }
+        if (kept.length === batch.length) { showSaveStatuses(kept, 'error'); return }
         batch = kept
       }
     }, 'save')
-  }, [transcriptId, showSaveStatus, clearSaveTimer, enqueue, writeDrafts, reloadSegments])
+  }, [transcriptId, showSaveStatuses, clearSaveTimers, enqueue, writeDrafts, reloadSegments])
 
-  const scheduleSave = useCallback((segId: string, newText: string) => {
-    const segment = segments.get().find((s) => s.id === segId)
-    if (!segment) return
-    // The revision is fixed now, at the edit: if the segment is reshaped before
-    // the save runs, the save is refused rather than written into the new shape.
-    if (!baseline.current.has(segId)) baseline.current.set(segId, { text: segment.text })
-    drafts.current.set(segId, { text: newText, revision: segment.revision })
+  const reportRefreshFailure = useCallback((notice?: string) => {
+    if (!drafts.current.size) return false
+    showSaveStatuses([...drafts.current.keys()], 'error')
+    toastRefreshFailure(() => saveAll(true), notice)
+    return true
+  }, [showSaveStatuses, saveAll])
 
-    // update UI immediately
-    segments.update((prev) => prev.map((s) => s.id === segId ? { ...s, text: newText } : s))
-    showSaveStatus(segId, 'saving')
+  const captureDraft = useCallback((segment: Seg, text: string) => {
+    // Fix the revision at the edit so a later reshape refuses the save.
+    if (!baseline.current.has(segment.id)) baseline.current.set(segment.id, { text: segment.text })
+    drafts.current.set(segment.id, { text, revision: segment.revision })
+  }, [])
 
-    // debounce before saving
-    clearSaveTimer(segId)
-    saveTimers.current[segId] = window.setTimeout(() => {
-      delete saveTimers.current[segId]
+  const stageSave = useCallback((updates: ReadonlyMap<string, string>, timerKey: string) => {
+    if (!updates.size) return
+    segments.update((rows) => rows.map((row) => {
+      const text = updates.get(row.id)
+      return text === undefined ? row : { ...row, text }
+    }))
+    showSaveStatuses([...updates.keys()], 'saving')
+    clearSaveTimer(timerKey)
+    saveTimers.current[timerKey] = window.setTimeout(() => {
+      delete saveTimers.current[timerKey]
       saveAll()
     }, SAVE_DEBOUNCE_MS)
-  }, [segments, showSaveStatus, clearSaveTimer, saveAll])
+  }, [segments, showSaveStatuses, clearSaveTimer, saveAll])
+
+  const getCurrentSegment = useCallback((segId: string) =>
+    segments.get().find((row) => row.id === segId), [segments])
+
+  const scheduleSave = useCallback((segId: string, text: string) => {
+    if (deleted.current) return
+    const segment = getCurrentSegment(segId)
+    if (!segment) return
+    captureDraft(segment, text)
+    stageSave(new Map([[segId, text]]), segId)
+  }, [getCurrentSegment, captureDraft, stageSave])
+
+  const scheduleSaves = useCallback((edits: readonly TextEdit[]) => {
+    if (deleted.current) return
+    const rows = new Map(segments.get().map((row) => [row.id, row]))
+    const updates = new Map<string, string>()
+    for (const { segId, after } of edits) {
+      const row = rows.get(segId)
+      if (!row) continue
+      captureDraft(row, after)
+      clearSaveTimer(segId)
+      updates.set(segId, after)
+    }
+    stageSave(updates, BULK_SAVE)
+  }, [segments, captureDraft, clearSaveTimer, stageSave])
 
   /** Starts saving every waiting draft now, without waiting for its debounce. */
   const saveNow = useCallback(() => {
     if (!drafts.current.size) return
-    Object.keys(saveTimers.current).forEach(clearSaveTimer)
+    clearSaveTimers()
     saveAll()
-  }, [clearSaveTimer, saveAll])
+  }, [clearSaveTimers, saveAll])
 
   /** Whether any text is not saved yet. */
   const hasDrafts = useCallback(() => drafts.current.size > 0, [])
@@ -330,7 +486,7 @@ export function useTranscriptMutations({
     for (const [segId, draft] of drafts.current) {
       texts.push(draft.text)
       const known = baseline.current.get(segId)
-      if (known) edits.push({ segment_id: segId, expected_revision: draft.revision, expected_text: known.text, text: draft.text })
+      if (known) edits.push(guardedEdit(segId, draft, known.text))
     }
     return { edits, texts }
   }, [])
@@ -347,15 +503,16 @@ export function useTranscriptMutations({
 
   return {
     editingId, setEditingId,
-    editingTexts, setEditingTexts,
+    getCurrentSegment,
     saveStatus,
-    scheduleSave,
+    scheduleSave, scheduleSaves,
     saveNow,
     hasDrafts,
     draftEdits,
     writeDrafts,
     applyTexts,
     reloadSegments,
+    reportRefreshFailure,
     openEditorAt,
     caretHint,
     adopt,

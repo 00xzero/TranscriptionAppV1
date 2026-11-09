@@ -3,13 +3,11 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExtern
 import { useRouter } from 'next/navigation'
 import { useScrubberFocus } from '@/lib/audio/useScrubberFocus'
 import AudioPlayer from '@/components/AudioPlayer'
-import SpeakerPopoverContent from '@/components/SpeakerPopoverContent'
 import ExportModal from '@/components/ExportModal'
 import FindReplaceModal from '@/components/FindReplaceModal'
 import CollapsibleWaveform, { MiniWaveformProgress } from '@/components/CollapsibleWaveform'
 import FloatingPlayerDeck from '@/components/FloatingPlayerDeck'
 import Waveform from '@/components/Waveform'
-import { Popover, PopoverAnchor, PopoverContent, PopoverFrozenWhileClosed } from '@/components/ui/popover'
 import { LoadingStatus } from '@/components/ui/loading-status'
 import { toast } from '@/components/ui/toaster'
 import { TranscriptActionDialogs } from '@/components/TranscriptActionDialogs'
@@ -19,6 +17,7 @@ import { useTranscriptActions } from '@/lib/transcripts/useTranscriptActions'
 import TranscriptList from './components/TranscriptList'
 import SyncToAudioButton from './components/SyncToAudioButton'
 import EditorHeader from './components/EditorHeader'
+import { EditorSpeakerPopover } from './components/EditorSpeakerPopover'
 import { SpeakerSummaryButton } from './components/SpeakerSummaryButton'
 import { SpeakersSidebar, type SpeakersSidebarHandle } from './components/SpeakersSidebar'
 import { useEditorData, wordTimingsFailedToast } from './hooks/useEditorData'
@@ -38,28 +37,39 @@ import { useSpeakerOverview } from './hooks/useSpeakerOverview'
 import { useKeepReadingPosition } from './hooks/useKeepReadingPosition'
 import { createSegmentLocator } from './utils'
 import { useSegmentHolds } from './hooks/useSegmentHolds'
-import { useEditorHistory, type HistoryTarget } from './hooks/useEditorHistory'
+import { useSegmentLayout } from './hooks/useSegmentLayout'
+import { useEditorHistory, type HistoryTarget, type RepairResult } from './hooks/useEditorHistory'
 import { useTextHistory } from './hooks/useTextHistory'
 import { useLeaveEditor } from './hooks/useLeaveEditor'
 import LeaveEditorDialog from './components/LeaveEditorDialog'
 import { SendClosed, useUntilAnswered } from '@/lib/editor/untilAnswered'
 import { publishUndoControls } from '@/lib/editor/undoControls'
 import { fetchTranscriptById } from '@/lib/supabase/queries'
+import { STALE_TOAST } from '@/lib/people/errors'
 import { engineLabel } from '@/core/transcription/engines/capabilities'
+import type { EditorTranscript } from '@/contracts/editor'
 
 const noSegmentOnServer = () => undefined
 const noPositionOnServer = () => false
 
-export default function EditorScreen({ transcriptId }: { transcriptId: string }) {
+export default function EditorScreen({ transcriptId, initialMetadata = null }: {
+  transcriptId: string
+  initialMetadata?: EditorTranscript | null
+}) {
   const router = useRouter()
   const { mutateTranscripts } = useTranscriptsData()
 
   // 1. Data layer. Words that arrive out of step with the segments shown, or
   // that failed to load, come back with a reload of both, set up below once
   // the write queue and the text drafts exist.
-  const reloadContentRef = useRef<() => void>(() => {})
-  const reloadContent = useCallback(() => reloadContentRef.current(), [])
-  const data = useEditorData(transcriptId, reloadContent)
+  const reloadContentRef = useRef<(retryWordMismatch: boolean) => void>(() => {})
+  const reloadContent = useCallback(() => reloadContentRef.current(true), [])
+  const retryWordsAfterMismatch = useCallback(() => reloadContentRef.current(false), [])
+  const deletedRef = useRef<() => void>(() => {})
+  const onDeleted = useCallback(() => deletedRef.current(), [])
+  const reportWordLoadFailure = useCallback(() => toast(wordTimingsFailedToast(reloadContent)), [reloadContent])
+  const data = useEditorData(transcriptId, reloadContent, initialMetadata)
+  const segmentLayout = useSegmentLayout(data.segments)
   const actionTarget = transcriptActionTarget({
     id: transcriptId,
     title: data.transcriptTitle,
@@ -72,13 +82,18 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // stores. Each write is sent until the database answers it; every one
   // recognises its own earlier success, so a resend is always safe.
   const enqueue = useEditorWriteQueue()
-  const { send, reconnecting, isReconnecting } = useUntilAnswered()
+  const { send, reconnecting, isReconnecting, close: closeSender } = useUntilAnswered()
   const holds = useSegmentHolds(isReconnecting, reconnecting)
   // The history reveals and refreshes through hooks set up after it.
-  const bridge = useRef({ reveal: (_target: HistoryTarget) => {}, refresh: async () => false })
+  const bridge = useRef({
+    reveal: (_target: HistoryTarget) => {},
+    refresh: async (_historyNotice?: string): Promise<RepairResult> => false,
+    hasDrafts: (): boolean => false,
+  })
   const reveal = useCallback((target: HistoryTarget) => bridge.current.reveal(target), [])
-  const refreshAll = useCallback(() => bridge.current.refresh(), [])
-  const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, isReconnecting, reconnecting })
+  const refreshAll = useCallback((historyNotice?: string) => bridge.current.refresh(historyNotice), [])
+  const hasDrafts = useCallback(() => bridge.current.hasDrafts(), [])
+  const history = useEditorHistory({ enqueue, holds, reveal, refresh: refreshAll, hasDrafts, isReconnecting, reconnecting })
   const { clear: clearHistory } = history
   const externalChange = useCallback((quiet: boolean) => {
     clearHistory(quiet ? undefined : 'This changed elsewhere')
@@ -92,15 +107,26 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     enqueue,
     send,
     onExternalChange: externalChange,
+    onDeleted,
+    onWordLoadFailure: reportWordLoadFailure,
+    onWordMismatch: retryWordsAfterMismatch,
   })
   const textHistory = useTextHistory(history, editing)
   // Leaving waits for what the editor has not saved yet.
   const leaving = useLeaveEditor({ queue: enqueue, editing, reconnecting })
+  const { abandon } = leaving
+  const finishDeletion = useCallback(() => {
+    abandon()
+    closeSender()
+    router.replace('/transcripts')
+  }, [abandon, closeSender, router])
+  useEffect(() => { deletedRef.current = finishDeletion }, [finishDeletion])
 
   const speakerHook = useSpeakerAssignments({
     transcriptId,
     speakers: data.speakers,
     segments: data.segments,
+    segmentLayout,
     segmentsStore,
     peopleContext: data.peopleContext,
     setSpeakers: data.setSpeakers,
@@ -115,15 +141,15 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   const { reloadSegments } = editing
   useEffect(() => {
-    reloadContentRef.current = () => {
+    reloadContentRef.current = (retryWordMismatch) => {
       void enqueue(async () => {
-        if (!(await reloadSegments())) toast(wordTimingsFailedToast(reloadContent))
+        if (!(await reloadSegments({ refreshWords: true, retryWordMismatch }))) reportWordLoadFailure()
       }, 'read').catch((error: unknown) => {
         // A closed editor has nothing to show it on; anything else is a bug.
         if (!(error instanceof SendClosed)) console.error('[editor] failed to reload word timings:', error)
       })
     }
-  }, [enqueue, reloadSegments, reloadContent])
+  }, [enqueue, reloadSegments, reportWordLoadFailure])
 
   const splitting = useSegmentSplit({ segments: segmentsStore, words: wordsStore, history, editing, send, holds })
 
@@ -151,7 +177,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
 
   // 3. Sync
   const sync = useTranscriptSync({
-    segments: data.segments,
+    segments: segmentLayout,
     editingId: editing.editingId,
     speakerPopover: speakerHook.speakerPopover,
   })
@@ -163,20 +189,33 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current) }, [])
   useEffect(() => {
     bridge.current = {
+      hasDrafts: editing.hasDrafts,
       // Runs inside the write queue after a change made elsewhere: segments,
       // then speakers and people alongside the title and the tags, each read
       // until answered (tags once: they are the shared store's).
-      refresh: async () => {
-        if (!(await editing.reloadSegments())) return false
+      refresh: async (historyNotice) => {
+        let recovered = false
+        if (!(await editing.reloadSegments({ onRecovered: () => { recovered = true }, historyNotice }))) {
+          return editing.reportRefreshFailure(historyNotice) ? 'retry offered' : false
+        }
+        const titleRead = send(() => fetchTranscriptById(transcriptId)).catch((error: unknown) => {
+          if (!recovered || error instanceof SendClosed) throw error
+          return null
+        })
         const [speakersRead, row, tagsRead] = await Promise.all([
-          speakerHook.refresh(), send(() => fetchTranscriptById(transcriptId)), transcriptTags.reload(),
+          speakerHook.refresh(false), titleRead, transcriptTags.reload(),
         ])
         // A title that was read is shown even when another read failed.
         if (row) {
           data.setTranscriptTitle(row.title)
           handleTitleSaved(row.title)
         }
-        return speakersRead && !!row && tagsRead
+        const read = speakersRead && !!row && tagsRead
+        if (!recovered) return read
+        // The recovery toast explains the conflict, not that speakers, the
+        // title or tags may be out of date: say so separately.
+        if (!read) toast({ title: STALE_TOAST, variant: 'error' })
+        return 'recovered'
       },
       reveal(target) {
         sync.suspendFollow('ui')
@@ -216,7 +255,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     shouldCollapseWaveform: sync.shouldCollapseForCurrentScroll,
   })
 
-  const { handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart, playbackClock } = playback
+  const {
+    handleMiniSeekStart, handleMiniSeekEnd, handleExpandedSeekStart, handleFallbackKeyboardSeek, playbackClock,
+  } = playback
 
   // The current segment, straight from the playback clock. The card highlight
   // and the word highlight both follow it, so they switch in the same frame.
@@ -224,7 +265,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   // the audio (offset, timeupdate-paced, held after seeks), so it only stands
   // in until the clock has a position. Primitive snapshots mean this screen
   // re-renders only when the current segment changes.
-  const locateSegment = useMemo(() => createSegmentLocator(data.segments), [data.segments])
+  const locateSegment = useMemo(() => createSegmentLocator(segmentLayout), [segmentLayout])
   const getClockSegId = useCallback(() => {
     const ms = playbackClock.getMs()
     return ms === null ? undefined : locateSegment(ms)
@@ -242,14 +283,14 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const canReplace = !holds.any && !reconnecting
   const search = useTranscriptSearch({
     segments: data.segments,
-    editingTexts: editing.editingTexts,
-    setEditingTexts: editing.setEditingTexts,
     scheduleSave: editing.scheduleSave,
+    scheduleSaves: editing.scheduleSaves,
     setEditingId: editing.setEditingId,
     scrollToSegmentIndex: sync.scrollToSegmentIndex,
     suspendFollow: sync.suspendFollow,
     closeSpeakerPopover: speakerHook.closeSpeakerPopover,
     exportModalOpen,
+    editingText: editing.editingId !== null,
     canReplace, recordReplace: textHistory.recordReplace,
   })
 
@@ -273,8 +314,9 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   })
 
   // 7. Speakers sidebar
+  const [speakersOpen, setSpeakersOpen] = useState(false)
   const speakerOverview = useSpeakerOverview({
-    segments: data.segments,
+    segments: speakersOpen ? data.segments : segmentLayout,
     speakers: data.speakers,
     presentation: speakerHook.presentation,
     displayForSpeaker: speakerHook.displayForSpeaker,
@@ -283,7 +325,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
   const speakersSidebarId = useId()
   const speakerButtonRef = useRef<HTMLButtonElement>(null)
   const speakersSidebarRef = useRef<SpeakersSidebarHandle>(null)
-  const [speakersOpen, setSpeakersOpen] = useState(false)
   const { keepReadingPosition, releaseReadingPosition } = useKeepReadingPosition({
     scrollRef: sync.transcriptScrollRef,
     virtuosoRef: sync.virtuosoRef,
@@ -344,14 +385,6 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
     expandedWaveformContainerRef(element)
   }, [attachExpanded, expandedWaveformContainerRef])
 
-  const didInteractOutsidePopoverRef = useRef(false)
-  // True while the popover holds a name over the length limit; an outside click
-  // then leaves it open rather than discarding the typed name.
-  const holdSpeakerPopoverOpenRef = useRef(false)
-  const setHoldSpeakerPopoverOpen = useCallback((hold: boolean) => {
-    holdSpeakerPopoverOpenRef.current = hold
-  }, [])
-
   return (
     <div className="editor-scroll-shell flex flex-col h-full relative">
       <FindReplaceModal
@@ -375,10 +408,10 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         matchSummary={search.matchSummary}
         canNavigate={search.canNavigate}
         canReplace={canReplace}
-        matches={search.matches}
+        matches={search.findReplaceOpen ? search.getMatches() : []}
         segments={data.segments}
         matchIndex={search.matchIndex}
-        onMatchClick={(idx: number) => search.setMatchIndex(idx)}
+        onMatchClick={search.jumpToMatch}
       />
 
       <div className="relative flex min-h-0 flex-1">
@@ -433,6 +466,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
                     onScrubPreviewFraction={playback.handleScrubPreviewFraction}
                     onSeekStart={handleExpandedSeekStart}
                     onSeekEnd={handleMiniSeekEnd}
+                    onKeyboardSeek={handleFallbackKeyboardSeek}
                     onDragStart={playback.handlePlayerDragStart}
                     onDragEnd={playback.handlePlayerDragEnd}
                     initialPlaybackRate={playback.playbackRate}
@@ -515,17 +549,17 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
               virtuosoRef={sync.virtuosoRef}
               onRangeChanged={sync.handleRangeChanged}
               activeSegId={currentSegId}
-              matchesBySeg={search.matchesBySeg}
-              matchIndex={search.matchIndex}
+              matchRangesFor={search.matchRangesFor}
+              matchIndex={search.currentLocalMatchIndex}
+              currentMatchSegId={search.currentMatch?.segId}
               displayForSpeaker={speakerHook.displayForSpeaker}
               editingId={editing.editingId}
-              editingTexts={editing.editingTexts}
               saveStatus={editing.saveStatus}
               onSegmentClick={playback.onSegmentClick}
               onWordClick={playback.onWordClick}
               onSpeakerClick={speakerHook.handleAvatarClick}
               setEditingId={editing.setEditingId}
-              setEditingTexts={editing.setEditingTexts}
+              getCurrentSegment={editing.getCurrentSegment}
               scheduleSave={editing.scheduleSave}
               onSplit={splitting.split}
               caretHint={editing.caretHint}
@@ -572,7 +606,7 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         />
       )}
 
-      <TranscriptActionDialogs actions={transcriptActions} onDeleted={() => { leaving.abandon(); router.replace('/transcripts') }} />
+      <TranscriptActionDialogs actions={transcriptActions} onDeleted={finishDeletion} />
 
       <LeaveEditorDialog
         phase={leaving.phase}
@@ -582,79 +616,12 @@ export default function EditorScreen({ transcriptId }: { transcriptId: string })
         onCopy={() => { void leaving.copyUnsaved() }}
       />
 
-      <Popover
-        open={!!speakerHook.speakerPopover}
-        onOpenChange={(open) => {
-          if (!open) {
-            const reason = didInteractOutsidePopoverRef.current ? 'outside' : 'dismiss'
-            didInteractOutsidePopoverRef.current = false
-            speakerHook.closeSpeakerPopover(reason)
-          }
-        }}
-      >
-        <PopoverAnchor virtualRef={speakerHook.anchorRef} />
-        <PopoverContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          className="w-[min(20rem,calc(100vw-2rem))] overflow-hidden p-0"
-          aria-label="Speaker assignment"
-          // Prevent Radix auto-focus; SpeakerPopoverContent focuses its
-          // own search input on mount (SpeakerPopoverContent.tsx useEffect)
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          onInteractOutside={(event) => {
-            if (holdSpeakerPopoverOpenRef.current) {
-              event.preventDefault()
-              return
-            }
-            // Radix dismisses after the click, so a press on a speaker name
-            // would close the picker that name's click just opened. The click
-            // decides instead: another name moves the picker, the same one
-            // closes it (handleAvatarClick).
-            if (event.detail.originalEvent.type === 'pointerdown'
-              && event.target instanceof Element && event.target.closest('[data-speaker-trigger]')) {
-              event.preventDefault()
-              return
-            }
-            didInteractOutsidePopoverRef.current = true
-          }}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-
-            const shouldRestoreFocus =
-              speakerHook.closeReasonRef.current !== 'outside' &&
-              speakerHook.closeReasonRef.current !== 'external'
-            const triggerElement = speakerHook.lastTriggerElementRef.current
-
-            if (shouldRestoreFocus && triggerElement?.isConnected) {
-              window.setTimeout(() => triggerElement.focus(), 0)
-            }
-
-            didInteractOutsidePopoverRef.current = false
-            speakerHook.closeReasonRef.current = null
-          }}
-        >
-          <PopoverFrozenWhileClosed open={!!speakerHook.speakerPopover}>
-            <SpeakerPopoverContent
-              key={speakerHook.speakerPopover?.segmentId}
-              transcriptId={transcriptId}
-              presentation={speakerHook.presentation}
-              peopleContext={data.peopleContext}
-              currentSpeaker={speakerHook.currentSpeaker}
-              scopes={speakerHook.scopes}
-              removable={speakerHook.removable}
-              onSelectTarget={speakerHook.selectTarget}
-              onRemove={speakerHook.removeSpeaker}
-              onRenameLocal={speakerHook.renameLocal}
-              onRenamePerson={speakerHook.renameLinkedPerson}
-              labelForSpeaker={speakerHook.labelForSpeaker}
-              displayForSpeaker={speakerHook.displayForSpeaker}
-              onHoldOpenChange={setHoldSpeakerPopoverOpen}
-              onShowInSpeakers={showInSpeakers}
-            />
-          </PopoverFrozenWhileClosed>
-        </PopoverContent>
-      </Popover>
+      <EditorSpeakerPopover
+        transcriptId={transcriptId}
+        peopleContext={data.peopleContext}
+        speakerHook={speakerHook}
+        showInSpeakers={showInSpeakers}
+      />
     </div>
   )
 }

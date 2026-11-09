@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { VirtuosoHandle, ListRange } from 'react-virtuoso'
-import type { Seg } from '../types'
+import type { SegmentLayout } from '../types'
 import {
   DEFAULT_EXPANDED_WAVEFORM_HEIGHT_PX,
   SYNC_OFFSET_MS,
@@ -16,7 +16,7 @@ export function useTranscriptSync({
   editingId,
   speakerPopover,
 }: {
-  segments: Seg[]
+  segments: readonly SegmentLayout[]
   editingId: string | null
   speakerPopover: unknown
 }) {
@@ -34,11 +34,12 @@ export function useTranscriptSync({
   const waveformTransitioningRef = useRef(false)
   const waveformTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const visibleRangeRef = useRef<ListRange>({ startIndex: 0, endIndex: 0 })
+  const rangeUpdatePending = useRef(false)
   const segmentsRef = useRef(segments)
   const prevEditingBlockedRef = useRef<boolean>(false)
   const prevPopoverBlockedRef = useRef<boolean>(false)
 
-  useEffect(() => { segmentsRef.current = segments }, [segments])
+  useLayoutEffect(() => { segmentsRef.current = segments }, [segments])
 
   const scrollContainerRef = useCallback((el: HTMLDivElement | null) => {
     transcriptScrollRef.current = el
@@ -205,23 +206,31 @@ export function useTranscriptSync({
     scrollToSegmentIndexImpl(idx, opts)
   }, [markProgrammaticScroll, scrollToSegmentIndexImpl])
 
+  const updateSyncDirection = useCallback(() => {
+    const range = visibleRangeRef.current
+    const { activeSegId } = machineStateRef.current
+    if (!activeSegId) return
+    const activeIdx = segmentsRef.current.findIndex((segment) => segment.id === activeSegId)
+    if (activeIdx < 0) return
+    if (activeIdx < range.startIndex) setSyncDirection('up')
+    else if (activeIdx > range.endIndex) setSyncDirection('down')
+  }, [machineStateRef])
+
   const handleRangeChanged = useCallback((range: ListRange) => {
     visibleRangeRef.current = range
-    if (!machineState.activeSegId) return
-    const activeIdx = segments.findIndex(s => s.id === machineState.activeSegId)
-    if (activeIdx < 0) return
-    if (activeIdx < range.startIndex) setSyncDirection('up')
-    else if (activeIdx > range.endIndex) setSyncDirection('down')
-  }, [segments, machineState.activeSegId])
+    if (rangeUpdatePending.current) return
+    rangeUpdatePending.current = true
+    // Virtuoso can report from a child layout effect before segmentsRef has
+    // the committed rows. Keep the range immediately but defer the comparison.
+    void Promise.resolve().then(() => {
+      rangeUpdatePending.current = false
+      updateSyncDirection()
+    })
+  }, [updateSyncDirection])
 
   useEffect(() => {
-    if (!machineState.activeSegId) return
-    const activeIdx = segments.findIndex(s => s.id === machineState.activeSegId)
-    if (activeIdx < 0) return
-    const range = visibleRangeRef.current
-    if (activeIdx < range.startIndex) setSyncDirection('up')
-    else if (activeIdx > range.endIndex) setSyncDirection('down')
-  }, [machineState.activeSegId, segments])
+    updateSyncDirection()
+  }, [updateSyncDirection, machineState.activeSegId, segments])
 
   // Collapse waveform once most of the in-flow player has scrolled away.
   useEffect(() => {

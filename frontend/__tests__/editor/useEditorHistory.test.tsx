@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { NOTHING_CHANGED, useEditorHistory, type HistoryStep } from '@/app/(app)/editor/[id]/hooks/useEditorHistory'
+import { NOTHING_CHANGED, useEditorHistory, type HistoryStep, type RepairResult } from '@/app/(app)/editor/[id]/hooks/useEditorHistory'
 import { useEditorWriteQueue } from '@/app/(app)/editor/[id]/hooks/useEditorWriteQueue'
 import { useSegmentHolds } from '@/app/(app)/editor/[id]/hooks/useSegmentHolds'
 import { OutcomeUnknown } from '@/lib/editor/untilAnswered'
@@ -7,14 +7,18 @@ import { OutcomeUnknown } from '@/lib/editor/untilAnswered'
 jest.mock('@/components/ui/toaster', () => ({ toast: jest.fn() }))
 const { toast } = jest.requireMock('@/components/ui/toaster')
 
-function setup({ refresh = async () => true, reconnecting = false }: { refresh?: () => Promise<boolean>; reconnecting?: boolean } = {}) {
+function setup({ refresh = async () => true, reconnecting = false, hasDrafts }: {
+  refresh?: (historyNotice?: string) => Promise<RepairResult>
+  reconnecting?: boolean
+  hasDrafts?: () => boolean
+} = {}) {
   const reveal = jest.fn()
   const refreshMock = jest.fn(refresh)
   const hook = renderHook(({ offline }: { offline: boolean }) => {
     const enqueue = useEditorWriteQueue()
     const holds = useSegmentHolds()
     const history = useEditorHistory({
-      enqueue, holds, reveal, refresh: refreshMock, isReconnecting: () => offline, reconnecting: offline,
+      enqueue, holds, reveal, refresh: refreshMock, hasDrafts, isReconnecting: () => offline, reconnecting: offline,
     })
     return { history, holds, enqueue }
   }, { initialProps: { offline: reconnecting } })
@@ -172,6 +176,18 @@ it('a refused press says so even when the clear has nothing else to remove', asy
   expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Can't undo — this changed elsewhere" }))
   await waitFor(() => expect(result.current.holds.any).toBe(false))
   expect(result.current.history.undoLabel).toBe('title')
+})
+
+it('passes the undo refusal and history clearing to the single draft recovery notice', async () => {
+  const { result, refresh } = setup({ hasDrafts: () => true, refresh: async () => 'recovered' })
+  act(() => {
+    result.current.history.record(step('earlier'))
+    result.current.history.record(step('conflicted', async () => { throw { code: 'SP002' } }))
+    result.current.history.undo()
+  })
+  await waitFor(() => expect(result.current.holds.any).toBe(false))
+  expect(refresh).toHaveBeenCalledWith('Undo couldn’t be applied. Undo history cleared.')
+  expect(toast).not.toHaveBeenCalled()
 })
 
 it('says so when the database refuses the read again', async () => {

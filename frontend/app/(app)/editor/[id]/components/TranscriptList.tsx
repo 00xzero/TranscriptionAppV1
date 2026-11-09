@@ -21,17 +21,17 @@ export type TranscriptListProps = {
   onRangeChanged: (range: ListRange) => void
   /** The current segment: highlighted as a card, and the one whose words follow playback. */
   activeSegId: string | undefined
-  matchesBySeg: Map<string, SegmentMatch[]>
+  matchRangesFor: (id: string) => readonly SegmentMatch[] | undefined
   matchIndex: number
+  currentMatchSegId: string | undefined
   displayForSpeaker: (speakerId: string | null) => SpeakerDisplay
   editingId: string | null
-  editingTexts: Record<string, string>
   saveStatus: SaveStatusBySegment
   onSegmentClick: (segId: string, ms: number) => void
   onWordClick: (segId: string, ms: number) => void
   onSpeakerClick: (e: React.MouseEvent, segmentId: string, speakerId: string | null) => void
   setEditingId: React.Dispatch<React.SetStateAction<string | null>>
-  setEditingTexts: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  getCurrentSegment: (segId: string) => Seg | undefined
   scheduleSave: (segId: string, newText: string) => void
   onSplit: (segId: string, text: string, caret: number) => void
   caretHint: (segId: string) => CaretHint | undefined
@@ -43,7 +43,10 @@ export type TranscriptListProps = {
   onHistory: (dir: 'undo' | 'redo') => void
 }
 
-export default function TranscriptList({
+const NO_MATCHES: readonly SegmentMatch[] = []
+const segmentKey = (_index: number, segment: Seg) => segment.id
+
+function TranscriptList({
   segments,
   wordsBySegment,
   busy,
@@ -53,17 +56,17 @@ export default function TranscriptList({
   virtuosoRef,
   onRangeChanged,
   activeSegId,
-  matchesBySeg,
+  matchRangesFor,
   matchIndex,
+  currentMatchSegId,
   displayForSpeaker,
   editingId,
-  editingTexts,
   saveStatus,
   onSegmentClick,
   onWordClick,
   onSpeakerClick,
   setEditingId,
-  setEditingTexts,
+  getCurrentSegment,
   scheduleSave,
   onSplit,
   caretHint,
@@ -82,7 +85,7 @@ export default function TranscriptList({
         data={segments}
         // Keyed by segment, so a split or undo inserting or removing a row
         // never hands one card's state (its textarea, caret) to another.
-        computeItemKey={(_idx: number, s: Seg) => s.id}
+        computeItemKey={segmentKey}
         overscan={1200}
         rangeChanged={onRangeChanged}
         itemContent={(idx: number, s: Seg) => {
@@ -90,7 +93,8 @@ export default function TranscriptList({
           // A new turn starts when the displayed identity changes (spec §3).
           const needHeader = idx === 0 ||
             speaker.identityKey !== displayForSpeaker(segments[idx - 1]?.speaker_id ?? null).identityKey
-          const matchesForSeg: SegmentMatch[] = matchesBySeg.get(s.id) ?? []
+          const matchesForSeg = matchRangesFor(s.id) ?? NO_MATCHES
+          const isEditing = editingId === s.id
           // Contain the card's top margin so Virtuoso measures the turn spacing
           // when replacing off-screen rows with padding.
           return (
@@ -103,17 +107,19 @@ export default function TranscriptList({
                 isActive={activeSegId === s.id}
                 playbackClock={playbackClock}
                 matchesForSeg={matchesForSeg}
-                matchIndex={matchIndex}
-                speaker={speaker}
+                matchIndex={currentMatchSegId === s.id ? matchIndex : -1}
+                speakerLabel={speaker.label}
+                speakerColor={speaker.color}
+                speakerAvatar={speaker.avatarText}
+                speakerOrganisation={speaker.organisation}
                 needHeader={needHeader}
-                editingId={editingId}
-                editingTexts={editingTexts}
-                saveStatus={saveStatus}
+                isEditing={isEditing}
+                saveStatus={saveStatus[s.id]}
                 onSegmentClick={onSegmentClick}
                 onWordClick={onWordClick}
                 onSpeakerClick={onSpeakerClick}
                 setEditingId={setEditingId}
-                setEditingTexts={setEditingTexts}
+                getCurrentSegment={getCurrentSegment}
                 scheduleSave={scheduleSave}
                 onSplit={onSplit}
                 caretHint={caretHint}
@@ -130,3 +136,5 @@ export default function TranscriptList({
     </div>
   )
 }
+
+export default React.memo(TranscriptList)

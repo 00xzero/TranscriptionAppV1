@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
@@ -34,12 +35,66 @@ export interface FindReplaceModalProps {
   onMatchClick: (matchIdx: number) => void
 }
 
-interface MatchSnippet {
-  before: string
-  highlight: string
-  after: string
-  idx: number
-  isCurrent: boolean
+const MAX_RESULT_HEIGHT = 300
+
+/** Move a snippet edge outward so it never splits a surrogate pair. */
+function snippetEdge(text: string, at: number, direction: -1 | 1) {
+  const high = text.charCodeAt(at - 1)
+  const low = text.charCodeAt(at)
+  const splitsPair = high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff
+  return splitsPair ? at + direction : at
+}
+
+function FindResults({ matches, segments, matchIndex, onMatchClick }: Pick<
+  FindReplaceModalProps, 'matches' | 'segments' | 'matchIndex' | 'onMatchClick'
+>) {
+  const listRef = useRef<VirtuosoHandle>(null)
+  const index = Math.min(matchIndex, matches.length - 1)
+  const previous = useRef({ index, matches })
+  const [height, setHeight] = useState(MAX_RESULT_HEIGHT)
+  const textById = useMemo(() => new Map(segments.map((segment) => [segment.id, segment.text])), [segments])
+
+  useEffect(() => {
+    const changed = previous.current.index !== index || previous.current.matches !== matches
+    previous.current = { index, matches }
+    if (changed && index >= 0) listRef.current?.scrollToIndex({ index, align: 'center' })
+  }, [index, matches])
+
+  return (
+    <Virtuoso
+      ref={listRef}
+      data={matches}
+      initialTopMostItemIndex={index > 0 ? { index, align: 'center' } : undefined}
+      totalListHeightChanged={(total) => { if (total > 0) setHeight(Math.min(MAX_RESULT_HEIGHT, total)) }}
+      style={{ height }}
+      className="scrollbar-thin"
+      itemContent={(i, match) => {
+        const text = textById.get(match.segId) ?? ''
+        const end = match.index + match.length
+        const from = snippetEdge(text, Math.max(0, match.index - 30), -1)
+        const to = snippetEdge(text, Math.min(text.length, end + 30), 1)
+        const current = i === index
+        return (
+          <div className="pb-1">
+            <button
+              type="button"
+              title={current ? 'Current match' : 'Jump to this match'}
+              aria-current={current || undefined}
+              className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-mono leading-relaxed transition-colors ${current
+                ? 'border-trust-blue/30 bg-trust-blue/10 dark:bg-trust-blue/15'
+                : 'border-transparent hover:bg-ink/5 dark:hover:bg-paper/5'
+                }`}
+              onClick={() => onMatchClick(i)}
+            >
+              <span className="text-ink/60 dark:text-paper/50">{from > 0 ? '...' : ''}{text.slice(from, match.index)}</span>
+              <span className="rounded-sm bg-warm-highlight px-0.5 text-ink dark:bg-trust-blue dark:text-solid-foreground">{text.slice(match.index, end)}</span>
+              <span className="text-ink/60 dark:text-paper/50">{text.slice(end, to)}{to < text.length ? '...' : ''}</span>
+            </button>
+          </div>
+        )
+      }}
+    />
+  )
 }
 
 export default function FindReplaceModal({
@@ -71,7 +126,6 @@ export default function FindReplaceModal({
   const { captureFocus, restoreFocus } = useDialogFocusRestore()
   const wasOpenRef = useRef(false)
   const restoreOnExternalCloseRef = useRef(true)
-  const snippetRefs = useRef<Record<number, HTMLButtonElement | null>>({})
   const [flashUp, setFlashUp] = useState(false)
   const [flashDown, setFlashDown] = useState(false)
   const [flashEsc, setFlashEsc] = useState(false)
@@ -84,13 +138,6 @@ export default function FindReplaceModal({
   }, [open, captureFocus])
 
   useEffect(() => {
-    const el = snippetRefs.current[matchIndex]
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-  }, [matchIndex, open])
-
-  useEffect(() => {
     if (!open && wasOpenRef.current && restoreOnExternalCloseRef.current) {
       restoreFocus()
     }
@@ -98,10 +145,10 @@ export default function FindReplaceModal({
     wasOpenRef.current = open
   }, [open, restoreFocus])
 
-  const handleClose = () => {
+  const handleClose = (options?: FocusOptions) => {
     restoreOnExternalCloseRef.current = false
     onClose()
-    restoreFocus()
+    restoreFocus(options)
   }
 
   useEffect(() => {
@@ -126,29 +173,6 @@ export default function FindReplaceModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onPrev, onNext, canNavigate])
 
-  const segmentsById = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const seg of segments) {
-      map.set(seg.id, seg.text || '')
-    }
-    return map
-  }, [segments])
-
-  const snippets = useMemo(() => {
-    return matches.reduce<MatchSnippet[]>((acc, m, i) => {
-      const text = segmentsById.get(m.segId)
-      if (text === undefined) return acc
-
-      const ctxStart = Math.max(0, m.index - 30)
-      const ctxEnd = Math.min(text.length, m.index + m.length + 30)
-      const before = (ctxStart > 0 ? '...' : '') + text.slice(ctxStart, m.index)
-      const highlight = text.slice(m.index, m.index + m.length)
-      const after = text.slice(m.index + m.length, ctxEnd) + (ctxEnd < text.length ? '...' : '')
-
-      acc.push({ before, highlight, after, idx: i, isCurrent: i === matchIndex })
-      return acc
-    }, [])
-  }, [matches, segmentsById, matchIndex])
 
   return (
     <Dialog
@@ -226,7 +250,7 @@ export default function FindReplaceModal({
               size="sm"
               className="rounded-lg disabled:opacity-40"
               onClick={onReplace}
-              disabled={!canNavigate || !canReplace}
+              disabled={!canNavigate || !canReplace || matchIndex < 0}
               title="Replace current match"
             >
               Replace
@@ -247,32 +271,13 @@ export default function FindReplaceModal({
 
         {findTerm && (
           <div className="border-b border-(--border)/60 px-5 py-3">
-            {snippets.length > 0 && canNavigate && (
-              <div className="scrollbar-thin max-h-[300px] space-y-1 overflow-y-auto">
-                {snippets.map((s) => {
-                  return (
-                    <button
-                      key={s.idx}
-                      type="button"
-                      ref={(el) => { snippetRefs.current[s.idx] = el }}
-                      title={s.isCurrent ? 'Current match' : 'Jump to this match'}
-                      className={`w-full rounded-lg border px-3 py-2 text-left text-sm font-mono leading-relaxed transition-colors ${s.isCurrent
-                        ? 'border-trust-blue/30 bg-trust-blue/10 dark:bg-trust-blue/15'
-                        : 'border-transparent hover:bg-ink/5 dark:hover:bg-paper/5'
-                        }`}
-                      onClick={() => {
-                        if (!canNavigate) return
-                        onMatchClick(s.idx)
-                        handleClose()
-                      }}
-                    >
-                      <span className="text-ink/60 dark:text-paper/50">{s.before}</span>
-                      <span className="rounded-sm bg-warm-highlight px-0.5 text-ink dark:bg-trust-blue dark:text-solid-foreground">{s.highlight}</span>
-                      <span className="text-ink/60 dark:text-paper/50">{s.after}</span>
-                    </button>
-                  )
-                })}
-              </div>
+            {open && canNavigate && matches.length > 0 && (
+              <FindResults
+                matches={matches}
+                segments={segments}
+                matchIndex={matchIndex}
+                onMatchClick={(index) => { onMatchClick(index); handleClose({ preventScroll: true }) }}
+              />
             )}
           </div>
         )}
@@ -327,7 +332,7 @@ export default function FindReplaceModal({
             </button>
             <button
               type="button"
-              onClick={handleClose}
+              onClick={() => handleClose()}
               aria-label="Close find/replace (Esc)"
               title="Close (Esc)"
               className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-mono transition-colors ${flashEsc

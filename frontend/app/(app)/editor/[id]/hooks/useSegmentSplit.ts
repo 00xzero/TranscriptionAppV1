@@ -29,7 +29,7 @@ export function useSegmentSplit({ segments, words, history, editing, send, holds
   holds: SegmentHolds
 }) {
   // Only what the steps use: a step lives in the history long after this render.
-  const { editingId, writeDrafts, adopt, setEditingTexts, openEditorAt } = editing
+  const { editingId, writeDrafts, adopt, openEditorAt } = editing
   const { original: recordOriginal } = history
   const { blocked } = holds
   const editingIdRef = useRef(editingId)
@@ -64,7 +64,6 @@ export function useSegmentSplit({ segments, words, history, editing, send, holds
       segments.update((current) => upsertSegments(current, rows))
       words.update((current) => applySplitWords(current, rows, captured, plan.splitWordIndex))
       adopt(rows)
-      setEditingTexts((prev) => ({ ...prev, [segId]: rows[0].text, [newId]: rows[1].text }))
       if (applied) applied()
       // Editing moves to the new half only from the half it was split from:
       // the answer can come late, and by then the user may be typing elsewhere.
@@ -98,15 +97,11 @@ export function useSegmentSplit({ segments, words, history, editing, send, holds
         segments.update((current) => applyRejoinSegments(current, row, newId))
         words.update((current) => applyRejoinWords(current, segId, newId, { first: firstWords, next: nextWords }))
         adopt([row])
-        setEditingTexts((prev) => {
-          const { [newId]: _removed, ...rest } = prev
-          return { ...rest, [segId]: row.text }
-        })
         applied()
       },
     }
     recordOriginal(step, () => forward())
-  }, [blocked, segments, words, writeDrafts, adopt, setEditingTexts, openEditorAt, send, recordOriginal])
+  }, [blocked, segments, words, writeDrafts, adopt, openEditorAt, send, recordOriginal])
 
   return { split }
 }

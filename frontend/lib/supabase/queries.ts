@@ -59,6 +59,7 @@ import {
     TranscriptSummarySchema,
     TagSchema,
     TranscriptTagSchema,
+    WaveformStatusSchema,
     CreateTranscriptTagResultSchema,
     UndoCreatedTagResultSchema,
     MergeTagsResultSchema,
@@ -310,6 +311,16 @@ export async function fetchTranscriptById(id: string): Promise<Transcript | null
     return data
 }
 
+export async function fetchTranscriptWaveformStatus(id: string) {
+    const { data, error } = await createClient()
+        .from('transcripts')
+        .select('waveform_status')
+        .eq('id', id)
+        .single()
+    if (error) throw error
+    return WaveformStatusSchema.parse(data?.waveform_status)
+}
+
 /**
  * Fetch error info for a transcript's latest failed job.
  */
@@ -444,62 +455,35 @@ export async function fetchSegments(transcriptId: string): Promise<Segment[]> {
     return fetchAllRows<Segment>('segments', transcriptId)
 }
 
-/**
- * Fetch each segment's speaker assignment and revision only: the columns a
- * speaker refresh needs, and enough to notice a segment split or rejoined
- * elsewhere, without re-downloading every segment's text.
- */
-export async function fetchSegmentSpeakerAssignments(
-    transcriptId: string
-): Promise<Pick<Segment, 'id' | 'speaker_id' | 'revision'>[]> {
+const EditorSegmentSnapshotSchema = z.array(SegmentSchema).nullable()
+
+export async function fetchEditorSegmentSnapshot(transcriptId: string): Promise<Segment[] | null> {
+    const { data, error } = await createClient().rpc('get_editor_segment_snapshot', { p_transcript_id: transcriptId })
+    if (error) throw error
+    return EditorSegmentSnapshotSchema.parse(data)
+}
+
+const STORED_WORD_COLUMNS = 'id, start_ms, end_ms, text, punctuated_text, order_index'
+const SegmentWordSetsSchema = z.array(z.object({
+    id: z.guid(),
+    revision: z.number().int().nonnegative(),
+    words: z.array(z.unknown()),
+}))
+type SegmentWordSet = z.infer<typeof SegmentWordSetsSchema>[number]
+
+/** Read the embedded words with their parent revision in each page. */
+export async function fetchSegmentWordSets(transcriptId: string) {
     const supabase = createClient()
-    return paginateRows<Pick<Segment, 'id' | 'speaker_id' | 'revision'>>((from, to) =>
+    const rows = await paginateRows<SegmentWordSet>((from, to) =>
         supabase
             .from('segments')
-            .select('id, speaker_id, revision')
+            .select(`id, revision, words(${STORED_WORD_COLUMNS})`)
             .eq('transcript_id', transcriptId)
             .order('start_ms', { ascending: true })
             .order('id', { ascending: true })
-            .range(from, to)
+            .range(from, to) as unknown as PromiseLike<PageResult<SegmentWordSet>>
     )
-}
-
-const STORED_WORD_COLUMNS = 'id, segment_id, start_ms, end_ms, text, punctuated_text, order_index'
-
-/** A segment's stored words, read in the same query as its revision. Word rows are unvalidated; see groupSourceWords. */
-export type SegmentWordSet = { id: string; revision: number; words: unknown[] }
-
-/** Every segment of a transcript, in display order, with its stored words embedded in the same row. */
-function fetchSegmentRowsWithWords<T extends { id: string }>(transcriptId: string, columns: string): Promise<T[]> {
-    const supabase = createClient()
-    return paginateRows<T>((from, to) =>
-        supabase
-            .from('segments')
-            .select(`${columns}, words(${STORED_WORD_COLUMNS})`)
-            .eq('transcript_id', transcriptId)
-            .order('start_ms', { ascending: true })
-            .order('id', { ascending: true }) // tie-breaker for deterministic pagination
-            .range(from, to) as unknown as PromiseLike<PageResult<T>>
-    )
-}
-
-/**
- * Fetch every segment's stored engine words with the segment's revision. A
- * segment's words change only when its revision does (a split or rejoin), and
- * here both come from one query, so the words are exactly that revision's:
- * words read this way can be trusted for a segment shown at the same revision.
- * Words are embedded per segment, so the 1,000-row page cap counts segments.
- */
-export function fetchSegmentWordSets(transcriptId: string): Promise<SegmentWordSet[]> {
-    return fetchSegmentRowsWithWords<SegmentWordSet>(transcriptId, 'id, revision')
-}
-
-/**
- * Fetch every segment with its stored words in the same row, so each
- * segment's words always belong to the revision it is shown at.
- */
-export function fetchSegmentsWithWords(transcriptId: string): Promise<Array<Segment & { words: unknown[] }>> {
-    return fetchSegmentRowsWithWords<Segment & { words: unknown[] }>(transcriptId, '*')
+    return SegmentWordSetsSchema.parse(rows)
 }
 
 /**

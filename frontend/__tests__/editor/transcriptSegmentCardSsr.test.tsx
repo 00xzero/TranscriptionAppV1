@@ -33,16 +33,16 @@ it('server-renders the current segment without a store error and without highlig
         playbackClock={clock}
         matchesForSeg={[]}
         matchIndex={-1}
-        speaker={{ label: 'Speaker 1', identityKey: 'sp1', color: '#4F638C', avatarText: 'S1', organisation: null }}
+        speakerLabel="Speaker 1" speakerColor="#4F638C" speakerAvatar="S1" speakerOrganisation={null}
         needHeader
-        editingId={null}
-        editingTexts={{}}
-        saveStatus={{}}
+        isEditing={false}
+
+        saveStatus={undefined}
         onSegmentClick={() => {}}
         onWordClick={() => {}}
         onSpeakerClick={() => {}}
         setEditingId={() => {}}
-        setEditingTexts={() => {}}
+        getCurrentSegment={() => undefined}
         scheduleSave={() => {}}
         busy={undefined}
         locked={false}

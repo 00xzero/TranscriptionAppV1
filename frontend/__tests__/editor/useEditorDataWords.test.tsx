@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import * as supabaseQueries from '@/lib/supabase/queries'
 import { useEditorData } from '@/app/(app)/editor/[id]/hooks/useEditorData'
+import type { EditorTranscript } from '@/contracts/editor'
 
 const mockToast = jest.fn()
 jest.mock('@/components/ui/toaster', () => ({
@@ -9,6 +10,7 @@ jest.mock('@/components/ui/toaster', () => ({
 
 const fetchSegmentWordSets = supabaseQueries.fetchSegmentWordSets as jest.Mock
 const fetchTranscriptData = supabaseQueries.fetchTranscriptData as jest.Mock
+const fetchTranscriptById = supabaseQueries.fetchTranscriptById as jest.Mock
 
 const SEG = '11111111-1111-4111-8111-111111111111'
 const SEG_B = '22222222-2222-4222-8222-222222222222'
@@ -17,9 +19,8 @@ const segment = (id: string, revision: number) => ({
   is_edited: false, is_filler: false, algo_version: 'test', revision,
   created_at: '2026-10-13T00:00:00Z', updated_at: '2026-10-13T00:00:00Z',
 })
-const word = (order_index: number, text: string, start_ms: number, end_ms: number, segment_id = SEG) => ({
+const word = (order_index: number, text: string, start_ms: number, end_ms: number) => ({
   id: `00000000-0000-4000-8000-${String(order_index + 1).padStart(12, '0')}`,
-  segment_id,
   start_ms,
   end_ms,
   text,
@@ -60,6 +61,75 @@ it('loads the words grouped per segment', async () => {
   expect(reloadContent).not.toHaveBeenCalled()
 })
 
+it('shows a metadata Retry even while initial segments are still loading', async () => {
+  const data = deferred<{ items: unknown[] }>()
+  fetchTranscriptData.mockReturnValue(data.promise)
+  fetchSegmentWordSets.mockResolvedValue([])
+  fetchTranscriptById.mockRejectedValueOnce(new Error('metadata read failed'))
+    .mockResolvedValueOnce({
+      title: 'Retried title', waveform_status: 'skipped', status: 'completed',
+      project_id: null, created_at: '2024-01-01T00:00:00Z', engine: 'deepgram',
+      engine_model: null, duration_seconds: null,
+    })
+  const { result } = render()
+
+  await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({
+    title: "Couldn't load transcript details",
+    action: expect.objectContaining({ label: 'Retry' }),
+  })))
+  expect(result.current.isLoaded()).toBe(false)
+  const failure = mockToast.mock.calls.find(([options]) => options.title === "Couldn't load transcript details")
+  await act(async () => { failure![0].action.onClick() })
+  expect(result.current.transcriptTitle).toBe('Retried title')
+})
+
+const seed: EditorTranscript = {
+  title: 'Cached title', project_id: null, status: 'completed', waveform_status: 'skipped',
+  created_at: '2024-01-01T00:00:00Z', engine: 'deepgram', engine_model: null, duration_seconds: 60,
+}
+
+it('keeps visible seeded details when revalidation fails without offering Retry', async () => {
+  const warning = jest.spyOn(console, 'warn').mockImplementation(() => {})
+  const failure = new Error('metadata read failed')
+  fetchTranscriptById.mockRejectedValueOnce(failure)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  try {
+    const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+    await waitFor(() => expect(warning).toHaveBeenCalledWith(
+      '[useEditorData] failed to refresh transcript metadata', failure,
+    ))
+    expect(result.current.transcriptTitle).toBe('Cached title')
+    expect(mockToast).not.toHaveBeenCalled()
+  } finally {
+    warning.mockRestore()
+  }
+})
+
+it('revalidates seeded details and retains the seed for malformed fields', async () => {
+  const metadata = deferred<unknown>()
+  fetchTranscriptById.mockReturnValueOnce(metadata.promise)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+  expect(result.current.transcriptTitle).toBe('Cached title')
+  await act(async () => metadata.resolve({
+    ...seed, title: 'Current title', project_id: SEG_B, duration_seconds: 'invalid',
+  }))
+  expect(result.current.transcriptTitle).toBe('Current title')
+  expect(result.current.transcriptProjectId).toBe(SEG_B)
+  expect(result.current.transcriptDurationSecs).toBe(60)
+  expect(mockToast).not.toHaveBeenCalled()
+})
+
+it('keeps a local rename completed while seeded details are revalidating', async () => {
+  const metadata = deferred<EditorTranscript>()
+  fetchTranscriptById.mockReturnValueOnce(metadata.promise)
+  fetchSegmentWordSets.mockResolvedValue([{ id: SEG, revision: 0, words: [] }])
+  const { result } = renderHook(() => useEditorData('t1', reloadContent, seed))
+  act(() => result.current.setTranscriptTitle('Just renamed'))
+  await act(async () => metadata.resolve({ ...seed, title: 'Earlier title' }))
+  expect(result.current.transcriptTitle).toBe('Just renamed')
+})
+
 // Codex: a split elsewhere between reading the segments and their words must
 // not pair a segment with words from another revision.
 it('does not use words read at another revision; it reloads segments and words together', async () => {
@@ -67,7 +137,7 @@ it('does not use words read at another revision; it reloads segments and words t
   // another tab had split it (revision 1, a new second half).
   fetchSegmentWordSets.mockResolvedValue([
     { id: SEG, revision: 1, words: [word(0, 'hello', 0, 300)] },
-    { id: SEG_B, revision: 0, words: [word(1, 'world', 300, 600, SEG_B)] },
+    { id: SEG_B, revision: 0, words: [word(1, 'world', 300, 600)] },
   ])
   const { result } = render()
 
