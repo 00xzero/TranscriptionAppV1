@@ -20,25 +20,10 @@ import { runCaptureUpload, type CaptureUploadResult } from '@/lib/capture/upload
 import type { FinalizedRecording } from './sessionTypes'
 import { getPersistence } from './persistence'
 import { cleanUpConfirmedHandoff } from './confirmedHandoff'
+import { isValidRecordingIntent } from './recordingIntent'
 import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
 import { isRecordingAccountCurrent } from './sessionIdentity'
 import { downloadRecording } from './downloadRecording'
-
-// Storage filename for an uploaded recording. Keyed on uploadIntentId so the live
-// finalize path and any later recovery save of the SAME recording produce the
-// identical name: server dedup recomputes the storage path via
-// getMediaPath(userId, transcriptId, filename), so a divergent name would re-upload
-// to a new path on a dedup hit and orphan the originally-uploaded object. The
-// timestamp fallback is only reached when no intent id exists, in which case
-// create never dedups (no cross-path collision is possible).
-export function recordingMediaFilename(
-  uploadIntentId: string | null,
-  codecExtension: string | null
-): string {
-  const ext = codecExtension ?? 'webm'
-  const stable = uploadIntentId ?? `t${Date.now()}`
-  return `recording-${stable}.${ext}`
-}
 
 function markUploadError(message: string): void {
   disposeController(store)
@@ -68,6 +53,9 @@ export async function runRecordingSubmission(
   if (!isRecordingAccountCurrent(userId)) {
     return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
   }
+  if (!isValidRecordingIntent(uploadIntentId)) {
+    return { kind: 'failure', message: 'This recording is available for download only.' }
+  }
   const updateBytes = (sent: number, total: number) => {
     if (store.runtime.uploadAbortController === controller && !controller.signal.aborted) {
       setUploadBytes({ sent, total })
@@ -76,7 +64,7 @@ export async function runRecordingSubmission(
   try {
     return await runCaptureUpload(recording.file, recording.title, recording.keyTerms, {
       userId,
-      uploadIntentId: uploadIntentId ?? undefined,
+      uploadIntentId,
       projectId: recording.projectId,
       transcriptionOptions: recording.transcriptionOptions,
       signal: controller.signal,

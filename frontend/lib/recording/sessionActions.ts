@@ -54,10 +54,8 @@ import {
   releaseOwnerLockQuietly,
   resume as resumeSession,
 } from './sessionCore'
-import {
-  recordingMediaFilename,
-  submitFinalizedRecording,
-} from './sessionUpload'
+import { submitFinalizedRecording } from './sessionUpload'
+import { recordingMediaFilename } from './recordingIntent'
 import {
   markInterrupted,
   runRecoveryProbe,

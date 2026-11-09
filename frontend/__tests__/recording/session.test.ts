@@ -1515,6 +1515,19 @@ describe('recording session durability mirror', () => {
     expect(getSnapshot().state).toBe('idle')
   })
 
+  test.each([null, 'bad/key'])('a recovery with intent %p can be exported and discarded but cannot be saved', async (uploadIntentId) => {
+    await seedRecovery('export-only', { uploadIntentId })
+    await runRecoveryProbe()
+    await expect(saveRecovered('Original', 'export-only')).resolves.toMatchObject({ ok: false })
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+
+    await exportRecovered('export-only')
+    expect(downloadRecording).toHaveBeenCalledWith(expect.objectContaining({ name: 'recording.webm', size: 8192 }))
+    expect(await persistence.listChunkSeqs('export-only')).toEqual([0])
+    await discardRecovered('export-only')
+    expect(await persistence.getSession('export-only')).toBeNull()
+  })
+
   test('persists a confirmed live handoff even when the queue downgraded', async () => {
     installPersistence(new FailingChunkPersistence())
     jest.spyOn(persistence, 'deleteSession').mockRejectedValue(new Error('delete failed'))

@@ -98,6 +98,13 @@ describe('RecoveryModal', () => {
     expect(screen.getByText(/1 of 3/)).toBeInTheDocument()
   })
 
+  test('shows download and discard when the saved intent is unavailable', () => {
+    render(<RecoveryModal info={makeInfo({ uploadIntentId: null })} />)
+    expect(screen.queryByRole('button', { name: /save & transcribe/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Download recording' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled()
+  })
+
   test.each([
     ['saved_needs_retry', /Click Transcribe to retry/],
     ['saved_status_unknown', /Check the transcript status before retrying/],

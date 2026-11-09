@@ -9,6 +9,7 @@ import { TEXT_LIMITS } from '@/contracts/limits'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
 import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/capture/warnings'
 import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
+import { isValidRecordingIntent } from '@/lib/recording/recordingIntent'
 import {
   discardRecovered,
   exportRecovered,
@@ -69,6 +70,7 @@ export default function RecoveryModal({
   const total = info.remainingCount + 1
 
   const titleTooLong = transcriptTitleTooLong(title)
+  const exportOnly = !isValidRecordingIntent(info.uploadIntentId)
 
   const handleSave = async () => {
     if (titleTooLong) {
@@ -180,6 +182,12 @@ export default function RecoveryModal({
             </div>
           )}
 
+          {exportOnly && (
+            <p role="status" className="text-xs text-muted">
+              This recording is available for download only. You can also discard the local copy.
+            </p>
+          )}
+
           {!online && (
             <div
               role="status"
@@ -212,7 +220,7 @@ export default function RecoveryModal({
           <Button type="button" variant="ghost" onClick={handleDownload} disabled={saving}>
             Download recording
           </Button>
-          <Button
+          {!exportOnly && <Button
             type="button"
             variant="destructive"
             onClick={handleSave}
@@ -221,7 +229,7 @@ export default function RecoveryModal({
             className="rounded-lg px-5 focus-visible:ring-destructive/40 disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save & transcribe'}
-          </Button>
+          </Button>}
         </div>
       </DialogContent>
     </Dialog>

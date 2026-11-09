@@ -15,7 +15,8 @@ export const PersistedSessionSchema = z.object({
   sessionId: z.string(),
   // Reserved for Phase 2 (recovery scoping + upload idempotency). Null in Phase 1.
   userId: z.string().nullable(),
-  uploadIntentId: z.string().nullable(),
+  // A missing or corrupt key still leaves audio available for local export.
+  uploadIntentId: z.unknown().optional().transform((value) => typeof value === 'string' ? value : null),
   projectId: z.string().nullable().default(null),
   title: z.string().nullable(),
   generatedTitle: z.string().nullable(),

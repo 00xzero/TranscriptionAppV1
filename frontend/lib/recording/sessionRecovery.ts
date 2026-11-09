@@ -21,10 +21,10 @@ import { downloadRecording } from './downloadRecording'
 import {
   beginRecordingSubmission,
   endRecordingSubmission,
-  recordingMediaFilename,
   runRecordingSubmission,
 } from './sessionUpload'
 import { cleanUpConfirmedHandoff } from './confirmedHandoff'
+import { isValidRecordingIntent, recordingMediaFilename } from './recordingIntent'
 
 export function markInterrupted(message?: string): void {
   // Capture the queue before dispatch detaches it from runtime, so its pending
@@ -221,6 +221,9 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
   try {
     action = beginRecoveryAction(expectedSessionId)
     const { info, userId } = action
+    if (!isValidRecordingIntent(info.uploadIntentId)) {
+      throw new Error('This recovered recording is available for download only.')
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       throw new Error("You're offline. Reconnect to save this recording.")
     }
