@@ -100,6 +100,12 @@ export class SessionWriteQueue {
     await this.whenSettled()
   }
 
+  /** Stop accepting writes and drain without deleting the recovery copy. */
+  async seal(): Promise<void> {
+    this.accepting = false
+    await this.whenSettled()
+  }
+
   /** Resolves when the queue has fully drained (no pending or in-flight ops). */
   whenSettled(): Promise<void> {
     if (!this.draining && this.ops.length === 0) return Promise.resolve()
@@ -125,7 +131,7 @@ export class SessionWriteQueue {
         try {
           await this.run(op)
         } catch (err) {
-          this.handleFailure(op, err)
+          await this.handleFailure(op, err)
         }
       }
     } finally {
@@ -152,7 +158,7 @@ export class SessionWriteQueue {
     }
   }
 
-  private handleFailure(op: QueueOp, err: unknown): void {
+  private async handleFailure(op: QueueOp, err: unknown): Promise<void> {
     if (op.kind === 'delete') {
       // Terminal delete failed; leave residue for GC. Never recurse.
       return
@@ -171,7 +177,7 @@ export class SessionWriteQueue {
     // Sticky downgrade: drop pending work, but keep a queued terminal delete.
     this.ops = this.ops.filter((pending) => pending.kind === 'delete')
     // Single best-effort downgrade marker; swallow its own failure, no recursion.
-    void this.persistence
+    await this.persistence
       .patchSession(this.sessionId, {
         armed: false,
         failureReason: this.failureReason,

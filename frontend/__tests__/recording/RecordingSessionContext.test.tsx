@@ -144,4 +144,22 @@ describe('RecordingSessionContext', () => {
     })
     expect(toastMock).not.toHaveBeenCalled()
   })
+
+  test.each([
+    ['saved_needs_retry', 'Click Transcribe to retry'],
+    ['saved_status_unknown', 'Check the transcript status before retrying'],
+  ] as const)('shows the recovered %s notice outside the recording page', (outcome, message) => {
+    mockPathname = '/projects'
+    render(<RecordingSessionProvider><div>Child</div></RecordingSessionProvider>)
+    act(() => {
+      __setSnapshotForTesting({
+        state: 'submitted',
+        submissionResult: { transcriptId: 't1', outcome, recovered: true },
+      })
+    })
+    expect(toastMock).toHaveBeenCalledWith({
+      title: 'Recording saved',
+      description: expect.stringContaining(message),
+    })
+  })
 })

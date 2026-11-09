@@ -1,13 +1,16 @@
 jest.mock('@/lib/capture/upload', () => ({ runCaptureUpload: jest.fn() }))
+jest.mock('@/lib/recording/downloadRecording', () => ({ downloadRecording: jest.fn() }))
 
-import { runCaptureUpload } from '@/lib/capture/upload'
+import { runCaptureUpload, type CaptureUploadResult } from '@/lib/capture/upload'
 import {
   __resetForTesting,
   __setSnapshotForTesting,
   attachAndStart,
+  closeRecoveryForAccountChange,
   discard,
   discardRecovered,
   finalize,
+  exportRecovered,
   forceState,
   getElapsedActiveMs,
   getLiveRecorder,
@@ -53,6 +56,7 @@ import {
   __setPresenceForTesting,
 } from '@/lib/recording/presence'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
+import { downloadRecording } from '@/lib/recording/downloadRecording'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
@@ -1144,9 +1148,25 @@ describe('recording session durability mirror', () => {
     __setPersistenceForTesting(adapter)
   }
 
+  async function seedRecovery(sessionId: string, overrides: Partial<PersistedSession> = {}) {
+    const then = Date.now() - 60_000
+    await persistence.putSession({
+      sessionId, userId: 'user-123', uploadIntentId: `intent-${sessionId}`,
+      projectId: null, title: 'Recovered title', generatedTitle: null, keyTerms: [],
+      transcriptionOptions: DEFAULT_TRANSCRIPTION_OPTIONS,
+      codecMime: 'audio/webm', codecExtension: 'webm', deviceId: null,
+      createdAt: then, startedAt: then, lastResumeAt: null,
+      pausedAccumulatedMs: 3000, bytesSoFar: 8192, lastChunkSeq: 0,
+      lastChunkReceivedAt: then, phase: 'capturing', armed: true, failureReason: null,
+      ...overrides,
+    })
+    await persistence.putChunk(sessionId, 0, new Blob([new Uint8Array(8192)]))
+  }
+
   beforeEach(() => {
     __resetForTesting()
     mockRunCaptureUpload.mockReset()
+    jest.mocked(downloadRecording).mockReset()
     installMediaRecorderMock()
     FakeMediaRecorder.autoDispatchStop = true
     setIdentity({ userId: 'user-123', ready: true })
@@ -1434,11 +1454,7 @@ describe('recording session durability mirror', () => {
     })
     expect(await runRecoveryProbe()).toBe(true)
 
-    await expect(saveRecovered('Recovered title')).resolves.toEqual({
-      ok: true,
-      chainedToNext: false,
-      warning: 'project_missing',
-    })
+    await expect(saveRecovered('Recovered title')).resolves.toEqual({ ok: true })
 
     expect(getSnapshot()).toMatchObject({
       state: 'submitted',
@@ -1454,6 +1470,66 @@ describe('recording session durability mirror', () => {
       uploadIntentId: 'intent-1',
       transcriptionOptions: RECOVERED_OPTIONS,
     })
+  })
+
+  test.each([
+    { kind: 'failure', message: 'Link unconfirmed' },
+    { kind: 'success', transcriptId: 't1', outcome: 'saved_status_unknown' },
+  ] satisfies CaptureUploadResult[])('settles the original claim after an account switch ($kind)', async (result) => {
+    installPersistence(new FailingDeletePersistence())
+    const lock = new CountingSessionLock()
+    __setSessionLockForTesting(lock)
+    await seedRecovery('interrupted-save')
+    await runRecoveryProbe()
+
+    let resolveUpload!: (result: CaptureUploadResult) => void
+    mockRunCaptureUpload.mockReturnValueOnce(new Promise((resolve) => { resolveUpload = resolve }))
+    const save = saveRecovered('Original', 'interrupted-save')
+    await flushAsync()
+    expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+
+    setIdentity({ userId: 'user-123', ready: true, accountChanged: true })
+    closeRecoveryForAccountChange()
+    expect(await lock.isHeld('interrupted-save')).toBe(true)
+    resolveUpload(result)
+    await save
+
+    expect(await lock.isHeld('interrupted-save')).toBe(false)
+    expect(getSnapshot().submissionResult).toBeNull()
+    const persisted = await persistence.getSession('interrupted-save')
+    expect(persisted?.cleanupOnly).toBe(result.kind === 'success' ? result.outcome : undefined)
+    expect(await persistence.listChunkSeqs('interrupted-save')).toEqual([0])
+  })
+
+  test('an account switch during export suppresses the download and retains the audio', async () => {
+    await seedRecovery('interrupted-export')
+    await runRecoveryProbe()
+    let finishRead!: (chunks: Blob[]) => void
+    jest.spyOn(persistence, 'readChunks').mockReturnValueOnce(new Promise((resolve) => { finishRead = resolve }))
+    const exporting = exportRecovered('interrupted-export')
+    setIdentity({ userId: 'user-123', ready: true, hasStopped: () => true })
+    finishRead([new Blob([new Uint8Array(8192)])])
+    await exporting
+    expect(downloadRecording).not.toHaveBeenCalled()
+    expect(await persistence.listChunkSeqs('interrupted-export')).toEqual([0])
+    expect(getSnapshot().state).toBe('idle')
+  })
+
+  test('persists a confirmed live handoff even when the queue downgraded', async () => {
+    installPersistence(new FailingChunkPersistence())
+    jest.spyOn(persistence, 'deleteSession').mockRejectedValue(new Error('delete failed'))
+    mockRunCaptureUpload.mockResolvedValueOnce({
+      kind: 'success', transcriptId: 't1', outcome: 'saved_needs_retry',
+    })
+    await attachRecording({ maxBytes: 1024 * 1024 })
+    dispatchChunk(lastRecorder(), 8192)
+    await flushAsync()
+    expect(getSnapshot().durable).toBe(false)
+    advanceClockPastEmptyFloor()
+    const stopped = stopAndFinalize()
+    dispatchStopDrain(lastRecorder(), 512)
+    await stopped
+    expect((await persistence.listSessions())[0]).toMatchObject({ cleanupOnly: 'saved_needs_retry' })
   })
 
   test('discardRecovered surfaces local delete failure and keeps recovery open', async () => {

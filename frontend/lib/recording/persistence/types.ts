@@ -35,6 +35,7 @@ export const PersistedSessionSchema = z.object({
   lastChunkSeq: z.number().nullable(),
   lastChunkReceivedAt: z.number().nullable(),
   phase: PersistedSessionPhaseSchema,
+  cleanupOnly: z.enum(['started', 'saved_needs_retry', 'saved_status_unknown']).optional(),
   // Live/UI signal only; recovery validity is decided structurally, not from this.
   armed: z.boolean(),
   failureReason: z.string().nullable(),

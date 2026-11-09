@@ -1,4 +1,5 @@
 "use client"
+import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
 import { GuardedLink as Link } from '@/lib/recording/guardedNavigation'
 import { Suspense, useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -75,13 +76,10 @@ function TranscriptsPageContent() {
     router.replace(nextQuery ? `/transcripts?${nextQuery}` : '/transcripts')
   }, [openCaptureModal, router, searchParams])
 
-  const captureMessage = captureOutcome === 'saved_needs_retry'
-    ? searchParams.get('captureMessage') ??
-      'Upload completed and transcript was saved, but transcription did not start automatically. Click Transcribe to retry.'
-    : captureOutcome === 'saved_status_unknown'
-      ? searchParams.get('captureMessage') ??
-        'Upload completed and transcript was saved, but transcription status is unknown due to a network interruption. Check the transcript status before retrying.'
-      : null
+  const defaultCaptureMessage = savedCaptureMessage(captureOutcome)
+  const captureMessage = defaultCaptureMessage
+    ? searchParams.get('captureMessage') ?? defaultCaptureMessage
+    : null
 
   const dismissCaptureMessage = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())

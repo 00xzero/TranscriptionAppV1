@@ -34,7 +34,8 @@ import { clearPresenceForSession } from './presence'
 import { useAuth } from '@/lib/auth/AuthProvider'
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
 import { toast } from '@/components/ui/toaster'
-import { showCaptureWarning } from '@/lib/capture/warnings'
+import { PROJECT_MISSING_WARNING_MESSAGE, showCaptureWarning } from '@/lib/capture/warnings'
+import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
 import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from './durationBudget'
 export { RecordingAlreadyActiveError } from './session'
 
@@ -106,15 +107,24 @@ export function RecordingSessionProvider({
     const result = snapshot.submissionResult
     if (
       snapshot.state !== 'submitted' ||
-      result?.warning !== 'project_missing' ||
+      !result ||
+      identity.accountChange ||
+      identity.hasStopped?.() ||
       warnedTranscriptIdRef.current === result.transcriptId
     ) {
       return
     }
 
     warnedTranscriptIdRef.current = result.transcriptId
-    showCaptureWarning(result.warning)
-  }, [snapshot.state, snapshot.submissionResult])
+    if (result.recovered && pathname !== '/recording/new') {
+      toast({
+        title: result.warning === 'project_missing' ? PROJECT_MISSING_WARNING_MESSAGE : 'Recording saved',
+        description: savedCaptureMessage(result.outcome) ?? undefined,
+      })
+    } else {
+      showCaptureWarning(result.warning)
+    }
+  }, [identity.accountChange, identity.hasStopped, pathname, snapshot.state, snapshot.submissionResult])
 
   // Phase 4: derive same-browser remote-presence status once, here, and share it
   // via context. `localActive` suppresses remote state when this tab is itself the
@@ -225,7 +235,13 @@ export function RecordingSessionProvider({
   return (
     <RemotePresenceProvider value={remoteStatus}>
       {children}
-      {recoverable && <RecoveryModal key={recoverable.sessionId} info={recoverable} />}
+      {recoverable && (
+        <RecoveryModal
+          key={recoverable.sessionId}
+          info={recoverable}
+          previousSave={snapshot.submissionResult}
+        />
+      )}
     </RemotePresenceProvider>
   )
 }

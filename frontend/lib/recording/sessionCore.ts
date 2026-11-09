@@ -111,12 +111,20 @@ export async function releaseOwnerLockQuietly(): Promise<void> {
 // then clear presence, then release ownership — so another tab never sees "no
 // owner" while chunks still exist, and cannot briefly claim chunks this tab is
 // deleting (especially important for discard).
-export async function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> {
-  if (!claim || store.runtime.sessionClaim !== claim) return
-  clearPresenceForSession(claim.sessionId)
-  await releaseSessionLockQuietly(claim)
-  await releaseOwnerLockQuietly()
-  if (store.runtime.sessionClaim === claim) store.runtime.sessionClaim = null
+const liveReleases = new WeakMap<SessionClaim, Promise<void>>()
+
+export function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> {
+  if (!claim || store.runtime.sessionClaim !== claim) return Promise.resolve()
+  const pending = liveReleases.get(claim)
+  if (pending) return pending
+  const release = (async () => {
+    clearPresenceForSession(claim.sessionId)
+    await releaseSessionLockQuietly(claim)
+    await releaseOwnerLockQuietly()
+    if (store.runtime.sessionClaim === claim) store.runtime.sessionClaim = null
+  })()
+  liveReleases.set(claim, release)
+  return release
 }
 
 let terminalCleanup: Promise<void> | null = null
@@ -289,7 +297,7 @@ export function markUploading(): void {
 }
 
 export function setUploadBytes(uploadBytes: SessionSnapshot['uploadBytes']): void {
-  if (store.snapshot.state !== 'uploading') return
+  if (store.snapshot.state !== 'uploading' && store.snapshot.state !== 'recoverable') return
   setSnapshot({ ...store.snapshot, uploadBytes })
 }
 

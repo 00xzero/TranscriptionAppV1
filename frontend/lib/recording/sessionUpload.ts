@@ -16,7 +16,10 @@ import {
 } from './sessionCore'
 import { disposeController } from './sessionRuntime'
 import { store } from './sessionStore'
-import { runCaptureUpload } from '@/lib/capture/upload'
+import { runCaptureUpload, type CaptureUploadResult } from '@/lib/capture/upload'
+import type { FinalizedRecording } from './sessionTypes'
+import { getPersistence } from './persistence'
+import { cleanUpConfirmedHandoff } from './confirmedHandoff'
 import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
 import { isRecordingAccountCurrent } from './sessionIdentity'
 import { downloadRecording } from './downloadRecording'
@@ -42,75 +45,91 @@ function markUploadError(message: string): void {
   markError(message)
 }
 
+export function beginRecordingSubmission(): AbortController | null {
+  if (store.runtime.uploadAbortController) return null
+  const controller = new AbortController()
+  store.runtime.uploadAbortController = controller
+  return controller
+}
+
+export function endRecordingSubmission(controller: AbortController): void {
+  if (store.runtime.uploadAbortController === controller) {
+    store.runtime.uploadAbortController = null
+    setUploadBytes(null)
+  }
+}
+
+export async function runRecordingSubmission(
+  recording: FinalizedRecording,
+  userId: string,
+  uploadIntentId: string | null,
+  controller: AbortController
+): Promise<CaptureUploadResult> {
+  if (!isRecordingAccountCurrent(userId)) {
+    return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
+  }
+  const updateBytes = (sent: number, total: number) => {
+    if (store.runtime.uploadAbortController === controller && !controller.signal.aborted) {
+      setUploadBytes({ sent, total })
+    }
+  }
+  try {
+    return await runCaptureUpload(recording.file, recording.title, recording.keyTerms, {
+      userId,
+      uploadIntentId: uploadIntentId ?? undefined,
+      projectId: recording.projectId,
+      transcriptionOptions: recording.transcriptionOptions,
+      signal: controller.signal,
+      onProgress: (stage) => {
+        if (stage === 'uploading') updateBytes(0, recording.file.size)
+      },
+      onUploadBytes: updateBytes,
+    })
+  } catch (err) {
+    return { kind: 'failure', message: (err as Error)?.message ?? 'Could not upload the recording.' }
+  }
+}
+
 export async function submitFinalizedRecording(): Promise<void> {
-  const finalized = store.runtime.finalizedRecording
-  if (!finalized) {
+  const { finalizedRecording, userId, uploadIntentId, sessionClaim, writeQueue } = store.runtime
+  if (!finalizedRecording) {
     markError('No finalized recording is available to upload.')
     return
   }
-  const userId = store.runtime.userId
-  if (!userId) {
-    markError('Sign in to the original account before uploading this recording.')
-    return
-  }
-  if (!isRecordingAccountCurrent(userId)) {
+  if (!userId || !isRecordingAccountCurrent(userId)) {
     markUploadError(ACCOUNT_CHANGED_MESSAGE)
     releaseFrozenLiveRecording()
     return
   }
 
-  if (!dispatch('markUploading')) return
-  if (store.snapshot.state !== 'uploading') return
-
-  // Persist the phase transition (advisory) after it has applied.
-  store.runtime.writeQueue?.enqueueMetadata({ phase: 'uploading' })
-
-  const abortController = new AbortController()
-  store.runtime.uploadAbortController = abortController
-
-  let result: Awaited<ReturnType<typeof runCaptureUpload>>
+  const controller = beginRecordingSubmission()
+  if (!controller) return
   try {
-    result = await runCaptureUpload(
-      finalized.file,
-      finalized.title,
-      finalized.keyTerms,
-      {
-        userId,
-        signal: abortController.signal,
-        onProgress: (stage) => {
-          if (stage === 'uploading') setUploadBytes({ sent: 0, total: finalized.file.size })
-        },
-        onUploadBytes: (sent, total) => setUploadBytes({ sent, total }),
-        uploadIntentId: store.runtime.uploadIntentId ?? undefined,
-        projectId: finalized.projectId,
-        transcriptionOptions: finalized.transcriptionOptions,
-      }
-    )
-  } catch (err) {
-    if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
-      return
-    }
-    markUploadError((err as Error)?.message ?? 'Could not upload the recording.')
-    return
-  } finally {
-    if (store.runtime.uploadAbortController === abortController) {
-      store.runtime.uploadAbortController = null
-    }
-  }
-  if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
-    return
-  }
+    if (!dispatch('markUploading')) return
+    writeQueue?.enqueueMetadata({ phase: 'uploading' })
+    const result = await runRecordingSubmission(finalizedRecording, userId, uploadIntentId, controller)
+    if (store.runtime.uploadAbortController !== controller) return
 
-  if (result.kind === 'success') {
-    setSubmissionResult({
-      transcriptId: result.transcriptId,
-      outcome: result.outcome,
-      warning: result.warning,
-    })
-    markSubmitted()
-  } else {
-    markUploadError(result.message)
-    if (!isRecordingAccountCurrent(userId)) releaseFrozenLiveRecording()
+    if (result.kind === 'success') {
+      if (sessionClaim) {
+        const persistence = getPersistence()
+        await writeQueue?.seal()
+        await cleanUpConfirmedHandoff(persistence, sessionClaim.sessionId, userId, result.outcome)
+        if (store.runtime.writeQueue === writeQueue) store.runtime.writeQueue = null
+      }
+      setSubmissionResult({
+        transcriptId: result.transcriptId,
+        outcome: result.outcome,
+        warning: result.warning,
+      })
+      endRecordingSubmission(controller)
+      markSubmitted()
+    } else {
+      markUploadError(result.message)
+      if (!isRecordingAccountCurrent(userId)) releaseFrozenLiveRecording()
+    }
+  } finally {
+    endRecordingSubmission(controller)
   }
 }
 

@@ -77,7 +77,9 @@ export interface SessionSnapshot {
   captureHealthWarning: string | null
   // Populated only in the `recoverable` state; null otherwise.
   recoverable: RecoverableInfo | null
-  submissionResult: Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> | null
+  submissionResult: (Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> & {
+    recovered?: true
+  }) | null
   /**
    * How much of the recording is in storage. Set from the moment its bytes
    * start going up and cleared on leaving `uploading`; null while there is

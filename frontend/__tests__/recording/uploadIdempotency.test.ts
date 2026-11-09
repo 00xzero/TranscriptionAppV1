@@ -52,7 +52,7 @@ jest.mock('@/infra/workos/access-token', () => ({
 
 import { runCaptureUpload } from '@/lib/capture/upload'
 import { getAccessToken } from '@/infra/workos/access-token'
-import { ACCOUNT_CHANGED_CODE, ACCOUNT_CHANGED_MESSAGE, AccountChangedError } from '@/lib/auth/account-boundary'
+import { ACCOUNT_CHANGED_CODE, AccountChangedError } from '@/lib/auth/account-boundary'
 
 interface FakeResponse {
   ok: boolean
@@ -122,7 +122,7 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(startCallHeaders(1)['x-idempotency-key']).toBe('start:intent-1')
   })
 
-  test('an errored prior start (409 status:error) retries once with a fresh key', async () => {
+  test('an errored prior start leaves linked media for an explicit Transcribe action', async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonResponse(200, {
@@ -134,18 +134,16 @@ describe('runCaptureUpload upload idempotency', () => {
         })
       )
       .mockResolvedValueOnce(jsonResponse(409, { error: 'failed', status: 'error', jobId: 'j0' }))
-      .mockResolvedValueOnce(jsonResponse(200, { message: 'ok', jobId: 'j2' }))
 
     const result = await runCaptureUpload(makeFile(), 'Title', [], {
       userId: 'u',
       uploadIntentId: 'intent-1',
     })
 
-    expect(result.kind).toBe('success')
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result).toMatchObject({ kind: 'success', outcome: 'saved_needs_retry' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(startCallHeaders(1)['x-idempotency-key']).toBe('start:intent-1')
-    // Retry uses a distinct fresh key (one-active-per-transcript guards duplicates).
-    expect(startCallHeaders(2)['x-idempotency-key']).toMatch(/^start-retry:/)
+    expect(deleteRequestMock).not.toHaveBeenCalled()
   })
 
   test('plain conflict 409 (no status) is not retried', async () => {
@@ -284,24 +282,24 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(deleteRequestMock).not.toHaveBeenCalled()
   })
 
-  test('an account change during retry preflight prevents a second start and cleanup', async () => {
+  test('an account switch before start preserves an already-confirmed link', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, {
       transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: true, sourceObjectKey: 'u/p1/rec.webm',
-    })).mockResolvedValueOnce(jsonResponse(409, { status: 'error' }))
-    jest.mocked(getAccessToken).mockResolvedValueOnce('token-for-u').mockResolvedValueOnce('token-for-u')
+    }))
+    jest.mocked(getAccessToken).mockResolvedValueOnce('token-for-u')
       .mockRejectedValueOnce(new AccountChangedError())
     const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', uploadIntentId: 'intent-1' })
-    expect(result).toMatchObject({ kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result).toMatchObject({ kind: 'success', outcome: 'saved_needs_retry', transcriptId: 'p1' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(deleteRequestMock).not.toHaveBeenCalled()
   })
 
-  test('an account-change code takes precedence over an errored-job retry body', async () => {
+  test('an explicit account-change rejection still preserves the known link', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, {
       transcript: { id: 'p1' }, storagePath: 'u/p1/rec.webm', deduped: true, sourceObjectKey: 'u/p1/rec.webm',
     })).mockResolvedValueOnce(jsonResponse(409, { status: 'error', code: ACCOUNT_CHANGED_CODE }))
     const result = await runCaptureUpload(makeFile(), 'Title', [], { userId: 'u', uploadIntentId: 'intent-1' })
-    expect(result).toMatchObject({ kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE })
+    expect(result).toMatchObject({ kind: 'success', outcome: 'saved_needs_retry', transcriptId: 'p1' })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(deleteRequestMock).not.toHaveBeenCalled()
   })

@@ -212,6 +212,23 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     expect(result?.info.remainingCount).toBe(1)
   })
 
+  test('skips a marked row whose deletion failed and claims the next recording', async () => {
+    await seed(persistence, baseSession({ sessionId: 'pending', createdAt: 1000 }), [0, 1])
+    await seed(persistence, baseSession({
+      sessionId: 'saved', createdAt: 2000, cleanupOnly: 'saved_status_unknown',
+    }), [0, 1])
+    jest.spyOn(persistence, 'deleteSession').mockRejectedValueOnce(new Error('delete failed'))
+
+    const result = await probeRecoverableSessions(persistence, lock, USER, NOW)
+    expect(result?.info).toMatchObject({ sessionId: 'pending', remainingCount: 0 })
+    expect(await persistence.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+    await result?.claim.release()
+
+    const next = await probeRecoverableSessions(persistence, lock, USER, NOW, 'pending')
+    expect(next).toBeNull()
+    expect(await persistence.getSession('saved')).toBeNull()
+  })
+
   test('excludes the live in-tab session id', async () => {
     await seed(persistence, baseSession({ sessionId: 'live' }), [0, 1])
 

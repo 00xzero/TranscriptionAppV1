@@ -10,7 +10,6 @@ import {
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
-import { randomId } from '@/lib/ids'
 import {
     CreateTranscriptWarningSchema,
     type CreateTranscriptWarning,
@@ -244,12 +243,8 @@ function validateFile(file: File): string | null {
 }
 
 /**
- * POST /start with optional idempotency. When an uploadIntentId is provided the
- * start is keyed `start:<uploadIntentId>` so a recovery retry returns the cached
- * job rather than creating a second one. If a prior errored job maps to that key,
- * `/start` returns 409 `{ status: 'error' }`; we retry once with a fresh random
- * key (the one-active-per-transcript unique index still prevents a duplicate active
- * job). A plain conflict 409 (no `status`) is returned as-is.
+ * A capture intent always replays the same start key. An errored job needs
+ * a new, explicit Transcribe action in the library.
  */
 async function dispatchStart(
     transcriptId: string,
@@ -265,31 +260,9 @@ async function dispatchStart(
         headers['x-idempotency-key'] = `start:${uploadIntentId}`
     }
 
-    const res = await accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
-        method: 'POST',
-        headers,
-        signal,
-    }, userId, onDispatch)
-
-    if (res.ok || res.status !== 409 || !uploadIntentId) {
-        return res
-    }
-
-    const body = await res
-        .clone()
-        .json()
-        .catch(() => ({} as { status?: string }))
-    if (body?.status !== 'error') {
-        return res
-    }
-
-    console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
     return accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-idempotency-key': `start-retry:${randomId()}`,
-        },
+        headers,
         signal,
     }, userId, onDispatch)
 }
@@ -493,9 +466,16 @@ export async function runCaptureUpload(
         }
     } catch (err) {
         if (isAccountChangedError(err)) {
-            // Do not issue cleanup under the replacement cookie account. Any
-            // committed data stays with its original owner; local audio stays
-            // available for retry after signing back into that account.
+            // Any committed write stays with its original owner. A definite
+            // account refusal before start does not invalidate a known link.
+            if (options.uploadIntentId && transcriptId && didLinkMediaToTranscript) {
+                return {
+                    kind: 'success',
+                    transcriptId,
+                    outcome: 'saved_needs_retry',
+                    warning: creationWarning,
+                }
+            }
             return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
         }
         const wasCanceled =
@@ -506,6 +486,7 @@ export async function runCaptureUpload(
 
         if (
             wasCanceled &&
+            !options.uploadIntentId &&
             transcriptId &&
             didLinkMediaToTranscript &&
             !didDispatchStartRequest &&

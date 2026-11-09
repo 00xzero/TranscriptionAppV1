@@ -21,6 +21,7 @@ import {
 import type { SessionClaim, SessionLock } from './lock'
 import { getPresence, type RecordingPresence } from './presence'
 import type { RecoverableInfo } from './sessionTypes'
+import { hasConfirmedHandoffInPage } from './confirmedHandoff'
 
 export interface RecoveryProbeResult {
   info: RecoverableInfo
@@ -112,6 +113,8 @@ export async function probeRecoverableSessions(
   const valid: string[] = []
   const isEligible = (row: PersistedSession | null): row is PersistedSession =>
     row !== null && row.userId === userId && now - row.createdAt < SESSION_MAX_AGE_MS
+  const cleanupOnly = (row: PersistedSession) =>
+    Boolean(row.cleanupOnly) || hasConfirmedHandoffInPage(row.sessionId, userId)
 
   // Finish destructive cleanup before taking the modal claim. The adapter can
   // hold only one claim, and an unavailable claim leaves the row for later.
@@ -119,7 +122,7 @@ export async function probeRecoverableSessions(
     if (!canProceed()) return null
     try {
       if (await lock.isHeld(row.sessionId) || !canProceed()) continue
-      if (await inspectAudio(persistence, row)) {
+      if (!cleanupOnly(row) && await inspectAudio(persistence, row)) {
         valid.push(row.sessionId)
         continue
       }
@@ -128,7 +131,8 @@ export async function probeRecoverableSessions(
       if (!claim) continue
       try {
         const current = await persistence.getSession(row.sessionId)
-        if (canProceed() && isEligible(current) && !(await inspectAudio(persistence, current)) && canProceed()) {
+        if (canProceed() && isEligible(current) &&
+          (cleanupOnly(current) || !(await inspectAudio(persistence, current))) && canProceed()) {
           await persistence.deleteSession(row.sessionId)
         }
       } finally {
@@ -154,7 +158,7 @@ export async function probeRecoverableSessions(
       claim = await lock.acquire(sessionId)
       if (!claim || !canProceed()) continue
       const row = await persistence.getSession(sessionId)
-      if (!isEligible(row) || !canProceed()) continue
+      if (!isEligible(row) || cleanupOnly(row) || !canProceed()) continue
       const audio = await inspectAudio(persistence, row)
       if (!audio || !canProceed()) continue
       keepClaim = true

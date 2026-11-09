@@ -17,10 +17,14 @@ import {
 import { getIdentity, isRecordingAccountCurrent } from './sessionIdentity'
 import { setSnapshot, store } from './sessionStore'
 import { IDLE_SNAPSHOT, type RecoverableInfo } from './sessionTypes'
-import type { CreateTranscriptWarning } from '@/contracts/api'
 import { downloadRecording } from './downloadRecording'
-import { recordingMediaFilename } from './sessionUpload'
-import { runCaptureUpload } from '@/lib/capture/upload'
+import {
+  beginRecordingSubmission,
+  endRecordingSubmission,
+  recordingMediaFilename,
+  runRecordingSubmission,
+} from './sessionUpload'
+import { cleanUpConfirmedHandoff } from './confirmedHandoff'
 
 export function markInterrupted(message?: string): void {
   // Capture the queue before dispatch detaches it from runtime, so its pending
@@ -197,8 +201,7 @@ export async function exportRecovered(expectedSessionId: string): Promise<void> 
   }
 }
 
-async function deleteRecoveredAndChain(action: RecoveryAction): Promise<boolean> {
-  await action.persistence.deleteSession(action.claim.sessionId)
+async function releaseAndChain(action: RecoveryAction): Promise<boolean> {
   await releaseRecoveryClaim(action.claim)
   if (!isRecordingAccountCurrent(action.userId)) {
     setSnapshot({ ...IDLE_SNAPSHOT })
@@ -210,12 +213,11 @@ async function deleteRecoveredAndChain(action: RecoveryAction): Promise<boolean>
 export interface SaveRecoveredResult {
   ok: boolean
   message?: string
-  warning?: CreateTranscriptWarning
-  chainedToNext?: boolean
 }
 
 export async function saveRecovered(editedTitle: string, expectedSessionId?: string): Promise<SaveRecoveredResult> {
   let action: RecoveryAction | undefined
+  let controller: AbortController | null = null
   try {
     action = beginRecoveryAction(expectedSessionId)
     const { info, userId } = action
@@ -223,35 +225,38 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
       throw new Error("You're offline. Reconnect to save this recording.")
     }
 
+    controller = beginRecordingSubmission()
+    if (!controller) throw new Error('A recording upload is already running.')
     const file = await readRecoveredFile(action)
     if (!canContinueRecovery(action)) throw new Error('Sign in to the original account before saving.')
     const title = editedTitle.trim() || info.title || info.generatedTitle ||
       `Recording — ${new Date(info.createdAt).toISOString()}`
-    const result = await runCaptureUpload(file, title, info.keyTerms, {
-      userId,
-      uploadIntentId: info.uploadIntentId ?? undefined,
+    const result = await runRecordingSubmission({
+      file,
+      title,
+      keyTerms: info.keyTerms,
       projectId: info.projectId,
       transcriptionOptions: info.transcriptionOptions,
-    })
+    }, userId, info.uploadIntentId, controller)
 
     if (result.kind !== 'success') return { ok: false, message: result.message }
-    const chainedToNext = await deleteRecoveredAndChain(action)
+    await cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
+    const chainedToNext = await releaseAndChain(action)
     if (!isRecordingAccountCurrent(userId)) return { ok: true }
-    if (!chainedToNext) {
-      setSnapshot({
-        ...IDLE_SNAPSHOT,
-        state: 'submitted',
-        submissionResult: {
-          transcriptId: result.transcriptId,
-          outcome: result.outcome,
-          warning: result.warning,
-        },
-      })
-    }
-    return { ok: true, chainedToNext, warning: result.warning }
+    setSnapshot({
+      ...(chainedToNext ? store.snapshot : { ...IDLE_SNAPSHOT, state: 'submitted' }),
+      submissionResult: {
+        transcriptId: result.transcriptId,
+        outcome: result.outcome,
+        warning: result.warning,
+        recovered: true,
+      },
+    })
+    return { ok: true }
   } catch (err) {
     return { ok: false, message: (err as Error)?.message ?? 'Could not save the recording.' }
   } finally {
+    if (controller) endRecordingSubmission(controller)
     if (action) await finishRecoveryAction(action)
   }
 }
@@ -259,7 +264,8 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
 export async function discardRecovered(expectedSessionId?: string): Promise<void> {
   const action = beginRecoveryAction(expectedSessionId)
   try {
-    const chainedToNext = await deleteRecoveredAndChain(action)
+    await action.persistence.deleteSession(action.claim.sessionId)
+    const chainedToNext = await releaseAndChain(action)
     if (!chainedToNext) setSnapshot({ ...IDLE_SNAPSHOT })
   } finally {
     await finishRecoveryAction(action)

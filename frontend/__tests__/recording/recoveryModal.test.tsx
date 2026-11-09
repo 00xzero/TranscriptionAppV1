@@ -10,7 +10,6 @@ jest.mock('@/lib/recording/session', () => ({
 }))
 
 import RecoveryModal from '@/components/RecordingSession/RecoveryModal'
-import { Toaster, __resetToastsForTesting } from '@/components/ui/toaster'
 import { saveRecovered, discardRecovered, exportRecovered } from '@/lib/recording/session'
 import type { RecoverableInfo } from '@/lib/recording/session'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
@@ -45,7 +44,6 @@ function setOnline(value: boolean) {
 describe('RecoveryModal', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    __resetToastsForTesting()
     setOnline(true)
     mockSave.mockResolvedValue({ ok: true })
     mockDiscard.mockResolvedValue(undefined)
@@ -100,37 +98,18 @@ describe('RecoveryModal', () => {
     expect(screen.getByText(/1 of 3/)).toBeInTheDocument()
   })
 
-  test('a chained save (another orphan queued) confirms with a toast', async () => {
-    mockSave.mockResolvedValueOnce({ ok: true, chainedToNext: true })
+  test.each([
+    ['saved_needs_retry', /Click Transcribe to retry/],
+    ['saved_status_unknown', /Check the transcript status before retrying/],
+  ] as const)('shows %s and the project warning in the next recovery dialog', (outcome, message) => {
     render(
-      <>
-        <RecoveryModal info={makeInfo({ title: 'First clip', remainingCount: 1 })} />
-        <Toaster />
-      </>
+      <RecoveryModal
+        info={makeInfo({ title: 'Next clip' })}
+        previousSave={{ transcriptId: 'previous', outcome, warning: 'project_missing', recovered: true }}
+      />
     )
-    fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
-    expect(await screen.findByText(/Recording saved/)).toBeInTheDocument()
-    expect(screen.getByText(/First clip/)).toBeInTheDocument()
-  })
-
-  test('a warned chained save shows the exact Unfiled warning', async () => {
-    mockSave.mockResolvedValueOnce({
-      ok: true,
-      chainedToNext: true,
-      warning: 'project_missing',
-    })
-    render(
-      <>
-        <RecoveryModal info={makeInfo({ title: 'First clip', remainingCount: 1 })} />
-        <Toaster />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
-    expect(
-      await screen.findByText('Saved to Unfiled: the project is no longer available')
-    ).toBeInTheDocument()
-    expect(screen.getByText(/“First clip” is uploading and will start transcribing/)).toBeInTheDocument()
-    expect(screen.queryByText('Recording saved')).not.toBeInTheDocument()
+    expect(screen.getByText(message)).toBeInTheDocument()
+    expect(screen.getByText('Saved to Unfiled: the project is no longer available')).toBeInTheDocument()
   })
 
   test('shows the truncation caution only when mayBeTruncated', () => {
@@ -141,16 +120,4 @@ describe('RecoveryModal', () => {
     expect(screen.getByText(/may be missing the end/i)).toBeInTheDocument()
   })
 
-  test('a final save does not toast (the route redirect acknowledges it)', async () => {
-    mockSave.mockResolvedValueOnce({ ok: true, chainedToNext: false })
-    render(
-      <>
-        <RecoveryModal info={makeInfo({ title: 'Only clip' })} />
-        <Toaster />
-      </>
-    )
-    fireEvent.click(screen.getByRole('button', { name: /save & transcribe/i }))
-    await waitFor(() => expect(mockSave).toHaveBeenCalled())
-    expect(screen.queryByText(/Recording saved/)).not.toBeInTheDocument()
-  })
 })

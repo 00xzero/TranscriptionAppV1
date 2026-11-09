@@ -7,13 +7,14 @@ import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 import { CharacterCount } from '@/components/ui/character-count'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
-import { toast } from '@/components/ui/toaster'
-import { showCaptureWarning } from '@/lib/capture/warnings'
+import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/capture/warnings'
+import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
 import {
   discardRecovered,
   exportRecovered,
   saveRecovered,
   type RecoverableInfo,
+  type SessionSnapshot,
 } from '@/lib/recording/session'
 
 function formatApproxSize(bytes: number): string {
@@ -29,7 +30,13 @@ function formatApproxSize(bytes: number): string {
  * escape, and dismissal behave like ExportModal/FindReplaceModal — but made
  * non-dismissable: the recovery must be resolved via Save or Discard.
  */
-export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
+export default function RecoveryModal({
+  info,
+  previousSave,
+}: {
+  info: RecoverableInfo
+  previousSave?: SessionSnapshot['submissionResult']
+}) {
   const [title, setTitle] = useState(info.title ?? info.generatedTitle ?? '')
   const titleCountId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -79,16 +86,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
       setSaving(false)
       return
     }
-    // On a final save the provider transitions to submitted and the route
-    // redirects. When another orphan is queued the modal re-mounts with it (reset
-    // effect above), so confirm the just-saved one with a toast — there is no
-    // redirect to acknowledge it otherwise.
-    if (result.chainedToNext) {
-      const description = `“${savedTitle}” is uploading and will start transcribing.`
-      if (!showCaptureWarning(result.warning, description)) {
-        toast({ title: 'Recording saved', description })
-      }
-    }
+    setSaving(false)
   }
 
   const handleDiscard = async () => {
@@ -134,6 +132,13 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
         </div>
 
         <div className="space-y-4 px-6 pb-5">
+          {previousSave && (
+            <div role="status" className="rounded-md border border-border bg-subtle px-3 py-2 text-xs text-foreground">
+              {savedCaptureMessage(previousSave.outcome) ?? 'Previous recording saved.'}
+              {previousSave.warning === 'project_missing' && <p>{PROJECT_MISSING_WARNING_MESSAGE}</p>}
+            </div>
+          )}
+
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink/70 dark:text-paper/70">
               Title
