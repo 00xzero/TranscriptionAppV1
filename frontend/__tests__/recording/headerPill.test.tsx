@@ -88,7 +88,7 @@ describe('RecordingPill', () => {
     renderPill()
     const pill = screen.getByTestId('recording-pill')
     expect(pill).toHaveTextContent('Time limit near')
-    expect(pill).toHaveAccessibleName(/Recording will stop and start transcription automatically/)
+    expect(pill).toHaveAccessibleName(/Less than 5 minutes until recording stops and transcription starts/)
   })
 
   test('shows a saved terminal pill briefly after submitted', async () => {

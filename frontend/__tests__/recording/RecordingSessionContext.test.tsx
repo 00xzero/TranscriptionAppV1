@@ -6,6 +6,7 @@ import {
 } from '@/lib/recording/RecordingSessionContext'
 import { __resetForTesting, __setSnapshotForTesting } from '@/lib/recording/session'
 import { mockRecordingSession } from '@/__mocks__/recording-session'
+import { resetTestAuth, setTestAuth } from '@/__tests__/helpers/auth'
 
 const toastMock = jest.fn()
 let mockPathname = '/transcripts'
@@ -36,6 +37,7 @@ function ActionKeysProbe() {
 describe('RecordingSessionContext', () => {
   beforeEach(() => {
     __resetForTesting()
+    resetTestAuth()
     toastMock.mockReset()
     mockPathname = '/transcripts'
   })
@@ -126,5 +128,20 @@ describe('RecordingSessionContext', () => {
     expect(toastMock).toHaveBeenLastCalledWith({
       title: 'Recording stopped automatically near the transcription time limit.',
     })
+  })
+
+  test('suppresses both recording limit toasts after an account change', () => {
+    setTestAuth({ userId: 'original-user', ready: true, accountChange: 'switched' })
+    render(<RecordingSessionProvider><div>Child</div></RecordingSessionProvider>)
+
+    act(() => {
+      __setSnapshotForTesting({ state: 'recording', startedAt: 1000, durationWarning: true })
+    })
+    expect(toastMock).not.toHaveBeenCalled()
+
+    act(() => {
+      __setSnapshotForTesting({ state: 'finalizing', durationWarning: false, autoStopReason: 'duration' })
+    })
+    expect(toastMock).not.toHaveBeenCalled()
   })
 })

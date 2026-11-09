@@ -141,13 +141,14 @@ describe('Recording page', () => {
       __setSnapshotForTesting({ state: 'recording', durationWarning: true })
     })
     render(<RecordingNewPage />)
-    expect(screen.getByText(/Five minutes or less of recording time remain/)).toBeInTheDocument()
+    const warning = 'Less than 5 minutes until recording stops and transcription starts.'
+    expect(screen.getByText(warning)).toBeInTheDocument()
 
     act(() => {
       __setSnapshotForTesting({ state: 'uploading', autoStopReason: 'duration', durationWarning: false })
     })
     expect(screen.getByText(/stopped automatically near the transcription time limit/)).toBeInTheDocument()
-    expect(screen.queryByText(/Five minutes or less/)).not.toBeInTheDocument()
+    expect(screen.queryByText(warning)).not.toBeInTheDocument()
   })
 
   test('uploading state keeps the waveform frozen', () => {

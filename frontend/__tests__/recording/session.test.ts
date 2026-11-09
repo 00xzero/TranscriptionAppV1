@@ -343,6 +343,59 @@ describe('recording session singleton', () => {
     })
   })
 
+  test('starts a new recording without duration flags after an automatic stop', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    const stopAt = 1_000_000 + 5 * 60 * 60 * 1000 - 60_000
+    const options = {
+      transcriptionOptions: { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine: 'soniox' as const },
+      maxBytes: 1024 * 1024,
+    }
+    mockRunCaptureUpload.mockResolvedValue({ kind: 'success', transcriptId: 't1', outcome: 'started' })
+    await attachRecording(options)
+    now.mockReturnValue(stopAt - 1000)
+    dispatchChunk(lastRecorder(), 4096)
+    expect(getSnapshot().durationWarning).toBe(true)
+
+    now.mockReturnValue(stopAt)
+    dispatchChunk(lastRecorder(), 512)
+    dispatchStopDrain(lastRecorder(), 512)
+    await flushAsync()
+    expect(getSnapshot()).toMatchObject({ state: 'submitted', autoStopReason: 'duration' })
+
+    now.mockReturnValue(stopAt + 1000)
+    await attachRecording(options)
+    expect(getSnapshot()).toMatchObject({
+      state: 'recording',
+      durationWarning: false,
+      autoStopReason: null,
+    })
+  })
+
+  test('resume turns on the duration warning when active time is in the warning window', async () => {
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    const stopAt = 1_000_000 + 5 * 60 * 60 * 1000 - 60_000
+    await attachRecording({
+      transcriptionOptions: { ...DEFAULT_TRANSCRIPTION_OPTIONS, engine: 'soniox' },
+      maxBytes: 1024 * 1024,
+    })
+    const recorder = lastRecorder()
+    const resumeRecorder = jest.spyOn(recorder, 'resume')
+
+    now.mockReturnValue(stopAt - 1000)
+    pause()
+    expect(getSnapshot().durationWarning).toBe(false)
+    now.mockReturnValue(stopAt + 1000)
+    resume()
+
+    expect(resumeRecorder).toHaveBeenCalledTimes(1)
+    expect(getSnapshot()).toMatchObject({
+      state: 'recording',
+      durationWarning: true,
+      autoStopReason: null,
+    })
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+  })
+
   test('ignores paused wall time and stops before resuming if active time already crossed the limit', async () => {
     const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000)
     const stopAtMs = 5 * 60 * 60 * 1000 - 60_000
