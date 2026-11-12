@@ -82,8 +82,9 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     return promise
   }
 
-  async putSession(record: PersistedSession): Promise<void> {
+  async putSession(record: PersistedSession, signal?: AbortSignal): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(SESSIONS_STORE, 'readwrite')
     tx.objectStore(SESSIONS_STORE).put(stripUndefined(record))
     await txDone(tx)
@@ -91,9 +92,11 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
 
   async patchSession(
     sessionId: string,
-    patch: PersistedSessionPatch
+    patch: PersistedSessionPatch,
+    signal?: AbortSignal
   ): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(SESSIONS_STORE, 'readwrite')
     const store = tx.objectStore(SESSIONS_STORE)
     const existing = await promisifyRequest(store.get(sessionId))
@@ -135,8 +138,9 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     await txDone(tx)
   }
 
-  async putChunk(sessionId: string, seq: number, blob: Blob): Promise<void> {
+  async putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(CHUNKS_STORE, 'readwrite')
     tx.objectStore(CHUNKS_STORE).put(blob, [sessionId, seq])
     await txDone(tx)

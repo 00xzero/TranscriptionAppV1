@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod'
+import { CaptureUploadOutcomeSchema } from '@/contracts/capture'
 import { SavedTranscriptionOptionsSchema, resolveTranscriptionOptions } from '@/contracts/transcription-options'
 
 export const PersistedSessionPhaseSchema = z.enum(['capturing', 'uploading'])
@@ -36,7 +37,7 @@ export const PersistedSessionSchema = z.object({
   lastChunkSeq: z.number().nullable(),
   lastChunkReceivedAt: z.number().nullable(),
   phase: PersistedSessionPhaseSchema,
-  cleanupOnly: z.enum(['started', 'saved_needs_retry', 'saved_status_unknown']).optional(),
+  cleanupOnly: CaptureUploadOutcomeSchema.optional(),
   // Live/UI signal only; recovery validity is decided structurally, not from this.
   armed: z.boolean(),
   failureReason: z.string().nullable(),
@@ -69,13 +70,14 @@ export interface SessionPersistence {
    * path would never fire and the unarmed warning would never show.
    */
   readonly durable: boolean
-  putSession(record: PersistedSession): Promise<void>
-  patchSession(sessionId: string, patch: PersistedSessionPatch): Promise<void>
+  // A write signal can prevent a transaction from starting while waiting for the database.
+  putSession(record: PersistedSession, signal?: AbortSignal): Promise<void>
+  patchSession(sessionId: string, patch: PersistedSessionPatch, signal?: AbortSignal): Promise<void>
   getSession(sessionId: string): Promise<PersistedSession | null>
   listSessions(): Promise<PersistedSession[]>
   /** Deletes the row and its chunks after the optional pre-transaction check. */
   deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void>
-  putChunk(sessionId: string, seq: number, blob: Blob): Promise<void>
+  putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void>
   listChunkSeqs(sessionId: string): Promise<number[]>
   /**
    * Metadata-only chunk summary: how many chunks exist and their total byte

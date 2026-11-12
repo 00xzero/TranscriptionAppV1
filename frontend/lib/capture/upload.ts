@@ -22,6 +22,7 @@ import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
 import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, transferToStorage } from './storageTransfer'
 import { fitTranscriptTitle } from '@/core/transcripts/title'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
+import type { CaptureUploadOutcome } from '@/contracts/capture'
 
 /**
  * Supported file types for upload.
@@ -109,7 +110,7 @@ export type CaptureUploadResult =
     | {
         kind: 'success'
         transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+        outcome: CaptureUploadOutcome
         message?: string
         warning?: CreateTranscriptWarning
     }
@@ -369,6 +370,8 @@ export async function runCaptureUpload(
             storagePath = alreadyLinkedKey
             didUploadFile = true
             didLinkMediaToTranscript = true
+            // Honor a cancel accepted during create. A late response can
+            // confirm the saved media without starting transcription.
             closeRecordingCancelGate()
             console.log('[capture] Media already linked; skipping upload/link steps')
         } else {

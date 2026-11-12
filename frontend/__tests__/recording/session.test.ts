@@ -13,6 +13,7 @@ import {
   finalize,
   exportRecovered,
   forceState,
+  getFinalizedRecordingFile,
   getElapsedActiveMs,
   getLiveRecorder,
   getSnapshot,
@@ -58,6 +59,8 @@ import {
 } from '@/lib/recording/presence'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 import { downloadRecording } from '@/lib/recording/downloadRecording'
+import { LOCAL_CLEANUP_TIMEOUT_MS } from '@/lib/recording/cleanupDeadline'
+import { hasConfirmedHandoffInPage } from '@/lib/recording/confirmedHandoff'
 
 const mockRunCaptureUpload = jest.mocked(runCaptureUpload)
 const DEFAULT_CODEC = { mime: 'audio/webm', extension: 'webm' } as const
@@ -1242,6 +1245,25 @@ describe('recording session durability mirror', () => {
     expect((await persistence.listSessions())[0].userId).toBe('user-123')
   })
 
+  test.each([0, 1024])('a recorder failure on a frozen page settles %i bytes without uploading', async (bytes) => {
+    const ownerLock = new FakeOwnerLock()
+    const presence = new FakeRecordingPresence()
+    __setOwnerLockForTesting(ownerLock)
+    __setPresenceForTesting(presence)
+    await attachRecording({ maxBytes: 1024 * 1024 })
+    const recorder = lastRecorder()
+    setIdentity({ userId: 'user-123', ready: true, accountChanged: true })
+    dispatchRecorderError(recorder, 'Microphone disconnected.')
+    dispatchStopDrain(recorder, bytes)
+    await flushAsync()
+
+    expect(getSnapshot()).toMatchObject({ state: 'error', canRetryUpload: bytes > 0 })
+    expect(getFinalizedRecordingFile()?.size ?? 0).toBe(bytes)
+    expect(await ownerLock.isHeld()).toBe(false)
+    expect(presence.read()).toBeNull()
+    expect(mockRunCaptureUpload).not.toHaveBeenCalled()
+  })
+
   test('a stale recovery probe does not overwrite a live recording', async () => {
     const delayedPersistence = new DelayedChunkStatsPersistence()
     installPersistence(delayedPersistence)
@@ -1648,6 +1670,102 @@ describe('recording session durability mirror', () => {
     dispatchStopDrain(lastRecorder(), 512)
     await stopped
     expect((await persistence.listSessions())[0]).toMatchObject({ cleanupOnly: 'saved_needs_retry' })
+  })
+
+  test.each(['queue', 'marker', 'delete'] as const)(
+    'finishes a confirmed save while local %s work stalls',
+    async (stage) => {
+      jest.useFakeTimers()
+      try {
+        const sessionLock = new CountingSessionLock()
+        const ownerLock = new FakeOwnerLock()
+        __setSessionLockForTesting(sessionLock)
+        __setOwnerLockForTesting(ownerLock)
+        mockRunCaptureUpload.mockResolvedValue({
+          kind: 'success', transcriptId: 't1', outcome: 'started',
+        })
+        await attachRecording({ maxBytes: 1024 * 1024 })
+        await jest.advanceTimersByTimeAsync(0)
+        const [row] = await persistence.listSessions()
+
+        let unblock!: () => void
+        const blocked = new Promise<void>((resolve) => { unblock = resolve })
+        if (stage === 'queue') {
+          const putChunk = persistence.putChunk.bind(persistence)
+          jest.spyOn(persistence, 'putChunk').mockImplementationOnce(async (...args) => {
+            await blocked
+            await putChunk(...args)
+          })
+        } else if (stage === 'marker') {
+          const patchSession = persistence.patchSession.bind(persistence)
+          jest.spyOn(persistence, 'patchSession').mockImplementation(async (...args) => {
+            if (args[1].cleanupOnly) await blocked
+            await patchSession(...args)
+          })
+        } else {
+          const deleteSession = persistence.deleteSession.bind(persistence)
+          jest.spyOn(persistence, 'deleteSession').mockImplementationOnce(async (...args) => {
+            await blocked
+            await deleteSession(...args)
+          })
+        }
+        dispatchChunk(lastRecorder(), 8192)
+        advanceClockPastEmptyFloor()
+        const stopped = stopAndFinalize()
+        dispatchStopDrain(lastRecorder(), 512)
+        await jest.advanceTimersByTimeAsync(0)
+        expect(getSnapshot().uploadPhase).toBe('settling')
+
+        await jest.advanceTimersByTimeAsync(LOCAL_CLEANUP_TIMEOUT_MS)
+        await stopped
+        expect(getSnapshot()).toMatchObject({ state: 'submitted', uploadPhase: null })
+        expect(sessionLock.held).toBeNull()
+        expect(await ownerLock.isHeld()).toBe(false)
+
+        unblock()
+        await jest.advanceTimersByTimeAsync(0)
+        const remaining = await persistence.getSession(row.sessionId)
+        expect(remaining?.cleanupOnly).toBe(stage === 'delete' ? 'started' : undefined)
+        expect(remaining !== null).toBe(true)
+        expect(hasConfirmedHandoffInPage(row.sessionId, row.userId!)).toBe(stage !== 'delete')
+        if (stage === 'queue') expect(await persistence.listChunkSeqs(row.sessionId)).toEqual([])
+      } finally {
+        jest.useRealTimers()
+      }
+    }
+  )
+
+  test('settles a recovered save without probing again when local deletion stalls', async () => {
+    jest.useFakeTimers()
+    try {
+      const delayed = new DelayedDeletePersistence()
+      installPersistence(delayed)
+      const lock = new CountingSessionLock()
+      __setSessionLockForTesting(lock)
+      await seedRecovery('saved')
+      await runRecoveryProbe()
+      const listSessions = jest.spyOn(delayed, 'listSessions')
+      mockRunCaptureUpload.mockResolvedValue({
+        kind: 'success', transcriptId: 't1', outcome: 'saved_status_unknown',
+      })
+      const saving = saveRecovered('Recovered title', 'saved')
+      await delayed.deleteStarted
+
+      await jest.advanceTimersByTimeAsync(LOCAL_CLEANUP_TIMEOUT_MS)
+      await expect(saving).resolves.toEqual({ ok: true })
+      expect(getSnapshot()).toMatchObject({
+        state: 'submitted', uploadPhase: null,
+        submissionResult: { outcome: 'saved_status_unknown', recovered: true },
+      })
+      expect(lock.held).toBeNull()
+      expect(listSessions).not.toHaveBeenCalled()
+
+      delayed.releaseDelete()
+      await delayed.deleteFinished
+      expect(await delayed.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('discardRecovered surfaces local delete failure and keeps recovery open', async () => {

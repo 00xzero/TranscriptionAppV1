@@ -36,6 +36,7 @@ import {
   type SnapshotTransitionAction,
 } from './sessionTransitions'
 import { IDLE_SNAPSHOT, type SessionSnapshot } from './sessionTypes'
+import { waitForLocalCleanup } from './cleanupDeadline'
 
 // ----------------------------------------------------------------------------
 // Selectors
@@ -128,6 +129,11 @@ export function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> 
 }
 
 let terminalCleanup: Promise<void> | null = null
+
+export function waitForTerminalCleanup(): Promise<boolean> | undefined {
+  const pending = terminalCleanup
+  return pending ? waitForLocalCleanup(() => pending) : undefined
+}
 
 function finalizeTerminalCleanup(canDelete?: () => boolean): Promise<void> {
   if (terminalCleanup) return terminalCleanup
@@ -366,10 +372,10 @@ export function markSubmitted(): void {
   dispatch('markSubmitted', { recoverable: null })
 }
 
-export function discard(salvageMessage?: string): void {
+export function discard(salvageMessage?: string): boolean {
   if (isRecordingPageStopped() ||
-    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return
-  dispatch('discard', { salvageMessage: salvageMessage ?? null })
+    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return false
+  return dispatch('discard', { salvageMessage: salvageMessage ?? null })
 }
 
 /** A stopped page can release durable audio for the original account to recover. */

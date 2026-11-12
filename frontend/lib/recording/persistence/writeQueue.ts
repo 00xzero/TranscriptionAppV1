@@ -27,6 +27,7 @@ type QueueOp =
  *   in-flight writes and a late `dataavailable` cannot resurrect rows.
  */
 export class SessionWriteQueue {
+  private readonly writeController = new AbortController()
   private ops: QueueOp[] = []
   private draining = false
   private accepting = true
@@ -102,9 +103,22 @@ export class SessionWriteQueue {
   }
 
   /** Stop accepting writes and drain without deleting the recovery copy. */
-  async seal(): Promise<void> {
+  async seal(signal: AbortSignal): Promise<void> {
     this.accepting = false
-    await this.whenSettled()
+    const abandon = () => {
+      this.ops = []
+      this.writeController.abort()
+    }
+    if (signal.aborted) {
+      abandon()
+      return
+    }
+    signal.addEventListener('abort', abandon, { once: true })
+    try {
+      await this.whenSettled()
+    } finally {
+      signal.removeEventListener('abort', abandon)
+    }
   }
 
   /** Resolves when the queue has fully drained (no pending or in-flight ops). */
@@ -147,13 +161,14 @@ export class SessionWriteQueue {
   }
 
   private run(op: QueueOp): Promise<void> {
+    const { signal } = this.writeController
     switch (op.kind) {
       case 'session':
-        return this.persistence.putSession(op.record)
+        return this.persistence.putSession(op.record, signal)
       case 'chunk':
-        return this.persistence.putChunk(this.sessionId, op.seq, op.blob)
+        return this.persistence.putChunk(this.sessionId, op.seq, op.blob, signal)
       case 'metadata':
-        return this.persistence.patchSession(this.sessionId, op.patch)
+        return this.persistence.patchSession(this.sessionId, op.patch, signal)
       case 'delete':
         return op.canDelete
           ? this.persistence.deleteSession(this.sessionId, op.canDelete)
@@ -166,7 +181,7 @@ export class SessionWriteQueue {
       // Terminal delete failed; leave residue for GC. Never recurse.
       return
     }
-    if (!this.armed) return
+    if (!this.armed || this.writeController.signal.aborted) return
 
     this.armed = false
     this.failureReason = err instanceof Error ? err.message : String(err)
@@ -184,7 +199,7 @@ export class SessionWriteQueue {
       .patchSession(this.sessionId, {
         armed: false,
         failureReason: this.failureReason,
-      })
+      }, this.writeController.signal)
       .catch(() => {})
   }
 

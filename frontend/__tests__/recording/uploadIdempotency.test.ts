@@ -122,6 +122,31 @@ describe('runCaptureUpload upload idempotency', () => {
     expect(startCallHeaders(1)['x-idempotency-key']).toBe('start:intent-1')
   })
 
+  test('honors cancel during create when the response confirms an existing media link', async () => {
+    const controller = new AbortController()
+    fetchMock.mockImplementationOnce(async () => {
+      controller.abort()
+      return jsonResponse(200, {
+        transcript: { id: 'p1' },
+        storagePath: 'u/p1/rec.webm',
+        deduped: true,
+        sourceObjectKey: 'u/p1/rec.webm',
+      })
+    })
+
+    const result = await runCaptureUpload(makeFile(), 'Title', [], {
+      userId: 'u',
+      uploadIntentId: 'intent-1',
+      signal: controller.signal,
+    })
+
+    expect(result).toMatchObject({ kind: 'success', outcome: 'saved_needs_retry', transcriptId: 'p1' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(uploadMock).not.toHaveBeenCalled()
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(deleteRequestMock).not.toHaveBeenCalled()
+  })
+
   test('an errored prior start leaves linked media for an explicit Transcribe action', async () => {
     fetchMock
       .mockResolvedValueOnce(

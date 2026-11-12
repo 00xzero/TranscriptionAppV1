@@ -53,6 +53,7 @@ import {
   markError,
   releaseOwnerLockQuietly,
   resume as resumeSession,
+  waitForTerminalCleanup,
 } from './sessionCore'
 import { submitFinalizedRecording } from './sessionUpload'
 import { recordingMediaFilename } from './recordingIntent'
@@ -117,6 +118,12 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
 }
 
 async function startRecording(params: AttachAndStartParams): Promise<void> {
+  const { userId } = getIdentity()
+  const cleanup = waitForTerminalCleanup()
+  if (cleanup && !(await cleanup)) {
+    throw new Error('The previous recording is still being cleaned up. Try again in a moment.')
+  }
+
   // A pending recovery must be saved/discarded before a new recording can start.
   if (store.snapshot.state === 'recoverable') {
     throw new RecoveryPendingError()
@@ -133,8 +140,6 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
     throw new RecordingAlreadyActiveError()
   }
 
-  const identity = getIdentity()
-  const userId = identity.userId
   if (!userId || !isRecordingAccountCurrent(userId)) {
     throw new RecordingIdentityRequiredError()
   }
@@ -332,13 +337,12 @@ export async function stopAndFinalize(): Promise<void> {
     return
   }
 
-  const accountCurrent = isRecordingAccountCurrent(store.runtime.userId)
-  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar) &&
-    (accountCurrent || store.runtime.bytesSoFar === 0)) {
-    store.runtime.stopInProgress = false
-    if (accountCurrent) discard('Recording discarded before enough audio was captured.')
-    else markError('No audio was captured.')
-    return
+  if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar)) {
+    if (discard('Recording discarded before enough audio was captured.')) return
+    if (store.runtime.bytesSoFar === 0) {
+      markError('No audio was captured.')
+      return
+    }
   }
 
   const normalizedMime = (store.runtime.codecMime ?? 'audio/webm').split(';')[0]
@@ -443,14 +447,14 @@ export function recordChunk(blob: Blob): void {
 export function handleRecorderFailure(reason: string): void {
   if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
 
-  const activeMs = getElapsedActiveMs(store.snapshot)
-  if (meetsEmptyFloor(activeMs, store.runtime.bytesSoFar)) {
-    setSalvageMessage(`${reason} Submitting what was recorded.`)
-    void stopAndFinalize()
-    return
-  }
+  const { userId, bytesSoFar } = store.runtime
+  const enoughAudio = meetsEmptyFloor(getElapsedActiveMs(store.snapshot), bytesSoFar)
+  if (!enoughAudio && discard(`${reason} Recording discarded before enough audio was captured.`)) return
 
-  discard(`${reason} Recording discarded before enough audio was captured.`)
+  setSalvageMessage(enoughAudio && isRecordingAccountCurrent(userId)
+    ? `${reason} Submitting what was recorded.`
+    : reason)
+  void stopAndFinalize()
 }
 
 /**

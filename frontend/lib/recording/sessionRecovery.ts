@@ -203,13 +203,13 @@ export async function exportRecovered(expectedSessionId: string): Promise<void> 
   }
 }
 
-async function releaseAndChain(action: RecoveryAction): Promise<boolean> {
+async function releaseAndChain(action: RecoveryAction, shouldChain = true): Promise<boolean> {
   await releaseRecoveryClaim(action.claim)
   if (!isRecordingAccountCurrent(action.userId)) {
     setSnapshot({ ...IDLE_SNAPSHOT, uploadPhase: store.snapshot.uploadPhase })
     return false
   }
-  return runRecoveryProbe(action.claim.sessionId).catch(() => false)
+  return shouldChain ? runRecoveryProbe(action.claim.sessionId).catch(() => false) : false
 }
 
 export interface SaveRecoveredResult {
@@ -246,8 +246,8 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
 
     if (result.kind !== 'success') return { ok: false, message: result.message }
     setRecordingUploadPhase(controller, 'settling')
-    await cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
-    const chainedToNext = await releaseAndChain(action)
+    const cleanupSettled = await cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
+    const chainedToNext = await releaseAndChain(action, cleanupSettled)
     if (!isRecordingAccountCurrent(userId)) return { ok: true }
     setSnapshot({
       ...(chainedToNext ? store.snapshot : { ...IDLE_SNAPSHOT, state: 'submitted', uploadPhase: 'settling' }),

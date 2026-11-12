@@ -156,11 +156,12 @@ describe('durability snapshot wiring', () => {
     await persistence.firstChunkStarted
 
     discard()
-    await expect(attach()).rejects.toMatchObject({ code: 'recording_already_active' })
+    const nextRecording = attach()
+    await flushAsync()
+    expect(getSnapshot().state).toBe('discarded')
 
     persistence.rejectFirstChunk(new Error('old write failed'))
-    await flushAsync()
-    await attach()
+    await nextRecording
 
     expect(getSnapshot().state).toBe('recording')
     expect(getSnapshot().durable).toBe(true)

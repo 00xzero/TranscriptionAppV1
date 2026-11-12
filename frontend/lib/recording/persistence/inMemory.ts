@@ -19,14 +19,17 @@ export class InMemorySessionPersistence implements SessionPersistence {
   private readonly sessions = new Map<string, PersistedSession>()
   private readonly chunks = new Map<string, Map<number, Blob>>()
 
-  async putSession(record: PersistedSession): Promise<void> {
+  async putSession(record: PersistedSession, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     this.sessions.set(record.sessionId, { ...stripUndefined(record) })
   }
 
   async patchSession(
     sessionId: string,
-    patch: PersistedSessionPatch
+    patch: PersistedSessionPatch,
+    signal?: AbortSignal
   ): Promise<void> {
+    signal?.throwIfAborted()
     const existing = this.sessions.get(sessionId)
     if (!existing) return
     this.sessions.set(sessionId, { ...existing, ...stripUndefined(patch) })
@@ -47,7 +50,8 @@ export class InMemorySessionPersistence implements SessionPersistence {
     this.chunks.delete(sessionId)
   }
 
-  async putChunk(sessionId: string, seq: number, blob: Blob): Promise<void> {
+  async putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     let bucket = this.chunks.get(sessionId)
     if (!bucket) {
       bucket = new Map()
