@@ -63,11 +63,13 @@ async function finalizeInterruptedRecovery(
 }
 
 function hydrateRecoverable(info: RecoverableInfo, userId: string, claim: SessionClaim): void {
+  const { state, submissionResult, uploadPhase } = store.snapshot
   store.runtime.userId = userId
   store.runtime.recoveryClaim = claim
   setSnapshot({
     ...IDLE_SNAPSHOT,
-    uploadPhase: store.snapshot.uploadPhase,
+    uploadPhase,
+    submissionResult: state === 'submitted' ? submissionResult : null,
     state: 'recoverable',
     projectId: info.projectId,
     title: info.title,
@@ -80,21 +82,19 @@ function hydrateRecoverable(info: RecoverableInfo, userId: string, claim: Sessio
   })
 }
 
-// Recovery may only surface from a non-live state: idle, interrupted, or while
-// already showing a recoverable (to chain to the next orphan after save/discard).
 function isRecoveryEligibleState(): boolean {
+  const { state, uploadPhase } = store.snapshot
   return (
-    store.snapshot.state === 'idle' ||
-    store.snapshot.state === 'interrupted' ||
-    store.snapshot.state === 'recoverable'
+    state === 'idle' ||
+    state === 'interrupted' ||
+    state === 'recoverable' ||
+    (state === 'submitted' && uploadPhase === null)
   )
 }
 
 /**
- * Probe IDB for a recoverable orphan belonging to the current user and, if found,
- * hydrate the blocking recoverable state. Safe from idle, interrupted, or while
- * already showing a recoverable (to chain to the next orphan after save/discard).
- * Returns true when a recoverable session was surfaced.
+ * Probe IDB for a recoverable orphan belonging to the current user.
+ * Returns true when it surfaces a recovery dialog.
  */
 let pendingProbe: Promise<boolean> | null = null
 
@@ -246,7 +246,8 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
 
     if (result.kind !== 'success') return { ok: false, message: result.message }
     setRecordingUploadPhase(controller, 'settling')
-    const cleanupSettled = await cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
+    const cleanup = cleanUpConfirmedHandoff(action.persistence, info.sessionId, userId, result.outcome)
+    const cleanupSettled = await cleanup.withinDeadline
     const chainedToNext = await releaseAndChain(action, cleanupSettled)
     if (!isRecordingAccountCurrent(userId)) return { ok: true }
     setSnapshot({
@@ -258,6 +259,14 @@ export async function saveRecovered(editedTitle: string, expectedSessionId?: str
         recovered: true,
       },
     })
+    if (!cleanupSettled) {
+      // IndexedDB reads may have to wait behind the timed-out write. Let the
+      // save settle now and probe again once that work finishes.
+      const probe = () => {
+        if (isRecordingAccountCurrent(userId)) return runRecoveryProbe()
+      }
+      void cleanup.completion.then(probe, probe).catch(() => {})
+    }
     return { ok: true }
   } catch (err) {
     return { ok: false, message: (err as Error)?.message ?? 'Could not save the recording.' }

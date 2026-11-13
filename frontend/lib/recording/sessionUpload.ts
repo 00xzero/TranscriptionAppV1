@@ -119,7 +119,8 @@ export async function submitFinalizedRecording(): Promise<void> {
     if (result.kind === 'success') {
       setRecordingUploadPhase(controller, 'settling')
       if (sessionClaim) {
-        await cleanUpConfirmedHandoff(getPersistence(), sessionClaim.sessionId, userId, result.outcome, writeQueue)
+        const cleanup = cleanUpConfirmedHandoff(getPersistence(), sessionClaim.sessionId, userId, result.outcome, writeQueue)
+        await cleanup.withinDeadline
         if (store.runtime.writeQueue === writeQueue) store.runtime.writeQueue = null
       }
       setSubmissionResult({

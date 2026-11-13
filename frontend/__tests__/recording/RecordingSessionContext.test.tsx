@@ -65,7 +65,8 @@ describe('RecordingSessionContext', () => {
     expect(keys).not.toContain('markInterrupted')
   })
 
-  test('shows each submitted project-missing warning once app-wide', () => {
+  test.each(['/transcripts', '/recording/new'])('shows each submitted project-missing warning once on %s', (pathname) => {
+    mockPathname = pathname
     render(
       <RecordingSessionProvider>
         <div>Child</div>
@@ -146,15 +147,17 @@ describe('RecordingSessionContext', () => {
   })
 
   test.each([
-    ['saved_needs_retry', 'Click Transcribe to retry'],
-    ['saved_status_unknown', 'Check the transcript status before retrying'],
-  ] as const)('shows the recovered %s notice outside the recording page', (outcome, message) => {
+    ['saved_needs_retry', true, 'Click Transcribe to retry'],
+    ['saved_status_unknown', true, 'Check the transcript status before retrying'],
+    ['saved_needs_retry', false, 'Click Transcribe to retry'],
+    ['saved_status_unknown', false, 'Check the transcript status before retrying'],
+  ] as const)('shows the %s notice outside the recording page (recovered: %s)', (outcome, recovered, message) => {
     mockPathname = '/projects'
     render(<RecordingSessionProvider><div>Child</div></RecordingSessionProvider>)
     act(() => {
       __setSnapshotForTesting({
         state: 'submitted',
-        submissionResult: { transcriptId: 't1', outcome, recovered: true },
+        submissionResult: { transcriptId: 't1', outcome, recovered: recovered ? true : undefined },
       })
     })
     expect(toastMock).toHaveBeenCalledWith({

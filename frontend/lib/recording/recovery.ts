@@ -22,6 +22,7 @@ import type { SessionClaim, SessionLock } from './lock'
 import { getPresence, type RecordingPresence } from './presence'
 import type { RecoverableInfo } from './sessionTypes'
 import { hasConfirmedHandoffInPage } from './confirmedHandoff'
+import { waitForLocalCleanup } from './cleanupDeadline'
 
 export interface RecoveryProbeResult {
   info: RecoverableInfo
@@ -116,8 +117,8 @@ export async function probeRecoverableSessions(
   const cleanupOnly = (row: PersistedSession) =>
     Boolean(row.cleanupOnly) || hasConfirmedHandoffInPage(row.sessionId, userId)
 
-  // Finish destructive cleanup before taking the modal claim. The adapter can
-  // hold only one claim, and an unavailable claim leaves the row for later.
+  // Give cleanup a bounded attempt before taking the modal claim. The adapter
+  // can hold only one claim, and a busy or stalled row can be retried later.
   for (const row of candidates) {
     if (!canProceed()) return null
     try {
@@ -130,11 +131,13 @@ export async function probeRecoverableSessions(
       const claim = await lock.acquire(row.sessionId)
       if (!claim) continue
       try {
-        const current = await persistence.getSession(row.sessionId)
-        if (canProceed() && isEligible(current) &&
-          (cleanupOnly(current) || !(await inspectAudio(persistence, current))) && canProceed()) {
-          await persistence.deleteSession(row.sessionId, canProceed)
-        }
+        await waitForLocalCleanup(async (signal) => {
+          const current = await persistence.getSession(row.sessionId)
+          if (signal.aborted || !canProceed() || !isEligible(current)) return
+          if (!cleanupOnly(current) && await inspectAudio(persistence, current)) return
+          if (signal.aborted || !canProceed()) return
+          await persistence.deleteSession(row.sessionId, canProceed, signal)
+        })
       } finally {
         await claim.release()
       }

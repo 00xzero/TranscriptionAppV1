@@ -117,7 +117,7 @@ export function RecordingSessionProvider({
     }
 
     warnedTranscriptIdRef.current = result.transcriptId
-    if (result.recovered && pathname !== '/recording/new') {
+    if (pathname !== '/recording/new') {
       toast({
         title: result.warning === 'project_missing' ? PROJECT_MISSING_WARNING_MESSAGE : 'Recording saved',
         description: savedCaptureMessage(result.outcome) ?? undefined,

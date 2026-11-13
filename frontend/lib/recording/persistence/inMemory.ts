@@ -44,7 +44,8 @@ export class InMemorySessionPersistence implements SessionPersistence {
     return Array.from(this.sessions.values(), (s) => ({ ...s }))
   }
 
-  async deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void> {
+  async deleteSession(sessionId: string, canDelete?: () => boolean, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     if (canDelete?.() === false) throw new Error('Recording deletion is no longer available.')
     this.sessions.delete(sessionId)
     this.chunks.delete(sessionId)

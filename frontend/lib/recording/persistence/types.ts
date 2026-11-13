@@ -75,8 +75,8 @@ export interface SessionPersistence {
   patchSession(sessionId: string, patch: PersistedSessionPatch, signal?: AbortSignal): Promise<void>
   getSession(sessionId: string): Promise<PersistedSession | null>
   listSessions(): Promise<PersistedSession[]>
-  /** Deletes the row and its chunks after the optional pre-transaction check. */
-  deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void>
+  /** Deletes the row and its chunks after the optional guard, with cancellation until commit. */
+  deleteSession(sessionId: string, canDelete?: () => boolean, signal?: AbortSignal): Promise<void>
   putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void>
   listChunkSeqs(sessionId: string): Promise<number[]>
   /**

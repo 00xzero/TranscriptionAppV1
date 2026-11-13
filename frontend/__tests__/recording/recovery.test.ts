@@ -12,12 +12,14 @@ import { IDBFactory } from 'fake-indexeddb'
 import {
   InMemorySessionPersistence,
   IndexedDBSessionPersistence,
+  SESSION_MAX_AGE_MS,
   type PersistedSession,
   type SessionPersistence,
 } from '@/lib/recording/persistence'
 import { FakeSessionLock, type SessionLock } from '@/lib/recording/lock'
 import type { RecordingPresence } from '@/lib/recording/presence'
-import { probeRecoverableSessions } from '@/lib/recording/recovery'
+import { LOCAL_CLEANUP_TIMEOUT_MS } from '@/lib/recording/cleanupDeadline'
+import { probeRecoverableSessions, type RecoveryProbeResult } from '@/lib/recording/recovery'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const USER = 'user-1'
@@ -252,6 +254,59 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     expect(await persistence.getSession('stale')).toBeNull()
     expect(await persistence.listChunkSeqs('stale')).toEqual([])
   })
+})
+
+test.each([
+  ['recent', 2000],
+  ['expired', NOW - SESSION_MAX_AGE_MS],
+])('claims the next recording when deletion of the %s saved row stalls', async (_age, createdAt) => {
+  const persistence = new InMemorySessionPersistence()
+  const lock = new FakeSessionLock()
+  await seed(persistence, baseSession({ sessionId: 'pending' }), [0, 1])
+  await seed(persistence, baseSession({
+    sessionId: 'saved', createdAt, cleanupOnly: 'saved_status_unknown',
+  }), [0, 1])
+  const deleteSession = persistence.deleteSession.bind(persistence)
+  const deletionStarted = Promise.withResolvers<void>()
+  const resumeDeletion = Promise.withResolvers<void>()
+  const deletionFinished = Promise.withResolvers<void>()
+  jest.spyOn(persistence, 'deleteSession').mockImplementationOnce(async (...args) => {
+    deletionStarted.resolve()
+    await resumeDeletion.promise
+    try {
+      await deleteSession(...args)
+    } finally {
+      deletionFinished.resolve()
+    }
+  })
+
+  jest.useFakeTimers()
+  let recovered: RecoveryProbeResult | null = null
+  const probe = probeRecoverableSessions(persistence, lock, USER, NOW).then((result) => {
+    recovered = result
+    return result
+  })
+  try {
+    await deletionStarted.promise
+    expect(await lock.isHeld('saved')).toBe(true)
+
+    await jest.advanceTimersByTimeAsync(LOCAL_CLEANUP_TIMEOUT_MS)
+    expect(recovered).toMatchObject({ info: { sessionId: 'pending', remainingCount: 0 } })
+    expect(await lock.isHeld('saved')).toBe(false)
+    expect(await lock.isHeld('pending')).toBe(true)
+
+    resumeDeletion.resolve()
+    await deletionFinished.promise
+    expect(await persistence.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+    expect(await persistence.listChunkSeqs('saved')).toEqual([0, 1])
+  } finally {
+    resumeDeletion.resolve()
+    await (await probe)?.claim.release()
+    jest.useRealTimers()
+  }
+
+  expect(await probeRecoverableSessions(persistence, lock, USER, NOW, 'pending')).toBeNull()
+  expect(await persistence.getSession('saved')).toBeNull()
 })
 
 describe('probeRecoverableSessions truncation assessment', () => {

@@ -165,6 +165,23 @@ describe('IndexedDBSessionPersistence', () => {
     expect(await store.listChunkSeqs('s2')).toEqual([0])
   })
 
+  test('aborts an uncommitted deletion transaction when its signal fires', async () => {
+    const store = new IndexedDBSessionPersistence()
+    await store.putSession(makeSession('s1'))
+    await store.putChunk('s1', 0, new Blob([new Uint8Array([1])]))
+    const controller = new AbortController()
+    const canDelete = jest.fn(() => true)
+
+    const deletion = store.deleteSession('s1', canDelete, controller.signal)
+    await Promise.resolve()
+    expect(canDelete).toHaveBeenCalledTimes(1)
+    controller.abort()
+
+    await expect(deletion).rejects.toHaveProperty('name', 'AbortError')
+    expect(await store.getSession('s1')).not.toBeNull()
+    expect(await store.listChunkSeqs('s1')).toEqual([0])
+  })
+
   test('GC sweep deletes only sessions older than the max age', async () => {
     const store = new IndexedDBSessionPersistence()
     const now = 1_000_000_000_000

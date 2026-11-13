@@ -1087,6 +1087,7 @@ class DelayedDeletePersistence extends InMemorySessionPersistence {
   releaseDelete!: () => void
   private resolveDeleteStarted!: () => void
   private resolveDeleteFinished!: () => void
+  private firstDelete = true
 
   constructor() {
     super()
@@ -1098,13 +1099,15 @@ class DelayedDeletePersistence extends InMemorySessionPersistence {
     })
   }
 
-  override async deleteSession(sessionId: string, canDelete?: () => boolean): Promise<void> {
+  override async deleteSession(sessionId: string, canDelete?: () => boolean, signal?: AbortSignal): Promise<void> {
+    if (!this.firstDelete) return super.deleteSession(sessionId, canDelete, signal)
+    this.firstDelete = false
     this.resolveDeleteStarted()
     await new Promise<void>((resolve) => {
       this.releaseDelete = resolve
     })
     try {
-      await super.deleteSession(sessionId, canDelete)
+      await super.deleteSession(sessionId, canDelete, signal)
     } finally {
       this.resolveDeleteFinished()
     }
@@ -1227,6 +1230,35 @@ describe('recording session durability mirror', () => {
     ).rejects.toMatchObject({ code: 'recording_identity_required' })
 
     expect(await persistence.listSessions()).toEqual([])
+  })
+
+  test('attachAndStart stops waiting for a stalled recovery probe without starting the recorder', async () => {
+    jest.useFakeTimers()
+    try {
+      await seedRecovery('pending')
+      __setSnapshotForTesting({ state: 'submitted' })
+      const listSessions = persistence.listSessions.bind(persistence)
+      let unblock!: () => void
+      const blocked = new Promise<void>((resolve) => { unblock = resolve })
+      jest.spyOn(persistence, 'listSessions').mockImplementationOnce(async () => {
+        await blocked
+        return listSessions()
+      })
+      const probe = runRecoveryProbe()
+      const start = expect(attachRecording()).rejects.toThrow('Recording recovery is taking longer than expected')
+
+      await jest.advanceTimersByTimeAsync(LOCAL_CLEANUP_TIMEOUT_MS)
+      await start
+      expect(getSnapshot().state).toBe('submitted')
+      expect(FakeMediaRecorder.lastInstance).toBeNull()
+
+      unblock()
+      await expect(probe).resolves.toBe(true)
+      expect(getSnapshot().recoverable?.sessionId).toBe('pending')
+      await expect(attachRecording()).rejects.toMatchObject({ code: 'recovery_pending' })
+    } finally {
+      jest.useRealTimers()
+    }
   })
 
   test('an account switch keeps the recording and skips the upload', async () => {
@@ -1735,7 +1767,7 @@ describe('recording session durability mirror', () => {
     }
   )
 
-  test('settles a recovered save without probing again when local deletion stalls', async () => {
+  test.each([false, true])('a recovered save settles at the deadline and only re-probes for the same account (switched: %s)', async (switched) => {
     jest.useFakeTimers()
     try {
       const delayed = new DelayedDeletePersistence()
@@ -1743,7 +1775,9 @@ describe('recording session durability mirror', () => {
       const lock = new CountingSessionLock()
       __setSessionLockForTesting(lock)
       await seedRecovery('saved')
-      await runRecoveryProbe()
+      await seedRecovery('pending', { createdAt: Date.now() - 120_000 })
+      await expect(runRecoveryProbe()).resolves.toBe(true)
+      expect(getSnapshot().recoverable).toMatchObject({ sessionId: 'saved', remainingCount: 1 })
       const listSessions = jest.spyOn(delayed, 'listSessions')
       mockRunCaptureUpload.mockResolvedValue({
         kind: 'success', transcriptId: 't1', outcome: 'saved_status_unknown',
@@ -1760,9 +1794,27 @@ describe('recording session durability mirror', () => {
       expect(lock.held).toBeNull()
       expect(listSessions).not.toHaveBeenCalled()
 
+      if (switched) setIdentity({ userId: 'another-user', ready: true, accountChanged: true })
       delayed.releaseDelete()
       await delayed.deleteFinished
       expect(await delayed.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+
+      await jest.advanceTimersByTimeAsync(0)
+      if (switched) {
+        expect(listSessions).not.toHaveBeenCalled()
+        expect(lock.held).toBeNull()
+        expect(getSnapshot().recoverable).toBeNull()
+        return
+      }
+      expect(getSnapshot()).toMatchObject({
+        state: 'recoverable',
+        recoverable: { sessionId: 'pending' },
+        submissionResult: { transcriptId: 't1', outcome: 'saved_status_unknown', recovered: true },
+      })
+      expect(lock.held).toBe('pending')
+      expect(await delayed.getSession('saved')).toBeNull()
+      expect(mockRunCaptureUpload).toHaveBeenCalledTimes(1)
+      await expect(attachRecording()).rejects.toMatchObject({ code: 'recovery_pending' })
     } finally {
       jest.useRealTimers()
     }

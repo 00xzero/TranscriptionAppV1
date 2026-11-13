@@ -63,6 +63,7 @@ import {
 } from './sessionRecovery'
 import { getIdentity, isRecordingAccountCurrent, __resetIdentityForTesting } from './sessionIdentity'
 import { DURATION_STOP_HEADROOM_MS, DURATION_WARNING_MS } from './durationBudget'
+import { waitForLocalCleanup } from './cleanupDeadline'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { randomId } from '@/lib/ids'
 import { resolveTranscriptionOptions } from '@/contracts/transcription-options'
@@ -146,10 +147,13 @@ async function startRecording(params: AttachAndStartParams): Promise<void> {
 
   // The provider runs this at app startup, but attach is the final backstop:
   // before writing a new session, surface any pending orphan for this user.
-  if (await runRecoveryProbe()) {
-    throw new RecoveryPendingError()
-  }
+  const probeSettled = await waitForLocalCleanup(async () => {
+    if (await runRecoveryProbe()) throw new RecoveryPendingError()
+  })
   if (!isRecordingAccountCurrent(userId)) throw new RecordingIdentityRequiredError()
+  if (!probeSettled) {
+    throw new Error('Recording recovery is taking longer than expected. Try again in a moment.')
+  }
 
   clearMockLifecycleTimeouts()
   clearFinalizedRecording(store)

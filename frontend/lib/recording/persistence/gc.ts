@@ -1,3 +1,4 @@
+import { waitForLocalCleanup } from '../cleanupDeadline'
 import type { SessionLock } from '../lock/types'
 import type { PersistedSession, SessionPersistence } from './types'
 
@@ -24,12 +25,14 @@ export async function sweepExpiredSessions(
       const claim = await lock.acquire(row.sessionId)
       if (!claim) continue
       try {
-        const current = await persistence.getSession(row.sessionId)
-        if (canProceed() && current && current.userId === row.userId &&
-          now - current.createdAt >= SESSION_MAX_AGE_MS) {
-          await persistence.deleteSession(row.sessionId, canProceed)
-          deleted++
-        }
+        await waitForLocalCleanup(async (signal) => {
+          const current = await persistence.getSession(row.sessionId)
+          if (!signal.aborted && canProceed() && current && current.userId === row.userId &&
+            now - current.createdAt >= SESSION_MAX_AGE_MS) {
+            await persistence.deleteSession(row.sessionId, canProceed, signal)
+            if (!signal.aborted) deleted++
+          }
+        })
       } finally {
         await claim.release()
       }
