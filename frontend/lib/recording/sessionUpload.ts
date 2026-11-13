@@ -1,106 +1,142 @@
 /**
- * Upload orchestration: drives a finalized recording through the capture upload
- * and maps the result onto the session state machine (submitted / retryable
- * error). Also owns the storage filename helper, since that name is part of the
- * upload/storage idempotency contract and is shared by the live finalize path and
- * recovery save.
+ * Shared recording submission and the live session's upload transitions.
+ * Recovered attempts use the same executor and keep their own claim and cleanup.
  */
 
 import {
   dispatch,
   markError,
   markSubmitted,
+  releaseFrozenLiveRecording,
   setSubmissionResult,
   setUploadBytes,
 } from './sessionCore'
 import { disposeController } from './sessionRuntime'
-import { store } from './sessionStore'
-import { runCaptureUpload } from '@/lib/capture/upload'
-
-// Storage filename for an uploaded recording. Keyed on uploadIntentId so the live
-// finalize path and any later recovery save of the SAME recording produce the
-// identical name: server dedup recomputes the storage path via
-// getMediaPath(userId, transcriptId, filename), so a divergent name would re-upload
-// to a new path on a dedup hit and orphan the originally-uploaded object. The
-// timestamp fallback is only reached when no intent id exists, in which case
-// create never dedups (no cross-path collision is possible).
-export function recordingMediaFilename(
-  uploadIntentId: string | null,
-  codecExtension: string | null
-): string {
-  const ext = codecExtension ?? 'webm'
-  const stable = uploadIntentId ?? `t${Date.now()}`
-  return `recording-${stable}.${ext}`
-}
+import { setSnapshot, store } from './sessionStore'
+import { runCaptureUpload, type CaptureUploadResult } from '@/lib/capture/upload'
+import type { FinalizedRecording, RecordingUploadPhase } from './sessionTypes'
+import { getPersistence } from './persistence'
+import { cleanUpConfirmedHandoff } from './confirmedHandoff'
+import { isValidRecordingIntent } from './recordingIntent'
+import { canCancelRecordingUpload } from './uploadProgress'
+import { ACCOUNT_CHANGED_MESSAGE } from '@/lib/auth/account-boundary'
+import { isRecordingAccountCurrent } from './sessionIdentity'
+import { downloadRecording } from './downloadRecording'
 
 function markUploadError(message: string): void {
   disposeController(store)
   markError(message)
 }
 
+export function beginRecordingSubmission(phase: 'preparing' | 'creating'): AbortController | null {
+  if (store.runtime.uploadAbortController) return null
+  const controller = new AbortController()
+  store.runtime.uploadAbortController = controller
+  setSnapshot({ ...store.snapshot, uploadPhase: phase })
+  return controller
+}
+
+export function endRecordingSubmission(controller: AbortController): void {
+  if (store.runtime.uploadAbortController === controller) {
+    store.runtime.uploadAbortController = null
+    setSnapshot({ ...store.snapshot, uploadPhase: null, uploadBytes: null })
+  }
+}
+
+export function setRecordingUploadPhase(controller: AbortController, phase: RecordingUploadPhase): void {
+  if (store.runtime.uploadAbortController === controller) {
+    setSnapshot({ ...store.snapshot, uploadPhase: phase })
+  }
+}
+
+export function cancelRecordingUpload(expectedSessionId?: string): void {
+  const { uploadAbortController: controller, recoveryClaim, userId } = store.runtime
+  if (!controller || recoveryClaim?.sessionId !== expectedSessionId ||
+    !canCancelRecordingUpload(store.snapshot.uploadPhase) || !isRecordingAccountCurrent(userId)) return
+  setRecordingUploadPhase(controller, 'canceling')
+  controller.abort()
+}
+
+export async function runRecordingSubmission(
+  recording: FinalizedRecording,
+  userId: string,
+  uploadIntentId: string | null,
+  controller: AbortController
+): Promise<CaptureUploadResult> {
+  if (!isRecordingAccountCurrent(userId)) {
+    return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
+  }
+  if (!isValidRecordingIntent(uploadIntentId)) {
+    return { kind: 'failure', message: 'This recording is available for download only.' }
+  }
+  if (controller.signal.aborted) return { kind: 'failure', message: 'Upload canceled.' }
+  setRecordingUploadPhase(controller, 'creating')
+  const updateBytes = (sent: number, total: number) => {
+    if (store.runtime.uploadAbortController === controller && !controller.signal.aborted) {
+      setUploadBytes({ sent, total })
+    }
+  }
+  try {
+    return await runCaptureUpload(recording.file, recording.title, recording.keyTerms, {
+      userId,
+      uploadIntentId,
+      projectId: recording.projectId,
+      transcriptionOptions: recording.transcriptionOptions,
+      signal: controller.signal,
+      onProgress: (stage) => {
+        if (stage === 'uploading') updateBytes(0, recording.file.size)
+      },
+      onUploadBytes: updateBytes,
+      onTransferPhase: (phase) => {
+        if (!controller.signal.aborted) setRecordingUploadPhase(controller, phase)
+      },
+    })
+  } catch (err) {
+    return { kind: 'failure', message: (err as Error)?.message ?? 'Could not upload the recording.' }
+  }
+}
+
 export async function submitFinalizedRecording(): Promise<void> {
-  const finalized = store.runtime.finalizedRecording
-  if (!finalized) {
+  const { finalizedRecording, userId, uploadIntentId, sessionClaim, writeQueue } = store.runtime
+  if (!finalizedRecording) {
     markError('No finalized recording is available to upload.')
     return
   }
-  const userId = store.runtime.userId
-  if (!userId) {
-    markError('Sign in to the original account before uploading this recording.')
+  if (!userId || !isRecordingAccountCurrent(userId)) {
+    markUploadError(ACCOUNT_CHANGED_MESSAGE)
+    releaseFrozenLiveRecording()
     return
   }
 
-  if (!dispatch('markUploading')) return
-  if (store.snapshot.state !== 'uploading') return
-
-  // Persist the phase transition (advisory) after it has applied.
-  store.runtime.writeQueue?.enqueueMetadata({ phase: 'uploading' })
-
-  const abortController = new AbortController()
-  store.runtime.uploadAbortController = abortController
-
-  let result: Awaited<ReturnType<typeof runCaptureUpload>>
+  const controller = beginRecordingSubmission('creating')
+  if (!controller) return
   try {
-    result = await runCaptureUpload(
-      finalized.file,
-      finalized.title,
-      finalized.keyTerms,
-      {
-        userId,
-        signal: abortController.signal,
-        onProgress: (stage) => {
-          if (stage === 'uploading') setUploadBytes({ sent: 0, total: finalized.file.size })
-        },
-        onUploadBytes: (sent, total) => setUploadBytes({ sent, total }),
-        uploadIntentId: store.runtime.uploadIntentId ?? undefined,
-        projectId: finalized.projectId,
-        transcriptionOptions: finalized.transcriptionOptions,
-      }
-    )
-  } catch (err) {
-    if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
-      return
-    }
-    markUploadError((err as Error)?.message ?? 'Could not upload the recording.')
-    return
-  } finally {
-    if (store.runtime.uploadAbortController === abortController) {
-      store.runtime.uploadAbortController = null
-    }
-  }
-  if (abortController.signal.aborted || store.snapshot.state !== 'uploading') {
-    return
-  }
+    if (!dispatch('markUploading')) return
+    writeQueue?.enqueueMetadata({ phase: 'uploading' })
+    const result = await runRecordingSubmission(finalizedRecording, userId, uploadIntentId, controller)
+    if (store.runtime.uploadAbortController !== controller) return
 
-  if (result.kind === 'success') {
-    setSubmissionResult({
-      transcriptId: result.transcriptId,
-      outcome: result.outcome,
-      warning: result.warning,
-    })
-    markSubmitted()
-  } else {
-    markUploadError(result.message)
+    if (result.kind === 'success') {
+      setRecordingUploadPhase(controller, 'settling')
+      if (sessionClaim) {
+        const cleanup = cleanUpConfirmedHandoff(getPersistence(), sessionClaim.sessionId, userId, result.outcome, writeQueue)
+        await cleanup.withinDeadline
+        if (store.runtime.writeQueue === writeQueue) store.runtime.writeQueue = null
+      }
+      setSubmissionResult({
+        transcriptId: result.transcriptId,
+        outcome: result.outcome,
+        warning: result.warning,
+      })
+      endRecordingSubmission(controller)
+      markSubmitted()
+    } else {
+      endRecordingSubmission(controller)
+      markUploadError(result.message)
+      if (!isRecordingAccountCurrent(userId)) releaseFrozenLiveRecording()
+    }
+  } finally {
+    endRecordingSubmission(controller)
   }
 }
 
@@ -111,6 +147,13 @@ export async function submitFinalizedRecording(): Promise<void> {
  */
 export function getFinalizedRecordingFile(): File | null {
   return store.runtime.finalizedRecording?.file ?? null
+}
+
+export function exportFinalizedRecording(): void {
+  if (!isRecordingAccountCurrent(store.runtime.userId)) throw new Error(ACCOUNT_CHANGED_MESSAGE)
+  const file = getFinalizedRecordingFile()
+  if (!file || store.snapshot.state !== 'error') throw new Error('No recording is available to download.')
+  downloadRecording(file)
 }
 
 export async function retryFinalizedUpload(): Promise<void> {

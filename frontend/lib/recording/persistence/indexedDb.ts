@@ -82,8 +82,9 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     return promise
   }
 
-  async putSession(record: PersistedSession): Promise<void> {
+  async putSession(record: PersistedSession, signal?: AbortSignal): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(SESSIONS_STORE, 'readwrite')
     tx.objectStore(SESSIONS_STORE).put(stripUndefined(record))
     await txDone(tx)
@@ -91,9 +92,11 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
 
   async patchSession(
     sessionId: string,
-    patch: PersistedSessionPatch
+    patch: PersistedSessionPatch,
+    signal?: AbortSignal
   ): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(SESSIONS_STORE, 'readwrite')
     const store = tx.objectStore(SESSIONS_STORE)
     const existing = await promisifyRequest(store.get(sessionId))
@@ -126,16 +129,34 @@ export class IndexedDBSessionPersistence implements SessionPersistence {
     return out
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
+  async deleteSession(sessionId: string, canDelete?: () => boolean, signal?: AbortSignal): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
+    if (canDelete?.() === false) throw new Error('Recording deletion is no longer available.')
     const tx = db.transaction([SESSIONS_STORE, CHUNKS_STORE], 'readwrite')
-    tx.objectStore(SESSIONS_STORE).delete(sessionId)
-    tx.objectStore(CHUNKS_STORE).delete(chunkRange(sessionId))
-    await txDone(tx)
+    const abort = () => {
+      try {
+        tx.abort()
+      } catch {
+        // The transaction may have committed before its completion event arrived.
+      }
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+    try {
+      tx.objectStore(SESSIONS_STORE).delete(sessionId)
+      tx.objectStore(CHUNKS_STORE).delete(chunkRange(sessionId))
+      await txDone(tx)
+    } catch (error) {
+      signal?.throwIfAborted()
+      throw error
+    } finally {
+      signal?.removeEventListener('abort', abort)
+    }
   }
 
-  async putChunk(sessionId: string, seq: number, blob: Blob): Promise<void> {
+  async putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void> {
     const db = await this.openDb()
+    signal?.throwIfAborted()
     const tx = db.transaction(CHUNKS_STORE, 'readwrite')
     tx.objectStore(CHUNKS_STORE).put(blob, [sessionId, seq])
     await txDone(tx)

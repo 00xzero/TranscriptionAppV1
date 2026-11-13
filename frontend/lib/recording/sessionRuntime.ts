@@ -12,8 +12,11 @@ export function createRuntime(): Runtime {
     deviceId: null,
     codecMime: null,
     maxBytes: 0,
+    maxActiveMs: null,
     finalizedRecording: null,
     sessionId: null,
+    sessionClaim: null,
+    recoveryClaim: null,
     nextChunkSeq: 0,
     writeQueue: null,
     uploadIntentId: null,
@@ -46,11 +49,11 @@ export function clearFinalizedRecording(store: Store): void {
 
 export function clearTerminalSessionRuntime(
   store: Store,
-  clearSessionActivity: () => void
+  clearSessionActivity: () => void,
+  canDelete?: () => boolean
 ): Promise<void> {
   clearSessionActivity()
-  abortUpload(store)
-  const persistenceCleanup = teardownPersistence(store)
+  const persistenceCleanup = teardownPersistence(store, canDelete)
   disposeController(store)
   clearFinalizedRecording(store)
   return persistenceCleanup
@@ -60,7 +63,7 @@ export function clearTerminalSessionRuntime(
 // session + chunks after pending writes settle so a late `dataavailable` cannot
 // resurrect rows. Failures are swallowed so cleanup ordering never wedges the
 // terminal flow or lock release forever.
-function teardownPersistence(store: Store): Promise<void> {
+function teardownPersistence(store: Store, canDelete?: () => boolean): Promise<void> {
   const queue = store.runtime.writeQueue
   store.runtime.writeQueue = null
   store.runtime.sessionId = null
@@ -70,7 +73,7 @@ function teardownPersistence(store: Store): Promise<void> {
   store.runtime.lastChunkReceivedAt = null
   store.runtime.flushRequested = false
   if (!queue) return Promise.resolve()
-  return queue.closeAndDelete().catch(() => {})
+  return queue.closeAndDelete(canDelete).catch(() => {})
 }
 
 export function clearInterruptedSessionRuntime(
@@ -78,7 +81,6 @@ export function clearInterruptedSessionRuntime(
   clearSessionActivity: () => void
 ): void {
   clearSessionActivity()
-  abortUpload(store)
   // Keep the persisted session/chunks for later recovery (Phase 2) and GC; only
   // detach the live queue so a subsequent recording starts a fresh one. Pending
   // writes already in the abandoned queue still drain to completion.

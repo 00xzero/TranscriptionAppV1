@@ -5,6 +5,7 @@ import RecordingNewPage from '@/app/(app)/recording/new/page'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
 import {
   __resetForTesting,
+  __setSnapshotForTesting,
   getSnapshot,
   startMock,
 } from '@/lib/recording/session'
@@ -133,6 +134,21 @@ describe('Recording page', () => {
     expect(
       screen.getByTestId('recording-waveform-mock').firstElementChild
     ).toHaveStyle({ animationPlayState: 'paused' })
+  })
+
+  test('shows the duration warning while capturing and the stop reason while saving', () => {
+    act(() => {
+      __setSnapshotForTesting({ state: 'recording', durationWarning: true })
+    })
+    render(<RecordingNewPage />)
+    const warning = 'Less than 5 minutes until recording stops and transcription starts.'
+    expect(screen.getByText(warning)).toBeInTheDocument()
+
+    act(() => {
+      __setSnapshotForTesting({ state: 'uploading', autoStopReason: 'duration', durationWarning: false })
+    })
+    expect(screen.getByText(/stopped automatically near the transcription time limit/)).toBeInTheDocument()
+    expect(screen.queryByText(warning)).not.toBeInTheDocument()
   })
 
   test('uploading state keeps the waveform frozen', () => {

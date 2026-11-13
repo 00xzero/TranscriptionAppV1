@@ -10,7 +10,6 @@ import {
   MAX_FILE_SIZE_BYTES as CONFIGURED_MAX_FILE_SIZE_BYTES,
   MAX_FILE_SIZE_DISPLAY,
 } from '@/infra/supabase/storage'
-import { randomId } from '@/lib/ids'
 import {
     CreateTranscriptWarningSchema,
     type CreateTranscriptWarning,
@@ -20,9 +19,10 @@ import {
     mapProjectWriteError,
 } from '@/lib/supabase/project-errors'
 import { deleteTranscriptRequest } from '@/lib/transcripts/delete-client'
-import { transferToStorage } from './storageTransfer'
+import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, transferToStorage } from './storageTransfer'
 import { fitTranscriptTitle } from '@/core/transcripts/title'
 import type { TranscriptionOptions } from '@/contracts/transcription-options'
+import type { CaptureUploadOutcome } from '@/contracts/capture'
 
 /**
  * Supported file types for upload.
@@ -78,6 +78,7 @@ const MIME_NORMALIZATION: Record<string, string> = {
 const MAX_FILE_SIZE_BYTES = CONFIGURED_MAX_FILE_SIZE_BYTES
 
 export type CaptureUploadProgress = 'creating' | 'uploading' | 'starting' | 'done'
+export type CaptureTransferPhase = 'uploading' | 'single_transfer' | 'linking' | 'starting'
 
 /** How much of the file is in storage, from the moment it starts uploading. */
 export type UploadBytes = { sent: number; total: number }
@@ -86,6 +87,8 @@ export interface CaptureUploadOptions {
     /** The account shown when capture started; fixed for this entire attempt. */
     userId: string
     onProgress?: (p: CaptureUploadProgress) => void
+    /** Synchronous transfer boundaries for callers that offer cancellation. */
+    onTransferPhase?: (phase: CaptureTransferPhase) => void
     /** Bytes of the file in storage so far, while it uploads. */
     onUploadBytes?: (sentBytes: number, totalBytes: number) => void
     signal?: AbortSignal
@@ -107,7 +110,7 @@ export type CaptureUploadResult =
     | {
         kind: 'success'
         transcriptId: string
-        outcome: 'started' | 'saved_needs_retry' | 'saved_status_unknown'
+        outcome: CaptureUploadOutcome
         message?: string
         warning?: CreateTranscriptWarning
     }
@@ -244,12 +247,8 @@ function validateFile(file: File): string | null {
 }
 
 /**
- * POST /start with optional idempotency. When an uploadIntentId is provided the
- * start is keyed `start:<uploadIntentId>` so a recovery retry returns the cached
- * job rather than creating a second one. If a prior errored job maps to that key,
- * `/start` returns 409 `{ status: 'error' }`; we retry once with a fresh random
- * key (the one-active-per-transcript unique index still prevents a duplicate active
- * job). A plain conflict 409 (no `status`) is returned as-is.
+ * A capture intent always replays the same start key. An errored job needs
+ * a new, explicit Transcribe action in the library.
  */
 async function dispatchStart(
     transcriptId: string,
@@ -265,31 +264,9 @@ async function dispatchStart(
         headers['x-idempotency-key'] = `start:${uploadIntentId}`
     }
 
-    const res = await accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
-        method: 'POST',
-        headers,
-        signal,
-    }, userId, onDispatch)
-
-    if (res.ok || res.status !== 409 || !uploadIntentId) {
-        return res
-    }
-
-    const body = await res
-        .clone()
-        .json()
-        .catch(() => ({} as { status?: string }))
-    if (body?.status !== 'error') {
-        return res
-    }
-
-    console.warn('[capture] Prior start under intent key errored; retrying with a fresh key')
     return accountBoundFetch(`/api/transcripts/${transcriptId}/start`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-idempotency-key': `start-retry:${randomId()}`,
-        },
+        headers,
         signal,
     }, userId, onDispatch)
 }
@@ -307,7 +284,7 @@ export async function runCaptureUpload(
 ): Promise<CaptureUploadResult> {
     const userId = options.userId
     const supabase = createClientForUser(userId)
-    const signal = options.signal
+    let signal = options.signal
     let transcriptId: string | null = null
     let storagePath: string | null = null
     let didUploadFile = false
@@ -327,6 +304,10 @@ export async function runCaptureUpload(
         if (isCanceled()) {
             throw new DOMException('Upload canceled.', 'AbortError')
         }
+    }
+    const closeRecordingCancelGate = () => {
+        throwIfCanceled()
+        if (options.uploadIntentId) signal = undefined
     }
 
     if (isCanceled()) return canceledResult()
@@ -389,6 +370,9 @@ export async function runCaptureUpload(
             storagePath = alreadyLinkedKey
             didUploadFile = true
             didLinkMediaToTranscript = true
+            // Honor a cancel accepted during create. A late response can
+            // confirm the saved media without starting transcription.
+            closeRecordingCancelGate()
             console.log('[capture] Media already linked; skipping upload/link steps')
         } else {
             options.onProgress?.('uploading')
@@ -400,6 +384,7 @@ export async function runCaptureUpload(
             })
 
             const mimeType = getMimeType(file)
+            options.onTransferPhase?.(file.size <= RESUMABLE_UPLOAD_THRESHOLD_BYTES ? 'single_transfer' : 'uploading')
             // Transfer bytes to storage: single-PUT for small files, resumable
             // (TUS, 6 MB chunks) for large ones. The resumable path honours the
             // AbortSignal; the single-PUT path still can't be aborted mid-flight,
@@ -412,7 +397,11 @@ export async function runCaptureUpload(
                 onProgress: options.onUploadBytes,
             })
             didUploadFile = true
-            throwIfCanceled()
+            closeRecordingCancelGate()
+            options.onTransferPhase?.('linking')
+            // A lost PATCH may still commit after a reconciliation read. Keep
+            // intent-keyed media for retry until a definite rejection is known.
+            if (options.uploadIntentId) shouldRollbackPartialCapture = false
             console.log('[capture] File uploaded successfully')
 
             console.log('[capture] Updating transcript with source_object_key...')
@@ -433,12 +422,15 @@ export async function runCaptureUpload(
                 const updateErrorMessage =
                     updateError?.message ?? 'the transcript is no longer available'
                 if (linkRejection === 'deleting') {
+                    shouldRollbackPartialCapture = true
                     throw new Error(mapProjectWriteError(updateError))
                 }
                 if (linkRejection === 'gone') {
+                    shouldRollbackPartialCapture = true
                     throw new Error('Failed to update transcript: the transcript is no longer available')
                 }
                 if (!updateError && !linkedTranscript) {
+                    shouldRollbackPartialCapture = true
                     throw new Error('Failed to update transcript: the transcript is no longer available')
                 }
 
@@ -471,6 +463,7 @@ export async function runCaptureUpload(
             console.log('[capture] Transcript updated with source_object_key')
         }
 
+        options.onTransferPhase?.('starting')
         options.onProgress?.('starting')
         throwIfCanceled()
         const startRes = await dispatchStart(transcriptId, options.uploadIntentId, signal, userId, () => {
@@ -493,9 +486,16 @@ export async function runCaptureUpload(
         }
     } catch (err) {
         if (isAccountChangedError(err)) {
-            // Do not issue cleanup under the replacement cookie account. Any
-            // committed data stays with its original owner; local audio stays
-            // available for retry after signing back into that account.
+            // Any committed write stays with its original owner. A definite
+            // account refusal before start does not invalidate a known link.
+            if (options.uploadIntentId && transcriptId && didLinkMediaToTranscript) {
+                return {
+                    kind: 'success',
+                    transcriptId,
+                    outcome: 'saved_needs_retry',
+                    warning: creationWarning,
+                }
+            }
             return { kind: 'failure', message: ACCOUNT_CHANGED_MESSAGE }
         }
         const wasCanceled =
@@ -506,6 +506,7 @@ export async function runCaptureUpload(
 
         if (
             wasCanceled &&
+            !options.uploadIntentId &&
             transcriptId &&
             didLinkMediaToTranscript &&
             !didDispatchStartRequest &&

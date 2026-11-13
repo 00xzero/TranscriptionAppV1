@@ -28,11 +28,19 @@ export {
   checkCaptureHealth,
   handleRecorderFailure,
   recordChunk,
+  resume,
   stopAndFinalize,
 } from './sessionActions'
-export { getFinalizedRecordingFile, retryFinalizedUpload } from './sessionUpload'
+export {
+  cancelRecordingUpload,
+  exportFinalizedRecording,
+  getFinalizedRecordingFile,
+  retryFinalizedUpload,
+} from './sessionUpload'
 export {
   discardRecovered,
+  closeRecoveryForAccountChange,
+  exportRecovered,
   markInterrupted,
   runRecoveryProbe,
   saveRecovered,
@@ -52,7 +60,7 @@ export {
   markUploading,
   pause,
   resetRecordingSession,
-  resume,
+  releaseFrozenLiveRecording,
   updateSessionKeyTerms,
   updateSessionTitle,
 } from './sessionCore'

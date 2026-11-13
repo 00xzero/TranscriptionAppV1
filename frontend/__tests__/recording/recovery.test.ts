@@ -12,12 +12,14 @@ import { IDBFactory } from 'fake-indexeddb'
 import {
   InMemorySessionPersistence,
   IndexedDBSessionPersistence,
+  SESSION_MAX_AGE_MS,
   type PersistedSession,
   type SessionPersistence,
 } from '@/lib/recording/persistence'
 import { FakeSessionLock, type SessionLock } from '@/lib/recording/lock'
 import type { RecordingPresence } from '@/lib/recording/presence'
-import { probeRecoverableSessions } from '@/lib/recording/recovery'
+import { LOCAL_CLEANUP_TIMEOUT_MS } from '@/lib/recording/cleanupDeadline'
+import { probeRecoverableSessions, type RecoveryProbeResult } from '@/lib/recording/recovery'
 import { DEFAULT_TRANSCRIPTION_OPTIONS } from '@/contracts/transcription-options'
 
 const USER = 'user-1'
@@ -172,13 +174,12 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
 
   test('skips a candidate when ownership liveness cannot be determined', async () => {
     await seed(persistence, baseSession({ sessionId: 's1' }), [0, 1])
-    const acquire = jest.fn(async () => true)
+    const acquire = jest.fn(async () => null)
     const failingLock: SessionLock = {
       isHeld: async () => {
         throw new Error('query failed')
       },
       acquire,
-      release: async () => {},
     }
 
     const result = await probeRecoverableSessions(persistence, failingLock, USER, NOW)
@@ -193,8 +194,7 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     // isHeld false (not yet owned) but acquire fails — another probing tab won.
     const raceLock: SessionLock = {
       isHeld: async () => false,
-      acquire: async () => false,
-      release: async () => {},
+      acquire: async () => null,
     }
 
     const result = await probeRecoverableSessions(persistence, raceLock, USER, NOW)
@@ -212,6 +212,23 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
 
     expect(result?.info.sessionId).toBe('newer')
     expect(result?.info.remainingCount).toBe(1)
+  })
+
+  test('skips a marked row whose deletion failed and claims the next recording', async () => {
+    await seed(persistence, baseSession({ sessionId: 'pending', createdAt: 1000 }), [0, 1])
+    await seed(persistence, baseSession({
+      sessionId: 'saved', createdAt: 2000, cleanupOnly: 'saved_status_unknown',
+    }), [0, 1])
+    jest.spyOn(persistence, 'deleteSession').mockRejectedValueOnce(new Error('delete failed'))
+
+    const result = await probeRecoverableSessions(persistence, lock, USER, NOW)
+    expect(result?.info).toMatchObject({ sessionId: 'pending', remainingCount: 0 })
+    expect(await persistence.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+    await result?.claim.release()
+
+    const next = await probeRecoverableSessions(persistence, lock, USER, NOW, 'pending')
+    expect(next).toBeNull()
+    expect(await persistence.getSession('saved')).toBeNull()
   })
 
   test('excludes the live in-tab session id', async () => {
@@ -237,6 +254,59 @@ describe.each(adapters)('probeRecoverableSessions ($name)', ({ make }) => {
     expect(await persistence.getSession('stale')).toBeNull()
     expect(await persistence.listChunkSeqs('stale')).toEqual([])
   })
+})
+
+test.each([
+  ['recent', 2000],
+  ['expired', NOW - SESSION_MAX_AGE_MS],
+])('claims the next recording when deletion of the %s saved row stalls', async (_age, createdAt) => {
+  const persistence = new InMemorySessionPersistence()
+  const lock = new FakeSessionLock()
+  await seed(persistence, baseSession({ sessionId: 'pending' }), [0, 1])
+  await seed(persistence, baseSession({
+    sessionId: 'saved', createdAt, cleanupOnly: 'saved_status_unknown',
+  }), [0, 1])
+  const deleteSession = persistence.deleteSession.bind(persistence)
+  const deletionStarted = Promise.withResolvers<void>()
+  const resumeDeletion = Promise.withResolvers<void>()
+  const deletionFinished = Promise.withResolvers<void>()
+  jest.spyOn(persistence, 'deleteSession').mockImplementationOnce(async (...args) => {
+    deletionStarted.resolve()
+    await resumeDeletion.promise
+    try {
+      await deleteSession(...args)
+    } finally {
+      deletionFinished.resolve()
+    }
+  })
+
+  jest.useFakeTimers()
+  let recovered: RecoveryProbeResult | null = null
+  const probe = probeRecoverableSessions(persistence, lock, USER, NOW).then((result) => {
+    recovered = result
+    return result
+  })
+  try {
+    await deletionStarted.promise
+    expect(await lock.isHeld('saved')).toBe(true)
+
+    await jest.advanceTimersByTimeAsync(LOCAL_CLEANUP_TIMEOUT_MS)
+    expect(recovered).toMatchObject({ info: { sessionId: 'pending', remainingCount: 0 } })
+    expect(await lock.isHeld('saved')).toBe(false)
+    expect(await lock.isHeld('pending')).toBe(true)
+
+    resumeDeletion.resolve()
+    await deletionFinished.promise
+    expect(await persistence.getSession('saved')).toMatchObject({ cleanupOnly: 'saved_status_unknown' })
+    expect(await persistence.listChunkSeqs('saved')).toEqual([0, 1])
+  } finally {
+    resumeDeletion.resolve()
+    await (await probe)?.claim.release()
+    jest.useRealTimers()
+  }
+
+  expect(await probeRecoverableSessions(persistence, lock, USER, NOW, 'pending')).toBeNull()
+  expect(await persistence.getSession('saved')).toBeNull()
 })
 
 describe('probeRecoverableSessions truncation assessment', () => {

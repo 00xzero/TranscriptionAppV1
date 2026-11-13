@@ -1,5 +1,7 @@
 import type { CodecSelection } from './codecs'
-import type { CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
+import type { SessionClaim } from './lock/types'
+import type { AutoStopReason } from './durationBudget'
+import type { CaptureTransferPhase, CaptureUploadSuccess, UploadBytes } from '@/lib/capture/upload'
 import type { SessionWriteQueue } from './persistence'
 import type { RecorderController } from './recorderController'
 import { DEFAULT_TRANSCRIPTION_OPTIONS, type TranscriptionOptions } from '@/contracts/transcription-options'
@@ -15,6 +17,8 @@ export type RecordingState =
   | 'error'
   | 'interrupted'
   | 'recoverable'
+
+export type RecordingUploadPhase = CaptureTransferPhase | 'preparing' | 'creating' | 'settling' | 'canceling'
 
 /**
  * Metadata for a recoverable orphan surfaced to the recovery modal. Carries only
@@ -57,6 +61,8 @@ export interface SessionSnapshot {
   codecExtension: 'webm' | 'mp4' | null
   bytesSoFar: number
   salvageMessage: string | null
+  durationWarning: boolean
+  autoStopReason: AutoStopReason | null
   canRetryUpload: boolean
   /**
    * Backup/durability status (Phase 3). `true` = the recording is being mirrored
@@ -73,13 +79,16 @@ export interface SessionSnapshot {
   captureHealthWarning: string | null
   // Populated only in the `recoverable` state; null otherwise.
   recoverable: RecoverableInfo | null
-  submissionResult: Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> | null
+  submissionResult: (Pick<CaptureUploadSuccess, 'transcriptId' | 'outcome' | 'warning'> & {
+    recovered?: true
+  }) | null
   /**
    * How much of the recording is in storage. Set from the moment its bytes
    * start going up and cleared on leaving `uploading`; null while there is
    * nothing to count (before that, or a retry whose file was already in).
    */
   uploadBytes: UploadBytes | null
+  uploadPhase: RecordingUploadPhase | null
 }
 
 export interface FinalizedRecording {
@@ -102,10 +111,13 @@ export interface Runtime {
   deviceId: string | null
   codecMime: string | null
   maxBytes: number
+  maxActiveMs: number | null
   finalizedRecording: FinalizedRecording | null
   // Durable persistence (Phase 1). `sessionId`/`writeQueue` are null when idle;
   // `nextChunkSeq` is the monotonic seq assigned to the next persisted chunk.
   sessionId: string | null
+  sessionClaim: SessionClaim | null
+  recoveryClaim: SessionClaim | null
   nextChunkSeq: number
   writeQueue: SessionWriteQueue | null
   // Phase 2: client-generated upload idempotency key for this session; null when
@@ -143,12 +155,15 @@ export const IDLE_SNAPSHOT: SessionSnapshot = Object.freeze({
   codecExtension: null,
   bytesSoFar: 0,
   salvageMessage: null,
+  durationWarning: false,
+  autoStopReason: null,
   canRetryUpload: false,
   durable: true,
   captureHealthWarning: null,
   recoverable: null,
   submissionResult: null,
   uploadBytes: null,
+  uploadPhase: null,
 })
 
 export const SERVER_SNAPSHOT: SessionSnapshot = IDLE_SNAPSHOT

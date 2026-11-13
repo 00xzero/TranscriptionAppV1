@@ -12,17 +12,21 @@
 
 import {
   meetsRecoveryFloor,
+  SESSION_MAX_AGE_MS,
   sweepExpiredSessions,
   validateChunkStream,
   type PersistedSession,
   type SessionPersistence,
 } from './persistence'
-import type { SessionLock } from './lock'
+import type { SessionClaim, SessionLock } from './lock'
 import { getPresence, type RecordingPresence } from './presence'
 import type { RecoverableInfo } from './sessionTypes'
+import { hasConfirmedHandoffInPage } from './confirmedHandoff'
+import { waitForLocalCleanup } from './cleanupDeadline'
 
 export interface RecoveryProbeResult {
   info: RecoverableInfo
+  claim: SessionClaim
 }
 
 /** Resolve a MIME usable for assembling the recovered File, or null. */
@@ -73,146 +77,117 @@ export function assessTruncation(
   return row.armed === false
 }
 
+// Null means invalid. Read failures are handled by the probe and leave the row alone.
+async function inspectAudio(
+  persistence: SessionPersistence,
+  row: PersistedSession
+): Promise<{ mime: string; bytes: number } | null> {
+  const seqs = await persistence.listChunkSeqs(row.sessionId)
+  const mime = codecMimeFor(row)
+  if (!mime || !validateChunkStream(seqs).valid) return null
+  const { count, totalBytes } = await persistence.chunkStats(row.sessionId)
+  return count === seqs.length && meetsRecoveryFloor(totalBytes)
+    ? { mime, bytes: totalBytes }
+    : null
+}
+
 export async function probeRecoverableSessions(
   persistence: SessionPersistence,
   lock: SessionLock,
   userId: string,
   now: number = Date.now(),
   excludeSessionId: string | null = null,
-  readPresence: () => RecordingPresence | null = () => getPresence().read()
+  readPresence: () => RecordingPresence | null = () => getPresence().read(),
+  canProceed: () => boolean = () => true
 ): Promise<RecoveryProbeResult | null> {
-  // Single list pass: feed the rows through the opportunistic 7-day sweep and
-  // probe the survivors. Avoids a second full listSessions()+parse pass.
   let rows: PersistedSession[]
   try {
     const listed = await persistence.listSessions()
-    const swept = await sweepExpiredSessions(persistence, listed, now)
-    rows = swept.survivors
+    rows = (await sweepExpiredSessions(persistence, lock, listed, now, canProceed)).survivors
   } catch {
     return null
   }
 
-  // Privacy gate + newest-first. Null/foreign userId rows are never surfaced
-  // (left for GC). The live session in this tab, if any, is excluded.
   const candidates = rows
     .filter((row) => row.userId === userId && row.sessionId !== excludeSessionId)
     .sort((a, b) => b.createdAt - a.createdAt)
+  const valid: string[] = []
+  const isEligible = (row: PersistedSession | null): row is PersistedSession =>
+    row !== null && row.userId === userId && now - row.createdAt < SESSION_MAX_AGE_MS
+  const cleanupOnly = (row: PersistedSession) =>
+    Boolean(row.cleanupOnly) || hasConfirmedHandoffInPage(row.sessionId, userId)
 
-  // Single presence read for the whole probe: localStorage holds one snapshot (the
-  // most recent session), matched per-candidate by sessionId. A throwing reader is
-  // treated as no snapshot so assessTruncation falls back to the `armed` flag.
-  let presence: RecordingPresence | null
+  // Give cleanup a bounded attempt before taking the modal claim. The adapter
+  // can hold only one claim, and a busy or stalled row can be retried later.
+  for (const row of candidates) {
+    if (!canProceed()) return null
+    try {
+      if (await lock.isHeld(row.sessionId) || !canProceed()) continue
+      if (!cleanupOnly(row) && await inspectAudio(persistence, row)) {
+        valid.push(row.sessionId)
+        continue
+      }
+      if (!canProceed()) return null
+      const claim = await lock.acquire(row.sessionId)
+      if (!claim) continue
+      try {
+        await waitForLocalCleanup(async (signal) => {
+          const current = await persistence.getSession(row.sessionId)
+          if (signal.aborted || !canProceed() || !isEligible(current)) return
+          if (!cleanupOnly(current) && await inspectAudio(persistence, current)) return
+          if (signal.aborted || !canProceed()) return
+          await persistence.deleteSession(row.sessionId, canProceed, signal)
+        })
+      } finally {
+        await claim.release()
+      }
+    } catch {
+      // Failed reads and unavailable rows can be retried by a later probe.
+    }
+  }
+
+  let presence: RecordingPresence | null = null
   try {
     presence = readPresence()
   } catch {
-    presence = null
+    // Truncation assessment falls back to persisted metadata.
   }
 
-  let claimed: RecoverableInfo | null = null
-  let remaining = 0
-
-  for (const row of candidates) {
-    // Owner pre-filter (read-only): never validate or delete a session a live
-    // tab is actively writing.
-    let held = false
+  for (const [index, sessionId] of valid.entries()) {
+    if (!canProceed()) return null
+    let claim: SessionClaim | null = null
+    let keepClaim = false
     try {
-      held = await lock.isHeld(row.sessionId)
-    } catch {
-      continue
-    }
-    if (held) continue
-
-    let seqs: number[]
-    try {
-      seqs = await persistence.listChunkSeqs(row.sessionId)
-    } catch {
-      continue
-    }
-
-    const mime = codecMimeFor(row)
-    const streamValidation = validateChunkStream(seqs)
-
-    if (!streamValidation.valid || mime === null) {
-      // Unrecoverable orphan (no init chunk, gap, or no codec) — silently clean
-      // it up.
-      try {
-        await persistence.deleteSession(row.sessionId)
-      } catch {
-        // best-effort
+      claim = await lock.acquire(sessionId)
+      if (!claim || !canProceed()) continue
+      const row = await persistence.getSession(sessionId)
+      if (!isEligible(row) || cleanupOnly(row) || !canProceed()) continue
+      const audio = await inspectAudio(persistence, row)
+      if (!audio || !canProceed()) continue
+      keepClaim = true
+      return {
+        claim,
+        info: {
+          sessionId,
+          uploadIntentId: row.uploadIntentId,
+          projectId: row.projectId,
+          title: row.title,
+          generatedTitle: row.generatedTitle,
+          keyTerms: row.keyTerms,
+          transcriptionOptions: row.transcriptionOptions,
+          codecMime: audio.mime,
+          codecExtension: row.codecExtension,
+          bytesSoFar: audio.bytes,
+          createdAt: row.createdAt,
+          remainingCount: valid.length - index - 1,
+          mayBeTruncated: assessTruncation(row, presence),
+        },
       }
-      continue
-    }
-
-    let recoveredBytes = 0
-    try {
-      // Metadata-only summary — never materializes the audio Blobs. Counting +
-      // byte-summing here on the startup hot path with readChunks would spike
-      // memory by tens/hundreds of MB; the save path re-reads the bytes later.
-      const stats = await persistence.chunkStats(row.sessionId)
-      // The chunk stream is authoritative for the recovery floor. bytesSoFar is
-      // advisory metadata and can lag behind a successfully persisted chunk if
-      // the tab crashes between the chunk write and metadata patch.
-      if (stats.count !== seqs.length) {
-        // Contiguous seqs but a chunk row is missing/unreadable, so the stream
-        // can't be reassembled. The session passed the owner pre-filter (no live
-        // tab is writing it), so this is permanent corruption — clean it up like
-        // the invalid-stream and below-floor branches rather than re-probing it
-        // forever until the 7-day GC.
-        try {
-          await persistence.deleteSession(row.sessionId)
-        } catch {
-          // best-effort
-        }
-        continue
-      }
-      recoveredBytes = stats.totalBytes
     } catch {
-      continue
-    }
-
-    if (!meetsRecoveryFloor(recoveredBytes)) {
-      // Below-floor audio is valid structurally but too small to be useful.
-      try {
-        await persistence.deleteSession(row.sessionId)
-      } catch {
-        // best-effort
-      }
-      continue
-    }
-
-    if (claimed) {
-      // A newer orphan is already claimed; count the rest for "1 of N".
-      remaining++
-      continue
-    }
-
-    // Claim it: only the tab that acquires the lock surfaces the modal.
-    let acquired = false
-    try {
-      acquired = await lock.acquire(row.sessionId)
-    } catch {
-      acquired = false
-    }
-    if (!acquired) continue
-
-    claimed = {
-      sessionId: row.sessionId,
-      uploadIntentId: row.uploadIntentId,
-      projectId: row.projectId,
-      title: row.title,
-      generatedTitle: row.generatedTitle,
-      keyTerms: row.keyTerms,
-      transcriptionOptions: row.transcriptionOptions,
-      codecMime: mime as string,
-      codecExtension: row.codecExtension,
-      bytesSoFar: recoveredBytes,
-      createdAt: row.createdAt,
-      remainingCount: 0,
-      mayBeTruncated: assessTruncation(row, presence),
+      // Continue to other rows.
+    } finally {
+      if (claim && !keepClaim) await claim.release().catch(() => {})
     }
   }
-
-  if (!claimed) return null
-  claimed.remainingCount = remaining
-  return { info: claimed }
+  return null
 }

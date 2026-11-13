@@ -10,8 +10,10 @@
  * graph acyclic.
  */
 
-import { getOwnerLock, getSessionLock } from './lock'
-import { clearPresenceQuietly, publishPresence } from './sessionPresence'
+import { getOwnerLock, type SessionClaim } from './lock'
+import { publishPresence } from './sessionPresence'
+import { clearPresenceForSession } from './presence'
+import { isRecordingAccountCurrent, isRecordingPageStopped } from './sessionIdentity'
 import {
   clearInterruptedSessionRuntime,
   clearTerminalSessionRuntime,
@@ -34,6 +36,7 @@ import {
   type SnapshotTransitionAction,
 } from './sessionTransitions'
 import { IDLE_SNAPSHOT, type SessionSnapshot } from './sessionTypes'
+import { waitForLocalCleanup } from './cleanupDeadline'
 
 // ----------------------------------------------------------------------------
 // Selectors
@@ -88,9 +91,9 @@ export function hasUnresolvedRecordingArtifact(): boolean {
 
 // Release session ownership, swallowing errors. Lock release is always
 // best-effort: a failed release must never block a terminal/recovery flow.
-export async function releaseSessionLockQuietly(): Promise<void> {
+export async function releaseSessionLockQuietly(claim: SessionClaim | null): Promise<void> {
   try {
-    await getSessionLock().release()
+    await claim?.release()
   } catch {
     // ignore — best-effort
   }
@@ -109,11 +112,36 @@ export async function releaseOwnerLockQuietly(): Promise<void> {
 // then clear presence, then release ownership — so another tab never sees "no
 // owner" while chunks still exist, and cannot briefly claim chunks this tab is
 // deleting (especially important for discard).
-export async function finalizeTerminalCleanup(): Promise<void> {
-  await clearTerminalSessionRuntime(store, clearSessionActivity)
-  clearPresenceQuietly()
-  await releaseSessionLockQuietly()
-  await releaseOwnerLockQuietly()
+const liveReleases = new WeakMap<SessionClaim, Promise<void>>()
+
+export function releaseLiveOwnership(claim: SessionClaim | null): Promise<void> {
+  if (!claim || store.runtime.sessionClaim !== claim) return Promise.resolve()
+  const pending = liveReleases.get(claim)
+  if (pending) return pending
+  const release = (async () => {
+    clearPresenceForSession(claim.sessionId)
+    await releaseSessionLockQuietly(claim)
+    await releaseOwnerLockQuietly()
+    if (store.runtime.sessionClaim === claim) store.runtime.sessionClaim = null
+  })()
+  liveReleases.set(claim, release)
+  return release
+}
+
+let terminalCleanup: Promise<void> | null = null
+
+export function waitForTerminalCleanup(): Promise<boolean> | undefined {
+  const pending = terminalCleanup
+  return pending ? waitForLocalCleanup(() => pending) : undefined
+}
+
+function finalizeTerminalCleanup(canDelete?: () => boolean): Promise<void> {
+  if (terminalCleanup) return terminalCleanup
+  const claim = store.runtime.sessionClaim
+  terminalCleanup = clearTerminalSessionRuntime(store, clearSessionActivity, canDelete)
+    .then(() => releaseLiveOwnership(claim))
+    .finally(() => { terminalCleanup = null })
+  return terminalCleanup
 }
 
 // Persist pause/resume timing from the POST-transition snapshot. `dispatch()`
@@ -177,6 +205,10 @@ const rebaselineChunkClock: TransitionEffect = () => {
 const beginTerminalCleanup: TransitionEffect = () => {
   void finalizeTerminalCleanup()
 }
+const beginDiscardCleanup: TransitionEffect = () => {
+  const userId = store.runtime.userId
+  void finalizeTerminalCleanup(userId ? () => isRecordingAccountCurrent(userId) : undefined)
+}
 const releaseOwnershipIfNonRetryable: TransitionEffect = () => {
   // Non-retryable errors have no recoverable artifact, so drop the public
   // presence and release ownership. Retryable upload errors intentionally keep
@@ -184,8 +216,8 @@ const releaseOwnershipIfNonRetryable: TransitionEffect = () => {
   // null): if this tab dies while parked on the error, other tabs can map the
   // released owner lock back to the lost session id and run recovery.
   if (store.runtime.finalizedRecording == null) {
-    clearPresenceQuietly()
-    void releaseOwnerLockQuietly()
+    const { sessionClaim, writeQueue } = store.runtime
+    void Promise.resolve(writeQueue?.whenSettled()).then(() => releaseLiveOwnership(sessionClaim))
   }
 }
 const disposeLiveController: TransitionEffect = () => {
@@ -224,7 +256,7 @@ const TRANSITION_EFFECTS = {
   // re-entering from the parked error state republishes the upload heartbeat.
   markUploading: { before: [startIntervalIfNeeded], after: [publishPresence] },
   markSubmitted: { before: [beginTerminalCleanup], after: [publishPresence] },
-  discard: { before: [beginTerminalCleanup], after: [publishPresence] },
+  discard: { before: [beginDiscardCleanup], after: [publishPresence] },
   markError: {
     before: [
       clearIntervalIfRunning,
@@ -241,6 +273,10 @@ export function dispatch(
   action: SnapshotTransitionAction,
   patch?: Partial<SessionSnapshot>
 ): boolean {
+  if (store.runtime.uploadAbortController &&
+    (action === 'discard' || action === 'markInterrupted' || action === 'markError' || action === 'markSubmitted')) {
+    return false
+  }
   const prev = store.snapshot
   if (!canTransition(prev.state, action)) return false
   const effects: TransitionEffects = TRANSITION_EFFECTS[action]
@@ -275,7 +311,7 @@ export function markUploading(): void {
 }
 
 export function setUploadBytes(uploadBytes: SessionSnapshot['uploadBytes']): void {
-  if (store.snapshot.state !== 'uploading') return
+  if (store.snapshot.state !== 'uploading' && store.snapshot.state !== 'recoverable') return
   setSnapshot({ ...store.snapshot, uploadBytes })
 }
 
@@ -336,8 +372,17 @@ export function markSubmitted(): void {
   dispatch('markSubmitted', { recoverable: null })
 }
 
-export function discard(salvageMessage?: string): void {
-  dispatch('discard', { salvageMessage: salvageMessage ?? null })
+export function discard(salvageMessage?: string): boolean {
+  if (isRecordingPageStopped() ||
+    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return false
+  return dispatch('discard', { salvageMessage: salvageMessage ?? null })
+}
+
+/** A stopped page can release durable audio for the original account to recover. */
+export function releaseFrozenLiveRecording(): void {
+  const { sessionClaim, writeQueue } = store.runtime
+  if (store.snapshot.state !== 'error' || !sessionClaim) return
+  void Promise.resolve(writeQueue?.whenSettled()).then(() => releaseLiveOwnership(sessionClaim))
 }
 
 export function markError(message: string): void {
@@ -345,6 +390,8 @@ export function markError(message: string): void {
 }
 
 export function resetRecordingSession(): void {
-  void finalizeTerminalCleanup()
+  if (store.runtime.uploadAbortController || isRecordingPageStopped() || store.snapshot.state === 'recoverable' ||
+    (store.runtime.userId && !isRecordingAccountCurrent(store.runtime.userId))) return
+  beginDiscardCleanup()
   setSnapshot({ ...IDLE_SNAPSHOT })
 }

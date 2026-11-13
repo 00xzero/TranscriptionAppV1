@@ -10,8 +10,10 @@ import {
   isRemoteRecordingBlocking,
   useRemotePresenceStatus,
 } from '@/lib/recording/RemotePresenceContext'
-import type { SessionSnapshot } from '@/lib/recording/session'
+import { cancelRecordingUpload, exportFinalizedRecording, getSnapshot, type SessionSnapshot } from '@/lib/recording/session'
+import { isRecordingPageStopped } from '@/lib/recording/sessionIdentity'
 import { shouldRedirectMissingRecordingSession } from '@/lib/recording/recordingRoute'
+import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from '@/lib/recording/durationBudget'
 import { RECORDING_DEV_CONTROLS_ENABLED } from '@/lib/recording/devMode'
 import { MAX_FILE_SIZE_BYTES } from '@/infra/supabase/storage'
 import RecordingControls from '@/components/RecordingSession/RecordingControls'
@@ -24,8 +26,8 @@ import RecordingWaveform from '@/components/RecordingSession/RecordingWaveform'
 import SizeBudgetBanner from '@/components/RecordingSession/SizeBudgetBanner'
 import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
 import { Button } from '@/components/ui/button'
-import { Progress } from '@/components/ui/progress'
-import { formatUploadedBytes } from '@/lib/utils'
+import RecordingUploadStatus from '@/components/RecordingSession/RecordingUploadStatus'
+import { canCancelRecordingUpload } from '@/lib/recording/uploadProgress'
 
 const COMPLETION_REDIRECT_DELAY_MS = 600
 const COMPLETION_REDIRECT_RETRY_MS = 1_500
@@ -84,6 +86,7 @@ export default function RecordingNewPage() {
   const actions = useRecordingActions()
   const [retryingUpload, setRetryingUpload] = useState(false)
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const completionRedirectTarget = getCompletionRedirectTarget({
     state: snapshot.state,
     submissionResult: snapshot.submissionResult,
@@ -108,11 +111,13 @@ export default function RecordingNewPage() {
     if (!completionRedirectTarget) return
 
     const navigate = () => {
+      if (isRecordingPageStopped()) return
       routerRef.current.replace(completionRedirectTarget)
     }
     const primaryId = window.setTimeout(navigate, COMPLETION_REDIRECT_DELAY_MS)
     const retryId = window.setTimeout(navigate, COMPLETION_REDIRECT_RETRY_MS)
     const fallbackId = window.setTimeout(() => {
+      if (isRecordingPageStopped()) return
       try {
         window.location.replace(completionRedirectTarget)
       } catch {
@@ -131,7 +136,7 @@ export default function RecordingNewPage() {
   // the global modal (RecordingSessionProvider), not this route, so production
   // just sends the user back to the library.
   useEffect(() => {
-    if (intentionalReturnRef.current) return
+    if (intentionalReturnRef.current || isRecordingPageStopped()) return
     if (
       shouldRedirectMissingRecordingSession({
         state: snapshot.state,
@@ -146,12 +151,15 @@ export default function RecordingNewPage() {
   const title =
     snapshot.title ?? snapshot.generatedTitle ?? 'Untitled recording'
 
-  const salvageBanner = snapshot.salvageMessage ? (
+  const autoStopMessage = snapshot.autoStopReason && AUTO_STOP_MESSAGES[snapshot.autoStopReason]
+  const stopBanner = autoStopMessage || snapshot.salvageMessage ? (
     <div
       role="status"
       aria-live="polite"
       className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
     >
+      {autoStopMessage}
+      {autoStopMessage && snapshot.salvageMessage && ' '}
       {snapshot.salvageMessage}
     </div>
   ) : null
@@ -182,6 +190,7 @@ export default function RecordingNewPage() {
   ) : null
 
   const handleRetryUpload = async () => {
+    setDownloadError(null)
     setRetryingUpload(true)
     try {
       await actions.retryFinalizedUpload()
@@ -191,9 +200,19 @@ export default function RecordingNewPage() {
   }
 
   const returnToLibrary = () => {
+    if (isRecordingPageStopped() || getSnapshot().uploadPhase !== null) return
     intentionalReturnRef.current = true
     actions.resetRecordingSession()
-    router.push('/transcripts')
+    if (!isRecordingPageStopped()) router.push('/transcripts')
+  }
+
+  const handleDownload = () => {
+    setDownloadError(null)
+    try {
+      exportFinalizedRecording()
+    } catch (error) {
+      setDownloadError((error as Error)?.message ?? 'Could not download the recording.')
+    }
   }
 
   const handleReturnToLibrary = () => {
@@ -265,10 +284,11 @@ export default function RecordingNewPage() {
     return (
       <>
         <RecordingStatusLayout title={title}>
-          {salvageBanner}
+          {stopBanner}
           <div className="rounded-md border border-ember-red/40 bg-ember-red/10 p-4 text-sm text-ink dark:text-paper">
             {snapshot.errorMessage ?? 'Something went wrong with the recording.'}
           </div>
+          {downloadError && <p role="alert" className="text-sm text-ember-red">{downloadError}</p>}
           <div className="flex flex-wrap gap-3">
             {snapshot.canRetryUpload && (
               <Button
@@ -279,6 +299,11 @@ export default function RecordingNewPage() {
                 className="hover:shadow-md disabled:opacity-60"
               >
                 {retryingUpload ? 'Retrying…' : 'Retry upload'}
+              </Button>
+            )}
+            {snapshot.canRetryUpload && (
+              <Button type="button" variant="ghost" onClick={handleDownload} disabled={retryingUpload}>
+                Download recording
               </Button>
             )}
             <button
@@ -314,7 +339,7 @@ export default function RecordingNewPage() {
     return (
       <>
         <RecordingStatusLayout title={title}>
-          {salvageBanner}
+          {stopBanner}
           <p className="text-sm text-ink/70 dark:text-paper/70">
             Your recording was interrupted and couldn&apos;t be recovered.
           </p>
@@ -338,7 +363,7 @@ export default function RecordingNewPage() {
         title={title}
         labelClassName="mt-2 text-sm text-ink/60 dark:text-paper/60"
       >
-        {salvageBanner}
+        {stopBanner}
         <p className="text-sm text-ink/60 dark:text-paper/60">
           Returning to library…
         </p>
@@ -371,40 +396,40 @@ export default function RecordingNewPage() {
 
       <SizeBudgetBanner snapshot={snapshot} maxBytes={MAX_FILE_SIZE_BYTES} />
 
+      {!isInFlight && snapshot.durationWarning && (
+        <div
+          role="status"
+          className="rounded-md border border-ink/15 bg-warm-highlight px-4 py-2 text-sm text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
+        >
+          {DURATION_WARNING_MESSAGE}
+        </div>
+      )}
+
       {durabilityBanner}
 
       {captureHealthBanner}
 
-      {salvageBanner}
+      {stopBanner}
 
       {!isInFlight && <RecordingKeyTerms />}
 
-      {uploadBytes ? (
-        <div className="flex flex-col gap-2" data-testid="recording-upload-progress">
-          <Progress
-            value={uploadBytes.sent}
-            max={Math.max(1, uploadBytes.total)}
-            getValueLabel={() => `${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)} uploaded`}
-            aria-label="Upload progress"
-            className="rounded-full"
+      {isInFlight ? (
+        <div className="flex flex-col items-start gap-3">
+          <RecordingUploadStatus
+            phase={snapshot.uploadPhase}
+            bytes={uploadBytes}
+            fallback={snapshot.state === 'finalizing' ? 'Saving recording…' : 'Uploading…'}
           />
-          <span className="text-sm tabular-nums text-ink/60 dark:text-paper/60">
-            {uploadBytes.sent >= uploadBytes.total
-              ? 'Starting transcription…'
-              : `Uploading… ${formatUploadedBytes(uploadBytes.sent, uploadBytes.total)}`}
-          </span>
-        </div>
-      ) : isInFlight ? (
-        <div
-          className="flex items-center gap-3 text-sm text-ink/60 dark:text-paper/60"
-          data-testid="recording-spinner"
-        >
-          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-ember-red border-t-transparent" />
-          <span>
-            {snapshot.state === 'finalizing'
-              ? 'Saving recording…'
-              : 'Uploading…'}
-          </span>
+          {snapshot.state === 'uploading' && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => cancelRecordingUpload()}
+              disabled={!canCancelRecordingUpload(snapshot.uploadPhase)}
+            >
+              Cancel upload
+            </Button>
+          )}
         </div>
       ) : (
         <RecordingControls />

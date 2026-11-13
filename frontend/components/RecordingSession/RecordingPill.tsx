@@ -8,6 +8,7 @@ import {
 } from '@/lib/recording/RemotePresenceContext'
 import { useGuardedNavigate } from '@/lib/recording/guardedNavigation'
 import { getElapsedActiveMs } from '@/lib/recording/session'
+import { AUTO_STOP_MESSAGES, DURATION_WARNING_MESSAGE } from '@/lib/recording/durationBudget'
 import type { RecordingState } from '@/lib/recording/session'
 import { formatElapsedTime, formatUploadedBytes } from '@/lib/utils'
 import {
@@ -239,7 +240,16 @@ export default function RecordingPill() {
     status = 'Uploading'
     detail = 'The recording is being saved for transcription.'
     dotClass = 'bg-trust-blue animate-pulse'
-    if (bytes && bytes.sent >= bytes.total) {
+    if (snapshot.uploadPhase === 'linking' || snapshot.uploadPhase === 'settling') {
+      uploadedPercent = bytes ? 100 : null
+      label = 'Saving...'
+      ariaLabel = 'Return to recording session, saving audio'
+      status = 'Saving audio to the transcript'
+    } else if (snapshot.uploadPhase === 'canceling') {
+      label = 'Canceling...'
+      ariaLabel = 'Return to recording session, canceling upload'
+      status = 'Canceling upload'
+    } else if (snapshot.uploadPhase === 'starting' || (bytes && bytes.sent >= bytes.total)) {
       uploadedPercent = 100
       label = 'Starting...'
       ariaLabel = 'Return to recording session, starting transcription'
@@ -268,6 +278,17 @@ export default function RecordingPill() {
     action = 'Open the recording page to resolve it.'
     toneClass = 'border-ember-red/50 bg-ember-red/10 text-ember-red dark:bg-ember-red/15'
     dotClass = 'bg-ember-red'
+  }
+
+  const nearingTimeLimit = snapshot.durationWarning && (state === 'recording' || state === 'paused')
+  if (nearingTimeLimit) {
+    label += ' · Time limit near'
+    ariaLabel += `. ${DURATION_WARNING_MESSAGE}`
+    detail = DURATION_WARNING_MESSAGE
+  } else if (snapshot.autoStopReason) {
+    const reason = AUTO_STOP_MESSAGES[snapshot.autoStopReason]
+    ariaLabel += `. ${reason}`
+    detail = `${reason} ${detail ?? ''}`.trim()
   }
 
   return (

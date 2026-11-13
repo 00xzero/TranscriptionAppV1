@@ -3,15 +3,22 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { DiscardRecordingDialog } from '@/components/DiscardRecordingDialog'
+import RecordingUploadStatus from '@/components/RecordingSession/RecordingUploadStatus'
 import { CharacterCount } from '@/components/ui/character-count'
 import { TEXT_LIMITS } from '@/contracts/limits'
 import { TRANSCRIPT_TITLE_TOO_LONG, transcriptTitleTooLong } from '@/core/transcripts/title'
-import { toast } from '@/components/ui/toaster'
-import { showCaptureWarning } from '@/lib/capture/warnings'
+import { PROJECT_MISSING_WARNING_MESSAGE } from '@/lib/capture/warnings'
+import { savedCaptureMessage } from '@/lib/capture/outcomeMessages'
+import { isValidRecordingIntent } from '@/lib/recording/recordingIntent'
+import { canCancelRecordingUpload } from '@/lib/recording/uploadProgress'
 import {
   discardRecovered,
+  cancelRecordingUpload,
+  exportRecovered,
   saveRecovered,
   type RecoverableInfo,
+  type SessionSnapshot,
 } from '@/lib/recording/session'
 
 function formatApproxSize(bytes: number): string {
@@ -27,14 +34,26 @@ function formatApproxSize(bytes: number): string {
  * escape, and dismissal behave like ExportModal/FindReplaceModal — but made
  * non-dismissable: the recovery must be resolved via Save or Discard.
  */
-export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
+export default function RecoveryModal({
+  info,
+  previousSave,
+  uploadPhase = null,
+  uploadBytes = null,
+}: {
+  info: RecoverableInfo
+  previousSave?: SessionSnapshot['submissionResult']
+  uploadPhase?: SessionSnapshot['uploadPhase']
+  uploadBytes?: SessionSnapshot['uploadBytes']
+}) {
   const [title, setTitle] = useState(info.title ?? info.generatedTitle ?? '')
   const titleCountId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const discardButtonRef = useRef<HTMLButtonElement>(null)
   const [titleSaveBlocked, setTitleSaveBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [online, setOnline] = useState(true)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   // Reset editable fields when a different orphan is surfaced (multi-orphan chain).
   useEffect(() => {
@@ -58,6 +77,8 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
   const total = info.remainingCount + 1
 
   const titleTooLong = transcriptTitleTooLong(title)
+  const exportOnly = !isValidRecordingIntent(info.uploadIntentId)
+  const busy = saving || uploadPhase !== null
 
   const handleSave = async () => {
     if (titleTooLong) {
@@ -69,36 +90,39 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
     setError(null)
     const savedTitle =
       title.trim() || info.title || info.generatedTitle || 'Recording'
-    const result = await saveRecovered(savedTitle)
+    const result = await saveRecovered(savedTitle, info.sessionId)
     if (!result.ok) {
       setError(result.message ?? 'Could not save the recording.')
       setSaving(false)
       return
     }
-    // On a final save the provider transitions to submitted and the route
-    // redirects. When another orphan is queued the modal re-mounts with it (reset
-    // effect above), so confirm the just-saved one with a toast — there is no
-    // redirect to acknowledge it otherwise.
-    if (result.chainedToNext) {
-      const description = `“${savedTitle}” is uploading and will start transcribing.`
-      if (!showCaptureWarning(result.warning, description)) {
-        toast({ title: 'Recording saved', description })
-      }
-    }
+    setSaving(false)
   }
 
   const handleDiscard = async () => {
     setSaving(true)
     setError(null)
     try {
-      await discardRecovered()
+      await discardRecovered(info.sessionId)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      await exportRecovered(info.sessionId)
     } catch (err) {
-      setError((err as Error)?.message ?? 'Could not discard the recording.')
+      setError((err as Error)?.message ?? 'Could not download the recording.')
+    } finally {
       setSaving(false)
     }
   }
 
   return (
+    <>
     <Dialog open={true} onOpenChange={() => { /* blocking: resolve via Save/Discard */ }}>
       <DialogContent
         className="w-[480px] overflow-hidden p-0"
@@ -118,6 +142,13 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
         </div>
 
         <div className="space-y-4 px-6 pb-5">
+          {previousSave && (
+            <div role="status" className="rounded-md border border-border bg-subtle px-3 py-2 text-xs text-foreground">
+              {savedCaptureMessage(previousSave.outcome) ?? 'Previous recording saved.'}
+              {previousSave.warning === 'project_missing' && <p>{PROJECT_MISSING_WARNING_MESSAGE}</p>}
+            </div>
+          )}
+
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-ink/70 dark:text-paper/70">
               Title
@@ -127,7 +158,7 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              disabled={saving}
+              disabled={busy || exportOnly}
               placeholder="Untitled recording"
               aria-describedby={titleCountId}
               aria-invalid={titleTooLong ? true : undefined}
@@ -159,12 +190,18 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
             </div>
           )}
 
+          {exportOnly && (
+            <p role="status" className="text-xs text-muted">
+              This recording is available for download only. You can also discard the local copy.
+            </p>
+          )}
+
           {!online && (
             <div
               role="status"
               className="rounded-lg border border-ink/15 bg-warm-highlight px-3 py-2 text-xs text-ink dark:border-night-border dark:bg-night-surface/60 dark:text-paper"
             >
-              You&apos;re offline. Reconnect to save this recording — or discard it.
+              You&apos;re offline. You can still download the recording.
             </div>
           )}
 
@@ -176,29 +213,56 @@ export default function RecoveryModal({ info }: { info: RecoverableInfo }) {
               {error}
             </div>
           )}
+          {uploadPhase && <RecordingUploadStatus phase={uploadPhase} bytes={uploadBytes} />}
         </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-6 py-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border [background:color-mix(in_oklab,var(--text)_5%,transparent)] px-5 py-4">
           <button
+            ref={discardButtonRef}
             type="button"
-            onClick={handleDiscard}
-            disabled={saving}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
+            onClick={() => setDiscardOpen(true)}
+            disabled={busy}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-ink/60 transition-colors hover:text-ink disabled:opacity-40 dark:text-paper/50 dark:hover:text-paper"
           >
             Discard
           </button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleSave}
-            disabled={saving || !online}
-            title={!online ? 'You are offline' : 'Save and transcribe'}
-            className="rounded-lg px-5 focus-visible:ring-destructive/40 disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : 'Save & transcribe'}
+          <Button type="button" variant="ghost" onClick={handleDownload} disabled={busy} className="px-3">
+            Download recording
           </Button>
+          {!exportOnly && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleSave}
+              disabled={busy || !online}
+              title={!online ? 'You are offline' : 'Save and transcribe'}
+              className="rounded-lg focus-visible:ring-destructive/40 disabled:opacity-40"
+            >
+              Save &amp; transcribe
+            </Button>
+          )}
+          {uploadPhase && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => cancelRecordingUpload(info.sessionId)}
+              disabled={!canCancelRecordingUpload(uploadPhase)}
+            >
+              Cancel upload
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
+    <DiscardRecordingDialog
+      open={discardOpen}
+      onOpenChange={setDiscardOpen}
+      onConfirm={handleDiscard}
+      onCloseAutoFocus={(event) => {
+        event.preventDefault()
+        discardButtonRef.current?.focus()
+      }}
+    />
+    </>
   )
 }

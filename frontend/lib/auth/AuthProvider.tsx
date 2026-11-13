@@ -62,6 +62,8 @@ interface AuthIdentity {
 }
 
 export interface AuthContextValue extends AuthIdentity {
+  /** Synchronous account check for local actions that may run without a token. */
+  hasStopped: () => boolean
   /**
    * Sign out: leaves the page for `/auth/sign-out`, which ends the WorkOS
    * session and lands on the sign-in page. The page stays as it is until it
@@ -412,9 +414,10 @@ function AppAuthProvider({ children }: { children: ReactNode }) {
       userId,
       ready,
       accountChange,
+      hasStopped,
       signOut,
     }),
-    [account, userId, ready, email, name, accountChange, signOut]
+    [account, userId, ready, email, name, accountChange, hasStopped, signOut]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

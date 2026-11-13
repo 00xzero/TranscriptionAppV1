@@ -10,6 +10,7 @@ type DiscardRecordingDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void | Promise<void>
+  onCloseAutoFocus?: (event: Event) => void
 }
 
 /**
@@ -21,6 +22,7 @@ export function DiscardRecordingDialog({
   open,
   onOpenChange,
   onConfirm,
+  onCloseAutoFocus,
 }: DiscardRecordingDialogProps) {
   return (
     <ConfirmDialog
@@ -29,6 +31,7 @@ export function DiscardRecordingDialog({
       heading={DISCARD_RECORDING_HEADING}
       description={DISCARD_RECORDING_DESCRIPTION}
       onConfirm={onConfirm}
+      onCloseAutoFocus={onCloseAutoFocus}
       confirmLabel="Discard"
       pendingLabel="Discarding…"
     />

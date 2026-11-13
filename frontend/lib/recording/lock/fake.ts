@@ -1,29 +1,30 @@
-import { type SessionLock } from './types'
+import type { SessionClaim, SessionLock } from './types'
 
 /**
  * In-memory SessionLock fake for unit tests.
  *
  * `ownedElsewhere` simulates sessions a different tab currently owns: for those,
- * `acquire` returns false (claim race lost) and `isHeld` returns true. Sessions
- * this fake acquires are tracked so `release` frees them.
+ * `acquire` returns null (claim race lost) and `isHeld` returns true.
  */
 export class FakeSessionLock implements SessionLock {
-  private held: string | null = null
+  private held: SessionClaim | null = null
 
   constructor(public readonly ownedElsewhere: Set<string> = new Set()) {}
 
-  async acquire(sessionId: string): Promise<boolean> {
-    if (this.ownedElsewhere.has(sessionId)) return false
-    if (this.held !== null) return this.held === sessionId
-    this.held = sessionId
-    return true
+  async acquire(sessionId: string): Promise<SessionClaim | null> {
+    if (this.ownedElsewhere.has(sessionId) || this.held) return null
+    const claim = {
+      sessionId,
+      release: async () => {
+        if (this.held === claim) this.held = null
+      },
+    }
+    this.held = claim
+    return claim
   }
 
   async isHeld(sessionId: string): Promise<boolean> {
-    return this.ownedElsewhere.has(sessionId) || this.held === sessionId
+    return this.ownedElsewhere.has(sessionId) || this.held?.sessionId === sessionId
   }
 
-  async release(): Promise<void> {
-    this.held = null
-  }
 }

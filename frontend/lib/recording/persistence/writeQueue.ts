@@ -8,7 +8,7 @@ type QueueOp =
   | { kind: 'session'; record: PersistedSession }
   | { kind: 'chunk'; seq: number; blob: Blob }
   | { kind: 'metadata'; patch: PersistedSessionPatch }
-  | { kind: 'delete' }
+  | { kind: 'delete'; canDelete?: () => boolean }
 
 /**
  * Write-behind persistence for a single recording session.
@@ -27,6 +27,7 @@ type QueueOp =
  *   in-flight writes and a late `dataavailable` cannot resurrect rows.
  */
 export class SessionWriteQueue {
+  private readonly writeController = new AbortController()
   private ops: QueueOp[] = []
   private draining = false
   private accepting = true
@@ -87,17 +88,37 @@ export class SessionWriteQueue {
   }
 
   /**
-   * Queue-owned terminal teardown. Stops accepting new ops, cancels writes that
-   * have not started, and deletes the session + chunks after any in-flight write
-   * settles. Safe to call after a downgrade. Resolves once the delete has run.
+   * Stop accepting writes and settle deletion. A guarded delete drains pending
+   * writes first so the session stays recoverable if deletion is refused.
    */
-  async closeAndDelete(): Promise<void> {
+  async closeAndDelete(canDelete?: () => boolean): Promise<void> {
     this.accepting = false
     this.closing = true
-    // Drop not-yet-started writes; the delete cleans up anything already written.
-    this.ops = [{ kind: 'delete' }]
+    const deletion = { kind: 'delete', canDelete } as const
+    // A guarded discard may be refused after the account switches. Drain its
+    // pending writes so the original account can still recover that audio.
+    this.ops = canDelete ? [...this.ops, deletion] : [deletion]
     this.kick()
     await this.whenSettled()
+  }
+
+  /** Stop accepting writes and drain without deleting the recovery copy. */
+  async seal(signal: AbortSignal): Promise<void> {
+    this.accepting = false
+    const abandon = () => {
+      this.ops = []
+      this.writeController.abort()
+    }
+    if (signal.aborted) {
+      abandon()
+      return
+    }
+    signal.addEventListener('abort', abandon, { once: true })
+    try {
+      await this.whenSettled()
+    } finally {
+      signal.removeEventListener('abort', abandon)
+    }
   }
 
   /** Resolves when the queue has fully drained (no pending or in-flight ops). */
@@ -125,7 +146,7 @@ export class SessionWriteQueue {
         try {
           await this.run(op)
         } catch (err) {
-          this.handleFailure(op, err)
+          await this.handleFailure(op, err)
         }
       }
     } finally {
@@ -140,24 +161,27 @@ export class SessionWriteQueue {
   }
 
   private run(op: QueueOp): Promise<void> {
+    const { signal } = this.writeController
     switch (op.kind) {
       case 'session':
-        return this.persistence.putSession(op.record)
+        return this.persistence.putSession(op.record, signal)
       case 'chunk':
-        return this.persistence.putChunk(this.sessionId, op.seq, op.blob)
+        return this.persistence.putChunk(this.sessionId, op.seq, op.blob, signal)
       case 'metadata':
-        return this.persistence.patchSession(this.sessionId, op.patch)
+        return this.persistence.patchSession(this.sessionId, op.patch, signal)
       case 'delete':
-        return this.persistence.deleteSession(this.sessionId)
+        return op.canDelete
+          ? this.persistence.deleteSession(this.sessionId, op.canDelete)
+          : this.persistence.deleteSession(this.sessionId)
     }
   }
 
-  private handleFailure(op: QueueOp, err: unknown): void {
+  private async handleFailure(op: QueueOp, err: unknown): Promise<void> {
     if (op.kind === 'delete') {
       // Terminal delete failed; leave residue for GC. Never recurse.
       return
     }
-    if (!this.armed) return
+    if (!this.armed || this.writeController.signal.aborted) return
 
     this.armed = false
     this.failureReason = err instanceof Error ? err.message : String(err)
@@ -171,11 +195,11 @@ export class SessionWriteQueue {
     // Sticky downgrade: drop pending work, but keep a queued terminal delete.
     this.ops = this.ops.filter((pending) => pending.kind === 'delete')
     // Single best-effort downgrade marker; swallow its own failure, no recursion.
-    void this.persistence
+    await this.persistence
       .patchSession(this.sessionId, {
         armed: false,
         failureReason: this.failureReason,
-      })
+      }, this.writeController.signal)
       .catch(() => {})
   }
 

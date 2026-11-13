@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod'
+import { CaptureUploadOutcomeSchema } from '@/contracts/capture'
 import { SavedTranscriptionOptionsSchema, resolveTranscriptionOptions } from '@/contracts/transcription-options'
 
 export const PersistedSessionPhaseSchema = z.enum(['capturing', 'uploading'])
@@ -15,7 +16,8 @@ export const PersistedSessionSchema = z.object({
   sessionId: z.string(),
   // Reserved for Phase 2 (recovery scoping + upload idempotency). Null in Phase 1.
   userId: z.string().nullable(),
-  uploadIntentId: z.string().nullable(),
+  // A missing or corrupt key still leaves audio available for local export.
+  uploadIntentId: z.unknown().optional().transform((value) => typeof value === 'string' ? value : null),
   projectId: z.string().nullable().default(null),
   title: z.string().nullable(),
   generatedTitle: z.string().nullable(),
@@ -35,6 +37,7 @@ export const PersistedSessionSchema = z.object({
   lastChunkSeq: z.number().nullable(),
   lastChunkReceivedAt: z.number().nullable(),
   phase: PersistedSessionPhaseSchema,
+  cleanupOnly: CaptureUploadOutcomeSchema.optional(),
   // Live/UI signal only; recovery validity is decided structurally, not from this.
   armed: z.boolean(),
   failureReason: z.string().nullable(),
@@ -67,13 +70,14 @@ export interface SessionPersistence {
    * path would never fire and the unarmed warning would never show.
    */
   readonly durable: boolean
-  putSession(record: PersistedSession): Promise<void>
-  patchSession(sessionId: string, patch: PersistedSessionPatch): Promise<void>
+  // A write signal can prevent a transaction from starting while waiting for the database.
+  putSession(record: PersistedSession, signal?: AbortSignal): Promise<void>
+  patchSession(sessionId: string, patch: PersistedSessionPatch, signal?: AbortSignal): Promise<void>
   getSession(sessionId: string): Promise<PersistedSession | null>
   listSessions(): Promise<PersistedSession[]>
-  /** Deletes the session row and every chunk belonging to it. */
-  deleteSession(sessionId: string): Promise<void>
-  putChunk(sessionId: string, seq: number, blob: Blob): Promise<void>
+  /** Deletes the row and its chunks after the optional guard, with cancellation until commit. */
+  deleteSession(sessionId: string, canDelete?: () => boolean, signal?: AbortSignal): Promise<void>
+  putChunk(sessionId: string, seq: number, blob: Blob, signal?: AbortSignal): Promise<void>
   listChunkSeqs(sessionId: string): Promise<number[]>
   /**
    * Metadata-only chunk summary: how many chunks exist and their total byte

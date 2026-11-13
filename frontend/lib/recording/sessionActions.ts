@@ -24,7 +24,6 @@ import {
 import { shouldIgnoreRecorderFailure } from './sessionTransitions'
 import {
   getPersistence,
-  gcExpiredSessions,
   requestPersistentStorage,
   SessionWriteQueue,
   __setPersistenceForTesting,
@@ -51,19 +50,24 @@ import {
   getElapsedActiveMs,
   hasUnsavedRecording,
   isRecordingSessionActive,
+  markError,
   releaseOwnerLockQuietly,
+  resume as resumeSession,
+  waitForTerminalCleanup,
 } from './sessionCore'
-import {
-  recordingMediaFilename,
-  submitFinalizedRecording,
-} from './sessionUpload'
+import { submitFinalizedRecording } from './sessionUpload'
+import { recordingMediaFilename } from './recordingIntent'
 import {
   markInterrupted,
   runRecoveryProbe,
 } from './sessionRecovery'
-import { getIdentity, __resetIdentityForTesting } from './sessionIdentity'
+import { getIdentity, isRecordingAccountCurrent, __resetIdentityForTesting } from './sessionIdentity'
+import { DURATION_STOP_HEADROOM_MS, DURATION_WARNING_MS } from './durationBudget'
+import { waitForLocalCleanup } from './cleanupDeadline'
 import { meetsEmptyFloor, shouldAutoStop } from './sizeBudget'
 import { randomId } from '@/lib/ids'
+import { resolveTranscriptionOptions } from '@/contracts/transcription-options'
+import { ENGINE_CAPABILITIES } from '@/core/transcription/engines/capabilities'
 
 export class RecordingAlreadyActiveError extends Error {
   readonly code = 'recording_already_active' as const
@@ -102,7 +106,25 @@ export class RecordingIdentityRequiredError extends Error {
   }
 }
 
+let attaching = false
+
 export async function attachAndStart(params: AttachAndStartParams): Promise<void> {
+  if (attaching) throw new RecordingAlreadyActiveError()
+  attaching = true
+  try {
+    await startRecording(params)
+  } finally {
+    attaching = false
+  }
+}
+
+async function startRecording(params: AttachAndStartParams): Promise<void> {
+  const { userId } = getIdentity()
+  const cleanup = waitForTerminalCleanup()
+  if (cleanup && !(await cleanup)) {
+    throw new Error('The previous recording is still being cleaned up. Try again in a moment.')
+  }
+
   // A pending recovery must be saved/discarded before a new recording can start.
   if (store.snapshot.state === 'recoverable') {
     throw new RecoveryPendingError()
@@ -113,20 +135,24 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   // leak the newly acquired stream and pretend a new recording started.
   if (
     (store.runtime.controller && store.runtime.controller.isAttached()) ||
+    store.runtime.sessionClaim ||
     hasUnsavedRecording()
   ) {
     throw new RecordingAlreadyActiveError()
   }
 
-  const identity = getIdentity()
-  if (!identity.ready || !identity.userId) {
+  if (!userId || !isRecordingAccountCurrent(userId)) {
     throw new RecordingIdentityRequiredError()
   }
 
   // The provider runs this at app startup, but attach is the final backstop:
   // before writing a new session, surface any pending orphan for this user.
-  if (await runRecoveryProbe()) {
-    throw new RecoveryPendingError()
+  const probeSettled = await waitForLocalCleanup(async () => {
+    if (await runRecoveryProbe()) throw new RecoveryPendingError()
+  })
+  if (!isRecordingAccountCurrent(userId)) throw new RecordingIdentityRequiredError()
+  if (!probeSettled) {
+    throw new Error('Recording recovery is taking longer than expected. Try again in a moment.')
   }
 
   clearMockLifecycleTimeouts()
@@ -139,6 +165,8 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   // Distinct from sessionId: the user-scoped upload idempotency key. Generated at
   // start so a session that crashes before stop still carries its dedup key.
   const uploadIntentId = randomId('sess-')
+  const transcriptionOptions = resolveTranscriptionOptions(params.transcriptionOptions)
+  const durationLimit = ENGINE_CAPABILITIES[transcriptionOptions.engine].maxDurationSeconds
 
   // Phase 4: take the global per-browser owner lock first. If another same-browser
   // tab already owns a live recording, this fails fast and we never touch the
@@ -147,17 +175,23 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   if (!ownerAcquired) {
     throw new RemoteRecordingActiveError()
   }
+  if (!isRecordingAccountCurrent(userId)) {
+    await releaseOwnerLockQuietly()
+    throw new RecordingIdentityRequiredError()
+  }
 
   // Take ownership of this session before constructing the recorder, so another
   // tab cannot claim it as a recoverable orphan while it is live. On failure the
   // caller still owns the stream (it releases it); we only own the lock here.
-  const acquired = await lock.acquire(sessionId)
-  if (!acquired) {
+  const claim = await lock.acquire(sessionId)
+  if (!claim) {
     await releaseOwnerLockQuietly()
     throw new RecordingAlreadyActiveError()
   }
+  store.runtime.sessionClaim = claim
 
   try {
+    if (!isRecordingAccountCurrent(userId)) throw new RecordingIdentityRequiredError()
     const controller = createRecorderController(params.stream, params.codec.mime, {
       onChunk: (blob) => recordChunk(blob),
       onError: (reason) => handleRecorderFailure(reason),
@@ -174,13 +208,14 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.deviceId = params.deviceId
     store.runtime.codecMime = params.codec.mime
     store.runtime.maxBytes = params.maxBytes
+    store.runtime.maxActiveMs = durationLimit === null ? null : durationLimit * 1000
 
     // Initialize durable persistence identity BEFORE start(): `acceptingChunks` is
     // already true, so the chunk path is live and a (theoretical) synchronous chunk
     // must find an initialized queue. The session row is only enqueued after start
     // succeeds, so a start failure leaves no orphan row.
     store.runtime.sessionId = sessionId
-    store.runtime.userId = identity.userId
+    store.runtime.userId = userId
     store.runtime.uploadIntentId = uploadIntentId
     store.runtime.nextChunkSeq = 0
     store.runtime.lastChunkReceivedAt = null
@@ -200,6 +235,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.deviceId = null
     store.runtime.codecMime = null
     store.runtime.maxBytes = 0
+    store.runtime.maxActiveMs = null
     store.runtime.sessionId = null
     store.runtime.userId = null
     store.runtime.uploadIntentId = null
@@ -207,8 +243,9 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     store.runtime.lastChunkReceivedAt = null
     store.runtime.flushRequested = false
     store.runtime.writeQueue = null
-    void lock.release()
-    void releaseOwnerLockQuietly()
+    await claim.release().catch(() => {})
+    await releaseOwnerLockQuietly()
+    store.runtime.sessionClaim = null
     throw err
   }
 
@@ -225,7 +262,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     lastResumeAt: now,
     pausedAccumulatedMs: 0,
     keyTerms: params.keyTerms,
-    transcriptionOptions: params.transcriptionOptions,
+    transcriptionOptions,
     codecExtension: params.codec.extension,
     bytesSoFar: 0,
     // Unavailable-from-start detection: a no-op adapter never persists, so the
@@ -234,16 +271,16 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   })
 
   // Persist the session row first (queue invariant: putSession is op #0), then
-  // best-effort durable-storage request and an opportunistic 7-day GC sweep.
+  // best-effort durable-storage request. The recovery probe swept expired rows.
   store.runtime.writeQueue.enqueueSession({
     sessionId,
-    userId: identity.userId,
+    userId,
     uploadIntentId,
     projectId: params.projectId,
     title: params.title,
     generatedTitle,
     keyTerms: params.keyTerms,
-    transcriptionOptions: params.transcriptionOptions,
+    transcriptionOptions,
     codecMime: params.codec.mime,
     codecExtension: params.codec.extension,
     deviceId: params.deviceId,
@@ -259,7 +296,6 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
     failureReason: null,
   })
   void requestPersistentStorage()
-  void gcExpiredSessions(persistence)
 
   startIntervalIfNeeded()
   // Announce ownership to same-browser tabs immediately so they reflect the live
@@ -267,8 +303,7 @@ export async function attachAndStart(params: AttachAndStartParams): Promise<void
   publishPresence()
 }
 
-// Single-flight, drain-aware Stop. Used by the recording page's controls and
-// by the size-budget auto-stop.
+// Single-flight, drain-aware Stop for the manual control and both budgets.
 export async function stopAndFinalize(): Promise<void> {
   if (store.runtime.stopInProgress) return
   store.runtime.stopInProgress = true
@@ -307,9 +342,11 @@ export async function stopAndFinalize(): Promise<void> {
   }
 
   if (!meetsEmptyFloor(getElapsedActiveMs(store.snapshot), store.runtime.bytesSoFar)) {
-    store.runtime.stopInProgress = false
-    discard('Recording discarded before enough audio was captured.')
-    return
+    if (discard('Recording discarded before enough audio was captured.')) return
+    if (store.runtime.bytesSoFar === 0) {
+      markError('No audio was captured.')
+      return
+    }
   }
 
   const normalizedMime = (store.runtime.codecMime ?? 'audio/webm').split(';')[0]
@@ -340,6 +377,40 @@ export async function stopAndFinalize(): Promise<void> {
   } finally {
     store.runtime.stopInProgress = false
   }
+}
+
+export function resume(): void {
+  if (store.snapshot.state !== 'paused') return
+  if (!checkRecordingLimits(Date.now())) resumeSession()
+}
+
+/** Return true when a budget stops capture, so a paused recorder stays paused. */
+function checkRecordingLimits(now: number): boolean {
+  const snapshot = store.snapshot
+  const { stopInProgress, maxActiveMs, bytesSoFar, maxBytes } = store.runtime
+  if (
+    stopInProgress ||
+    (snapshot.state !== 'recording' && snapshot.state !== 'paused')
+  ) return false
+
+  const activeMs = getElapsedActiveMs(snapshot, now)
+  const stopAtMs = maxActiveMs === null
+    ? Infinity
+    : Math.max(0, maxActiveMs - DURATION_STOP_HEADROOM_MS)
+  const reason = shouldAutoStop(bytesSoFar, maxBytes) ? 'size'
+    : activeMs >= stopAtMs ? 'duration'
+    : null
+
+  if (reason) {
+    setSnapshot({ ...snapshot, autoStopReason: reason, durationWarning: false })
+    void stopAndFinalize()
+    return true
+  }
+
+  if (!snapshot.durationWarning && activeMs >= stopAtMs - DURATION_WARNING_MS) {
+    setSnapshot({ ...snapshot, durationWarning: true })
+  }
+  return false
 }
 
 export function recordChunk(blob: Blob): void {
@@ -373,26 +444,21 @@ export function recordChunk(blob: Blob): void {
     captureHealthWarning: null,
   })
 
-  if (
-    !store.runtime.stopInProgress &&
-    store.runtime.maxBytes > 0 &&
-    shouldAutoStop(store.runtime.bytesSoFar, store.runtime.maxBytes)
-  ) {
-    void stopAndFinalize()
-  }
+  // MediaRecorder delivery drives the guard even if background timers lag.
+  checkRecordingLimits(now)
 }
 
 export function handleRecorderFailure(reason: string): void {
   if (shouldIgnoreRecorderFailure(store.snapshot.state)) return
 
-  const activeMs = getElapsedActiveMs(store.snapshot)
-  if (meetsEmptyFloor(activeMs, store.runtime.bytesSoFar)) {
-    setSalvageMessage(`${reason} Submitting what was recorded.`)
-    void stopAndFinalize()
-    return
-  }
+  const { userId, bytesSoFar } = store.runtime
+  const enoughAudio = meetsEmptyFloor(getElapsedActiveMs(store.snapshot), bytesSoFar)
+  if (!enoughAudio && discard(`${reason} Recording discarded before enough audio was captured.`)) return
 
-  discard(`${reason} Recording discarded before enough audio was captured.`)
+  setSalvageMessage(enoughAudio && isRecordingAccountCurrent(userId)
+    ? `${reason} Submitting what was recorded.`
+    : reason)
+  void stopAndFinalize()
 }
 
 /**
@@ -475,6 +541,8 @@ function setSalvageMessage(message: string | null): void {
 
 export function __resetForTesting(): void {
   void releaseOwnerLockQuietly()
+  void store.runtime.sessionClaim?.release()
+  void store.runtime.recoveryClaim?.release()
   clearIntervalIfRunning()
   clearMockLifecycleTimeouts()
   abortUpload(store)
